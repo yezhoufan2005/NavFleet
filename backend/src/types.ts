@@ -212,3 +212,19 @@ export interface HistoryQuery {
   to?: string;
   limit?: number;
 }
+
+export type UserRole = "admin" | "operator" | "viewer";
+
+export interface UserRecord {
+  username: string;
+  passwordHash: string;
+  role: UserRole;
+  createdAt: string;
+  updatedAt: string;
+}
+
+/** User shape safe to return to clients (no password hash). */
+export interface PublicUser {
+  username: string;
+  role: UserRole;
+}

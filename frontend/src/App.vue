@@ -2,10 +2,15 @@
 import { computed, onBeforeUnmount, onMounted, ref } from "vue";
 import GpsMap from "./components/GpsMap.vue";
 import RosSceneMap from "./components/RosSceneMap.vue";
+import LoginForm from "./components/LoginForm.vue";
 import { useDashboard } from "./composables/useDashboard";
+import { useAuth } from "./composables/useAuth";
 import { controlModeMap, gearMap, taskStatusMap, formatEnum, describeEnum } from "./utils/enums";
 
 const dashboard = useDashboard();
+const auth = useAuth();
+const authState = auth.state;
+let dashboardStarted = false;
 
 const {
   state,
@@ -54,6 +59,12 @@ const toneLabelMap = {
   critical: "告警",
   notice: "提示",
   offline: "离线",
+};
+
+const roleLabelMap = {
+  admin: "管理员",
+  operator: "操作员",
+  viewer: "只读",
 };
 
 const alertSourceLabelMap = {
@@ -235,10 +246,32 @@ function handleDeviceSelect(deviceId) {
   selectDevice(deviceId, { preserveFormation: Boolean(selectedFormation.value) });
 }
 
-onMounted(async () => {
+async function startDashboard() {
+  if (dashboardStarted) {
+    return;
+  }
+  dashboardStarted = true;
   registerWindowApi();
   await bootstrap();
+}
+
+async function handleLogin(credentials) {
+  const ok = await auth.login(credentials.username, credentials.password);
+  if (ok) {
+    await startDashboard();
+  }
+}
+
+async function handleLogout() {
+  await auth.logout();
+}
+
+onMounted(async () => {
   window.addEventListener("keydown", handleKeydown);
+  const authenticated = await auth.fetchMe();
+  if (authenticated) {
+    await startDashboard();
+  }
 });
 
 onBeforeUnmount(() => {
@@ -247,7 +280,18 @@ onBeforeUnmount(() => {
 </script>
 
 <template>
-  <div class="app-shell">
+  <div v-if="authState.status === 'unknown'" class="app-loading">
+    <span>正在加载…</span>
+  </div>
+
+  <LoginForm
+    v-else-if="authState.status === 'anonymous'"
+    :pending="authState.pending"
+    :error="authState.error"
+    @submit="handleLogin"
+  />
+
+  <div v-else class="app-shell">
     <header class="panel page-header">
       <div class="page-header-top">
         <div class="brand-block">
@@ -256,19 +300,33 @@ onBeforeUnmount(() => {
           <span class="brand-meta">{{ state.fleetName || "默认车队" }}</span>
         </div>
 
-        <button
-          type="button"
-          class="alert-center-btn"
-          :data-tone="alertButtonTone"
-          :class="{ active: isAlertDrawerOpen }"
-          @click="toggleAlertDrawer"
-        >
-          <div class="alert-center-copy">
-            <span class="alert-center-title">告警中心</span>
-            <span class="alert-center-subtitle">{{ getAlertButtonText() }}</span>
+        <div class="header-actions">
+          <button
+            type="button"
+            class="alert-center-btn"
+            :data-tone="alertButtonTone"
+            :class="{ active: isAlertDrawerOpen }"
+            @click="toggleAlertDrawer"
+          >
+            <div class="alert-center-copy">
+              <span class="alert-center-title">告警中心</span>
+              <span class="alert-center-subtitle">{{ getAlertButtonText() }}</span>
+            </div>
+            <span v-if="summary.alertTotal" class="alert-center-badge">{{
+              summary.alertTotal
+            }}</span>
+          </button>
+
+          <div v-if="authState.user" class="session-chip">
+            <div class="session-meta">
+              <span class="session-user">{{ authState.user.username }}</span>
+              <span class="session-role">{{ roleLabelMap[authState.user.role] }}</span>
+            </div>
+            <button type="button" class="session-logout" title="退出登录" @click="handleLogout">
+              退出
+            </button>
           </div>
-          <span v-if="summary.alertTotal" class="alert-center-badge">{{ summary.alertTotal }}</span>
-        </button>
+        </div>
       </div>
 
       <div class="headline-stats">

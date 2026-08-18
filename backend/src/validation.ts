@@ -30,3 +30,10 @@ export const ingestBodySchema = z.union([z.record(z.string(), z.unknown()), z.ar
 
 export type HistoryQueryInput = z.infer<typeof historyQuerySchema>;
 export type AlertsQueryInput = z.infer<typeof alertsQuerySchema>;
+
+export const loginSchema = z.object({
+  username: z.string().min(1).max(200),
+  password: z.string().min(1).max(200),
+});
+
+export type LoginInput = z.infer<typeof loginSchema>;
