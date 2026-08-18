@@ -16,6 +16,8 @@ coverage/
 backend/.tmp-*.json
 
 .playwright-cli/
+.playwright-mcp/
+.claude/
 
 .DS_Store
 Thumbs.db

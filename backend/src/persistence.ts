@@ -1,7 +1,7 @@
 import { Db, MongoClient } from "mongodb";
 import pino from "pino";
 import { config } from "./config";
-import { DeviceAlert, DeviceSnapshot, HistoryQuery } from "./types";
+import { DeviceAlert, DeviceSnapshot, HistoryQuery, UserRecord } from "./types";
 
 const logger = pino({ name: "persistence" });
 
@@ -36,6 +36,9 @@ export class Persistence {
   private mongoClient: MongoClient | null = null;
   private db: Db | null = null;
   private pendingTelemetry: TelemetryDocument[] = [];
+  // In-memory user store used when MongoDB is unavailable, so auth still works
+  // for local/dev runs (mirrors the telemetry in-memory fallback).
+  private fallbackUsers = new Map<string, UserRecord>();
 
   async connect(): Promise<void> {
     await this.connectMongo();
@@ -85,6 +88,9 @@ export class Persistence {
     if (!names.has("alerts")) {
       await this.db.createCollection("alerts");
     }
+    if (!names.has("users")) {
+      await this.db.createCollection("users");
+    }
 
     await this.db.collection("device_latest").createIndex({ deviceId: 1 }, { unique: true });
     await this.db.collection("device_latest").createIndex({ stamp: -1 });
@@ -93,6 +99,42 @@ export class Persistence {
     await this.db
       .collection("alerts")
       .createIndex({ lastSeenAt: 1 }, { expireAfterSeconds: config.alertsRetentionSeconds });
+    await this.db.collection("users").createIndex({ username: 1 }, { unique: true });
+  }
+
+  async findUserByUsername(username: string): Promise<UserRecord | null> {
+    if (!this.db) {
+      return this.fallbackUsers.get(username) ?? null;
+    }
+    return this.db
+      .collection<UserRecord>("users")
+      .findOne({ username }, { projection: { _id: 0 } });
+  }
+
+  async upsertUser(user: UserRecord): Promise<void> {
+    if (!this.db) {
+      this.fallbackUsers.set(user.username, user);
+      return;
+    }
+    await this.db.collection<UserRecord>("users").updateOne(
+      { username: user.username },
+      {
+        $set: {
+          passwordHash: user.passwordHash,
+          role: user.role,
+          updatedAt: user.updatedAt,
+        },
+        $setOnInsert: { username: user.username, createdAt: user.createdAt },
+      },
+      { upsert: true },
+    );
+  }
+
+  async countUsers(): Promise<number> {
+    if (!this.db) {
+      return this.fallbackUsers.size;
+    }
+    return this.db.collection("users").countDocuments();
   }
 
   async restoreLatestDevices(): Promise<DeviceSnapshot[]> {

@@ -1447,3 +1447,138 @@ button {
     width: calc(100vw - 20px);
   }
 }
+
+/* --- Auth: login screen + session controls (Phase 2) --- */
+.app-loading {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 100vh;
+  color: var(--muted);
+  font-size: 15px;
+}
+
+.login-shell {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 100vh;
+  padding: 24px;
+}
+
+.login-card {
+  width: 100%;
+  max-width: 380px;
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+  padding: 32px;
+}
+
+.login-brand {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.login-brand h1 {
+  margin: 4px 0 0;
+  font-size: 22px;
+}
+
+.login-brand p {
+  margin: 6px 0 0;
+  color: var(--muted);
+  font-size: 13px;
+}
+
+.login-field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  font-size: 13px;
+  color: var(--muted);
+}
+
+.login-field input {
+  padding: 10px 12px;
+  border-radius: 8px;
+  border: 1px solid var(--border);
+  background: var(--bg-elevated);
+  color: var(--text);
+  font-size: 14px;
+}
+
+.login-field input:focus {
+  outline: none;
+  border-color: var(--brand);
+}
+
+.login-error {
+  margin: 0;
+  color: var(--critical);
+  font-size: 13px;
+}
+
+.login-submit {
+  padding: 11px 16px;
+  border: none;
+  border-radius: 8px;
+  background: var(--brand);
+  color: #05221d;
+  font-size: 15px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.login-submit:disabled {
+  opacity: 0.6;
+  cursor: default;
+}
+
+.header-actions {
+  display: flex;
+  align-items: stretch;
+  gap: 12px;
+}
+
+.session-chip {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 8px 12px;
+  border-radius: 10px;
+  border: 1px solid var(--border);
+  background: var(--bg-panel);
+}
+
+.session-meta {
+  display: flex;
+  flex-direction: column;
+  line-height: 1.25;
+}
+
+.session-user {
+  font-weight: 600;
+  font-size: 14px;
+}
+
+.session-role {
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.session-logout {
+  padding: 6px 12px;
+  border-radius: 8px;
+  border: 1px solid var(--border);
+  background: transparent;
+  color: var(--text);
+  font-size: 13px;
+  cursor: pointer;
+}
+
+.session-logout:hover {
+  border-color: var(--critical);
+  color: var(--critical);
+}

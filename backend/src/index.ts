@@ -1,6 +1,10 @@
 import http from "node:http";
 import mqtt from "mqtt";
 import express from "express";
+import cookieParser from "cookie-parser";
+import cors from "cors";
+import helmet from "helmet";
+import rateLimit from "express-rate-limit";
 import pino from "pino";
 import { WebSocketServer } from "ws";
 import { config, runtimePaths } from "./config";
@@ -9,6 +13,10 @@ import { Persistence } from "./persistence";
 import { DashboardStore } from "./store";
 import { buildTopicScheme } from "./topics";
 import { alertsQuerySchema, historyQuerySchema, ingestBodySchema } from "./validation";
+import { AuthService } from "./auth/service";
+import { buildAuthRouter } from "./auth/routes";
+import { ACCESS_COOKIE, authenticate, requireRole } from "./auth/middleware";
+import { verifyToken } from "./auth/tokens";
 import { SocketEvent } from "./types";
 import type { ZodError } from "zod";
 
@@ -28,8 +36,37 @@ const app = express();
 const persistence = new Persistence();
 const configRegistry = new ConfigRegistry();
 const store = new DashboardStore(persistence, configRegistry);
+const authService = new AuthService(persistence);
 
+app.use(helmet());
+if (config.corsOrigins.length) {
+  app.use(cors({ origin: config.corsOrigins, credentials: true }));
+}
 app.use(express.json({ limit: "2mb" }));
+app.use(cookieParser());
+
+// Public liveness endpoint (no auth).
+app.get("/health", (_request, response) => {
+  response.json({
+    ok: true,
+    service: "fleet-backend",
+    now: new Date().toISOString(),
+  });
+});
+
+// Auth routes are public (login/refresh/logout); /me is guarded inside the
+// router. A tight rate limit protects the credential endpoint from brute force.
+const authLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 50,
+  standardHeaders: true,
+  legacyHeaders: false,
+});
+app.use("/api/auth", authLimiter, buildAuthRouter(authService));
+
+// Everything below requires a valid session.
+app.use(authenticate);
+
 app.use(
   "/scene-maps",
   (_request, response, next) => {
@@ -44,14 +81,6 @@ app.use(
     lastModified: false,
   }),
 );
-
-app.get("/health", (_request, response) => {
-  response.json({
-    ok: true,
-    service: "fleet-backend",
-    now: new Date().toISOString(),
-  });
-});
 
 app.get("/api/fleet/snapshot", (_request, response) => {
   response.json({
@@ -131,8 +160,12 @@ app.get("/api/scenes", (_request, response) => {
   response.json({ items: store.getScenes() });
 });
 
-app.post("/api/debug/ingest", async (request, response, next) => {
+app.post("/api/debug/ingest", requireRole("admin"), async (request, response, next) => {
   try {
+    if (!config.debugIngestEnabled) {
+      response.status(404).json({ error: "not_found" });
+      return;
+    }
     const parsed = ingestBodySchema.safeParse(request.body);
     if (!parsed.success) {
       respondValidationError(response, parsed.error);
@@ -177,10 +210,32 @@ app.use(
 const server = http.createServer(app);
 const wsServer = new WebSocketServer({ noServer: true });
 
+const extractWsAccessToken = (request: http.IncomingMessage): string => {
+  const cookieHeader = request.headers.cookie || "";
+  for (const part of cookieHeader.split(";")) {
+    const [name, ...rest] = part.trim().split("=");
+    if (name === ACCESS_COOKIE && rest.length) {
+      return decodeURIComponent(rest.join("="));
+    }
+  }
+  const url = new URL(request.url || "", "http://localhost");
+  return url.searchParams.get("access_token") || "";
+};
+
 server.on("upgrade", (request, socket, head) => {
-  if (!request.url?.startsWith("/ws")) {
+  const url = new URL(request.url || "", "http://localhost");
+  if (url.pathname !== "/ws") {
     socket.destroy();
     return;
+  }
+
+  if (config.authEnabled) {
+    const token = extractWsAccessToken(request);
+    if (!token || !verifyToken(token, "access")) {
+      socket.write("HTTP/1.1 401 Unauthorized\r\n\r\n");
+      socket.destroy();
+      return;
+    }
   }
 
   wsServer.handleUpgrade(request, socket, head, (client) => {
@@ -301,6 +356,7 @@ const shutdown = async (signal: string): Promise<void> => {
 
 const start = async (): Promise<void> => {
   await store.initialize();
+  await authService.initialize();
   try {
     await configRegistry.startWatching(async () => {
       await store.reloadConfig();

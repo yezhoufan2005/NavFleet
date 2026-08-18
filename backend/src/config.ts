@@ -117,6 +117,19 @@ export const config = {
   configRootPath: resolveConfigRootPath(),
   configWatchUsePolling: toBoolean(process.env.CONFIG_WATCH_USE_POLLING, false),
   configWatchDebounceMs: Math.max(toNumber(process.env.CONFIG_WATCH_DEBOUNCE_MS, 1000), 100),
+  authEnabled: toBoolean(process.env.AUTH_ENABLED, true),
+  jwtSecret: process.env.JWT_SECRET || "",
+  jwtAccessTtl: process.env.JWT_ACCESS_TTL || "15m",
+  jwtRefreshTtl: process.env.JWT_REFRESH_TTL || "7d",
+  bcryptRounds: toNumber(process.env.BCRYPT_ROUNDS, 10),
+  adminUsername: process.env.ADMIN_USERNAME || "admin",
+  adminPassword: process.env.ADMIN_PASSWORD || "",
+  cookieSecure: toBoolean(process.env.COOKIE_SECURE, false),
+  corsOrigins: (process.env.CORS_ORIGINS || "http://127.0.0.1:5173,http://localhost:5173")
+    .split(",")
+    .map((origin) => origin.trim())
+    .filter(Boolean),
+  debugIngestEnabled: toBoolean(process.env.DEBUG_INGEST_ENABLED, false),
 };
 
 export const runtimePaths = {
