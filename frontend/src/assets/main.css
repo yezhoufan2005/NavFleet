@@ -1119,6 +1119,33 @@ button {
   filter: drop-shadow(0 0 10px rgba(255, 179, 87, 0.22));
 }
 
+.device-trail-line {
+  fill: none;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.device-trail-line.selected {
+  stroke: rgba(96, 197, 255, 0.85);
+  stroke-width: 2.4;
+  stroke-dasharray: 2 5;
+  filter: drop-shadow(0 0 6px rgba(96, 197, 255, 0.28));
+}
+
+.device-trail-line.peer {
+  stroke: rgba(148, 176, 214, 0.4);
+  stroke-width: 1.6;
+  stroke-dasharray: 2 6;
+}
+
+.device-trail-line.peer[data-tone="critical"] {
+  stroke: rgba(255, 122, 122, 0.42);
+}
+
+.device-trail-line.peer[data-tone="warning"] {
+  stroke: rgba(255, 197, 102, 0.42);
+}
+
 .planned-path-point {
   fill: rgba(255, 222, 184, 0.96);
   stroke: rgba(9, 19, 27, 0.92);

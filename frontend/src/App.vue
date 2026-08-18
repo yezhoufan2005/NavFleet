@@ -3,6 +3,7 @@ import { computed, onBeforeUnmount, onMounted, ref } from "vue";
 import GpsMap from "./components/GpsMap.vue";
 import RosSceneMap from "./components/RosSceneMap.vue";
 import { useDashboard } from "./composables/useDashboard";
+import { controlModeMap, gearMap, taskStatusMap, formatEnum, describeEnum } from "./utils/enums";
 
 const dashboard = useDashboard();
 
@@ -33,6 +34,8 @@ const {
   clearPlannedPath,
   undoPlannedPathPoint,
   setPathEditMode,
+  trailsByDeviceId,
+  clearTrail,
 } = dashboard;
 
 const isAlertDrawerOpen = ref(false);
@@ -62,6 +65,10 @@ const alertSourceLabelMap = {
 const activeSceneId = computed(() => formationSceneId.value || selectedDevice.value?.sceneId || "");
 const selectedSceneDefinition = computed(() => getSceneDefinition(activeSceneId.value));
 const selectedPathPoints = computed(() => getPlannedPath(selectedDevice.value?.deviceId));
+const selectedTrailLength = computed(() => {
+  const deviceId = selectedDevice.value?.deviceId;
+  return deviceId ? (trailsByDeviceId.value[deviceId]?.length ?? 0) : 0;
+});
 
 const duplicateNames = computed(() => {
   const nameCount = sortedDevices.value.reduce((accumulator, device) => {
@@ -382,6 +389,15 @@ onBeforeUnmount(() => {
             >
               ROS 地图
             </button>
+            <button
+              v-if="state.selectedMapMode === 'scene' && selectedTrailLength > 1"
+              type="button"
+              class="tab-btn ghost"
+              title="清除当前设备的历史轨迹"
+              @click="clearTrail()"
+            >
+              清除轨迹
+            </button>
           </div>
         </div>
 
@@ -403,6 +419,7 @@ onBeforeUnmount(() => {
             :round="round"
             :path-points="selectedPathPoints"
             :is-path-edit-mode="state.isPathEditMode"
+            :trails="trailsByDeviceId"
             @update-path="handlePathUpdate"
             @clear-path="handlePathClear"
             @undo-path="handlePathUndo"
@@ -434,11 +451,16 @@ onBeforeUnmount(() => {
             <div class="detail-data-grid compact-grid">
               <article class="info-cell">
                 <span>控制模式</span>
-                <strong>{{ formatValue(selectedDevice.vehicleInfo.controlMode) }}</strong>
+                <strong
+                  :title="describeEnum(selectedDevice.vehicleInfo.controlMode, controlModeMap)"
+                  >{{ formatEnum(selectedDevice.vehicleInfo.controlMode, controlModeMap) }}</strong
+                >
               </article>
               <article class="info-cell">
                 <span>档位</span>
-                <strong>{{ formatValue(selectedDevice.vehicleInfo.gear) }}</strong>
+                <strong :title="describeEnum(selectedDevice.vehicleInfo.gear, gearMap)">{{
+                  formatEnum(selectedDevice.vehicleInfo.gear, gearMap)
+                }}</strong>
               </article>
               <article class="info-cell">
                 <span>速度</span>
@@ -481,11 +503,15 @@ onBeforeUnmount(() => {
             <div class="detail-data-grid">
               <article class="info-cell">
                 <span>任务状态</span>
-                <strong>{{ formatValue(selectedDevice.taskStatus) }}</strong>
+                <strong :title="describeEnum(selectedDevice.taskStatus, taskStatusMap)">{{
+                  formatEnum(selectedDevice.taskStatus, taskStatusMap)
+                }}</strong>
               </article>
               <article class="info-cell">
                 <span>平台任务状态</span>
-                <strong>{{ formatValue(selectedDevice.platformTaskStatus) }}</strong>
+                <strong :title="describeEnum(selectedDevice.platformTaskStatus, taskStatusMap)">{{
+                  formatEnum(selectedDevice.platformTaskStatus, taskStatusMap)
+                }}</strong>
               </article>
               <article class="info-cell wide">
                 <span>上报时间</span>

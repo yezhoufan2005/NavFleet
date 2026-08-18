@@ -423,6 +423,22 @@ const pointsAreNear = (left, right, epsilon = 0.05) =>
   Number.isFinite(right?.y) &&
   Math.hypot(left.x - right.x, left.y - right.y) <= epsilon;
 
+// Movement history ("trails"): how many recent points to keep per device, and
+// the minimum world-space distance (m) a device must move before a new point
+// is recorded — keeps trails compact and avoids jitter noise.
+const TRAIL_MAX_POINTS = 240;
+const TRAIL_MIN_DISTANCE = 0.12;
+
+const pickTrailPose = (device) => {
+  if (Number.isFinite(device?.fusionLoc?.x) && Number.isFinite(device?.fusionLoc?.y)) {
+    return device.fusionLoc;
+  }
+  if (Number.isFinite(device?.lidarLoc?.x) && Number.isFinite(device?.lidarLoc?.y)) {
+    return device.lidarLoc;
+  }
+  return null;
+};
+
 export function useDashboard() {
   const state = reactive({
     fleetName: fallbackFleetPayload.fleetName,
@@ -439,6 +455,7 @@ export function useDashboard() {
     pendingSceneLoads: {},
     pathsByDeviceId: {},
     isPathEditMode: false,
+    trailsByDeviceId: {},
     realtime: {
       apiReady: false,
       wsReady: false,
@@ -661,6 +678,35 @@ export function useDashboard() {
     });
   };
 
+  const recordTrails = (incomingDevices, mergedById, replace) => {
+    const nextTrails = { ...state.trailsByDeviceId };
+    incomingDevices.forEach((device) => {
+      const pose = pickTrailPose(mergedById[device.deviceId]);
+      const point = pose ? normalizePathPoint(pose) : null;
+      if (!point) {
+        return;
+      }
+      const existing = nextTrails[device.deviceId] || [];
+      const last = existing[existing.length - 1];
+      if (last && pointsAreNear(last, point, TRAIL_MIN_DISTANCE)) {
+        return;
+      }
+      const appended = [...existing, point];
+      nextTrails[device.deviceId] =
+        appended.length > TRAIL_MAX_POINTS
+          ? appended.slice(appended.length - TRAIL_MAX_POINTS)
+          : appended;
+    });
+    if (replace) {
+      Object.keys(nextTrails).forEach((deviceId) => {
+        if (!mergedById[deviceId]) {
+          delete nextTrails[deviceId];
+        }
+      });
+    }
+    state.trailsByDeviceId = nextTrails;
+  };
+
   const ingestPayload = (rawPayload, source) => {
     const normalized = normalizePayload(rawPayload);
     const nextDevicesById = normalized.replace ? {} : { ...state.devicesById };
@@ -683,6 +729,7 @@ export function useDashboard() {
     }
 
     state.devicesById = nextDevicesById;
+    recordTrails(normalized.devices, nextDevicesById, normalized.replace);
     state.fleetName = normalized.fleetName;
     state.topicPattern = normalized.topicPattern;
     state.lastSource = source;
@@ -750,6 +797,21 @@ export function useDashboard() {
 
   const togglePathEditMode = () => {
     state.isPathEditMode = !state.isPathEditMode;
+  };
+
+  const trailsByDeviceId = computed(() => state.trailsByDeviceId);
+
+  const clearTrail = (deviceId = state.selectedDeviceId) => {
+    if (!deviceId || !state.trailsByDeviceId[deviceId]) {
+      return;
+    }
+    const next = { ...state.trailsByDeviceId };
+    delete next[deviceId];
+    state.trailsByDeviceId = next;
+  };
+
+  const clearAllTrails = () => {
+    state.trailsByDeviceId = {};
   };
 
   const selectDevice = (deviceId, options = {}) => {
@@ -955,5 +1017,8 @@ export function useDashboard() {
     clearPlannedPath,
     setPathEditMode,
     togglePathEditMode,
+    trailsByDeviceId,
+    clearTrail,
+    clearAllTrails,
   };
 }

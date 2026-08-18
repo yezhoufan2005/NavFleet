@@ -1,0 +1,55 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1000" height="620" viewBox="0 0 1000 620" font-family="'Segoe UI',system-ui,sans-serif">
+  <defs>
+    <pattern id="grid" width="40" height="40" patternUnits="userSpaceOnUse">
+      <path d="M40 0H0V40" fill="none" stroke="#1e2f4a" stroke-width="1"/>
+    </pattern>
+    <linearGradient id="bg" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#0d1526"/>
+      <stop offset="1" stop-color="#0a1120"/>
+    </linearGradient>
+  </defs>
+  <rect width="1000" height="620" fill="url(#bg)"/>
+  <rect width="1000" height="620" fill="url(#grid)"/>
+  <rect x="24" y="24" width="952" height="572" fill="none" stroke="#345182" stroke-width="2" rx="6"/>
+
+  <!-- warehouse building edge (loading dock) -->
+  <rect x="60" y="110" width="180" height="400" fill="#10233b" stroke="#3a6ea5" stroke-width="2" rx="6"/>
+  <text x="150" y="315" fill="#8fb8e6" font-size="15" text-anchor="middle" transform="rotate(-90 150 315)">库房 / 装卸月台</text>
+
+  <!-- dock doors -->
+  <g fill="#16324f" stroke="#4f83c2" stroke-width="2">
+    <rect x="240" y="140" width="26" height="70" rx="3"/>
+    <rect x="240" y="240" width="26" height="70" rx="3"/>
+    <rect x="240" y="340" width="26" height="70" rx="3"/>
+    <rect x="240" y="440" width="26" height="70" rx="3"/>
+  </g>
+
+  <!-- truck bays -->
+  <g fill="none" stroke="#3a6ea5" stroke-width="2" stroke-dasharray="8 8">
+    <rect x="320" y="140" width="150" height="70" rx="4"/>
+    <rect x="320" y="240" width="150" height="70" rx="4"/>
+    <rect x="320" y="340" width="150" height="70" rx="4"/>
+    <rect x="320" y="440" width="150" height="70" rx="4"/>
+  </g>
+  <g fill="#6f93c0" font-size="13" text-anchor="middle">
+    <text x="395" y="182">泊位 B1</text>
+    <text x="395" y="282">泊位 B2</text>
+    <text x="395" y="382">泊位 B3</text>
+    <text x="395" y="482">泊位 B4</text>
+  </g>
+
+  <!-- maneuvering / staging yard -->
+  <rect x="540" y="120" width="400" height="380" fill="#0f2136" stroke="#2f4c74" stroke-width="1" rx="6"/>
+  <text x="740" y="150" fill="#8fb8e6" font-size="14" text-anchor="middle">调度作业区</text>
+  <path d="M560 470 H920" stroke="#4f83c2" stroke-width="2" stroke-dasharray="14 10" fill="none"/>
+  <path d="M580 130 V480" stroke="#3a6ea5" stroke-width="1.5" stroke-dasharray="6 8" fill="none"/>
+  <g fill="none" stroke="#3a6ea5" stroke-width="2">
+    <rect x="620" y="200" width="70" height="120" rx="4"/>
+    <rect x="720" y="200" width="70" height="120" rx="4"/>
+    <rect x="820" y="200" width="70" height="120" rx="4"/>
+  </g>
+  <text x="755" y="360" fill="#6f93c0" font-size="12" text-anchor="middle">临时停放位</text>
+
+  <text x="48" y="60" fill="#cfe0f5" font-size="22" font-weight="600">北区装卸场 · Yard North</text>
+  <text x="48" y="84" fill="#5f7ba3" font-size="13">占位场景底图 · 1000 × 620 · resolution 0.144 m/px</text>
+</svg>
