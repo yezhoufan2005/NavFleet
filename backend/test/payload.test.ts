@@ -65,7 +65,10 @@ describe("normalizePayload", () => {
 
   it("parses a stringified JSON payload body", () => {
     const result = normalizePayload(
-      { topic: "/fleet/agv-y/vehicle_info", payload: JSON.stringify({ vehicle_info: { soc: 55 } }) },
+      {
+        topic: "/fleet/agv-y/vehicle_info",
+        payload: JSON.stringify({ vehicle_info: { soc: 55 } }),
+      },
       empty,
       "f",
       "t",

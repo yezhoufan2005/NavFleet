@@ -121,14 +121,33 @@ flowchart LR
 
 ## 4. 本地开发
 
-### 4.1 环境要求
+### 4.1 一键启动（推荐）
+
+在仓库根目录执行，脚本会同时拉起后端 (:3000) 与前端 (:5173)，并注入若干演示设备，便于立即查看效果：
+
+```bash
+scripts/dev.sh            # 启动前后端 + 注入 3 台演示设备
+scripts/dev.sh --no-seed  # 空车队启动
+scripts/dev.sh --seed 5   # 注入 5 台演示设备
+scripts/dev.sh --mock     # 用 MQTT 模拟发布器代替注入（需本机 1883 broker）
+```
+
+启动后访问 `http://127.0.0.1:5173`，默认登录账号 `admin / admin123`（脚本内置的开发口令，仅用于本地）。`Ctrl+C` 停止全部服务。
+
+快速校验后端接口契约（无需浏览器）：
+
+```bash
+scripts/smoke.sh          # 启动临时后端并断言鉴权与关键接口
+```
+
+### 4.2 环境要求
 
 - Node.js 20+
 - npm
-- MongoDB，可用 Docker 或本机服务
+- MongoDB，可用 Docker 或本机服务（缺省时后端以内存回退运行）
 - MQTT Broker，可用本项目 Compose 内置 Mosquitto
 
-### 4.2 后端
+### 4.3 手动启动后端
 
 复制环境变量示例：
 
@@ -156,7 +175,7 @@ npm run dev
 http://127.0.0.1:3000
 ```
 
-### 4.3 前端
+### 4.4 手动启动前端
 
 ```bash
 cd frontend
@@ -177,7 +196,7 @@ http://127.0.0.1:5173
 - `/health`
 - `/scene-maps`
 
-### 4.4 高德地图 Key
+### 4.5 高德地图 Key
 
 GPS 地图依赖高德地图 JS API。前端开发时可在 `frontend/.env` 配置：
 
