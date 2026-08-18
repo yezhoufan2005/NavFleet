@@ -3,6 +3,7 @@ import { computed, onBeforeUnmount, onMounted, ref } from "vue";
 import GpsMap from "./components/GpsMap.vue";
 import RosSceneMap from "./components/RosSceneMap.vue";
 import LoginForm from "./components/LoginForm.vue";
+import NotificationHost from "./components/NotificationHost.vue";
 import { useDashboard } from "./composables/useDashboard";
 import { useAuth } from "./composables/useAuth";
 import { controlModeMap, gearMap, taskStatusMap, formatEnum, describeEnum } from "./utils/enums";
@@ -41,6 +42,8 @@ const {
   setPathEditMode,
   trailsByDeviceId,
   clearTrail,
+  retryBootstrap,
+  disconnectRealtime,
 } = dashboard;
 
 const isAlertDrawerOpen = ref(false);
@@ -80,6 +83,22 @@ const selectedTrailLength = computed(() => {
   const deviceId = selectedDevice.value?.deviceId;
   return deviceId ? (trailsByDeviceId.value[deviceId]?.length ?? 0) : 0;
 });
+
+const realtimeOnline = computed(() => state.realtime.wsReady);
+const backendUnavailable = computed(() => !state.realtime.apiReady);
+const isRetrying = ref(false);
+
+async function handleRetry() {
+  if (isRetrying.value) {
+    return;
+  }
+  isRetrying.value = true;
+  try {
+    await retryBootstrap();
+  } finally {
+    isRetrying.value = false;
+  }
+}
 
 const duplicateNames = computed(() => {
   const nameCount = sortedDevices.value.reduce((accumulator, device) => {
@@ -263,6 +282,8 @@ async function handleLogin(credentials) {
 }
 
 async function handleLogout() {
+  disconnectRealtime();
+  dashboardStarted = false;
   await auth.logout();
 }
 
@@ -318,6 +339,11 @@ onBeforeUnmount(() => {
           </button>
 
           <div v-if="authState.user" class="session-chip">
+            <span
+              class="realtime-dot"
+              :data-online="realtimeOnline"
+              :title="realtimeOnline ? '实时连接正常' : '实时连接中断，正在重连'"
+            ></span>
             <div class="session-meta">
               <span class="session-user">{{ authState.user.username }}</span>
               <span class="session-role">{{ roleLabelMap[authState.user.role] }}</span>
@@ -348,6 +374,13 @@ onBeforeUnmount(() => {
         </article>
       </div>
     </header>
+
+    <div v-if="backendUnavailable" class="offline-banner">
+      <span>后端服务当前不可用，展示的数据可能不是最新。</span>
+      <button type="button" :disabled="isRetrying" @click="handleRetry">
+        {{ isRetrying ? "重试中…" : "重试连接" }}
+      </button>
+    </div>
 
     <main class="dashboard-grid">
       <aside class="panel fleet-panel">
@@ -701,4 +734,6 @@ onBeforeUnmount(() => {
       </div>
     </aside>
   </div>
+
+  <NotificationHost />
 </template>

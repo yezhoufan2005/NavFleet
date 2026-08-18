@@ -243,7 +243,27 @@ server.on("upgrade", (request, socket, head) => {
   });
 });
 
+interface LiveSocket {
+  isAlive: boolean;
+}
+
 wsServer.on("connection", (client) => {
+  (client as unknown as LiveSocket).isAlive = true;
+  client.on("pong", () => {
+    (client as unknown as LiveSocket).isAlive = true;
+  });
+  client.on("message", (raw) => {
+    // App-level heartbeat: browsers cannot observe protocol ping/pong frames,
+    // so the client sends {type:"ping"} and expects {type:"pong"}.
+    try {
+      const message = JSON.parse(raw.toString("utf8"));
+      if (message?.type === "ping" && client.readyState === client.OPEN) {
+        client.send(JSON.stringify({ type: "pong", payload: null } satisfies SocketEvent));
+      }
+    } catch {
+      // Ignore non-JSON client messages.
+    }
+  });
   client.send(
     JSON.stringify({
       type: "fleet.snapshot",
@@ -251,6 +271,26 @@ wsServer.on("connection", (client) => {
     } satisfies SocketEvent),
   );
 });
+
+// Server-side heartbeat: terminate connections that stop answering protocol
+// pings so dead sockets don't accumulate.
+const wsHeartbeat = setInterval(() => {
+  wsServer.clients.forEach((client) => {
+    const live = client as unknown as LiveSocket;
+    if (!live.isAlive) {
+      client.terminate();
+      return;
+    }
+    live.isAlive = false;
+    try {
+      client.ping();
+    } catch {
+      // ignore
+    }
+  });
+}, 30_000);
+wsHeartbeat.unref();
+wsServer.on("close", () => clearInterval(wsHeartbeat));
 
 const broadcast = (event: SocketEvent): void => {
   const message = JSON.stringify(event);
