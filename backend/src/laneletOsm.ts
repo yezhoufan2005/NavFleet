@@ -163,7 +163,7 @@ export const parseLaneletOsmText = (
   xmlText: string,
   sourceName: string,
   sceneId: string,
-  projectionOrigin?: ProjectionOrigin
+  projectionOrigin?: ProjectionOrigin,
 ): LaneletOverlay => {
   const nodes = extractNodes(xmlText);
   const ways = extractWays(xmlText);
@@ -175,7 +175,9 @@ export const parseLaneletOsmText = (
   }
 
   const origin =
-    projectionOrigin && Number.isFinite(projectionOrigin.lat) && Number.isFinite(projectionOrigin.lng)
+    projectionOrigin &&
+    Number.isFinite(projectionOrigin.lat) &&
+    Number.isFinite(projectionOrigin.lng)
       ? projectionOrigin
       : { lat: firstNode.lat, lng: firstNode.lng };
 
@@ -240,14 +242,16 @@ export const parseLaneletOsmText = (
         right: mapWayPoints(lanelet.right),
         centerline: mapWayPoints(lanelet.centerline),
       }))
-      .filter((lanelet) => lanelet.left.length || lanelet.right.length || lanelet.centerline.length),
+      .filter(
+        (lanelet) => lanelet.left.length || lanelet.right.length || lanelet.centerline.length,
+      ),
   };
 };
 
 export const parseLaneletOsmFile = async (
   filePath: string,
   sceneId: string,
-  projectionOrigin?: ProjectionOrigin
+  projectionOrigin?: ProjectionOrigin,
 ): Promise<LaneletOverlay> => {
   const xmlText = await fs.readFile(filePath, "utf8");
   return parseLaneletOsmText(xmlText, path.basename(filePath), sceneId, projectionOrigin);

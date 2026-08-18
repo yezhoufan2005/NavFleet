@@ -28,7 +28,7 @@ app.use(
     fallthrough: true,
     index: false,
     lastModified: false,
-  })
+  }),
 );
 
 app.get("/health", (_request, response) => {
@@ -57,7 +57,7 @@ app.get("/api/devices/:deviceId/history", async (request, response, next) => {
       deviceId,
       typeof request.query.from === "string" ? request.query.from : undefined,
       typeof request.query.to === "string" ? request.query.to : undefined,
-      typeof request.query.limit === "string" ? Number(request.query.limit) : undefined
+      typeof request.query.limit === "string" ? Number(request.query.limit) : undefined,
     );
     response.json({
       deviceId,
@@ -120,13 +120,20 @@ app.post("/api/debug/ingest", async (request, response, next) => {
   }
 });
 
-app.use((error: unknown, _request: express.Request, response: express.Response, _next: express.NextFunction) => {
-  logger.error({ err: error }, "Unhandled request error");
-  response.status(500).json({
-    error: "internal_error",
-    message: error instanceof Error ? error.message : "Unknown error",
-  });
-});
+app.use(
+  (
+    error: unknown,
+    _request: express.Request,
+    response: express.Response,
+    _next: express.NextFunction,
+  ) => {
+    logger.error({ err: error }, "Unhandled request error");
+    response.status(500).json({
+      error: "internal_error",
+      message: error instanceof Error ? error.message : "Unknown error",
+    });
+  },
+);
 
 const server = http.createServer(app);
 const wsServer = new WebSocketServer({ noServer: true });
@@ -147,7 +154,7 @@ wsServer.on("connection", (client) => {
     JSON.stringify({
       type: "fleet.snapshot",
       payload: store.snapshot(),
-    } satisfies SocketEvent)
+    } satisfies SocketEvent),
   );
 });
 

@@ -61,7 +61,8 @@ function parseArgs(argv: string[]): CliOptions {
       continue;
     }
     if (current === "--help" || current === "-h") {
-      console.log(`
+      console.log(
+        `
 Usage: npx tsx scripts/mock-mqtt.ts [options]
 
 Options:
@@ -69,7 +70,8 @@ Options:
   --count <number>       Number of mock devices, default: ${DEFAULT_COUNT}
   --interval <ms>        Publish interval in milliseconds, default: ${DEFAULT_INTERVAL}
   --device-prefix <str>  Device id prefix, default: ${DEFAULT_DEVICE_PREFIX}
-      `.trim());
+      `.trim(),
+      );
       process.exit(0);
     }
   }
@@ -152,7 +154,11 @@ function buildTelemetry(state: MockDeviceState) {
         : 68.5 - state.tick * 0.05;
 
   const speedLimitModule =
-    state.scenario === "warning" ? "safety" : state.scenario === "critical-then-offline" ? "planner" : "dispatcher";
+    state.scenario === "warning"
+      ? "safety"
+      : state.scenario === "critical-then-offline"
+        ? "planner"
+        : "dispatcher";
   const gps = state.scenario === "critical-then-offline" ? undefined : sceneToGps(x, y, yaw);
 
   return {
@@ -208,7 +214,7 @@ async function main() {
   client.on("connect", () => {
     console.log(`[mock-mqtt] connected: ${options.broker}`);
     console.log(
-      `[mock-mqtt] devices: ${states.map((state) => `${state.deviceId}:${state.scenario}`).join(", ")}`
+      `[mock-mqtt] devices: ${states.map((state) => `${state.deviceId}:${state.scenario}`).join(", ")}`,
     );
 
     states.forEach((state) => {
@@ -231,7 +237,9 @@ async function main() {
         }
 
         if (state.scenario === "critical-then-offline" && state.tick >= 2) {
-          console.log(`[mock-mqtt] stop publishing ${state.deviceId}, waiting for backend offline detection`);
+          console.log(
+            `[mock-mqtt] stop publishing ${state.deviceId}, waiting for backend offline detection`,
+          );
           state.active = false;
         }
       });

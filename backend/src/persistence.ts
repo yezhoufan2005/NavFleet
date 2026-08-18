@@ -53,7 +53,10 @@ export class Persistence {
     } catch (error) {
       this.mongoClient = null;
       this.db = null;
-      logger.warn({ err: error, uri: config.mongoUri }, "MongoDB unavailable; running with in-memory history fallback");
+      logger.warn(
+        { err: error, uri: config.mongoUri },
+        "MongoDB unavailable; running with in-memory history fallback",
+      );
     }
   }
 
@@ -87,34 +90,36 @@ export class Persistence {
     await this.db.collection("device_latest").createIndex({ stamp: -1 });
     await this.db.collection("alerts").createIndex({ deviceId: 1, ts: -1 });
     await this.db.collection("alerts").createIndex({ severity: 1, active: 1, ts: -1 });
-    await this.db.collection("alerts").createIndex(
-      { lastSeenAt: 1 },
-      { expireAfterSeconds: config.alertsRetentionSeconds }
-    );
+    await this.db
+      .collection("alerts")
+      .createIndex({ lastSeenAt: 1 }, { expireAfterSeconds: config.alertsRetentionSeconds });
   }
 
   async restoreLatestDevices(): Promise<DeviceSnapshot[]> {
     if (!this.db) {
       return [];
     }
-    return (await this.db.collection<DeviceSnapshot>("device_latest").find({}).toArray()).map((item) => ({
-      ...item,
-      alerts: item.alerts || [],
-      extra: item.extra || {},
-      tags: item.tags || [],
-    }));
+    return (await this.db.collection<DeviceSnapshot>("device_latest").find({}).toArray()).map(
+      (item) => ({
+        ...item,
+        alerts: item.alerts || [],
+        extra: item.extra || {},
+        tags: item.tags || [],
+      }),
+    );
   }
 
   async writeLatestSnapshot(snapshot: DeviceSnapshot): Promise<void> {
     if (this.db) {
       try {
-        await this.db.collection<DeviceSnapshot>("device_latest").updateOne(
-          { deviceId: snapshot.deviceId },
-          { $set: snapshot },
-          { upsert: true }
-        );
+        await this.db
+          .collection<DeviceSnapshot>("device_latest")
+          .updateOne({ deviceId: snapshot.deviceId }, { $set: snapshot }, { upsert: true });
       } catch (error) {
-        logger.warn({ err: error, deviceId: snapshot.deviceId }, "Failed to upsert latest device snapshot");
+        logger.warn(
+          { err: error, deviceId: snapshot.deviceId },
+          "Failed to upsert latest device snapshot",
+        );
       }
     }
   }
@@ -157,7 +162,10 @@ export class Persistence {
         await this.flushPendingTelemetry();
       }
     } catch (error) {
-      logger.warn({ err: error, deviceId: snapshot.deviceId }, "Failed to write telemetry to MongoDB; buffering");
+      logger.warn(
+        { err: error, deviceId: snapshot.deviceId },
+        "Failed to write telemetry to MongoDB; buffering",
+      );
       this.pendingTelemetry.push(document);
       if (this.pendingTelemetry.length > config.mongoBufferLimit) {
         this.pendingTelemetry.splice(0, this.pendingTelemetry.length - config.mongoBufferLimit);
@@ -172,12 +180,15 @@ export class Persistence {
     const copy = [...this.pendingTelemetry];
     this.pendingTelemetry = [];
     try {
-      await this.db.collection<TelemetryDocument>("telemetry_ts").insertMany(copy, { ordered: false });
+      await this.db
+        .collection<TelemetryDocument>("telemetry_ts")
+        .insertMany(copy, { ordered: false });
     } catch (error) {
       logger.warn({ err: error }, "Failed to flush buffered telemetry");
-      this.pendingTelemetry = [...copy.slice(-config.mongoBufferLimit), ...this.pendingTelemetry].slice(
-        -config.mongoBufferLimit
-      );
+      this.pendingTelemetry = [
+        ...copy.slice(-config.mongoBufferLimit),
+        ...this.pendingTelemetry,
+      ].slice(-config.mongoBufferLimit);
     }
   }
 
@@ -211,9 +222,9 @@ export class Persistence {
               firstSeenAt: new Date(alert.ts),
             },
           },
-          { upsert: true }
-        )
-      )
+          { upsert: true },
+        ),
+      ),
     );
 
     await collection.updateMany(
@@ -228,7 +239,7 @@ export class Persistence {
           clearedAt: new Date(),
           lastSeenAt: new Date(),
         },
-      }
+      },
     );
   }
 
@@ -258,7 +269,11 @@ export class Persistence {
       .toArray();
   }
 
-  async queryAlerts(filters: { severity?: string; deviceId?: string; status?: string }): Promise<unknown[]> {
+  async queryAlerts(filters: {
+    severity?: string;
+    deviceId?: string;
+    status?: string;
+  }): Promise<unknown[]> {
     if (!this.db) {
       return [];
     }

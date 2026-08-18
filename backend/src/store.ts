@@ -4,7 +4,13 @@ import path from "node:path";
 import pino from "pino";
 import { config } from "./config";
 import { ConfigRegistry } from "./configRegistry";
-import { buildFleetSnapshot, hasGps, mergeDevice, normalizeDevice, normalizePayload } from "./normalize";
+import {
+  buildFleetSnapshot,
+  hasGps,
+  mergeDevice,
+  normalizeDevice,
+  normalizePayload,
+} from "./normalize";
 import { Persistence } from "./persistence";
 import {
   DeviceAlert,
@@ -27,7 +33,7 @@ export class DashboardStore extends EventEmitter {
 
   constructor(
     private readonly persistence: Persistence,
-    private readonly configRegistry: ConfigRegistry
+    private readonly configRegistry: ConfigRegistry,
   ) {
     super();
   }
@@ -64,7 +70,7 @@ export class DashboardStore extends EventEmitter {
         deviceCount: this.devices.size,
         sceneCount: this.configRegistry.listScenes().length,
       },
-      "Applied reloaded runtime config to in-memory fleet state"
+      "Applied reloaded runtime config to in-memory fleet state",
     );
   }
 
@@ -104,9 +110,18 @@ export class DashboardStore extends EventEmitter {
   }
 
   async applyPayload(payload: unknown, source = "mqtt"): Promise<FleetSnapshot> {
-    const normalized = normalizePayload(payload, this.rawDevices, this.fleetName, this.topicPattern);
-    const nextRawMap = normalized.replace ? new Map<string, DeviceSnapshot>() : new Map(this.rawDevices);
-    const nextDeviceMap = normalized.replace ? new Map<string, DeviceSnapshot>() : new Map(this.devices);
+    const normalized = normalizePayload(
+      payload,
+      this.rawDevices,
+      this.fleetName,
+      this.topicPattern,
+    );
+    const nextRawMap = normalized.replace
+      ? new Map<string, DeviceSnapshot>()
+      : new Map(this.rawDevices);
+    const nextDeviceMap = normalized.replace
+      ? new Map<string, DeviceSnapshot>()
+      : new Map(this.devices);
 
     for (const device of normalized.devices) {
       const existingRaw = this.rawDevices.get(device.deviceId);
@@ -135,7 +150,7 @@ export class DashboardStore extends EventEmitter {
         online: this.parseOnline(statusPayload),
         stamp: new Date().toISOString(),
       },
-      existingRaw || null
+      existingRaw || null,
     );
     const configuredDevice = this.applySnapshotConfig(normalizedRaw);
 
@@ -169,7 +184,11 @@ export class DashboardStore extends EventEmitter {
     await this.persistence.upsertAlerts(device.deviceId, device.alerts);
   }
 
-  private async emitChangeEvents(previous: DeviceSnapshot | null, current: DeviceSnapshot, source: string): Promise<void> {
+  private async emitChangeEvents(
+    previous: DeviceSnapshot | null,
+    current: DeviceSnapshot,
+    source: string,
+  ): Promise<void> {
     this.broadcast({
       type: "fleet.delta",
       payload: {
@@ -230,7 +249,7 @@ export class DashboardStore extends EventEmitter {
       this.fleetName,
       this.topicPattern,
       this.getFormations(devices),
-      this.updatedAt
+      this.updatedAt,
     );
   }
 
@@ -250,11 +269,20 @@ export class DashboardStore extends EventEmitter {
     return this.configRegistry.getSceneOverlay(sceneId);
   }
 
-  async getHistory(deviceId: string, from?: string, to?: string, limit?: number): Promise<unknown[]> {
+  async getHistory(
+    deviceId: string,
+    from?: string,
+    to?: string,
+    limit?: number,
+  ): Promise<unknown[]> {
     return this.persistence.queryHistory({ deviceId, from, to, limit });
   }
 
-  async getAlerts(filters: { severity?: string; deviceId?: string; status?: string }): Promise<unknown[]> {
+  async getAlerts(filters: {
+    severity?: string;
+    deviceId?: string;
+    status?: string;
+  }): Promise<unknown[]> {
     return this.persistence.queryAlerts(filters);
   }
 

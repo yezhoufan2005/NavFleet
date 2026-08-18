@@ -59,7 +59,7 @@ export function loadAmap() {
     script.dataset.amapLoader = "true";
     script.async = true;
     script.src = `https://webapi.amap.com/maps?v=2.0&key=${encodeURIComponent(AMAP_KEY)}&plugin=${encodeURIComponent(
-      AMAP_PLUGIN_LIST.join(",")
+      AMAP_PLUGIN_LIST.join(","),
     )}`;
 
     script.onload = () => {

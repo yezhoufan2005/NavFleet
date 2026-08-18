@@ -34,8 +34,8 @@ const gpsDevices = computed(() =>
     (device) =>
       device.gpsEnabled !== false &&
       Number.isFinite(device.gps?.lat) &&
-      Number.isFinite(device.gps?.lng)
-  )
+      Number.isFinite(device.gps?.lng),
+  ),
 );
 
 const hasConfig = computed(() => hasAmapConfig());
@@ -213,7 +213,7 @@ async function initializeMap() {
           right: "18px",
           bottom: "18px",
         },
-      })
+      }),
     );
 
     syncMarkers();
@@ -240,7 +240,7 @@ watch(
   () => {
     syncMarkers();
   },
-  { deep: true }
+  { deep: true },
 );
 </script>
 

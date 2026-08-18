@@ -117,9 +117,13 @@ const normalizeFormation = (rawInput, existingFormation = null) => {
     ...base,
     ...existingFormation,
     formationId,
-    formationName: String(raw.formationName || raw.name || existingFormation?.formationName || formationId),
+    formationName: String(
+      raw.formationName || raw.name || existingFormation?.formationName || formationId,
+    ),
     deviceIds,
-    deviceCount: Number.isFinite(Number(raw.deviceCount)) ? Number(raw.deviceCount) : deviceIds.length,
+    deviceCount: Number.isFinite(Number(raw.deviceCount))
+      ? Number(raw.deviceCount)
+      : deviceIds.length,
     onlineCount: Number.isFinite(Number(raw.onlineCount))
       ? Number(raw.onlineCount)
       : existingFormation?.onlineCount || 0,
@@ -137,7 +141,9 @@ const dedupeAlerts = (alerts) => {
       deduped.set(key, alert);
     }
   });
-  return [...deduped.values()].sort((left, right) => toTimestampMs(right.ts) - toTimestampMs(left.ts));
+  return [...deduped.values()].sort(
+    (left, right) => toTimestampMs(right.ts) - toTimestampMs(left.ts),
+  );
 };
 
 const buildCodeAlerts = (device) => {
@@ -192,7 +198,10 @@ const buildRuleAlerts = (device) => {
 
 const normalizeDevice = (rawInput, topicHint = "", existingDevice = null) => {
   const raw =
-    rawInput && rawInput.payload && typeof rawInput.payload === "object" && !Array.isArray(rawInput.payload)
+    rawInput &&
+    rawInput.payload &&
+    typeof rawInput.payload === "object" &&
+    !Array.isArray(rawInput.payload)
       ? { ...rawInput.payload, topic: rawInput.topic || rawInput.payload.topic }
       : rawInput;
 
@@ -212,30 +221,57 @@ const normalizeDevice = (rawInput, topicHint = "", existingDevice = null) => {
   const speedLimit = raw.speed_limit || raw.speedLimit || {};
   const gps = raw.gps || raw.location || {};
   const runtimeSceneId =
-    raw.runtimeSceneId || raw.scene_id || raw.sceneId || raw.scenePose?.sceneId || existingDevice?.runtimeSceneId || "";
+    raw.runtimeSceneId ||
+    raw.scene_id ||
+    raw.sceneId ||
+    raw.scenePose?.sceneId ||
+    existingDevice?.runtimeSceneId ||
+    "";
 
   const normalizedDevice = {
     ...base,
     ...existingDevice,
     deviceId,
-    deviceName: raw.deviceName || raw.device_name || raw.name || existingDevice?.deviceName || deviceId,
+    deviceName:
+      raw.deviceName || raw.device_name || raw.name || existingDevice?.deviceName || deviceId,
     topic: topic || existingDevice?.topic || base.topic,
-    online: typeof raw.online === "boolean" ? raw.online : existingDevice?.online ?? true,
-    stamp: toIsoString(raw.stamp || raw.lastSeen || raw.timestamp || raw.time || existingDevice?.stamp || Date.now()),
-    sceneId: raw.scene_id || raw.sceneId || raw.scenePose?.sceneId || raw.runtimeSceneId || existingDevice?.sceneId || "",
+    online: typeof raw.online === "boolean" ? raw.online : (existingDevice?.online ?? true),
+    stamp: toIsoString(
+      raw.stamp || raw.lastSeen || raw.timestamp || raw.time || existingDevice?.stamp || Date.now(),
+    ),
+    sceneId:
+      raw.scene_id ||
+      raw.sceneId ||
+      raw.scenePose?.sceneId ||
+      raw.runtimeSceneId ||
+      existingDevice?.sceneId ||
+      "",
     runtimeSceneId,
     defaultSceneId: raw.defaultSceneId || existingDevice?.defaultSceneId || "",
     mapProfile: raw.mapProfile || existingDevice?.mapProfile || "lanelet",
-    gpsEnabled: typeof raw.gpsEnabled === "boolean" ? raw.gpsEnabled : existingDevice?.gpsEnabled ?? true,
-    rosMapEnabled: typeof raw.rosMapEnabled === "boolean" ? raw.rosMapEnabled : existingDevice?.rosMapEnabled ?? true,
+    gpsEnabled:
+      typeof raw.gpsEnabled === "boolean" ? raw.gpsEnabled : (existingDevice?.gpsEnabled ?? true),
+    rosMapEnabled:
+      typeof raw.rosMapEnabled === "boolean"
+        ? raw.rosMapEnabled
+        : (existingDevice?.rosMapEnabled ?? true),
     tags: Array.isArray(raw.tags) ? raw.tags.map((tag) => String(tag)) : existingDevice?.tags || [],
     formationIds: Array.isArray(raw.formationIds)
       ? raw.formationIds.map((formationId) => String(formationId))
       : existingDevice?.formationIds || [],
     gps: {
-      lat: toNumeric(gps.lat ?? raw.latitude ?? raw.gps_lat ?? raw.lat, existingDevice?.gps?.lat ?? null),
-      lng: toNumeric(gps.lng ?? raw.longitude ?? raw.gps_lng ?? raw.lng, existingDevice?.gps?.lng ?? null),
-      heading: toNumeric(gps.heading ?? gps.yaw ?? raw.heading ?? raw.gps_heading, existingDevice?.gps?.heading ?? null),
+      lat: toNumeric(
+        gps.lat ?? raw.latitude ?? raw.gps_lat ?? raw.lat,
+        existingDevice?.gps?.lat ?? null,
+      ),
+      lng: toNumeric(
+        gps.lng ?? raw.longitude ?? raw.gps_lng ?? raw.lng,
+        existingDevice?.gps?.lng ?? null,
+      ),
+      heading: toNumeric(
+        gps.heading ?? gps.yaw ?? raw.heading ?? raw.gps_heading,
+        existingDevice?.gps?.heading ?? null,
+      ),
     },
     fusionLoc: {
       x: toNumeric(fusionLoc.x, existingDevice?.fusionLoc?.x ?? null),
@@ -250,17 +286,20 @@ const normalizeDevice = (rawInput, topicHint = "", existingDevice = null) => {
     vehicleInfo: {
       controlMode: toNumeric(
         vehicleInfo.control_mode ?? vehicleInfo.controlMode,
-        existingDevice?.vehicleInfo?.controlMode ?? null
+        existingDevice?.vehicleInfo?.controlMode ?? null,
       ),
       gear: toNumeric(vehicleInfo.gear, existingDevice?.vehicleInfo?.gear ?? null),
       speed: toNumeric(vehicleInfo.speed, existingDevice?.vehicleInfo?.speed ?? null),
       omega: toNumeric(vehicleInfo.omega, existingDevice?.vehicleInfo?.omega ?? null),
       soc: toNumeric(vehicleInfo.soc, existingDevice?.vehicleInfo?.soc ?? null),
     },
-    taskStatus: toNumeric(raw.task_status ?? raw.taskStatus ?? raw.task?.status, existingDevice?.taskStatus ?? null),
+    taskStatus: toNumeric(
+      raw.task_status ?? raw.taskStatus ?? raw.task?.status,
+      existingDevice?.taskStatus ?? null,
+    ),
     platformTaskStatus: toNumeric(
       raw.platform_task_status ?? raw.platformTaskStatus,
-      existingDevice?.platformTaskStatus ?? null
+      existingDevice?.platformTaskStatus ?? null,
     ),
     infoCode: normalizeCode(raw.info_code || raw.infoCode || existingDevice?.infoCode),
     warningCode: normalizeCode(raw.warning_code || raw.warningCode || existingDevice?.warningCode),
@@ -269,10 +308,16 @@ const normalizeDevice = (rawInput, topicHint = "", existingDevice = null) => {
       limit: toNumeric(speedLimit.limit, existingDevice?.speedLimit?.limit ?? null),
       slowdownTime: toNumeric(
         speedLimit.slowdown_time ?? speedLimit.slowdownTime,
-        existingDevice?.speedLimit?.slowdownTime ?? null
+        existingDevice?.speedLimit?.slowdownTime ?? null,
       ),
-      stamp: speedLimit.stamp ? toIsoString(speedLimit.stamp) : existingDevice?.speedLimit?.stamp ?? null,
-      moduleName: speedLimit.module_name || speedLimit.moduleName || existingDevice?.speedLimit?.moduleName || "",
+      stamp: speedLimit.stamp
+        ? toIsoString(speedLimit.stamp)
+        : (existingDevice?.speedLimit?.stamp ?? null),
+      moduleName:
+        speedLimit.module_name ||
+        speedLimit.moduleName ||
+        existingDevice?.speedLimit?.moduleName ||
+        "",
     },
     alerts: Array.isArray(raw.alerts) ? raw.alerts : [],
     extra: {
@@ -296,7 +341,7 @@ const normalizeDevice = (rawInput, topicHint = "", existingDevice = null) => {
         code: toNumeric(alert.code, 0) ?? 0,
         info: alert.info || "",
         ts: alert.ts || normalizedDevice.stamp,
-      }))
+      })),
     );
   } else if (!Array.isArray(raw.alerts)) {
     normalizedDevice.alerts = dedupeAlerts([
@@ -444,8 +489,10 @@ export function useDashboard() {
     }
 
     if (input.topic && input.payload !== undefined) {
-      const payloadBody = typeof input.payload === "string" ? JSON.parse(input.payload) : input.payload;
-      const existing = state.devicesById[payloadBody.deviceId || extractDeviceIdFromTopic(input.topic)];
+      const payloadBody =
+        typeof input.payload === "string" ? JSON.parse(input.payload) : input.payload;
+      const existing =
+        state.devicesById[payloadBody.deviceId || extractDeviceIdFromTopic(input.topic)];
       return {
         replace: false,
         fleetName: state.fleetName,
@@ -488,7 +535,7 @@ export function useDashboard() {
           formation.sceneId ||
           (uniqueScenes.length === 1 ? uniqueScenes[0] : memberDevices[0]?.sceneId || ""),
       };
-    })
+    }),
   );
 
   const getDeviceTone = (device) => {
@@ -516,7 +563,7 @@ export function useDashboard() {
         return toneWeight[leftTone] - toneWeight[rightTone];
       }
       return toTimestampMs(right.stamp) - toTimestampMs(left.stamp);
-    })
+    }),
   );
 
   const sortedFormations = computed(() =>
@@ -525,7 +572,7 @@ export function useDashboard() {
         return right.onlineCount - left.onlineCount;
       }
       return left.formationName.localeCompare(right.formationName, "zh-CN");
-    })
+    }),
   );
 
   const selectedDevice = computed(() => state.devicesById[state.selectedDeviceId] || null);
@@ -540,7 +587,7 @@ export function useDashboard() {
   });
 
   const formationSceneId = computed(
-    () => selectedFormation.value?.sceneId || selectedDevice.value?.sceneId || ""
+    () => selectedFormation.value?.sceneId || selectedDevice.value?.sceneId || "",
   );
 
   const summary = computed(() => {
@@ -581,7 +628,7 @@ export function useDashboard() {
       (device) =>
         formationDeviceIds.has(device.deviceId) &&
         device.rosMapEnabled !== false &&
-        (!currentSceneId || device.sceneId === currentSceneId)
+        (!currentSceneId || device.sceneId === currentSceneId),
     );
   });
 
@@ -597,7 +644,7 @@ export function useDashboard() {
 
     if (selectedFormation.value) {
       const preferred = filteredDevices.value.find(
-        (device) => !formationSceneId.value || device.sceneId === formationSceneId.value
+        (device) => !formationSceneId.value || device.sceneId === formationSceneId.value,
       );
       state.selectedDeviceId = preferred?.deviceId || filteredDevices.value[0]?.deviceId || "";
       return;
@@ -627,7 +674,10 @@ export function useDashboard() {
       const nextFormationsById = {};
       normalized.formations.forEach((formation) => {
         const existingFormation = state.formationsById[formation.formationId];
-        nextFormationsById[formation.formationId] = normalizeFormation(formation, existingFormation);
+        nextFormationsById[formation.formationId] = normalizeFormation(
+          formation,
+          existingFormation,
+        );
       });
       state.formationsById = nextFormationsById;
     }
@@ -788,7 +838,9 @@ export function useDashboard() {
     }
     state.pendingSceneLoads[sceneId] = true;
     try {
-      const response = await fetch(`/api/scenes/${encodeURIComponent(sceneId)}`, { cache: "no-store" });
+      const response = await fetch(`/api/scenes/${encodeURIComponent(sceneId)}`, {
+        cache: "no-store",
+      });
       if (!response.ok) {
         throw new Error(`HTTP ${response.status}`);
       }
