@@ -48,7 +48,8 @@ const deriveBounds = (scene: SceneMapDefinition): NonNullable<SceneMapDefinition
   maxY: scene.origin.y + scene.height * scene.resolution,
 });
 
-const cloneOverlay = (overlay: LaneletOverlay): LaneletOverlay => JSON.parse(JSON.stringify(overlay)) as LaneletOverlay;
+const cloneOverlay = (overlay: LaneletOverlay): LaneletOverlay =>
+  JSON.parse(JSON.stringify(overlay)) as LaneletOverlay;
 
 const resolveSceneMapsFilePath = (assetUrl: string): string => {
   const normalizedUrl = String(assetUrl || "").trim();
@@ -78,7 +79,11 @@ const ensureObject = (value: unknown, filePath: string, label: string): Record<s
   return value;
 };
 
-const ensureArray = (value: unknown, filePath: string, label: string): Record<string, unknown>[] => {
+const ensureArray = (
+  value: unknown,
+  filePath: string,
+  label: string,
+): Record<string, unknown>[] => {
   if (!Array.isArray(value)) {
     throw new Error(`${label} must be a JSON array: ${filePath}`);
   }
@@ -119,13 +124,17 @@ export class ConfigRegistry {
     ]);
 
     const fleetConfig = ensureObject(fleetRaw, FLEET_FILE, "fleet.json") as Partial<FleetConfig>;
-    const vehicleRecords = ensureArray(vehiclesRaw, VEHICLES_FILE, "vehicles.json") as Array<Partial<DeviceConfig>>;
+    const vehicleRecords = ensureArray(vehiclesRaw, VEHICLES_FILE, "vehicles.json") as Array<
+      Partial<DeviceConfig>
+    >;
     const formationRecords = ensureArray(
       formationsRaw,
       FORMATIONS_FILE,
-      "formations.json"
+      "formations.json",
     ) as Array<Partial<FormationConfig>>;
-    const sceneRecords = ensureArray(scenesRaw, SCENES_FILE, "scenes.json") as Array<Partial<SceneConfig>>;
+    const sceneRecords = ensureArray(scenesRaw, SCENES_FILE, "scenes.json") as Array<
+      Partial<SceneConfig>
+    >;
 
     const nextFleetConfig: FleetConfig = {
       ...DEFAULT_FLEET_CONFIG,
@@ -170,7 +179,9 @@ export class ConfigRegistry {
 
       for (const deviceId of deviceIds) {
         if (!nextDeviceConfigs.has(deviceId)) {
-          throw new Error(`Formation references unknown deviceId ${deviceId}: ${FORMATIONS_FILE} (${formationId})`);
+          throw new Error(
+            `Formation references unknown deviceId ${deviceId}: ${FORMATIONS_FILE} (${formationId})`,
+          );
         }
       }
 
@@ -208,7 +219,9 @@ export class ConfigRegistry {
         !Number.isFinite(value.origin?.y ?? Number.NaN) ||
         !Number.isFinite(value.origin?.yaw ?? Number.NaN)
       ) {
-        throw new Error(`Scene config missing width/height/resolution/origin: ${SCENES_FILE} (${sceneId})`);
+        throw new Error(
+          `Scene config missing width/height/resolution/origin: ${SCENES_FILE} (${sceneId})`,
+        );
       }
 
       const normalizedScene: SceneConfig = {
@@ -282,13 +295,15 @@ export class ConfigRegistry {
         formationCount: this.formationConfigs.size,
         sceneCount: this.sceneConfigs.size,
       },
-      "Loaded backend config registry"
+      "Loaded backend config registry",
     );
   }
 
   private describeWatchPath(filePath: string): string {
     const relative = path.relative(CONFIG_ROOT, filePath);
-    return relative && !relative.startsWith("..") ? relative.replace(/\\/g, "/") : path.basename(filePath);
+    return relative && !relative.startsWith("..")
+      ? relative.replace(/\\/g, "/")
+      : path.basename(filePath);
   }
 
   async load(): Promise<void> {
@@ -304,7 +319,10 @@ export class ConfigRegistry {
       this.logLoad(reason);
       return true;
     } catch (error) {
-      logger.error({ err: error, reason, configRoot: CONFIG_ROOT }, "Failed to reload backend config registry");
+      logger.error(
+        { err: error, reason, configRoot: CONFIG_ROOT },
+        "Failed to reload backend config registry",
+      );
       return false;
     }
   }
@@ -314,15 +332,24 @@ export class ConfigRegistry {
       return;
     }
 
-    this.watcher = chokidar.watch([FLEET_FILE, VEHICLES_FILE, FORMATIONS_FILE, SCENES_FILE, path.join(runtimePaths.sceneMapsPath, "**/*.osm")], {
-      ignoreInitial: true,
-      persistent: true,
-      usePolling: config.configWatchUsePolling,
-      awaitWriteFinish: {
-        stabilityThreshold: Math.max(config.configWatchDebounceMs, 200),
-        pollInterval: 100,
+    this.watcher = chokidar.watch(
+      [
+        FLEET_FILE,
+        VEHICLES_FILE,
+        FORMATIONS_FILE,
+        SCENES_FILE,
+        path.join(runtimePaths.sceneMapsPath, "**/*.osm"),
+      ],
+      {
+        ignoreInitial: true,
+        persistent: true,
+        usePolling: config.configWatchUsePolling,
+        awaitWriteFinish: {
+          stabilityThreshold: Math.max(config.configWatchDebounceMs, 200),
+          pollInterval: 100,
+        },
       },
-    });
+    );
 
     const scheduleReload = (eventName: string, filePath: string): void => {
       this.pendingReloadReason = `${eventName}:${this.describeWatchPath(filePath)}`;
@@ -363,7 +390,7 @@ export class ConfigRegistry {
         usePolling: config.configWatchUsePolling,
         debounceMs: config.configWatchDebounceMs,
       },
-      "Started backend config watcher"
+      "Started backend config watcher",
     );
   }
 
@@ -453,7 +480,10 @@ export class ConfigRegistry {
     const defaultSceneId =
       deviceConfig?.defaultSceneId || snapshot.defaultSceneId || fleetConfig.defaultSceneId || "";
     const sceneId = runtimeSceneId || defaultSceneId || "";
-    const deviceName = deviceConfig?.deviceName?.trim() || snapshot.deviceName?.trim() || `设备 ${snapshot.deviceId}`;
+    const deviceName =
+      deviceConfig?.deviceName?.trim() ||
+      snapshot.deviceName?.trim() ||
+      `设备 ${snapshot.deviceId}`;
 
     return {
       ...snapshot,
@@ -463,9 +493,12 @@ export class ConfigRegistry {
       sceneId,
       mapProfile: deviceConfig?.mapProfile || snapshot.mapProfile || fleetConfig.defaultMapProfile,
       gpsEnabled: deviceConfig?.gpsEnabled ?? snapshot.gpsEnabled ?? fleetConfig.defaultGpsEnabled,
-      rosMapEnabled: deviceConfig?.rosMapEnabled ?? snapshot.rosMapEnabled ?? fleetConfig.defaultRosMapEnabled,
+      rosMapEnabled:
+        deviceConfig?.rosMapEnabled ?? snapshot.rosMapEnabled ?? fleetConfig.defaultRosMapEnabled,
       tags: [...(deviceConfig?.tags || snapshot.tags || [])],
-      formationIds: [...(this.deviceFormationIds.get(snapshot.deviceId) || snapshot.formationIds || [])],
+      formationIds: [
+        ...(this.deviceFormationIds.get(snapshot.deviceId) || snapshot.formationIds || []),
+      ],
     };
   }
 
@@ -487,7 +520,9 @@ export class ConfigRegistry {
       const uniqueScenes = [...new Set(sceneCandidates)];
       const sceneId =
         formation.sceneId ||
-        (uniqueScenes.length === 1 ? uniqueScenes[0] : memberDevices[0]?.sceneId || memberDevices[0]?.defaultSceneId || "");
+        (uniqueScenes.length === 1
+          ? uniqueScenes[0]
+          : memberDevices[0]?.sceneId || memberDevices[0]?.defaultSceneId || "");
 
       return {
         formationId: formation.formationId,

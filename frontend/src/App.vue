@@ -73,7 +73,7 @@ const duplicateNames = computed(() => {
   return new Set(
     Object.entries(nameCount)
       .filter(([, count]) => count > 1)
-      .map(([name]) => name)
+      .map(([name]) => name),
   );
 });
 
@@ -98,14 +98,14 @@ const alertButtonTone = computed(() => {
   return "normal";
 });
 
-const selectedTone = computed(() => (selectedDevice.value ? getDeviceTone(selectedDevice.value) : "normal"));
+const selectedTone = computed(() =>
+  selectedDevice.value ? getDeviceTone(selectedDevice.value) : "normal",
+);
 const selectedToneLabel = computed(() => toneLabelMap[selectedTone.value] || "正常");
 const selectedSceneLabel = computed(
-  () => selectedSceneDefinition.value?.sceneName || activeSceneId.value || "未配置场景"
+  () => selectedSceneDefinition.value?.sceneName || activeSceneId.value || "未配置场景",
 );
-const selectedFormationLabel = computed(
-  () => selectedFormation.value?.formationName || "全部设备"
-);
+const selectedFormationLabel = computed(() => selectedFormation.value?.formationName || "全部设备");
 
 const selectedCodeCards = computed(() => {
   if (!selectedDevice.value) {
@@ -114,13 +114,18 @@ const selectedCodeCards = computed(() => {
 
   return [
     { key: "info", label: "提示报码", tone: "notice", payload: selectedDevice.value.infoCode },
-    { key: "warning", label: "预警报码", tone: "warning", payload: selectedDevice.value.warningCode },
+    {
+      key: "warning",
+      label: "预警报码",
+      tone: "warning",
+      payload: selectedDevice.value.warningCode,
+    },
     { key: "error", label: "告警报码", tone: "critical", payload: selectedDevice.value.errorCode },
   ];
 });
 
 const hasSelectedRosPose = computed(
-  () => hasPose(selectedDevice.value?.fusionLoc) || hasPose(selectedDevice.value?.lidarLoc)
+  () => hasPose(selectedDevice.value?.fusionLoc) || hasPose(selectedDevice.value?.lidarLoc),
 );
 
 function formatNumber(value, digits = 2, unit = "") {
@@ -161,7 +166,8 @@ function getAlertButtonText() {
 
 function toggleAlertDrawer() {
   if (!isAlertDrawerOpen.value) {
-    activeAlertSeverity.value = alertSeverities.find((severity) => alertStats.value[severity] > 0) || "critical";
+    activeAlertSeverity.value =
+      alertSeverities.find((severity) => alertStats.value[severity] > 0) || "critical";
   }
   isAlertDrawerOpen.value = !isAlertDrawerOpen.value;
 }
@@ -331,7 +337,9 @@ onBeforeUnmount(() => {
             <div class="device-row">
               <div class="device-identity">
                 <h3 class="device-name">{{ device.deviceName }}</h3>
-                <span v-if="shouldShowDeviceId(device)" class="device-subtitle">{{ device.deviceId }}</span>
+                <span v-if="shouldShowDeviceId(device)" class="device-subtitle">{{
+                  device.deviceId
+                }}</span>
               </div>
               <span class="device-status" :data-tone="getDeviceTone(device)">
                 {{ toneLabelMap[getDeviceTone(device)] || "正常" }}
@@ -350,9 +358,7 @@ onBeforeUnmount(() => {
             </div>
           </button>
 
-          <div v-if="!filteredDevices.length" class="empty-alert">
-            当前筛选条件下没有设备数据
-          </div>
+          <div v-if="!filteredDevices.length" class="empty-alert">当前筛选条件下没有设备数据</div>
         </div>
       </aside>
 
@@ -460,7 +466,9 @@ onBeforeUnmount(() => {
               >
                 <div class="code-card-head">
                   <span>{{ item.label }}</span>
-                  <span class="code-badge" :data-tone="item.tone">{{ formatValue(item.payload.code) }}</span>
+                  <span class="code-badge" :data-tone="item.tone">{{
+                    formatValue(item.payload.code)
+                  }}</span>
                 </div>
                 <strong>{{ item.payload.info || "暂无内容" }}</strong>
                 <small>{{ formatStamp(item.payload.stamp) }}</small>
@@ -555,7 +563,11 @@ onBeforeUnmount(() => {
 
     <div class="drawer-scrim" :class="{ open: isAlertDrawerOpen }" @click="closeAlertDrawer"></div>
 
-    <aside class="panel alert-drawer" :class="{ open: isAlertDrawerOpen }" :aria-hidden="(!isAlertDrawerOpen).toString()">
+    <aside
+      class="panel alert-drawer"
+      :class="{ open: isAlertDrawerOpen }"
+      :aria-hidden="(!isAlertDrawerOpen).toString()"
+    >
       <div class="alert-drawer-head">
         <h2>告警中心</h2>
         <button type="button" class="secondary-btn" @click="closeAlertDrawer">关闭</button>

@@ -27,7 +27,11 @@ function fetchArrayBuffer(url) {
 }
 
 function parsePcdHeader(arrayBuffer) {
-  const headerSlice = new Uint8Array(arrayBuffer, 0, Math.min(arrayBuffer.byteLength, HEADER_SCAN_BYTES));
+  const headerSlice = new Uint8Array(
+    arrayBuffer,
+    0,
+    Math.min(arrayBuffer.byteLength, HEADER_SCAN_BYTES),
+  );
   const headerText = ASCII_DECODER.decode(headerSlice);
   const match = headerText.match(/DATA\s+binary[^\r\n]*\r?\n/i);
 
@@ -36,7 +40,11 @@ function parsePcdHeader(arrayBuffer) {
   }
 
   const headerLength = match.index + match[0].length;
-  const lines = headerText.slice(0, headerLength).split(/\r?\n/).map((line) => line.trim()).filter(Boolean);
+  const lines = headerText
+    .slice(0, headerLength)
+    .split(/\r?\n/)
+    .map((line) => line.trim())
+    .filter(Boolean);
   const header = {};
 
   lines.forEach((line) => {
@@ -110,16 +118,17 @@ function readScalar(dataView, offset, descriptor) {
 }
 
 function derivePointCloudGeometry(sceneDefinition = {}, meta = {}) {
-  const gridSize = toFiniteNumber(meta.grid_size, toFiniteNumber(sceneDefinition.resolution, 0.2)) || 0.2;
+  const gridSize =
+    toFiniteNumber(meta.grid_size, toFiniteNumber(sceneDefinition.resolution, 0.2)) || 0.2;
   const originX = toFiniteNumber(meta.origin?.x, toFiniteNumber(sceneDefinition.origin?.x, 0)) || 0;
   const originY = toFiniteNumber(meta.origin?.y, toFiniteNumber(sceneDefinition.origin?.y, 0)) || 0;
   const width = Math.max(
     1,
-    Math.round(toFiniteNumber(meta.shape?.width, toFiniteNumber(sceneDefinition.width, 1)) || 1)
+    Math.round(toFiniteNumber(meta.shape?.width, toFiniteNumber(sceneDefinition.width, 1)) || 1),
   );
   const height = Math.max(
     1,
-    Math.round(toFiniteNumber(meta.shape?.height, toFiniteNumber(sceneDefinition.height, 1)) || 1)
+    Math.round(toFiniteNumber(meta.shape?.height, toFiniteNumber(sceneDefinition.height, 1)) || 1),
   );
 
   return {
@@ -189,7 +198,7 @@ function rasterizePointCloud(arrayBuffer, meta, sceneDefinition) {
     const intensity = readScalar(
       dataView,
       baseOffset + (fieldMap.intensity?.offset || 0),
-      fieldMap.intensity
+      fieldMap.intensity,
     );
 
     if (!Number.isFinite(x) || !Number.isFinite(y) || !Number.isFinite(z)) {
@@ -211,7 +220,7 @@ function rasterizePointCloud(arrayBuffer, meta, sceneDefinition) {
     if (Number.isFinite(intensity)) {
       intensityBuckets[cellIndex] = Math.max(
         intensityBuckets[cellIndex],
-        Math.max(0, Math.min(255, Math.round(intensity)))
+        Math.max(0, Math.min(255, Math.round(intensity))),
       );
     }
   }
@@ -283,7 +292,9 @@ export async function loadPointCloudBackdrop(sceneDefinition) {
 
   const loadingPromise = Promise.all([
     fetchArrayBuffer(sceneDefinition.pointCloudUrl),
-    sceneDefinition.pointCloudMetaUrl ? fetchJson(sceneDefinition.pointCloudMetaUrl) : Promise.resolve({}),
+    sceneDefinition.pointCloudMetaUrl
+      ? fetchJson(sceneDefinition.pointCloudMetaUrl)
+      : Promise.resolve({}),
   ])
     .then(([arrayBuffer, meta]) => rasterizePointCloud(arrayBuffer, meta, sceneDefinition))
     .catch((error) => {

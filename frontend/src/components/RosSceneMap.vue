@@ -71,7 +71,12 @@ const mergeSceneDefinition = (base = {}, override = {}) => {
         : undefined,
   };
 
-  if (!merged.bounds && Number.isFinite(merged.width) && Number.isFinite(merged.height) && Number.isFinite(merged.resolution)) {
+  if (
+    !merged.bounds &&
+    Number.isFinite(merged.width) &&
+    Number.isFinite(merged.height) &&
+    Number.isFinite(merged.resolution)
+  ) {
     merged.bounds = {
       minX: merged.origin?.x || 0,
       maxX: (merged.origin?.x || 0) + merged.width * merged.resolution,
@@ -83,12 +88,20 @@ const mergeSceneDefinition = (base = {}, override = {}) => {
   return merged;
 };
 
-const resolvedScene = computed(() => mergeSceneDefinition(props.sceneDefinition || {}, metadata.value || {}));
-const activeSceneId = computed(() => resolvedScene.value?.sceneId || props.sceneDefinition?.sceneId || "");
-const sceneBounds = computed(() => (hasBounds(resolvedScene.value?.bounds) ? resolvedScene.value.bounds : null));
-const overlayBounds = computed(() => (hasBounds(overlay.value?.bounds) ? overlay.value.bounds : null));
+const resolvedScene = computed(() =>
+  mergeSceneDefinition(props.sceneDefinition || {}, metadata.value || {}),
+);
+const activeSceneId = computed(
+  () => resolvedScene.value?.sceneId || props.sceneDefinition?.sceneId || "",
+);
+const sceneBounds = computed(() =>
+  hasBounds(resolvedScene.value?.bounds) ? resolvedScene.value.bounds : null,
+);
+const overlayBounds = computed(() =>
+  hasBounds(overlay.value?.bounds) ? overlay.value.bounds : null,
+);
 const pointCloudBounds = computed(() =>
-  hasBounds(pointCloudBackdrop.value?.bounds) ? pointCloudBackdrop.value.bounds : null
+  hasBounds(pointCloudBackdrop.value?.bounds) ? pointCloudBackdrop.value.bounds : null,
 );
 
 const imageLayerDefinition = computed(() => {
@@ -141,7 +154,9 @@ const pointCloudLayerDefinition = computed(() => {
   };
 });
 
-const backgroundLayerDefinition = computed(() => pointCloudLayerDefinition.value || imageLayerDefinition.value);
+const backgroundLayerDefinition = computed(
+  () => pointCloudLayerDefinition.value || imageLayerDefinition.value,
+);
 
 const unionBounds = (...boundsList) => {
   const validBounds = boundsList.filter(hasBounds);
@@ -156,7 +171,7 @@ const unionBounds = (...boundsList) => {
       minY: Math.min(accumulator.minY, bounds.minY),
       maxY: Math.max(accumulator.maxY, bounds.maxY),
     }),
-    { ...validBounds[0] }
+    { ...validBounds[0] },
   );
 };
 
@@ -169,15 +184,20 @@ const effectiveWorldBounds = computed(() => {
     return laneletBounds;
   }
 
-  return unionBounds(backgroundBounds, configuredBounds, laneletBounds) || configuredBounds || laneletBounds || null;
+  return (
+    unionBounds(backgroundBounds, configuredBounds, laneletBounds) ||
+    configuredBounds ||
+    laneletBounds ||
+    null
+  );
 });
 
 const sceneReady = computed(() => hasBounds(effectiveWorldBounds.value));
 const worldWidth = computed(() =>
-  sceneReady.value ? effectiveWorldBounds.value.maxX - effectiveWorldBounds.value.minX : 0
+  sceneReady.value ? effectiveWorldBounds.value.maxX - effectiveWorldBounds.value.minX : 0,
 );
 const worldHeight = computed(() =>
-  sceneReady.value ? effectiveWorldBounds.value.maxY - effectiveWorldBounds.value.minY : 0
+  sceneReady.value ? effectiveWorldBounds.value.maxY - effectiveWorldBounds.value.minY : 0,
 );
 
 const stageTransform = computed(() => {
@@ -211,11 +231,14 @@ const pathMetrics = computed(() => ({
 
 const screenInvariantScale = computed(() => 1 / Math.max(viewport.scale || 1, 0.0001));
 const screenInvariantTransform = computed(
-  () => `scale(${props.round(screenInvariantScale.value, 6)} ${props.round(-screenInvariantScale.value, 6)})`
+  () =>
+    `scale(${props.round(screenInvariantScale.value, 6)} ${props.round(-screenInvariantScale.value, 6)})`,
 );
 
 const plannedPathPoints = computed(() =>
-  (Array.isArray(props.pathPoints) ? props.pathPoints : []).filter((point) => Number.isFinite(point?.x) && Number.isFinite(point?.y))
+  (Array.isArray(props.pathPoints) ? props.pathPoints : []).filter(
+    (point) => Number.isFinite(point?.x) && Number.isFinite(point?.y),
+  ),
 );
 
 function buildWorldPath(points) {
@@ -305,7 +328,11 @@ function writeSavedSceneViews(nextValue) {
   }
 }
 
-function getViewportCenter(scale = viewport.scale, offsetX = viewport.offsetX, offsetY = viewport.offsetY) {
+function getViewportCenter(
+  scale = viewport.scale,
+  offsetX = viewport.offsetX,
+  offsetY = viewport.offsetY,
+) {
   const bounds = effectiveWorldBounds.value;
   if (!sceneReady.value || !bounds || !Number.isFinite(scale) || scale <= 0) {
     return null;
@@ -365,7 +392,12 @@ function restoreViewportState(sceneId = activeSceneId.value) {
         y: Number(savedView.centerY),
       }
     : null;
-  if (!savedView || !savedCenter || !isWorldPointWithinBounds(savedCenter) || !Number.isFinite(Number(savedView.scale))) {
+  if (
+    !savedView ||
+    !savedCenter ||
+    !isWorldPointWithinBounds(savedCenter) ||
+    !Number.isFinite(Number(savedView.scale))
+  ) {
     return false;
   }
 
@@ -508,16 +540,24 @@ const laneletPaths = computed(() =>
     leftPath: buildWorldPath(lanelet.left),
     rightPath: buildWorldPath(lanelet.right),
     centerPath: buildWorldPath(lanelet.centerline),
-  }))
+  })),
 );
 
-const selectedFusionPoint = computed(() => (hasPose(props.selectedDevice?.fusionLoc) ? props.selectedDevice.fusionLoc : null));
-const selectedLidarPoint = computed(() => (hasPose(props.selectedDevice?.lidarLoc) ? props.selectedDevice.lidarLoc : null));
+const selectedFusionPoint = computed(() =>
+  hasPose(props.selectedDevice?.fusionLoc) ? props.selectedDevice.fusionLoc : null,
+);
+const selectedLidarPoint = computed(() =>
+  hasPose(props.selectedDevice?.lidarLoc) ? props.selectedDevice.lidarLoc : null,
+);
 const formationPeerDevices = computed(() =>
   (Array.isArray(props.sceneDevices) ? props.sceneDevices : [])
     .filter((device) => device?.deviceId && device.deviceId !== props.selectedDevice?.deviceId)
     .map((device) => {
-      const pose = hasPose(device.fusionLoc) ? device.fusionLoc : hasPose(device.lidarLoc) ? device.lidarLoc : null;
+      const pose = hasPose(device.fusionLoc)
+        ? device.fusionLoc
+        : hasPose(device.lidarLoc)
+          ? device.lidarLoc
+          : null;
       if (!pose) {
         return null;
       }
@@ -528,19 +568,19 @@ const formationPeerDevices = computed(() =>
         tone: props.getDeviceTone(device),
       };
     })
-    .filter(Boolean)
+    .filter(Boolean),
 );
 
 const selectedFusionAngle = computed(() =>
   Number.isFinite(props.selectedDevice?.fusionLoc?.yaw)
     ? 90 - props.round((props.selectedDevice.fusionLoc.yaw * 180) / Math.PI, 1)
-    : 0
+    : 0,
 );
 
 const selectedLidarAngle = computed(() =>
   Number.isFinite(props.selectedDevice?.lidarLoc?.yaw)
     ? 90 - props.round((props.selectedDevice.lidarLoc.yaw * 180) / Math.PI, 1)
-    : 0
+    : 0,
 );
 
 const connectorPath = computed(() => {
@@ -553,10 +593,12 @@ const connectorPath = computed(() => {
 const plannedPathD = computed(() => buildWorldPath(plannedPathPoints.value));
 const pathStartPoint = computed(() => plannedPathPoints.value[0] || null);
 const pathEndPoint = computed(() =>
-  plannedPathPoints.value.length ? plannedPathPoints.value[plannedPathPoints.value.length - 1] : null
+  plannedPathPoints.value.length
+    ? plannedPathPoints.value[plannedPathPoints.value.length - 1]
+    : null,
 );
 const pathMiddlePoints = computed(() =>
-  plannedPathPoints.value.slice(1, Math.max(plannedPathPoints.value.length - 1, 1))
+  plannedPathPoints.value.slice(1, Math.max(plannedPathPoints.value.length - 1, 1)),
 );
 
 const pathHintPosition = computed(() => {
@@ -802,7 +844,7 @@ watch(
       hydratedSceneId.value = "";
     }
   },
-  { immediate: true }
+  { immediate: true },
 );
 
 watch(
@@ -810,7 +852,7 @@ watch(
   (url) => {
     void loadOverlay(url);
   },
-  { immediate: true }
+  { immediate: true },
 );
 
 watch(
@@ -818,7 +860,7 @@ watch(
   (url) => {
     void loadMetadata(url);
   },
-  { immediate: true }
+  { immediate: true },
 );
 
 watch(
@@ -835,7 +877,7 @@ watch(
   () => {
     void loadPointCloud(props.sceneDefinition || {});
   },
-  { immediate: true }
+  { immediate: true },
 );
 
 watch(
@@ -866,7 +908,7 @@ watch(
 
     saveViewportState(activeSceneId.value);
   },
-  { immediate: true }
+  { immediate: true },
 );
 
 watch(
@@ -885,7 +927,7 @@ watch(
     if (previousDeviceId && nextDeviceId !== previousDeviceId) {
       resetView();
     }
-  }
+  },
 );
 </script>
 
@@ -1034,7 +1076,13 @@ watch(
           :transform="`translate(${props.round(peer.pose.x, 2)} ${props.round(peer.pose.y, 2)})`"
         >
           <g :transform="screenInvariantTransform">
-            <circle class="ros-secondary-core" cx="0" cy="0" :r="markerMetrics.peerCore" vector-effect="non-scaling-stroke" />
+            <circle
+              class="ros-secondary-core"
+              cx="0"
+              cy="0"
+              :r="markerMetrics.peerCore"
+              vector-effect="non-scaling-stroke"
+            />
             <text class="ros-secondary-label" x="0" y="-16">{{ peer.deviceName }}</text>
           </g>
         </g>
@@ -1046,8 +1094,16 @@ watch(
         >
           <g :transform="screenInvariantTransform">
             <g :transform="`rotate(${selectedFusionAngle})`">
-              <circle class="ros-marker-ring" :r="markerMetrics.fusionRing" vector-effect="non-scaling-stroke" />
-              <circle class="ros-marker-core" :r="markerMetrics.fusionCore" vector-effect="non-scaling-stroke" />
+              <circle
+                class="ros-marker-ring"
+                :r="markerMetrics.fusionRing"
+                vector-effect="non-scaling-stroke"
+              />
+              <circle
+                class="ros-marker-core"
+                :r="markerMetrics.fusionCore"
+                vector-effect="non-scaling-stroke"
+              />
               <path
                 class="ros-marker-arrow"
                 :d="buildArrowPath(markerMetrics.arrowHeight, markerMetrics.arrowHalfWidth)"
@@ -1064,7 +1120,11 @@ watch(
         >
           <g :transform="screenInvariantTransform">
             <g :transform="`rotate(${selectedLidarAngle})`">
-              <circle class="ros-marker-ring" :r="markerMetrics.lidarRing" vector-effect="non-scaling-stroke" />
+              <circle
+                class="ros-marker-ring"
+                :r="markerMetrics.lidarRing"
+                vector-effect="non-scaling-stroke"
+              />
               <rect
                 class="ros-marker-core"
                 :x="-markerMetrics.lidarCore"
@@ -1078,7 +1138,12 @@ watch(
               />
               <path
                 class="ros-marker-arrow"
-                :d="buildArrowPath(markerMetrics.arrowHeight * 0.92, markerMetrics.arrowHalfWidth * 0.92)"
+                :d="
+                  buildArrowPath(
+                    markerMetrics.arrowHeight * 0.92,
+                    markerMetrics.arrowHalfWidth * 0.92,
+                  )
+                "
                 vector-effect="non-scaling-stroke"
               />
             </g>

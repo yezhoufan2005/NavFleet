@@ -104,7 +104,8 @@ export const config = {
   mqttUrl: process.env.MQTT_URL || "mqtt://127.0.0.1:1883",
   mqttUsername: process.env.MQTT_USERNAME || "",
   mqttPassword: process.env.MQTT_PASSWORD || "",
-  mqttClientId: process.env.MQTT_CLIENT_ID || `fleet-dashboard-${Math.random().toString(16).slice(2, 10)}`,
+  mqttClientId:
+    process.env.MQTT_CLIENT_ID || `fleet-dashboard-${Math.random().toString(16).slice(2, 10)}`,
   mongoUri: process.env.MONGO_URI || "mongodb://127.0.0.1:27017/fleet_monitor",
   mongoDbName: process.env.MONGO_DB_NAME || "fleet_monitor",
   seedFile: process.env.SEED_FILE || "",
