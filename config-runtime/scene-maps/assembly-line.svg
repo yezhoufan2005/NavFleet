@@ -1,0 +1,47 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1000" height="620" viewBox="0 0 1000 620" font-family="'Segoe UI',system-ui,sans-serif">
+  <defs>
+    <pattern id="grid" width="40" height="40" patternUnits="userSpaceOnUse">
+      <path d="M40 0H0V40" fill="none" stroke="#1e2f4a" stroke-width="1"/>
+    </pattern>
+    <linearGradient id="bg" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#0d1526"/>
+      <stop offset="1" stop-color="#0a1120"/>
+    </linearGradient>
+  </defs>
+  <rect width="1000" height="620" fill="url(#bg)"/>
+  <rect width="1000" height="620" fill="url(#grid)"/>
+  <rect x="24" y="24" width="952" height="572" fill="none" stroke="#345182" stroke-width="2" rx="6"/>
+
+  <!-- main conveyor line -->
+  <rect x="80" y="286" width="840" height="48" fill="#132743" stroke="#3a6ea5" stroke-width="2" rx="4"/>
+  <line x1="80" y1="310" x2="920" y2="310" stroke="#4f83c2" stroke-width="2" stroke-dasharray="14 10"/>
+
+  <!-- work stations -->
+  <g fill="#16324f" stroke="#4f83c2" stroke-width="2">
+    <rect x="120" y="150" width="120" height="96" rx="6"/>
+    <rect x="300" y="150" width="120" height="96" rx="6"/>
+    <rect x="480" y="150" width="120" height="96" rx="6"/>
+    <rect x="660" y="150" width="120" height="96" rx="6"/>
+    <rect x="120" y="374" width="120" height="96" rx="6"/>
+    <rect x="300" y="374" width="120" height="96" rx="6"/>
+    <rect x="480" y="374" width="120" height="96" rx="6"/>
+    <rect x="660" y="374" width="120" height="96" rx="6"/>
+  </g>
+  <g fill="#8fb8e6" font-size="15" text-anchor="middle">
+    <text x="180" y="204">工位 S1</text>
+    <text x="360" y="204">工位 S2</text>
+    <text x="540" y="204">工位 S3</text>
+    <text x="720" y="204">工位 S4</text>
+    <text x="180" y="428">工位 S5</text>
+    <text x="360" y="428">工位 S6</text>
+    <text x="540" y="428">工位 S7</text>
+    <text x="720" y="428">工位 S8</text>
+  </g>
+
+  <!-- buffer / QC area -->
+  <rect x="812" y="150" width="108" height="320" fill="#10233b" stroke="#3a6ea5" stroke-width="2" rx="6"/>
+  <text x="866" y="314" fill="#8fb8e6" font-size="15" text-anchor="middle" transform="rotate(90 866 314)">质检缓存区</text>
+
+  <text x="48" y="60" fill="#cfe0f5" font-size="22" font-weight="600">总装产线 · Assembly Line</text>
+  <text x="48" y="84" fill="#5f7ba3" font-size="13">占位场景底图 · 1000 × 620 · resolution 0.096 m/px</text>
+</svg>

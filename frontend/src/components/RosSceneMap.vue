@@ -10,6 +10,7 @@ const props = defineProps({
   round: { type: Function, required: true },
   pathPoints: { type: Array, default: () => [] },
   isPathEditMode: { type: Boolean, default: false },
+  trails: { type: Object, default: () => ({}) },
 });
 
 const emit = defineEmits(["update-path", "clear-path", "undo-path", "set-edit-mode"]);
@@ -591,6 +592,25 @@ const connectorPath = computed(() => {
 });
 
 const plannedPathD = computed(() => buildWorldPath(plannedPathPoints.value));
+
+const selectedTrailD = computed(() => {
+  const deviceId = props.selectedDevice?.deviceId;
+  if (!deviceId) {
+    return "";
+  }
+  return buildWorldPath(props.trails?.[deviceId] || []);
+});
+
+const peerTrails = computed(() =>
+  formationPeerDevices.value
+    .map((peer) => ({
+      deviceId: peer.deviceId,
+      tone: peer.tone,
+      d: buildWorldPath(props.trails?.[peer.deviceId] || []),
+    }))
+    .filter((trail) => trail.d),
+);
+
 const pathStartPoint = computed(() => plannedPathPoints.value[0] || null);
 const pathEndPoint = computed(() =>
   plannedPathPoints.value.length
@@ -1005,6 +1025,22 @@ watch(
           fill="none"
           stroke="rgba(15, 28, 39, 0.56)"
           stroke-width="1"
+          vector-effect="non-scaling-stroke"
+        />
+
+        <path
+          v-for="trail in peerTrails"
+          :key="`trail-${trail.deviceId}`"
+          :d="trail.d"
+          class="device-trail-line peer"
+          :data-tone="trail.tone"
+          vector-effect="non-scaling-stroke"
+        />
+
+        <path
+          v-if="selectedTrailD"
+          :d="selectedTrailD"
+          class="device-trail-line selected"
           vector-effect="non-scaling-stroke"
         />
 

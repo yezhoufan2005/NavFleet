@@ -7,9 +7,23 @@ import { config, runtimePaths } from "./config";
 import { ConfigRegistry } from "./configRegistry";
 import { Persistence } from "./persistence";
 import { DashboardStore } from "./store";
+import { buildTopicScheme } from "./topics";
+import { alertsQuerySchema, historyQuerySchema, ingestBodySchema } from "./validation";
 import { SocketEvent } from "./types";
+import type { ZodError } from "zod";
 
 const logger = pino({ name: "fleet-backend" });
+const topicScheme = buildTopicScheme(config.topicPattern);
+
+const respondValidationError = (response: express.Response, error: ZodError): void => {
+  response.status(400).json({
+    error: "invalid_request",
+    issues: error.issues.map((issue) => ({
+      path: issue.path.join("."),
+      message: issue.message,
+    })),
+  });
+};
 const app = express();
 const persistence = new Persistence();
 const configRegistry = new ConfigRegistry();
@@ -52,12 +66,17 @@ app.get("/api/formations", (_request, response) => {
 
 app.get("/api/devices/:deviceId/history", async (request, response, next) => {
   try {
+    const parsed = historyQuerySchema.safeParse(request.query);
+    if (!parsed.success) {
+      respondValidationError(response, parsed.error);
+      return;
+    }
     const { deviceId } = request.params;
     const history = await store.getHistory(
       deviceId,
-      typeof request.query.from === "string" ? request.query.from : undefined,
-      typeof request.query.to === "string" ? request.query.to : undefined,
-      typeof request.query.limit === "string" ? Number(request.query.limit) : undefined,
+      parsed.data.from,
+      parsed.data.to,
+      parsed.data.limit,
     );
     response.json({
       deviceId,
@@ -70,11 +89,12 @@ app.get("/api/devices/:deviceId/history", async (request, response, next) => {
 
 app.get("/api/alerts", async (request, response, next) => {
   try {
-    const items = await store.getAlerts({
-      severity: typeof request.query.severity === "string" ? request.query.severity : undefined,
-      deviceId: typeof request.query.deviceId === "string" ? request.query.deviceId : undefined,
-      status: typeof request.query.status === "string" ? request.query.status : undefined,
-    });
+    const parsed = alertsQuerySchema.safeParse(request.query);
+    if (!parsed.success) {
+      respondValidationError(response, parsed.error);
+      return;
+    }
+    const items = await store.getAlerts(parsed.data);
     response.json({ items });
   } catch (error) {
     next(error);
@@ -113,7 +133,12 @@ app.get("/api/scenes", (_request, response) => {
 
 app.post("/api/debug/ingest", async (request, response, next) => {
   try {
-    const snapshot = await store.applyPayload(request.body, "debug-api");
+    const parsed = ingestBodySchema.safeParse(request.body);
+    if (!parsed.success) {
+      respondValidationError(response, parsed.error);
+      return;
+    }
+    const snapshot = await store.applyPayload(parsed.data, "debug-api");
     response.json(snapshot);
   } catch (error) {
     next(error);
@@ -127,6 +152,20 @@ app.use(
     response: express.Response,
     _next: express.NextFunction,
   ) => {
+    // Body-parser and other middleware attach a 4xx `status`/`statusCode` for
+    // client errors (e.g. malformed JSON). Surface those as-is instead of 500.
+    const status =
+      error && typeof error === "object"
+        ? ((error as { status?: number; statusCode?: number }).status ??
+          (error as { statusCode?: number }).statusCode)
+        : undefined;
+    if (typeof status === "number" && status >= 400 && status < 500) {
+      response.status(status).json({
+        error: "invalid_request",
+        message: error instanceof Error ? error.message : "Invalid request",
+      });
+      return;
+    }
     logger.error({ err: error }, "Unhandled request error");
     response.status(500).json({
       error: "internal_error",
@@ -177,11 +216,6 @@ const safeJsonParse = (value: string): unknown => {
   }
 };
 
-const extractStatusDeviceId = (topic: string): string => {
-  const match = topic.match(/^\/fleet\/([^/]+)\/status$/);
-  return match?.[1] || "";
-};
-
 const connectMqtt = (): void => {
   const client = mqtt.connect(config.mqttUrl, {
     clientId: config.mqttClientId,
@@ -192,21 +226,25 @@ const connectMqtt = (): void => {
 
   client.on("connect", () => {
     logger.info({ url: config.mqttUrl }, "Connected to MQTT broker");
-    client.subscribe(["/fleet/+/vehicle_info", "/fleet/+/status"], (error) => {
+    const subscriptions = [topicScheme.telemetrySubscription, topicScheme.statusSubscription];
+    client.subscribe(subscriptions, (error) => {
       if (error) {
-        logger.error({ err: error }, "Failed to subscribe MQTT topics");
+        logger.error({ err: error, subscriptions }, "Failed to subscribe MQTT topics");
+        return;
       }
+      logger.info({ subscriptions }, "Subscribed to MQTT topics");
     });
   });
 
   client.on("message", async (topic, payloadBuffer) => {
     const payloadText = payloadBuffer.toString("utf8");
     try {
-      const statusDeviceId = extractStatusDeviceId(topic);
-      if (statusDeviceId) {
-        const deviceId = statusDeviceId;
-        await store.applyStatus(deviceId, safeJsonParse(payloadText));
-        return;
+      if (topicScheme.isStatusTopic(topic)) {
+        const deviceId = topicScheme.extractDeviceId(topic);
+        if (deviceId) {
+          await store.applyStatus(deviceId, safeJsonParse(payloadText));
+          return;
+        }
       }
 
       await store.applyPayload({ topic, payload: safeJsonParse(payloadText) }, "mqtt");
