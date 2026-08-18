@@ -6,11 +6,16 @@ import LoginForm from "./components/LoginForm.vue";
 import NotificationHost from "./components/NotificationHost.vue";
 import { useDashboard } from "./composables/useDashboard";
 import { useAuth } from "./composables/useAuth";
+import { useTheme } from "./composables/useTheme";
 import { controlModeMap, gearMap, taskStatusMap, formatEnum, describeEnum } from "./utils/enums";
 
 const dashboard = useDashboard();
 const auth = useAuth();
 const authState = auth.state;
+const { state: themeState, cycleTheme } = useTheme();
+
+const themeIconMap = { dark: "🌙", light: "☀", system: "🖥" };
+const themeLabelMap = { dark: "深色", light: "浅色", system: "跟随系统" };
 let dashboardStarted = false;
 
 const {
@@ -322,6 +327,14 @@ onBeforeUnmount(() => {
         </div>
 
         <div class="header-actions">
+          <button
+            type="button"
+            class="theme-toggle"
+            :title="`主题：${themeLabelMap[themeState.preference]}（点击切换）`"
+            @click="cycleTheme"
+          >
+            <span class="theme-toggle-icon">{{ themeIconMap[themeState.preference] }}</span>
+          </button>
           <button
             type="button"
             class="alert-center-btn"
