@@ -2,6 +2,7 @@
 import { computed, onBeforeUnmount, onMounted, ref, watch } from "vue";
 import { getAmapConfigError, hasAmapConfig, loadAmap } from "../utils/amap";
 import { wgs84ToGcj02 } from "../utils/gps";
+import { useTheme } from "../composables/useTheme";
 
 const props = defineProps({
   devices: { type: Array, required: true },
@@ -10,6 +11,11 @@ const props = defineProps({
 });
 
 const emit = defineEmits(["select"]);
+
+const { state: themeState } = useTheme();
+const amapStyle = computed(() =>
+  themeState.resolved === "light" ? "amap://styles/whitesmoke" : "amap://styles/darkblue",
+);
 
 const toneLabelMap = {
   normal: "正常",
@@ -28,6 +34,13 @@ let markerCtor = null;
 const markerEntries = new Map();
 let lastSelectedDeviceId = "";
 let lastViewportKey = "";
+
+// Keep the AMap base style in sync with the active light/dark theme.
+watch(amapStyle, (style) => {
+  if (map && typeof map.setMapStyle === "function") {
+    map.setMapStyle(style);
+  }
+});
 
 const gpsDevices = computed(() =>
   props.devices.filter(
@@ -200,7 +213,7 @@ async function initializeMap() {
       viewMode: "2D",
       zoom: 11,
       center: [121.4737, 31.2304],
-      mapStyle: "amap://styles/darkblue",
+      mapStyle: amapStyle.value,
       resizeEnable: true,
       zooms: [3, 20],
     });
