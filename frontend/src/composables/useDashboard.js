@@ -1,5 +1,6 @@
 import { computed, reactive, toRaw } from "vue";
 import { fallbackFleetPayload, sceneCatalog } from "../data-defaults";
+import { notify } from "./useNotifications";
 
 const cloneValue = (value) => JSON.parse(JSON.stringify(value));
 
@@ -460,6 +461,7 @@ export function useDashboard() {
       apiReady: false,
       wsReady: false,
       ws: null,
+      reconnectAttempts: 0,
     },
   });
 
@@ -857,41 +859,143 @@ export function useDashboard() {
     return `${protocol}//${window.location.host}/ws`;
   };
 
+  // Reconnect with exponential backoff (capped); app-level ping/pong detects a
+  // silently dead socket that never fires "close" (e.g. network black-hole).
+  const WS_HEARTBEAT_MS = 20000;
+  const WS_PONG_GRACE_MS = 10000;
+  const WS_BACKOFF_BASE_MS = 1000;
+  const WS_BACKOFF_MAX_MS = 30000;
+
+  let wsReconnectTimer = null;
+  let wsHeartbeatTimer = null;
+  let wsPongTimer = null;
+  let wsManuallyClosed = false;
+
+  const clearWsTimers = () => {
+    [wsReconnectTimer, wsHeartbeatTimer, wsPongTimer].forEach((timer) => {
+      if (timer) {
+        window.clearTimeout(timer);
+        window.clearInterval(timer);
+      }
+    });
+    wsReconnectTimer = null;
+    wsHeartbeatTimer = null;
+    wsPongTimer = null;
+  };
+
+  const scheduleReconnect = () => {
+    if (wsManuallyClosed || wsReconnectTimer) {
+      return;
+    }
+    const attempt = state.realtime.reconnectAttempts;
+    const delay = Math.min(WS_BACKOFF_BASE_MS * 2 ** attempt, WS_BACKOFF_MAX_MS);
+    state.realtime.reconnectAttempts = attempt + 1;
+    wsReconnectTimer = window.setTimeout(() => {
+      wsReconnectTimer = null;
+      connectRealtime();
+    }, delay);
+  };
+
+  const startHeartbeat = (ws) => {
+    wsHeartbeatTimer = window.setInterval(() => {
+      if (ws.readyState !== WebSocket.OPEN) {
+        return;
+      }
+      try {
+        ws.send(JSON.stringify({ type: "ping" }));
+      } catch (_error) {
+        return;
+      }
+      if (wsPongTimer) {
+        window.clearTimeout(wsPongTimer);
+      }
+      wsPongTimer = window.setTimeout(() => {
+        // No pong in time — assume the socket is dead and force a reconnect.
+        try {
+          ws.close();
+        } catch (_error) {
+          // ignore
+        }
+      }, WS_PONG_GRACE_MS);
+    }, WS_HEARTBEAT_MS);
+  };
+
   const connectRealtime = () => {
     if (state.realtime.ws) {
       return;
     }
+    wsManuallyClosed = false;
+    let ws;
     try {
-      const ws = new WebSocket(resolveWebSocketUrl());
-      state.realtime.ws = ws;
-      ws.addEventListener("open", () => {
-        state.realtime.wsReady = true;
-      });
-      ws.addEventListener("message", (event) => {
-        try {
-          const message = JSON.parse(event.data);
-          if (message.type === "fleet.snapshot") {
-            ingestPayload(message.payload, "ws");
-            return;
-          }
-          if (message.type === "fleet.delta") {
-            ingestPayload(message.payload.device || message.payload, "mqtt");
-          }
-        } catch (_error) {
-          // Ignore malformed messages.
-        }
-      });
-      const markClosed = () => {
-        state.realtime.wsReady = false;
-        state.realtime.ws = null;
-        window.setTimeout(connectRealtime, 4000);
-      };
-      ws.addEventListener("close", markClosed);
-      ws.addEventListener("error", markClosed);
+      ws = new WebSocket(resolveWebSocketUrl());
     } catch (_error) {
       state.realtime.wsReady = false;
       state.realtime.ws = null;
+      scheduleReconnect();
+      return;
     }
+    state.realtime.ws = ws;
+
+    ws.addEventListener("open", () => {
+      state.realtime.wsReady = true;
+      if (state.realtime.reconnectAttempts > 0) {
+        notify("实时连接已恢复", { type: "success", dedupeKey: "ws-restored" });
+      }
+      state.realtime.reconnectAttempts = 0;
+      startHeartbeat(ws);
+    });
+
+    ws.addEventListener("message", (event) => {
+      try {
+        const message = JSON.parse(event.data);
+        if (message.type === "pong") {
+          if (wsPongTimer) {
+            window.clearTimeout(wsPongTimer);
+            wsPongTimer = null;
+          }
+          return;
+        }
+        if (message.type === "fleet.snapshot") {
+          ingestPayload(message.payload, "ws");
+          return;
+        }
+        if (message.type === "fleet.delta") {
+          ingestPayload(message.payload.device || message.payload, "mqtt");
+        }
+      } catch (_error) {
+        // Ignore malformed messages.
+      }
+    });
+
+    const markClosed = () => {
+      const wasReady = state.realtime.wsReady;
+      state.realtime.wsReady = false;
+      state.realtime.ws = null;
+      clearWsTimers();
+      if (wasReady && !wsManuallyClosed) {
+        notify("实时连接中断，正在自动重连…", { type: "warning", dedupeKey: "ws-down" });
+      }
+      scheduleReconnect();
+    };
+    ws.addEventListener("close", markClosed);
+    ws.addEventListener("error", () => {
+      // "error" is followed by "close"; let markClosed drive the reconnect.
+    });
+  };
+
+  const disconnectRealtime = () => {
+    wsManuallyClosed = true;
+    clearWsTimers();
+    if (state.realtime.ws) {
+      try {
+        state.realtime.ws.close();
+      } catch (_error) {
+        // ignore
+      }
+    }
+    state.realtime.ws = null;
+    state.realtime.wsReady = false;
+    state.realtime.reconnectAttempts = 0;
   };
 
   const loadSceneDefinition = async (sceneId) => {
@@ -943,6 +1047,10 @@ export function useDashboard() {
       return true;
     } catch (_error) {
       state.realtime.apiReady = false;
+      notify("无法连接后端服务，请检查服务状态后重试", {
+        type: "error",
+        dedupeKey: "bootstrap-failed",
+      });
       return false;
     }
   };
@@ -951,6 +1059,14 @@ export function useDashboard() {
     const payload = cloneValue(fallbackFleetPayload);
     state.initialMockPayload = payload;
     ingestPayload(payload, "bootstrap");
+  };
+
+  const retryBootstrap = async () => {
+    const ready = await bootstrapFromBackend();
+    if (!ready) {
+      await bootstrapEmptyState();
+    }
+    return ready;
   };
 
   const bootstrap = async () => {
@@ -1020,5 +1136,7 @@ export function useDashboard() {
     trailsByDeviceId,
     clearTrail,
     clearAllTrails,
+    retryBootstrap,
+    disconnectRealtime,
   };
 }
