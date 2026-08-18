@@ -1,0 +1,47 @@
+[
+  {
+    "deviceId": "agv-a01",
+    "deviceName": "A01 巡检车",
+    "defaultSceneId": "kangcheng-airy",
+    "mapProfile": "lanelet",
+    "gpsEnabled": true,
+    "rosMapEnabled": true,
+    "tags": ["巡检"]
+  },
+  {
+    "deviceId": "agv-b07",
+    "deviceName": "B07 巡检车",
+    "defaultSceneId": "kangcheng-airy",
+    "mapProfile": "lanelet",
+    "gpsEnabled": true,
+    "rosMapEnabled": true,
+    "tags": ["巡检"]
+  },
+  {
+    "deviceId": "agv-c12",
+    "deviceName": "C12 巡检车",
+    "defaultSceneId": "kangcheng-airy",
+    "mapProfile": "lanelet",
+    "gpsEnabled": true,
+    "rosMapEnabled": true,
+    "tags": ["巡检"]
+  },
+  {
+    "deviceId": "agv-d03",
+    "deviceName": "D03 巡检车",
+    "defaultSceneId": "kangcheng-airy",
+    "mapProfile": "lanelet",
+    "gpsEnabled": false,
+    "rosMapEnabled": true,
+    "tags": ["待机"]
+  },
+  {
+    "deviceId": "agv-r01",
+    "deviceName": "R01 点云示例车",
+    "defaultSceneId": "cloudpoint-demo",
+    "mapProfile": "pointCloud",
+    "gpsEnabled": true,
+    "rosMapEnabled": true,
+    "tags": ["点云示例"]
+  }
+]

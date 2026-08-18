@@ -1,0 +1,18 @@
+[
+  {
+    "formationId": "inspection-alpha",
+    "formationName": "巡检编队 Alpha",
+    "deviceIds": ["agv-a01", "agv-b07", "agv-c12"],
+    "sceneId": "kangcheng-airy",
+    "description": "康城 Airy 巡检编队",
+    "color": "#46d7c3"
+  },
+  {
+    "formationId": "cloudpoint-demo-team",
+    "formationName": "点云示例编队",
+    "deviceIds": ["agv-r01"],
+    "sceneId": "cloudpoint-demo",
+    "description": "点云地图示例编队",
+    "color": "#86b8ff"
+  }
+]

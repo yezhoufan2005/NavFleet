@@ -1,0 +1,8 @@
+{
+  "fleetName": "多车监控平台",
+  "topicPattern": "/fleet/{deviceId}/vehicle_info",
+  "defaultSceneId": "kangcheng-airy",
+  "defaultMapProfile": "lanelet",
+  "defaultGpsEnabled": true,
+  "defaultRosMapEnabled": true
+}

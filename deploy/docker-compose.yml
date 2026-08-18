@@ -1,0 +1,115 @@
+services:
+  nginx:
+    image: nginx:1.27-alpine
+    depends_on:
+      - frontend
+      - backend
+    ports:
+      - "${HTTP_HOST_PORT:-8080}:80"
+    volumes:
+      - ./nginx/default.conf:/etc/nginx/conf.d/default.conf:ro
+    restart: unless-stopped
+
+  frontend:
+    build:
+      context: ../frontend
+      dockerfile: Dockerfile
+      args:
+        VITE_AMAP_KEY: ${VITE_AMAP_KEY:-}
+        VITE_AMAP_SECURITY_JS_CODE: ${VITE_AMAP_SECURITY_JS_CODE:-}
+    restart: unless-stopped
+
+  backend:
+    build:
+      context: ..
+      dockerfile: backend/Dockerfile
+    environment:
+      PORT: ${PORT:-3000}
+      FLEET_NAME: ${FLEET_NAME:-多车监控平台}
+      MQTT_URL: ${MQTT_URL:-mqtt://mosquitto:1883}
+      MQTT_USERNAME: ${MQTT_USERNAME:-}
+      MQTT_PASSWORD: ${MQTT_PASSWORD:-}
+      MQTT_TOPIC_PATTERN: ${MQTT_TOPIC_PATTERN:-/fleet/{deviceId}/vehicle_info}
+      MONGO_URI: ${MONGO_URI:-mongodb://root:example@mongo:27017/fleet_monitor?authSource=admin}
+      MONGO_DB_NAME: ${MONGO_DB_NAME:-fleet_monitor}
+      SEED_FILE: ${SEED_FILE:-}
+      OFFLINE_AFTER_SECONDS: ${OFFLINE_AFTER_SECONDS:-60}
+      TELEMETRY_RETENTION_SECONDS: ${TELEMETRY_RETENTION_SECONDS:-2592000}
+      ALERTS_RETENTION_SECONDS: ${ALERTS_RETENTION_SECONDS:-15552000}
+      MAX_HISTORY_POINTS: ${MAX_HISTORY_POINTS:-500}
+      MONGO_BUFFER_LIMIT: ${MONGO_BUFFER_LIMIT:-2000}
+      CONFIG_ROOT_PATH: ${CONFIG_ROOT_PATH:-/runtime-config}
+      CONFIG_WATCH_USE_POLLING: ${CONFIG_WATCH_USE_POLLING:-false}
+      CONFIG_WATCH_DEBOUNCE_MS: ${CONFIG_WATCH_DEBOUNCE_MS:-1000}
+    volumes:
+      - type: bind
+        source: ${CONFIG_RUNTIME_HOST_PATH:-../config-runtime}
+        target: /runtime-config
+        read_only: true
+    depends_on:
+      mongo:
+        condition: service_healthy
+      mosquitto:
+        condition: service_started
+    healthcheck:
+      test:
+        [
+          "CMD-SHELL",
+          "node -e \"fetch('http://127.0.0.1:3000/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))\""
+        ]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+    restart: unless-stopped
+
+  mosquitto:
+    image: eclipse-mosquitto:2.0
+    ports:
+      - "${MQTT_HOST_PORT:-1883}:1883"
+    volumes:
+      - ./mosquitto/mosquitto.conf:/mosquitto/config/mosquitto.conf:ro
+      - mosquitto-data:/mosquitto/data
+      - mosquitto-log:/mosquitto/log
+    healthcheck:
+      test:
+        [
+          "CMD-SHELL",
+          "ps | grep -q '[m]osquitto'"
+        ]
+      interval: 10s
+      timeout: 5s
+      retries: 6
+    restart: unless-stopped
+
+  mongo:
+    image: mongo:8.0
+    command: ["mongod", "--bind_ip_all", "--auth"]
+    environment:
+      MONGO_INITDB_ROOT_USERNAME: ${MONGO_INITDB_ROOT_USERNAME:-root}
+      MONGO_INITDB_ROOT_PASSWORD: ${MONGO_INITDB_ROOT_PASSWORD:-example}
+    volumes:
+      - mongo-data:/data/db
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "mongosh",
+          "--quiet",
+          "-u",
+          "${MONGO_INITDB_ROOT_USERNAME:-root}",
+          "-p",
+          "${MONGO_INITDB_ROOT_PASSWORD:-example}",
+          "--authenticationDatabase",
+          "admin",
+          "--eval",
+          "db.adminCommand('ping').ok"
+        ]
+      interval: 10s
+      timeout: 10s
+      retries: 10
+    restart: unless-stopped
+
+volumes:
+  mongo-data:
+  mosquitto-data:
+  mosquitto-log:
