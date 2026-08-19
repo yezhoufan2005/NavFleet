@@ -20,8 +20,14 @@ import { verifyToken } from "./auth/tokens";
 import { SocketEvent } from "./types";
 import type { ZodError } from "zod";
 
-const logger = pino({ name: "fleet-backend" });
+const logger = pino({ name: "fleet-backend", level: config.logLevel });
 const topicScheme = buildTopicScheme(config.topicPattern);
+
+// Lightweight process-level observability counters, surfaced via /metrics.
+const startedAt = Date.now();
+let mqttConnected = false;
+let mqttMessagesTotal = 0;
+let storeReady = false;
 
 const respondValidationError = (response: express.Response, error: ZodError): void => {
   response.status(400).json({
@@ -45,6 +51,26 @@ if (config.corsOrigins.length) {
 app.use(express.json({ limit: "2mb" }));
 app.use(cookieParser());
 
+// Request logging: one line per request on completion. Health/metrics probes are
+// noisy and logged at debug; everything else at info (level gated by LOG_LEVEL).
+app.use((request, response, next) => {
+  const startedAtMs = Date.now();
+  response.on("finish", () => {
+    const durationMs = Date.now() - startedAtMs;
+    const isProbe = request.path === "/health" || request.path.startsWith("/metrics");
+    logger[isProbe ? "debug" : "info"](
+      {
+        method: request.method,
+        path: request.path,
+        status: response.statusCode,
+        durationMs,
+      },
+      "request",
+    );
+  });
+  next();
+});
+
 // Public liveness endpoint (no auth).
 app.get("/health", (_request, response) => {
   response.json({
@@ -52,6 +78,68 @@ app.get("/health", (_request, response) => {
     service: "fleet-backend",
     now: new Date().toISOString(),
   });
+});
+
+// Public readiness probe (no auth): reports per-dependency status. The store
+// degrades gracefully without MongoDB/MQTT, so those are informational and the
+// probe is only "not ready" (503) until the store has finished initializing.
+app.get("/health/ready", (_request, response) => {
+  const checks = {
+    store: storeReady,
+    mongo: persistence.isMongoConnected(),
+    mqtt: mqttConnected,
+  };
+  const ready = checks.store;
+  response.status(ready ? 200 : 503).json({
+    ready,
+    degraded: !checks.mongo || !checks.mqtt,
+    checks,
+    now: new Date().toISOString(),
+  });
+});
+
+// Public metrics endpoint (Prometheus text format), gated by METRICS_ENABLED.
+// Intended for internal scraping only — do not expose to untrusted networks.
+app.get("/metrics", (_request, response) => {
+  if (!config.metricsEnabled) {
+    response.status(404).json({ error: "not_found" });
+    return;
+  }
+  const summary = store.buildSummary();
+  const lines = [
+    "# HELP navfleet_up 1 if the backend process is running",
+    "# TYPE navfleet_up gauge",
+    "navfleet_up 1",
+    "# HELP navfleet_uptime_seconds Process uptime in seconds",
+    "# TYPE navfleet_uptime_seconds gauge",
+    `navfleet_uptime_seconds ${Math.round((Date.now() - startedAt) / 1000)}`,
+    "# HELP navfleet_devices_total Devices known to the fleet",
+    "# TYPE navfleet_devices_total gauge",
+    `navfleet_devices_total ${Number(summary.deviceCount) || 0}`,
+    "# HELP navfleet_devices_online Devices currently online",
+    "# TYPE navfleet_devices_online gauge",
+    `navfleet_devices_online ${Number(summary.onlineCount) || 0}`,
+    "# HELP navfleet_alerts_active Active alerts across the fleet",
+    "# TYPE navfleet_alerts_active gauge",
+    `navfleet_alerts_active ${Number(summary.alertCount) || 0}`,
+    "# HELP navfleet_ws_connections Open WebSocket client connections",
+    "# TYPE navfleet_ws_connections gauge",
+    `navfleet_ws_connections ${wsServer.clients.size}`,
+    "# HELP navfleet_mongo_connected 1 if MongoDB is connected",
+    "# TYPE navfleet_mongo_connected gauge",
+    `navfleet_mongo_connected ${persistence.isMongoConnected() ? 1 : 0}`,
+    "# HELP navfleet_mongo_buffer_pending Telemetry docs buffered awaiting MongoDB flush",
+    "# TYPE navfleet_mongo_buffer_pending gauge",
+    `navfleet_mongo_buffer_pending ${persistence.pendingTelemetryCount()}`,
+    "# HELP navfleet_mqtt_connected 1 if the MQTT broker is connected",
+    "# TYPE navfleet_mqtt_connected gauge",
+    `navfleet_mqtt_connected ${mqttConnected ? 1 : 0}`,
+    "# HELP navfleet_mqtt_messages_total Total MQTT messages ingested",
+    "# TYPE navfleet_mqtt_messages_total counter",
+    `navfleet_mqtt_messages_total ${mqttMessagesTotal}`,
+  ];
+  response.setHeader("Content-Type", "text/plain; version=0.0.4; charset=utf-8");
+  response.send(`${lines.join("\n")}\n`);
 });
 
 // Auth routes are public (login/refresh/logout); /me is guarded inside the
@@ -320,6 +408,7 @@ const connectMqtt = (): void => {
   });
 
   client.on("connect", () => {
+    mqttConnected = true;
     logger.info({ url: config.mqttUrl }, "Connected to MQTT broker");
     const subscriptions = [topicScheme.telemetrySubscription, topicScheme.statusSubscription];
     client.subscribe(subscriptions, (error) => {
@@ -332,6 +421,7 @@ const connectMqtt = (): void => {
   });
 
   client.on("message", async (topic, payloadBuffer) => {
+    mqttMessagesTotal += 1;
     const payloadText = payloadBuffer.toString("utf8");
     try {
       if (topicScheme.isStatusTopic(topic)) {
@@ -350,6 +440,13 @@ const connectMqtt = (): void => {
 
   client.on("error", (error) => {
     logger.warn({ err: error }, "MQTT client error");
+  });
+
+  client.on("close", () => {
+    mqttConnected = false;
+  });
+  client.on("offline", () => {
+    mqttConnected = false;
   });
 };
 
@@ -397,6 +494,7 @@ const shutdown = async (signal: string): Promise<void> => {
 const start = async (): Promise<void> => {
   await store.initialize();
   await authService.initialize();
+  storeReady = true;
   try {
     await configRegistry.startWatching(async () => {
       await store.reloadConfig();

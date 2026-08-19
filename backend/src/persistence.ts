@@ -323,6 +323,14 @@ export class Persistence {
     return sorted.slice(0, limit);
   }
 
+  isMongoConnected(): boolean {
+    return this.db !== null;
+  }
+
+  pendingTelemetryCount(): number {
+    return this.pendingTelemetry.length;
+  }
+
   async queryHistory(query: HistoryQuery): Promise<unknown[]> {
     if (!this.db) {
       return this.queryMemoryHistory(query);
