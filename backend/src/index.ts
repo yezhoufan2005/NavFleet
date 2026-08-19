@@ -18,6 +18,7 @@ import { buildAuthRouter } from "./auth/routes";
 import { ACCESS_COOKIE, authenticate, requireRole } from "./auth/middleware";
 import { verifyToken } from "./auth/tokens";
 import { SocketEvent } from "./types";
+import { openApiDocument } from "./openapi";
 import type { ZodError } from "zod";
 
 const logger = pino({ name: "fleet-backend", level: config.logLevel });
@@ -140,6 +141,11 @@ app.get("/metrics", (_request, response) => {
   ];
   response.setHeader("Content-Type", "text/plain; version=0.0.4; charset=utf-8");
   response.send(`${lines.join("\n")}\n`);
+});
+
+// Public OpenAPI document (no auth): describes the API for tooling / Swagger UI.
+app.get("/openapi.json", (_request, response) => {
+  response.json(openApiDocument);
 });
 
 // Auth routes are public (login/refresh/logout); /me is guarded inside the
