@@ -92,6 +92,7 @@ onMounted(async () => {
 
         <nav class="app-nav">
           <RouterLink to="/" class="nav-link">实时监控</RouterLink>
+          <RouterLink to="/history" class="nav-link">历史回放</RouterLink>
           <RouterLink to="/alerts" class="nav-link">
             <span>告警中心</span>
             <span v-if="summary.alertTotal" class="nav-badge">{{ summary.alertTotal }}</span>

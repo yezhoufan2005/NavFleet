@@ -21,6 +21,12 @@ const routes: RouteRecordRaw[] = [
     meta: { title: "实时监控" },
   },
   {
+    path: "/history",
+    name: "history",
+    component: () => import("../views/HistoryView.vue"),
+    meta: { title: "历史回放" },
+  },
+  {
     path: "/alerts",
     name: "alerts",
     component: () => import("../views/AlertsView.vue"),

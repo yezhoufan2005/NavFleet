@@ -1878,3 +1878,119 @@ button {
     justify-content: center;
   }
 }
+
+/* ── Primary action button ───────────────────────────────────────────────── */
+.primary-btn {
+  border: 1px solid transparent;
+  border-radius: 12px;
+  padding: 10px 20px;
+  background: var(--brand);
+  color: var(--brand-contrast);
+  font-size: 14px;
+  font-weight: 700;
+  cursor: pointer;
+  transition:
+    transform var(--transition),
+    opacity var(--transition),
+    box-shadow var(--transition);
+  box-shadow: var(--shadow-sm);
+}
+.primary-btn:hover:not(:disabled) {
+  transform: translateY(-1px);
+}
+.primary-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+/* ── History playback view ───────────────────────────────────────────────── */
+.history-view {
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+}
+.history-controls {
+  padding: 18px 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+.history-form {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: 14px;
+}
+.history-field {
+  display: grid;
+  gap: 6px;
+  min-width: 180px;
+}
+.history-field.narrow {
+  min-width: 110px;
+}
+.history-field span {
+  color: var(--muted);
+  font-size: 12px;
+}
+.history-field select,
+.history-field input {
+  background: var(--bg-panel-strong);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 9px 12px;
+  color: var(--text);
+  font-size: 14px;
+}
+.history-presets {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+}
+.history-stage {
+  display: grid;
+  gap: 18px;
+  grid-template-columns: minmax(0, 1fr) 340px;
+}
+.history-map-panel,
+.history-detail {
+  padding: 18px;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  min-height: 0;
+}
+.history-map-panel {
+  height: 72vh;
+}
+.history-map-panel .map-surface {
+  flex: 1;
+  min-height: 0;
+}
+.playback-bar {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+.playback-slider {
+  flex: 1;
+  accent-color: var(--brand);
+  cursor: pointer;
+}
+.playback-speed {
+  background: var(--bg-panel-strong);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 8px 10px;
+  color: var(--text);
+}
+
+@media (max-width: 1100px) {
+  .history-stage {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .history-map-panel {
+    height: 60vh;
+  }
+}
