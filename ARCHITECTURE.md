@@ -18,11 +18,13 @@ NavFleet 是一个多智能车实时监控平台，主要面向 AGV、巡检车�
 
 ### 前端
 
-- Vue 3
+- Vue 3（`<script setup>`，渐进式 TypeScript 迁移）
 - Vite
-- 原生 CSS
+- vue-router（hash 路由）+ Pinia（状态库）
+- 原生 CSS（明暗双主题，CSS 变量令牌 + `data-theme`）
 - 高德地图 JS API，需要配置浏览器 Key
 - 自定义点云、场景地图和路网渲染逻辑
+- Vitest 单元测试
 
 ### 后端
 
@@ -79,24 +81,34 @@ flowchart LR
 mqtt/
 ├─ backend/
 │  ├─ src/
+│  │  ├─ auth/               # 登录 / JWT / RBAC 中间件
 │  │  ├─ config.ts
 │  │  ├─ configRegistry.ts
 │  │  ├─ index.ts
 │  │  ├─ laneletOsm.ts
 │  │  ├─ normalize.ts
+│  │  ├─ openapi.ts          # OpenAPI 3.1 文档
 │  │  ├─ persistence.ts
 │  │  ├─ store.ts
+│  │  ├─ validation.ts       # zod 入参校验
 │  │  └─ types.ts
-│  ├─ scripts/mock-mqtt.ts
+│  ├─ scripts/               # mock-mqtt.ts, load-ingest.ts
+│  ├─ test/                  # Vitest 单测
 │  ├─ package.json
 │  └─ Dockerfile
 ├─ frontend/
 │  ├─ src/
-│  │  ├─ components/
-│  │  ├─ composables/
+│  │  ├─ components/         # GpsMap / RosSceneMap / LoginForm / NotificationHost
+│  │  ├─ composables/        # useAuth / useTheme / useNotifications / useAlertAck
+│  │  ├─ lib/                # fleetNormalize（纯归一化）
+│  │  ├─ services/           # fleetApi（REST）
+│  │  ├─ stores/             # fleet（Pinia）
+│  │  ├─ router/             # vue-router
+│  │  ├─ views/              # DashboardView / HistoryView / AlertsView
 │  │  ├─ utils/
 │  │  ├─ App.vue
-│  │  └─ main.js
+│  │  └─ main.ts
+│  ├─ test/                  # Vitest 单测
 │  ├─ package.json
 │  └─ Dockerfile
 ├─ config-runtime/
@@ -105,13 +117,14 @@ mqtt/
 │  ├─ formations.json
 │  ├─ scenes.json
 │  └─ scene-maps/
+├─ scripts/                  # dev.sh / smoke.sh
 └─ deploy/
    ├─ docker-compose.yml
    ├─ .env.example
    ├─ nginx/default.conf
    ├─ mosquitto/mosquitto.conf
    ├─ docs/
-   └─ tools/
+   └─ tools/                 # mongo-backup.sh / mongo-restore.sh
 ```
 
 ## 5. 后端模块
@@ -216,22 +229,40 @@ mqtt/
 
 ## 6. 前端模块
 
-### `src/composables/useDashboard.js`
+前端为多页 SPA（vue-router hash 路由 + Pinia），入口 `src/main.ts` 装载 Pinia 与
+router。原先的单体 `useDashboard` 组合式函数已拆分为 store + 服务层 + 纯归一化模块。
+
+### `src/stores/fleet.ts`（Pinia store）
 
 职责：
 
-- 管理页面状态。
-- 拉取 `/api/scenes` 和 `/api/fleet/snapshot`。
-- 建立 WebSocket 连接。
-- 处理 `fleet.snapshot` 和 `fleet.delta`。
-- 管理选中车辆、选中编队、地图模式和路径编辑状态。
-- 对后端数据做前端兜底归一化。
+- 持有响应式车队状态与派生视图（排序/筛选设备、编队、分组告警、每设备轨迹）。
+- 建立并维护有韧性的 WebSocket 连接（指数退避重连、应用层心跳）。
+- 处理 `fleet.snapshot` / `fleet.delta`，管理选中车辆/编队、地图模式、路径编辑。
+- 作为单例，跨路由视图共享，避免重复建连或状态分裂。
+
+### `src/services/fleetApi.ts`
+
+- 集中的 REST 访问层（snapshot/scenes/history/alerts），统一 `credentials` 与非 2xx 抛错。
+
+### `src/lib/fleetNormalize.js`
+
+- 纯归一化 / 塑形函数（多格式遥测归一、告警派生、lidar→fusion 回退、场景合并、轨迹）。无 Vue 依赖，可单测。
+
+### `src/router/index.ts` 与 `src/views/`
+
+- 路由：`/` 实时监控（`DashboardView.vue`）、`/history` 历史回放（`HistoryView.vue`，时间轴回放，复用 `RosSceneMap`）、`/alerts` 告警中心（`AlertsView.vue`，筛选/确认/分页）。
+- `App.vue` 为鉴权门 + 外壳（品牌、导航、主题切换、会话、离线横幅、`<RouterView>`）。
+
+### `src/composables/`
+
+- `useAuth.ts`（模块单例，登录/会话/自动续签）、`useTheme.ts`（明暗双主题）、`useNotifications.ts`（toast）、`useAlertAck.ts`（告警确认，localStorage 持久化）。
 
 ### `src/components/GpsMap.vue`
 
 职责：
 
-- 加载高德地图 JS API。
+- 加载高德地图 JS API（按主题切换 darkblue/whitesmoke 样式）。
 - 展示启用 GPS 且有坐标的车辆。
 - 点击车辆 marker 后切换当前车辆。
 - 在缺少高德 Key 时显示配置提示。
@@ -243,8 +274,7 @@ mqtt/
 - 展示当前车辆或编队所在的场景地图。
 - 支持普通底图、点云 topdown 视图、Lanelet2 overlay。
 - 支持缩放、拖拽、视角重置。
-- 展示 fusion/lidar 位姿、车辆连线和编队成员。
-- 支持规划路径点编辑。
+- 展示 fusion/lidar 位姿、车辆连线和编队成员；支持历史轨迹线与规划路径点编辑。
 
 ### `src/data-defaults.js`
 
@@ -406,9 +436,20 @@ MongoDB time series collection，用于保存遥测历史。默认保留时间�
 
 ## 10. API
 
+除公开探针（`/health`、`/health/ready`、`/metrics`、`/openapi.json`）与
+`/api/auth/login|refresh|logout` 外，其余接口需登录会话（httpOnly Cookie）。
+机器可读定义见 `backend/src/openapi.ts`，运行时由 `GET /openapi.json` 提供。
+
+### 鉴权与运维探针
+
+- `POST /api/auth/login`、`POST /api/auth/refresh`、`POST /api/auth/logout`、`GET /api/auth/me`
+- `GET /health`（liveness）、`GET /health/ready`（readiness：store/mongo/mqtt 分项）
+- `GET /metrics`（Prometheus 文本，`METRICS_ENABLED` 开关）
+- `GET /openapi.json`（OpenAPI 3.1）
+
 ### `GET /health`
 
-健康检查。
+健康检查（liveness）。
 
 ### `GET /api/fleet/snapshot`
 

@@ -2,6 +2,8 @@
 
 该项目是一个面向 AGV/智能车队的实时监控项目。系统通过 MQTT 接收车辆遥测和在线状态，后端统一归一化数据并写入 MongoDB，同时通过 REST API 和 WebSocket 推送给 Vue 前端，用于展示车辆列表、编队、GPS 地图、场景地图、点云地图、Lanelet2 路网和告警信息。
 
+前端为多页工作台（vue-router + Pinia）：**实时监控**（设备/编队/地图/详情）、**历史回放**（按设备与时间范围回放轨迹）、**告警中心**（按严重度/设备筛选、确认、分页）。系统定位为**只读监控**：完整登录 + RBAC（管理员/操作员/只读），不含控制下发与多租户。后端提供分级健康探针、Prometheus 指标与 OpenAPI 文档（见 §7、§9）。
+
 当前交付包已经包含可直接运行的 Docker Compose 编排：
 
 - `nginx`：统一 Web 入口，代理前端、后端接口、WebSocket 和地图资源。
@@ -270,25 +272,46 @@ config-runtime/
 
 ## 7. API 和实时事件
 
-主要 REST API：
+除公开探针外，接口需登录会话（httpOnly Cookie）。完整机器可读定义见公开的
+`GET /openapi.json`（可粘贴到 https://editor.swagger.io 或用 Redoc/Swagger UI 查看）。
 
-- `GET /health`
+鉴权：
+
+- `POST /api/auth/login`（下发会话 Cookie）
+- `POST /api/auth/refresh`、`POST /api/auth/logout`
+- `GET /api/auth/me`
+
+监控数据（需登录）：
+
 - `GET /api/fleet/snapshot`
 - `GET /api/formations`
 - `GET /api/devices/:deviceId/history?from=&to=&limit=`
 - `GET /api/alerts?severity=&deviceId=&status=`
-- `GET /api/scenes`
-- `GET /api/scenes/:sceneId`
-- `GET /api/scenes/:sceneId/overlay`
-- `POST /api/debug/ingest`
+- `GET /api/scenes`、`GET /api/scenes/:sceneId`、`GET /api/scenes/:sceneId/overlay`
+- `POST /api/debug/ingest`（需 admin，且 `DEBUG_INGEST_ENABLED=true`，否则 404）
 - `GET /scene-maps/**`
+
+运维探针（公开）：
+
+- `GET /health`（存活）
+- `GET /health/ready`（就绪：分项报告 store/mongo/mqtt，降级不阻断）
+- `GET /metrics`（Prometheus 文本，`METRICS_ENABLED` 开关；**仅供内网抓取**）
+- `GET /openapi.json`（API 文档）
 
 WebSocket：
 
-- 路径：`/ws`
-- 事件：`fleet.snapshot`、`fleet.delta`、`alert.created`、`alert.cleared`、`device.online`、`device.offline`
+- 路径：`/ws`（握手校验 access token）
+- 事件：`fleet.snapshot`、`fleet.delta`、`alert.created`、`alert.cleared`、`device.online`、`device.offline`；应用层心跳 `ping`/`pong`
 
-## 8. MQTT 接入约定
+## 8. 可观测性与运维
+
+- **健康探针**：`/health`（liveness）、`/health/ready`（readiness，Mongo/MQTT 断开时仍 200 并置 `degraded=true`）。容器 healthcheck 已接入。
+- **指标**：`/metrics` 暴露在线设备数、活动告警、WS 连接数、Mongo 缓冲深度、MQTT 连接与消息计数等；用 `LOG_LEVEL` 控制日志级别，请求日志逐条输出。
+- **备份/恢复**：`deploy/tools/mongo-backup.sh` / `mongo-restore.sh`，详见 [deploy/docs/backup-and-restore.md](deploy/docs/backup-and-restore.md)（含 cron、保留、索引/TTL 复核）。
+- **压测**：`cd backend && npm run load:ingest -- --devices 200 --iterations 25 --concurrency 50`（免 broker，压 ingest 热路径并读取 /metrics）。
+- **冒烟**：`scripts/smoke.sh` 启动临时后端跑 21 条契约断言（鉴权/探针/历史端到端等）。
+
+## 9. MQTT 接入约定
 
 后端当前订阅：
 
