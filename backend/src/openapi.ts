@@ -185,7 +185,20 @@ const badRequest = {
       tags: ["auth"],
       summary: "用 refresh cookie 续签 access token",
       security: [],
-      responses: { "204": { description: "已续签" }, "401": unauthorized },
+      responses: {
+        "200": {
+          description: "已续签，返回当前用户",
+          content: {
+            "application/json": {
+              schema: {
+                type: "object",
+                properties: { user: { $ref: "#/components/schemas/PublicUser" } },
+              },
+            },
+          },
+        },
+        "401": unauthorized,
+      },
     },
   },
   "/api/auth/logout": {
