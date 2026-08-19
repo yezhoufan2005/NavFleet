@@ -1,0 +1,457 @@
+/**
+ * Pure normalization + shaping helpers for fleet telemetry.
+ *
+ * Extracted from the former monolithic `useDashboard` composable so the data
+ * model logic (multi-format ingestion, alert derivation, lidar→fusion fallback,
+ * scene merging, movement trails) can be unit-tested in isolation and reused by
+ * the Pinia store. Everything here is a pure function with no Vue/reactive
+ * dependency. Kept as `.js` during the progressive TypeScript migration; inputs
+ * are intentionally heterogeneous (the normalizer accepts many payload shapes).
+ */
+
+export const cloneValue = (value) => JSON.parse(JSON.stringify(value));
+
+export const round = (value, digits = 2) => {
+  const numeric = Number(value);
+  if (!Number.isFinite(numeric)) {
+    return 0;
+  }
+  return Number(numeric.toFixed(digits));
+};
+
+export const toNumeric = (value, fallback = null) => {
+  const numeric = Number(value);
+  return Number.isFinite(numeric) ? numeric : fallback;
+};
+
+export const toTimestampMs = (value) => {
+  if (value === null || value === undefined || value === "") {
+    return Date.now();
+  }
+  if (typeof value === "number") {
+    return value < 1e12 ? value * 1000 : value;
+  }
+  const numeric = Number(value);
+  if (Number.isFinite(numeric)) {
+    return numeric < 1e12 ? numeric * 1000 : numeric;
+  }
+  const parsed = Date.parse(String(value));
+  return Number.isFinite(parsed) ? parsed : Date.now();
+};
+
+export const toIsoString = (value) => new Date(toTimestampMs(value)).toISOString();
+
+export const formatDateTime = (value) =>
+  new Date(toTimestampMs(value)).toLocaleString("zh-CN", {
+    hour12: false,
+  });
+
+export const extractDeviceIdFromTopic = (topic) => {
+  const match = String(topic || "").match(/^\/fleet\/([^/]+)\//);
+  return match?.[1] || "";
+};
+
+export const hasPose = (pose) => Number.isFinite(pose?.x) && Number.isFinite(pose?.y);
+export const hasGps = (gps) => Number.isFinite(gps?.lat) && Number.isFinite(gps?.lng);
+export const isNormalizedSnapshot = (raw) =>
+  !!raw &&
+  (Object.prototype.hasOwnProperty.call(raw, "runtimeSceneId") ||
+    Object.prototype.hasOwnProperty.call(raw, "defaultSceneId") ||
+    Object.prototype.hasOwnProperty.call(raw, "fusionLoc") ||
+    Object.prototype.hasOwnProperty.call(raw, "vehicleInfo") ||
+    Object.prototype.hasOwnProperty.call(raw, "infoCode") ||
+    Object.prototype.hasOwnProperty.call(raw, "speedLimit"));
+
+export const createDefaultCode = () => ({
+  code: 0,
+  info: "",
+  stamp: null,
+});
+
+export const createDefaultFormation = (formationId = "") => ({
+  formationId,
+  formationName: formationId || "未命名编队",
+  deviceIds: [],
+  deviceCount: 0,
+  onlineCount: 0,
+  sceneId: "",
+  description: "",
+  color: "",
+});
+
+export const createDefaultDevice = (deviceId, topic = "") => ({
+  deviceId,
+  deviceName: deviceId || "未命名设备",
+  topic,
+  online: true,
+  stamp: new Date().toISOString(),
+  sceneId: "",
+  runtimeSceneId: "",
+  defaultSceneId: "",
+  mapProfile: "lanelet",
+  gpsEnabled: true,
+  rosMapEnabled: true,
+  tags: [],
+  formationIds: [],
+  gps: { lat: null, lng: null, heading: null },
+  fusionLoc: { x: null, y: null, yaw: null },
+  lidarLoc: { x: null, y: null, yaw: null },
+  vehicleInfo: { controlMode: null, gear: null, speed: null, omega: null, soc: null },
+  taskStatus: null,
+  platformTaskStatus: null,
+  infoCode: createDefaultCode(),
+  warningCode: createDefaultCode(),
+  errorCode: createDefaultCode(),
+  speedLimit: { limit: null, slowdownTime: null, stamp: null, moduleName: "" },
+  alerts: [],
+  extra: {},
+});
+
+export const normalizeCode = (rawCode) => ({
+  code: toNumeric(rawCode?.code, 0) ?? 0,
+  info: rawCode?.info || "",
+  stamp: rawCode?.stamp ? toIsoString(rawCode.stamp) : null,
+});
+
+/**
+ * @param {any} rawInput
+ * @param {Record<string, any> | null} [existingFormation]
+ */
+export const normalizeFormation = (rawInput, existingFormation = null) => {
+  const raw = rawInput && typeof rawInput === "object" ? rawInput : {};
+  const formationId = String(raw.formationId || raw.id || existingFormation?.formationId || "");
+  const base = createDefaultFormation(formationId);
+  const deviceIds = Array.isArray(raw.deviceIds)
+    ? raw.deviceIds.map((deviceId) => String(deviceId)).filter(Boolean)
+    : existingFormation?.deviceIds || [];
+
+  return {
+    ...base,
+    ...existingFormation,
+    formationId,
+    formationName: String(
+      raw.formationName || raw.name || existingFormation?.formationName || formationId,
+    ),
+    deviceIds,
+    deviceCount: Number.isFinite(Number(raw.deviceCount))
+      ? Number(raw.deviceCount)
+      : deviceIds.length,
+    onlineCount: Number.isFinite(Number(raw.onlineCount))
+      ? Number(raw.onlineCount)
+      : existingFormation?.onlineCount || 0,
+    sceneId: String(raw.sceneId || existingFormation?.sceneId || ""),
+    description: String(raw.description || existingFormation?.description || ""),
+    color: String(raw.color || existingFormation?.color || ""),
+  };
+};
+
+export const dedupeAlerts = (alerts) => {
+  const deduped = new Map();
+  alerts.forEach((alert) => {
+    const key = `${alert.id}|${alert.severity}|${alert.title}`;
+    if (!deduped.has(key)) {
+      deduped.set(key, alert);
+    }
+  });
+  return [...deduped.values()].sort(
+    (left, right) => toTimestampMs(right.ts) - toTimestampMs(left.ts),
+  );
+};
+
+export const buildCodeAlerts = (device) => {
+  const items = [
+    { severity: "notice", source: "info_code", payload: device.infoCode, title: "提示报码" },
+    { severity: "warning", source: "warning_code", payload: device.warningCode, title: "预警报码" },
+    { severity: "critical", source: "error_code", payload: device.errorCode, title: "告警报码" },
+  ];
+
+  return items
+    .filter((item) => Number(item.payload?.code) !== 0)
+    .map((item) => ({
+      id: `${device.deviceId}-${item.source}-${item.payload.code}`,
+      severity: item.severity,
+      source: item.source,
+      title: item.title,
+      detail: item.payload.info || "",
+      code: item.payload.code,
+      info: item.payload.info || "",
+      ts: item.payload.stamp || device.stamp,
+    }));
+};
+
+export const buildRuleAlerts = (device) => {
+  const alerts = [];
+  const soc = Number(device.vehicleInfo?.soc);
+
+  if (Number.isFinite(soc) && soc > 0 && soc < 20) {
+    alerts.push({
+      id: `${device.deviceId}-low-soc`,
+      severity: "warning",
+      source: "rule-engine",
+      title: "低电量预警",
+      detail: `当前电量 ${soc.toFixed(1)}%，建议尽快安排回充。`,
+      ts: device.stamp,
+    });
+  }
+
+  if (!device.online) {
+    alerts.push({
+      id: `${device.deviceId}-offline`,
+      severity: "critical",
+      source: "rule-engine",
+      title: "设备离线",
+      detail: "设备超过离线阈值未上报，系统已自动标记为离线。",
+      ts: device.stamp,
+    });
+  }
+
+  return alerts;
+};
+
+/**
+ * @param {any} rawInput
+ * @param {string} [topicHint]
+ * @param {Record<string, any> | null} [existingDevice]
+ */
+export const normalizeDevice = (rawInput, topicHint = "", existingDevice = null) => {
+  const raw =
+    rawInput &&
+    rawInput.payload &&
+    typeof rawInput.payload === "object" &&
+    !Array.isArray(rawInput.payload)
+      ? { ...rawInput.payload, topic: rawInput.topic || rawInput.payload.topic }
+      : rawInput;
+
+  const topic = raw.topic || topicHint || existingDevice?.topic || "";
+  const deviceId =
+    raw.deviceId ||
+    raw.id ||
+    raw.device_id ||
+    extractDeviceIdFromTopic(topic) ||
+    existingDevice?.deviceId ||
+    `device-${Date.now()}`;
+  const base = createDefaultDevice(deviceId, topic || `/fleet/${deviceId}/vehicle_info`);
+
+  const fusionLoc = raw.fusion_loc || raw.fusionLoc || {};
+  const lidarLoc = raw.lidar_loc || raw.lidarLoc || {};
+  const vehicleInfo = raw.vehicle_info || raw.vehicleInfo || {};
+  const speedLimit = raw.speed_limit || raw.speedLimit || {};
+  const gps = raw.gps || raw.location || {};
+  const runtimeSceneId =
+    raw.runtimeSceneId ||
+    raw.scene_id ||
+    raw.sceneId ||
+    raw.scenePose?.sceneId ||
+    existingDevice?.runtimeSceneId ||
+    "";
+
+  const normalizedDevice = {
+    ...base,
+    ...existingDevice,
+    deviceId,
+    deviceName:
+      raw.deviceName || raw.device_name || raw.name || existingDevice?.deviceName || deviceId,
+    topic: topic || existingDevice?.topic || base.topic,
+    online: typeof raw.online === "boolean" ? raw.online : (existingDevice?.online ?? true),
+    stamp: toIsoString(
+      raw.stamp || raw.lastSeen || raw.timestamp || raw.time || existingDevice?.stamp || Date.now(),
+    ),
+    sceneId:
+      raw.scene_id ||
+      raw.sceneId ||
+      raw.scenePose?.sceneId ||
+      raw.runtimeSceneId ||
+      existingDevice?.sceneId ||
+      "",
+    runtimeSceneId,
+    defaultSceneId: raw.defaultSceneId || existingDevice?.defaultSceneId || "",
+    mapProfile: raw.mapProfile || existingDevice?.mapProfile || "lanelet",
+    gpsEnabled:
+      typeof raw.gpsEnabled === "boolean" ? raw.gpsEnabled : (existingDevice?.gpsEnabled ?? true),
+    rosMapEnabled:
+      typeof raw.rosMapEnabled === "boolean"
+        ? raw.rosMapEnabled
+        : (existingDevice?.rosMapEnabled ?? true),
+    tags: Array.isArray(raw.tags) ? raw.tags.map((tag) => String(tag)) : existingDevice?.tags || [],
+    formationIds: Array.isArray(raw.formationIds)
+      ? raw.formationIds.map((formationId) => String(formationId))
+      : existingDevice?.formationIds || [],
+    gps: {
+      lat: toNumeric(
+        gps.lat ?? raw.latitude ?? raw.gps_lat ?? raw.lat,
+        existingDevice?.gps?.lat ?? null,
+      ),
+      lng: toNumeric(
+        gps.lng ?? raw.longitude ?? raw.gps_lng ?? raw.lng,
+        existingDevice?.gps?.lng ?? null,
+      ),
+      heading: toNumeric(
+        gps.heading ?? gps.yaw ?? raw.heading ?? raw.gps_heading,
+        existingDevice?.gps?.heading ?? null,
+      ),
+    },
+    fusionLoc: {
+      x: toNumeric(fusionLoc.x, existingDevice?.fusionLoc?.x ?? null),
+      y: toNumeric(fusionLoc.y, existingDevice?.fusionLoc?.y ?? null),
+      yaw: toNumeric(fusionLoc.yaw, existingDevice?.fusionLoc?.yaw ?? null),
+    },
+    lidarLoc: {
+      x: toNumeric(lidarLoc.x, existingDevice?.lidarLoc?.x ?? null),
+      y: toNumeric(lidarLoc.y, existingDevice?.lidarLoc?.y ?? null),
+      yaw: toNumeric(lidarLoc.yaw, existingDevice?.lidarLoc?.yaw ?? null),
+    },
+    vehicleInfo: {
+      controlMode: toNumeric(
+        vehicleInfo.control_mode ?? vehicleInfo.controlMode,
+        existingDevice?.vehicleInfo?.controlMode ?? null,
+      ),
+      gear: toNumeric(vehicleInfo.gear, existingDevice?.vehicleInfo?.gear ?? null),
+      speed: toNumeric(vehicleInfo.speed, existingDevice?.vehicleInfo?.speed ?? null),
+      omega: toNumeric(vehicleInfo.omega, existingDevice?.vehicleInfo?.omega ?? null),
+      soc: toNumeric(vehicleInfo.soc, existingDevice?.vehicleInfo?.soc ?? null),
+    },
+    taskStatus: toNumeric(
+      raw.task_status ?? raw.taskStatus ?? raw.task?.status,
+      existingDevice?.taskStatus ?? null,
+    ),
+    platformTaskStatus: toNumeric(
+      raw.platform_task_status ?? raw.platformTaskStatus,
+      existingDevice?.platformTaskStatus ?? null,
+    ),
+    infoCode: normalizeCode(raw.info_code || raw.infoCode || existingDevice?.infoCode),
+    warningCode: normalizeCode(raw.warning_code || raw.warningCode || existingDevice?.warningCode),
+    errorCode: normalizeCode(raw.error_code || raw.errorCode || existingDevice?.errorCode),
+    speedLimit: {
+      limit: toNumeric(speedLimit.limit, existingDevice?.speedLimit?.limit ?? null),
+      slowdownTime: toNumeric(
+        speedLimit.slowdown_time ?? speedLimit.slowdownTime,
+        existingDevice?.speedLimit?.slowdownTime ?? null,
+      ),
+      stamp: speedLimit.stamp
+        ? toIsoString(speedLimit.stamp)
+        : (existingDevice?.speedLimit?.stamp ?? null),
+      moduleName:
+        speedLimit.module_name ||
+        speedLimit.moduleName ||
+        existingDevice?.speedLimit?.moduleName ||
+        "",
+    },
+    alerts: Array.isArray(raw.alerts) ? raw.alerts : [],
+    extra: {
+      ...(existingDevice?.extra || {}),
+      ...(raw.extra || {}),
+    },
+  };
+
+  if (!hasPose(normalizedDevice.fusionLoc) && hasPose(normalizedDevice.lidarLoc)) {
+    normalizedDevice.fusionLoc = { ...normalizedDevice.lidarLoc };
+  }
+
+  if (Array.isArray(raw.alerts) && isNormalizedSnapshot(raw)) {
+    normalizedDevice.alerts = dedupeAlerts(
+      raw.alerts.map((alert, index) => ({
+        id: alert.id || `${normalizedDevice.deviceId}-alert-${index + 1}`,
+        severity: alert.severity || "notice",
+        source: alert.source || "snapshot",
+        title: alert.title || "设备告警",
+        detail: alert.detail || "",
+        code: toNumeric(alert.code, 0) ?? 0,
+        info: alert.info || "",
+        ts: alert.ts || normalizedDevice.stamp,
+      })),
+    );
+  } else if (!Array.isArray(raw.alerts)) {
+    normalizedDevice.alerts = dedupeAlerts([
+      ...buildCodeAlerts(normalizedDevice),
+      ...buildRuleAlerts(normalizedDevice),
+    ]);
+  }
+
+  return normalizedDevice;
+};
+
+export const mergeDevice = (existingDevice, incomingDevice) => {
+  if (!existingDevice) {
+    return incomingDevice;
+  }
+  return {
+    ...existingDevice,
+    ...incomingDevice,
+    gps: { ...existingDevice.gps, ...incomingDevice.gps },
+    fusionLoc: { ...existingDevice.fusionLoc, ...incomingDevice.fusionLoc },
+    lidarLoc: { ...existingDevice.lidarLoc, ...incomingDevice.lidarLoc },
+    vehicleInfo: { ...existingDevice.vehicleInfo, ...incomingDevice.vehicleInfo },
+    infoCode: { ...existingDevice.infoCode, ...incomingDevice.infoCode },
+    warningCode: { ...existingDevice.warningCode, ...incomingDevice.warningCode },
+    errorCode: { ...existingDevice.errorCode, ...incomingDevice.errorCode },
+    speedLimit: { ...existingDevice.speedLimit, ...incomingDevice.speedLimit },
+    extra: { ...existingDevice.extra, ...incomingDevice.extra },
+    alerts: incomingDevice.alerts,
+    formationIds: Array.isArray(incomingDevice.formationIds)
+      ? [...incomingDevice.formationIds]
+      : [...(existingDevice.formationIds || [])],
+  };
+};
+
+const mergeBounds = (baseBounds, overrideBounds, definition) =>
+  overrideBounds ||
+  baseBounds || {
+    minX: definition.origin?.x || 0,
+    maxX: (definition.origin?.x || 0) + (definition.width || 1000) * (definition.resolution || 0.1),
+    minY: definition.origin?.y || 0,
+    maxY: (definition.origin?.y || 0) + (definition.height || 620) * (definition.resolution || 0.1),
+  };
+
+export const mergeSceneDefinitionParts = (base = {}, override = {}) => ({
+  ...base,
+  ...override,
+  origin: {
+    ...(base.origin || {}),
+    ...(override.origin || {}),
+  },
+  bounds: mergeBounds(base.bounds, override.bounds, {
+    ...base,
+    ...override,
+    origin: { ...(base.origin || {}), ...(override.origin || {}) },
+  }),
+  defaultView:
+    base.defaultView || override.defaultView
+      ? {
+          ...(base.defaultView || {}),
+          ...(override.defaultView || {}),
+        }
+      : undefined,
+});
+
+export const normalizePathPoint = (point) => {
+  if (!Number.isFinite(point?.x) || !Number.isFinite(point?.y)) {
+    return null;
+  }
+  return {
+    x: round(point.x, 3),
+    y: round(point.y, 3),
+  };
+};
+
+export const pointsAreNear = (left, right, epsilon = 0.05) =>
+  Number.isFinite(left?.x) &&
+  Number.isFinite(left?.y) &&
+  Number.isFinite(right?.x) &&
+  Number.isFinite(right?.y) &&
+  Math.hypot(left.x - right.x, left.y - right.y) <= epsilon;
+
+// Movement history ("trails"): how many recent points to keep per device, and
+// the minimum world-space distance (m) a device must move before a new point
+// is recorded — keeps trails compact and avoids jitter noise.
+export const TRAIL_MAX_POINTS = 240;
+export const TRAIL_MIN_DISTANCE = 0.12;
+
+export const pickTrailPose = (device) => {
+  if (Number.isFinite(device?.fusionLoc?.x) && Number.isFinite(device?.fusionLoc?.y)) {
+    return device.fusionLoc;
+  }
+  if (Number.isFinite(device?.lidarLoc?.x) && Number.isFinite(device?.lidarLoc?.y)) {
+    return device.lidarLoc;
+  }
+  return null;
+};
