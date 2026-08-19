@@ -51,7 +51,8 @@ function parseArgs(argv: string[]): CliOptions {
       continue;
     }
     if (current === "--interval" && next) {
-      options.interval = Math.max(200, Number(next) || DEFAULT_INTERVAL);
+      // Floor at 20ms so higher-frequency load profiles are possible for perf runs.
+      options.interval = Math.max(20, Number(next) || DEFAULT_INTERVAL);
       index += 1;
       continue;
     }
