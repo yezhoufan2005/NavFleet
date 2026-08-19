@@ -36,6 +36,10 @@ export class Persistence {
   private mongoClient: MongoClient | null = null;
   private db: Db | null = null;
   private pendingTelemetry: TelemetryDocument[] = [];
+  // Bounded in-memory telemetry ring buffer, kept per device so history playback
+  // and the /history endpoint work in local/dev runs where MongoDB is absent
+  // (fulfils the "in-memory history fallback" the connect path already advertises).
+  private telemetryBuffer = new Map<string, TelemetryDocument[]>();
   // In-memory user store used when MongoDB is unavailable, so auth still works
   // for local/dev runs (mirrors the telemetry in-memory fallback).
   private fallbackUsers = new Map<string, UserRecord>();
@@ -194,6 +198,8 @@ export class Persistence {
       },
     };
 
+    this.appendMemoryTelemetry(document);
+
     if (!this.db) {
       return;
     }
@@ -285,9 +291,41 @@ export class Persistence {
     );
   }
 
+  private appendMemoryTelemetry(document: TelemetryDocument): void {
+    const deviceId = document.meta.deviceId;
+    const existing = this.telemetryBuffer.get(deviceId) ?? [];
+    existing.push(document);
+    // Keep newest samples, bounded to the same cap used for Mongo queries.
+    const cap = config.maxHistoryPoints;
+    if (existing.length > cap) {
+      existing.splice(0, existing.length - cap);
+    }
+    this.telemetryBuffer.set(deviceId, existing);
+  }
+
+  private queryMemoryHistory(query: HistoryQuery): TelemetryDocument[] {
+    const all = this.telemetryBuffer.get(query.deviceId) ?? [];
+    const fromMs = query.from ? Date.parse(query.from) : undefined;
+    const toMs = query.to ? Date.parse(query.to) : undefined;
+    const filtered = all.filter((document) => {
+      const ts = document.ts.getTime();
+      if (Number.isFinite(fromMs) && ts < (fromMs as number)) {
+        return false;
+      }
+      if (Number.isFinite(toMs) && ts > (toMs as number)) {
+        return false;
+      }
+      return true;
+    });
+    // Newest-first, matching the Mongo query contract.
+    const sorted = [...filtered].sort((left, right) => right.ts.getTime() - left.ts.getTime());
+    const limit = Math.min(query.limit || config.maxHistoryPoints, config.maxHistoryPoints);
+    return sorted.slice(0, limit);
+  }
+
   async queryHistory(query: HistoryQuery): Promise<unknown[]> {
     if (!this.db) {
-      return [];
+      return this.queryMemoryHistory(query);
     }
 
     const filter: Record<string, unknown> = {
