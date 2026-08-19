@@ -33,6 +33,8 @@ for _ in $(seq 1 60); do curl -sf "$BASE/health" >/dev/null 2>&1 && break; sleep
 
 echo "运行断言:"
 check "健康检查公开可访问"        200 "$(code "$BASE/health")"
+check "就绪探针公开可访问"        200 "$(code "$BASE/health/ready")"
+check "指标端点公开可访问"        200 "$(code "$BASE/metrics")"
 check "未登录访问快照被拒"        401 "$(code "$BASE/api/fleet/snapshot")"
 check "错误密码登录被拒"          401 "$(code -H 'Content-Type: application/json' -d '{"username":"admin","password":"nope"}' "$BASE/api/auth/login")"
 check "正确登录成功"              200 "$(code -c "$COOKIE" -H 'Content-Type: application/json' -d '{"username":"admin","password":"smoke123"}' "$BASE/api/auth/login")"
