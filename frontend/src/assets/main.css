@@ -1994,3 +1994,93 @@ button {
     height: 60vh;
   }
 }
+
+/* ── Alert center enhancements ───────────────────────────────────────────── */
+.alerts-view .drawer-summary {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+}
+.alerts-view .alert-tab-card {
+  min-width: 96px;
+  flex: 0 0 auto;
+}
+.alerts-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: 12px;
+}
+.alerts-filter {
+  display: grid;
+  gap: 6px;
+  min-width: 160px;
+}
+.alerts-filter.grow {
+  flex: 1;
+  min-width: 220px;
+}
+.alerts-filter span {
+  color: var(--muted);
+  font-size: 12px;
+}
+.alerts-filter select,
+.alerts-filter input {
+  background: var(--bg-panel-strong);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 9px 12px;
+  color: var(--text);
+  font-size: 14px;
+}
+.alerts-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--muted);
+  font-size: 13px;
+  cursor: pointer;
+  white-space: nowrap;
+}
+.alerts-toggle input {
+  width: 16px;
+  height: 16px;
+  accent-color: var(--brand);
+}
+.alert-item-foot {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+.alert-item.acknowledged {
+  opacity: 0.55;
+}
+.ack-btn {
+  border: 1px solid var(--border-strong);
+  background: transparent;
+  color: var(--text);
+  border-radius: 999px;
+  padding: 5px 14px;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  transition:
+    background var(--transition),
+    border-color var(--transition);
+}
+.ack-btn:hover {
+  border-color: color-mix(in srgb, var(--brand) 45%, var(--border-strong));
+  background: var(--bg-panel-strong);
+}
+.alerts-pagination {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 14px;
+}
+.page-indicator {
+  color: var(--muted);
+  font-size: 13px;
+}
