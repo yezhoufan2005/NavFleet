@@ -25,88 +25,90 @@ const request = async (path: string, options: RequestInit = {}): Promise<Respons
     ...options,
   });
 
+// Module-level singleton: auth state is shared across the app shell, router
+// guards, and every view, so `useAuth()` always returns the same instance.
+const state = reactive<AuthState>({
+  status: "unknown",
+  user: null,
+  error: "",
+  pending: false,
+});
+
+let refreshTimer: ReturnType<typeof setInterval> | null = null;
+
+const stopRefreshTimer = () => {
+  if (refreshTimer) {
+    clearInterval(refreshTimer);
+    refreshTimer = null;
+  }
+};
+
+const startRefreshTimer = () => {
+  stopRefreshTimer();
+  refreshTimer = setInterval(() => {
+    void request("/api/auth/refresh", { method: "POST" });
+  }, REFRESH_INTERVAL_MS);
+};
+
+const setAuthenticated = (user: AuthUser) => {
+  state.user = user;
+  state.status = "authenticated";
+  state.error = "";
+  startRefreshTimer();
+};
+
+const setAnonymous = () => {
+  state.user = null;
+  state.status = "anonymous";
+  stopRefreshTimer();
+};
+
+const fetchMe = async (): Promise<boolean> => {
+  try {
+    const response = await request("/api/auth/me");
+    if (response.ok) {
+      const body = (await response.json()) as { user: AuthUser };
+      setAuthenticated(body.user);
+      return true;
+    }
+  } catch {
+    // Network error — treated as not authenticated below.
+  }
+  setAnonymous();
+  return false;
+};
+
+const login = async (username: string, password: string): Promise<boolean> => {
+  state.pending = true;
+  state.error = "";
+  try {
+    const response = await request("/api/auth/login", {
+      method: "POST",
+      body: JSON.stringify({ username, password }),
+    });
+    if (response.ok) {
+      const body = (await response.json()) as { user: AuthUser };
+      setAuthenticated(body.user);
+      return true;
+    }
+    state.error = response.status === 401 ? "用户名或密码错误" : "登录失败，请稍后重试";
+  } catch {
+    state.error = "无法连接服务器，请检查网络";
+  } finally {
+    state.pending = false;
+  }
+  return false;
+};
+
+const logout = async (): Promise<void> => {
+  try {
+    await request("/api/auth/logout", { method: "POST" });
+  } catch {
+    // Ignore network errors on logout; clear local state regardless.
+  }
+  setAnonymous();
+};
+
 export function useAuth() {
-  const state = reactive<AuthState>({
-    status: "unknown",
-    user: null,
-    error: "",
-    pending: false,
-  });
-
-  let refreshTimer: ReturnType<typeof setInterval> | null = null;
-
-  const stopRefreshTimer = () => {
-    if (refreshTimer) {
-      clearInterval(refreshTimer);
-      refreshTimer = null;
-    }
-  };
-
-  const startRefreshTimer = () => {
-    stopRefreshTimer();
-    refreshTimer = setInterval(() => {
-      void request("/api/auth/refresh", { method: "POST" });
-    }, REFRESH_INTERVAL_MS);
-  };
-
-  const setAuthenticated = (user: AuthUser) => {
-    state.user = user;
-    state.status = "authenticated";
-    state.error = "";
-    startRefreshTimer();
-  };
-
-  const setAnonymous = () => {
-    state.user = null;
-    state.status = "anonymous";
-    stopRefreshTimer();
-  };
-
-  const fetchMe = async (): Promise<boolean> => {
-    try {
-      const response = await request("/api/auth/me");
-      if (response.ok) {
-        const body = (await response.json()) as { user: AuthUser };
-        setAuthenticated(body.user);
-        return true;
-      }
-    } catch {
-      // Network error — treated as not authenticated below.
-    }
-    setAnonymous();
-    return false;
-  };
-
-  const login = async (username: string, password: string): Promise<boolean> => {
-    state.pending = true;
-    state.error = "";
-    try {
-      const response = await request("/api/auth/login", {
-        method: "POST",
-        body: JSON.stringify({ username, password }),
-      });
-      if (response.ok) {
-        const body = (await response.json()) as { user: AuthUser };
-        setAuthenticated(body.user);
-        return true;
-      }
-      state.error = response.status === 401 ? "用户名或密码错误" : "登录失败，请稍后重试";
-    } catch {
-      state.error = "无法连接服务器，请检查网络";
-    } finally {
-      state.pending = false;
-    }
-    return false;
-  };
-
-  const logout = async (): Promise<void> => {
-    try {
-      await request("/api/auth/logout", { method: "POST" });
-    } catch {
-      // Ignore network errors on logout; clear local state regardless.
-    }
-    setAnonymous();
-  };
-
   return { state, fetchMe, login, logout };
 }

@@ -11,7 +11,7 @@ export default defineConfig({
       provider: "v8",
       reporter: ["text", "html"],
       include: ["src/**/*.{ts,js,vue}"],
-      exclude: ["src/main.js", "src/**/*.d.ts"],
+      exclude: ["src/main.ts", "src/**/*.d.ts"],
     },
   },
 });

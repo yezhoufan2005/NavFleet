@@ -1,0 +1,762 @@
+/**
+ * Fleet monitoring store (Pinia).
+ *
+ * Successor to the monolithic `useDashboard` composable. Owns the reactive
+ * fleet state, derived views (sorted/filtered devices, formations, grouped
+ * alerts, per-device trails), planned-path editing, and the resilient realtime
+ * (WebSocket) link. Pure shaping logic lives in `../lib/fleetNormalize`; REST
+ * access lives in `../services/fleetApi`. Being a store (single instance) it is
+ * safely shared across router views without duplicating the socket or state.
+ */
+
+import { computed, reactive, toRaw } from "vue";
+import { defineStore } from "pinia";
+import { fallbackFleetPayload, sceneCatalog } from "../data-defaults";
+import { fleetApi } from "../services/fleetApi";
+import { notify } from "../composables/useNotifications";
+import {
+  cloneValue,
+  round,
+  toTimestampMs,
+  formatDateTime,
+  extractDeviceIdFromTopic,
+  hasGps,
+  hasPose,
+  normalizeDevice,
+  normalizeFormation,
+  normalizePathPoint,
+  pointsAreNear,
+  pickTrailPose,
+  mergeDevice,
+  mergeSceneDefinitionParts,
+  TRAIL_MAX_POINTS,
+  TRAIL_MIN_DISTANCE,
+} from "../lib/fleetNormalize";
+
+type AnyRecord = Record<string, any>;
+
+interface RealtimeState {
+  apiReady: boolean;
+  wsReady: boolean;
+  ws: WebSocket | null;
+  reconnectAttempts: number;
+}
+
+interface FleetState {
+  fleetName: string;
+  topicPattern: string;
+  devicesById: Record<string, AnyRecord>;
+  formationsById: Record<string, AnyRecord>;
+  selectedDeviceId: string;
+  selectedFormationId: string;
+  selectedMapMode: string;
+  lastSource: string;
+  lastUpdateAt: string | null;
+  initialMockPayload: AnyRecord;
+  sceneDefinitions: Record<string, AnyRecord>;
+  pendingSceneLoads: Record<string, boolean>;
+  pathsByDeviceId: Record<string, AnyRecord[]>;
+  isPathEditMode: boolean;
+  trailsByDeviceId: Record<string, AnyRecord[]>;
+  realtime: RealtimeState;
+}
+
+export const useFleetStore = defineStore("fleet", () => {
+  const state = reactive<FleetState>({
+    fleetName: fallbackFleetPayload.fleetName,
+    topicPattern: fallbackFleetPayload.topicPattern,
+    devicesById: {},
+    formationsById: {},
+    selectedDeviceId: "",
+    selectedFormationId: "",
+    selectedMapMode: "gps",
+    lastSource: "bootstrap",
+    lastUpdateAt: null,
+    initialMockPayload: cloneValue(fallbackFleetPayload),
+    sceneDefinitions: cloneValue(sceneCatalog),
+    pendingSceneLoads: {},
+    pathsByDeviceId: {},
+    isPathEditMode: false,
+    trailsByDeviceId: {},
+    realtime: {
+      apiReady: false,
+      wsReady: false,
+      ws: null,
+      reconnectAttempts: 0,
+    },
+  });
+
+  const getSceneDefinition = (sceneId: string) => {
+    if (!sceneId) {
+      return null;
+    }
+    return state.sceneDefinitions[sceneId] || (sceneCatalog as AnyRecord)[sceneId] || null;
+  };
+
+  const mergeSceneDefinition = (definition: AnyRecord) => {
+    if (!definition?.sceneId) {
+      return;
+    }
+    const fallback = (sceneCatalog as AnyRecord)[definition.sceneId] || {};
+    state.sceneDefinitions[definition.sceneId] = mergeSceneDefinitionParts(fallback, definition);
+  };
+
+  const normalizePayload = (input: any) => {
+    if (!input || typeof input !== "object") {
+      throw new Error("消息必须是 JSON 对象");
+    }
+
+    if (Array.isArray(input)) {
+      return {
+        replace: true,
+        fleetName: state.fleetName,
+        topicPattern: state.topicPattern,
+        devices: input.map((item) => normalizeDevice(item)),
+        formations: null as AnyRecord[] | null,
+      };
+    }
+
+    if (Array.isArray(input.devices)) {
+      return {
+        replace: true,
+        fleetName: input.fleetName || state.fleetName,
+        topicPattern: input.topicPattern || state.topicPattern,
+        devices: input.devices.map((item: any) => normalizeDevice(item)),
+        formations: Array.isArray(input.formations)
+          ? input.formations.map((item: any) => normalizeFormation(item))
+          : null,
+      };
+    }
+
+    if (input.topic && input.payload !== undefined) {
+      const payloadBody =
+        typeof input.payload === "string" ? JSON.parse(input.payload) : input.payload;
+      const existing =
+        state.devicesById[payloadBody.deviceId || extractDeviceIdFromTopic(input.topic)];
+      return {
+        replace: false,
+        fleetName: state.fleetName,
+        topicPattern: state.topicPattern,
+        devices: [normalizeDevice(payloadBody, input.topic, existing)],
+        formations: Array.isArray(payloadBody.formations)
+          ? payloadBody.formations.map((item: any) => normalizeFormation(item))
+          : null,
+      };
+    }
+
+    const existing = state.devicesById[input.deviceId || extractDeviceIdFromTopic(input.topic)];
+    return {
+      replace: false,
+      fleetName: input.fleetName || state.fleetName,
+      topicPattern: input.topicPattern || state.topicPattern,
+      devices: [normalizeDevice(input, input.topic, existing)],
+      formations: Array.isArray(input.formations)
+        ? input.formations.map((item: any) => normalizeFormation(item))
+        : null,
+    };
+  };
+
+  const devices = computed<AnyRecord[]>(() => Object.values(state.devicesById));
+  const formations = computed<AnyRecord[]>(() =>
+    Object.values(state.formationsById).map((formation) => {
+      const memberDevices = (formation.deviceIds || [])
+        .map((deviceId: string) => state.devicesById[deviceId])
+        .filter(Boolean);
+      const sceneCandidates = memberDevices
+        .map(
+          (device: AnyRecord) =>
+            device.sceneId || device.runtimeSceneId || device.defaultSceneId || "",
+        )
+        .filter(Boolean);
+      const uniqueScenes = [...new Set(sceneCandidates)];
+
+      return {
+        ...formation,
+        deviceCount: memberDevices.length || formation.deviceCount || 0,
+        onlineCount: memberDevices.filter((device: AnyRecord) => device.online).length,
+        sceneId:
+          formation.sceneId ||
+          (uniqueScenes.length === 1 ? uniqueScenes[0] : memberDevices[0]?.sceneId || ""),
+      };
+    }),
+  );
+
+  const getDeviceTone = (device: AnyRecord) => {
+    if (!device.online) {
+      return "offline";
+    }
+    if (Number(device.errorCode?.code) !== 0) {
+      return "critical";
+    }
+    if (Number(device.warningCode?.code) !== 0) {
+      return "warning";
+    }
+    if (Number(device.infoCode?.code) !== 0) {
+      return "notice";
+    }
+    return "normal";
+  };
+
+  const sortedDevices = computed<AnyRecord[]>(() =>
+    [...devices.value].sort((left, right) => {
+      const toneWeight: AnyRecord = { critical: 0, warning: 1, notice: 2, normal: 3, offline: 4 };
+      const leftTone = getDeviceTone(left);
+      const rightTone = getDeviceTone(right);
+      if (toneWeight[leftTone] !== toneWeight[rightTone]) {
+        return toneWeight[leftTone] - toneWeight[rightTone];
+      }
+      return toTimestampMs(right.stamp) - toTimestampMs(left.stamp);
+    }),
+  );
+
+  const sortedFormations = computed<AnyRecord[]>(() =>
+    [...formations.value].sort((left, right) => {
+      if (right.onlineCount !== left.onlineCount) {
+        return right.onlineCount - left.onlineCount;
+      }
+      return left.formationName.localeCompare(right.formationName, "zh-CN");
+    }),
+  );
+
+  const selectedDevice = computed<AnyRecord | null>(
+    () => state.devicesById[state.selectedDeviceId] || null,
+  );
+  const selectedFormation = computed<AnyRecord | null>(
+    () => state.formationsById[state.selectedFormationId] || null,
+  );
+
+  const filteredDevices = computed<AnyRecord[]>(() => {
+    if (!selectedFormation.value) {
+      return sortedDevices.value;
+    }
+    const formationDeviceIds = new Set(selectedFormation.value.deviceIds || []);
+    return sortedDevices.value.filter((device) => formationDeviceIds.has(device.deviceId));
+  });
+
+  const formationSceneId = computed(
+    () => selectedFormation.value?.sceneId || selectedDevice.value?.sceneId || "",
+  );
+
+  const summary = computed(() => {
+    const onlineCount = devices.value.filter((device) => device.online).length;
+    const alertTotal = devices.value.reduce((sum, device) => sum + device.alerts.length, 0);
+    return {
+      totalCount: devices.value.length,
+      onlineCount,
+      alertTotal,
+      focusName: selectedFormation.value?.formationName || selectedDevice.value?.deviceName || "--",
+    };
+  });
+
+  const groupedAlerts = computed<AnyRecord>(() => {
+    const grouped: AnyRecord = { critical: [], warning: [], notice: [] };
+    devices.value.forEach((device) => {
+      device.alerts.forEach((alert: AnyRecord) => {
+        grouped[alert.severity].push({
+          ...alert,
+          deviceId: device.deviceId,
+          deviceName: device.deviceName,
+        });
+      });
+    });
+    Object.values(grouped).forEach((list) => {
+      (list as AnyRecord[]).sort((left, right) => toTimestampMs(right.ts) - toTimestampMs(left.ts));
+    });
+    return grouped;
+  });
+
+  const sceneDevices = computed<AnyRecord[]>(() => {
+    if (!selectedFormation.value) {
+      return [];
+    }
+    const currentSceneId = formationSceneId.value;
+    const formationDeviceIds = new Set(selectedFormation.value.deviceIds || []);
+    return sortedDevices.value.filter(
+      (device) =>
+        formationDeviceIds.has(device.deviceId) &&
+        device.rosMapEnabled !== false &&
+        (!currentSceneId || device.sceneId === currentSceneId),
+    );
+  });
+
+  const ensureSelectedDevice = () => {
+    if (state.selectedDeviceId && state.devicesById[state.selectedDeviceId]) {
+      if (!selectedFormation.value) {
+        return;
+      }
+      if ((selectedFormation.value.deviceIds || []).includes(state.selectedDeviceId)) {
+        return;
+      }
+    }
+
+    if (selectedFormation.value) {
+      const preferred = filteredDevices.value.find(
+        (device) => !formationSceneId.value || device.sceneId === formationSceneId.value,
+      );
+      state.selectedDeviceId = preferred?.deviceId || filteredDevices.value[0]?.deviceId || "";
+      return;
+    }
+
+    state.selectedDeviceId = sortedDevices.value[0]?.deviceId || "";
+  };
+
+  const primeSceneDefinitions = (list: AnyRecord[]) => {
+    list.forEach((device) => {
+      if (device.sceneId && !getSceneDefinition(device.sceneId)) {
+        void loadSceneDefinition(device.sceneId);
+      }
+    });
+  };
+
+  const recordTrails = (
+    incomingDevices: AnyRecord[],
+    mergedById: Record<string, AnyRecord>,
+    replace: boolean,
+  ) => {
+    const nextTrails: Record<string, AnyRecord[]> = { ...state.trailsByDeviceId };
+    incomingDevices.forEach((device) => {
+      const pose = pickTrailPose(mergedById[device.deviceId]);
+      const point = pose ? normalizePathPoint(pose) : null;
+      if (!point) {
+        return;
+      }
+      const existing = nextTrails[device.deviceId] || [];
+      const last = existing[existing.length - 1];
+      if (last && pointsAreNear(last, point, TRAIL_MIN_DISTANCE)) {
+        return;
+      }
+      const appended = [...existing, point];
+      nextTrails[device.deviceId] =
+        appended.length > TRAIL_MAX_POINTS
+          ? appended.slice(appended.length - TRAIL_MAX_POINTS)
+          : appended;
+    });
+    if (replace) {
+      Object.keys(nextTrails).forEach((deviceId) => {
+        if (!mergedById[deviceId]) {
+          delete nextTrails[deviceId];
+        }
+      });
+    }
+    state.trailsByDeviceId = nextTrails;
+  };
+
+  const ingestPayload = (rawPayload: any, source: string) => {
+    const normalized = normalizePayload(rawPayload);
+    const nextDevicesById: Record<string, AnyRecord> = normalized.replace
+      ? {}
+      : { ...state.devicesById };
+
+    normalized.devices.forEach((device: AnyRecord) => {
+      const existingDevice = state.devicesById[device.deviceId];
+      nextDevicesById[device.deviceId] = mergeDevice(existingDevice, device);
+    });
+
+    if (normalized.formations) {
+      const nextFormationsById: Record<string, AnyRecord> = {};
+      normalized.formations.forEach((formation: AnyRecord) => {
+        const existingFormation = state.formationsById[formation.formationId];
+        nextFormationsById[formation.formationId] = normalizeFormation(
+          formation,
+          existingFormation,
+        );
+      });
+      state.formationsById = nextFormationsById;
+    }
+
+    state.devicesById = nextDevicesById;
+    recordTrails(normalized.devices, nextDevicesById, normalized.replace);
+    state.fleetName = normalized.fleetName;
+    state.topicPattern = normalized.topicPattern;
+    state.lastSource = source;
+    state.lastUpdateAt = new Date().toISOString();
+    primeSceneDefinitions(Object.values(state.devicesById));
+    ensureSelectedDevice();
+  };
+
+  const buildFleetSnapshot = () => ({
+    fleetName: state.fleetName,
+    topicPattern: state.topicPattern,
+    updatedAt: state.lastUpdateAt || new Date().toISOString(),
+    devices: sortedDevices.value.map((device) => cloneValue(device)),
+    formations: sortedFormations.value.map((formation) => cloneValue(formation)),
+  });
+
+  const getPlannedPath = (deviceId = state.selectedDeviceId) =>
+    cloneValue(state.pathsByDeviceId[deviceId] || []);
+
+  const setPlannedPath = (deviceId: string, points: AnyRecord[]) => {
+    if (!deviceId) {
+      return [];
+    }
+    const sanitized = (Array.isArray(points) ? points : [])
+      .map(normalizePathPoint)
+      .filter(Boolean)
+      .filter((point, index, list) => index === 0 || !pointsAreNear(point, list[index - 1]));
+    state.pathsByDeviceId = {
+      ...state.pathsByDeviceId,
+      [deviceId]: sanitized as AnyRecord[],
+    };
+    return sanitized;
+  };
+
+  const addPlannedPathPoint = (deviceId: string, point: AnyRecord) => {
+    const normalizedPoint = normalizePathPoint(point);
+    if (!deviceId || !normalizedPoint) {
+      return getPlannedPath(deviceId);
+    }
+    const existing = state.pathsByDeviceId[deviceId] || [];
+    if (existing.length && pointsAreNear(existing[existing.length - 1], normalizedPoint)) {
+      return getPlannedPath(deviceId);
+    }
+    return setPlannedPath(deviceId, [...existing, normalizedPoint]);
+  };
+
+  const undoPlannedPathPoint = (deviceId = state.selectedDeviceId) => {
+    if (!deviceId) {
+      return [];
+    }
+    const existing = state.pathsByDeviceId[deviceId] || [];
+    return setPlannedPath(deviceId, existing.slice(0, -1));
+  };
+
+  const clearPlannedPath = (deviceId = state.selectedDeviceId) => {
+    if (!deviceId) {
+      return [];
+    }
+    return setPlannedPath(deviceId, []);
+  };
+
+  const setPathEditMode = (active: boolean) => {
+    state.isPathEditMode = Boolean(active);
+  };
+
+  const togglePathEditMode = () => {
+    state.isPathEditMode = !state.isPathEditMode;
+  };
+
+  const trailsByDeviceId = computed(() => state.trailsByDeviceId);
+
+  const clearTrail = (deviceId = state.selectedDeviceId) => {
+    if (!deviceId || !state.trailsByDeviceId[deviceId]) {
+      return;
+    }
+    const next = { ...state.trailsByDeviceId };
+    delete next[deviceId];
+    state.trailsByDeviceId = next;
+  };
+
+  const clearAllTrails = () => {
+    state.trailsByDeviceId = {};
+  };
+
+  const selectDevice = (deviceId: string, options: { preserveFormation?: boolean } = {}) => {
+    if (!state.devicesById[deviceId]) {
+      return;
+    }
+
+    state.selectedDeviceId = deviceId;
+    if (!options.preserveFormation) {
+      const belongsToSelectedFormation =
+        selectedFormation.value && (selectedFormation.value.deviceIds || []).includes(deviceId);
+      if (!belongsToSelectedFormation) {
+        state.selectedFormationId = "";
+      }
+    }
+    state.isPathEditMode = false;
+  };
+
+  const selectFormation = (formationId: string) => {
+    if (!state.formationsById[formationId]) {
+      return;
+    }
+    state.selectedFormationId = formationId;
+    state.selectedMapMode = "scene";
+    state.isPathEditMode = false;
+    ensureSelectedDevice();
+  };
+
+  const clearFormationSelection = () => {
+    state.selectedFormationId = "";
+    ensureSelectedDevice();
+  };
+
+  const setMapMode = (mode: string) => {
+    state.selectedMapMode = mode;
+    if (mode !== "scene") {
+      state.isPathEditMode = false;
+    }
+  };
+
+  const resolveWebSocketUrl = () => {
+    const protocol = window.location.protocol === "https:" ? "wss:" : "ws:";
+    return `${protocol}//${window.location.host}/ws`;
+  };
+
+  // Reconnect with exponential backoff (capped); app-level ping/pong detects a
+  // silently dead socket that never fires "close" (e.g. network black-hole).
+  const WS_HEARTBEAT_MS = 20000;
+  const WS_PONG_GRACE_MS = 10000;
+  const WS_BACKOFF_BASE_MS = 1000;
+  const WS_BACKOFF_MAX_MS = 30000;
+
+  let wsReconnectTimer: number | null = null;
+  let wsHeartbeatTimer: number | null = null;
+  let wsPongTimer: number | null = null;
+  let wsManuallyClosed = false;
+
+  const clearWsTimers = () => {
+    [wsReconnectTimer, wsHeartbeatTimer, wsPongTimer].forEach((timer) => {
+      if (timer) {
+        window.clearTimeout(timer);
+        window.clearInterval(timer);
+      }
+    });
+    wsReconnectTimer = null;
+    wsHeartbeatTimer = null;
+    wsPongTimer = null;
+  };
+
+  const scheduleReconnect = () => {
+    if (wsManuallyClosed || wsReconnectTimer) {
+      return;
+    }
+    const attempt = state.realtime.reconnectAttempts;
+    const delay = Math.min(WS_BACKOFF_BASE_MS * 2 ** attempt, WS_BACKOFF_MAX_MS);
+    state.realtime.reconnectAttempts = attempt + 1;
+    wsReconnectTimer = window.setTimeout(() => {
+      wsReconnectTimer = null;
+      connectRealtime();
+    }, delay);
+  };
+
+  const startHeartbeat = (ws: WebSocket) => {
+    wsHeartbeatTimer = window.setInterval(() => {
+      if (ws.readyState !== WebSocket.OPEN) {
+        return;
+      }
+      try {
+        ws.send(JSON.stringify({ type: "ping" }));
+      } catch {
+        return;
+      }
+      if (wsPongTimer) {
+        window.clearTimeout(wsPongTimer);
+      }
+      wsPongTimer = window.setTimeout(() => {
+        // No pong in time — assume the socket is dead and force a reconnect.
+        try {
+          ws.close();
+        } catch {
+          // ignore
+        }
+      }, WS_PONG_GRACE_MS);
+    }, WS_HEARTBEAT_MS);
+  };
+
+  const connectRealtime = () => {
+    if (state.realtime.ws) {
+      return;
+    }
+    wsManuallyClosed = false;
+    let ws: WebSocket;
+    try {
+      ws = new WebSocket(resolveWebSocketUrl());
+    } catch {
+      state.realtime.wsReady = false;
+      state.realtime.ws = null;
+      scheduleReconnect();
+      return;
+    }
+    state.realtime.ws = ws;
+
+    ws.addEventListener("open", () => {
+      state.realtime.wsReady = true;
+      if (state.realtime.reconnectAttempts > 0) {
+        notify("实时连接已恢复", { type: "success", dedupeKey: "ws-restored" });
+      }
+      state.realtime.reconnectAttempts = 0;
+      startHeartbeat(ws);
+    });
+
+    ws.addEventListener("message", (event) => {
+      try {
+        const message = JSON.parse(event.data);
+        if (message.type === "pong") {
+          if (wsPongTimer) {
+            window.clearTimeout(wsPongTimer);
+            wsPongTimer = null;
+          }
+          return;
+        }
+        if (message.type === "fleet.snapshot") {
+          ingestPayload(message.payload, "ws");
+          return;
+        }
+        if (message.type === "fleet.delta") {
+          ingestPayload(message.payload.device || message.payload, "mqtt");
+        }
+      } catch {
+        // Ignore malformed messages.
+      }
+    });
+
+    const markClosed = () => {
+      const wasReady = state.realtime.wsReady;
+      state.realtime.wsReady = false;
+      state.realtime.ws = null;
+      clearWsTimers();
+      if (wasReady && !wsManuallyClosed) {
+        notify("实时连接中断，正在自动重连…", { type: "warning", dedupeKey: "ws-down" });
+      }
+      scheduleReconnect();
+    };
+    ws.addEventListener("close", markClosed);
+    ws.addEventListener("error", () => {
+      // "error" is followed by "close"; let markClosed drive the reconnect.
+    });
+  };
+
+  const disconnectRealtime = () => {
+    wsManuallyClosed = true;
+    clearWsTimers();
+    if (state.realtime.ws) {
+      try {
+        state.realtime.ws.close();
+      } catch {
+        // ignore
+      }
+    }
+    state.realtime.ws = null;
+    state.realtime.wsReady = false;
+    state.realtime.reconnectAttempts = 0;
+  };
+
+  const loadSceneDefinition = async (sceneId: string) => {
+    if (!sceneId || state.pendingSceneLoads[sceneId]) {
+      return;
+    }
+    state.pendingSceneLoads[sceneId] = true;
+    try {
+      mergeSceneDefinition(await fleetApi.getScene(sceneId));
+    } catch {
+      // Keep local fallback.
+    } finally {
+      delete state.pendingSceneLoads[sceneId];
+    }
+  };
+
+  const loadSceneCatalogFromBackend = async () => {
+    try {
+      const payload = await fleetApi.getScenes();
+      (payload.items || []).forEach(mergeSceneDefinition);
+      return true;
+    } catch {
+      return false;
+    }
+  };
+
+  const bootstrapFromBackend = async () => {
+    try {
+      await loadSceneCatalogFromBackend();
+      const payload = await fleetApi.getSnapshot();
+      state.realtime.apiReady = true;
+      state.initialMockPayload = cloneValue(payload);
+      ingestPayload(payload, "api");
+      connectRealtime();
+      return true;
+    } catch {
+      state.realtime.apiReady = false;
+      notify("无法连接后端服务，请检查服务状态后重试", {
+        type: "error",
+        dedupeKey: "bootstrap-failed",
+      });
+      return false;
+    }
+  };
+
+  const bootstrapEmptyState = async () => {
+    const payload = cloneValue(fallbackFleetPayload);
+    state.initialMockPayload = payload;
+    ingestPayload(payload, "bootstrap");
+  };
+
+  const retryBootstrap = async () => {
+    const ready = await bootstrapFromBackend();
+    if (!ready) {
+      await bootstrapEmptyState();
+    }
+    return ready;
+  };
+
+  const bootstrap = async () => {
+    const backendReady = await bootstrapFromBackend();
+    if (!backendReady) {
+      await bootstrapEmptyState();
+    }
+  };
+
+  const registerWindowApi = () => {
+    (window as AnyRecord).vehicleDashboard = {
+      updateFromPayload(payload: any) {
+        const normalizedPayload = typeof payload === "string" ? JSON.parse(payload) : payload;
+        ingestPayload(normalizedPayload, "mqtt");
+      },
+      selectDevice,
+      selectFormation,
+      clearFormationSelection,
+      getSnapshot() {
+        return cloneValue(toRaw(buildFleetSnapshot()));
+      },
+      getPlannedPath(deviceId: string) {
+        return getPlannedPath(deviceId);
+      },
+      getBackendStatus() {
+        return {
+          apiReady: state.realtime.apiReady,
+          wsReady: state.realtime.wsReady,
+          source: state.lastSource,
+        };
+      },
+    };
+  };
+
+  return {
+    state,
+    formations,
+    sortedDevices,
+    filteredDevices,
+    sortedFormations,
+    selectedDevice,
+    selectedFormation,
+    summary,
+    groupedAlerts,
+    sceneDevices,
+    formationSceneId,
+    hasGps,
+    hasPose,
+    round,
+    formatDateTime,
+    getSceneDefinition,
+    getDeviceTone,
+    buildFleetSnapshot,
+    bootstrap,
+    registerWindowApi,
+    selectDevice,
+    selectFormation,
+    clearFormationSelection,
+    setMapMode,
+    getPlannedPath,
+    setPlannedPath,
+    addPlannedPathPoint,
+    undoPlannedPathPoint,
+    clearPlannedPath,
+    setPathEditMode,
+    togglePathEditMode,
+    trailsByDeviceId,
+    clearTrail,
+    clearAllTrails,
+    retryBootstrap,
+    disconnectRealtime,
+  };
+});
