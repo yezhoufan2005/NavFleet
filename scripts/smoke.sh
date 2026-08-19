@@ -15,6 +15,11 @@ check() { # 描述  期望码  实际码
   else echo "  ✗ $1 期望 $2 实得 $3"; FAIL=$((FAIL+1)); fi
 }
 code() { curl -s -o /dev/null -w "%{http_code}" "$@"; }
+body() { curl -s "$@"; }
+contains() { # 描述  期望子串  实际内容
+  if [[ "$3" == *"$2"* ]]; then echo "  ✓ $1"; PASS=$((PASS+1));
+  else echo "  ✗ $1 (未包含 '$2')"; FAIL=$((FAIL+1)); fi
+}
 
 echo "构建后端…"; (cd "$ROOT/backend" && npm run build >/dev/null 2>&1) || { echo "构建失败"; exit 1; }
 
@@ -36,6 +41,9 @@ check "健康检查公开可访问"        200 "$(code "$BASE/health")"
 check "就绪探针公开可访问"        200 "$(code "$BASE/health/ready")"
 check "指标端点公开可访问"        200 "$(code "$BASE/metrics")"
 check "OpenAPI 文档公开可访问"    200 "$(code "$BASE/openapi.json")"
+contains "指标含 navfleet_up"      "navfleet_up 1"  "$(body "$BASE/metrics")"
+contains "就绪探针含 checks"       '"checks"'       "$(body "$BASE/health/ready")"
+contains "OpenAPI 声明 3.1"        '"openapi":"3.1' "$(body "$BASE/openapi.json")"
 check "未登录访问快照被拒"        401 "$(code "$BASE/api/fleet/snapshot")"
 check "错误密码登录被拒"          401 "$(code -H 'Content-Type: application/json' -d '{"username":"admin","password":"nope"}' "$BASE/api/auth/login")"
 check "正确登录成功"              200 "$(code -c "$COOKIE" -H 'Content-Type: application/json' -d '{"username":"admin","password":"smoke123"}' "$BASE/api/auth/login")"
@@ -44,6 +52,11 @@ check "会话信息 /me"             200 "$(code -b "$COOKIE" "$BASE/api/auth/me
 check "场景列表(鉴权后)"          200 "$(code -b "$COOKIE" "$BASE/api/scenes")"
 check "告警查询非法参数 400"      400 "$(code -b "$COOKIE" "$BASE/api/alerts?severity=fatal")"
 check "调试注入(admin,已开启)"    200 "$(code -b "$COOKIE" -H 'Content-Type: application/json' -d '{"deviceId":"smoke-1","gps":{"lat":31.2,"lng":121.4}}' "$BASE/api/debug/ingest")"
+check "编队列表(鉴权后)"          200 "$(code -b "$COOKIE" "$BASE/api/formations")"
+check "场景详情(鉴权后)"          200 "$(code -b "$COOKIE" "$BASE/api/scenes/kangcheng-airy")"
+check "活动告警查询(鉴权后)"      200 "$(code -b "$COOKIE" "$BASE/api/alerts?status=active")"
+check "token 续签"              200 "$(code -b "$COOKIE" -X POST "$BASE/api/auth/refresh")"
+contains "历史端到端(注入→查询)"  '"measurements"' "$(body -b "$COOKIE" "$BASE/api/devices/smoke-1/history")"
 check "登出"                    204 "$(code -b "$COOKIE" -X POST "$BASE/api/auth/logout")"
 
 echo
