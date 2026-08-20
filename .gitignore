@@ -21,3 +21,6 @@ backend/.tmp-*.json
 
 .DS_Store
 Thumbs.db
+
+# local mongo backup archives
+deploy/backups/
