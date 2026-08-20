@@ -41,7 +41,7 @@
 - ✅ docker-compose 资源限制 + 日志轮转 + 各服务健康检查；补全 backend 鉴权 env 透传。
 - ✅ Mongo 备份/恢复脚本 + 文档（含索引/TTL 复核）。
 - ✅ OpenAPI 3.1（`GET /openapi.json`）。
-- ⏳ compose 起停健康、备份脚本运行期恢复：本机无 docker daemon，仅语法/配置校验，**待在有 docker 的环境执行 `docker compose up` 与一次恢复演练**。
+- ✅ **compose 起停健康 + 备份恢复演练（已在本机 Docker Desktop 验证）**：`docker compose up -d` 五服务全部 healthy；就绪探针 `degraded:false`（store/mongo/mqtt 全绿）；`/metrics`、`/openapi.json` 经边缘 nginx 200；MQTT mock→broker→后端→Mongo 全链路（4 设备、210 消息、告警、历史持久化）；备份→删除 telemetry_ts（0 条）→恢复（100 条）往返成功。
 - ⛔ 水平扩展 / Redis pub-sub（范围外）；`/api/v1` 版本前缀（刻意推迟）。
 
 ## 端到端 / 性能 / 验收（Phase 5）
@@ -54,5 +54,6 @@
 - ✅ 全量回归：见顶部基线。
 
 ## 待办 / 遗留（非阻塞）
-- ⏳ 在 docker 环境跑一次 `docker compose --env-file deploy/.env -f deploy/docker-compose.yml up -d --build`，验证探针/`/metrics`/前端；跑一次 `mongo-backup.sh` → `mongo-restore.sh` 恢复演练。
+- 前端 UI 由使用者手动验证（`http://127.0.0.1:8080`，登录后查看仪表盘/历史回放/告警中心/地图）。
+- 部署验证中发现并修复：`backend/Dockerfile` 缺 `tsconfig.build.json`（构建失败）、边缘 nginx 未暴露 `/metrics` 与 `/openapi.json`（已补 location）。
 - 可选：离线 demo 数据填充 `frontend/src/data-defaults.js`；i18n 文案抽离；真·UI 无头 E2E（@playwright/test）。
