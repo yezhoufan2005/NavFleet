@@ -1,5 +1,5 @@
 {
-  "fleetName": "多车监控平台",
+  "fleetName": "综合示范车队",
   "topicPattern": "/fleet/{deviceId}/vehicle_info",
   "defaultSceneId": "kangcheng-airy",
   "defaultMapProfile": "lanelet",

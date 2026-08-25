@@ -43,8 +43,6 @@ ensure_deps() {
   fi
 }
 
-# PLACEHOLDER_BODY
-
 ensure_deps backend
 ensure_deps frontend
 

@@ -15,7 +15,7 @@ CONFIG_ROOT_PATH=/runtime-config
 本地开发示例：
 
 ```text
-CONFIG_ROOT_PATH=C:\Users\Frspble\Desktop\mqtt\config-runtime
+CONFIG_ROOT_PATH=C:\path\to\NavFleet\config-runtime
 ```
 
 目录结构：
@@ -61,7 +61,7 @@ config-runtime/
 
 ```json
 {
-  "fleetName": "多车监控平台",
+  "fleetName": "综合示范车队",
   "topicPattern": "/fleet/{deviceId}/vehicle_info",
   "defaultSceneId": "kangcheng-airy",
   "defaultMapProfile": "lanelet",
@@ -346,11 +346,13 @@ scene-maps/
 | 变量 | 默认值 | 说明 |
 | --- | --- | --- |
 | `PORT` | `3000` | 后端容器监听端口 |
-| `FLEET_NAME` | `多车监控平台` | 内置兜底车队名，通常会被 `fleet.json` 覆盖 |
+| `NODE_ENV` | `production`（compose） | 运行环境；`production` 下缺少 `JWT_SECRET` 会启动失败 |
+| `FLEET_NAME` | `智能车队` | 内置兜底车队名，通常会被 `fleet.json` 覆盖 |
 | `MQTT_URL` | `mqtt://mosquitto:1883` | 后端连接的 MQTT Broker |
 | `MQTT_USERNAME` | 空 | MQTT 用户名 |
 | `MQTT_PASSWORD` | 空 | MQTT 密码 |
-| `MQTT_TOPIC_PATTERN` | `/fleet/{deviceId}/vehicle_info` | 页面展示用 topic 模板 |
+| `MQTT_CLIENT_ID` | 随机 | 可选固定客户端 ID |
+| `MQTT_TOPIC_PATTERN` | `/fleet/{deviceId}/vehicle_info` | 遥测主题模板，`{deviceId}` 为占位符 |
 | `MONGO_URI` | `mongodb://root:example@mongo:27017/fleet_monitor?authSource=admin` | MongoDB 连接串 |
 | `MONGO_DB_NAME` | `fleet_monitor` | MongoDB 数据库名 |
 | `SEED_FILE` | 空 | 可选种子数据文件 |
@@ -362,6 +364,28 @@ scene-maps/
 | `CONFIG_ROOT_PATH` | `/runtime-config` | 容器内配置根目录 |
 | `CONFIG_WATCH_USE_POLLING` | `false` | 是否用轮询监听配置 |
 | `CONFIG_WATCH_DEBOUNCE_MS` | `1000` | 配置热加载防抖毫秒数 |
+
+### 8.2.1 鉴权与安全变量
+
+| 变量 | 默认值 | 说明 |
+| --- | --- | --- |
+| `AUTH_ENABLED` | `true` | 是否启用登录与 RBAC；仅本地实验可关闭 |
+| `JWT_SECRET` | 空 | **生产必填**：JWT 签名密钥。留空使用进程内临时密钥（重启失效所有会话）；`NODE_ENV=production` 下留空会启动失败 |
+| `JWT_ACCESS_TTL` | `15m` | access token 有效期 |
+| `JWT_REFRESH_TTL` | `7d` | refresh token 有效期 |
+| `BCRYPT_ROUNDS` | `10` | 密码哈希强度 |
+| `ADMIN_USERNAME` | `admin` | 初始管理员用户名 |
+| `ADMIN_PASSWORD` | 空 | **生产必填**：留空时开发环境创建 `admin/admin123` 并告警，生产环境拒绝创建默认管理员 |
+| `COOKIE_SECURE` | `false` | HTTPS 部署时设为 `true`，使鉴权 Cookie 带 Secure 标记 |
+| `CORS_ORIGINS` | 空（同源部署无需设置） | 允许的跨域来源，逗号分隔 |
+| `DEBUG_INGEST_ENABLED` | `false` | 调试注入端点开关；开启后仍需 admin 角色 |
+
+### 8.2.2 可观测性变量
+
+| 变量 | 默认值 | 说明 |
+| --- | --- | --- |
+| `LOG_LEVEL` | `info` | pino 日志级别：trace/debug/info/warn/error/fatal |
+| `METRICS_ENABLED` | `true` | 是否暴露 `GET /metrics`（Prometheus 文本，未鉴权，仅供内网抓取） |
 
 ### 8.3 Mongo 变量
 

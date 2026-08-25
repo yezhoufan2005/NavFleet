@@ -6,7 +6,7 @@
     "mapProfile": "lanelet",
     "gpsEnabled": true,
     "rosMapEnabled": true,
-    "tags": ["巡检"]
+    "tags": ["巡检", "室外"]
   },
   {
     "deviceId": "agv-b07",
@@ -15,7 +15,7 @@
     "mapProfile": "lanelet",
     "gpsEnabled": true,
     "rosMapEnabled": true,
-    "tags": ["巡检"]
+    "tags": ["巡检", "室外"]
   },
   {
     "deviceId": "agv-c12",
@@ -24,16 +24,25 @@
     "mapProfile": "lanelet",
     "gpsEnabled": true,
     "rosMapEnabled": true,
-    "tags": ["巡检"]
+    "tags": ["巡检", "室外"]
   },
   {
-    "deviceId": "agv-d03",
-    "deviceName": "D03 巡检车",
-    "defaultSceneId": "kangcheng-airy",
-    "mapProfile": "lanelet",
+    "deviceId": "agv-w05",
+    "deviceName": "W05 仓储搬运车",
+    "defaultSceneId": "warehouse-a",
+    "mapProfile": "rosRaster",
     "gpsEnabled": false,
     "rosMapEnabled": true,
-    "tags": ["待机"]
+    "tags": ["仓储", "室内"]
+  },
+  {
+    "deviceId": "agv-w09",
+    "deviceName": "W09 仓储搬运车",
+    "defaultSceneId": "warehouse-a",
+    "mapProfile": "rosRaster",
+    "gpsEnabled": false,
+    "rosMapEnabled": true,
+    "tags": ["仓储", "室内"]
   },
   {
     "deviceId": "agv-r01",
@@ -42,6 +51,6 @@
     "mapProfile": "pointCloud",
     "gpsEnabled": true,
     "rosMapEnabled": true,
-    "tags": ["点云示例"]
+    "tags": ["点云示例", "室内"]
   }
 ]

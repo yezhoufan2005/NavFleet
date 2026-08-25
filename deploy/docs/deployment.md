@@ -103,9 +103,20 @@ MONGO_DB_NAME=fleet_monitor
 生产环境必须修改：
 
 ```env
+# 数据库口令
 MONGO_INITDB_ROOT_PASSWORD=更强的密码
 MONGO_URI=mongodb://root:更强的密码@mongo:27017/fleet_monitor?authSource=admin
+
+# 鉴权（缺失将导致：JWT_SECRET 空→会话每次重启失效且生产启动失败；
+#        ADMIN_PASSWORD 空→生产拒绝创建默认管理员）
+JWT_SECRET=$(openssl rand -hex 32)
+ADMIN_PASSWORD=一个强口令
+
+# 经 HTTPS 提供服务时
+COOKIE_SECURE=true
 ```
+
+> `NODE_ENV=production`（compose 默认）下，后端在 `AUTH_ENABLED=true` 且 `JWT_SECRET` 为空时会**拒绝启动**；`ADMIN_PASSWORD` 为空时会跳过管理员种子并记录错误日志。务必在首次启动前设置二者。
 
 如果需要 80 端口：
 
@@ -274,9 +285,11 @@ docker compose --env-file deploy/.env -f deploy/docker-compose.yml up -d --build
 
 `deploy/nginx/default.conf` 负责：
 
-- `/` 代理到前端容器。
-- `/api/` 代理到后端。
-- `/health` 代理到后端。
+- `/` 代理到前端容器（并注入 SPA 安全响应头与高德地图作用域的 CSP）。
+- `/api/` 代理到后端（边缘限流 ~30r/s）。
+- `/health` 代理到后端存活探针。
+- `/metrics` 代理到后端 Prometheus 指标（未鉴权，仅供内网抓取）。
+- `/openapi.json` 代理到后端 OpenAPI 文档。
 - `/ws` 代理到后端 WebSocket。
 - `/scene-maps/` 代理到后端静态资源。
 

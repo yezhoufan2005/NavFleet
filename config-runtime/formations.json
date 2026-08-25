@@ -4,8 +4,16 @@
     "formationName": "巡检编队 Alpha",
     "deviceIds": ["agv-a01", "agv-b07", "agv-c12"],
     "sceneId": "kangcheng-airy",
-    "description": "康城 Airy 巡检编队",
+    "description": "康城 Airy 路网室外巡检编队",
     "color": "#46d7c3"
+  },
+  {
+    "formationId": "warehouse-beta",
+    "formationName": "仓储编队 Beta",
+    "deviceIds": ["agv-w05", "agv-w09"],
+    "sceneId": "warehouse-a",
+    "description": "一号仓储区室内搬运编队",
+    "color": "#ffb35a"
   },
   {
     "formationId": "cloudpoint-demo-team",

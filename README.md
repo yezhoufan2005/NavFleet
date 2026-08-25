@@ -1,6 +1,6 @@
-﻿# 多车监控平台
+﻿# 智能车队监控平台（NavFleet）
 
-该项目是一个面向 AGV/智能车队的实时监控项目。系统通过 MQTT 接收车辆遥测和在线状态，后端统一归一化数据并写入 MongoDB，同时通过 REST API 和 WebSocket 推送给 Vue 前端，用于展示车辆列表、编队、GPS 地图、场景地图、点云地图、Lanelet2 路网和告警信息。
+该项目是一个面向 AGV/智能车队的实时监控系统。系统通过 MQTT 接收车辆遥测和在线状态，后端统一归一化数据并写入 MongoDB，同时通过 REST API 和 WebSocket 推送给 Vue 前端，用于展示车辆列表、编队、GPS 地图、场景地图、点云地图、Lanelet2 路网和告警信息。
 
 前端为多页工作台（vue-router + Pinia）：**实时监控**（设备/编队/地图/详情）、**历史回放**（按设备与时间范围回放轨迹）、**告警中心**（按严重度/设备筛选、确认、分页）。系统定位为**只读监控**：完整登录 + RBAC（管理员/操作员/只读），不含控制下发与多租户。后端提供分级健康探针、Prometheus 指标与 OpenAPI 文档（见 §7、§9）。
 
@@ -17,7 +17,7 @@
 ### 1.1 Docker 一键启动
 
 ```bash
-cd /path/to/mqtt
+cd /path/to/NavFleet
 cp deploy/.env.example deploy/.env
 docker compose --env-file deploy/.env -f deploy/docker-compose.yml up -d --build
 ```
@@ -27,6 +27,8 @@ docker compose --env-file deploy/.env -f deploy/docker-compose.yml up -d --build
 ```text
 http://127.0.0.1:8080
 ```
+
+> **生产部署前必改**：`deploy/.env` 中的 `JWT_SECRET`（留空则每次重启失效所有会话）、`ADMIN_PASSWORD`（生产环境留空将拒绝创建默认管理员）、以及 `MONGO_INITDB_ROOT_PASSWORD` / `MONGO_URI` 中的数据库口令。开发环境留空 `ADMIN_PASSWORD` 时会创建 `admin / admin123` 并打印告警。
 
 默认 MQTT 接入地址：
 
@@ -49,15 +51,15 @@ Docker 启动后，可以在本机运行模拟发布脚本：
 ```bash
 cd backend
 npm install
-npm run mock:mqtt -- --broker mqtt://127.0.0.1:1883 --device-prefix agv --count 4 --interval 1000
+npm run mock:mqtt -- --broker mqtt://127.0.0.1:1883 --interval 1000
 ```
 
-模拟脚本会向 `/fleet/{deviceId}/vehicle_info` 和 `/fleet/{deviceId}/status` 发布车辆数据。页面收到数据后会显示车辆、告警和地图位置。
+模拟脚本默认发布与 `config-runtime/vehicles.json` 一致的示范车队（覆盖三类地图：Lanelet 路网、栅格图片、点云），向 `/fleet/{deviceId}/vehicle_info` 和 `/fleet/{deviceId}/status` 发布数据，涵盖不同控制模式/挡位/任务状态、提示/预警/告警三档告警、低电量与离线检测。页面收到数据后会显示车辆、告警和地图位置。`--count` 可限制设备数（超过示范车队数量时会合成额外设备用于压测）。
 
 ## 2. 项目目录
 
 ```text
-mqtt/
+NavFleet/
 ├─ backend/                 # Node.js + TypeScript 后端
 │  ├─ src/
 │  │  ├─ index.ts           # Express / WebSocket / MQTT 入口
@@ -65,17 +67,30 @@ mqtt/
 │  │  ├─ configRegistry.ts  # 运行期配置加载、校验和热更新
 │  │  ├─ normalize.ts       # MQTT/API payload 归一化
 │  │  ├─ store.ts           # 内存快照、告警、编队和广播
-│  │  ├─ persistence.ts     # MongoDB 持久化
+│  │  ├─ persistence.ts     # MongoDB 持久化（含内存兜底）
+│  │  ├─ topics.ts          # MQTT 主题模式解析
+│  │  ├─ validation.ts      # zod 入参校验
 │  │  ├─ laneletOsm.ts      # Lanelet2 OSM 解析
+│  │  ├─ openapi.ts         # OpenAPI 3.1 文档
+│  │  ├─ auth/              # JWT + RBAC（service/tokens/middleware/routes/passwords）
 │  │  └─ types.ts           # 类型定义
-│  ├─ scripts/mock-mqtt.ts  # 模拟 MQTT 发布脚本
+│  ├─ scripts/
+│  │  ├─ mock-mqtt.ts       # 模拟 MQTT 发布脚本
+│  │  └─ load-ingest.ts     # 免 broker 的压测脚本
+│  ├─ test/                 # Vitest 单测
 │  └─ Dockerfile
 ├─ frontend/                # Vue 3 + Vite 前端
 │  ├─ src/
-│  │  ├─ App.vue
-│  │  ├─ components/        # GPS 地图、ROS/场景地图
-│  │  ├─ composables/       # 页面状态和实时连接
-│  │  ├─ utils/             # 高德地图、坐标、点云工具
+│  │  ├─ main.ts            # 应用入口（Pinia + vue-router）
+│  │  ├─ App.vue            # 鉴权门 + 布局 + 导航
+│  │  ├─ router/            # hash 路由
+│  │  ├─ views/             # 实时监控 / 历史回放 / 告警中心
+│  │  ├─ stores/            # Pinia fleet store
+│  │  ├─ services/          # REST 客户端
+│  │  ├─ lib/               # 纯数据归一化
+│  │  ├─ composables/       # 鉴权、主题、通知、告警确认
+│  │  ├─ components/        # GPS 地图、ROS/场景地图、登录、通知
+│  │  ├─ utils/             # 高德地图、坐标、点云、枚举文案
 │  │  └─ assets/
 │  └─ Dockerfile
 ├─ config-runtime/          # 运行期配置和地图资源
@@ -90,7 +105,8 @@ mqtt/
 │  ├─ nginx/default.conf
 │  ├─ mosquitto/mosquitto.conf
 │  ├─ docs/
-│  └─ tools/
+│  └─ tools/                # Mongo 备份/恢复脚本
+├─ scripts/                 # smoke.sh 等契约冒烟脚本
 └─ ARCHITECTURE.md
 ```
 
@@ -161,7 +177,7 @@ cp .env.example .env
 Windows 本机建议把 `CONFIG_ROOT_PATH` 改成绝对路径，例如：
 
 ```env
-CONFIG_ROOT_PATH=C:\Users\Frspble\Desktop\mqtt\config-runtime
+CONFIG_ROOT_PATH=C:\path\to\NavFleet\config-runtime
 ```
 
 启动：
