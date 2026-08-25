@@ -27,11 +27,6 @@ const {
   selectFormation,
   clearFormationSelection,
   setMapMode,
-  getPlannedPath,
-  setPlannedPath,
-  clearPlannedPath,
-  undoPlannedPathPoint,
-  setPathEditMode,
   clearTrail,
 } = store;
 
@@ -45,7 +40,6 @@ const toneLabelMap = {
 
 const activeSceneId = computed(() => formationSceneId.value || selectedDevice.value?.sceneId || "");
 const selectedSceneDefinition = computed(() => getSceneDefinition(activeSceneId.value));
-const selectedPathPoints = computed(() => getPlannedPath(selectedDevice.value?.deviceId));
 const selectedTrailLength = computed(() => {
   const deviceId = selectedDevice.value?.deviceId;
   return deviceId ? (trailsByDeviceId.value[deviceId]?.length ?? 0) : 0;
@@ -128,31 +122,6 @@ function handleGpsSelect(deviceId) {
   if (state.devicesById[deviceId]?.sceneId) {
     setMapMode("scene");
   }
-}
-
-function handlePathEditMode(nextValue) {
-  setPathEditMode(nextValue);
-}
-
-function handlePathUpdate(points) {
-  if (!selectedDevice.value?.deviceId) {
-    return;
-  }
-  setPlannedPath(selectedDevice.value.deviceId, points);
-}
-
-function handlePathClear() {
-  if (!selectedDevice.value?.deviceId) {
-    return;
-  }
-  clearPlannedPath(selectedDevice.value.deviceId);
-}
-
-function handlePathUndo() {
-  if (!selectedDevice.value?.deviceId) {
-    return;
-  }
-  undoPlannedPathPoint(selectedDevice.value.deviceId);
 }
 
 function handleFormationSelect(formationId) {
@@ -311,13 +280,7 @@ function handleDeviceSelect(deviceId) {
             :scene-devices="sceneDevices"
             :get-device-tone="getDeviceTone"
             :round="round"
-            :path-points="selectedPathPoints"
-            :is-path-edit-mode="state.isPathEditMode"
             :trails="trailsByDeviceId"
-            @update-path="handlePathUpdate"
-            @clear-path="handlePathClear"
-            @undo-path="handlePathUndo"
-            @set-edit-mode="handlePathEditMode"
           />
 
           <div v-else class="map-empty">

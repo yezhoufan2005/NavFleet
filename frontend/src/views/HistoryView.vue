@@ -214,8 +214,6 @@ async function loadHistory() {
   }
 }
 
-const noopPath = () => {};
-
 onBeforeUnmount(stopPlayback);
 </script>
 
@@ -281,13 +279,7 @@ onBeforeUnmount(stopPlayback);
             :scene-devices="[]"
             :get-device-tone="getDeviceTone"
             :round="round"
-            :path-points="[]"
-            :is-path-edit-mode="false"
             :trails="trailsForMap"
-            @update-path="noopPath"
-            @clear-path="noopPath"
-            @undo-path="noopPath"
-            @set-edit-mode="noopPath"
           />
 
           <div v-else-if="loading" class="map-empty">

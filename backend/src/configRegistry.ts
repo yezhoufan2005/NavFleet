@@ -24,7 +24,7 @@ const FORMATIONS_FILE = runtimePaths.formationsFilePath;
 const SCENES_FILE = runtimePaths.scenesFilePath;
 
 const DEFAULT_FLEET_CONFIG: FleetConfig = {
-  fleetName: "多车监控平台",
+  fleetName: "智能车队",
   topicPattern: "/fleet/{deviceId}/vehicle_info",
   defaultSceneId: "",
   defaultMapProfile: "lanelet",

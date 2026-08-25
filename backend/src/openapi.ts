@@ -77,16 +77,20 @@ export const openApiDocument = {
       Alert: {
         type: "object",
         properties: {
-          id: { type: "string" },
+          eventKey: { type: "string" },
           deviceId: { type: "string" },
-          deviceName: { type: "string" },
+          alertId: { type: "string" },
           severity: { type: "string", enum: ["critical", "warning", "notice"] },
           source: { type: "string" },
           title: { type: "string" },
+          detail: { type: "string" },
           info: { type: "string" },
-          code: { type: "number" },
+          code: { type: "number", nullable: true },
           active: { type: "boolean" },
           ts: { type: "string" },
+          firstSeenAt: { type: "string", format: "date-time" },
+          lastSeenAt: { type: "string", format: "date-time" },
+          clearedAt: { type: "string", format: "date-time", nullable: true },
         },
       },
       HistorySample: {

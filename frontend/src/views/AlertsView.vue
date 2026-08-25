@@ -215,14 +215,12 @@ function formatStamp(value) {
             {{ severityLabelMap[alert.severity] }}
           </span>
         </div>
-        <p>
-          代码值：{{ alert.code }}
-          <span v-if="alert.info">，说明：{{ alert.info }}</span>
-        </p>
+        <p>{{ alert.detail || alert.info || "暂无详细说明" }}</p>
         <div class="alert-item-foot">
           <div class="alert-meta">
             <span>{{ alert.deviceName }}</span>
             <span>{{ alertSourceLabelMap[alert.source] || alert.source }}</span>
+            <span v-if="alert.code">报码 {{ alert.code }}</span>
             <span>{{ formatStamp(alert.ts) }}</span>
           </div>
           <button type="button" class="ack-btn" @click="toggleAck(alert)">

@@ -32,6 +32,42 @@ interface TelemetryDocument {
   };
 }
 
+/**
+ * Coerce a history bound to a Date. Accepts ISO-8601 strings and numeric epoch
+ * values (seconds or milliseconds), matching what the query schema advertises.
+ * Returns null for unparseable input so callers can skip the bound.
+ */
+const toBoundDate = (value: string | undefined): Date | null => {
+  if (!value) {
+    return null;
+  }
+  const trimmed = value.trim();
+  if (/^\d+$/.test(trimmed)) {
+    const epoch = Number(trimmed);
+    return new Date(epoch < 1e12 ? epoch * 1000 : epoch);
+  }
+  const ms = Date.parse(trimmed);
+  return Number.isFinite(ms) ? new Date(ms) : null;
+};
+
+/** Projected alert shape returned by /api/alerts (kept identical across the
+ * MongoDB and in-memory fallback paths, and mirrored by the OpenAPI schema). */
+interface StoredAlert {
+  eventKey: string;
+  deviceId: string;
+  alertId: string;
+  severity: string;
+  title: string;
+  detail: string;
+  source: string;
+  code: number | null;
+  info: string;
+  ts: string;
+  active: boolean;
+  firstSeenAt: string;
+  lastSeenAt: string;
+}
+
 export class Persistence {
   private mongoClient: MongoClient | null = null;
   private db: Db | null = null;
@@ -43,6 +79,9 @@ export class Persistence {
   // In-memory user store used when MongoDB is unavailable, so auth still works
   // for local/dev runs (mirrors the telemetry in-memory fallback).
   private fallbackUsers = new Map<string, UserRecord>();
+  // Current active alerts per device, always kept in memory so /api/alerts stays
+  // useful in local/dev runs without MongoDB (mirrors the telemetry fallback).
+  private activeAlerts = new Map<string, StoredAlert[]>();
 
   async connect(): Promise<void> {
     await this.connectMongo();
@@ -241,6 +280,27 @@ export class Persistence {
   }
 
   async upsertAlerts(deviceId: string, alerts: DeviceAlert[]): Promise<void> {
+    // Always mirror the current active set into memory so the /api/alerts
+    // fallback works without MongoDB and stays consistent with the live snapshot.
+    this.activeAlerts.set(
+      deviceId,
+      alerts.map((alert) => ({
+        eventKey: `${deviceId}:${alert.id}`,
+        deviceId,
+        alertId: alert.id,
+        severity: alert.severity,
+        title: alert.title,
+        detail: alert.detail,
+        source: alert.source,
+        code: alert.code ?? null,
+        info: alert.info ?? "",
+        ts: alert.ts,
+        active: true,
+        firstSeenAt: alert.ts,
+        lastSeenAt: alert.ts,
+      })),
+    );
+
     if (!this.db) {
       return;
     }
@@ -248,47 +308,52 @@ export class Persistence {
     const collection = this.db.collection("alerts");
     const activeKeys = new Set(alerts.map((alert) => `${deviceId}:${alert.id}`));
 
-    await Promise.all(
-      alerts.map((alert) =>
-        collection.updateOne(
-          { eventKey: `${deviceId}:${alert.id}` },
-          {
-            $set: {
-              eventKey: `${deviceId}:${alert.id}`,
-              deviceId,
-              severity: alert.severity,
-              title: alert.title,
-              detail: alert.detail,
-              source: alert.source,
-              ts: alert.ts,
-              active: true,
-              code: alert.code ?? null,
-              info: alert.info ?? "",
-              lastSeenAt: new Date(alert.ts),
+    try {
+      await Promise.all(
+        alerts.map((alert) =>
+          collection.updateOne(
+            { eventKey: `${deviceId}:${alert.id}` },
+            {
+              $set: {
+                eventKey: `${deviceId}:${alert.id}`,
+                deviceId,
+                alertId: alert.id,
+                severity: alert.severity,
+                title: alert.title,
+                detail: alert.detail,
+                source: alert.source,
+                ts: alert.ts,
+                active: true,
+                code: alert.code ?? null,
+                info: alert.info ?? "",
+                lastSeenAt: new Date(alert.ts),
+              },
+              $setOnInsert: {
+                firstSeenAt: new Date(alert.ts),
+              },
             },
-            $setOnInsert: {
-              firstSeenAt: new Date(alert.ts),
-            },
-          },
-          { upsert: true },
+            { upsert: true },
+          ),
         ),
-      ),
-    );
+      );
 
-    await collection.updateMany(
-      {
-        deviceId,
-        active: true,
-        eventKey: { $nin: [...activeKeys] },
-      },
-      {
-        $set: {
-          active: false,
-          clearedAt: new Date(),
-          lastSeenAt: new Date(),
+      await collection.updateMany(
+        {
+          deviceId,
+          active: true,
+          eventKey: { $nin: [...activeKeys] },
         },
-      },
-    );
+        {
+          $set: {
+            active: false,
+            clearedAt: new Date(),
+            lastSeenAt: new Date(),
+          },
+        },
+      );
+    } catch (error) {
+      logger.warn({ err: error, deviceId }, "Failed to persist alerts to MongoDB");
+    }
   }
 
   private appendMemoryTelemetry(document: TelemetryDocument): void {
@@ -305,8 +370,8 @@ export class Persistence {
 
   private queryMemoryHistory(query: HistoryQuery): TelemetryDocument[] {
     const all = this.telemetryBuffer.get(query.deviceId) ?? [];
-    const fromMs = query.from ? Date.parse(query.from) : undefined;
-    const toMs = query.to ? Date.parse(query.to) : undefined;
+    const fromMs = toBoundDate(query.from)?.getTime();
+    const toMs = toBoundDate(query.to)?.getTime();
     const filtered = all.filter((document) => {
       const ts = document.ts.getTime();
       if (Number.isFinite(fromMs) && ts < (fromMs as number)) {
@@ -339,14 +404,17 @@ export class Persistence {
     const filter: Record<string, unknown> = {
       "meta.deviceId": query.deviceId,
     };
-    if (query.from || query.to) {
-      filter.ts = {};
-      if (query.from) {
-        (filter.ts as Record<string, unknown>).$gte = new Date(query.from);
+    const fromDate = toBoundDate(query.from);
+    const toDate = toBoundDate(query.to);
+    if (fromDate || toDate) {
+      const range: Record<string, unknown> = {};
+      if (fromDate) {
+        range.$gte = fromDate;
       }
-      if (query.to) {
-        (filter.ts as Record<string, unknown>).$lte = new Date(query.to);
+      if (toDate) {
+        range.$lte = toDate;
       }
+      filter.ts = range;
     }
 
     return this.db
@@ -363,7 +431,7 @@ export class Persistence {
     status?: string;
   }): Promise<unknown[]> {
     if (!this.db) {
-      return [];
+      return this.queryMemoryAlerts(filters);
     }
 
     const query: Record<string, unknown> = {};
@@ -379,6 +447,30 @@ export class Persistence {
       query.active = false;
     }
 
-    return this.db.collection("alerts").find(query).sort({ ts: -1 }).limit(500).toArray();
+    return this.db
+      .collection("alerts")
+      .find(query, { projection: { _id: 0 } })
+      .sort({ ts: -1 })
+      .limit(500)
+      .toArray();
+  }
+
+  private queryMemoryAlerts(filters: {
+    severity?: string;
+    deviceId?: string;
+    status?: string;
+  }): StoredAlert[] {
+    // Only active alerts are retained in memory; a "cleared" filter yields none.
+    if (filters.status === "cleared") {
+      return [];
+    }
+    let items = [...this.activeAlerts.values()].flat();
+    if (filters.severity) {
+      items = items.filter((alert) => alert.severity === filters.severity);
+    }
+    if (filters.deviceId) {
+      items = items.filter((alert) => alert.deviceId === filters.deviceId);
+    }
+    return items.sort((left, right) => Date.parse(right.ts) - Date.parse(left.ts)).slice(0, 500);
   }
 }

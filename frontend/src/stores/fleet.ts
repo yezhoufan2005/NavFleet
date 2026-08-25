@@ -3,10 +3,10 @@
  *
  * Successor to the monolithic `useDashboard` composable. Owns the reactive
  * fleet state, derived views (sorted/filtered devices, formations, grouped
- * alerts, per-device trails), planned-path editing, and the resilient realtime
- * (WebSocket) link. Pure shaping logic lives in `../lib/fleetNormalize`; REST
- * access lives in `../services/fleetApi`. Being a store (single instance) it is
- * safely shared across router views without duplicating the socket or state.
+ * alerts, per-device trails), and the resilient realtime (WebSocket) link.
+ * Pure shaping logic lives in `../lib/fleetNormalize`; REST access lives in
+ * `../services/fleetApi`. Being a store (single instance) it is safely shared
+ * across router views without duplicating the socket or state.
  */
 
 import { computed, reactive, toRaw } from "vue";
@@ -20,7 +20,6 @@ import {
   toTimestampMs,
   formatDateTime,
   extractDeviceIdFromTopic,
-  hasGps,
   hasPose,
   normalizeDevice,
   normalizeFormation,
@@ -52,11 +51,8 @@ interface FleetState {
   selectedMapMode: string;
   lastSource: string;
   lastUpdateAt: string | null;
-  initialMockPayload: AnyRecord;
   sceneDefinitions: Record<string, AnyRecord>;
   pendingSceneLoads: Record<string, boolean>;
-  pathsByDeviceId: Record<string, AnyRecord[]>;
-  isPathEditMode: boolean;
   trailsByDeviceId: Record<string, AnyRecord[]>;
   realtime: RealtimeState;
 }
@@ -72,11 +68,8 @@ export const useFleetStore = defineStore("fleet", () => {
     selectedMapMode: "gps",
     lastSource: "bootstrap",
     lastUpdateAt: null,
-    initialMockPayload: cloneValue(fallbackFleetPayload),
     sceneDefinitions: cloneValue(sceneCatalog),
     pendingSceneLoads: {},
-    pathsByDeviceId: {},
-    isPathEditMode: false,
     trailsByDeviceId: {},
     realtime: {
       apiReady: false,
@@ -382,59 +375,6 @@ export const useFleetStore = defineStore("fleet", () => {
     formations: sortedFormations.value.map((formation) => cloneValue(formation)),
   });
 
-  const getPlannedPath = (deviceId = state.selectedDeviceId) =>
-    cloneValue(state.pathsByDeviceId[deviceId] || []);
-
-  const setPlannedPath = (deviceId: string, points: AnyRecord[]) => {
-    if (!deviceId) {
-      return [];
-    }
-    const sanitized = (Array.isArray(points) ? points : [])
-      .map(normalizePathPoint)
-      .filter(Boolean)
-      .filter((point, index, list) => index === 0 || !pointsAreNear(point, list[index - 1]));
-    state.pathsByDeviceId = {
-      ...state.pathsByDeviceId,
-      [deviceId]: sanitized as AnyRecord[],
-    };
-    return sanitized;
-  };
-
-  const addPlannedPathPoint = (deviceId: string, point: AnyRecord) => {
-    const normalizedPoint = normalizePathPoint(point);
-    if (!deviceId || !normalizedPoint) {
-      return getPlannedPath(deviceId);
-    }
-    const existing = state.pathsByDeviceId[deviceId] || [];
-    if (existing.length && pointsAreNear(existing[existing.length - 1], normalizedPoint)) {
-      return getPlannedPath(deviceId);
-    }
-    return setPlannedPath(deviceId, [...existing, normalizedPoint]);
-  };
-
-  const undoPlannedPathPoint = (deviceId = state.selectedDeviceId) => {
-    if (!deviceId) {
-      return [];
-    }
-    const existing = state.pathsByDeviceId[deviceId] || [];
-    return setPlannedPath(deviceId, existing.slice(0, -1));
-  };
-
-  const clearPlannedPath = (deviceId = state.selectedDeviceId) => {
-    if (!deviceId) {
-      return [];
-    }
-    return setPlannedPath(deviceId, []);
-  };
-
-  const setPathEditMode = (active: boolean) => {
-    state.isPathEditMode = Boolean(active);
-  };
-
-  const togglePathEditMode = () => {
-    state.isPathEditMode = !state.isPathEditMode;
-  };
-
   const trailsByDeviceId = computed(() => state.trailsByDeviceId);
 
   const clearTrail = (deviceId = state.selectedDeviceId) => {
@@ -444,10 +384,6 @@ export const useFleetStore = defineStore("fleet", () => {
     const next = { ...state.trailsByDeviceId };
     delete next[deviceId];
     state.trailsByDeviceId = next;
-  };
-
-  const clearAllTrails = () => {
-    state.trailsByDeviceId = {};
   };
 
   const selectDevice = (deviceId: string, options: { preserveFormation?: boolean } = {}) => {
@@ -463,7 +399,6 @@ export const useFleetStore = defineStore("fleet", () => {
         state.selectedFormationId = "";
       }
     }
-    state.isPathEditMode = false;
   };
 
   const selectFormation = (formationId: string) => {
@@ -472,7 +407,6 @@ export const useFleetStore = defineStore("fleet", () => {
     }
     state.selectedFormationId = formationId;
     state.selectedMapMode = "scene";
-    state.isPathEditMode = false;
     ensureSelectedDevice();
   };
 
@@ -483,9 +417,6 @@ export const useFleetStore = defineStore("fleet", () => {
 
   const setMapMode = (mode: string) => {
     state.selectedMapMode = mode;
-    if (mode !== "scene") {
-      state.isPathEditMode = false;
-    }
   };
 
   const resolveWebSocketUrl = () => {
@@ -661,7 +592,6 @@ export const useFleetStore = defineStore("fleet", () => {
       await loadSceneCatalogFromBackend();
       const payload = await fleetApi.getSnapshot();
       state.realtime.apiReady = true;
-      state.initialMockPayload = cloneValue(payload);
       ingestPayload(payload, "api");
       connectRealtime();
       return true;
@@ -677,7 +607,6 @@ export const useFleetStore = defineStore("fleet", () => {
 
   const bootstrapEmptyState = async () => {
     const payload = cloneValue(fallbackFleetPayload);
-    state.initialMockPayload = payload;
     ingestPayload(payload, "bootstrap");
   };
 
@@ -708,9 +637,6 @@ export const useFleetStore = defineStore("fleet", () => {
       getSnapshot() {
         return cloneValue(toRaw(buildFleetSnapshot()));
       },
-      getPlannedPath(deviceId: string) {
-        return getPlannedPath(deviceId);
-      },
       getBackendStatus() {
         return {
           apiReady: state.realtime.apiReady,
@@ -733,7 +659,6 @@ export const useFleetStore = defineStore("fleet", () => {
     groupedAlerts,
     sceneDevices,
     formationSceneId,
-    hasGps,
     hasPose,
     round,
     formatDateTime,
@@ -746,16 +671,8 @@ export const useFleetStore = defineStore("fleet", () => {
     selectFormation,
     clearFormationSelection,
     setMapMode,
-    getPlannedPath,
-    setPlannedPath,
-    addPlannedPathPoint,
-    undoPlannedPathPoint,
-    clearPlannedPath,
-    setPathEditMode,
-    togglePathEditMode,
     trailsByDeviceId,
     clearTrail,
-    clearAllTrails,
     retryBootstrap,
     disconnectRealtime,
   };

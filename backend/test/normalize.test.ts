@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { normalizeDevice, hasGps } from "../src/normalize";
+import { normalizeDevice, normalizePayload, hasGps } from "../src/normalize";
 
 describe("hasGps", () => {
   it("is true only when both lat and lng are finite", () => {
@@ -77,5 +77,28 @@ describe("normalizeDevice", () => {
     });
     expect(device.alerts.find((a) => a.source === "warning_code")?.code).toBe(42);
     expect(device.alerts.find((a) => a.source === "error_code")?.severity).toBe("critical");
+  });
+});
+
+describe("normalizePayload device-id extraction", () => {
+  it("honors a custom (non-/fleet/) topic pattern", () => {
+    const result = normalizePayload(
+      { topic: "/org/site/agv-z9/vehicle_info", payload: { speed: 1 } },
+      new Map(),
+      "fleet",
+      "/org/site/{deviceId}/vehicle_info",
+    );
+    expect(result.devices).toHaveLength(1);
+    expect(result.devices[0].deviceId).toBe("agv-z9");
+  });
+
+  it("still handles the default /fleet/ scheme", () => {
+    const result = normalizePayload(
+      { topic: "/fleet/agv-a01/vehicle_info", payload: { speed: 1 } },
+      new Map(),
+      "fleet",
+      "/fleet/{deviceId}/vehicle_info",
+    );
+    expect(result.devices[0].deviceId).toBe("agv-a01");
   });
 });
