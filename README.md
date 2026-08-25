@@ -141,14 +141,15 @@ flowchart LR
 
 ### 4.1 一键启动（推荐）
 
-在仓库根目录执行，脚本会同时拉起后端 (:3000) 与前端 (:5173)，并注入若干演示设备，便于立即查看效果：
+在仓库根目录执行，脚本会同时拉起后端 (:3000) 与前端 (:5173)。演示数据不写死在脚本里：检测到本机 MQTT broker（`127.0.0.1:1883`）时，会用 `config-runtime` 定义的车队跑模拟发布器（真实 MQTT 链路，仅遥测值为演示）：
 
 ```bash
-scripts/dev.sh            # 启动前后端 + 注入 3 台演示设备
-scripts/dev.sh --no-seed  # 空车队启动
-scripts/dev.sh --seed 5   # 注入 5 台演示设备
-scripts/dev.sh --mock     # 用 MQTT 模拟发布器代替注入（需本机 1883 broker）
+scripts/dev.sh            # 启动前后端；有 broker 时自动发布演示车队数据
+scripts/dev.sh --mock     # 强制发布演示数据（需本机 1883 broker）
+scripts/dev.sh --no-mock  # 只启动前后端，不发布演示数据
 ```
+
+> 需要演示数据但本机没有 broker 时，可先用 Compose 起一个：`docker compose --env-file deploy/.env -f deploy/docker-compose.yml up -d mosquitto`。
 
 启动后访问 `http://127.0.0.1:5173`，默认登录账号 `admin / admin123`（脚本内置的开发口令，仅用于本地）。`Ctrl+C` 停止全部服务。
 

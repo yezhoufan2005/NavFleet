@@ -1,5 +1,5 @@
 <script setup>
-import { computed } from "vue";
+import { computed, ref } from "vue";
 import { storeToRefs } from "pinia";
 import GpsMap from "../components/GpsMap.vue";
 import RosSceneMap from "../components/RosSceneMap.vue";
@@ -40,6 +40,25 @@ const toneLabelMap = {
 
 const activeSceneId = computed(() => formationSceneId.value || selectedDevice.value?.sceneId || "");
 const selectedSceneDefinition = computed(() => getSceneDefinition(activeSceneId.value));
+
+// Collapsible fleet panel (persisted) — lets users widen the map like real consoles.
+const FLEET_COLLAPSE_KEY = "navfleet:fleet-collapsed";
+const fleetCollapsed = ref(readFleetCollapsed());
+function readFleetCollapsed() {
+  try {
+    return localStorage.getItem(FLEET_COLLAPSE_KEY) === "1";
+  } catch {
+    return false;
+  }
+}
+function toggleFleet() {
+  fleetCollapsed.value = !fleetCollapsed.value;
+  try {
+    localStorage.setItem(FLEET_COLLAPSE_KEY, fleetCollapsed.value ? "1" : "0");
+  } catch {
+    // ignore persistence failures
+  }
+}
 const selectedTrailLength = computed(() => {
   const deviceId = selectedDevice.value?.deviceId;
   return deviceId ? (trailsByDeviceId.value[deviceId]?.length ?? 0) : 0;
@@ -154,82 +173,95 @@ function handleDeviceSelect(deviceId) {
       </article>
     </section>
 
-    <main class="dashboard-grid">
+    <main class="dashboard-grid" :class="{ 'fleet-collapsed': fleetCollapsed }">
       <aside class="panel fleet-panel">
         <div class="panel-head">
-          <h2>设备与编队</h2>
-          <span class="count-chip">{{ filteredDevices.length }}</span>
-        </div>
-
-        <section class="formation-section">
-          <div class="formation-head">
-            <span class="section-kicker">编队</span>
-            <button
-              type="button"
-              class="formation-clear-btn"
-              :class="{ active: !selectedFormation }"
-              @click="clearFormationSelection"
-            >
-              全部设备
-            </button>
-          </div>
-
-          <div class="formation-list">
-            <button
-              v-for="formation in sortedFormations"
-              :key="formation.formationId"
-              type="button"
-              class="formation-chip"
-              :class="{ active: selectedFormation?.formationId === formation.formationId }"
-              :style="formation.color ? { '--formation-color': formation.color } : {}"
-              @click="handleFormationSelect(formation.formationId)"
-            >
-              <span class="formation-chip-name">{{ formation.formationName }}</span>
-              <span class="formation-chip-meta">
-                {{ formation.onlineCount }}/{{ formation.deviceCount }}
-              </span>
-            </button>
-
-            <div v-if="!sortedFormations.length" class="empty-alert compact">当前没有编队配置</div>
-          </div>
-        </section>
-
-        <div class="device-list">
+          <h2 v-show="!fleetCollapsed">设备与编队</h2>
+          <span v-show="!fleetCollapsed" class="count-chip">{{ filteredDevices.length }}</span>
           <button
-            v-for="device in filteredDevices"
-            :key="device.deviceId"
             type="button"
-            class="device-item"
-            :data-tone="getDeviceTone(device)"
-            :class="{ selected: device.deviceId === state.selectedDeviceId }"
-            @click="handleDeviceSelect(device.deviceId)"
+            class="panel-collapse-btn"
+            :aria-label="fleetCollapsed ? '展开设备列表' : '收起设备列表'"
+            :title="fleetCollapsed ? '展开设备列表' : '收起设备列表'"
+            @click="toggleFleet"
           >
-            <div class="device-row">
-              <div class="device-identity">
-                <h3 class="device-name">{{ device.deviceName }}</h3>
-                <span v-if="shouldShowDeviceId(device)" class="device-subtitle">{{
-                  device.deviceId
-                }}</span>
-              </div>
-              <span class="device-status" :data-tone="getDeviceTone(device)">
-                {{ toneLabelMap[getDeviceTone(device)] || "正常" }}
-              </span>
-            </div>
-
-            <div class="device-summary">
-              <div class="device-summary-item">
-                <span class="device-summary-label">最近上报</span>
-                <strong>{{ formatStamp(device.stamp) }}</strong>
-              </div>
-              <div class="device-summary-item">
-                <span class="device-summary-label">电量</span>
-                <strong>{{ formatNumber(device.vehicleInfo.soc, 1, "%") }}</strong>
-              </div>
-            </div>
+            {{ fleetCollapsed ? "»" : "«" }}
           </button>
-
-          <div v-if="!filteredDevices.length" class="empty-alert">当前筛选条件下没有设备数据</div>
         </div>
+
+        <template v-if="!fleetCollapsed">
+          <section class="formation-section">
+            <div class="formation-head">
+              <span class="section-kicker">编队</span>
+              <button
+                type="button"
+                class="formation-clear-btn"
+                :class="{ active: !selectedFormation }"
+                @click="clearFormationSelection"
+              >
+                全部设备
+              </button>
+            </div>
+
+            <div class="formation-list">
+              <button
+                v-for="formation in sortedFormations"
+                :key="formation.formationId"
+                type="button"
+                class="formation-chip"
+                :class="{ active: selectedFormation?.formationId === formation.formationId }"
+                :style="formation.color ? { '--formation-color': formation.color } : {}"
+                @click="handleFormationSelect(formation.formationId)"
+              >
+                <span class="formation-chip-name">{{ formation.formationName }}</span>
+                <span class="formation-chip-meta">
+                  {{ formation.onlineCount }}/{{ formation.deviceCount }}
+                </span>
+              </button>
+
+              <div v-if="!sortedFormations.length" class="empty-alert compact">
+                当前没有编队配置
+              </div>
+            </div>
+          </section>
+
+          <div class="device-list">
+            <button
+              v-for="device in filteredDevices"
+              :key="device.deviceId"
+              type="button"
+              class="device-item"
+              :data-tone="getDeviceTone(device)"
+              :class="{ selected: device.deviceId === state.selectedDeviceId }"
+              @click="handleDeviceSelect(device.deviceId)"
+            >
+              <div class="device-row">
+                <div class="device-identity">
+                  <h3 class="device-name">{{ device.deviceName }}</h3>
+                  <span v-if="shouldShowDeviceId(device)" class="device-subtitle">{{
+                    device.deviceId
+                  }}</span>
+                </div>
+                <span class="device-status" :data-tone="getDeviceTone(device)">
+                  {{ toneLabelMap[getDeviceTone(device)] || "正常" }}
+                </span>
+              </div>
+
+              <div class="device-summary">
+                <div class="device-summary-item">
+                  <span class="device-summary-label">最近上报</span>
+                  <strong>{{ formatStamp(device.stamp) }}</strong>
+                </div>
+                <div class="device-summary-item">
+                  <span class="device-summary-label">电量</span>
+                  <strong>{{ formatNumber(device.vehicleInfo.soc, 1, "%") }}</strong>
+                </div>
+              </div>
+            </button>
+
+            <div v-if="!filteredDevices.length" class="empty-alert">当前筛选条件下没有设备数据</div>
+          </div>
+        </template>
       </aside>
 
       <section class="panel map-panel">

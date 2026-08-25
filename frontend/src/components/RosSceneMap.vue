@@ -176,17 +176,23 @@ const effectiveWorldBounds = computed(() => {
   const backgroundBounds = backgroundLayerDefinition.value;
   const configuredBounds = sceneBounds.value;
   const laneletBounds = overlayBounds.value;
+  // Device positions come from live telemetry and may sit near the edge of (or
+  // just outside) the static map extent; fold them in so the fitted view always
+  // keeps the vehicles on screen and adapts as the fleet moves.
+  const devicesBounds = deviceExtentBounds.value;
 
-  if (laneletBounds && !backgroundBounds) {
-    return laneletBounds;
+  const mapBounds =
+    laneletBounds && !backgroundBounds
+      ? laneletBounds
+      : unionBounds(backgroundBounds, configuredBounds, laneletBounds) ||
+        configuredBounds ||
+        laneletBounds ||
+        null;
+
+  if (!mapBounds) {
+    return devicesBounds;
   }
-
-  return (
-    unionBounds(backgroundBounds, configuredBounds, laneletBounds) ||
-    configuredBounds ||
-    laneletBounds ||
-    null
-  );
+  return devicesBounds ? unionBounds(mapBounds, devicesBounds) : mapBounds;
 });
 
 const sceneReady = computed(() => hasBounds(effectiveWorldBounds.value));
@@ -544,6 +550,31 @@ const formationPeerDevices = computed(() =>
     })
     .filter(Boolean),
 );
+
+// Bounding box of every pose currently drawn (selected fusion/lidar + peers),
+// padded, so effectiveWorldBounds can keep the fleet framed on the map.
+const deviceExtentBounds = computed(() => {
+  const points = [];
+  if (selectedFusionPoint.value) {
+    points.push(selectedFusionPoint.value);
+  }
+  if (selectedLidarPoint.value) {
+    points.push(selectedLidarPoint.value);
+  }
+  formationPeerDevices.value.forEach((peer) => points.push(peer.pose));
+  if (!points.length) {
+    return null;
+  }
+  const xs = points.map((point) => point.x);
+  const ys = points.map((point) => point.y);
+  const pad = 5;
+  return {
+    minX: Math.min(...xs) - pad,
+    maxX: Math.max(...xs) + pad,
+    minY: Math.min(...ys) - pad,
+    maxY: Math.max(...ys) + pad,
+  };
+});
 
 const selectedFusionAngle = computed(() =>
   Number.isFinite(props.selectedDevice?.fusionLoc?.yaw)
