@@ -24,7 +24,7 @@ function handleSubmit() {
     <form class="login-card panel" @submit.prevent="handleSubmit">
       <div class="login-brand">
         <span class="brand-kicker">NavFleet</span>
-        <h1>多车监控平台</h1>
+        <h1>智能车队监控平台</h1>
         <p>请登录以访问车队监控台</p>
       </div>
 

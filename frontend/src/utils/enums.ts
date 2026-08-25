@@ -1,9 +1,8 @@
 /**
  * Enum label maps for vehicle telemetry fields.
  *
- * Restored from the pre-Vue legacy prototype (frontend/legacy/app.js), whose
- * source had GBK-corrupted comments; the Chinese labels here are reconstructed
- * from the domain semantics. The detail panel previously showed raw numbers.
+ * The detail panel would otherwise show raw numeric codes; these maps render
+ * human-readable Chinese labels (with the raw code kept visible via formatEnum).
  */
 
 export interface EnumEntry {

@@ -86,7 +86,7 @@ onMounted(async () => {
       <div class="page-header-top">
         <div class="brand-block">
           <span class="brand-kicker">NavFleet</span>
-          <h1>多车监控平台</h1>
+          <h1>智能车队监控平台</h1>
           <span class="brand-meta">{{ state.fleetName || "默认车队" }}</span>
         </div>
 
@@ -103,6 +103,7 @@ onMounted(async () => {
           <button
             type="button"
             class="theme-toggle"
+            :aria-label="`切换主题，当前：${themeLabelMap[themeState.preference]}`"
             :title="`主题：${themeLabelMap[themeState.preference]}（点击切换）`"
             @click="cycleTheme"
           >

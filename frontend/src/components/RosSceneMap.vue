@@ -1,6 +1,7 @@
 <script setup>
 import { computed, onBeforeUnmount, onMounted, reactive, ref, watch } from "vue";
 import { loadPointCloudBackdrop } from "../utils/point-cloud";
+import { notify } from "../composables/useNotifications";
 
 const props = defineProps({
   selectedDevice: { type: Object, default: null },
@@ -8,15 +9,10 @@ const props = defineProps({
   sceneDevices: { type: Array, default: () => [] },
   getDeviceTone: { type: Function, required: true },
   round: { type: Function, required: true },
-  pathPoints: { type: Array, default: () => [] },
-  isPathEditMode: { type: Boolean, default: false },
   trails: { type: Object, default: () => ({}) },
 });
 
-const emit = defineEmits(["update-path", "clear-path", "undo-path", "set-edit-mode"]);
-
 const CLICK_THRESHOLD_PX = 6;
-const PATH_POINT_EPSILON = 0.05;
 const ROS_VIEW_STORAGE_KEY = "navfleet:ros-scene-views";
 
 const overlay = ref(null);
@@ -225,21 +221,10 @@ const markerMetrics = computed(() => ({
   peerCore: 7,
 }));
 
-const pathMetrics = computed(() => ({
-  pointRadius: 6,
-  endpointRadius: 8,
-}));
-
 const screenInvariantScale = computed(() => 1 / Math.max(viewport.scale || 1, 0.0001));
 const screenInvariantTransform = computed(
   () =>
     `scale(${props.round(screenInvariantScale.value, 6)} ${props.round(-screenInvariantScale.value, 6)})`,
-);
-
-const plannedPathPoints = computed(() =>
-  (Array.isArray(props.pathPoints) ? props.pathPoints : []).filter(
-    (point) => Number.isFinite(point?.x) && Number.isFinite(point?.y),
-  ),
 );
 
 function buildWorldPath(points) {
@@ -413,18 +398,6 @@ function restoreViewportState(sceneId = activeSceneId.value) {
   return true;
 }
 
-function worldToViewport(point) {
-  const bounds = effectiveWorldBounds.value;
-  if (!sceneReady.value || !bounds || !hasPose(point)) {
-    return null;
-  }
-
-  return {
-    x: viewport.offsetX + (point.x - bounds.minX) * viewport.scale,
-    y: viewport.offsetY + (bounds.maxY - point.y) * viewport.scale,
-  };
-}
-
 function pointerToWorld(event) {
   const bounds = effectiveWorldBounds.value;
   const rect = svgRef.value?.getBoundingClientRect();
@@ -591,8 +564,6 @@ const connectorPath = computed(() => {
   return buildWorldPath([selectedFusionPoint.value, selectedLidarPoint.value]);
 });
 
-const plannedPathD = computed(() => buildWorldPath(plannedPathPoints.value));
-
 const selectedTrailD = computed(() => {
   const deviceId = props.selectedDevice?.deviceId;
   if (!deviceId) {
@@ -611,23 +582,6 @@ const peerTrails = computed(() =>
     .filter((trail) => trail.d),
 );
 
-const pathStartPoint = computed(() => plannedPathPoints.value[0] || null);
-const pathEndPoint = computed(() =>
-  plannedPathPoints.value.length
-    ? plannedPathPoints.value[plannedPathPoints.value.length - 1]
-    : null,
-);
-const pathMiddlePoints = computed(() =>
-  plannedPathPoints.value.slice(1, Math.max(plannedPathPoints.value.length - 1, 1)),
-);
-
-const pathHintPosition = computed(() => {
-  if (!pathEndPoint.value) {
-    return null;
-  }
-  return worldToViewport(pathEndPoint.value);
-});
-
 async function loadOverlay(url) {
   if (!url) {
     overlay.value = null;
@@ -642,6 +596,10 @@ async function loadOverlay(url) {
     overlay.value = await response.json();
   } catch (_error) {
     overlay.value = null;
+    notify("路网覆盖层加载失败，地图将不显示车道线。", {
+      type: "warning",
+      dedupeKey: "ros-overlay-failed",
+    });
   }
 }
 
@@ -659,6 +617,10 @@ async function loadMetadata(url) {
     metadata.value = await response.json();
   } catch (_error) {
     metadata.value = null;
+    notify("场景元数据加载失败，地图可能无法正确定位。", {
+      type: "warning",
+      dedupeKey: "ros-metadata-failed",
+    });
   }
 }
 
@@ -778,27 +740,11 @@ function handlePointerMove(event) {
   viewport.offsetY = dragOriginY + deltaY;
 }
 
-function appendPathPoint(point) {
-  if (!point) {
-    return;
-  }
-
-  const nextPoints = [...plannedPathPoints.value];
-  const lastPoint = nextPoints[nextPoints.length - 1];
-  if (lastPoint && Math.hypot(lastPoint.x - point.x, lastPoint.y - point.y) <= PATH_POINT_EPSILON) {
-    return;
-  }
-
-  nextPoints.push(point);
-  emit("update-path", nextPoints);
-}
-
 function finishPointerInteraction(event) {
   if (!isDragging || event.pointerId !== activePointerId) {
     return;
   }
 
-  const treatAsClick = !dragMoved;
   isDragging = false;
   activePointerId = null;
   dragging.value = false;
@@ -807,36 +753,10 @@ function finishPointerInteraction(event) {
   if (dragMoved) {
     saveViewportState();
   }
-
-  if (props.isPathEditMode && treatAsClick) {
-    appendPathPoint(pointerToWorld(event));
-  }
 }
 
 function handlePointerUp(event) {
   finishPointerInteraction(event);
-}
-
-function handleDoubleClick(event) {
-  if (!props.isPathEditMode) {
-    return;
-  }
-  event.preventDefault();
-  emit("set-edit-mode", false);
-}
-
-function handleContextMenu(event) {
-  if (!props.isPathEditMode) {
-    return;
-  }
-  event.preventDefault();
-  emit("undo-path");
-}
-
-function handleKeydown(event) {
-  if (event.key === "Escape" && props.isPathEditMode) {
-    emit("set-edit-mode", false);
-  }
 }
 
 onMounted(() => {
@@ -847,14 +767,12 @@ onMounted(() => {
   if (shellRef.value) {
     resizeObserver.observe(shellRef.value);
   }
-  window.addEventListener("keydown", handleKeydown);
 });
 
 onBeforeUnmount(() => {
   resizeObserver?.disconnect();
   resizeObserver = null;
   pointCloudRequestId += 1;
-  window.removeEventListener("keydown", handleKeydown);
 });
 
 watch(
@@ -956,7 +874,7 @@ watch(
     <svg
       ref="svgRef"
       class="map-canvas ros-stage"
-      :class="{ dragging, 'path-editing': isPathEditMode }"
+      :class="{ dragging }"
       :viewBox="`0 0 ${viewport.width || 1000} ${viewport.height || 620}`"
       role="img"
       aria-label="ROS 场景地图"
@@ -966,8 +884,6 @@ watch(
       @pointerup="handlePointerUp"
       @pointercancel="handlePointerUp"
       @pointerleave="handlePointerUp"
-      @dblclick.prevent="handleDoubleClick"
-      @contextmenu="handleContextMenu"
     >
       <rect :width="viewport.width || 1000" :height="viewport.height || 620" fill="#071119" />
 
@@ -1043,59 +959,6 @@ watch(
           class="device-trail-line selected"
           vector-effect="non-scaling-stroke"
         />
-
-        <path
-          v-if="plannedPathD"
-          :d="plannedPathD"
-          class="planned-path-line"
-          vector-effect="non-scaling-stroke"
-        />
-
-        <g
-          v-for="(point, index) in pathMiddlePoints"
-          :key="`path-middle-${index}`"
-          :transform="`translate(${props.round(point.x, 3)} ${props.round(point.y, 3)})`"
-        >
-          <g :transform="screenInvariantTransform">
-            <circle
-              cx="0"
-              cy="0"
-              :r="pathMetrics.pointRadius"
-              class="planned-path-point"
-              vector-effect="non-scaling-stroke"
-            />
-          </g>
-        </g>
-
-        <g
-          v-if="pathStartPoint"
-          :transform="`translate(${props.round(pathStartPoint.x, 3)} ${props.round(pathStartPoint.y, 3)})`"
-        >
-          <g :transform="screenInvariantTransform">
-            <circle
-              cx="0"
-              cy="0"
-              :r="pathMetrics.endpointRadius"
-              class="planned-path-point start"
-              vector-effect="non-scaling-stroke"
-            />
-          </g>
-        </g>
-
-        <g
-          v-if="pathEndPoint"
-          :transform="`translate(${props.round(pathEndPoint.x, 3)} ${props.round(pathEndPoint.y, 3)})`"
-        >
-          <g :transform="screenInvariantTransform">
-            <circle
-              cx="0"
-              cy="0"
-              :r="pathMetrics.endpointRadius"
-              class="planned-path-point end"
-              vector-effect="non-scaling-stroke"
-            />
-          </g>
-        </g>
 
         <path
           v-if="connectorPath"
@@ -1200,22 +1063,6 @@ watch(
     </div>
 
     <div class="ros-toolbar">
-      <button
-        type="button"
-        class="secondary-btn"
-        :class="{ 'is-active': isPathEditMode }"
-        @click="emit('set-edit-mode', !isPathEditMode)"
-      >
-        {{ isPathEditMode ? "完成编辑" : "添加路径" }}
-      </button>
-      <button
-        type="button"
-        class="secondary-btn"
-        :disabled="!plannedPathPoints.length"
-        @click="emit('clear-path')"
-      >
-        清空路径
-      </button>
       <button type="button" class="secondary-btn" @click="resetView">重置视图</button>
     </div>
 
@@ -1228,10 +1075,6 @@ watch(
         <i></i>
         点云背景
       </span>
-      <span v-if="plannedPathPoints.length" class="legend-item route">
-        <i></i>
-        规划路径
-      </span>
       <span class="legend-item fusion">
         <i></i>
         融合定位
@@ -1240,19 +1083,6 @@ watch(
         <i></i>
         激光定位
       </span>
-    </div>
-
-    <div v-if="sceneReady && isPathEditMode" class="path-helper">
-      <strong>路径编辑中</strong>
-      <span>单击添加点，双击完成，右键撤销，滚轮缩放，拖拽平移。</span>
-    </div>
-
-    <div
-      v-if="sceneReady && isPathEditMode && pathHintPosition"
-      class="path-callout"
-      :style="{ left: `${pathHintPosition.x}px`, top: `${pathHintPosition.y}px` }"
-    >
-      当前终点
     </div>
 
     <div v-if="pointCloudError" class="ros-warning">
@@ -1267,7 +1097,7 @@ watch(
 
     <div v-else-if="!selectedFusionPoint && !selectedLidarPoint" class="ros-empty">
       <strong>暂无 ROS 位姿</strong>
-      <span>当前设备还没有融合定位或激光定位数据，地图仍可用于查看场景和编辑路径。</span>
+      <span>当前设备还没有融合定位或激光定位数据，地图仍可用于查看当前场景。</span>
     </div>
   </div>
 </template>

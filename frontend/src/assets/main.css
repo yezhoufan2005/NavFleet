@@ -939,13 +939,25 @@ button {
   height: 100%;
 }
 
+/*
+ * The ROS scene canvas is always dark (the SVG paints a dark backdrop and the
+ * occupancy / point-cloud rasters are authored dark), so its floating overlay
+ * chrome must stay readable regardless of the app's light/dark theme. Pin the
+ * semantic tokens to their dark values for this subtree only; the GPS map has
+ * its own theme-aware base map and is left untouched.
+ */
+.ros-map-shell {
+  --text: #eaf2fb;
+  --muted: #9db2c9;
+  --border: rgba(140, 180, 215, 0.16);
+  --border-strong: rgba(140, 180, 215, 0.28);
+  --bg-elevated: rgba(26, 39, 58, 0.96);
+  --bg-panel-strong: rgba(20, 31, 48, 0.92);
+}
+
 .ros-stage {
   touch-action: none;
   cursor: grab;
-}
-
-.ros-stage.path-editing {
-  cursor: crosshair;
 }
 
 .ros-stage.dragging {
@@ -1040,9 +1052,9 @@ button {
   max-width: 220px;
   padding: 10px 12px;
   border-radius: 16px;
-  background: rgba(7, 17, 24, 0.92);
+  background: var(--bg-elevated);
   border: 1px solid var(--border-strong);
-  box-shadow: 0 16px 40px rgba(0, 0, 0, 0.24);
+  box-shadow: var(--shadow);
   display: grid;
   gap: 4px;
 }
@@ -1106,11 +1118,6 @@ button {
   fill: #09131b;
 }
 
-.ros-grid-line {
-  stroke: rgba(54, 72, 88, 0.16);
-  stroke-width: 1;
-}
-
 .lanelet-edge {
   fill: none;
   stroke: rgba(133, 214, 255, 0.5);
@@ -1164,15 +1171,6 @@ button {
   stroke-dasharray: 8 6;
 }
 
-.planned-path-line {
-  fill: none;
-  stroke: rgba(255, 193, 102, 0.96);
-  stroke-width: 3.4;
-  stroke-linecap: round;
-  stroke-linejoin: round;
-  filter: drop-shadow(0 0 10px rgba(var(--warning-rgb), 0.22));
-}
-
 .device-trail-line {
   fill: none;
   stroke-linecap: round;
@@ -1198,22 +1196,6 @@ button {
 
 .device-trail-line.peer[data-tone="warning"] {
   stroke: rgba(255, 197, 102, 0.42);
-}
-
-.planned-path-point {
-  fill: rgba(255, 222, 184, 0.96);
-  stroke: rgba(9, 19, 27, 0.92);
-  stroke-width: 1.6;
-}
-
-.planned-path-point.start {
-  fill: rgba(var(--brand-rgb), 0.96);
-  stroke: rgba(6, 45, 34, 0.92);
-}
-
-.planned-path-point.end {
-  fill: rgba(var(--critical-rgb), 0.96);
-  stroke: rgba(86, 19, 27, 0.92);
 }
 
 .ros-marker-ring {
@@ -1311,10 +1293,6 @@ button {
   transform: rotate(45deg);
 }
 
-.legend-item.other i {
-  background: #ffffff;
-}
-
 .legend-item.lanelet i {
   width: 14px;
   height: 4px;
@@ -1322,60 +1300,11 @@ button {
   background: rgba(133, 214, 255, 0.92);
 }
 
-.legend-item.route i {
-  width: 16px;
-  height: 4px;
-  border-radius: 999px;
-  background: rgba(255, 193, 102, 0.96);
-}
-
 .legend-item.point-cloud i {
   width: 14px;
   height: 14px;
   border-radius: 4px;
   background: linear-gradient(135deg, rgba(182, 237, 255, 0.96), rgba(108, 132, 148, 0.96));
-}
-
-.path-helper,
-.path-callout {
-  position: absolute;
-  z-index: 2;
-  pointer-events: none;
-  border: 1px solid rgba(255, 193, 102, 0.24);
-  background: rgba(7, 17, 24, 0.88);
-  backdrop-filter: blur(10px);
-  box-shadow: 0 16px 40px rgba(0, 0, 0, 0.24);
-}
-
-.path-helper {
-  right: 16px;
-  bottom: 16px;
-  max-width: min(360px, calc(100% - 32px));
-  padding: 12px 14px;
-  border-radius: 16px;
-  display: grid;
-  gap: 6px;
-}
-
-.path-helper strong,
-.path-callout {
-  color: var(--text);
-}
-
-.path-helper span {
-  color: var(--muted);
-  line-height: 1.5;
-  overflow-wrap: anywhere;
-}
-
-.path-callout {
-  padding: 6px 10px;
-  border-radius: 999px;
-  transform: translate(14px, -50%);
-  color: rgba(255, 222, 184, 0.98);
-  font-size: 12px;
-  font-weight: 700;
-  white-space: nowrap;
 }
 
 .ros-warning {
