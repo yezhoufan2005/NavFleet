@@ -172,27 +172,24 @@ const unionBounds = (...boundsList) => {
   );
 };
 
+// The world coordinate space is the STATIC map extent (background image / OSM
+// network / configured bounds). It stays stable while vehicles move so the view
+// never jitters; keeping vehicles on-screen is the job of the scene bounds
+// (config) plus the focus logic in resetView().
 const effectiveWorldBounds = computed(() => {
   const backgroundBounds = backgroundLayerDefinition.value;
   const configuredBounds = sceneBounds.value;
   const laneletBounds = overlayBounds.value;
-  // Device positions come from live telemetry and may sit near the edge of (or
-  // just outside) the static map extent; fold them in so the fitted view always
-  // keeps the vehicles on screen and adapts as the fleet moves.
-  const devicesBounds = deviceExtentBounds.value;
 
-  const mapBounds =
-    laneletBounds && !backgroundBounds
-      ? laneletBounds
-      : unionBounds(backgroundBounds, configuredBounds, laneletBounds) ||
-        configuredBounds ||
-        laneletBounds ||
-        null;
-
-  if (!mapBounds) {
-    return devicesBounds;
+  if (laneletBounds && !backgroundBounds) {
+    return laneletBounds;
   }
-  return devicesBounds ? unionBounds(mapBounds, devicesBounds) : mapBounds;
+  return (
+    unionBounds(backgroundBounds, configuredBounds, laneletBounds) ||
+    configuredBounds ||
+    laneletBounds ||
+    null
+  );
 });
 
 const sceneReady = computed(() => hasBounds(effectiveWorldBounds.value));
@@ -455,6 +452,20 @@ function fitWorldBounds(scale) {
   viewport.offsetY = (viewport.height - worldHeight.value * scale) / 2;
 }
 
+// Fit the view to an arbitrary world-space region (with padding), clamped to the
+// scene's zoom limits. Used to frame a formation's vehicles.
+function fitToRegion(region) {
+  const width = region.maxX - region.minX;
+  const height = region.maxY - region.minY;
+  if (!(width > 0) || !(height > 0)) {
+    return false;
+  }
+  const fitted = Math.min(viewport.width / width, viewport.height / height) * 0.82;
+  const scale = clampScale(fitted);
+  viewport.scale = scale;
+  return centerWorldPoint((region.minX + region.maxX) / 2, (region.minY + region.maxY) / 2, scale);
+}
+
 function getFocusPose() {
   if (hasPose(props.selectedDevice?.fusionLoc)) {
     return props.selectedDevice.fusionLoc;
@@ -474,9 +485,22 @@ function resetView() {
   const baseScale = getBaseScale();
   fitWorldBounds(baseScale);
 
+  // A formation with several vehicles in view → frame them all (modern "fit to
+  // selection"); a single selected vehicle → a consistent close-up window.
+  if (formationPeerDevices.value.length && deviceExtentBounds.value) {
+    if (fitToRegion(deviceExtentBounds.value)) {
+      saveViewportState();
+      return;
+    }
+  }
+
   const focusPose = getFocusPose();
   if (focusPose) {
-    const focusScale = clampScale(baseScale * 1.6, baseScale);
+    const FOCUS_WORLD_METERS = 45;
+    const focusScale = clampScale(
+      Math.max(baseScale * 1.3, viewport.width / FOCUS_WORLD_METERS),
+      baseScale,
+    );
     viewport.scale = focusScale;
     if (centerWorldPoint(focusPose.x, focusPose.y, focusScale)) {
       saveViewportState();

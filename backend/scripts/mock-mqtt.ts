@@ -5,13 +5,16 @@ import mqtt from "mqtt";
 /**
  * Demo telemetry publisher.
  *
- * The demo fleet is NOT hardcoded here: the script reads the real runtime config
+ * The demo fleet is NOT hardcoded: the script reads the real runtime config
  * (config-runtime/vehicles.json + scenes.json) and drives it through the real
  * MQTT path — only the telemetry *values* are synthetic. Swap the config for a
- * real fleet and the same pipeline carries real data. A full fleet run exercises
- * every control-mode / gear / task-status enum, all three alert severities, the
- * low-battery rule, and the backend offline-detection path (one device stops
- * reporting). Coordinates are placed inside each device's configured scene bounds.
+ * real fleet and the same pipeline carries real data.
+ *
+ * The simulation is fully deterministic (no randomness) so every run reproduces
+ * the same demo: each vehicle patrols a fixed rectangular route inside its scene
+ * at a realistic speed with heading aligned to travel; battery drains while
+ * driving and recharges at the charging station; one vehicle faults and goes
+ * offline. Restart the publisher to reset the demo from t=0.
  */
 
 type Scenario = "cruising" | "speed-limited" | "charging" | "hauling" | "fault-offline" | "teleop";
@@ -40,13 +43,22 @@ interface CliOptions {
   count: number;
   interval: number;
 }
-// __MOCK_HEAD__
+
+interface Point {
+  x: number;
+  y: number;
+}
+// __MOCK_1__
 interface DeviceState {
   deviceId: string;
   sceneId: string;
   gpsEnabled: boolean;
-  home: { x: number; y: number; yaw: number };
   scenario: Scenario;
+  route: Point[]; // closed patrol loop (corners); movement interpolates along it
+  cruiseSpeed: number; // m/s along the route
+  station: Point; // parked position (charging / after a fault)
+  soc: number; // battery %, evolves deterministically per tick
+  frozenAt: { x: number; y: number; yaw: number } | null; // where a faulted vehicle stopped
   tick: number;
   active: boolean;
 }
@@ -64,6 +76,26 @@ const SCENARIO_RING: Scenario[] = [
   "fault-offline",
   "teleop",
 ];
+
+// Per-scenario cruising speed (m/s) and initial battery (%). Deterministic.
+const SCENARIO_SPEED: Record<Scenario, number> = {
+  cruising: 1.3,
+  "speed-limited": 0.7,
+  charging: 0,
+  hauling: 1.0,
+  "fault-offline": 1.1,
+  teleop: 0.9,
+};
+const SCENARIO_INITIAL_SOC: Record<Scenario, number> = {
+  cruising: 82,
+  "speed-limited": 66,
+  charging: 16,
+  hauling: 73,
+  "fault-offline": 55,
+  teleop: 60,
+};
+
+let intervalSeconds = DEFAULT_INTERVAL / 1000;
 
 function parseArgs(argv: string[]): CliOptions {
   const options: CliOptions = { broker: DEFAULT_BROKER, count: 0, interval: DEFAULT_INTERVAL };
@@ -87,7 +119,7 @@ function parseArgs(argv: string[]): CliOptions {
         `
 Usage: npx tsx scripts/mock-mqtt.ts [options]
 
-Publishes synthetic telemetry for the fleet defined in config-runtime/vehicles.json.
+Publishes deterministic demo telemetry for the fleet in config-runtime/vehicles.json.
 
 Options:
   --broker <url>    MQTT broker URL, default: ${DEFAULT_BROKER}
@@ -130,34 +162,7 @@ function findBounds(scenes: SceneConfig[], sceneId: string): Bounds {
   }
   return { minX: 0, maxX: 60, minY: 0, maxY: 40 };
 }
-
-function buildStates(count: number): DeviceState[] {
-  const root = resolveConfigRoot();
-  const vehicles = readJson<Vehicle[]>(path.join(root, "vehicles.json"));
-  const scenes = readJson<SceneConfig[]>(path.join(root, "scenes.json"));
-  const limit = count > 0 ? Math.min(count, vehicles.length) : vehicles.length;
-
-  return vehicles.slice(0, limit).map((vehicle, index) => {
-    const bounds = findBounds(scenes, vehicle.defaultSceneId || "");
-    const spanX = bounds.maxX - bounds.minX;
-    const spanY = bounds.maxY - bounds.minY;
-    return {
-      deviceId: vehicle.deviceId,
-      sceneId: vehicle.defaultSceneId || "",
-      gpsEnabled: vehicle.gpsEnabled !== false,
-      // Deterministic, non-overlapping placement in each scene's central band.
-      home: {
-        x: bounds.minX + spanX * (0.3 + 0.4 * ((index * 0.37) % 1)),
-        y: bounds.minY + spanY * (0.3 + 0.4 * ((index * 0.61) % 1)),
-        yaw: (index % 8) * 0.4,
-      },
-      scenario: SCENARIO_RING[index % SCENARIO_RING.length],
-      tick: 0,
-      active: true,
-    };
-  });
-}
-
+// __MOCK_2__
 const round = (value: number, digits = 3): number => Number(value.toFixed(digits));
 
 function normalizeHeading(yaw: number): number {
@@ -174,15 +179,93 @@ function sceneToGps(x: number, y: number, yaw: number) {
     heading: normalizeHeading(yaw),
   };
 }
-// __MOCK_MID__
+
+// A rectangular patrol loop inside the scene, offset per vehicle index so cars
+// on the same scene circulate different aisles without overlapping. Corners are
+// listed clockwise; movement interpolates along the closed perimeter.
+function buildRoute(bounds: Bounds, index: number): { route: Point[]; station: Point } {
+  const spanX = bounds.maxX - bounds.minX;
+  const spanY = bounds.maxY - bounds.minY;
+  const cx = bounds.minX + spanX * (0.5 + 0.12 * Math.cos(index * 2.3));
+  const cy = bounds.minY + spanY * (0.5 + 0.12 * Math.sin(index * 2.3));
+  const halfW = spanX * 0.22;
+  const halfH = spanY * 0.22;
+  const route: Point[] = [
+    { x: cx - halfW, y: cy - halfH },
+    { x: cx + halfW, y: cy - halfH },
+    { x: cx + halfW, y: cy + halfH },
+    { x: cx - halfW, y: cy + halfH },
+  ];
+  // Charging station sits just inside the lower-left corner of the loop.
+  const station: Point = { x: cx - halfW, y: cy - halfH };
+  return { route, station };
+}
+
+function routePerimeter(route: Point[]): number {
+  let total = 0;
+  for (let i = 0; i < route.length; i += 1) {
+    const a = route[i];
+    const b = route[(i + 1) % route.length];
+    total += Math.hypot(b.x - a.x, b.y - a.y);
+  }
+  return total;
+}
+
+// Point + heading at arc-length `distance` along the closed route.
+function pointOnRoute(route: Point[], distance: number): { x: number; y: number; yaw: number } {
+  const perimeter = routePerimeter(route);
+  let d = ((distance % perimeter) + perimeter) % perimeter;
+  for (let i = 0; i < route.length; i += 1) {
+    const a = route[i];
+    const b = route[(i + 1) % route.length];
+    const segLen = Math.hypot(b.x - a.x, b.y - a.y);
+    if (d <= segLen || i === route.length - 1) {
+      const t = segLen > 0 ? d / segLen : 0;
+      return {
+        x: a.x + (b.x - a.x) * t,
+        y: a.y + (b.y - a.y) * t,
+        yaw: Math.atan2(b.y - a.y, b.x - a.x),
+      };
+    }
+    d -= segLen;
+  }
+  return { x: route[0].x, y: route[0].y, yaw: 0 };
+}
+
+function buildStates(count: number): DeviceState[] {
+  const root = resolveConfigRoot();
+  const vehicles = readJson<Vehicle[]>(path.join(root, "vehicles.json"));
+  const scenes = readJson<SceneConfig[]>(path.join(root, "scenes.json"));
+  const limit = count > 0 ? Math.min(count, vehicles.length) : vehicles.length;
+
+  return vehicles.slice(0, limit).map((vehicle, index) => {
+    const bounds = findBounds(scenes, vehicle.defaultSceneId || "");
+    const scenario = SCENARIO_RING[index % SCENARIO_RING.length];
+    const { route, station } = buildRoute(bounds, index);
+    return {
+      deviceId: vehicle.deviceId,
+      sceneId: vehicle.defaultSceneId || "",
+      gpsEnabled: vehicle.gpsEnabled !== false,
+      scenario,
+      route,
+      cruiseSpeed: SCENARIO_SPEED[scenario],
+      station,
+      soc: SCENARIO_INITIAL_SOC[scenario],
+      frozenAt: null,
+      tick: 0,
+      active: true,
+    };
+  });
+}
+// __MOCK_3__
+type Motion = "route" | "charging";
+
 interface ScenarioFrame {
   controlMode: number;
   gear: number;
   taskStatus: number;
   platformTaskStatus: number;
-  soc: number;
-  speed: number;
-  moving: boolean;
+  motion: Motion;
   info: { code: number; info: string };
   warning: { code: number; info: string };
   error: { code: number; info: string };
@@ -191,18 +274,15 @@ interface ScenarioFrame {
 
 const NO_CODE = { code: 0, info: "" };
 
-function scenarioFrame(state: DeviceState): ScenarioFrame {
-  const t = state.tick;
-  switch (state.scenario) {
+function scenarioFrame(scenario: Scenario): ScenarioFrame {
+  switch (scenario) {
     case "speed-limited":
       return {
         controlMode: 1,
         gear: 1,
         taskStatus: 1,
         platformTaskStatus: 1,
-        soc: 63 - t * 0.02,
-        speed: 0.6,
-        moving: true,
+        motion: "route",
         info: NO_CODE,
         warning: { code: 2203, info: "前方限速区，已降速通行" },
         error: NO_CODE,
@@ -214,9 +294,7 @@ function scenarioFrame(state: DeviceState): ScenarioFrame {
         gear: 0,
         taskStatus: 4,
         platformTaskStatus: 0,
-        soc: Math.min(13 + t * 0.05, 30),
-        speed: 0,
-        moving: false,
+        motion: "charging",
         info: { code: 1203, info: "充电中，等待补能完成" },
         warning: NO_CODE,
         error: NO_CODE,
@@ -228,9 +306,7 @@ function scenarioFrame(state: DeviceState): ScenarioFrame {
         gear: 1,
         taskStatus: 1,
         platformTaskStatus: 2,
-        soc: 85 - t * 0.03,
-        speed: 1.1,
-        moving: true,
+        motion: "route",
         info: { code: 1101, info: "定位稳定" },
         warning: NO_CODE,
         error: NO_CODE,
@@ -242,9 +318,7 @@ function scenarioFrame(state: DeviceState): ScenarioFrame {
         gear: 2,
         taskStatus: 3,
         platformTaskStatus: 3,
-        soc: 48,
-        speed: 0,
-        moving: false,
+        motion: "route",
         info: NO_CODE,
         warning: NO_CODE,
         error: { code: 5102, info: "路径规划超时，已触发急停" },
@@ -256,9 +330,7 @@ function scenarioFrame(state: DeviceState): ScenarioFrame {
         gear: 1,
         taskStatus: 1,
         platformTaskStatus: 1,
-        soc: 70 - t * 0.02,
-        speed: 0.9,
-        moving: true,
+        motion: "route",
         info: { code: 1101, info: "远程接管中，操作员在线" },
         warning: NO_CODE,
         error: NO_CODE,
@@ -271,9 +343,7 @@ function scenarioFrame(state: DeviceState): ScenarioFrame {
         gear: 1,
         taskStatus: 1,
         platformTaskStatus: 1,
-        soc: 78 - t * 0.02,
-        speed: 1.3,
-        moving: true,
+        motion: "route",
         info: { code: 1101, info: "定位稳定" },
         warning: NO_CODE,
         error: NO_CODE,
@@ -281,14 +351,57 @@ function scenarioFrame(state: DeviceState): ScenarioFrame {
       };
   }
 }
-// __MOCK_TAIL__
+
+// The fault device drives for FAULT_MOVE_TICKS, then holds position reporting the
+// fault, then drops offline (stops publishing) at FAULT_OFFLINE_TICKS.
+const FAULT_MOVE_TICKS = 6;
+const FAULT_OFFLINE_TICKS = 14;
+
+// Evolve battery deterministically: recharge at the station, drain while driving.
+function stepBattery(state: DeviceState, charging: boolean, moving: boolean): void {
+  if (charging) {
+    state.soc = Math.min(100, state.soc + 0.06);
+  } else if (moving) {
+    state.soc = Math.max(0, state.soc - 0.03 * state.cruiseSpeed);
+  } else {
+    state.soc = Math.max(0, state.soc - 0.004);
+  }
+}
+
 function buildTelemetry(state: DeviceState) {
   const stamp = Date.now();
-  const frame = scenarioFrame(state);
-  const wobble = frame.moving ? 1 : 0.05;
-  const x = state.home.x + Math.sin(state.tick / 6 + state.home.yaw) * 3 * wobble;
-  const y = state.home.y + Math.cos(state.tick / 7 + state.home.yaw) * 2.4 * wobble;
-  const yaw = state.home.yaw + Math.sin(state.tick / 9) * 0.25 * wobble;
+  const frame = scenarioFrame(state.scenario);
+
+  let x: number;
+  let y: number;
+  let yaw: number;
+  let speed: number;
+
+  const faulted = state.scenario === "fault-offline" && state.tick >= FAULT_MOVE_TICKS;
+
+  if (frame.motion === "charging") {
+    x = state.station.x;
+    y = state.station.y;
+    yaw = 0;
+    speed = 0;
+  } else if (faulted) {
+    const stopPose =
+      state.frozenAt ??
+      pointOnRoute(state.route, state.cruiseSpeed * FAULT_MOVE_TICKS * intervalSeconds);
+    state.frozenAt = stopPose;
+    x = stopPose.x;
+    y = stopPose.y;
+    yaw = stopPose.yaw;
+    speed = 0;
+  } else {
+    const pose = pointOnRoute(state.route, state.cruiseSpeed * state.tick * intervalSeconds);
+    x = pose.x;
+    y = pose.y;
+    yaw = pose.yaw;
+    speed = state.cruiseSpeed;
+  }
+
+  stepBattery(state, frame.motion === "charging", speed > 0);
   const gps = state.gpsEnabled ? sceneToGps(x, y, yaw) : undefined;
 
   return {
@@ -296,13 +409,13 @@ function buildTelemetry(state: DeviceState) {
     scene_id: state.sceneId,
     ...(gps ? { gps } : {}),
     fusion_loc: { x: round(x), y: round(y), yaw: round(yaw) },
-    lidar_loc: { x: round(x - 0.2), y: round(y - 0.18), yaw: round(yaw - 0.03) },
+    lidar_loc: { x: round(x - 0.15), y: round(y - 0.12), yaw: round(yaw) },
     vehicle_info: {
       control_mode: frame.controlMode,
       gear: frame.gear,
-      speed: round(frame.speed + Math.sin(state.tick / 4) * 0.12 * (frame.moving ? 1 : 0)),
-      omega: round(Math.cos(state.tick / 5) * 0.06 * (frame.moving ? 1 : 0)),
-      soc: round(Math.max(frame.soc, 0), 1),
+      speed: round(speed),
+      omega: 0,
+      soc: round(state.soc, 1),
     },
     task_status: frame.taskStatus,
     platform_task_status: frame.platformTaskStatus,
@@ -317,9 +430,10 @@ function buildTelemetry(state: DeviceState) {
     },
   };
 }
-
+// __MOCK_4__
 async function main() {
   const options = parseArgs(process.argv.slice(2));
+  intervalSeconds = options.interval / 1000;
   const states = buildStates(options.count);
 
   if (!states.length) {
@@ -365,12 +479,13 @@ async function main() {
           publishStatus(state.deviceId, true);
         }
 
-        // The fault device stops reporting after a short burst so the backend's
-        // offline detection (and the critical offline alert) can be observed.
-        if (state.scenario === "fault-offline" && state.tick >= 6) {
+        // The faulted vehicle reports its stop for a while, then drops offline so
+        // the backend's offline detection (and the critical offline alert) shows.
+        if (state.scenario === "fault-offline" && state.tick >= FAULT_OFFLINE_TICKS) {
           console.log(
             `[mock-mqtt] ${state.deviceId} stopped reporting — waiting for backend offline detection`,
           );
+          publishStatus(state.deviceId, false);
           state.active = false;
         }
       });
