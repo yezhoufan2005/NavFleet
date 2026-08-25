@@ -885,7 +885,11 @@ watch(
       @pointercancel="handlePointerUp"
       @pointerleave="handlePointerUp"
     >
-      <rect :width="viewport.width || 1000" :height="viewport.height || 620" fill="#071119" />
+      <rect
+        :width="viewport.width || 1000"
+        :height="viewport.height || 620"
+        class="ros-canvas-bg"
+      />
 
       <g v-if="sceneReady" :transform="stageTransform">
         <rect

@@ -250,7 +250,7 @@ function handleDeviceSelect(deviceId) {
               :class="{ active: state.selectedMapMode === 'scene' }"
               @click="setMapMode('scene')"
             >
-              ROS 地图
+              ROS
             </button>
             <button
               v-if="state.selectedMapMode === 'scene' && selectedTrailLength > 1"
