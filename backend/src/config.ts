@@ -102,7 +102,7 @@ export const config = {
   nodeEnv: process.env.NODE_ENV || "development",
   logLevel: process.env.LOG_LEVEL || "info",
   metricsEnabled: toBoolean(process.env.METRICS_ENABLED, true),
-  fleetName: process.env.FLEET_NAME || "多车监控平台",
+  fleetName: process.env.FLEET_NAME || "智能车队",
   topicPattern: process.env.MQTT_TOPIC_PATTERN || "/fleet/{deviceId}/vehicle_info",
   mqttUrl: process.env.MQTT_URL || "mqtt://127.0.0.1:1883",
   mqttUsername: process.env.MQTT_USERNAME || "",

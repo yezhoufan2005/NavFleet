@@ -61,4 +61,56 @@ describe("Persistence in-memory history fallback", () => {
     // Limit is honoured.
     expect(await persistence.queryHistory({ deviceId: "agv-x", limit: 1 })).toHaveLength(1);
   });
+
+  it("accepts numeric epoch bounds (ms and seconds) for from/to", async () => {
+    const persistence = new Persistence();
+    await persistence.writeTelemetry(sample("agv-e", "2026-01-01T00:00:00Z", 1));
+    await persistence.writeTelemetry(sample("agv-e", "2026-01-01T00:00:10Z", 2));
+
+    const cutoff = Date.parse("2026-01-01T00:00:05Z");
+    const byMillis = (await persistence.queryHistory({
+      deviceId: "agv-e",
+      from: String(cutoff),
+    })) as unknown[];
+    expect(byMillis).toHaveLength(1);
+
+    const bySeconds = (await persistence.queryHistory({
+      deviceId: "agv-e",
+      from: String(Math.floor(cutoff / 1000)),
+    })) as unknown[];
+    expect(bySeconds).toHaveLength(1);
+  });
+});
+
+describe("Persistence in-memory alerts fallback", () => {
+  it("serves active alerts from memory without Mongo and applies filters", async () => {
+    const persistence = new Persistence();
+    await persistence.upsertAlerts("agv-a", [
+      {
+        id: "agv-a-low-soc",
+        title: "低电量预警",
+        detail: "当前电量偏低",
+        severity: "warning",
+        source: "rule-engine",
+        ts: "2026-01-01T00:00:00Z",
+      },
+    ]);
+
+    const all = (await persistence.queryAlerts({})) as Array<{
+      deviceId: string;
+      alertId: string;
+      severity: string;
+    }>;
+    expect(all).toHaveLength(1);
+    expect(all[0].deviceId).toBe("agv-a");
+    expect(all[0].alertId).toBe("agv-a-low-soc");
+
+    // Severity filter and the cleared-status filter both narrow the set.
+    expect(await persistence.queryAlerts({ severity: "critical" })).toHaveLength(0);
+    expect(await persistence.queryAlerts({ status: "cleared" })).toHaveLength(0);
+
+    // A subsequent upsert with an empty set clears the device's active alerts.
+    await persistence.upsertAlerts("agv-a", []);
+    expect(await persistence.queryAlerts({})).toHaveLength(0);
+  });
 });

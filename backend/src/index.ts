@@ -272,6 +272,12 @@ app.post("/api/debug/ingest", requireRole("admin"), async (request, response, ne
   }
 });
 
+// JSON 404 for any unmatched route, keeping the error contract consistent with
+// the rest of the API (Express's default would return an HTML page).
+app.use((_request, response) => {
+  response.status(404).json({ error: "not_found" });
+});
+
 app.use(
   (
     error: unknown,
@@ -293,11 +299,10 @@ app.use(
       });
       return;
     }
+    // Log the detail server-side but return a generic message so internal error
+    // text (e.g. driver messages) never leaks to clients.
     logger.error({ err: error }, "Unhandled request error");
-    response.status(500).json({
-      error: "internal_error",
-      message: error instanceof Error ? error.message : "Unknown error",
-    });
+    response.status(500).json({ error: "internal_error" });
   },
 );
 
@@ -514,7 +519,9 @@ const start = async (): Promise<void> => {
   }
   connectMqtt();
   setInterval(() => {
-    void store.evaluateOfflineDevices();
+    store.evaluateOfflineDevices().catch((error) => {
+      logger.error({ err: error }, "Offline evaluation failed");
+    });
   }, 15_000).unref();
 
   server.listen(config.port, () => {
@@ -526,6 +533,16 @@ const start = async (): Promise<void> => {
   process.on(signal, () => {
     void shutdown(signal);
   });
+});
+
+// Last-resort safety nets: log instead of crashing on a stray rejection, and
+// shut down cleanly on a truly unexpected exception.
+process.on("unhandledRejection", (reason) => {
+  logger.error({ err: reason }, "Unhandled promise rejection");
+});
+process.on("uncaughtException", (error) => {
+  logger.fatal({ err: error }, "Uncaught exception; shutting down");
+  void shutdown("uncaughtException");
 });
 
 void start();

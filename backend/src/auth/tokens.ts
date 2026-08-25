@@ -15,7 +15,8 @@ const secret = (): string => {
     return config.jwtSecret;
   }
   // Ephemeral secret: tokens survive within a single process only. Acceptable
-  // for local/dev; production must set JWT_SECRET (validated at startup).
+  // for local/dev; production is required to set JWT_SECRET (enforced at startup
+  // by assertAuthConfig()).
   return EPHEMERAL_SECRET;
 };
 
@@ -24,6 +25,7 @@ const EPHEMERAL_SECRET = `ephemeral-${Math.random().toString(36).slice(2)}-${Dat
 const signToken = (user: PublicUser, type: TokenType, expiresIn: string): string =>
   jwt.sign({ role: user.role, type } satisfies Omit<TokenClaims, "sub">, secret(), {
     subject: user.username,
+    algorithm: "HS256",
     expiresIn: expiresIn as jwt.SignOptions["expiresIn"],
   });
 
@@ -35,7 +37,7 @@ export const signRefreshToken = (user: PublicUser): string =>
 
 export const verifyToken = (token: string, expectedType: TokenType): TokenClaims | null => {
   try {
-    const decoded = jwt.verify(token, secret());
+    const decoded = jwt.verify(token, secret(), { algorithms: ["HS256"] });
     if (typeof decoded === "string" || !decoded.sub) {
       return null;
     }

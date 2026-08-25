@@ -1,4 +1,5 @@
 import { CodeState, DeviceAlert, DeviceSnapshot, FleetSnapshot, Severity } from "./types";
+import { buildTopicScheme, TopicScheme } from "./topics";
 
 type UnknownRecord = Record<string, unknown>;
 
@@ -39,6 +40,31 @@ const isNormalizedSnapshotRecord = (value: UnknownRecord): boolean =>
 const extractDeviceIdFromTopic = (topic: string): string => {
   const match = String(topic || "").match(/^\/fleet\/([^/]+)\//);
   return match?.[1] || "";
+};
+
+// Cache topic schemes per pattern so device-id extraction honors the configured
+// MQTT_TOPIC_PATTERN instead of assuming the default `/fleet/{deviceId}/...`.
+const topicSchemeCache = new Map<string, TopicScheme>();
+const schemeForPattern = (pattern: string): TopicScheme => {
+  let scheme = topicSchemeCache.get(pattern);
+  if (!scheme) {
+    scheme = buildTopicScheme(pattern);
+    topicSchemeCache.set(pattern, scheme);
+  }
+  return scheme;
+};
+
+const resolveDeviceIdFromTopic = (topic: string, topicPattern: string): string => {
+  if (!topic) {
+    return "";
+  }
+  if (topicPattern) {
+    const matched = schemeForPattern(topicPattern).extractDeviceId(topic);
+    if (matched) {
+      return matched;
+    }
+  }
+  return extractDeviceIdFromTopic(topic);
 };
 
 const isFiniteNumber = (value: unknown): value is number =>
@@ -475,24 +501,36 @@ export const normalizePayload = (
       };
     }
 
-    const deviceId = String(payloadBody.deviceId || extractDeviceIdFromTopic(String(input.topic)));
+    const deviceId = String(
+      payloadBody.deviceId || resolveDeviceIdFromTopic(String(input.topic), topicPattern),
+    );
     return {
       replace: false,
       fleetName,
       topicPattern,
       devices: [
-        normalizeDevice(payloadBody, existingDevices.get(deviceId) || null, String(input.topic)),
+        normalizeDevice(
+          { ...payloadBody, deviceId },
+          existingDevices.get(deviceId) || null,
+          String(input.topic),
+        ),
       ],
     };
   }
 
-  const deviceId = String(input.deviceId || extractDeviceIdFromTopic(String(input.topic || "")));
+  const deviceId = String(
+    input.deviceId || resolveDeviceIdFromTopic(String(input.topic || ""), topicPattern),
+  );
   return {
     replace: false,
     fleetName,
     topicPattern,
     devices: [
-      normalizeDevice(input, existingDevices.get(deviceId) || null, String(input.topic || "")),
+      normalizeDevice(
+        { ...input, deviceId },
+        existingDevices.get(deviceId) || null,
+        String(input.topic || ""),
+      ),
     ],
   };
 };

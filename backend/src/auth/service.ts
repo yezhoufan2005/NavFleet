@@ -25,7 +25,13 @@ export class AuthService {
       logger.warn("AUTH_ENABLED=false — all API and WebSocket access is unauthenticated");
       return;
     }
+    const isProduction = config.nodeEnv === "production";
     if (!config.jwtSecret) {
+      if (isProduction) {
+        throw new Error(
+          "JWT_SECRET is required in production (NODE_ENV=production). Set a long random value.",
+        );
+      }
       logger.warn(
         "JWT_SECRET is not set; using an ephemeral secret. Tokens are invalidated on restart. Set JWT_SECRET in production.",
       );
@@ -37,10 +43,17 @@ export class AuthService {
       if (existing > 0) {
         return;
       }
+      if (isProduction) {
+        logger.error(
+          { username: config.adminUsername },
+          "ADMIN_PASSWORD not set in production — refusing to seed a default administrator. Set ADMIN_PASSWORD and restart.",
+        );
+        return;
+      }
       password = "admin123";
       logger.warn(
         { username: config.adminUsername },
-        "ADMIN_PASSWORD not set — seeding a default admin with password 'admin123'. Change it immediately via ADMIN_PASSWORD.",
+        "ADMIN_PASSWORD not set — seeding a dev-only admin with password 'admin123'. Change it immediately via ADMIN_PASSWORD.",
       );
     }
 
