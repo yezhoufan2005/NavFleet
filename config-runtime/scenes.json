@@ -56,8 +56,8 @@
     "negate": 0,
     "width": 1000,
     "height": 620,
-    "bounds": { "minX": 0, "maxX": 74.007, "minY": 0, "maxY": 88.082 },
-    "defaultView": { "zoom": 1, "centerX": 37.0035, "centerY": 44.041 },
+    "bounds": { "minX": -51, "maxX": 25, "minY": -45, "maxY": 45 },
+    "defaultView": { "zoom": 1, "centerX": -13, "centerY": 0 },
     "minZoom": 0.7,
     "maxZoom": 8
   },

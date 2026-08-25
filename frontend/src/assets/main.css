@@ -327,6 +327,44 @@ button {
   grid-template-columns: 320px minmax(0, 1fr) 410px;
 }
 
+.dashboard-grid.fleet-collapsed {
+  grid-template-columns: 52px minmax(0, 1fr) 410px;
+}
+
+.fleet-collapsed .fleet-panel {
+  padding: 14px 8px;
+  overflow: hidden;
+}
+
+.fleet-collapsed .fleet-panel .panel-head {
+  justify-content: center;
+  margin-bottom: 0;
+}
+
+.fleet-collapsed .panel-collapse-btn {
+  margin-left: 0;
+}
+
+.panel-collapse-btn {
+  margin-left: auto;
+  border: 1px solid var(--border);
+  background: var(--bg-panel-strong);
+  color: var(--muted);
+  border-radius: 10px;
+  padding: 6px 10px;
+  font-size: 16px;
+  line-height: 1;
+  cursor: pointer;
+  transition:
+    color var(--transition),
+    border-color var(--transition);
+}
+
+.panel-collapse-btn:hover {
+  color: var(--text);
+  border-color: var(--border-strong);
+}
+
 .fleet-panel,
 .map-panel,
 .detail-panel {
@@ -885,13 +923,33 @@ button {
   box-shadow: 0 18px 46px rgba(var(--notice-rgb), 0.14);
 }
 
+.alert-tab-card {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 12px 16px;
+}
+
 .alert-tab-card span,
 .alert-tab-card strong {
   pointer-events: none;
 }
 
+.alert-tab-card span {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--muted);
+}
+
 .alert-tab-card strong {
-  font-size: 24px;
+  font-size: 22px;
+  line-height: 1;
+}
+
+.alert-tab-card.active span {
+  color: var(--text);
 }
 
 .alert-list {
@@ -1887,7 +1945,8 @@ button {
 .history-stage {
   display: grid;
   gap: 18px;
-  grid-template-columns: minmax(0, 1fr) 340px;
+  grid-template-columns: minmax(0, 1fr) 320px;
+  align-items: stretch;
 }
 .history-map-panel,
 .history-detail {
@@ -1896,13 +1955,14 @@ button {
   flex-direction: column;
   gap: 14px;
   min-height: 0;
-}
-.history-map-panel {
-  height: 72vh;
+  height: 80vh;
 }
 .history-map-panel .map-surface {
   flex: 1;
   min-height: 0;
+}
+.history-detail {
+  overflow-y: auto;
 }
 .playback-bar {
   display: flex;
@@ -1928,6 +1988,10 @@ button {
   }
   .history-map-panel {
     height: 60vh;
+  }
+  .history-detail {
+    height: auto;
+    max-height: 60vh;
   }
 }
 
