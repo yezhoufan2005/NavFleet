@@ -118,19 +118,22 @@ function fitMapToMarkers(force = false) {
 
   if (activeMarkers.length === 1) {
     const [lng, lat] = markerEntries.values().next().value.position;
-    map.setZoomAndCenter(15, [lng, lat]);
+    map.setZoomAndCenter(16, [lng, lat], false, 300);
     lastViewportKey = viewportKey;
     lastSelectedDeviceId = props.selectedDeviceId;
     return;
   }
 
-  if (force || viewportKey !== lastViewportKey) {
-    map.setFitView(activeMarkers, false, [56, 64, 56, 64], 15);
-  } else if (selectedChanged) {
-    const selectedEntry = markerEntries.get(props.selectedDeviceId);
-    if (selectedEntry) {
-      map.panTo(selectedEntry.position);
-    }
+  const selectedEntry = props.selectedDeviceId ? markerEntries.get(props.selectedDeviceId) : null;
+
+  if (selectedChanged && selectedEntry) {
+    // Focus the picked vehicle like a modern map: animated zoom-in + recenter,
+    // keeping at least a street-level zoom for context.
+    const targetZoom = Math.max(map.getZoom() || 0, 16);
+    map.setZoomAndCenter(targetZoom, selectedEntry.position, false, 300);
+  } else if (force || viewportKey !== lastViewportKey) {
+    // Set changed (devices appeared/vanished) → fit the whole fleet with padding.
+    map.setFitView(activeMarkers, false, [64, 72, 64, 72], 16);
   }
 
   lastViewportKey = viewportKey;

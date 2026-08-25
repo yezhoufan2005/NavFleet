@@ -190,25 +190,18 @@ export const useFleetStore = defineStore("fleet", () => {
     return "normal";
   };
 
+  // Fixed, stable ordering by device id so rows never jump as telemetry/alerts
+  // update — severity is still conveyed by each row's colour/status, not order.
   const sortedDevices = computed<AnyRecord[]>(() =>
-    [...devices.value].sort((left, right) => {
-      const toneWeight: AnyRecord = { critical: 0, warning: 1, notice: 2, normal: 3, offline: 4 };
-      const leftTone = getDeviceTone(left);
-      const rightTone = getDeviceTone(right);
-      if (toneWeight[leftTone] !== toneWeight[rightTone]) {
-        return toneWeight[leftTone] - toneWeight[rightTone];
-      }
-      return toTimestampMs(right.stamp) - toTimestampMs(left.stamp);
-    }),
+    [...devices.value].sort((left, right) =>
+      String(left.deviceId).localeCompare(String(right.deviceId), "en"),
+    ),
   );
 
   const sortedFormations = computed<AnyRecord[]>(() =>
-    [...formations.value].sort((left, right) => {
-      if (right.onlineCount !== left.onlineCount) {
-        return right.onlineCount - left.onlineCount;
-      }
-      return left.formationName.localeCompare(right.formationName, "zh-CN");
-    }),
+    [...formations.value].sort((left, right) =>
+      String(left.formationId).localeCompare(String(right.formationId), "en"),
+    ),
   );
 
   const selectedDevice = computed<AnyRecord | null>(
