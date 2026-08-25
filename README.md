@@ -325,7 +325,7 @@ WebSocket：
 - **指标**：`/metrics` 暴露在线设备数、活动告警、WS 连接数、Mongo 缓冲深度、MQTT 连接与消息计数等；用 `LOG_LEVEL` 控制日志级别，请求日志逐条输出。
 - **备份/恢复**：`deploy/tools/mongo-backup.sh` / `mongo-restore.sh`，详见 [deploy/docs/backup-and-restore.md](deploy/docs/backup-and-restore.md)（含 cron、保留、索引/TTL 复核）。
 - **压测**：`cd backend && npm run load:ingest -- --devices 200 --iterations 25 --concurrency 50`（免 broker，压 ingest 热路径并读取 /metrics）。
-- **冒烟**：`scripts/smoke.sh` 启动临时后端跑 21 条契约断言（鉴权/探针/历史端到端等）。
+- **冒烟**：`scripts/smoke.sh` 启动临时后端跑 24 条契约断言（鉴权/探针/场景 overlay/历史端到端/epoch 过滤/JSON 404 等）。
 
 ## 9. MQTT 接入约定
 

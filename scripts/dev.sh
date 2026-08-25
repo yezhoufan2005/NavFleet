@@ -1,11 +1,11 @@
 #!/usr/bin/env bash
 # NavFleet 本地一键启动脚本
-# 启动后端 (:3000) 与前端 (:5173) 开发服务，可选注入演示设备 / 启动 MQTT 模拟。
+# 启动后端 (:3000) 与前端 (:5173) 开发服务。演示数据不写死在脚本里：如本机有
+# MQTT broker，则用 config-runtime 定义的车队跑 mock 发布器（真实链路，仅数据为演示）。
 # 用法:
-#   scripts/dev.sh              启动前后端，并注入 3 台演示设备
-#   scripts/dev.sh --no-seed    不注入演示数据（空车队）
-#   scripts/dev.sh --seed 5     注入 5 台演示设备
-#   scripts/dev.sh --mock       用 MQTT 模拟发布器代替演示注入（需本机 1883 broker）
+#   scripts/dev.sh            启动前后端；检测到 127.0.0.1:1883 时自动跑演示发布器
+#   scripts/dev.sh --mock     强制跑演示发布器（需本机 1883 broker）
+#   scripts/dev.sh --no-mock  只启动前后端，不发布演示数据
 #   Ctrl+C 停止所有子进程
 set -uo pipefail
 
@@ -16,13 +16,11 @@ HEALTH_URL="http://127.0.0.1:${BACKEND_PORT}/health"
 ADMIN_USER="admin"
 ADMIN_PASS="admin123"
 
-SEED_COUNT=3
-USE_MOCK=0
+MOCK_MODE="auto" # auto | force | off
 while [[ $# -gt 0 ]]; do
   case "$1" in
-    --no-seed) SEED_COUNT=0; shift ;;
-    --seed) SEED_COUNT="${2:-3}"; shift 2 ;;
-    --mock) USE_MOCK=1; SEED_COUNT=0; shift ;;
+    --mock) MOCK_MODE="force"; shift ;;
+    --no-mock) MOCK_MODE="off"; shift ;;
     -h|--help) sed -n '2,10p' "$0"; exit 0 ;;
     *) echo "未知参数: $1"; exit 1 ;;
   esac
@@ -43,6 +41,8 @@ ensure_deps() {
   fi
 }
 
+broker_up() { command -v nc >/dev/null 2>&1 && nc -z 127.0.0.1 1883 2>/dev/null; }
+
 ensure_deps backend
 ensure_deps frontend
 
@@ -50,6 +50,7 @@ echo "启动后端 (:${BACKEND_PORT})…"
 (
   cd "$ROOT/backend"
   PORT="$BACKEND_PORT" \
+  NODE_ENV="development" \
   CONFIG_ROOT_PATH="../config-runtime" \
   JWT_SECRET="${JWT_SECRET:-navfleet-dev-secret}" \
   ADMIN_USERNAME="$ADMIN_USER" \
@@ -71,33 +72,18 @@ for _ in $(seq 1 60); do
 done
 echo " ok"
 
-# 可选：注入演示设备，便于立即看到效果（依赖 DEBUG_INGEST_ENABLED）
-if [[ "$SEED_COUNT" -gt 0 ]]; then
-  echo "注入 ${SEED_COUNT} 台演示设备…"
-  COOKIE="$(mktemp)"
-  curl -s -c "$COOKIE" -o /dev/null -H "Content-Type: application/json" \
-    -d "{\"username\":\"$ADMIN_USER\",\"password\":\"$ADMIN_PASS\"}" \
-    "http://127.0.0.1:${BACKEND_PORT}/api/auth/login"
-  for i in $(seq 1 "$SEED_COUNT"); do
-    soc=$(( 40 + RANDOM % 60 )); lat="31.23$(( RANDOM % 90 ))"; lng="121.47$(( RANDOM % 90 ))"
-    curl -s -b "$COOKIE" -o /dev/null -H "Content-Type: application/json" -d "{
-      \"deviceId\":\"agv-demo-$i\",\"deviceName\":\"演示车 $i\",\"scene_id\":\"kangcheng-airy\",
-      \"vehicle_info\":{\"control_mode\":1,\"gear\":1,\"soc\":$soc,\"speed\":1.8},
-      \"fusion_loc\":{\"x\":$((10+i*3)),\"y\":$((12+i*2)),\"yaw\":0.3},
-      \"gps\":{\"lat\":$lat,\"lng\":$lng,\"heading\":45},\"task_status\":1
-    }" "http://127.0.0.1:${BACKEND_PORT}/api/debug/ingest"
-  done
-  rm -f "$COOKIE"
-fi
-
-# 可选：启动 MQTT 模拟发布器（需本机 broker）
-if [[ "$USE_MOCK" -eq 1 ]]; then
-  if nc -z 127.0.0.1 1883 2>/dev/null; then
-    echo "启动 MQTT 模拟发布器…"
-    (cd "$ROOT/backend" && npm run mock:mqtt -- --count 4 --interval 1000) &
+# 演示数据：走真实 MQTT 链路（发布器读取 config-runtime 的车队定义）。
+if [[ "$MOCK_MODE" != "off" ]]; then
+  if broker_up; then
+    echo "检测到 MQTT broker，启动演示发布器…"
+    (cd "$ROOT/backend" && npm run mock:mqtt -- --interval 1000) &
     PIDS+=($!)
+  elif [[ "$MOCK_MODE" == "force" ]]; then
+    echo "⚠ 未检测到 127.0.0.1:1883 的 MQTT broker，无法发布演示数据。"
+    echo "  可先启动 broker：docker compose --env-file deploy/.env -f deploy/docker-compose.yml up -d mosquitto"
   else
-    echo "⚠ 未检测到 127.0.0.1:1883 的 MQTT broker，跳过模拟发布（可用 docker compose 启动 mosquitto）"
+    echo "ℹ 未检测到本机 MQTT broker，跳过演示数据；前后端仍可用于登录与联调。"
+    echo "  需要演示数据时启动 broker 后加 --mock，或用 docker compose 起完整栈。"
   fi
 fi
 
@@ -109,4 +95,3 @@ echo "  账号:   ${ADMIN_USER} / ${ADMIN_PASS}"
 echo "  停止:   Ctrl+C"
 echo "─────────────────────────────────────────────"
 wait
-

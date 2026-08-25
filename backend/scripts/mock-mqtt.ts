@@ -1,13 +1,38 @@
+import fs from "node:fs";
+import path from "node:path";
 import mqtt from "mqtt";
+
+/**
+ * Demo telemetry publisher.
+ *
+ * The demo fleet is NOT hardcoded here: the script reads the real runtime config
+ * (config-runtime/vehicles.json + scenes.json) and drives it through the real
+ * MQTT path — only the telemetry *values* are synthetic. Swap the config for a
+ * real fleet and the same pipeline carries real data. A full fleet run exercises
+ * every control-mode / gear / task-status enum, all three alert severities, the
+ * low-battery rule, and the backend offline-detection path (one device stops
+ * reporting). Coordinates are placed inside each device's configured scene bounds.
+ */
 
 type Scenario = "cruising" | "speed-limited" | "charging" | "hauling" | "fault-offline" | "teleop";
 
-interface DeviceProfile {
+interface Vehicle {
   deviceId: string;
+  deviceName?: string;
+  defaultSceneId?: string;
+  gpsEnabled?: boolean;
+}
+
+interface Bounds {
+  minX: number;
+  maxX: number;
+  minY: number;
+  maxY: number;
+}
+
+interface SceneConfig {
   sceneId: string;
-  gpsEnabled: boolean;
-  home: { x: number; y: number; yaw: number };
-  scenario: Scenario;
+  bounds?: Bounds;
 }
 
 interface CliOptions {
@@ -15,78 +40,33 @@ interface CliOptions {
   count: number;
   interval: number;
 }
-
-/**
- * The mock fleet mirrors config-runtime/vehicles.json + formations.json so a
- * single `npm run mock:mqtt` lights up the whole product surface:
- *   - three map types: lanelet (kangcheng-airy), raster image (warehouse-a),
- *     point cloud (cloudpoint-demo);
- *   - every control-mode / gear / task-status enum label;
- *   - notice / warning / critical alerts, the low-battery rule, and the
- *     backend offline-detection path;
- *   - GPS-enabled outdoor cars and GPS-disabled indoor cars.
- * Coordinates stay well inside each scene's configured bounds.
- */
-const DEVICE_PROFILES: DeviceProfile[] = [
-  {
-    deviceId: "agv-a01",
-    sceneId: "kangcheng-airy",
-    gpsEnabled: true,
-    home: { x: 24, y: 30, yaw: 0.4 },
-    scenario: "cruising",
-  },
-  {
-    deviceId: "agv-b07",
-    sceneId: "kangcheng-airy",
-    gpsEnabled: true,
-    home: { x: 40, y: 54, yaw: 1.2 },
-    scenario: "speed-limited",
-  },
-  {
-    deviceId: "agv-c12",
-    sceneId: "kangcheng-airy",
-    gpsEnabled: true,
-    home: { x: 56, y: 22, yaw: 2.4 },
-    scenario: "charging",
-  },
-  {
-    deviceId: "agv-w05",
-    sceneId: "warehouse-a",
-    gpsEnabled: false,
-    home: { x: 45, y: 30, yaw: 0.2 },
-    scenario: "hauling",
-  },
-  {
-    deviceId: "agv-w09",
-    sceneId: "warehouse-a",
-    gpsEnabled: false,
-    home: { x: 82, y: 48, yaw: 3.0 },
-    scenario: "fault-offline",
-  },
-  {
-    deviceId: "agv-r01",
-    sceneId: "cloudpoint-demo",
-    gpsEnabled: true,
-    home: { x: -46, y: 6, yaw: 1.0 },
-    scenario: "teleop",
-  },
-];
+// __MOCK_HEAD__
+interface DeviceState {
+  deviceId: string;
+  sceneId: string;
+  gpsEnabled: boolean;
+  home: { x: number; y: number; yaw: number };
+  scenario: Scenario;
+  tick: number;
+  active: boolean;
+}
 
 const DEFAULT_BROKER = process.env.MQTT_URL || "mqtt://127.0.0.1:1883";
 const DEFAULT_INTERVAL = 1000;
 const GPS_ORIGIN = { lat: 31.2304, lng: 121.4737 };
 
-interface MockDeviceState extends DeviceProfile {
-  tick: number;
-  active: boolean;
-}
+// Assigned round-robin by vehicle index so a full fleet covers the whole surface.
+const SCENARIO_RING: Scenario[] = [
+  "cruising",
+  "speed-limited",
+  "charging",
+  "hauling",
+  "fault-offline",
+  "teleop",
+];
 
 function parseArgs(argv: string[]): CliOptions {
-  const options: CliOptions = {
-    broker: DEFAULT_BROKER,
-    count: DEVICE_PROFILES.length,
-    interval: DEFAULT_INTERVAL,
-  };
+  const options: CliOptions = { broker: DEFAULT_BROKER, count: 0, interval: DEFAULT_INTERVAL };
 
   for (let index = 0; index < argv.length; index += 1) {
     const current = argv[index];
@@ -96,10 +76,10 @@ function parseArgs(argv: string[]): CliOptions {
       options.broker = next;
       index += 1;
     } else if (current === "--count" && next) {
-      options.count = Math.max(1, Number(next) || DEVICE_PROFILES.length);
+      options.count = Math.max(0, Number(next) || 0);
       index += 1;
     } else if (current === "--interval" && next) {
-      // Floor at 20ms so higher-frequency load profiles are possible for perf runs.
+      // Floor at 20ms so higher-frequency profiles are possible for perf runs.
       options.interval = Math.max(20, Number(next) || DEFAULT_INTERVAL);
       index += 1;
     } else if (current === "--help" || current === "-h") {
@@ -107,10 +87,11 @@ function parseArgs(argv: string[]): CliOptions {
         `
 Usage: npx tsx scripts/mock-mqtt.ts [options]
 
+Publishes synthetic telemetry for the fleet defined in config-runtime/vehicles.json.
+
 Options:
   --broker <url>    MQTT broker URL, default: ${DEFAULT_BROKER}
-  --count <number>  Device count (1-${DEVICE_PROFILES.length} use the demo fleet;
-                    more are synthesized for load tests), default: all
+  --count <number>  Limit to the first N configured vehicles, default: all
   --interval <ms>   Publish interval in milliseconds, default: ${DEFAULT_INTERVAL}
       `.trim(),
       );
@@ -121,27 +102,60 @@ Options:
   return options;
 }
 
-function buildStates(count: number): MockDeviceState[] {
-  const states: MockDeviceState[] = DEVICE_PROFILES.slice(0, count).map((profile) => ({
-    ...profile,
-    tick: 0,
-    active: true,
-  }));
+function resolveConfigRoot(): string {
+  const candidates = [
+    process.env.CONFIG_ROOT_PATH,
+    path.resolve(process.cwd(), "config-runtime"),
+    path.resolve(process.cwd(), "../config-runtime"),
+  ].filter((value): value is string => Boolean(value));
 
-  // Synthesize extra generic devices beyond the demo fleet for load testing.
-  for (let index = DEVICE_PROFILES.length; index < count; index += 1) {
-    states.push({
-      deviceId: `agv-load-${String(index + 1).padStart(3, "0")}`,
-      sceneId: "kangcheng-airy",
-      gpsEnabled: true,
-      home: { x: 10 + (index % 6) * 10, y: 10 + (index % 8) * 9, yaw: (index % 8) * 0.3 },
-      scenario: "cruising",
+  for (const candidate of candidates) {
+    if (fs.existsSync(path.join(candidate, "vehicles.json"))) {
+      return candidate;
+    }
+  }
+  throw new Error(
+    "找不到 config-runtime/vehicles.json；请在仓库根或 backend 目录下运行，或设置 CONFIG_ROOT_PATH。",
+  );
+}
+
+function readJson<T>(filePath: string): T {
+  return JSON.parse(fs.readFileSync(filePath, "utf8")) as T;
+}
+
+function findBounds(scenes: SceneConfig[], sceneId: string): Bounds {
+  const scene = scenes.find((item) => item.sceneId === sceneId);
+  if (scene?.bounds && Number.isFinite(scene.bounds.minX)) {
+    return scene.bounds;
+  }
+  return { minX: 0, maxX: 60, minY: 0, maxY: 40 };
+}
+
+function buildStates(count: number): DeviceState[] {
+  const root = resolveConfigRoot();
+  const vehicles = readJson<Vehicle[]>(path.join(root, "vehicles.json"));
+  const scenes = readJson<SceneConfig[]>(path.join(root, "scenes.json"));
+  const limit = count > 0 ? Math.min(count, vehicles.length) : vehicles.length;
+
+  return vehicles.slice(0, limit).map((vehicle, index) => {
+    const bounds = findBounds(scenes, vehicle.defaultSceneId || "");
+    const spanX = bounds.maxX - bounds.minX;
+    const spanY = bounds.maxY - bounds.minY;
+    return {
+      deviceId: vehicle.deviceId,
+      sceneId: vehicle.defaultSceneId || "",
+      gpsEnabled: vehicle.gpsEnabled !== false,
+      // Deterministic, non-overlapping placement in each scene's central band.
+      home: {
+        x: bounds.minX + spanX * (0.3 + 0.4 * ((index * 0.37) % 1)),
+        y: bounds.minY + spanY * (0.3 + 0.4 * ((index * 0.61) % 1)),
+        yaw: (index % 8) * 0.4,
+      },
+      scenario: SCENARIO_RING[index % SCENARIO_RING.length],
       tick: 0,
       active: true,
-    });
-  }
-
-  return states;
+    };
+  });
 }
 
 const round = (value: number, digits = 3): number => Number(value.toFixed(digits));
@@ -160,7 +174,7 @@ function sceneToGps(x: number, y: number, yaw: number) {
     heading: normalizeHeading(yaw),
   };
 }
-// __MOCK_REST__
+// __MOCK_MID__
 interface ScenarioFrame {
   controlMode: number;
   gear: number;
@@ -177,7 +191,7 @@ interface ScenarioFrame {
 
 const NO_CODE = { code: 0, info: "" };
 
-function scenarioFrame(state: MockDeviceState): ScenarioFrame {
+function scenarioFrame(state: DeviceState): ScenarioFrame {
   const t = state.tick;
   switch (state.scenario) {
     case "speed-limited":
@@ -267,8 +281,8 @@ function scenarioFrame(state: MockDeviceState): ScenarioFrame {
       };
   }
 }
-// __MOCK_REST2__
-function buildTelemetry(state: MockDeviceState) {
+// __MOCK_TAIL__
+function buildTelemetry(state: DeviceState) {
   const stamp = Date.now();
   const frame = scenarioFrame(state);
   const wobble = frame.moving ? 1 : 0.05;
@@ -308,6 +322,11 @@ async function main() {
   const options = parseArgs(process.argv.slice(2));
   const states = buildStates(options.count);
 
+  if (!states.length) {
+    console.error("[mock-mqtt] config-runtime/vehicles.json 为空，无设备可发布。");
+    process.exit(1);
+  }
+
   const client = mqtt.connect(options.broker, {
     clientId: `fleet-mock-${Math.random().toString(16).slice(2, 10)}`,
     reconnectPeriod: 3000,
@@ -318,7 +337,7 @@ async function main() {
   const publishStatus = (deviceId: string, online: boolean) =>
     client.publish(`/fleet/${deviceId}/status`, JSON.stringify({ online, ts: Date.now() }));
 
-  const publishTelemetry = (state: MockDeviceState) =>
+  const publishTelemetry = (state: DeviceState) =>
     client.publish(`/fleet/${state.deviceId}/vehicle_info`, JSON.stringify(buildTelemetry(state)));
 
   client.on("connect", () => {

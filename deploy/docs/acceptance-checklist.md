@@ -4,9 +4,9 @@
 图例：✅ 已验证 · ⏳ 待 docker 环境验证 · ⛔ 范围外（明确不做）。
 
 验证基线（本机，Node 20）：
-- 后端 `cd backend && npm run typecheck && npm run lint && npm run format:check && npm test && npm run build` → **52 测试通过**，全绿。
+- 后端 `cd backend && npm run typecheck && npm run lint && npm run format:check && npm test && npm run build` → **56 测试通过**，全绿。
 - 前端 `cd frontend && npm run typecheck && npm run lint && npm run format:check && npm test && npm run build` → **29 测试通过**，全绿。
-- 契约冒烟 `scripts/smoke.sh` → **21/21 通过**（鉴权、探针、历史端到端等）。
+- 契约冒烟 `scripts/smoke.sh` → **24/24 通过**（鉴权、探针、场景 overlay、历史端到端、epoch 过滤、JSON 404 等）。
 
 ## 工程化基线（Phase 0）
 - ✅ git 化 + GitHub 远端；前后端 ESLint/Prettier/Vitest + `.github/workflows/ci.yml`。
@@ -45,7 +45,7 @@
 - ⛔ 水平扩展 / Redis pub-sub（范围外）；`/api/v1` 版本前缀（刻意推迟）。
 
 ## 端到端 / 性能 / 验收（Phase 5）
-- ✅ E2E（无浏览器）：`scripts/smoke.sh` 覆盖鉴权/探针/编队/场景/告警/续签/历史端到端，21/21。
+- ✅ E2E（无浏览器）：`scripts/smoke.sh` 覆盖鉴权/探针/编队/场景/overlay/告警/续签/历史端到端/epoch 过滤/JSON 404，24/24。
 - ✅ 性能压测：`cd backend && npm run load:ingest`（免 broker）。本机基线：
   - 1000 请求 / 并发 25 → ~2300 req/s，p95 19ms，0 错误。
   - 5000 请求 / 并发 50、200 设备 → ~760 req/s，p95 113ms，0 错误。
