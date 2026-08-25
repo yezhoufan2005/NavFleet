@@ -54,9 +54,12 @@ check "告警查询非法参数 400"      400 "$(code -b "$COOKIE" "$BASE/api/al
 check "调试注入(admin,已开启)"    200 "$(code -b "$COOKIE" -H 'Content-Type: application/json' -d '{"deviceId":"smoke-1","gps":{"lat":31.2,"lng":121.4}}' "$BASE/api/debug/ingest")"
 check "编队列表(鉴权后)"          200 "$(code -b "$COOKIE" "$BASE/api/formations")"
 check "场景详情(鉴权后)"          200 "$(code -b "$COOKIE" "$BASE/api/scenes/kangcheng-airy")"
+check "场景 overlay(鉴权后)"      200 "$(code -b "$COOKIE" "$BASE/api/scenes/kangcheng-airy/overlay")"
 check "活动告警查询(鉴权后)"      200 "$(code -b "$COOKIE" "$BASE/api/alerts?status=active")"
 check "token 续签"              200 "$(code -b "$COOKIE" -X POST "$BASE/api/auth/refresh")"
 contains "历史端到端(注入→查询)"  '"measurements"' "$(body -b "$COOKIE" "$BASE/api/devices/smoke-1/history")"
+check "历史 epoch from/to 过滤"   200 "$(code -b "$COOKIE" "$BASE/api/devices/smoke-1/history?from=0&to=9999999999999")"
+check "未知路由 JSON 404"        404 "$(code -b "$COOKIE" "$BASE/api/does-not-exist")"
 check "登出"                    204 "$(code -b "$COOKIE" -X POST "$BASE/api/auth/logout")"
 
 echo
