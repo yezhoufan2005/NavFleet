@@ -48,6 +48,9 @@ export const renderMetrics = ({
     "# HELP navfleet_mqtt_messages_total Total MQTT messages ingested",
     "# TYPE navfleet_mqtt_messages_total counter",
     `navfleet_mqtt_messages_total ${state.mqttMessagesTotal}`,
+    "# HELP navfleet_mqtt_messages_rejected_total Total MQTT messages dropped by ingest validation",
+    "# TYPE navfleet_mqtt_messages_rejected_total counter",
+    `navfleet_mqtt_messages_rejected_total ${state.mqttMessagesRejected}`,
   ];
   return `${lines.join("\n")}\n`;
 };
