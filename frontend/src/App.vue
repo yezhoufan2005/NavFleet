@@ -1,7 +1,8 @@
 <script setup>
 import { computed, onMounted, ref } from "vue";
-import { RouterView, RouterLink } from "vue-router";
+import { RouterView, RouterLink, useRoute } from "vue-router";
 import { storeToRefs } from "pinia";
+import ErrorBoundary from "./components/ErrorBoundary.vue";
 import LoginForm from "./components/LoginForm.vue";
 import NotificationHost from "./components/NotificationHost.vue";
 import { useFleetStore } from "./stores/fleet";
@@ -12,6 +13,8 @@ const store = useFleetStore();
 const state = store.state;
 const { summary } = storeToRefs(store);
 const { bootstrap, registerWindowApi, retryBootstrap, disconnectRealtime } = store;
+
+const route = useRoute();
 
 const auth = useAuth();
 const authState = auth.state;
@@ -135,7 +138,11 @@ onMounted(async () => {
       </button>
     </div>
 
-    <RouterView />
+    <!-- Boundary sits inside the shell so the header and nav survive a broken
+         view; the route path doubles as its reset key. -->
+    <ErrorBoundary :reset-key="route.fullPath">
+      <RouterView />
+    </ErrorBoundary>
   </div>
 
   <NotificationHost />

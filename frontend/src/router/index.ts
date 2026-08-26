@@ -9,10 +9,11 @@
 
 import { createRouter, createWebHashHistory } from "vue-router";
 import type { RouteRecordRaw } from "vue-router";
+import { useAuth } from "../composables/useAuth";
+import { createAuthGuard } from "./guards";
 
-// Annotated explicitly: without it TypeScript widens the array to a union of the
-// literal shapes (each carrying `redirect?: undefined` or `component?: undefined`),
-// which no longer matches `RouteRecordRaw`.
+// Annotated explicitly so each record is checked against `RouteRecordRaw` here
+// rather than widened to whatever shape the literals happen to share.
 const routes: RouteRecordRaw[] = [
   {
     path: "/",
@@ -33,8 +34,12 @@ const routes: RouteRecordRaw[] = [
     meta: { title: "告警中心" },
   },
   {
+    // A mistyped deep link used to be redirected to "/" silently, which looked
+    // like the app had ignored the address; say so instead.
     path: "/:pathMatch(.*)*",
-    redirect: "/",
+    name: "not-found",
+    component: () => import("../views/NotFoundView.vue"),
+    meta: { title: "页面不存在" },
   },
 ];
 
@@ -42,3 +47,5 @@ export const router = createRouter({
   history: createWebHashHistory(),
   routes,
 });
+
+router.beforeEach(createAuthGuard(useAuth().state));

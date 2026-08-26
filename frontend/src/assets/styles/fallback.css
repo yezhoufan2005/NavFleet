@@ -1,0 +1,77 @@
+/* ── Fallback surfaces: error boundary + 404 (Phase 8D) ──────────────────── */
+/* Shared by ErrorBoundary.vue and NotFoundView.vue: one centred panel that
+   states what went wrong and offers exactly one way forward. */
+.fallback-view {
+  min-height: 46vh;
+  padding: 40px 32px;
+  display: grid;
+  place-content: center;
+  justify-items: center;
+  gap: 14px;
+  text-align: center;
+}
+
+.fallback-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 46px;
+  min-height: 46px;
+  border-radius: 999px;
+  border: 1px solid var(--border-strong);
+  background: var(--bg-hover);
+  color: var(--muted);
+  font-size: 22px;
+  font-weight: 700;
+  line-height: 1;
+}
+
+.fallback-view[data-tone="error"] .fallback-badge {
+  border-color: rgba(var(--critical-rgb), 0.45);
+  background: rgba(var(--critical-rgb), 0.12);
+  color: var(--critical);
+}
+
+.fallback-view h2 {
+  margin: 0;
+  font-size: 20px;
+}
+
+.fallback-hint {
+  margin: 0;
+  max-width: 52ch;
+  color: var(--muted);
+  font-size: 13px;
+  line-height: 1.7;
+  overflow-wrap: anywhere;
+}
+
+.fallback-detail {
+  margin: 0;
+  max-width: 60ch;
+  padding: 10px 14px;
+  border-radius: var(--radius-sm);
+  border: 1px dashed var(--border);
+  background: var(--bg-hover);
+  color: var(--muted);
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 12px;
+  line-height: 1.6;
+  text-align: left;
+  overflow-wrap: anywhere;
+}
+
+.fallback-actions {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+/* RouterLink renders an <a>; keep it visually identical to .primary-btn. */
+.fallback-link {
+  display: inline-flex;
+  align-items: center;
+  text-decoration: none;
+}
