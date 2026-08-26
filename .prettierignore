@@ -1,0 +1,5 @@
+# Generated / vendored — never reformat
+package-lock.json
+**/dist/
+**/coverage/
+node_modules/
