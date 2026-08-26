@@ -1,23 +1,66 @@
-const POINT_CLOUD_CACHE = new Map();
+import type { SceneMapDefinition } from "@navfleet/shared";
+
+export interface PointCloudBounds {
+  minX: number;
+  maxX: number;
+  minY: number;
+  maxY: number;
+}
+
+export interface PointCloudBackdrop {
+  dataUrl: string;
+  width: number;
+  height: number;
+  bounds: PointCloudBounds;
+  meta: PointCloudMeta;
+}
+
+/** Loose shape of the optional point-cloud metadata JSON (all fields optional). */
+export interface PointCloudMeta {
+  grid_size?: unknown;
+  origin?: { x?: unknown; y?: unknown };
+  shape?: { width?: unknown; height?: unknown };
+  floor_band?: { min_z?: unknown; max_z?: unknown };
+  obstacle_band?: { min_z?: unknown; max_z?: unknown };
+}
+
+interface PcdFieldDescriptor {
+  name: string;
+  size: number;
+  type: string;
+  count: number;
+  offset: number;
+}
+
+interface PcdHeader {
+  headerLength: number;
+  pointCount: number;
+  pointStride: number;
+  fields: PcdFieldDescriptor[];
+}
+
+type ScenePart = Partial<SceneMapDefinition>;
+
+const POINT_CLOUD_CACHE = new Map<string, Promise<PointCloudBackdrop>>();
 
 const HEADER_SCAN_BYTES = 64 * 1024;
 const ASCII_DECODER = new TextDecoder("ascii");
 
-function toFiniteNumber(value, fallback = null) {
+function toFiniteNumber(value: unknown, fallback: number | null = null): number | null {
   const numeric = Number(value);
   return Number.isFinite(numeric) ? numeric : fallback;
 }
 
-function fetchJson(url) {
+function fetchJson(url: string): Promise<PointCloudMeta> {
   return fetch(url, { cache: "no-store" }).then((response) => {
     if (!response.ok) {
       throw new Error(`点云元数据加载失败: HTTP ${response.status}`);
     }
-    return response.json();
+    return response.json() as Promise<PointCloudMeta>;
   });
 }
 
-function fetchArrayBuffer(url) {
+function fetchArrayBuffer(url: string): Promise<ArrayBuffer> {
   return fetch(url, { cache: "no-store" }).then((response) => {
     if (!response.ok) {
       throw new Error(`点云文件加载失败: HTTP ${response.status}`);
@@ -26,7 +69,7 @@ function fetchArrayBuffer(url) {
   });
 }
 
-function parsePcdHeader(arrayBuffer) {
+function parsePcdHeader(arrayBuffer: ArrayBuffer): PcdHeader {
   const headerSlice = new Uint8Array(
     arrayBuffer,
     0,
@@ -45,7 +88,7 @@ function parsePcdHeader(arrayBuffer) {
     .split(/\r?\n/)
     .map((line) => line.trim())
     .filter(Boolean);
-  const header = {};
+  const header: Record<string, string[]> = {};
 
   lines.forEach((line) => {
     const [keyword, ...rest] = line.split(/\s+/);
@@ -59,8 +102,8 @@ function parsePcdHeader(arrayBuffer) {
   const normalizedCounts = fields.map((_, index) => counts[index] || 1);
 
   let runningOffset = 0;
-  const descriptors = fields.map((name, index) => {
-    const descriptor = {
+  const descriptors: PcdFieldDescriptor[] = fields.map((name, index) => {
+    const descriptor: PcdFieldDescriptor = {
       name,
       size: sizes[index] || 4,
       type: types[index] || "F",
@@ -83,7 +126,11 @@ function parsePcdHeader(arrayBuffer) {
   };
 }
 
-function readScalar(dataView, offset, descriptor) {
+function readScalar(
+  dataView: DataView,
+  offset: number,
+  descriptor: PcdFieldDescriptor | undefined,
+): number {
   if (!descriptor || descriptor.count !== 1) {
     return Number.NaN;
   }
@@ -117,7 +164,19 @@ function readScalar(dataView, offset, descriptor) {
   return Number.NaN;
 }
 
-function derivePointCloudGeometry(sceneDefinition = {}, meta = {}) {
+interface PointCloudGeometry {
+  gridSize: number;
+  originX: number;
+  originY: number;
+  width: number;
+  height: number;
+  bounds: PointCloudBounds;
+}
+
+function derivePointCloudGeometry(
+  sceneDefinition: ScenePart = {},
+  meta: PointCloudMeta = {},
+): PointCloudGeometry {
   const gridSize =
     toFiniteNumber(meta.grid_size, toFiniteNumber(sceneDefinition.resolution, 0.2)) || 0.2;
   const originX = toFiniteNumber(meta.origin?.x, toFiniteNumber(sceneDefinition.origin?.x, 0)) || 0;
@@ -146,7 +205,7 @@ function derivePointCloudGeometry(sceneDefinition = {}, meta = {}) {
   };
 }
 
-function classifyPoint(pointZ, meta) {
+function classifyPoint(pointZ: number, meta: PointCloudMeta): number {
   const floorMin = toFiniteNumber(meta.floor_band?.min_z);
   const floorMax = toFiniteNumber(meta.floor_band?.max_z);
   const obstacleMin = toFiniteNumber(meta.obstacle_band?.min_z);
@@ -155,8 +214,8 @@ function classifyPoint(pointZ, meta) {
   if (
     Number.isFinite(obstacleMin) &&
     Number.isFinite(obstacleMax) &&
-    pointZ >= obstacleMin &&
-    pointZ <= obstacleMax
+    pointZ >= (obstacleMin as number) &&
+    pointZ <= (obstacleMax as number)
   ) {
     return 2;
   }
@@ -164,8 +223,8 @@ function classifyPoint(pointZ, meta) {
   if (
     Number.isFinite(floorMin) &&
     Number.isFinite(floorMax) &&
-    pointZ >= floorMin &&
-    pointZ <= floorMax
+    pointZ >= (floorMin as number) &&
+    pointZ <= (floorMax as number)
   ) {
     return 1;
   }
@@ -177,14 +236,20 @@ function classifyPoint(pointZ, meta) {
   return 0;
 }
 
-function rasterizePointCloud(arrayBuffer, meta, sceneDefinition) {
+function rasterizePointCloud(
+  arrayBuffer: ArrayBuffer,
+  meta: PointCloudMeta,
+  sceneDefinition: ScenePart,
+): PointCloudBackdrop {
   const geometry = derivePointCloudGeometry(sceneDefinition, meta);
   const { width, height, gridSize, originX, originY, bounds } = geometry;
   const occupancy = new Uint8Array(width * height);
   const intensityBuckets = new Uint8Array(width * height);
   const dataView = new DataView(arrayBuffer);
   const header = parsePcdHeader(arrayBuffer);
-  const fieldMap = Object.fromEntries(header.fields.map((field) => [field.name, field]));
+  const fieldMap: Record<string, PcdFieldDescriptor> = Object.fromEntries(
+    header.fields.map((field) => [field.name, field]),
+  );
 
   for (let index = 0; index < header.pointCount; index += 1) {
     const baseOffset = header.headerLength + index * header.pointStride;
@@ -272,7 +337,9 @@ function rasterizePointCloud(arrayBuffer, meta, sceneDefinition) {
   };
 }
 
-export async function loadPointCloudBackdrop(sceneDefinition) {
+export async function loadPointCloudBackdrop(
+  sceneDefinition: ScenePart | null | undefined,
+): Promise<PointCloudBackdrop | null> {
   if (!sceneDefinition?.pointCloudUrl) {
     return null;
   }
@@ -286,15 +353,16 @@ export async function loadPointCloudBackdrop(sceneDefinition) {
     height: sceneDefinition.height,
   });
 
-  if (POINT_CLOUD_CACHE.has(cacheKey)) {
-    return POINT_CLOUD_CACHE.get(cacheKey);
+  const cached = POINT_CLOUD_CACHE.get(cacheKey);
+  if (cached) {
+    return cached;
   }
 
   const loadingPromise = Promise.all([
     fetchArrayBuffer(sceneDefinition.pointCloudUrl),
     sceneDefinition.pointCloudMetaUrl
       ? fetchJson(sceneDefinition.pointCloudMetaUrl)
-      : Promise.resolve({}),
+      : Promise.resolve<PointCloudMeta>({}),
   ])
     .then(([arrayBuffer, meta]) => rasterizePointCloud(arrayBuffer, meta, sceneDefinition))
     .catch((error) => {
