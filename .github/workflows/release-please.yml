@@ -1,0 +1,23 @@
+name: Release
+
+# release-please watches conventional commits on main, maintains a release PR,
+# and (when that PR merges) bumps the version, updates CHANGELOG.md, tags v<x.y.z>,
+# and cuts a GitHub Release. The Release "published" event drives image publishing
+# (see publish-images.yml).
+on:
+  push:
+    branches: [main]
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  release-please:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: googleapis/release-please-action@v4
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          config-file: release-please-config.json
+          manifest-file: .release-please-manifest.json

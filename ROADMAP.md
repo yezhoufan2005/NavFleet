@@ -38,10 +38,11 @@ CD 用 **release-please**（贴合现有 conventional-commit 历史，自动 CHA
 
 ### PR 6C — CD 与发布自动化（面向更广交付）
 
-- [ ] GHCR 镜像构建并发布（前后端），Docker 改造为 workspace 感知构建
-- [ ] `release-please`：语义化版本 + tag + 自动 CHANGELOG
-- [ ] 可选：镜像 SBOM / 签名
-- 自检：_待填_（含 `docker compose build` 闭环）
+- [x] Docker 改造为 workspace 感知构建（root context + 根 lockfile + `npm ci --ignore-scripts` 跳过 husky；backend/frontend 均从仓库根构建，前端 context 由 `../frontend` 改为 `..`）
+- [x] GHCR 镜像构建并发布（`publish-images.yml`：release published / 手动触发，backend+frontend 矩阵，semver+latest+sha 标签，gha 缓存）
+- [x] `release-please`（manifest 模式，单根组件）：语义化版本 + tag + 自动 CHANGELOG + GitHub Release
+- [ ] 可选：镜像 SBOM / 签名（延后）
+- 自检 ✅（2026-08-26）：本地 `docker compose build backend frontend` 均成功；backend 镜像入口 `backend/dist/index.js` 存在且运行时依赖全部从 hoisted node_modules 解析通过；frontend 镜像 `/usr/share/nginx/html` 资产齐全。两个 CD workflow 为 YAML，合并到 main 后首跑验证（release-please 需仓库开启「Allow GitHub Actions to create and approve pull requests」；GHCR 发布用 workflow 内置 GITHUB_TOKEN + packages:write）。
 
 ### PR 6D — 收尾与漂移修复
 
@@ -92,3 +93,5 @@ CD 用 **release-please**（贴合现有 conventional-commit 历史，自动 CHA
 ## 变更日志（本路线图执行记录）
 
 - 2026-08-26：完成三路架构审计（后端/前端/DevOps），生成 v2 路线图，启动 Phase 6 / PR 6A。
+- 2026-08-26：PR 6A（monorepo+shared 类型，#1）、PR 6B（治理+预提交，#3）已合并入 main；修复 npm#4828 跨平台 lockfile 陷阱（见记忆 navfleet-ci-lockfile）。
+- 2026-08-26：PR 6C —— Docker workspace 化（本地 compose build 通过）+ release-please + GHCR 镜像发布。
