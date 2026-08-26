@@ -4,7 +4,8 @@ import { storeToRefs } from "pinia";
 import GpsMap from "../components/GpsMap.vue";
 import RosSceneMap from "../components/RosSceneMap.vue";
 import { useFleetStore } from "../stores/fleet";
-import { round, hasPose, formatDateTime } from "../lib/fleetNormalize";
+import { round, hasPose } from "../lib/fleetNormalize";
+import { formatNumber, formatStamp, formatValue } from "../utils/formatters";
 import { controlModeMap, gearMap, taskStatusMap, formatEnum, describeEnum } from "../utils/enums";
 
 const store = useFleetStore();
@@ -107,28 +108,6 @@ const selectedCodeCards = computed(() => {
 const hasSelectedRosPose = computed(
   () => hasPose(selectedDevice.value?.fusionLoc) || hasPose(selectedDevice.value?.lidarLoc),
 );
-
-function formatNumber(value, digits = 2, unit = "") {
-  const numeric = Number(value);
-  if (!Number.isFinite(numeric)) {
-    return "--";
-  }
-  return `${numeric.toFixed(digits)}${unit}`;
-}
-
-function formatValue(value) {
-  if (value === null || value === undefined || value === "") {
-    return "--";
-  }
-  return String(value);
-}
-
-function formatStamp(value) {
-  if (!value) {
-    return "--";
-  }
-  return formatDateTime(value);
-}
 
 function shouldShowDeviceId(device) {
   return duplicateNames.value.has(device.deviceName || device.deviceId);

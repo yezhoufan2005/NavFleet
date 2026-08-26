@@ -3,7 +3,8 @@ import { computed, ref, watch } from "vue";
 import { storeToRefs } from "pinia";
 import { useFleetStore } from "../stores/fleet";
 import { useAlertAck } from "../composables/useAlertAck";
-import { formatDateTime, toTimestampMs } from "../lib/fleetNormalize";
+import { toTimestampMs } from "../lib/fleetNormalize";
+import { formatStamp } from "../utils/formatters";
 
 const store = useFleetStore();
 const { groupedAlerts, selectedDevice } = storeToRefs(store);
@@ -124,10 +125,6 @@ function prevPage() {
 
 function nextPage() {
   page.value = Math.min(totalPages.value, page.value + 1);
-}
-
-function formatStamp(value) {
-  return value ? formatDateTime(value) : "--";
 }
 </script>
 

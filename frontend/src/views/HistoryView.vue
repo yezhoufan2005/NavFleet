@@ -6,6 +6,7 @@ import { useFleetStore } from "../stores/fleet";
 import { fleetApi } from "../services/fleetApi";
 import { notify } from "../composables/useNotifications";
 import { round, hasPose, formatDateTime, pickTrailPose } from "../lib/fleetNormalize";
+import { formatNumber } from "../utils/formatters";
 import { taskStatusMap, formatEnum } from "../utils/enums";
 
 const store = useFleetStore();
@@ -116,14 +117,6 @@ const progressLabel = computed(() => {
 const currentStamp = computed(() =>
   currentSample.value ? formatDateTime(currentSample.value.ts) : "--",
 );
-
-function formatNumber(value, digits = 2, unit = "") {
-  const numeric = Number(value);
-  if (!Number.isFinite(numeric)) {
-    return "--";
-  }
-  return `${numeric.toFixed(digits)}${unit}`;
-}
 
 function stopPlayback() {
   playing.value = false;
