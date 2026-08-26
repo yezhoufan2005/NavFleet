@@ -1,0 +1,153 @@
+import { vi, type Mock } from "vitest";
+import type { Express } from "express";
+import { createApp } from "../../src/app";
+import { parseConfig, type AppConfig } from "../../src/config";
+import { createRuntimeState, type RuntimeState } from "../../src/runtimeState";
+import { ACCESS_COOKIE } from "../../src/auth/middleware";
+import { signAccessToken } from "../../src/auth/tokens";
+import type { AuthService } from "../../src/auth/service";
+import type { Persistence } from "../../src/persistence";
+import type { DashboardStore } from "../../src/store";
+import type {
+  FleetSnapshot,
+  FormationSnapshot,
+  LaneletOverlay,
+  SceneMapDefinition,
+  UserRecord,
+  UserRole,
+} from "../../src/types";
+import {
+  SCENE_ID,
+  UPDATED_AT,
+  sampleAlert,
+  sampleFormation,
+  sampleHistoryPoint,
+  sampleOverlay,
+  sampleScene,
+  sampleSnapshot,
+} from "./fixtures";
+
+/**
+ * Shared scaffolding for the HTTP integration tests: fake collaborators plus a
+ * real Express app built through createApp(), so route order, the auth gate, the
+ * JSON 404 and the error handler are all exercised end to end. Nothing here
+ * touches MongoDB, MQTT or the filesystem.
+ */
+
+export * from "./fixtures";
+
+export interface StoreStub {
+  buildSummary: Mock<() => Record<string, unknown>>;
+  snapshot: Mock<() => FleetSnapshot>;
+  getFormations: Mock<() => FormationSnapshot[]>;
+  getScenes: Mock<() => SceneMapDefinition[]>;
+  getScene: Mock<(sceneId: string) => Promise<SceneMapDefinition | null>>;
+  getSceneOverlay: Mock<(sceneId: string) => Promise<LaneletOverlay | null>>;
+  getHistory: Mock<
+    (deviceId: string, from?: string, to?: string, limit?: number) => Promise<unknown[]>
+  >;
+  getAlerts: Mock<(filters: Record<string, string | undefined>) => Promise<unknown[]>>;
+  applyPayload: Mock<(payload: unknown, source?: string) => Promise<FleetSnapshot>>;
+}
+
+// getScene/getSceneOverlay are synchronous on DashboardStore but the routes
+// await them, so the stubs are typed as promise-returning: that keeps
+// mockRejectedValue available for the error-middleware tests.
+export const createStoreStub = (): StoreStub => ({
+  buildSummary: vi.fn(() => ({
+    fleetName: "测试车队",
+    deviceCount: 1,
+    onlineCount: 1,
+    alertCount: 0,
+    gpsCount: 0,
+    updatedAt: UPDATED_AT,
+  })),
+  snapshot: vi.fn(() => sampleSnapshot()),
+  getFormations: vi.fn(() => [sampleFormation()]),
+  getScenes: vi.fn(() => [sampleScene()]),
+  getScene: vi.fn((sceneId: string) =>
+    Promise.resolve(sceneId === SCENE_ID ? sampleScene() : null),
+  ),
+  getSceneOverlay: vi.fn((sceneId: string) =>
+    Promise.resolve(sceneId === SCENE_ID ? sampleOverlay() : null),
+  ),
+  getHistory: vi.fn(() => Promise.resolve([sampleHistoryPoint()])),
+  getAlerts: vi.fn(() => Promise.resolve([sampleAlert()])),
+  applyPayload: vi.fn(() => Promise.resolve(sampleSnapshot())),
+});
+
+export interface PersistenceStub {
+  isMongoConnected: Mock<() => boolean>;
+  pendingTelemetryCount: Mock<() => number>;
+}
+
+export const createPersistenceStub = (): PersistenceStub => ({
+  isMongoConnected: vi.fn(() => false),
+  pendingTelemetryCount: vi.fn(() => 0),
+});
+
+export interface AuthServiceStub {
+  authenticate: Mock<(username: string, password: string) => Promise<UserRecord | null>>;
+  findByUsername: Mock<(username: string) => Promise<UserRecord | null>>;
+}
+
+export const createAuthServiceStub = (): AuthServiceStub => ({
+  authenticate: vi.fn(() => Promise.resolve<UserRecord | null>(null)),
+  findByUsername: vi.fn(() => Promise.resolve<UserRecord | null>(null)),
+});
+
+export interface TestAppOptions {
+  configOverrides?: Partial<AppConfig>;
+  store?: StoreStub;
+  persistence?: PersistenceStub;
+  authService?: AuthServiceStub;
+  state?: RuntimeState;
+  wsClientCount?: () => number;
+}
+
+export interface TestAppContext {
+  app: Express;
+  store: StoreStub;
+  persistence: PersistenceStub;
+  authService: AuthServiceStub;
+  state: RuntimeState;
+  config: AppConfig;
+}
+
+/** Build the real Express app on top of stubbed collaborators. */
+export const createTestApp = (options: TestAppOptions = {}): TestAppContext => {
+  const store = options.store ?? createStoreStub();
+  const persistence = options.persistence ?? createPersistenceStub();
+  const authService = options.authService ?? createAuthServiceStub();
+  const state = options.state ?? createRuntimeState();
+  // Documented defaults (metrics on, debug ingest off), then per-test overrides.
+  // CORS is disabled so the app under test carries no origin allowlist.
+  const config: AppConfig = {
+    ...parseConfig({ CORS_ORIGINS: "" }),
+    ...options.configOverrides,
+  };
+
+  const app = createApp({
+    store: store as unknown as DashboardStore,
+    persistence: persistence as unknown as Persistence,
+    authService: authService as unknown as AuthService,
+    config,
+    state,
+    wsClientCount: options.wsClientCount ?? ((): number => 0),
+  });
+
+  return { app, store, persistence, authService, state, config };
+};
+
+/**
+ * A `Cookie` header carrying a real access token, signed with the same helpers
+ * and secret the production middleware verifies against.
+ */
+export const sessionCookie = (role: UserRole = "viewer", username = "tester"): string =>
+  `${ACCESS_COOKIE}=${signAccessToken({ username, role })}`;
+
+/** The uniform 400 body produced by respondValidationError(). */
+export interface ValidationErrorBody {
+  error: string;
+  issues: Array<{ path: string; message: string }>;
+}
