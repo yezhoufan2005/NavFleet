@@ -12,10 +12,10 @@ Docker 默认：
 CONFIG_ROOT_PATH=/runtime-config
 ```
 
-本地开发示例：
+本地开发示例（相对仓库根运行，或用绝对路径）：
 
 ```text
-CONFIG_ROOT_PATH=C:\path\to\NavFleet\config-runtime
+CONFIG_ROOT_PATH=./config-runtime
 ```
 
 目录结构：
@@ -72,14 +72,14 @@ config-runtime/
 
 字段：
 
-| 字段 | 类型 | 必填 | 说明 |
-| --- | --- | --- | --- |
-| `fleetName` | `string` | 是 | 页面显示的车队名称 |
-| `topicPattern` | `string` | 是 | 页面展示用 MQTT topic 模板 |
-| `defaultSceneId` | `string` | 否 | 默认场景 ID |
-| `defaultMapProfile` | `string` | 是 | 默认地图类型 |
-| `defaultGpsEnabled` | `boolean` | 是 | 默认是否启用 GPS 视图 |
-| `defaultRosMapEnabled` | `boolean` | 是 | 默认是否启用场景地图 |
+| 字段                   | 类型      | 必填 | 说明                       |
+| ---------------------- | --------- | ---- | -------------------------- |
+| `fleetName`            | `string`  | 是   | 页面显示的车队名称         |
+| `topicPattern`         | `string`  | 是   | 页面展示用 MQTT topic 模板 |
+| `defaultSceneId`       | `string`  | 否   | 默认场景 ID                |
+| `defaultMapProfile`    | `string`  | 是   | 默认地图类型               |
+| `defaultGpsEnabled`    | `boolean` | 是   | 默认是否启用 GPS 视图      |
+| `defaultRosMapEnabled` | `boolean` | 是   | 默认是否启用场景地图       |
 
 常见 `defaultMapProfile`：
 
@@ -109,15 +109,15 @@ config-runtime/
 
 字段：
 
-| 字段 | 类型 | 必填 | 说明 |
-| --- | --- | --- | --- |
-| `deviceId` | `string` | 是 | 设备唯一 ID，必须和 MQTT topic 中的 `{deviceId}` 一致 |
-| `deviceName` | `string` | 是 | 页面显示名称 |
-| `defaultSceneId` | `string` | 否 | 设备未上报场景时使用的场景 |
-| `mapProfile` | `string` | 否 | 设备地图类型 |
-| `gpsEnabled` | `boolean` | 否 | 是否在 GPS 地图中显示 |
-| `rosMapEnabled` | `boolean` | 否 | 是否在场景地图中显示 |
-| `tags` | `string[]` | 否 | 页面展示标签 |
+| 字段             | 类型       | 必填 | 说明                                                  |
+| ---------------- | ---------- | ---- | ----------------------------------------------------- |
+| `deviceId`       | `string`   | 是   | 设备唯一 ID，必须和 MQTT topic 中的 `{deviceId}` 一致 |
+| `deviceName`     | `string`   | 是   | 页面显示名称                                          |
+| `defaultSceneId` | `string`   | 否   | 设备未上报场景时使用的场景                            |
+| `mapProfile`     | `string`   | 否   | 设备地图类型                                          |
+| `gpsEnabled`     | `boolean`  | 否   | 是否在 GPS 地图中显示                                 |
+| `rosMapEnabled`  | `boolean`  | 否   | 是否在场景地图中显示                                  |
+| `tags`           | `string[]` | 否   | 页面展示标签                                          |
 
 规则：
 
@@ -147,14 +147,14 @@ config-runtime/
 
 字段：
 
-| 字段 | 类型 | 必填 | 说明 |
-| --- | --- | --- | --- |
-| `formationId` | `string` | 是 | 编队唯一 ID |
-| `formationName` | `string` | 是 | 页面显示名称 |
-| `deviceIds` | `string[]` | 是 | 编队车辆 ID 列表 |
-| `sceneId` | `string` | 否 | 编队默认场景 |
-| `description` | `string` | 否 | 描述 |
-| `color` | `string` | 否 | 页面展示颜色 |
+| 字段            | 类型       | 必填 | 说明             |
+| --------------- | ---------- | ---- | ---------------- |
+| `formationId`   | `string`   | 是   | 编队唯一 ID      |
+| `formationName` | `string`   | 是   | 页面显示名称     |
+| `deviceIds`     | `string[]` | 是   | 编队车辆 ID 列表 |
+| `sceneId`       | `string`   | 否   | 编队默认场景     |
+| `description`   | `string`   | 否   | 描述             |
+| `color`         | `string`   | 否   | 页面展示颜色     |
 
 规则：
 
@@ -192,22 +192,22 @@ config-runtime/
 
 ### 6.2 通用字段
 
-| 字段 | 类型 | 必填 | 说明 |
-| --- | --- | --- | --- |
-| `sceneId` | `string` | 是 | 场景唯一 ID |
-| `sceneName` | `string` | 是 | 页面显示名称 |
-| `mapFrame` | `string` | 是 | 坐标系名称，通常为 `map` |
-| `resolution` | `number` | 是 | 地图分辨率 |
-| `origin` | `object` | 是 | 世界坐标原点，含 `x`、`y`、`yaw` |
-| `occupiedThresh` | `number` | 否 | ROS 栅格占用阈值 |
-| `freeThresh` | `number` | 否 | ROS 栅格空闲阈值 |
-| `negate` | `0 | 1` | 否 | ROS 地图是否反色 |
-| `width` | `number` | 是 | 地图画布宽度 |
-| `height` | `number` | 是 | 地图画布高度 |
-| `bounds` | `object` | 否 | 世界坐标边界 |
-| `defaultView` | `object` | 否 | 默认视角 |
-| `minZoom` | `number` | 否 | 最小缩放 |
-| `maxZoom` | `number` | 否 | 最大缩放 |
+| 字段             | 类型     | 必填 | 说明                             |
+| ---------------- | -------- | ---- | -------------------------------- |
+| `sceneId`        | `string` | 是   | 场景唯一 ID                      |
+| `sceneName`      | `string` | 是   | 页面显示名称                     |
+| `mapFrame`       | `string` | 是   | 坐标系名称，通常为 `map`         |
+| `resolution`     | `number` | 是   | 地图分辨率                       |
+| `origin`         | `object` | 是   | 世界坐标原点，含 `x`、`y`、`yaw` |
+| `occupiedThresh` | `number` | 否   | ROS 栅格占用阈值                 |
+| `freeThresh`     | `number` | 否   | ROS 栅格空闲阈值                 |
+| `negate`         | `0       | 1`   | 否                               | ROS 地图是否反色 |
+| `width`          | `number` | 是   | 地图画布宽度                     |
+| `height`         | `number` | 是   | 地图画布高度                     |
+| `bounds`         | `object` | 否   | 世界坐标边界                     |
+| `defaultView`    | `object` | 否   | 默认视角                         |
+| `minZoom`        | `number` | 否   | 最小缩放                         |
+| `maxZoom`        | `number` | 否   | 最大缩放                         |
 
 `origin`：
 
@@ -335,71 +335,71 @@ scene-maps/
 
 ### 8.1 部署入口变量
 
-| 变量 | 默认值 | 说明 |
-| --- | --- | --- |
-| `HTTP_HOST_PORT` | `8080` | Nginx 映射到宿主机的 HTTP 端口 |
-| `MQTT_HOST_PORT` | `1883` | Mosquitto 映射到宿主机的 MQTT 端口 |
-| `CONFIG_RUNTIME_HOST_PATH` | `../config-runtime` | 宿主机运行期配置目录 |
+| 变量                       | 默认值              | 说明                               |
+| -------------------------- | ------------------- | ---------------------------------- |
+| `HTTP_HOST_PORT`           | `8080`              | Nginx 映射到宿主机的 HTTP 端口     |
+| `MQTT_HOST_PORT`           | `1883`              | Mosquitto 映射到宿主机的 MQTT 端口 |
+| `CONFIG_RUNTIME_HOST_PATH` | `../config-runtime` | 宿主机运行期配置目录               |
 
 ### 8.2 后端变量
 
-| 变量 | 默认值 | 说明 |
-| --- | --- | --- |
-| `PORT` | `3000` | 后端容器监听端口 |
-| `NODE_ENV` | `production`（compose） | 运行环境；`production` 下缺少 `JWT_SECRET` 会启动失败 |
-| `FLEET_NAME` | `智能车队` | 内置兜底车队名，通常会被 `fleet.json` 覆盖 |
-| `MQTT_URL` | `mqtt://mosquitto:1883` | 后端连接的 MQTT Broker |
-| `MQTT_USERNAME` | 空 | MQTT 用户名 |
-| `MQTT_PASSWORD` | 空 | MQTT 密码 |
-| `MQTT_CLIENT_ID` | 随机 | 可选固定客户端 ID |
-| `MQTT_TOPIC_PATTERN` | `/fleet/{deviceId}/vehicle_info` | 遥测主题模板，`{deviceId}` 为占位符 |
-| `MONGO_URI` | `mongodb://root:example@mongo:27017/fleet_monitor?authSource=admin` | MongoDB 连接串 |
-| `MONGO_DB_NAME` | `fleet_monitor` | MongoDB 数据库名 |
-| `SEED_FILE` | 空 | 可选种子数据文件 |
-| `OFFLINE_AFTER_SECONDS` | `60` | 设备离线判定秒数 |
-| `TELEMETRY_RETENTION_SECONDS` | `2592000` | 遥测保留秒数，默认 30 天 |
-| `ALERTS_RETENTION_SECONDS` | `15552000` | 告警保留秒数，默认 180 天 |
-| `MAX_HISTORY_POINTS` | `500` | 单次历史查询最大返回点数 |
-| `MONGO_BUFFER_LIMIT` | `2000` | Mongo 写失败时内存缓冲上限 |
-| `CONFIG_ROOT_PATH` | `/runtime-config` | 容器内配置根目录 |
-| `CONFIG_WATCH_USE_POLLING` | `false` | 是否用轮询监听配置 |
-| `CONFIG_WATCH_DEBOUNCE_MS` | `1000` | 配置热加载防抖毫秒数 |
+| 变量                          | 默认值                                                              | 说明                                                  |
+| ----------------------------- | ------------------------------------------------------------------- | ----------------------------------------------------- |
+| `PORT`                        | `3000`                                                              | 后端容器监听端口                                      |
+| `NODE_ENV`                    | `production`（compose）                                             | 运行环境；`production` 下缺少 `JWT_SECRET` 会启动失败 |
+| `FLEET_NAME`                  | `智能车队`                                                          | 内置兜底车队名，通常会被 `fleet.json` 覆盖            |
+| `MQTT_URL`                    | `mqtt://mosquitto:1883`                                             | 后端连接的 MQTT Broker                                |
+| `MQTT_USERNAME`               | 空                                                                  | MQTT 用户名                                           |
+| `MQTT_PASSWORD`               | 空                                                                  | MQTT 密码                                             |
+| `MQTT_CLIENT_ID`              | 随机                                                                | 可选固定客户端 ID                                     |
+| `MQTT_TOPIC_PATTERN`          | `/fleet/{deviceId}/vehicle_info`                                    | 遥测主题模板，`{deviceId}` 为占位符                   |
+| `MONGO_URI`                   | `mongodb://root:example@mongo:27017/fleet_monitor?authSource=admin` | MongoDB 连接串                                        |
+| `MONGO_DB_NAME`               | `fleet_monitor`                                                     | MongoDB 数据库名                                      |
+| `SEED_FILE`                   | 空                                                                  | 可选种子数据文件                                      |
+| `OFFLINE_AFTER_SECONDS`       | `60`                                                                | 设备离线判定秒数                                      |
+| `TELEMETRY_RETENTION_SECONDS` | `2592000`                                                           | 遥测保留秒数，默认 30 天                              |
+| `ALERTS_RETENTION_SECONDS`    | `15552000`                                                          | 告警保留秒数，默认 180 天                             |
+| `MAX_HISTORY_POINTS`          | `500`                                                               | 单次历史查询最大返回点数                              |
+| `MONGO_BUFFER_LIMIT`          | `2000`                                                              | Mongo 写失败时内存缓冲上限                            |
+| `CONFIG_ROOT_PATH`            | `/runtime-config`                                                   | 容器内配置根目录                                      |
+| `CONFIG_WATCH_USE_POLLING`    | `false`                                                             | 是否用轮询监听配置                                    |
+| `CONFIG_WATCH_DEBOUNCE_MS`    | `1000`                                                              | 配置热加载防抖毫秒数                                  |
 
 ### 8.2.1 鉴权与安全变量
 
-| 变量 | 默认值 | 说明 |
-| --- | --- | --- |
-| `AUTH_ENABLED` | `true` | 是否启用登录与 RBAC；仅本地实验可关闭 |
-| `JWT_SECRET` | 空 | **生产必填**：JWT 签名密钥。留空使用进程内临时密钥（重启失效所有会话）；`NODE_ENV=production` 下留空会启动失败 |
-| `JWT_ACCESS_TTL` | `15m` | access token 有效期 |
-| `JWT_REFRESH_TTL` | `7d` | refresh token 有效期 |
-| `BCRYPT_ROUNDS` | `10` | 密码哈希强度 |
-| `ADMIN_USERNAME` | `admin` | 初始管理员用户名 |
-| `ADMIN_PASSWORD` | 空 | **生产必填**：留空时开发环境创建 `admin/admin123` 并告警，生产环境拒绝创建默认管理员 |
-| `COOKIE_SECURE` | `false` | HTTPS 部署时设为 `true`，使鉴权 Cookie 带 Secure 标记 |
-| `CORS_ORIGINS` | 空（同源部署无需设置） | 允许的跨域来源，逗号分隔 |
-| `DEBUG_INGEST_ENABLED` | `false` | 调试注入端点开关；开启后仍需 admin 角色 |
+| 变量                   | 默认值                 | 说明                                                                                                           |
+| ---------------------- | ---------------------- | -------------------------------------------------------------------------------------------------------------- |
+| `AUTH_ENABLED`         | `true`                 | 是否启用登录与 RBAC；仅本地实验可关闭                                                                          |
+| `JWT_SECRET`           | 空                     | **生产必填**：JWT 签名密钥。留空使用进程内临时密钥（重启失效所有会话）；`NODE_ENV=production` 下留空会启动失败 |
+| `JWT_ACCESS_TTL`       | `15m`                  | access token 有效期                                                                                            |
+| `JWT_REFRESH_TTL`      | `7d`                   | refresh token 有效期                                                                                           |
+| `BCRYPT_ROUNDS`        | `10`                   | 密码哈希强度                                                                                                   |
+| `ADMIN_USERNAME`       | `admin`                | 初始管理员用户名                                                                                               |
+| `ADMIN_PASSWORD`       | 空                     | **生产必填**：留空时开发环境创建 `admin/admin123` 并告警，生产环境拒绝创建默认管理员                           |
+| `COOKIE_SECURE`        | `false`                | HTTPS 部署时设为 `true`，使鉴权 Cookie 带 Secure 标记                                                          |
+| `CORS_ORIGINS`         | 空（同源部署无需设置） | 允许的跨域来源，逗号分隔                                                                                       |
+| `DEBUG_INGEST_ENABLED` | `false`                | 调试注入端点开关；开启后仍需 admin 角色                                                                        |
 
 ### 8.2.2 可观测性变量
 
-| 变量 | 默认值 | 说明 |
-| --- | --- | --- |
-| `LOG_LEVEL` | `info` | pino 日志级别：trace/debug/info/warn/error/fatal |
+| 变量              | 默认值 | 说明                                                             |
+| ----------------- | ------ | ---------------------------------------------------------------- |
+| `LOG_LEVEL`       | `info` | pino 日志级别：trace/debug/info/warn/error/fatal                 |
 | `METRICS_ENABLED` | `true` | 是否暴露 `GET /metrics`（Prometheus 文本，未鉴权，仅供内网抓取） |
 
 ### 8.3 Mongo 变量
 
-| 变量 | 默认值 | 说明 |
-| --- | --- | --- |
-| `MONGO_INITDB_ROOT_USERNAME` | `root` | Mongo 初始化管理员用户 |
+| 变量                         | 默认值    | 说明                   |
+| ---------------------------- | --------- | ---------------------- |
+| `MONGO_INITDB_ROOT_USERNAME` | `root`    | Mongo 初始化管理员用户 |
 | `MONGO_INITDB_ROOT_PASSWORD` | `example` | Mongo 初始化管理员密码 |
 
 ### 8.4 前端构建变量
 
-| 变量 | 说明 |
-| --- | --- |
-| `VITE_AMAP_KEY` | 高德地图浏览器 Key |
-| `VITE_AMAP_SECURITY_JS_CODE` | 高德地图安全密钥 |
+| 变量                         | 说明               |
+| ---------------------------- | ------------------ |
+| `VITE_AMAP_KEY`              | 高德地图浏览器 Key |
+| `VITE_AMAP_SECURITY_JS_CODE` | 高德地图安全密钥   |
 
 这两个变量是前端构建时变量，修改后必须重新构建前端镜像。
 

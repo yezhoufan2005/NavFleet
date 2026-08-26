@@ -46,10 +46,10 @@ CD 用 **release-please**（贴合现有 conventional-commit 历史，自动 CHA
 
 ### PR 6D — 收尾与漂移修复
 
-- [ ] 清理 14 个遗留 phase 分支，`origin/HEAD` 指向 main
-- [ ] 修 `deploy/docs/deployment.md` 弱口令 drift、`config-reference.md` Windows 路径示例
-- [ ] CI 覆盖率上报 + Node matrix + 构建产物
-- 自检：_待填_
+- [~] 清理遗留 phase 分支、`origin/HEAD` 指向 main（分支清理为纯 git 操作，PR 外单独执行）
+- [x] 修 `deploy/docs/deployment.md` 弱口令 drift（最小配置改占位口令）、`config-reference.md` Windows 路径示例改 POSIX
+- [x] CI 覆盖率上报（`@vitest/coverage-v8` + 产物上传）+ Node matrix（20/22）
+- 自检：_容器验证 test:coverage 通过后回填_
 
 **Phase 6 收口**：根级 `npm run build/test/lint` 全绿；push tag 自动出镜像 + release；shared 包被前后端引用。
 
