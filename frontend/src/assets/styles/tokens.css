@@ -1,0 +1,80 @@
+:root {
+  /* Shared, theme-independent tokens */
+  --radius-sm: 10px;
+  --radius: 14px;
+  --radius-lg: 22px;
+  --transition: 160ms cubic-bezier(0.4, 0, 0.2, 1);
+  --font-sans: "Inter", "Segoe UI", "PingFang SC", "Microsoft YaHei", system-ui, sans-serif;
+  --glass-blur: blur(18px) saturate(140%);
+
+  /* Default (dark) semantic tokens */
+  --bg: #070d16;
+  --app-bg:
+    radial-gradient(circle at 0% 0%, rgba(79, 214, 196, 0.14), transparent 30%),
+    radial-gradient(circle at 100% 0%, rgba(111, 176, 255, 0.12), transparent 26%),
+    linear-gradient(180deg, #060c14 0%, #081320 48%, #0a1522 100%);
+  --bg-panel: rgba(17, 27, 42, 0.72);
+  --bg-panel-strong: rgba(20, 31, 48, 0.92);
+  --bg-elevated: rgba(26, 39, 58, 0.96);
+  --bg-hover: rgba(255, 255, 255, 0.05);
+  --border: rgba(140, 180, 215, 0.14);
+  --border-strong: rgba(140, 180, 215, 0.26);
+  --text: #eaf2fb;
+  --muted: #93a7bd;
+  --brand: #4fd6c4;
+  --brand-contrast: #04231f;
+  --brand-rgb: 70, 215, 195;
+  --notice-rgb: 134, 184, 255;
+  --warning-rgb: 255, 179, 87;
+  --critical-rgb: 255, 113, 125;
+  --notice: #6fb0ff;
+  --warning: #ffb35a;
+  --critical: #ff6b78;
+  --offline: #7f8ea0;
+  --shadow: 0 24px 64px rgba(0, 0, 0, 0.42);
+  --shadow-sm: 0 4px 16px rgba(0, 0, 0, 0.3);
+
+  /* ROS scene-map surface (theme-aware canvas + overlays) */
+  --ros-canvas: #071119;
+  --ros-free: #8c9498;
+  --ros-lanelet-bg: #09131b;
+  --ros-lanelet-line: rgba(133, 214, 255, 0.5);
+  --ros-lanelet-center: rgba(255, 255, 255, 0.28);
+  --ros-link: rgba(255, 255, 255, 0.72);
+}
+
+[data-theme="light"] {
+  --bg: #eef2f7;
+  --app-bg:
+    radial-gradient(circle at 0% 0%, rgba(14, 168, 143, 0.09), transparent 30%),
+    radial-gradient(circle at 100% 0%, rgba(47, 111, 214, 0.08), transparent 26%),
+    linear-gradient(180deg, #eef2f7 0%, #e8eef5 60%, #e4ebf3 100%);
+  --bg-panel: rgba(255, 255, 255, 0.82);
+  --bg-panel-strong: #ffffff;
+  --bg-elevated: #ffffff;
+  --bg-hover: rgba(16, 34, 58, 0.045);
+  --border: rgba(22, 45, 74, 0.1);
+  --border-strong: rgba(22, 45, 74, 0.18);
+  --text: #10233a;
+  --muted: #5b6f83;
+  --brand: #0ea88f;
+  --brand-contrast: #ffffff;
+  --brand-rgb: 14, 168, 143;
+  --notice-rgb: 47, 111, 214;
+  --warning-rgb: 201, 116, 26;
+  --critical-rgb: 214, 61, 74;
+  --notice: #2f6fd6;
+  --warning: #c9741a;
+  --critical: #d63d4a;
+  --offline: #8091a2;
+  --shadow: 0 18px 44px rgba(23, 45, 74, 0.12);
+  --shadow-sm: 0 4px 14px rgba(23, 45, 74, 0.08);
+
+  /* ROS scene-map surface tuned for a light backdrop */
+  --ros-canvas: #e9eef4;
+  --ros-free: #c4cfdc;
+  --ros-lanelet-bg: #dbe3ec;
+  --ros-lanelet-line: rgba(37, 99, 235, 0.55);
+  --ros-lanelet-center: rgba(30, 41, 59, 0.32);
+  --ros-link: rgba(30, 41, 59, 0.5);
+}

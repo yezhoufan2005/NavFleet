@@ -1,0 +1,78 @@
+/* --- Realtime status + offline banner (Phase 3) --- */
+.realtime-dot {
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  background: var(--offline);
+  box-shadow: 0 0 0 0 rgba(var(--brand-rgb), 0.5);
+}
+.realtime-dot[data-online="true"] {
+  background: var(--brand);
+  animation: realtime-pulse 2s infinite;
+}
+@keyframes realtime-pulse {
+  0% {
+    box-shadow: 0 0 0 0 rgba(var(--brand-rgb), 0.45);
+  }
+  70% {
+    box-shadow: 0 0 0 6px rgba(var(--brand-rgb), 0);
+  }
+  100% {
+    box-shadow: 0 0 0 0 rgba(var(--brand-rgb), 0);
+  }
+}
+
+.offline-banner {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  margin: 0 0 12px;
+  padding: 10px 16px;
+  border-radius: 10px;
+  border: 1px solid rgba(var(--warning-rgb), 0.45);
+  background: rgba(var(--warning-rgb), 0.12);
+  color: var(--warning);
+  font-size: 13px;
+}
+.offline-banner button {
+  flex: none;
+  padding: 6px 14px;
+  border-radius: 8px;
+  border: 1px solid rgba(var(--warning-rgb), 0.6);
+  background: transparent;
+  color: var(--warning);
+  cursor: pointer;
+}
+.offline-banner button:disabled {
+  opacity: 0.6;
+  cursor: default;
+}
+
+/* --- Theme toggle (Phase 3) --- */
+.theme-toggle {
+  flex: none;
+  width: 44px;
+  align-self: stretch;
+  min-height: 44px;
+  border-radius: var(--radius);
+  border: 1px solid var(--border-strong);
+  background: var(--bg-panel);
+  color: var(--text);
+  cursor: pointer;
+  display: grid;
+  place-items: center;
+  font-size: 18px;
+  box-shadow: var(--shadow-sm);
+  transition:
+    transform var(--transition),
+    border-color var(--transition),
+    background var(--transition);
+}
+.theme-toggle:hover {
+  transform: translateY(-1px);
+  border-color: color-mix(in srgb, var(--brand) 45%, var(--border-strong));
+}
+.theme-toggle-icon {
+  line-height: 1;
+}

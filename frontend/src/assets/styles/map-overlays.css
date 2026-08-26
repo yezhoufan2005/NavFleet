@@ -1,0 +1,390 @@
+.gps-map-shell,
+.ros-map-shell {
+  position: relative;
+  width: 100%;
+  height: 100%;
+}
+
+.ros-stage {
+  touch-action: none;
+  cursor: grab;
+}
+
+.ros-stage.dragging {
+  cursor: grabbing;
+}
+
+.amap-root {
+  width: 100%;
+  height: 100%;
+}
+
+.gps-map-overlay {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  padding: 24px;
+  background: linear-gradient(180deg, rgba(6, 16, 24, 0.08), rgba(6, 16, 24, 0.34));
+  pointer-events: none;
+}
+
+.gps-overlay-card {
+  width: min(420px, 100%);
+  padding: 18px 20px;
+  border-radius: 20px;
+  background: var(--bg-elevated);
+  border: 1px solid var(--border);
+  display: grid;
+  gap: 8px;
+  text-align: center;
+  backdrop-filter: blur(10px);
+}
+
+.gps-overlay-card strong,
+.gps-overlay-card span {
+  overflow-wrap: anywhere;
+}
+
+.gps-overlay-card span {
+  color: var(--muted);
+  line-height: 1.6;
+}
+
+.gps-placeholder-badge {
+  width: 72px;
+  height: 72px;
+  display: grid;
+  place-items: center;
+  border-radius: 50%;
+  background: rgba(var(--brand-rgb), 0.14);
+  border: 1px solid rgba(var(--brand-rgb), 0.24);
+  font-size: 18px;
+  font-weight: 700;
+  margin: 0 auto;
+}
+
+.amap-device-marker {
+  position: relative;
+  display: flex;
+  align-items: flex-end;
+  gap: 10px;
+  transform: translate(-50%, -100%);
+}
+
+.amap-device-pin {
+  position: relative;
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  border: 3px solid currentColor;
+  background: rgba(255, 255, 255, 0.15);
+  color: var(--brand);
+  box-shadow: 0 0 0 8px rgba(var(--brand-rgb), 0.12);
+}
+
+.amap-device-pin::after {
+  content: "";
+  position: absolute;
+  left: 50%;
+  bottom: -10px;
+  width: 2px;
+  height: 12px;
+  transform: translateX(-50%) rotate(var(--heading, 0deg));
+  transform-origin: center top;
+  background: currentColor;
+  border-radius: 999px;
+  opacity: 0.7;
+}
+
+.amap-device-label {
+  min-width: 132px;
+  max-width: 220px;
+  padding: 10px 12px;
+  border-radius: 16px;
+  background: var(--bg-elevated);
+  border: 1px solid var(--border-strong);
+  box-shadow: var(--shadow);
+  display: grid;
+  gap: 4px;
+}
+
+.amap-device-label strong,
+.amap-device-label span {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.amap-device-label strong {
+  font-size: 13px;
+  line-height: 1.4;
+  color: var(--text);
+}
+
+.amap-device-label span {
+  font-size: 11px;
+  line-height: 1.4;
+  color: var(--muted);
+}
+
+.amap-device-marker.tone-normal .amap-device-pin {
+  color: var(--brand);
+  box-shadow: 0 0 0 8px rgba(var(--brand-rgb), 0.14);
+}
+
+.amap-device-marker.tone-warning .amap-device-pin {
+  color: var(--warning);
+  box-shadow: 0 0 0 8px rgba(var(--warning-rgb), 0.16);
+}
+
+.amap-device-marker.tone-critical .amap-device-pin {
+  color: var(--critical);
+  box-shadow: 0 0 0 8px rgba(var(--critical-rgb), 0.16);
+}
+
+.amap-device-marker.tone-notice .amap-device-pin {
+  color: var(--notice);
+  box-shadow: 0 0 0 8px rgba(var(--notice-rgb), 0.16);
+}
+
+.amap-device-marker.tone-offline .amap-device-pin {
+  color: var(--offline);
+  box-shadow: 0 0 0 8px rgba(127, 142, 153, 0.14);
+}
+
+.amap-device-marker.is-selected .amap-device-pin {
+  animation: pulse 2s ease-in-out infinite;
+}
+
+.amap-device-marker.is-selected .amap-device-label {
+  border-color: rgba(var(--brand-rgb), 0.34);
+}
+
+.ros-canvas-bg {
+  fill: var(--ros-canvas);
+}
+
+.ros-map-bg {
+  fill: var(--ros-free);
+}
+
+.ros-map-bg.lanelet-mode {
+  fill: var(--ros-lanelet-bg);
+}
+
+.lanelet-edge {
+  fill: none;
+  stroke: var(--ros-lanelet-line);
+  stroke-width: 2.4;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.lanelet-centerline {
+  fill: none;
+  stroke: var(--ros-lanelet-center);
+  stroke-width: 1.3;
+  stroke-dasharray: 10 8;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.ros-secondary-marker .ros-secondary-core {
+  fill: rgba(255, 255, 255, 0.86);
+  stroke: rgba(10, 22, 31, 0.9);
+  stroke-width: 2;
+}
+
+.ros-secondary-marker .ros-secondary-label {
+  fill: rgba(238, 246, 251, 0.92);
+  font-size: 9px;
+  font-weight: 700;
+  text-anchor: middle;
+  paint-order: stroke;
+  stroke: rgba(7, 17, 24, 0.92);
+  stroke-width: 1.4;
+  pointer-events: none;
+}
+
+.ros-secondary-marker[data-tone="critical"] .ros-secondary-core {
+  fill: rgba(var(--critical-rgb), 0.92);
+}
+
+.ros-secondary-marker[data-tone="warning"] .ros-secondary-core {
+  fill: rgba(var(--warning-rgb), 0.92);
+}
+
+.ros-secondary-marker[data-tone="notice"] .ros-secondary-core {
+  fill: rgba(var(--notice-rgb), 0.92);
+}
+
+.ros-link-line {
+  fill: none;
+  stroke: var(--ros-link);
+  stroke-width: 2;
+  stroke-dasharray: 8 6;
+}
+
+.device-trail-line {
+  fill: none;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.device-trail-line.selected {
+  stroke: rgba(96, 197, 255, 0.85);
+  stroke-width: 2.4;
+  stroke-dasharray: 2 5;
+  filter: drop-shadow(0 0 6px rgba(96, 197, 255, 0.28));
+}
+
+.device-trail-line.peer {
+  stroke: rgba(148, 176, 214, 0.4);
+  stroke-width: 1.6;
+  stroke-dasharray: 2 6;
+}
+
+.device-trail-line.peer[data-tone="critical"] {
+  stroke: rgba(255, 122, 122, 0.42);
+}
+
+.device-trail-line.peer[data-tone="warning"] {
+  stroke: rgba(255, 197, 102, 0.42);
+}
+
+.ros-marker-ring {
+  fill: rgba(255, 255, 255, 0.08);
+  animation: pulse 2.2s ease-in-out infinite;
+}
+
+.ros-marker.fusion .ros-marker-core {
+  fill: rgba(var(--brand-rgb), 0.18);
+  stroke: var(--brand);
+  stroke-width: 3;
+}
+
+.ros-marker.lidar .ros-marker-core {
+  fill: rgba(var(--warning-rgb), 0.18);
+  stroke: var(--warning);
+  stroke-width: 3;
+}
+
+.ros-marker.fusion .ros-marker-arrow {
+  fill: var(--brand);
+}
+
+.ros-marker.lidar .ros-marker-arrow {
+  fill: var(--warning);
+}
+
+.ros-hud,
+.ros-legend,
+.ros-toolbar {
+  position: absolute;
+  display: flex;
+  gap: 10px;
+  z-index: 1;
+  flex-wrap: wrap;
+}
+
+.ros-hud {
+  top: 16px;
+  left: 16px;
+}
+
+.ros-legend {
+  bottom: 16px;
+  left: 16px;
+}
+
+.ros-toolbar {
+  top: 16px;
+  right: 16px;
+}
+
+.ros-hud-card,
+.legend-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 12px;
+  border-radius: 14px;
+  background: color-mix(in srgb, var(--bg-panel-strong) 88%, transparent);
+  color: var(--text);
+  border: 1px solid var(--border);
+  box-shadow: var(--shadow-sm);
+  backdrop-filter: blur(10px);
+}
+
+.ros-hud-card {
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 4px;
+}
+
+.ros-hud-card span {
+  color: var(--muted);
+  font-size: 12px;
+  letter-spacing: 0;
+}
+
+.legend-item {
+  white-space: nowrap;
+}
+
+.legend-item i {
+  display: inline-block;
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+}
+
+.legend-item.fusion i {
+  background: var(--brand);
+}
+
+.legend-item.lidar i {
+  background: var(--warning);
+  border-radius: 3px;
+  transform: rotate(45deg);
+}
+
+.legend-item.lanelet i {
+  width: 14px;
+  height: 4px;
+  border-radius: 999px;
+  background: rgba(133, 214, 255, 0.92);
+}
+
+.legend-item.point-cloud i {
+  width: 14px;
+  height: 14px;
+  border-radius: 4px;
+  background: linear-gradient(135deg, rgba(182, 237, 255, 0.96), rgba(108, 132, 148, 0.96));
+}
+
+.ros-warning {
+  position: absolute;
+  left: 16px;
+  top: 84px;
+  z-index: 2;
+  max-width: min(420px, calc(100% - 32px));
+  padding: 12px 14px;
+  border-radius: 16px;
+  border: 1px solid rgba(var(--warning-rgb), 0.32);
+  background: var(--bg-panel-strong);
+  color: var(--text);
+  box-shadow: var(--shadow);
+  display: grid;
+  gap: 6px;
+}
+
+.ros-warning strong {
+  font-size: 14px;
+}
+
+.ros-warning span {
+  color: var(--muted);
+  line-height: 1.5;
+  overflow-wrap: anywhere;
+}

@@ -1,0 +1,88 @@
+.app-shell {
+  width: min(1800px, calc(100% - 32px));
+  margin: 0 auto;
+  padding: 20px 0 28px;
+}
+
+.panel {
+  background: var(--bg-panel);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  backdrop-filter: var(--glass-blur);
+  -webkit-backdrop-filter: var(--glass-blur);
+  box-shadow: var(--shadow);
+  transition:
+    background var(--transition),
+    border-color var(--transition),
+    box-shadow var(--transition);
+}
+
+.page-header {
+  padding: 16px 22px;
+  margin-bottom: 18px;
+}
+
+.page-header-top,
+.panel-head,
+.device-row,
+.map-panel-head,
+.map-tabs,
+.detail-header,
+.pose-head,
+.code-card-head,
+.alert-drawer-head,
+.alert-item-top,
+.alert-meta {
+  display: flex;
+  gap: 12px;
+}
+
+.page-header-top,
+.panel-head,
+.map-panel-head,
+.detail-header,
+.alert-drawer-head,
+.pose-head,
+.code-card-head,
+.alert-item-top {
+  align-items: center;
+  justify-content: space-between;
+}
+
+.brand-block {
+  display: grid;
+  gap: 3px;
+  min-width: 0;
+}
+
+.brand-kicker,
+.brand-meta,
+.stat-label,
+.device-summary-label,
+.info-cell span,
+.pose-head span,
+.code-card span,
+.alert-center-subtitle {
+  color: var(--muted);
+  font-size: 12px;
+  letter-spacing: 0;
+  text-transform: none;
+}
+
+.brand-block h1,
+.panel-head h2,
+.detail-title,
+.alert-drawer-head h2 {
+  margin: 0;
+}
+
+.brand-block h1 {
+  font-size: clamp(20px, 2.2vw, 28px);
+  line-height: 1.1;
+  overflow-wrap: anywhere;
+}
+
+.brand-meta {
+  overflow-wrap: anywhere;
+  line-height: 1.5;
+}

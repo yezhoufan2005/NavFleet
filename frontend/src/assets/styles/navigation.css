@@ -1,0 +1,76 @@
+/* ── App navigation (router) ─────────────────────────────────────────────── */
+.app-nav {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+.nav-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 9px 16px;
+  border-radius: 999px;
+  border: 1px solid transparent;
+  color: var(--muted);
+  font-size: 14px;
+  font-weight: 600;
+  text-decoration: none;
+  transition:
+    color var(--transition),
+    background var(--transition),
+    border-color var(--transition);
+}
+.nav-link:hover {
+  color: var(--text);
+  background: var(--bg-panel-strong);
+}
+.nav-link.router-link-active {
+  color: var(--brand-contrast);
+  background: var(--brand);
+  border-color: transparent;
+}
+.nav-badge {
+  min-width: 20px;
+  height: 20px;
+  padding: 0 6px;
+  border-radius: 999px;
+  background: rgba(var(--critical-rgb), 0.92);
+  color: #fff;
+  font-size: 12px;
+  font-weight: 700;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+.nav-link.router-link-active .nav-badge {
+  background: rgba(0, 0, 0, 0.28);
+  color: #fff;
+}
+
+/* ── Router view containers ──────────────────────────────────────────────── */
+.dashboard-view {
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+}
+.dashboard-view .headline-stats {
+  margin-top: 0;
+}
+.alerts-view {
+  padding: 20px 22px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  min-height: 60vh;
+}
+.alerts-view .alert-list {
+  overflow: visible;
+}
+
+@media (max-width: 900px) {
+  .app-nav {
+    order: 3;
+    width: 100%;
+    justify-content: center;
+  }
+}
