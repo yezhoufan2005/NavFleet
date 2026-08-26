@@ -1,0 +1,153 @@
+.detail-header {
+  padding-bottom: 16px;
+  border-bottom: 1px solid var(--border);
+  margin-bottom: 16px;
+}
+
+.detail-empty {
+  flex: 1;
+  display: grid;
+  place-content: center;
+  gap: 10px;
+  text-align: center;
+  padding: 24px;
+}
+
+.detail-title-wrap {
+  display: grid;
+  gap: 6px;
+  min-width: 0;
+}
+
+.detail-title {
+  font-size: 22px;
+  line-height: 1.3;
+  overflow-wrap: anywhere;
+}
+
+.detail-subtitle {
+  color: var(--muted);
+  font-size: 13px;
+  overflow-wrap: anywhere;
+}
+
+.detail-formation-tag {
+  display: inline-flex;
+  align-items: center;
+  width: fit-content;
+  padding: 5px 10px;
+  border-radius: 999px;
+  background: rgba(var(--brand-rgb), 0.12);
+  border: 1px solid rgba(var(--brand-rgb), 0.18);
+  color: #bffbf3;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.detail-scroll {
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+}
+
+.detail-section {
+  display: grid;
+  gap: 12px;
+}
+
+.section-title {
+  margin: 0;
+  font-size: 18px;
+  line-height: 1.35;
+}
+
+.detail-data-grid {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.detail-data-grid.compact-grid {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.info-cell {
+  padding: 14px;
+  display: grid;
+  gap: 8px;
+  min-width: 0;
+}
+
+.info-cell span {
+  letter-spacing: 0;
+  text-transform: none;
+  line-height: 1.5;
+}
+
+.info-cell strong,
+.pose-card strong,
+.code-card strong {
+  font-size: 16px;
+  line-height: 1.5;
+  overflow-wrap: anywhere;
+  word-break: break-word;
+}
+
+.info-cell.wide {
+  grid-column: span 2;
+}
+
+.pose-grid {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.pose-card {
+  padding: 14px;
+  display: grid;
+  gap: 12px;
+}
+
+.pose-values {
+  display: grid;
+  gap: 8px;
+}
+
+.pose-values span,
+.code-card small {
+  line-height: 1.6;
+  overflow-wrap: anywhere;
+  word-break: break-word;
+}
+
+.code-grid {
+  grid-template-columns: 1fr;
+}
+
+.code-card {
+  padding: 14px;
+  display: grid;
+  gap: 10px;
+}
+
+.code-card[data-tone="critical"] {
+  border-color: rgba(var(--critical-rgb), 0.24);
+}
+
+.code-card[data-tone="warning"] {
+  border-color: rgba(var(--warning-rgb), 0.24);
+}
+
+.code-card[data-tone="notice"] {
+  border-color: rgba(var(--notice-rgb), 0.24);
+}
+
+.empty-alert {
+  border-radius: 16px;
+  padding: 14px;
+  border: 1px dashed var(--border);
+  color: var(--muted);
+  background: var(--bg-hover);
+  line-height: 1.6;
+}
+
+.empty-alert.compact {
+  position: static;
+}

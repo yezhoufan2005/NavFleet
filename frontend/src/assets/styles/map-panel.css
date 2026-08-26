@@ -1,0 +1,89 @@
+.map-panel-head {
+  margin-bottom: 14px;
+}
+
+.map-tabs {
+  align-items: center;
+}
+
+.tab-btn,
+.secondary-btn {
+  padding: 11px 16px;
+  border-radius: 14px;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.tab-btn {
+  background: rgba(118, 171, 195, 0.12);
+  color: var(--text);
+}
+
+.tab-btn.active {
+  background: linear-gradient(135deg, #ccfff3 0%, #46d7c3 100%);
+  color: var(--brand-contrast);
+}
+
+.secondary-btn {
+  background: rgba(118, 171, 195, 0.14);
+  color: var(--text);
+}
+
+.secondary-btn.is-active {
+  background: linear-gradient(135deg, rgba(204, 255, 243, 0.18), rgba(var(--brand-rgb), 0.28));
+  border-color: rgba(var(--brand-rgb), 0.36);
+  color: #dffff8;
+}
+
+.secondary-btn:disabled {
+  opacity: 0.46;
+  cursor: not-allowed;
+  transform: none !important;
+}
+
+.map-surface {
+  position: relative;
+  flex: 1;
+  min-height: 0;
+  overflow: hidden;
+  border-radius: 22px;
+  border: 1px solid var(--border);
+  background:
+    radial-gradient(circle at 12% 10%, rgba(var(--brand-rgb), 0.14), transparent 28%),
+    radial-gradient(circle at 88% 4%, rgba(var(--notice-rgb), 0.16), transparent 24%),
+    var(--bg-elevated);
+}
+
+.map-canvas {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+
+.map-empty,
+.gps-placeholder,
+.ros-empty {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-content: center;
+  gap: 10px;
+  text-align: center;
+  padding: 24px;
+}
+
+.map-empty strong,
+.gps-placeholder strong,
+.ros-empty strong {
+  font-size: 22px;
+}
+
+.map-empty span,
+.detail-empty span,
+.gps-placeholder span,
+.ros-empty span,
+.alert-item p {
+  color: var(--muted);
+  line-height: 1.6;
+  overflow-wrap: anywhere;
+}

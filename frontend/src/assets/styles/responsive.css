@@ -1,0 +1,98 @@
+@keyframes pulse {
+  0%,
+  100% {
+    opacity: 0.24;
+    transform: scale(1);
+  }
+
+  50% {
+    opacity: 0.88;
+    transform: scale(1.12);
+  }
+}
+
+@media (max-width: 1560px) {
+  .dashboard-grid {
+    grid-template-columns: 300px minmax(0, 1fr) 380px;
+  }
+
+  .headline-stats {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 1320px) {
+  .detail-data-grid,
+  .detail-data-grid.compact-grid,
+  .pose-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .info-cell.wide {
+    grid-column: span 1;
+  }
+}
+
+@media (max-width: 1240px) {
+  .page-header-top {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .alert-center-btn {
+    width: 100%;
+  }
+
+  .dashboard-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .fleet-panel,
+  .map-panel,
+  .detail-panel {
+    height: auto;
+    min-height: 580px;
+  }
+}
+
+@media (max-width: 860px) {
+  .app-shell {
+    width: min(100% - 20px, 1800px);
+    padding-top: 12px;
+  }
+
+  .page-header {
+    padding: 18px;
+  }
+
+  .headline-stats,
+  .device-summary,
+  .detail-data-grid,
+  .detail-data-grid.compact-grid,
+  .pose-grid,
+  .drawer-summary {
+    grid-template-columns: 1fr;
+  }
+
+  .map-panel-head,
+  .alert-drawer-head {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .map-tabs {
+    width: 100%;
+  }
+
+  .tab-btn,
+  .secondary-btn {
+    width: 100%;
+  }
+
+  .alert-drawer {
+    top: 10px;
+    right: 10px;
+    bottom: 10px;
+    width: calc(100vw - 20px);
+  }
+}

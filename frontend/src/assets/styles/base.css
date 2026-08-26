@@ -1,0 +1,23 @@
+* {
+  box-sizing: border-box;
+}
+
+html,
+body,
+#app {
+  min-height: 100%;
+}
+
+body {
+  margin: 0;
+  color: var(--text);
+  font-family: var(--font-sans);
+  background: var(--app-bg) fixed;
+  transition:
+    background var(--transition),
+    color var(--transition);
+}
+
+button {
+  font: inherit;
+}

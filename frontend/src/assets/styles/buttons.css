@@ -1,0 +1,23 @@
+/* ── Primary action button ───────────────────────────────────────────────── */
+.primary-btn {
+  border: 1px solid transparent;
+  border-radius: 12px;
+  padding: 10px 20px;
+  background: var(--brand);
+  color: var(--brand-contrast);
+  font-size: 14px;
+  font-weight: 700;
+  cursor: pointer;
+  transition:
+    transform var(--transition),
+    opacity var(--transition),
+    box-shadow var(--transition);
+  box-shadow: var(--shadow-sm);
+}
+.primary-btn:hover:not(:disabled) {
+  transform: translateY(-1px);
+}
+.primary-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}

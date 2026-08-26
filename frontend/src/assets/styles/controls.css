@@ -1,0 +1,117 @@
+.alert-center-btn,
+.tab-btn,
+.secondary-btn,
+.device-item,
+.alert-tab-card {
+  border: 0;
+  cursor: pointer;
+  transition:
+    transform 0.18s ease,
+    border-color 0.18s ease,
+    background 0.18s ease,
+    box-shadow 0.18s ease;
+}
+
+.alert-center-btn:hover,
+.tab-btn:hover,
+.secondary-btn:hover,
+.device-item:hover,
+.alert-tab-card:hover {
+  transform: translateY(-1px);
+}
+
+.alert-center-btn {
+  min-width: 260px;
+  min-height: 88px;
+  padding: 16px 18px;
+  border-radius: var(--radius);
+  background: linear-gradient(
+    145deg,
+    color-mix(in srgb, var(--notice) 14%, transparent),
+    var(--bg-elevated)
+  );
+  border: 1px solid var(--border-strong);
+  color: var(--text);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+  flex-shrink: 0;
+  box-shadow: var(--shadow-sm);
+}
+
+.alert-center-btn.active {
+  border-color: color-mix(in srgb, var(--brand) 50%, transparent);
+}
+
+.alert-center-btn[data-tone="critical"] {
+  background: linear-gradient(
+    145deg,
+    color-mix(in srgb, var(--critical) 18%, transparent),
+    var(--bg-elevated)
+  );
+  border-color: color-mix(in srgb, var(--critical) 34%, transparent);
+}
+
+.alert-center-btn[data-tone="warning"] {
+  background: linear-gradient(
+    145deg,
+    color-mix(in srgb, var(--warning) 18%, transparent),
+    var(--bg-elevated)
+  );
+  border-color: color-mix(in srgb, var(--warning) 32%, transparent);
+}
+
+.alert-center-btn[data-tone="notice"] {
+  background: linear-gradient(
+    145deg,
+    color-mix(in srgb, var(--notice) 18%, transparent),
+    var(--bg-elevated)
+  );
+  border-color: color-mix(in srgb, var(--notice) 32%, transparent);
+}
+
+.alert-center-copy {
+  display: grid;
+  gap: 6px;
+  min-width: 0;
+  text-align: left;
+}
+
+.alert-center-title {
+  font-size: 18px;
+  font-weight: 700;
+}
+
+.alert-center-subtitle {
+  letter-spacing: 0;
+  text-transform: none;
+  line-height: 1.5;
+  overflow-wrap: anywhere;
+}
+
+.alert-center-badge,
+.count-chip,
+.device-status,
+.state-pill,
+.severity-chip,
+.code-badge,
+.pose-status {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 30px;
+  padding: 6px 12px;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 700;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
+.alert-center-badge,
+.count-chip {
+  min-width: 34px;
+  background: var(--bg-hover);
+  border: 1px solid var(--border);
+}

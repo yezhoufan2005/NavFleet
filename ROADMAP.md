@@ -61,8 +61,9 @@ CD 用 **release-please**（贴合现有 conventional-commit 历史，自动 CHA
 - [x] 后端 config → zod 校验 + fail-fast（消灭静默兜底），`parseConfig` 单测（PR #27，7A）
 - [x] 前端标准 util 全部 .js→.ts：`amap`/`data-defaults`/`point-cloud`（PR #29，7C）、`fleetNormalize`（457 行核心，PR #32）
 - [x] `fleet.ts` 去 `Record<string,any>`（用 `@navfleet/shared` 类型 + `unknown` 收窄），前端 `no-explicit-any` 由 off→**error**（PR #33）——至此前端 `src` 下**无显式 `any`**
-- [ ] 前端 `RosSceneMap.vue`（1162 行）拆 `useSvgViewport`/`useSceneOverlay`/`useViewportPersistence`（**需 Playwright 视觉回归**）
-- [ ] 抽 `formatters` 共享 util（消除 Dashboard/History 重复）；`main.css`（2091 行）拆 tokens + 模块化（**需视觉回归**）
+- [x] 前端 `RosSceneMap.vue`（1162→592 行）拆 `useSvgViewport`/`useSceneOverlay`/`useSceneViewportPersistence`（PR #35；jsdom 10 场景逐字节等价 + Playwright 明暗实测）
+- [x] `main.css`（2091 行）拆 19 个 partial + 按级联顺序 `@import`（PR #37）——构建产物 CSS **逐字节一致**（Vite 内容哈希未变），级联零风险
+- [ ] 抽 `formatters` 共享 util（消除 Dashboard/History 重复）
 - [ ] 所有带逻辑 SFC 逐步 `lang="ts"` + typed props（渐进）
 - **收口**：`vue-tsc`/`tsc` strict 全绿、无 `any`、god-file 拆分完成
 
@@ -102,4 +103,5 @@ CD 用 **release-please**（贴合现有 conventional-commit 历史，自动 CHA
 - 2026-08-26：Phase 7A（#27 config zod fail-fast）、7B（#28 index.ts 拆分）、7C（#29 utils→TS）合并。
 - 2026-08-26：fix(mock)（#30）—— demo 发布器 PID 文件单实例守卫，修复电量每秒在 0/演示值间跳动（根因：两个发布器并发）。
 - 2026-08-26：Phase 7D —— fleetNormalize→TS（#32）、store 去 `any` + 开启 `no-explicit-any`（#33）。前端 `src` 无显式 `any`。
-- 剩余 Phase 7：`RosSceneMap.vue`、`main.css` 结构拆分（需 Playwright 视觉回归）。
+- 剩余 Phase 7：抽 `formatters` 共享 util、带逻辑 SFC 渐进 `lang="ts"`。
+- 2026-08-26：Phase 7E（#35 RosSceneMap 拆 composable）、fix(mock)（#36 电量改为可持续作业循环，修掉长跑后归零）、Phase 7F（#37 main.css 拆 19 partial，构建产物逐字节一致）。
