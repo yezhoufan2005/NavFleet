@@ -1,5 +1,6 @@
 import fs from "node:fs";
 import path from "node:path";
+import { z } from "zod";
 
 const ENV_FILENAMES = [".env.local", ".env"];
 
@@ -74,66 +75,157 @@ const resolveConfigRootPath = (): string => {
     : path.resolve(process.cwd(), "config-runtime");
 };
 
+// Env values are strings; these zod helpers coerce + validate them and FAIL FAST
+// on malformed input (e.g. PORT=abc) instead of silently reverting to a default —
+// so a typo in a deployment env surfaces at startup rather than as odd behavior.
+const BOOL_TRUE = new Set(["1", "true", "yes", "on"]);
+const BOOL_FALSE = new Set(["0", "false", "no", "off"]);
+
+const envBool = (fallback: boolean) =>
+  z
+    .string()
+    .optional()
+    .transform((value, ctx) => {
+      if (value === undefined) return fallback;
+      const normalized = value.trim().toLowerCase();
+      if (normalized === "") return fallback;
+      if (BOOL_TRUE.has(normalized)) return true;
+      if (BOOL_FALSE.has(normalized)) return false;
+      ctx.addIssue({
+        code: "custom",
+        message: `expected a boolean (true/false/1/0/yes/no/on/off)`,
+      });
+      return z.NEVER;
+    });
+
+const envInt = (fallback: number, min?: number) =>
+  z
+    .string()
+    .optional()
+    .transform((value, ctx) => {
+      if (value === undefined || value.trim() === "") return fallback;
+      const parsed = Number(value);
+      if (!Number.isFinite(parsed)) {
+        ctx.addIssue({ code: "custom", message: `expected a number, received "${value}"` });
+        return z.NEVER;
+      }
+      return min !== undefined ? Math.max(parsed, min) : parsed;
+    });
+
+const envStr = (fallback: string) =>
+  z
+    .string()
+    .optional()
+    .transform((value) => (value === undefined || value === "" ? fallback : value));
+
+const configSchema = z.object({
+  PORT: envInt(3000),
+  NODE_ENV: envStr("development"),
+  LOG_LEVEL: envStr("info"),
+  METRICS_ENABLED: envBool(true),
+  FLEET_NAME: envStr("智能车队"),
+  MQTT_TOPIC_PATTERN: envStr("/fleet/{deviceId}/vehicle_info"),
+  MQTT_URL: envStr("mqtt://127.0.0.1:1883"),
+  MQTT_USERNAME: envStr(""),
+  MQTT_PASSWORD: envStr(""),
+  MQTT_CLIENT_ID: z
+    .string()
+    .optional()
+    .transform((value) =>
+      value && value !== "" ? value : `fleet-dashboard-${Math.random().toString(16).slice(2, 10)}`,
+    ),
+  MONGO_URI: envStr("mongodb://127.0.0.1:27017/fleet_monitor"),
+  MONGO_DB_NAME: envStr("fleet_monitor"),
+  SEED_FILE: envStr(""),
+  OFFLINE_AFTER_SECONDS: envInt(60),
+  TELEMETRY_RETENTION_SECONDS: envInt(60 * 60 * 24 * 30),
+  ALERTS_RETENTION_SECONDS: envInt(60 * 60 * 24 * 180),
+  MAX_HISTORY_POINTS: envInt(500),
+  MONGO_BUFFER_LIMIT: envInt(2000),
+  CONFIG_WATCH_USE_POLLING: envBool(false),
+  CONFIG_WATCH_DEBOUNCE_MS: envInt(1000, 100),
+  AUTH_ENABLED: envBool(true),
+  JWT_SECRET: envStr(""),
+  JWT_ACCESS_TTL: envStr("15m"),
+  JWT_REFRESH_TTL: envStr("7d"),
+  BCRYPT_ROUNDS: envInt(10),
+  ADMIN_USERNAME: envStr("admin"),
+  ADMIN_PASSWORD: envStr(""),
+  COOKIE_SECURE: envBool(false),
+  CORS_ORIGINS: z
+    .string()
+    .optional()
+    .transform((value) =>
+      (value ?? "http://127.0.0.1:5173,http://localhost:5173")
+        .split(",")
+        .map((origin) => origin.trim())
+        .filter(Boolean),
+    ),
+  DEBUG_INGEST_ENABLED: envBool(false),
+});
+
+/**
+ * Validate a raw environment into the typed app config. Throws a ZodError with
+ * per-field issues on malformed values. Exported for unit testing without the
+ * module-level fail-fast side effect.
+ */
+export const parseConfig = (env: NodeJS.ProcessEnv) => {
+  const e = configSchema.parse(env);
+  return {
+    port: e.PORT,
+    nodeEnv: e.NODE_ENV,
+    logLevel: e.LOG_LEVEL,
+    metricsEnabled: e.METRICS_ENABLED,
+    fleetName: e.FLEET_NAME,
+    topicPattern: e.MQTT_TOPIC_PATTERN,
+    mqttUrl: e.MQTT_URL,
+    mqttUsername: e.MQTT_USERNAME,
+    mqttPassword: e.MQTT_PASSWORD,
+    mqttClientId: e.MQTT_CLIENT_ID,
+    mongoUri: e.MONGO_URI,
+    mongoDbName: e.MONGO_DB_NAME,
+    seedFile: e.SEED_FILE,
+    offlineAfterSeconds: e.OFFLINE_AFTER_SECONDS,
+    telemetryRetentionSeconds: e.TELEMETRY_RETENTION_SECONDS,
+    alertsRetentionSeconds: e.ALERTS_RETENTION_SECONDS,
+    maxHistoryPoints: e.MAX_HISTORY_POINTS,
+    mongoBufferLimit: e.MONGO_BUFFER_LIMIT,
+    configRootPath: resolveConfigRootPath(),
+    configWatchUsePolling: e.CONFIG_WATCH_USE_POLLING,
+    configWatchDebounceMs: e.CONFIG_WATCH_DEBOUNCE_MS,
+    authEnabled: e.AUTH_ENABLED,
+    jwtSecret: e.JWT_SECRET,
+    jwtAccessTtl: e.JWT_ACCESS_TTL,
+    jwtRefreshTtl: e.JWT_REFRESH_TTL,
+    bcryptRounds: e.BCRYPT_ROUNDS,
+    adminUsername: e.ADMIN_USERNAME,
+    adminPassword: e.ADMIN_PASSWORD,
+    cookieSecure: e.COOKIE_SECURE,
+    corsOrigins: e.CORS_ORIGINS,
+    debugIngestEnabled: e.DEBUG_INGEST_ENABLED,
+  };
+};
+
+export type AppConfig = ReturnType<typeof parseConfig>;
+
 loadLocalEnvFiles();
 
-const toNumber = (value: string | undefined, fallback: number): number => {
-  const parsed = Number(value);
-  return Number.isFinite(parsed) ? parsed : fallback;
+const loadConfig = (): AppConfig => {
+  try {
+    return parseConfig(process.env);
+  } catch (error) {
+    const detail =
+      error instanceof z.ZodError
+        ? error.issues
+            .map((issue) => `  ${issue.path.join(".") || "(env)"}: ${issue.message}`)
+            .join("\n")
+        : String(error);
+    console.error(`[config] Invalid environment configuration:\n${detail}`);
+    process.exit(1);
+  }
 };
 
-const toBoolean = (value: string | undefined, fallback: boolean): boolean => {
-  if (typeof value !== "string") {
-    return fallback;
-  }
-
-  const normalized = value.trim().toLowerCase();
-  if (["1", "true", "yes", "on"].includes(normalized)) {
-    return true;
-  }
-  if (["0", "false", "no", "off"].includes(normalized)) {
-    return false;
-  }
-
-  return fallback;
-};
-
-export const config = {
-  port: toNumber(process.env.PORT, 3000),
-  nodeEnv: process.env.NODE_ENV || "development",
-  logLevel: process.env.LOG_LEVEL || "info",
-  metricsEnabled: toBoolean(process.env.METRICS_ENABLED, true),
-  fleetName: process.env.FLEET_NAME || "智能车队",
-  topicPattern: process.env.MQTT_TOPIC_PATTERN || "/fleet/{deviceId}/vehicle_info",
-  mqttUrl: process.env.MQTT_URL || "mqtt://127.0.0.1:1883",
-  mqttUsername: process.env.MQTT_USERNAME || "",
-  mqttPassword: process.env.MQTT_PASSWORD || "",
-  mqttClientId:
-    process.env.MQTT_CLIENT_ID || `fleet-dashboard-${Math.random().toString(16).slice(2, 10)}`,
-  mongoUri: process.env.MONGO_URI || "mongodb://127.0.0.1:27017/fleet_monitor",
-  mongoDbName: process.env.MONGO_DB_NAME || "fleet_monitor",
-  seedFile: process.env.SEED_FILE || "",
-  offlineAfterSeconds: toNumber(process.env.OFFLINE_AFTER_SECONDS, 60),
-  telemetryRetentionSeconds: toNumber(process.env.TELEMETRY_RETENTION_SECONDS, 60 * 60 * 24 * 30),
-  alertsRetentionSeconds: toNumber(process.env.ALERTS_RETENTION_SECONDS, 60 * 60 * 24 * 180),
-  maxHistoryPoints: toNumber(process.env.MAX_HISTORY_POINTS, 500),
-  mongoBufferLimit: toNumber(process.env.MONGO_BUFFER_LIMIT, 2000),
-  configRootPath: resolveConfigRootPath(),
-  configWatchUsePolling: toBoolean(process.env.CONFIG_WATCH_USE_POLLING, false),
-  configWatchDebounceMs: Math.max(toNumber(process.env.CONFIG_WATCH_DEBOUNCE_MS, 1000), 100),
-  authEnabled: toBoolean(process.env.AUTH_ENABLED, true),
-  jwtSecret: process.env.JWT_SECRET || "",
-  jwtAccessTtl: process.env.JWT_ACCESS_TTL || "15m",
-  jwtRefreshTtl: process.env.JWT_REFRESH_TTL || "7d",
-  bcryptRounds: toNumber(process.env.BCRYPT_ROUNDS, 10),
-  adminUsername: process.env.ADMIN_USERNAME || "admin",
-  adminPassword: process.env.ADMIN_PASSWORD || "",
-  cookieSecure: toBoolean(process.env.COOKIE_SECURE, false),
-  corsOrigins: (process.env.CORS_ORIGINS || "http://127.0.0.1:5173,http://localhost:5173")
-    .split(",")
-    .map((origin) => origin.trim())
-    .filter(Boolean),
-  debugIngestEnabled: toBoolean(process.env.DEBUG_INGEST_ENABLED, false),
-};
+export const config = loadConfig();
 
 export const runtimePaths = {
   fleetFilePath: path.join(config.configRootPath, "fleet.json"),
