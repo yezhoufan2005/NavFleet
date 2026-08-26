@@ -1,0 +1,25 @@
+{
+  "name": "navfleet",
+  "version": "0.1.0",
+  "private": true,
+  "description": "NavFleet — read-only real-time fleet monitoring platform (monorepo root).",
+  "workspaces": [
+    "packages/*",
+    "backend",
+    "frontend"
+  ],
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "typecheck": "npm run typecheck --workspaces --if-present",
+    "lint": "npm run lint --workspaces --if-present",
+    "lint:fix": "npm run lint:fix --workspaces --if-present",
+    "format:check": "npm run format:check --workspaces --if-present",
+    "test": "npm run test --workspaces --if-present",
+    "build": "npm run build -w @navfleet/shared --if-present && npm run build -w navfleet-backend && npm run build -w navfleet-frontend",
+    "dev:backend": "npm run dev -w navfleet-backend",
+    "dev:frontend": "npm run dev -w navfleet-frontend",
+    "mock:mqtt": "npm run mock:mqtt -w navfleet-backend"
+  }
+}
