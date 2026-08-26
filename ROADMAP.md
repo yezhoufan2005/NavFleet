@@ -16,7 +16,7 @@ CD 用 **release-please**（贴合现有 conventional-commit 历史，自动 CHA
 
 ---
 
-## Phase 6 — 工程基座升级 🟢 进行中
+## Phase 6 — 工程基座升级 ✅ 完成（v0.2.0 已发布）
 
 > 目标：monorepo + 共享类型单一来源 + 治理 + CD/发布，让后续重构都在统一流水线与单一类型源上进行。
 
@@ -55,14 +55,16 @@ CD 用 **release-please**（贴合现有 conventional-commit 历史，自动 CHA
 
 ---
 
-## Phase 7 — 类型安全与架构重构 ⚪ 待开始
+## Phase 7 — 类型安全与架构重构 🟢 进行中
 
-- [ ] 后端 `index.ts`（548 行）拆 `app.ts` + `routes/*` + `services/*`，领域路由分层
-- [ ] 后端 config → zod 校验 + fail-fast（消灭静默兜底）
-- [ ] 前端 `RosSceneMap.vue`（1162 行）拆 `useSvgViewport`/`useSceneOverlay`/`useViewportPersistence`
-- [ ] 抽 `formatters` 共享 util（消除 Dashboard/History 重复）；`main.css`（2091 行）拆 tokens + 模块化
-- [ ] 剩余 .js→.ts、所有 SFC `lang="ts"` + typed props、`fleet.ts` 去 `any`、开回 `no-explicit-any`
-- **收口**：`vue-tsc`/`tsc` strict 全绿、无 `any`、单文件 < ~300 行
+- [x] 后端 `index.ts`（548→~115 行）拆 `app.ts` + `routes/*`（ops/fleet/scenes/debug）+ `websocket.ts` + `mqtt.ts` + `metrics.ts` + `logger.ts` + `runtimeState.ts`（PR #28，7B）
+- [x] 后端 config → zod 校验 + fail-fast（消灭静默兜底），`parseConfig` 单测（PR #27，7A）
+- [x] 前端标准 util 全部 .js→.ts：`amap`/`data-defaults`/`point-cloud`（PR #29，7C）、`fleetNormalize`（457 行核心，PR #32）
+- [x] `fleet.ts` 去 `Record<string,any>`（用 `@navfleet/shared` 类型 + `unknown` 收窄），前端 `no-explicit-any` 由 off→**error**（PR #33）——至此前端 `src` 下**无显式 `any`**
+- [ ] 前端 `RosSceneMap.vue`（1162 行）拆 `useSvgViewport`/`useSceneOverlay`/`useViewportPersistence`（**需 Playwright 视觉回归**）
+- [ ] 抽 `formatters` 共享 util（消除 Dashboard/History 重复）；`main.css`（2091 行）拆 tokens + 模块化（**需视觉回归**）
+- [ ] 所有带逻辑 SFC 逐步 `lang="ts"` + typed props（渐进）
+- **收口**：`vue-tsc`/`tsc` strict 全绿、无 `any`、god-file 拆分完成
 
 ## Phase 8 — 健壮性与测试深度 ⚪ 待开始
 
@@ -95,3 +97,9 @@ CD 用 **release-please**（贴合现有 conventional-commit 历史，自动 CHA
 - 2026-08-26：完成三路架构审计（后端/前端/DevOps），生成 v2 路线图，启动 Phase 6 / PR 6A。
 - 2026-08-26：PR 6A（monorepo+shared 类型，#1）、PR 6B（治理+预提交，#3）已合并入 main；修复 npm#4828 跨平台 lockfile 陷阱（见记忆 navfleet-ci-lockfile）。
 - 2026-08-26：PR 6C —— Docker workspace 化（本地 compose build 通过）+ release-please + GHCR 镜像发布。
+- 2026-08-26：PR 6D（#17）—— CI 覆盖率上报 + Node 20/22 矩阵 + 文档漂移修复；release-please 首次发布 **v0.2.0**。Phase 6 收口。
+- 2026-08-26：依赖现代化（自做 bump 取代 dependabot PR）—— vue-tsc 3 / lint-staged 17 / vite 8 / @vitejs/plugin-vue 6 / pino 10 / **express 5** / **mongodb 7**，均含运行时/连库冒烟验证；TypeScript 7 因 breaking 暂缓。
+- 2026-08-26：Phase 7A（#27 config zod fail-fast）、7B（#28 index.ts 拆分）、7C（#29 utils→TS）合并。
+- 2026-08-26：fix(mock)（#30）—— demo 发布器 PID 文件单实例守卫，修复电量每秒在 0/演示值间跳动（根因：两个发布器并发）。
+- 2026-08-26：Phase 7D —— fleetNormalize→TS（#32）、store 去 `any` + 开启 `no-explicit-any`（#33）。前端 `src` 无显式 `any`。
+- 剩余 Phase 7：`RosSceneMap.vue`、`main.css` 结构拆分（需 Playwright 视觉回归）。
