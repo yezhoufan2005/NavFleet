@@ -1,6 +1,6 @@
 import express from "express";
 import type { DashboardStore } from "../store";
-import { alertsQuerySchema, historyQuerySchema } from "../validation";
+import { alertsQuerySchema, deviceIdParamSchema, historyQuerySchema } from "../validation";
 import { respondValidationError } from "./helpers";
 
 /** Fleet read endpoints: snapshot, formations, per-device history, alerts. */
@@ -25,7 +25,12 @@ export const buildFleetRouter = (store: DashboardStore): express.Router => {
         respondValidationError(response, parsed.error);
         return;
       }
-      const { deviceId } = request.params;
+      const parsedDeviceId = deviceIdParamSchema.safeParse(request.params.deviceId);
+      if (!parsedDeviceId.success) {
+        respondValidationError(response, parsedDeviceId.error);
+        return;
+      }
+      const deviceId = parsedDeviceId.data;
       const history = await store.getHistory(
         deviceId,
         parsed.data.from,

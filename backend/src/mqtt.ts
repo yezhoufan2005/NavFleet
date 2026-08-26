@@ -1,8 +1,10 @@
 import mqtt from "mqtt";
+import type { ZodError } from "zod";
 import type { AppConfig } from "./config";
 import type { DashboardStore } from "./store";
 import type { buildTopicScheme } from "./topics";
 import type { RuntimeState } from "./runtimeState";
+import { mqttStatusSchema, mqttTelemetrySchema } from "./validation";
 import { logger } from "./logger";
 
 type TopicScheme = ReturnType<typeof buildTopicScheme>;
@@ -14,6 +16,17 @@ const safeJsonParse = (value: string): unknown => {
     return value;
   }
 };
+
+/** Cap the logged payload so a flood of bad frames cannot swamp the log. */
+const PAYLOAD_PREVIEW_LIMIT = 200;
+
+const previewPayload = (payloadText: string): string =>
+  payloadText.length > PAYLOAD_PREVIEW_LIMIT
+    ? `${payloadText.slice(0, PAYLOAD_PREVIEW_LIMIT)}… (${payloadText.length} chars total)`
+    : payloadText;
+
+const summarizeIssues = (error: ZodError): string =>
+  error.issues.map((issue) => `${issue.path.join(".") || "<root>"}: ${issue.message}`).join("; ");
 
 export interface MqttDeps {
   store: DashboardStore;
@@ -51,18 +64,42 @@ export const connectMqtt = ({ store, topicScheme, config, state }: MqttDeps): mq
   client.on("message", async (topic, payloadBuffer) => {
     state.mqttMessagesTotal += 1;
     const payloadText = payloadBuffer.toString("utf8");
+    const reject = (error: ZodError): void => {
+      state.mqttMessagesRejected += 1;
+      logger.warn(
+        { topic, issues: summarizeIssues(error), payloadPreview: previewPayload(payloadText) },
+        "Dropped invalid MQTT message",
+      );
+    };
+
     try {
+      const payload = safeJsonParse(payloadText);
+
       if (topicScheme.isStatusTopic(topic)) {
         const deviceId = topicScheme.extractDeviceId(topic);
         if (deviceId) {
-          await store.applyStatus(deviceId, safeJsonParse(payloadText));
+          const parsedStatus = mqttStatusSchema.safeParse(payload);
+          if (!parsedStatus.success) {
+            reject(parsedStatus.error);
+            return;
+          }
+          await store.applyStatus(deviceId, payload);
           return;
         }
       }
 
-      await store.applyPayload({ topic, payload: safeJsonParse(payloadText) }, "mqtt");
+      const parsedTelemetry = mqttTelemetrySchema.safeParse(payload);
+      if (!parsedTelemetry.success) {
+        reject(parsedTelemetry.error);
+        return;
+      }
+
+      await store.applyPayload({ topic, payload }, "mqtt");
     } catch (error) {
-      logger.error({ err: error, topic, payloadText }, "Failed to process MQTT message");
+      logger.error(
+        { err: error, topic, payloadPreview: previewPayload(payloadText) },
+        "Failed to process MQTT message",
+      );
     }
   });
 
