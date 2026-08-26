@@ -88,7 +88,7 @@ cp deploy/.env.example deploy/.env
 nano deploy/.env
 ```
 
-默认最小可运行配置：
+默认最小可运行配置（口令为占位符，**部署前务必改**，勿沿用示例值）：
 
 ```env
 HTTP_HOST_PORT=8080
@@ -96,7 +96,9 @@ MQTT_HOST_PORT=1883
 MQTT_URL=mqtt://mosquitto:1883
 CONFIG_ROOT_PATH=/runtime-config
 CONFIG_RUNTIME_HOST_PATH=../config-runtime
-MONGO_URI=mongodb://root:example@mongo:27017/fleet_monitor?authSource=admin
+MONGO_INITDB_ROOT_USERNAME=root
+MONGO_INITDB_ROOT_PASSWORD=change-me-in-production
+MONGO_URI=mongodb://root:change-me-in-production@mongo:27017/fleet_monitor?authSource=admin
 MONGO_DB_NAME=fleet_monitor
 ```
 

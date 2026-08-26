@@ -6,16 +6,20 @@ on:
   pull_request:
 
 # Monorepo (npm workspaces): a single root lockfile drives one install per job,
-# then each job runs its workspace's gates via `-w`.
+# then each job runs its workspace's gates via `-w`, across a Node version matrix.
 jobs:
   backend:
-    name: Backend + shared (lint · typecheck · test · build)
+    name: Backend + shared (node ${{ matrix.node }})
     runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        node: [20, 22]
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
-          node-version: 20
+          node-version: ${{ matrix.node }}
           cache: npm
           cache-dependency-path: package-lock.json
       - run: npm ci
@@ -23,22 +27,40 @@ jobs:
       - run: npm run lint -w navfleet-backend
       - run: npm run format:check -w navfleet-backend
       - run: npm run typecheck -w navfleet-backend
-      - run: npm test -w navfleet-backend
+      - run: npm run test:coverage -w navfleet-backend
       - run: npm run build -w navfleet-backend
+      - if: matrix.node == 20
+        uses: actions/upload-artifact@v4
+        with:
+          name: backend-coverage
+          path: backend/coverage/
+          if-no-files-found: ignore
+          retention-days: 14
 
   frontend:
-    name: Frontend (lint · typecheck · test · build)
+    name: Frontend (node ${{ matrix.node }})
     runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        node: [20, 22]
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
-          node-version: 20
+          node-version: ${{ matrix.node }}
           cache: npm
           cache-dependency-path: package-lock.json
       - run: npm ci
       - run: npm run lint -w navfleet-frontend
       - run: npm run format:check -w navfleet-frontend
       - run: npm run typecheck -w navfleet-frontend
-      - run: npm test -w navfleet-frontend
+      - run: npm run test:coverage -w navfleet-frontend
       - run: npm run build -w navfleet-frontend
+      - if: matrix.node == 20
+        uses: actions/upload-artifact@v4
+        with:
+          name: frontend-coverage
+          path: frontend/coverage/
+          if-no-files-found: ignore
+          retention-days: 14
