@@ -30,6 +30,11 @@ export class DashboardStore extends EventEmitter {
   private fleetName = config.fleetName;
   private topicPattern = config.topicPattern;
   private updatedAt = new Date().toISOString();
+  // Serializes every mutating operation. The callers are un-awaited/concurrent
+  // (MQTT `message` handler, offline-monitor interval, config watcher, REST),
+  // and the mutators await persistence + event emission mid-way — without this
+  // chain, interleaved runs clobber each other's device maps (lost updates).
+  private mutationChain: Promise<unknown> = Promise.resolve();
 
   constructor(
     private readonly persistence: Persistence,
@@ -38,7 +43,38 @@ export class DashboardStore extends EventEmitter {
     super();
   }
 
+  /**
+   * Run `task` after every previously enqueued mutation has settled. A rejected
+   * task must not poison the chain, so the stored tail swallows failures while
+   * the returned promise still rejects for the caller.
+   */
+  private enqueue<T>(task: () => Promise<T>): Promise<T> {
+    const run = this.mutationChain.then(task, task);
+    this.mutationChain = run.catch(() => undefined);
+    return run;
+  }
+
   async initialize(): Promise<void> {
+    return this.enqueue(() => this.initializeInternal());
+  }
+
+  async applyPayload(payload: unknown, source = "mqtt"): Promise<FleetSnapshot> {
+    return this.enqueue(() => this.applyPayloadInternal(payload, source));
+  }
+
+  async applyStatus(deviceId: string, statusPayload: unknown): Promise<void> {
+    return this.enqueue(() => this.applyStatusInternal(deviceId, statusPayload));
+  }
+
+  async reloadConfig(): Promise<void> {
+    return this.enqueue(() => this.reloadConfigInternal());
+  }
+
+  async evaluateOfflineDevices(): Promise<void> {
+    return this.enqueue(() => this.evaluateOfflineDevicesInternal());
+  }
+
+  private async initializeInternal(): Promise<void> {
     await this.configRegistry.load();
     this.refreshFleetMetadata();
 
@@ -58,11 +94,11 @@ export class DashboardStore extends EventEmitter {
 
     const seeded = await this.loadSeedPayload();
     if (seeded) {
-      await this.applyPayload(seeded, "seed");
+      await this.applyPayloadInternal(seeded, "seed");
     }
   }
 
-  async reloadConfig(): Promise<void> {
+  private async reloadConfigInternal(): Promise<void> {
     this.rebuildConfiguredDevices();
     logger.info(
       {
@@ -109,7 +145,7 @@ export class DashboardStore extends EventEmitter {
     }
   }
 
-  async applyPayload(payload: unknown, source = "mqtt"): Promise<FleetSnapshot> {
+  private async applyPayloadInternal(payload: unknown, source: string): Promise<FleetSnapshot> {
     const normalized = normalizePayload(
       payload,
       this.rawDevices,
@@ -141,7 +177,7 @@ export class DashboardStore extends EventEmitter {
     return this.snapshot();
   }
 
-  async applyStatus(deviceId: string, statusPayload: unknown): Promise<void> {
+  private async applyStatusInternal(deviceId: string, statusPayload: unknown): Promise<void> {
     const existingRaw = this.rawDevices.get(deviceId);
     const existingConfigured = this.devices.get(deviceId);
     const normalizedRaw = normalizeDevice(
@@ -286,7 +322,7 @@ export class DashboardStore extends EventEmitter {
     return this.persistence.queryAlerts(filters);
   }
 
-  async evaluateOfflineDevices(): Promise<void> {
+  private async evaluateOfflineDevicesInternal(): Promise<void> {
     const thresholdMs = config.offlineAfterSeconds * 1000;
     const now = Date.now();
 
