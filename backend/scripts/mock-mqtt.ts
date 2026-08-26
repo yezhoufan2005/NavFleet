@@ -59,6 +59,8 @@ interface DeviceState {
   cruiseSpeed: number; // m/s along the route
   station: Point; // parked position (charging / after a fault)
   soc: number; // battery %, evolves deterministically per tick
+  mode: Motion; // current duty cycle phase: patrolling the route, or parked charging
+  distance: number; // metres travelled along the route (only advances while driving)
   frozenAt: { x: number; y: number; yaw: number } | null; // where a faulted vehicle stopped
   tick: number;
   active: boolean;
@@ -82,7 +84,8 @@ const SCENARIO_RING: Scenario[] = [
 const SCENARIO_SPEED: Record<Scenario, number> = {
   cruising: 1.3,
   "speed-limited": 0.7,
-  charging: 0,
+  // Starts parked on the charger (low SOC); once topped up it patrols like the rest.
+  charging: 1.0,
   hauling: 1.0,
   "fault-offline": 1.1,
   teleop: 0.9,
@@ -252,6 +255,8 @@ function buildStates(count: number): DeviceState[] {
       cruiseSpeed: SCENARIO_SPEED[scenario],
       station,
       soc: SCENARIO_INITIAL_SOC[scenario],
+      mode: scenario === "charging" ? "charging" : "route",
+      distance: 0,
       frozenAt: null,
       tick: 0,
       active: true,
@@ -358,6 +363,12 @@ function scenarioFrame(scenario: Scenario): ScenarioFrame {
 const FAULT_MOVE_TICKS = 6;
 const FAULT_OFFLINE_TICKS = 14;
 
+// Battery duty cycle: a vehicle patrols until it runs low, parks at its charging
+// station to recharge, then resumes patrolling. Without this the deterministic
+// drain simply bottoms out and every vehicle sits at 0% for the rest of the demo.
+const LOW_SOC_PERCENT = 20;
+const RESUME_SOC_PERCENT = 90;
+
 // Evolve battery deterministically: recharge at the station, drain while driving.
 function stepBattery(state: DeviceState, charging: boolean, moving: boolean): void {
   if (charging) {
@@ -369,9 +380,39 @@ function stepBattery(state: DeviceState, charging: boolean, moving: boolean): vo
   }
 }
 
+/** Flip between patrolling and charging so the demo can run indefinitely. */
+function advanceDutyCycle(state: DeviceState): void {
+  if (state.mode === "route" && state.soc <= LOW_SOC_PERCENT) {
+    state.mode = "charging";
+  } else if (state.mode === "charging" && state.soc >= RESUME_SOC_PERCENT) {
+    state.mode = "route";
+  }
+}
+
+// Presentation must follow the *current* phase, not just the scenario: a patrol
+// vehicle that parked to recharge reports as charging, and the charging-scenario
+// vehicle that finished charging reports as a normal patrol.
+function presentFrame(state: DeviceState, motion: Motion): ScenarioFrame {
+  const base = scenarioFrame(state.scenario);
+  if (motion === "charging") {
+    return base.motion === "charging"
+      ? base
+      : {
+          ...base,
+          controlMode: 0,
+          gear: 0,
+          taskStatus: 4,
+          platformTaskStatus: 0,
+          motion: "charging",
+          info: { code: 1203, info: "电量偏低，回桩充电中" },
+          speedLimit: { limit: 0, slowdownTime: 0, module: "dispatcher" },
+        };
+  }
+  return base.motion === "charging" ? scenarioFrame("cruising") : base;
+}
+
 function buildTelemetry(state: DeviceState) {
   const stamp = Date.now();
-  const frame = scenarioFrame(state.scenario);
 
   let x: number;
   let y: number;
@@ -379,30 +420,36 @@ function buildTelemetry(state: DeviceState) {
   let speed: number;
 
   const faulted = state.scenario === "fault-offline" && state.tick >= FAULT_MOVE_TICKS;
+  if (!faulted) {
+    advanceDutyCycle(state);
+  }
+  const motion: Motion = faulted ? "route" : state.mode;
+  const frame = presentFrame(state, motion);
 
-  if (frame.motion === "charging") {
+  if (motion === "charging") {
     x = state.station.x;
     y = state.station.y;
     yaw = 0;
     speed = 0;
   } else if (faulted) {
-    const stopPose =
-      state.frozenAt ??
-      pointOnRoute(state.route, state.cruiseSpeed * FAULT_MOVE_TICKS * intervalSeconds);
+    const stopPose = state.frozenAt ?? pointOnRoute(state.route, state.distance);
     state.frozenAt = stopPose;
     x = stopPose.x;
     y = stopPose.y;
     yaw = stopPose.yaw;
     speed = 0;
   } else {
-    const pose = pointOnRoute(state.route, state.cruiseSpeed * state.tick * intervalSeconds);
+    const pose = pointOnRoute(state.route, state.distance);
     x = pose.x;
     y = pose.y;
     yaw = pose.yaw;
     speed = state.cruiseSpeed;
+    // Travel accumulates only while driving, so a vehicle resumes from where it
+    // parked instead of teleporting to where it "would" have been.
+    state.distance += state.cruiseSpeed * intervalSeconds;
   }
 
-  stepBattery(state, frame.motion === "charging", speed > 0);
+  stepBattery(state, motion === "charging", speed > 0);
   const gps = state.gpsEnabled ? sceneToGps(x, y, yaw) : undefined;
 
   return {
