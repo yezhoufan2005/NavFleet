@@ -1,0 +1,42 @@
+name: Bug 报告
+description: 报告一个可复现的缺陷
+title: "fix: "
+labels: [bug]
+body:
+  - type: textarea
+    id: what-happened
+    attributes:
+      label: 现象
+      description: 发生了什么？期望是什么？
+      placeholder: 描述缺陷与期望行为
+    validations:
+      required: true
+  - type: textarea
+    id: repro
+    attributes:
+      label: 复现步骤
+      placeholder: |
+        1. 启动 ...
+        2. 操作 ...
+        3. 观察到 ...
+    validations:
+      required: true
+  - type: dropdown
+    id: area
+    attributes:
+      label: 影响模块
+      options:
+        - backend（后端/摄入/API/WS）
+        - frontend（前端/地图/告警/回放）
+        - deploy（部署/Docker/nginx/mosquitto）
+        - shared（共享类型）
+        - 其他
+    validations:
+      required: true
+  - type: textarea
+    id: env
+    attributes:
+      label: 环境
+      placeholder: 分支/commit、浏览器、Docker 或本地 dev、相关日志
+    validations:
+      required: false
