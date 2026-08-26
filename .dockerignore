@@ -1,15 +1,25 @@
-# Keep the Docker build context small and free of local scratch/build artifacts.
+# Keep the Docker build context (repo root) small and free of local scratch/build
+# artifacts and secrets. Backend and frontend both build from the root context.
 .git
 .gitignore
+.github
 ARCHITECTURE.md
 README.md
-backend/.env
-backend/.env.local
-backend/.env.example
-backend/dist
-backend/node_modules
+ROADMAP.md
+CONTRIBUTING.md
 deploy
+scripts
+
+# dependencies + build output (reinstalled/rebuilt inside the image)
+node_modules
+**/node_modules
+backend/dist
 frontend/dist
-frontend/node_modules
+
+# secrets / local env
+**/.env
+**/.env.local
+**/.env.*.local
+
 **/*.log
 **/.DS_Store

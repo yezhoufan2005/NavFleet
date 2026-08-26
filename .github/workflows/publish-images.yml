@@ -1,0 +1,62 @@
+name: Publish images
+
+# Builds and pushes the backend + frontend images to GHCR on each published
+# Release (created by release-please) and on manual dispatch. Both images build
+# from the repo root context (npm workspaces monorepo).
+on:
+  release:
+    types: [published]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  packages: write
+
+jobs:
+  images:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        include:
+          - name: backend
+            dockerfile: backend/Dockerfile
+          - name: frontend
+            dockerfile: frontend/Dockerfile
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: docker/setup-buildx-action@v3
+
+      - name: Log in to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Derive image tags
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ghcr.io/${{ github.repository_owner }}/navfleet-${{ matrix.name }}
+          tags: |
+            type=semver,pattern={{version}}
+            type=semver,pattern={{major}}.{{minor}}
+            type=raw,value=latest,enable={{is_default_branch}}
+            type=sha,format=short
+
+      - name: Build and push
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: ${{ matrix.dockerfile }}
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          # AMap key is a build-time (Vite) value; the frontend image works without
+          # it (map shows a config notice). Provide repo secrets to bake one in.
+          build-args: |
+            VITE_AMAP_KEY=${{ secrets.VITE_AMAP_KEY }}
+            VITE_AMAP_SECURITY_JS_CODE=${{ secrets.VITE_AMAP_SECURITY_JS_CODE }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
