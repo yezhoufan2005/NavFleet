@@ -1,7 +1,7 @@
 <script setup>
-import { computed, onBeforeUnmount, onMounted, reactive, ref, watch } from "vue";
-import { loadPointCloudBackdrop } from "../utils/point-cloud";
-import { notify } from "../composables/useNotifications";
+import { computed } from "vue";
+import { useSceneOverlay } from "../composables/useSceneOverlay";
+import { useSvgViewport } from "../composables/useSvgViewport";
 
 const props = defineProps({
   selectedDevice: { type: Object, default: null },
@@ -12,34 +12,10 @@ const props = defineProps({
   trails: { type: Object, default: () => ({}) },
 });
 
-const CLICK_THRESHOLD_PX = 6;
-const ROS_VIEW_STORAGE_KEY = "navfleet:ros-scene-views";
-
-const overlay = ref(null);
-const metadata = ref(null);
-const pointCloudBackdrop = ref(null);
-const pointCloudError = ref("");
-const shellRef = ref(null);
-const svgRef = ref(null);
-const dragging = ref(false);
-const hydratedSceneId = ref("");
-const viewport = reactive({
-  width: 1000,
-  height: 620,
-  scale: 1,
-  offsetX: 0,
-  offsetY: 0,
-});
-
-let resizeObserver = null;
-let isDragging = false;
-let activePointerId = null;
-let dragStartX = 0;
-let dragStartY = 0;
-let dragOriginX = 0;
-let dragOriginY = 0;
-let dragMoved = false;
-let pointCloudRequestId = 0;
+// Async scene assets: lanelet overlay, scene metadata and point-cloud backdrop.
+const { overlay, metadata, pointCloudBackdrop, pointCloudError } = useSceneOverlay(
+  () => props.sceneDefinition,
+);
 
 const hasPose = (pose) => Number.isFinite(pose?.x) && Number.isFinite(pose?.y);
 
@@ -200,20 +176,6 @@ const worldHeight = computed(() =>
   sceneReady.value ? effectiveWorldBounds.value.maxY - effectiveWorldBounds.value.minY : 0,
 );
 
-const stageTransform = computed(() => {
-  const bounds = effectiveWorldBounds.value;
-  if (!sceneReady.value || !bounds) {
-    return "";
-  }
-  return [
-    `translate(${props.round(viewport.offsetX, 2)} ${props.round(viewport.offsetY, 2)})`,
-    `scale(${viewport.scale} ${-viewport.scale})`,
-    `translate(${-props.round(bounds.minX, 4)} ${-props.round(bounds.maxY, 4)})`,
-  ].join(" ");
-});
-
-const scaleLabel = computed(() => `${props.round(viewport.scale, 2)}x`);
-
 const markerMetrics = computed(() => ({
   fusionRing: 24,
   fusionCore: 10,
@@ -223,12 +185,6 @@ const markerMetrics = computed(() => ({
   arrowHalfWidth: 10,
   peerCore: 7,
 }));
-
-const screenInvariantScale = computed(() => 1 / Math.max(viewport.scale || 1, 0.0001));
-const screenInvariantTransform = computed(
-  () =>
-    `scale(${props.round(screenInvariantScale.value, 6)} ${props.round(-screenInvariantScale.value, 6)})`,
-);
 
 function buildWorldPath(points) {
   if (!Array.isArray(points) || !points.length) {
@@ -249,292 +205,6 @@ function buildWorldPath(points) {
 
 function buildArrowPath(height, halfWidth) {
   return `M 0 ${-height} L ${halfWidth} ${-halfWidth} L ${-halfWidth} ${-halfWidth} Z`;
-}
-
-function getBaseScale() {
-  if (!sceneReady.value) {
-    return 1;
-  }
-  const fitted = Math.min(viewport.width / worldWidth.value, viewport.height / worldHeight.value);
-  return Math.max(fitted * 0.92, 0.0001);
-}
-
-function getScaleLimits(baseScale = getBaseScale()) {
-  const scene = resolvedScene.value;
-  const minZoom = scene.minZoom ?? 0.75;
-  const maxZoom = scene.maxZoom ?? 8;
-  return {
-    minScale: baseScale * minZoom,
-    maxScale: baseScale * maxZoom,
-  };
-}
-
-function clampScale(nextScale, baseScale = getBaseScale()) {
-  const limits = getScaleLimits(baseScale);
-  return Math.min(Math.max(nextScale, limits.minScale), limits.maxScale);
-}
-
-function getStorage() {
-  if (typeof window === "undefined") {
-    return null;
-  }
-
-  try {
-    return window.sessionStorage;
-  } catch {
-    return null;
-  }
-}
-
-function readSavedSceneViews() {
-  const storage = getStorage();
-  if (!storage) {
-    return {};
-  }
-
-  try {
-    const raw = storage.getItem(ROS_VIEW_STORAGE_KEY);
-    if (!raw) {
-      return {};
-    }
-    const parsed = JSON.parse(raw);
-    return parsed && typeof parsed === "object" ? parsed : {};
-  } catch {
-    return {};
-  }
-}
-
-function writeSavedSceneViews(nextValue) {
-  const storage = getStorage();
-  if (!storage) {
-    return;
-  }
-
-  try {
-    storage.setItem(ROS_VIEW_STORAGE_KEY, JSON.stringify(nextValue));
-  } catch {
-    // Ignore storage quota and privacy mode failures.
-  }
-}
-
-function getViewportCenter(
-  scale = viewport.scale,
-  offsetX = viewport.offsetX,
-  offsetY = viewport.offsetY,
-) {
-  const bounds = effectiveWorldBounds.value;
-  if (!sceneReady.value || !bounds || !Number.isFinite(scale) || scale <= 0) {
-    return null;
-  }
-
-  const x = bounds.minX + (viewport.width / 2 - offsetX) / scale;
-  const y = bounds.maxY - (viewport.height / 2 - offsetY) / scale;
-  if (!Number.isFinite(x) || !Number.isFinite(y)) {
-    return null;
-  }
-
-  return { x, y };
-}
-
-function isWorldPointWithinBounds(point, bounds = effectiveWorldBounds.value) {
-  return (
-    !!bounds &&
-    !!point &&
-    Number.isFinite(point.x) &&
-    Number.isFinite(point.y) &&
-    point.x >= bounds.minX &&
-    point.x <= bounds.maxX &&
-    point.y >= bounds.minY &&
-    point.y <= bounds.maxY
-  );
-}
-
-function saveViewportState(sceneId = activeSceneId.value) {
-  if (!sceneId || !sceneReady.value) {
-    return;
-  }
-
-  const center = getViewportCenter();
-  if (!center) {
-    return;
-  }
-
-  const savedViews = readSavedSceneViews();
-  savedViews[sceneId] = {
-    centerX: Number(center.x.toFixed(4)),
-    centerY: Number(center.y.toFixed(4)),
-    scale: Number(viewport.scale.toFixed(6)),
-    updatedAt: Date.now(),
-  };
-  writeSavedSceneViews(savedViews);
-}
-
-function restoreViewportState(sceneId = activeSceneId.value) {
-  if (!sceneId || !sceneReady.value) {
-    return false;
-  }
-
-  const savedView = readSavedSceneViews()[sceneId];
-  const savedCenter = savedView
-    ? {
-        x: Number(savedView.centerX),
-        y: Number(savedView.centerY),
-      }
-    : null;
-  if (
-    !savedView ||
-    !savedCenter ||
-    !isWorldPointWithinBounds(savedCenter) ||
-    !Number.isFinite(Number(savedView.scale))
-  ) {
-    return false;
-  }
-
-  const baseScale = getBaseScale();
-  const nextScale = clampScale(Number(savedView.scale), baseScale);
-  viewport.scale = nextScale;
-  if (!centerWorldPoint(savedCenter.x, savedCenter.y, nextScale)) {
-    return false;
-  }
-
-  saveViewportState(sceneId);
-  return true;
-}
-
-function pointerToWorld(event) {
-  const bounds = effectiveWorldBounds.value;
-  const rect = svgRef.value?.getBoundingClientRect();
-  if (!sceneReady.value || !bounds || !rect) {
-    return null;
-  }
-
-  const pointerX = event.clientX - rect.left;
-  const pointerY = event.clientY - rect.top;
-  const worldX = (pointerX - viewport.offsetX) / viewport.scale + bounds.minX;
-  const worldY = bounds.maxY - (pointerY - viewport.offsetY) / viewport.scale;
-
-  if (
-    !Number.isFinite(worldX) ||
-    !Number.isFinite(worldY) ||
-    worldX < bounds.minX ||
-    worldX > bounds.maxX ||
-    worldY < bounds.minY ||
-    worldY > bounds.maxY
-  ) {
-    return null;
-  }
-
-  return {
-    x: props.round(worldX, 3),
-    y: props.round(worldY, 3),
-  };
-}
-
-function centerWorldPoint(worldX, worldY, scale) {
-  const bounds = effectiveWorldBounds.value;
-  if (!sceneReady.value || !bounds || !Number.isFinite(worldX) || !Number.isFinite(worldY)) {
-    return false;
-  }
-
-  viewport.offsetX = viewport.width / 2 - (worldX - bounds.minX) * scale;
-  viewport.offsetY = viewport.height / 2 - (bounds.maxY - worldY) * scale;
-  return true;
-}
-
-function fitWorldBounds(scale) {
-  const bounds = effectiveWorldBounds.value;
-  if (!sceneReady.value || !bounds) {
-    return;
-  }
-
-  viewport.scale = scale;
-  viewport.offsetX = (viewport.width - worldWidth.value * scale) / 2;
-  viewport.offsetY = (viewport.height - worldHeight.value * scale) / 2;
-}
-
-// Fit the view to an arbitrary world-space region (with padding), clamped to the
-// scene's zoom limits. Used to frame a formation's vehicles.
-function fitToRegion(region) {
-  const width = region.maxX - region.minX;
-  const height = region.maxY - region.minY;
-  if (!(width > 0) || !(height > 0)) {
-    return false;
-  }
-  const fitted = Math.min(viewport.width / width, viewport.height / height) * 0.82;
-  const scale = clampScale(fitted);
-  viewport.scale = scale;
-  return centerWorldPoint((region.minX + region.maxX) / 2, (region.minY + region.maxY) / 2, scale);
-}
-
-function getFocusPose() {
-  if (hasPose(props.selectedDevice?.fusionLoc)) {
-    return props.selectedDevice.fusionLoc;
-  }
-  if (hasPose(props.selectedDevice?.lidarLoc)) {
-    return props.selectedDevice.lidarLoc;
-  }
-  return null;
-}
-
-function resetView() {
-  if (!sceneReady.value) {
-    return;
-  }
-
-  const scene = resolvedScene.value;
-  const baseScale = getBaseScale();
-  fitWorldBounds(baseScale);
-
-  // A formation with several vehicles in view → frame them all (modern "fit to
-  // selection"); a single selected vehicle → a consistent close-up window.
-  if (formationPeerDevices.value.length && deviceExtentBounds.value) {
-    if (fitToRegion(deviceExtentBounds.value)) {
-      saveViewportState();
-      return;
-    }
-  }
-
-  const focusPose = getFocusPose();
-  if (focusPose) {
-    const FOCUS_WORLD_METERS = 45;
-    const focusScale = clampScale(
-      Math.max(baseScale * 1.3, viewport.width / FOCUS_WORLD_METERS),
-      baseScale,
-    );
-    viewport.scale = focusScale;
-    if (centerWorldPoint(focusPose.x, focusPose.y, focusScale)) {
-      saveViewportState();
-      return;
-    }
-  }
-
-  const sceneZoom = Number.isFinite(scene.defaultView?.zoom) ? scene.defaultView.zoom : 1;
-  const nextScale = clampScale(baseScale * sceneZoom, baseScale);
-  viewport.scale = nextScale;
-
-  if (
-    Number.isFinite(scene.defaultView?.centerX) &&
-    Number.isFinite(scene.defaultView?.centerY) &&
-    centerWorldPoint(scene.defaultView.centerX, scene.defaultView.centerY, nextScale)
-  ) {
-    saveViewportState();
-    return;
-  }
-
-  fitWorldBounds(nextScale);
-  saveViewportState();
-}
-
-function applyStoredOrDefaultView(sceneId = activeSceneId.value) {
-  if (!sceneId || !sceneReady.value) {
-    return;
-  }
-
-  if (!restoreViewportState(sceneId)) {
-    resetView();
-  }
-
-  hydratedSceneId.value = sceneId;
 }
 
 const laneletPaths = computed(() =>
@@ -637,290 +307,50 @@ const peerTrails = computed(() =>
     .filter((trail) => trail.d),
 );
 
-async function loadOverlay(url) {
-  if (!url) {
-    overlay.value = null;
-    return;
-  }
-
-  try {
-    const response = await fetch(url, { cache: "no-store" });
-    if (!response.ok) {
-      throw new Error(`HTTP ${response.status}`);
-    }
-    overlay.value = await response.json();
-  } catch (_error) {
-    overlay.value = null;
-    notify("路网覆盖层加载失败，地图将不显示车道线。", {
-      type: "warning",
-      dedupeKey: "ros-overlay-failed",
-    });
-  }
-}
-
-async function loadMetadata(url) {
-  if (!url) {
-    metadata.value = null;
-    return;
-  }
-
-  try {
-    const response = await fetch(url, { cache: "no-store" });
-    if (!response.ok) {
-      throw new Error(`HTTP ${response.status}`);
-    }
-    metadata.value = await response.json();
-  } catch (_error) {
-    metadata.value = null;
-    notify("场景元数据加载失败，地图可能无法正确定位。", {
-      type: "warning",
-      dedupeKey: "ros-metadata-failed",
-    });
-  }
-}
-
-async function loadPointCloud(scene) {
-  const requestId = pointCloudRequestId + 1;
-  pointCloudRequestId = requestId;
-
-  if (!scene?.pointCloudUrl) {
-    pointCloudBackdrop.value = null;
-    pointCloudError.value = "";
-    return;
-  }
-
-  try {
-    pointCloudError.value = "";
-    const result = await loadPointCloudBackdrop(scene);
-    if (requestId !== pointCloudRequestId) {
-      return;
-    }
-    pointCloudBackdrop.value = result;
-  } catch (error) {
-    if (requestId !== pointCloudRequestId) {
-      return;
-    }
-    pointCloudBackdrop.value = null;
-    pointCloudError.value = error instanceof Error ? error.message : "点云背景加载失败";
-  }
-}
-
-function updateViewportSize() {
-  const rect = shellRef.value?.getBoundingClientRect();
-  if (!rect?.width || !rect?.height) {
-    return;
-  }
-  viewport.width = rect.width;
-  viewport.height = rect.height;
-}
-
-function syncViewportAfterResize() {
-  const previousCenter = getViewportCenter();
-  const previousScale = viewport.scale;
-
-  updateViewportSize();
-
-  if (!sceneReady.value) {
-    return;
-  }
-
-  if (previousCenter && isWorldPointWithinBounds(previousCenter)) {
-    const nextScale = clampScale(previousScale);
-    viewport.scale = nextScale;
-    if (centerWorldPoint(previousCenter.x, previousCenter.y, nextScale)) {
-      saveViewportState();
-      return;
-    }
-  }
-
-  if (hydratedSceneId.value !== activeSceneId.value) {
-    applyStoredOrDefaultView(activeSceneId.value);
-  }
-}
-
-function handleWheel(event) {
-  if (!sceneReady.value) {
-    return;
-  }
-
-  const worldPoint = pointerToWorld(event);
-  if (!worldPoint) {
-    return;
-  }
-
-  const nextScale = clampScale(viewport.scale * (event.deltaY < 0 ? 1.12 : 0.88));
-  if (nextScale === viewport.scale) {
-    return;
-  }
-
-  viewport.scale = nextScale;
-  const bounds = effectiveWorldBounds.value;
-  const rect = svgRef.value?.getBoundingClientRect();
-  if (!rect) {
-    return;
-  }
-  viewport.offsetX = event.clientX - rect.left - (worldPoint.x - bounds.minX) * nextScale;
-  viewport.offsetY = event.clientY - rect.top - (bounds.maxY - worldPoint.y) * nextScale;
-  saveViewportState();
-}
-
-function handlePointerDown(event) {
-  if (!sceneReady.value || event.button !== 0) {
-    return;
-  }
-
-  isDragging = true;
-  activePointerId = event.pointerId;
-  dragging.value = true;
-  dragMoved = false;
-  dragStartX = event.clientX;
-  dragStartY = event.clientY;
-  dragOriginX = viewport.offsetX;
-  dragOriginY = viewport.offsetY;
-  svgRef.value?.setPointerCapture?.(event.pointerId);
-}
-
-function handlePointerMove(event) {
-  if (!isDragging || event.pointerId !== activePointerId) {
-    return;
-  }
-
-  const deltaX = event.clientX - dragStartX;
-  const deltaY = event.clientY - dragStartY;
-  if (Math.hypot(deltaX, deltaY) > CLICK_THRESHOLD_PX) {
-    dragMoved = true;
-  }
-
-  viewport.offsetX = dragOriginX + deltaX;
-  viewport.offsetY = dragOriginY + deltaY;
-}
-
-function finishPointerInteraction(event) {
-  if (!isDragging || event.pointerId !== activePointerId) {
-    return;
-  }
-
-  isDragging = false;
-  activePointerId = null;
-  dragging.value = false;
-  svgRef.value?.releasePointerCapture?.(event.pointerId);
-
-  if (dragMoved) {
-    saveViewportState();
-  }
-}
-
-function handlePointerUp(event) {
-  finishPointerInteraction(event);
-}
-
-onMounted(() => {
-  updateViewportSize();
-  resizeObserver = new ResizeObserver(() => {
-    syncViewportAfterResize();
-  });
-  if (shellRef.value) {
-    resizeObserver.observe(shellRef.value);
-  }
-});
-
-onBeforeUnmount(() => {
-  resizeObserver?.disconnect();
-  resizeObserver = null;
-  pointCloudRequestId += 1;
-});
-
-watch(
+// Pan/zoom engine. Declared after the world-bounds and formation computeds
+// above because its scene-hydration watch runs immediately and reads them.
+const {
+  viewport,
+  shellRef,
+  svgRef,
+  dragging,
+  resetView,
+  handleWheel,
+  handlePointerDown,
+  handlePointerMove,
+  handlePointerUp,
+} = useSvgViewport({
+  round: (value, digits) => props.round(value, digits),
+  selectedDevice: computed(() => props.selectedDevice),
+  resolvedScene,
   activeSceneId,
-  (sceneId, previousSceneId) => {
-    if (sceneId !== previousSceneId) {
-      hydratedSceneId.value = "";
-    }
-  },
-  { immediate: true },
-);
+  effectiveWorldBounds,
+  sceneReady,
+  worldWidth,
+  worldHeight,
+  backgroundLayerDefinition,
+  formationPeerDevices,
+  deviceExtentBounds,
+});
 
-watch(
-  () => props.sceneDefinition?.overlayUrl,
-  (url) => {
-    void loadOverlay(url);
-  },
-  { immediate: true },
-);
+const stageTransform = computed(() => {
+  const bounds = effectiveWorldBounds.value;
+  if (!sceneReady.value || !bounds) {
+    return "";
+  }
+  return [
+    `translate(${props.round(viewport.offsetX, 2)} ${props.round(viewport.offsetY, 2)})`,
+    `scale(${viewport.scale} ${-viewport.scale})`,
+    `translate(${-props.round(bounds.minX, 4)} ${-props.round(bounds.maxY, 4)})`,
+  ].join(" ");
+});
 
-watch(
-  () => props.sceneDefinition?.metadataUrl,
-  (url) => {
-    void loadMetadata(url);
-  },
-  { immediate: true },
-);
+const scaleLabel = computed(() => `${props.round(viewport.scale, 2)}x`);
 
-watch(
-  () => [
-    props.sceneDefinition?.sceneId,
-    props.sceneDefinition?.pointCloudUrl,
-    props.sceneDefinition?.pointCloudMetaUrl,
-    props.sceneDefinition?.resolution,
-    props.sceneDefinition?.width,
-    props.sceneDefinition?.height,
-    props.sceneDefinition?.origin?.x,
-    props.sceneDefinition?.origin?.y,
-  ],
-  () => {
-    void loadPointCloud(props.sceneDefinition || {});
-  },
-  { immediate: true },
-);
-
-watch(
-  () => [
-    activeSceneId.value,
-    backgroundLayerDefinition.value?.width,
-    backgroundLayerDefinition.value?.height,
-    effectiveWorldBounds.value?.minX,
-    effectiveWorldBounds.value?.maxX,
-    effectiveWorldBounds.value?.minY,
-    effectiveWorldBounds.value?.maxY,
-  ],
-  () => {
-    if (!sceneReady.value || !activeSceneId.value) {
-      return;
-    }
-
-    if (hydratedSceneId.value !== activeSceneId.value) {
-      applyStoredOrDefaultView(activeSceneId.value);
-      return;
-    }
-
-    const center = getViewportCenter();
-    if (!center || !isWorldPointWithinBounds(center)) {
-      applyStoredOrDefaultView(activeSceneId.value);
-      return;
-    }
-
-    saveViewportState(activeSceneId.value);
-  },
-  { immediate: true },
-);
-
-watch(
-  () => [props.selectedDevice?.deviceId, props.selectedDevice?.sceneId],
-  ([nextDeviceId, nextSceneId], [previousDeviceId, previousSceneId]) => {
-    if (!sceneReady.value || !activeSceneId.value || !nextDeviceId) {
-      return;
-    }
-
-    if (hydratedSceneId.value !== activeSceneId.value || nextSceneId !== previousSceneId) {
-      hydratedSceneId.value = "";
-      applyStoredOrDefaultView(activeSceneId.value);
-      return;
-    }
-
-    if (previousDeviceId && nextDeviceId !== previousDeviceId) {
-      resetView();
-    }
-  },
+const screenInvariantScale = computed(() => 1 / Math.max(viewport.scale || 1, 0.0001));
+const screenInvariantTransform = computed(
+  () =>
+    `scale(${props.round(screenInvariantScale.value, 6)} ${props.round(-screenInvariantScale.value, 6)})`,
 );
 </script>
 
