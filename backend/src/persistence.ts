@@ -1,6 +1,7 @@
-import { Db, MongoClient } from "mongodb";
+import { Db, MongoClient, type MongoClientEvents } from "mongodb";
 import pino from "pino";
 import { config } from "./config";
+import { MongoConnectionSupervisor, type MongoSession, redactMongoUri } from "./mongoConnection";
 import { DeviceAlert, DeviceSnapshot, HistoryQuery, UserRecord } from "./types";
 
 const logger = pino({ name: "persistence" });
@@ -69,7 +70,6 @@ interface StoredAlert {
 }
 
 export class Persistence {
-  private mongoClient: MongoClient | null = null;
   private db: Db | null = null;
   private pendingTelemetry: TelemetryDocument[] = [];
   // Bounded in-memory telemetry ring buffer, kept per device so history playback
@@ -82,28 +82,62 @@ export class Persistence {
   // Current active alerts per device, always kept in memory so /api/alerts stays
   // useful in local/dev runs without MongoDB (mirrors the telemetry fallback).
   private activeAlerts = new Map<string, StoredAlert[]>();
+  // Owns connect/retry and the authoritative connectivity flag; constructing it
+  // starts nothing, so `new Persistence()` stays side-effect free.
+  private readonly mongo = new MongoConnectionSupervisor({
+    open: () => this.openMongoSession(),
+    logger,
+    // Never log config.mongoUri directly: it embeds the password.
+    logContext: { db: config.mongoDbName, uri: redactMongoUri(config.mongoUri) },
+  });
 
   async connect(): Promise<void> {
-    await this.connectMongo();
+    await this.mongo.start();
   }
 
-  private async connectMongo(): Promise<void> {
+  /**
+   * Release MongoDB and stop the reconnect loop. Safe to call without a prior
+   * connect() and safe to call twice; used by the process shutdown path.
+   */
+  async close(): Promise<void> {
+    await this.mongo.stop();
+  }
+
+  /**
+   * Open one MongoDB connection for the supervisor. Publishes `this.db` (so the
+   * data paths leave the in-memory fallback) and re-runs the index/TTL setup on
+   * every successful (re)connect. Rejects — after cleaning up — when the server
+   * is unreachable, which is what drives the backoff retry loop.
+   */
+  private async openMongoSession(): Promise<MongoSession> {
+    const client = new MongoClient(config.mongoUri, {
+      serverSelectionTimeoutMS: 3000,
+    });
     try {
-      this.mongoClient = new MongoClient(config.mongoUri, {
-        serverSelectionTimeoutMS: 3000,
-      });
-      await this.mongoClient.connect();
-      this.db = this.mongoClient.db(config.mongoDbName);
+      await client.connect();
+      this.db = client.db(config.mongoDbName);
       await this.ensureMongoCollections();
-      logger.info({ uri: config.mongoUri, db: config.mongoDbName }, "MongoDB connected");
     } catch (error) {
-      this.mongoClient = null;
       this.db = null;
-      logger.warn(
-        { err: error, uri: config.mongoUri },
-        "MongoDB unavailable; running with in-memory history fallback",
-      );
+      await client.close().catch(() => undefined);
+      throw error;
     }
+
+    return {
+      onEvent: (event, listener) => {
+        // Compile-time guard: the supervised event names must stay a subset of
+        // the events this driver version emits (the driver exposes no runtime
+        // list). A typo or a rename fails `npm run typecheck` here instead of
+        // silently freezing the connectivity flag at its last value.
+        const clientEvent: keyof MongoClientEvents = event;
+        client.on(clientEvent, listener);
+      },
+      close: async () => {
+        // Back to the in-memory fallback for as long as there is no client.
+        this.db = null;
+        await client.close();
+      },
+    };
   }
 
   private async ensureMongoCollections(): Promise<void> {
@@ -388,8 +422,13 @@ export class Persistence {
     return sorted.slice(0, limit);
   }
 
+  /**
+   * Real connectivity, driven by the driver's topology heartbeats — not merely
+   * "we once built a Db handle". False whenever there is no client at all.
+   * Surfaced as the `mongo` check of /health/ready and `navfleet_mongo_connected`.
+   */
   isMongoConnected(): boolean {
-    return this.db !== null;
+    return this.mongo.isConnected();
   }
 
   pendingTelemetryCount(): number {
