@@ -1,14 +1,21 @@
-let amapPromise = null;
+declare global {
+  interface Window {
+    AMap?: unknown;
+    _AMapSecurityConfig?: { securityJsCode: string };
+  }
+}
+
+let amapPromise: Promise<unknown> | null = null;
 
 const AMAP_KEY = import.meta.env.VITE_AMAP_KEY?.trim();
 const AMAP_SECURITY_JS_CODE = import.meta.env.VITE_AMAP_SECURITY_JS_CODE?.trim();
 const AMAP_PLUGIN_LIST = ["AMap.Scale", "AMap.ToolBar"];
 
-export function hasAmapConfig() {
+export function hasAmapConfig(): boolean {
   return Boolean(AMAP_KEY && AMAP_SECURITY_JS_CODE);
 }
 
-export function getAmapConfigError() {
+export function getAmapConfigError(): string {
   if (!AMAP_KEY) {
     return "未配置高德地图 Key，请在 frontend/.env 中填写 VITE_AMAP_KEY。";
   }
@@ -18,7 +25,7 @@ export function getAmapConfigError() {
   return "";
 }
 
-export function loadAmap() {
+export function loadAmap(): Promise<unknown> {
   if (typeof window === "undefined") {
     return Promise.reject(new Error("当前环境不支持浏览器地图加载。"));
   }
@@ -36,10 +43,10 @@ export function loadAmap() {
   }
 
   window._AMapSecurityConfig = {
-    securityJsCode: AMAP_SECURITY_JS_CODE,
+    securityJsCode: AMAP_SECURITY_JS_CODE as string,
   };
 
-  amapPromise = new Promise((resolve, reject) => {
+  amapPromise = new Promise<unknown>((resolve, reject) => {
     const existingScript = document.querySelector('script[data-amap-loader="true"]');
     if (existingScript) {
       existingScript.addEventListener("load", () => {
@@ -58,9 +65,9 @@ export function loadAmap() {
     const script = document.createElement("script");
     script.dataset.amapLoader = "true";
     script.async = true;
-    script.src = `https://webapi.amap.com/maps?v=2.0&key=${encodeURIComponent(AMAP_KEY)}&plugin=${encodeURIComponent(
-      AMAP_PLUGIN_LIST.join(","),
-    )}`;
+    script.src = `https://webapi.amap.com/maps?v=2.0&key=${encodeURIComponent(
+      AMAP_KEY as string,
+    )}&plugin=${encodeURIComponent(AMAP_PLUGIN_LIST.join(","))}`;
 
     script.onload = () => {
       if (window.AMap) {
