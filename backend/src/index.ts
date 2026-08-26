@@ -55,6 +55,13 @@ const shutdown = async (signal: string): Promise<void> => {
     logger.warn({ err: error, signal }, "Failed to stop config watcher cleanly");
   }
 
+  try {
+    // Also cancels any pending MongoDB reconnect attempt.
+    await persistence.close();
+  } catch (error) {
+    logger.warn({ err: error, signal }, "Failed to close MongoDB cleanly");
+  }
+
   wsBridge.close();
 
   server.close((error) => {
