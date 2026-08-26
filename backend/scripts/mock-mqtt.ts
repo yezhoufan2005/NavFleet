@@ -1,4 +1,5 @@
 import fs from "node:fs";
+import os from "node:os";
 import path from "node:path";
 import mqtt from "mqtt";
 
@@ -431,9 +432,62 @@ function buildTelemetry(state: DeviceState) {
   };
 }
 // __MOCK_4__
+// Single-instance guard: two demo publishers driving the same deviceIds make
+// telemetry (e.g. battery %) visibly flip between their two timelines every
+// tick. A PID file lets a fresh run evict any previous publisher so exactly one
+// is ever publishing — the deterministic sim then resets cleanly from t=0.
+const PID_FILE = path.join(os.tmpdir(), "navfleet-mock-mqtt.pid");
+
+const isProcessAlive = (pid: number): boolean => {
+  try {
+    process.kill(pid, 0);
+    return true;
+  } catch (error) {
+    return (error as NodeJS.ErrnoException).code === "EPERM";
+  }
+};
+
+const delay = (ms: number): Promise<void> => new Promise((resolve) => setTimeout(resolve, ms));
+
+async function acquireSingleInstanceLock(): Promise<void> {
+  try {
+    const existingPid = Number(fs.readFileSync(PID_FILE, "utf8").trim());
+    if (
+      Number.isInteger(existingPid) &&
+      existingPid > 0 &&
+      existingPid !== process.pid &&
+      isProcessAlive(existingPid)
+    ) {
+      console.log(`[mock-mqtt] evicting previous publisher (pid ${existingPid})`);
+      try {
+        process.kill(existingPid, "SIGTERM");
+      } catch {
+        // already gone between the check and the signal
+      }
+      for (let i = 0; i < 30 && isProcessAlive(existingPid); i += 1) {
+        await delay(50);
+      }
+    }
+  } catch {
+    // no readable PID file yet — first run
+  }
+  fs.writeFileSync(PID_FILE, String(process.pid));
+}
+
+const releaseSingleInstanceLock = (): void => {
+  try {
+    if (fs.readFileSync(PID_FILE, "utf8").trim() === String(process.pid)) {
+      fs.unlinkSync(PID_FILE);
+    }
+  } catch {
+    // nothing to release
+  }
+};
+
 async function main() {
   const options = parseArgs(process.argv.slice(2));
   intervalSeconds = options.interval / 1000;
+  await acquireSingleInstanceLock();
   const states = buildStates(options.count);
 
   if (!states.length) {
@@ -500,6 +554,7 @@ async function main() {
     if (timer) {
       clearInterval(timer);
     }
+    releaseSingleInstanceLock();
     client.end(true, () => {
       console.log("[mock-mqtt] stopped");
       process.exit(0);
