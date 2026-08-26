@@ -22,7 +22,7 @@ export default [
         "warn",
         { argsIgnorePattern: "^_", varsIgnorePattern: "^_", caughtErrorsIgnorePattern: "^_" },
       ],
-      "@typescript-eslint/no-explicit-any": "off",
+      "@typescript-eslint/no-explicit-any": "error",
       // Progressive migration: legacy .js/.vue files are not fully typed yet.
       "vue/multi-word-component-names": "off",
       // Allow both JS and TS <script> blocks while components are migrated to TS.

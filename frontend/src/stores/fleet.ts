@@ -31,8 +31,35 @@ import {
   TRAIL_MAX_POINTS,
   TRAIL_MIN_DISTANCE,
 } from "../lib/fleetNormalize";
+import type {
+  DeviceAlert,
+  DeviceSnapshot,
+  FormationSnapshot,
+  SceneMapDefinition,
+  Severity,
+} from "@navfleet/shared";
+import type { SceneDefinition } from "../services/fleetApi";
 
-type AnyRecord = Record<string, any>;
+/**
+ * Loose scene-definition record: seeded from the typed catalog and then merged
+ * with dynamically-shaped backend/scene parts, so the value is either a known
+ * `SceneMapDefinition` or an open record.
+ */
+type SceneDefinitionRecord = SceneMapDefinition | Record<string, unknown>;
+/** A movement-trail sample (world-space point). */
+type TrailPoint = { x: number; y: number };
+/** One grouped alert row: a device alert annotated with its owning device. */
+type GroupedAlert = DeviceAlert & { deviceId: string; deviceName: string };
+type GroupedAlerts = Record<Severity, GroupedAlert[]>;
+
+/** Canonical shape produced by `normalizePayload` from a raw inbound payload. */
+interface NormalizedPayload {
+  replace: boolean;
+  fleetName: string;
+  topicPattern: string;
+  devices: DeviceSnapshot[];
+  formations: FormationSnapshot[] | null;
+}
 
 interface RealtimeState {
   apiReady: boolean;
@@ -44,16 +71,16 @@ interface RealtimeState {
 interface FleetState {
   fleetName: string;
   topicPattern: string;
-  devicesById: Record<string, AnyRecord>;
-  formationsById: Record<string, AnyRecord>;
+  devicesById: Record<string, DeviceSnapshot>;
+  formationsById: Record<string, FormationSnapshot>;
   selectedDeviceId: string;
   selectedFormationId: string;
   selectedMapMode: string;
   lastSource: string;
   lastUpdateAt: string | null;
-  sceneDefinitions: Record<string, AnyRecord>;
+  sceneDefinitions: Record<string, SceneDefinitionRecord>;
   pendingSceneLoads: Record<string, boolean>;
-  trailsByDeviceId: Record<string, AnyRecord[]>;
+  trailsByDeviceId: Record<string, TrailPoint[]>;
   realtime: RealtimeState;
 }
 
@@ -83,18 +110,20 @@ export const useFleetStore = defineStore("fleet", () => {
     if (!sceneId) {
       return null;
     }
-    return state.sceneDefinitions[sceneId] || (sceneCatalog as AnyRecord)[sceneId] || null;
+    return state.sceneDefinitions[sceneId] || sceneCatalog[sceneId] || null;
   };
 
-  const mergeSceneDefinition = (definition: AnyRecord) => {
+  const mergeSceneDefinition = (definition: SceneDefinition) => {
     if (!definition?.sceneId) {
       return;
     }
-    const fallback = (sceneCatalog as AnyRecord)[definition.sceneId] || {};
+    // `SceneMapDefinition` has no index signature, so bridge it to the loose,
+    // dynamically-merged shape `mergeSceneDefinitionParts` consumes.
+    const fallback = (sceneCatalog[definition.sceneId] || {}) as unknown as Record<string, unknown>;
     state.sceneDefinitions[definition.sceneId] = mergeSceneDefinitionParts(fallback, definition);
   };
 
-  const normalizePayload = (input: any) => {
+  const normalizePayload = (input: unknown): NormalizedPayload => {
     if (!input || typeof input !== "object") {
       throw new Error("消息必须是 JSON 对象");
     }
@@ -105,68 +134,69 @@ export const useFleetStore = defineStore("fleet", () => {
         fleetName: state.fleetName,
         topicPattern: state.topicPattern,
         devices: input.map((item) => normalizeDevice(item)),
-        formations: null as AnyRecord[] | null,
+        formations: null,
       };
     }
 
-    if (Array.isArray(input.devices)) {
+    const record = input as Record<string, unknown>;
+
+    if (Array.isArray(record.devices)) {
       return {
         replace: true,
-        fleetName: input.fleetName || state.fleetName,
-        topicPattern: input.topicPattern || state.topicPattern,
-        devices: input.devices.map((item: any) => normalizeDevice(item)),
-        formations: Array.isArray(input.formations)
-          ? input.formations.map((item: any) => normalizeFormation(item))
+        fleetName: (record.fleetName as string) || state.fleetName,
+        topicPattern: (record.topicPattern as string) || state.topicPattern,
+        devices: record.devices.map((item) => normalizeDevice(item)),
+        formations: Array.isArray(record.formations)
+          ? record.formations.map((item) => normalizeFormation(item))
           : null,
       };
     }
 
-    if (input.topic && input.payload !== undefined) {
+    if (record.topic && record.payload !== undefined) {
       const payloadBody =
-        typeof input.payload === "string" ? JSON.parse(input.payload) : input.payload;
+        typeof record.payload === "string" ? JSON.parse(record.payload) : record.payload;
+      const body = payloadBody as Record<string, unknown>;
       const existing =
-        state.devicesById[payloadBody.deviceId || extractDeviceIdFromTopic(input.topic)];
+        state.devicesById[(body.deviceId as string) || extractDeviceIdFromTopic(record.topic)];
       return {
         replace: false,
         fleetName: state.fleetName,
         topicPattern: state.topicPattern,
-        devices: [normalizeDevice(payloadBody, input.topic, existing)],
-        formations: Array.isArray(payloadBody.formations)
-          ? payloadBody.formations.map((item: any) => normalizeFormation(item))
+        devices: [normalizeDevice(payloadBody, record.topic as string, existing)],
+        formations: Array.isArray(body.formations)
+          ? body.formations.map((item) => normalizeFormation(item))
           : null,
       };
     }
 
-    const existing = state.devicesById[input.deviceId || extractDeviceIdFromTopic(input.topic)];
+    const existing =
+      state.devicesById[(record.deviceId as string) || extractDeviceIdFromTopic(record.topic)];
     return {
       replace: false,
-      fleetName: input.fleetName || state.fleetName,
-      topicPattern: input.topicPattern || state.topicPattern,
-      devices: [normalizeDevice(input, input.topic, existing)],
-      formations: Array.isArray(input.formations)
-        ? input.formations.map((item: any) => normalizeFormation(item))
+      fleetName: (record.fleetName as string) || state.fleetName,
+      topicPattern: (record.topicPattern as string) || state.topicPattern,
+      devices: [normalizeDevice(record, record.topic as string, existing)],
+      formations: Array.isArray(record.formations)
+        ? record.formations.map((item) => normalizeFormation(item))
         : null,
     };
   };
 
-  const devices = computed<AnyRecord[]>(() => Object.values(state.devicesById));
-  const formations = computed<AnyRecord[]>(() =>
+  const devices = computed<DeviceSnapshot[]>(() => Object.values(state.devicesById));
+  const formations = computed<FormationSnapshot[]>(() =>
     Object.values(state.formationsById).map((formation) => {
       const memberDevices = (formation.deviceIds || [])
         .map((deviceId: string) => state.devicesById[deviceId])
         .filter(Boolean);
       const sceneCandidates = memberDevices
-        .map(
-          (device: AnyRecord) =>
-            device.sceneId || device.runtimeSceneId || device.defaultSceneId || "",
-        )
+        .map((device) => device.sceneId || device.runtimeSceneId || device.defaultSceneId || "")
         .filter(Boolean);
       const uniqueScenes = [...new Set(sceneCandidates)];
 
       return {
         ...formation,
         deviceCount: memberDevices.length || formation.deviceCount || 0,
-        onlineCount: memberDevices.filter((device: AnyRecord) => device.online).length,
+        onlineCount: memberDevices.filter((device) => device.online).length,
         sceneId:
           formation.sceneId ||
           (uniqueScenes.length === 1 ? uniqueScenes[0] : memberDevices[0]?.sceneId || ""),
@@ -174,7 +204,7 @@ export const useFleetStore = defineStore("fleet", () => {
     }),
   );
 
-  const getDeviceTone = (device: AnyRecord) => {
+  const getDeviceTone = (device: DeviceSnapshot) => {
     if (!device.online) {
       return "offline";
     }
@@ -192,26 +222,26 @@ export const useFleetStore = defineStore("fleet", () => {
 
   // Fixed, stable ordering by device id so rows never jump as telemetry/alerts
   // update — severity is still conveyed by each row's colour/status, not order.
-  const sortedDevices = computed<AnyRecord[]>(() =>
+  const sortedDevices = computed<DeviceSnapshot[]>(() =>
     [...devices.value].sort((left, right) =>
       String(left.deviceId).localeCompare(String(right.deviceId), "en"),
     ),
   );
 
-  const sortedFormations = computed<AnyRecord[]>(() =>
+  const sortedFormations = computed<FormationSnapshot[]>(() =>
     [...formations.value].sort((left, right) =>
       String(left.formationId).localeCompare(String(right.formationId), "en"),
     ),
   );
 
-  const selectedDevice = computed<AnyRecord | null>(
+  const selectedDevice = computed<DeviceSnapshot | null>(
     () => state.devicesById[state.selectedDeviceId] || null,
   );
-  const selectedFormation = computed<AnyRecord | null>(
+  const selectedFormation = computed<FormationSnapshot | null>(
     () => state.formationsById[state.selectedFormationId] || null,
   );
 
-  const filteredDevices = computed<AnyRecord[]>(() => {
+  const filteredDevices = computed<DeviceSnapshot[]>(() => {
     if (!selectedFormation.value) {
       return sortedDevices.value;
     }
@@ -234,10 +264,10 @@ export const useFleetStore = defineStore("fleet", () => {
     };
   });
 
-  const groupedAlerts = computed<AnyRecord>(() => {
-    const grouped: AnyRecord = { critical: [], warning: [], notice: [] };
+  const groupedAlerts = computed<GroupedAlerts>(() => {
+    const grouped: GroupedAlerts = { critical: [], warning: [], notice: [] };
     devices.value.forEach((device) => {
-      device.alerts.forEach((alert: AnyRecord) => {
+      device.alerts.forEach((alert) => {
         grouped[alert.severity].push({
           ...alert,
           deviceId: device.deviceId,
@@ -246,12 +276,12 @@ export const useFleetStore = defineStore("fleet", () => {
       });
     });
     Object.values(grouped).forEach((list) => {
-      (list as AnyRecord[]).sort((left, right) => toTimestampMs(right.ts) - toTimestampMs(left.ts));
+      list.sort((left, right) => toTimestampMs(right.ts) - toTimestampMs(left.ts));
     });
     return grouped;
   });
 
-  const sceneDevices = computed<AnyRecord[]>(() => {
+  const sceneDevices = computed<DeviceSnapshot[]>(() => {
     if (!selectedFormation.value) {
       return [];
     }
@@ -286,7 +316,7 @@ export const useFleetStore = defineStore("fleet", () => {
     state.selectedDeviceId = sortedDevices.value[0]?.deviceId || "";
   };
 
-  const primeSceneDefinitions = (list: AnyRecord[]) => {
+  const primeSceneDefinitions = (list: DeviceSnapshot[]) => {
     list.forEach((device) => {
       if (device.sceneId && !getSceneDefinition(device.sceneId)) {
         void loadSceneDefinition(device.sceneId);
@@ -295,11 +325,11 @@ export const useFleetStore = defineStore("fleet", () => {
   };
 
   const recordTrails = (
-    incomingDevices: AnyRecord[],
-    mergedById: Record<string, AnyRecord>,
+    incomingDevices: DeviceSnapshot[],
+    mergedById: Record<string, DeviceSnapshot>,
     replace: boolean,
   ) => {
-    const nextTrails: Record<string, AnyRecord[]> = { ...state.trailsByDeviceId };
+    const nextTrails: Record<string, TrailPoint[]> = { ...state.trailsByDeviceId };
     incomingDevices.forEach((device) => {
       const pose = pickTrailPose(mergedById[device.deviceId]);
       const point = pose ? normalizePathPoint(pose) : null;
@@ -327,20 +357,20 @@ export const useFleetStore = defineStore("fleet", () => {
     state.trailsByDeviceId = nextTrails;
   };
 
-  const ingestPayload = (rawPayload: any, source: string) => {
+  const ingestPayload = (rawPayload: unknown, source: string) => {
     const normalized = normalizePayload(rawPayload);
-    const nextDevicesById: Record<string, AnyRecord> = normalized.replace
+    const nextDevicesById: Record<string, DeviceSnapshot> = normalized.replace
       ? {}
       : { ...state.devicesById };
 
-    normalized.devices.forEach((device: AnyRecord) => {
+    normalized.devices.forEach((device) => {
       const existingDevice = state.devicesById[device.deviceId];
       nextDevicesById[device.deviceId] = mergeDevice(existingDevice, device);
     });
 
     if (normalized.formations) {
-      const nextFormationsById: Record<string, AnyRecord> = {};
-      normalized.formations.forEach((formation: AnyRecord) => {
+      const nextFormationsById: Record<string, FormationSnapshot> = {};
+      normalized.formations.forEach((formation) => {
         const existingFormation = state.formationsById[formation.formationId];
         nextFormationsById[formation.formationId] = normalizeFormation(
           formation,
@@ -619,8 +649,8 @@ export const useFleetStore = defineStore("fleet", () => {
   };
 
   const registerWindowApi = () => {
-    (window as AnyRecord).vehicleDashboard = {
-      updateFromPayload(payload: any) {
+    (window as unknown as Record<string, unknown>).vehicleDashboard = {
+      updateFromPayload(payload: unknown) {
         const normalizedPayload = typeof payload === "string" ? JSON.parse(payload) : payload;
         ingestPayload(normalizedPayload, "mqtt");
       },
