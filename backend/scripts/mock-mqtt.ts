@@ -2,6 +2,7 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import mqtt from "mqtt";
+import { parseLaneletOsmFile } from "../src/laneletOsm";
 
 /**
  * Demo telemetry publisher.
@@ -37,6 +38,9 @@ interface Bounds {
 interface SceneConfig {
   sceneId: string;
   bounds?: Bounds;
+  /** Present on Lanelet2 scenes; vehicles then drive the real road network. */
+  osmUrl?: string;
+  osmProjectionOrigin?: { lat: number; lng: number };
 }
 
 interface CliOptions {
@@ -240,6 +244,161 @@ function buildRoute(bounds: Bounds, index: number): { route: Point[]; station: P
   return { route, station };
 }
 
+/** Cumulative length of an open polyline. */
+function polylineLength(points: Point[]): number {
+  let total = 0;
+  for (let i = 1; i < points.length; i += 1) {
+    total += Math.hypot(points[i].x - points[i - 1].x, points[i].y - points[i - 1].y);
+  }
+  return total;
+}
+
+/** Point at fraction `t` (0..1) of an open polyline's arc length. */
+function pointAtFraction(points: Point[], t: number): Point {
+  const target = polylineLength(points) * Math.min(Math.max(t, 0), 1);
+  let walked = 0;
+  for (let i = 1; i < points.length; i += 1) {
+    const seg = Math.hypot(points[i].x - points[i - 1].x, points[i].y - points[i - 1].y);
+    if (walked + seg >= target || i === points.length - 1) {
+      const f = seg > 0 ? (target - walked) / seg : 0;
+      return {
+        x: points[i - 1].x + (points[i].x - points[i - 1].x) * f,
+        y: points[i - 1].y + (points[i].y - points[i - 1].y) * f,
+      };
+    }
+    walked += seg;
+  }
+  return points[points.length - 1];
+}
+
+/**
+ * A lanelet's driving line: the explicit centreline when the map carries one,
+ * otherwise the average of the two boundaries — which is what Lanelet2 itself
+ * does when the centreline is omitted. In this project's sample network only 36
+ * of 88 lanelets declare one, so without the fallback most of the road network
+ * would be undrivable.
+ *
+ * The boundaries rarely have matching point counts, so both are resampled at the
+ * same fractions of their own arc length before averaging.
+ */
+const CENTRELINE_SAMPLES = 8;
+
+function laneletDrivingLine(lanelet: {
+  left: Point[];
+  right: Point[];
+  centerline: Point[];
+}): Point[] {
+  if (lanelet.centerline.length >= 2) {
+    return lanelet.centerline;
+  }
+  if (lanelet.left.length < 2 || lanelet.right.length < 2) {
+    return [];
+  }
+  const line: Point[] = [];
+  for (let i = 0; i <= CENTRELINE_SAMPLES; i += 1) {
+    const t = i / CENTRELINE_SAMPLES;
+    const a = pointAtFraction(lanelet.left, t);
+    const b = pointAtFraction(lanelet.right, t);
+    line.push({ x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 });
+  }
+  return line;
+}
+
+// How far apart two lanelet ends may be and still count as connected, and how
+// much road one vehicle patrols. The cap matters: stitching all 88 lanelets would
+// give a lap so long that a 1 m/s vehicle looks stationary.
+const STITCH_TOLERANCE_METRES = 4;
+const MAX_LOOP_METRES = 260;
+
+/**
+ * Chain lanelet driving lines into a patrol route, starting from `startIndex`.
+ *
+ * The parsed overlay carries no successor/predecessor topology, so connectivity
+ * is inferred geometrically: repeatedly append the unused line whose nearer end
+ * is within tolerance of the current path end, reversing it when it is the far
+ * end that matches.
+ *
+ * The result is then walked out and back. `pointOnRoute` treats a route as a
+ * closed ring, so handing it an open path would teleport the vehicle from the
+ * last point to the first once per lap; an out-and-back path closes the ring
+ * honestly, and a vehicle patrolling a road in both directions is what an AGV
+ * on a fixed route actually does.
+ */
+function buildLaneletRoute(lines: Point[][], startIndex: number): Point[] {
+  if (!lines.length) {
+    return [];
+  }
+
+  const used = new Set<number>();
+  const first = startIndex % lines.length;
+  used.add(first);
+  const path: Point[] = [...lines[first]];
+
+  while (polylineLength(path) < MAX_LOOP_METRES) {
+    const tail = path[path.length - 1];
+    let bestIndex = -1;
+    let bestDistance = Infinity;
+    let bestReversed = false;
+
+    lines.forEach((line, index) => {
+      if (used.has(index) || line.length < 2) {
+        return;
+      }
+      const toStart = Math.hypot(line[0].x - tail.x, line[0].y - tail.y);
+      const toEnd = Math.hypot(line[line.length - 1].x - tail.x, line[line.length - 1].y - tail.y);
+      const distance = Math.min(toStart, toEnd);
+      if (distance < bestDistance) {
+        bestDistance = distance;
+        bestIndex = index;
+        bestReversed = toEnd < toStart;
+      }
+    });
+
+    if (bestIndex < 0 || bestDistance > STITCH_TOLERANCE_METRES) {
+      break;
+    }
+    used.add(bestIndex);
+    const next = bestReversed ? [...lines[bestIndex]].reverse() : lines[bestIndex];
+    // Skip the joining point so the route has no zero-length segment.
+    path.push(...next.slice(1));
+  }
+
+  if (path.length < 2) {
+    return [];
+  }
+  const back = [...path].reverse().slice(1, -1);
+  return [...path, ...back];
+}
+
+/** Driving lines for every lanelet in a scene's OSM file, or [] if it has none. */
+async function loadSceneDrivingLines(
+  configRoot: string,
+  scene: SceneConfig | undefined,
+): Promise<Point[][]> {
+  if (!scene?.osmUrl) {
+    return [];
+  }
+  const relative = scene.osmUrl.replace(/^\/scene-maps\//, "");
+  const filePath = path.join(configRoot, "scene-maps", relative);
+  if (!fs.existsSync(filePath)) {
+    console.warn(
+      `[mock-mqtt] ${scene.sceneId}: ${filePath} not found, falling back to a synthetic route.`,
+    );
+    return [];
+  }
+  try {
+    const overlay = await parseLaneletOsmFile(filePath, scene.sceneId, scene.osmProjectionOrigin);
+    return overlay.lanelets.map(laneletDrivingLine).filter((line) => line.length >= 2);
+  } catch (error) {
+    console.warn(
+      `[mock-mqtt] ${scene.sceneId}: could not parse ${path.basename(filePath)} (${
+        error instanceof Error ? error.message : String(error)
+      }); falling back to a synthetic route.`,
+    );
+    return [];
+  }
+}
+
 function routePerimeter(route: Point[]): number {
   let total = 0;
   for (let i = 0; i < route.length; i += 1) {
@@ -271,17 +430,38 @@ function pointOnRoute(route: Point[], distance: number): { x: number; y: number;
   return { x: route[0].x, y: route[0].y, yaw: 0 };
 }
 
-function buildStates(count: number): DeviceState[] {
+async function buildStates(count: number): Promise<DeviceState[]> {
   const root = resolveConfigRoot();
   const vehicles = readJson<Vehicle[]>(path.join(root, "vehicles.json"));
   const scenes = readJson<SceneConfig[]>(path.join(root, "scenes.json"));
   const limit = count > 0 ? Math.min(count, vehicles.length) : vehicles.length;
 
-  return vehicles.slice(0, limit).map((vehicle, index) => {
+  // Parse each Lanelet2 scene once, not once per vehicle.
+  const drivingLinesByScene = new Map<string, Point[][]>();
+  for (const scene of scenes) {
+    drivingLinesByScene.set(scene.sceneId, await loadSceneDrivingLines(root, scene));
+  }
+
+  let laneletVehicles = 0;
+  const states: DeviceState[] = vehicles.slice(0, limit).map((vehicle, index) => {
     const sceneId = vehicle.defaultSceneId || "";
     const bounds = findBounds(scenes, sceneId);
     const scenario = SCENARIO_RING[index % SCENARIO_RING.length];
-    const { route, station } = buildRoute(bounds, index);
+    const synthetic = buildRoute(bounds, index);
+
+    // Prefer the real road network: a demo whose vehicles drive across blank
+    // space beside the road tells you nothing about whether the map is right.
+    // Each vehicle starts from a different lanelet so they patrol different
+    // stretches rather than convoying along one.
+    const lines = drivingLinesByScene.get(sceneId) ?? [];
+    const laneletRoute = lines.length
+      ? buildLaneletRoute(lines, index * 7 + Math.floor(index / 2))
+      : [];
+    const route = laneletRoute.length >= 2 ? laneletRoute : synthetic.route;
+    const station = route[0] ?? synthetic.station;
+    if (laneletRoute.length >= 2) {
+      laneletVehicles += 1;
+    }
     return {
       deviceId: vehicle.deviceId,
       sceneId,
@@ -299,6 +479,13 @@ function buildStates(count: number): DeviceState[] {
       active: true,
     };
   });
+
+  if (laneletVehicles) {
+    console.log(
+      `[mock-mqtt] ${laneletVehicles}/${states.length} vehicles are driving parsed lanelet centrelines`,
+    );
+  }
+  return states;
 }
 type Motion = "route" | "charging";
 
@@ -570,7 +757,7 @@ async function main() {
   const options = parseArgs(process.argv.slice(2));
   intervalSeconds = options.interval / 1000;
   await acquireSingleInstanceLock();
-  const states = buildStates(options.count);
+  const states = await buildStates(options.count);
 
   if (!states.length) {
     console.error("[mock-mqtt] config-runtime/vehicles.json 为空，无设备可发布。");

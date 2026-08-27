@@ -151,7 +151,7 @@ const unionBounds = (...boundsList) => {
 // The world coordinate space is the STATIC map extent (background image / OSM
 // network / configured bounds). It stays stable while vehicles move so the view
 // never jitters; keeping vehicles on-screen is the job of the scene bounds
-// (config) plus the focus logic in resetView().
+// (config) plus the explicit focusSelectedDevice() action.
 const effectiveWorldBounds = computed(() => {
   const backgroundBounds = backgroundLayerDefinition.value;
   const configuredBounds = sceneBounds.value;
@@ -315,6 +315,7 @@ const {
   svgRef,
   dragging,
   resetView,
+  focusSelectedDevice,
   handleWheel,
   handlePointerDown,
   handlePointerMove,
@@ -552,7 +553,8 @@ const screenInvariantTransform = computed(
     </div>
 
     <div class="ros-toolbar">
-      <button type="button" class="secondary-btn" @click="resetView">重置视图</button>
+      <button type="button" class="secondary-btn" @click="resetView">适应场景</button>
+      <button type="button" class="secondary-btn" @click="focusSelectedDevice">定位车辆</button>
     </div>
 
     <div class="ros-legend">

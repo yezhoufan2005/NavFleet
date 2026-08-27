@@ -11,7 +11,11 @@
  * `saveViewportState`/`restoreViewportState` live in `useSvgViewport`.
  */
 
-export const ROS_VIEW_STORAGE_KEY = "navfleet:ros-scene-views";
+// Versioned: the previous default view computed a 22.22x close-up, and a saved
+// entry from before that fix would keep re-applying it (the restore path only
+// rejects out-of-range centres, never an absurd scale). Bumping the key retires
+// those entries instead of leaving a stale session pinned to the old behaviour.
+export const ROS_VIEW_STORAGE_KEY = "navfleet:ros-scene-views:v2";
 
 export interface SavedSceneView {
   centerX: number;
