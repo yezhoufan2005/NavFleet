@@ -88,15 +88,15 @@ function buildQuery<T extends object>(params: T): string {
 
 export const fleetApi = {
   getSnapshot(): Promise<FleetSnapshotResponse> {
-    return requestJson<FleetSnapshotResponse>("/api/fleet/snapshot");
+    return requestJson<FleetSnapshotResponse>("/api/v1/fleet/snapshot");
   },
 
   getScenes(): Promise<{ items: SceneDefinition[] }> {
-    return requestJson<{ items: SceneDefinition[] }>("/api/scenes");
+    return requestJson<{ items: SceneDefinition[] }>("/api/v1/scenes");
   },
 
   getScene(sceneId: string): Promise<SceneDefinition> {
-    return requestJson<SceneDefinition>(`/api/scenes/${encodeURIComponent(sceneId)}`);
+    return requestJson<SceneDefinition>(`/api/v1/scenes/${encodeURIComponent(sceneId)}`);
   },
 
   getHistory(
@@ -104,11 +104,11 @@ export const fleetApi = {
     params: HistoryQueryParams = {},
   ): Promise<{ deviceId: string; items: HistorySample[] }> {
     return requestJson<{ deviceId: string; items: HistorySample[] }>(
-      `/api/devices/${encodeURIComponent(deviceId)}/history${buildQuery(params)}`,
+      `/api/v1/devices/${encodeURIComponent(deviceId)}/history${buildQuery(params)}`,
     );
   },
 
   getAlerts(params: AlertsQueryParams = {}): Promise<{ items: AlertRecord[] }> {
-    return requestJson<{ items: AlertRecord[] }>(`/api/alerts${buildQuery(params)}`);
+    return requestJson<{ items: AlertRecord[] }>(`/api/v1/alerts${buildQuery(params)}`);
   },
 };

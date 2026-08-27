@@ -312,6 +312,7 @@ docker compose --env-file deploy/.env -f deploy/docker-compose.yml up -d --build
 - `/api/` 代理到后端（边缘限流 ~30r/s）。
 - `/health` 代理到后端存活探针。
 - `/openapi.json` 代理到后端 OpenAPI 文档（后端侧已要求登录会话）。
+- `/docs` 交互式 API 文档（Swagger UI，同源自带资源、无 CDN；同样要求登录会话）。
 - `/ws` 代理到后端 WebSocket。
 - `/scene-maps/` 代理到后端静态资源。
 

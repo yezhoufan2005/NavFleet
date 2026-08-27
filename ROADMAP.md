@@ -79,15 +79,16 @@ CD 用 **release-please**（贴合现有 conventional-commit 历史，自动 CHA
 - **收口达成**：竞态回归通过 · 覆盖率门槛在 CI 生效 · **E2E 在 CI 跑通**（node 20 job 绿）
 - 测试总量：**61 → 327**（后端 212 + 前端 115）+ 11 E2E
 
-## Phase 9 — 安全硬化与可观测性生产化 🟢 进行中
+## Phase 9 — 安全硬化与可观测性生产化 ✅ 完成
 
 - [x] `prom-client` 替换手写 metrics + per-route 请求直方图；request-id 贯穿日志与 500 响应（#47，9A）
 - [x] 全局限流 + `trust proxy`（修「整个部署共用一个限流额度」）、pino 脱敏落到全部子系统 logger、显式 CSP、生产配置审计 fail-fast、WS 只用 cookie 传 token（#48，9B）
 - [x] mosquitto 关匿名 + 双向 ACL + 1883 改绑 127.0.0.1；docker 三网分段；两个 nginx 非 root；edge 下线 `/metrics`、`/openapi.json` 移到鉴权后（#49，9C）
 - [x] TLS 叠加编排（HSTS / 308 跳转 / `COOKIE_SECURE` 硬编码 true / 路由表单一来源 `locations.conf`）+ 自签名证书脚本（#50，9D）
-- [ ] compose 加 Prometheus + Grafana profile + 预置面板 + 告警规则；备份自动化 + 恢复演练（9E）
-- [ ] `/api/v1` 前缀；OpenAPI 由 zod 代码生成 + Swagger UI（9F）
-- **收口**：安全清单达标、Grafana 面板+告警可用、契约与实现零 drift
+- [x] Prometheus + Grafana 叠加编排 + 预置数据源/14 面板 + 9 条告警规则；备份容器 + **恢复演练脚本**（#55，9E）
+- [x] `/api/v1` 前缀（双挂载，鉴权保持不加版本）；OpenAPI 入参 schema 由 zod 生成；Swagger UI 同源自带（#55，9F）
+- [x] ROS 地图：默认视口改为适应场景（原为 22.22x 的 45m 特写）、演示车沿 lanelet 中心线行驶、场景内全部车辆可见（#55）
+- **收口达成**：安全清单达标 · 告警规则全部写在真实暴露的指标上（机检 25 处引用零缺失）· 恢复演练实跑通过 · 入参契约由验证器生成、结构上无法 drift
 - 自检 ✅（2026-08-27，9A–9D）：`typecheck`/`lint`/`format:check`/`build` 全过 · 测试 212 → **260**（前端 115 不变）· `e2e` 11/11 · 后端覆盖率 82.4/81.9/85.0/82.4（ratchet 提到 80/79/82/80）· compose 基础与 TLS 两种编排均实跑通过（五容器 healthy）。
 
 ## Phase 10 — 产品体验打磨 ⚪ 待开始（i18n 本轮排除）
@@ -120,4 +121,11 @@ CD 用 **release-please**（贴合现有 conventional-commit 历史，自动 CHA
   4. 边缘代理了未鉴权的 `/metrics`；`/openapi.json` 对匿名开放。
   5. 直方图 route 标签在错误路径上与成功路径不一致（Express 在 `next(err)` 时已还原 `baseUrl`），一条路由裂成两条序列且错误延迟从面板消失 —— 被自己写的测试抓到。
      过程记录：`prom-client` 已被 npm 标记 deprecated，官方后继 `@prometheus-io/client` 首个稳定版仅 3 天、周下载 ~750（对比 900 万），因此暂留并在代码里注明；E2E 因「每次运行临时口令 + Playwright 默认复用已有 server」在本机必然 401，改为独立端口 3199/5299 且不复用；mosquitto 首次起不来（root 生成的 0600 密码文件在 broker 降权到 uid 1883 后读不了）。
-- 剩余 Phase 9：9E（Prometheus + Grafana profile + 面板/告警 + 备份自动化与恢复演练）、9F（`/api/v1` + OpenAPI 由 zod 生成 + Swagger UI）。
+- 2026-08-27：**Phase 9 收口**（#54 GPS 车标锚定、#55 9E+9F+ROS 地图）。几处值得记录：
+  1. GPS 车标带着 `translate(-50%,-100%)`，叠加在 AMap 自身锚点之上 —— 实测偏离坐标 71px，而像素偏移在不同缩放下代表不同地面距离（zoom 16 约 170m、zoom 11 约 5km），这就是「车随缩放漂移」的成因。
+  2. `gps.heading` 发的是场景 yaw（0=东、逆时针），消费方按罗盘方位角读 —— 方向指示偏 90° 且转反。改为发真方位角后，四台车「上报值 vs 位移推算」误差 0.0°。
+  3. ROS 地图 22.22x 是**计算出来的默认值**（`viewport.width / 45` 的特写覆盖了正确的整场景 fit），不是残留状态；改后 7.21x、整张路网可见。
+  4. 演示车原先沿 `scene.bounds` 算出的矩形跑，与路网无关；改为沿 lanelet 中心线后实测距路网 0.00–0.01m。样本网络 88 条 lanelet 只有 36 条声明 centerline，其余由左右边界求平均（Lanelet2 本身也这么做）。
+  5. 监控用**叠加文件**而非 compose `profiles:` —— compose 会在应用 profile **之前**插值整个文件，profiled 服务上的 `${GRAFANA_ADMIN_PASSWORD:?}` 会让所有没启用监控的部署 `up` 失败。两个方向都实测过。
+  6. OpenAPI 的入参 schema 改由 zod 生成后立刻暴露了一处既有 drift：手写的 `LoginRequest` 漏了 `minLength: 1`，文档在承诺空字符串可用。
+- 已知遗留：后端测试仍有约 1/6 的偶发失败（issue #53，根因是 supertest 每请求起一个服务器导致端口/socket 串台，#52 已消掉客户端连接池那一半）；`prom-client` 上游已 deprecated，待 `@prometheus-io/client` 有采用度后替换；88 条 lanelet 中 46 条带 `delete="true"` 标记但解析器未过滤，仍被绘制。

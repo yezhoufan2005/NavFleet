@@ -35,8 +35,8 @@ const apiSnapshot = () =>
 
 const stubBackend = (snapshotStatus = 200) =>
   stubFetchRoutes({
-    "/api/scenes": { body: { items: [] } },
-    "/api/fleet/snapshot": { status: snapshotStatus, body: apiSnapshot() },
+    "/api/v1/scenes": { body: { items: [] } },
+    "/api/v1/fleet/snapshot": { status: snapshotStatus, body: apiSnapshot() },
   });
 
 /** Bootstrap, then take the socket to its "connected" state. */

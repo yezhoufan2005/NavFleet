@@ -14,9 +14,16 @@ import { requestContext, requestLogger } from "./requestContext";
 import { authenticate } from "./auth/middleware";
 import { buildAuthRouter } from "./auth/routes";
 import { buildOpsRouter, buildOpenApiRouter } from "./routes/ops";
+import { buildDocsRouter } from "./routes/docs";
 import { buildFleetRouter } from "./routes/fleet";
 import { buildScenesRouter } from "./routes/scenes";
 import { buildDebugRouter } from "./routes/debug";
+
+/**
+ * Mount prefixes for the domain API. `/api/v1` is the surface to build against;
+ * bare `/api` stays so existing clients keep working.
+ */
+export const API_PREFIXES = ["/api/v1", "/api"] as const;
 
 export interface AppDeps {
   store: DashboardStore;
@@ -143,6 +150,7 @@ export const createApp = ({
   app.use(authenticate);
 
   app.use(captureRouteMount, buildOpenApiRouter());
+  app.use(captureRouteMount, buildDocsRouter());
 
   app.use(
     "/scene-maps",
@@ -159,9 +167,22 @@ export const createApp = ({
     }),
   );
 
-  app.use("/api", captureRouteMount, buildFleetRouter(store));
-  app.use("/api", captureRouteMount, buildScenesRouter(store));
-  app.use("/api", captureRouteMount, buildDebugRouter(store, config));
+  /**
+   * Domain routes are served under both `/api/v1` (the versioned surface new
+   * clients should use) and bare `/api` (what every existing deployment, script
+   * and bookmark already calls). Mounting the same routers twice rather than
+   * redirecting keeps both exact — no method or body is lost to a 30x — and lets
+   * the unversioned prefix be retired later without touching the routers.
+   *
+   * Authentication deliberately stays unversioned at `/api/auth`: the refresh
+   * cookie is scoped to that path so it is not sent with every API call, and
+   * widening it to cover a versioned twin would undo that.
+   */
+  for (const prefix of API_PREFIXES) {
+    app.use(prefix, captureRouteMount, buildFleetRouter(store));
+    app.use(prefix, captureRouteMount, buildScenesRouter(store));
+    app.use(prefix, captureRouteMount, buildDebugRouter(store, config));
+  }
 
   // JSON 404 for any unmatched route, keeping the error contract consistent
   // with the rest of the API (Express's default would return an HTML page).

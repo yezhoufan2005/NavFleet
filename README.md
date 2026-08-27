@@ -303,6 +303,8 @@ config-runtime/
 
 ## 7. API 和实时事件
 
+域接口同时挂在 `/api/v1`（新代码用它）与 `/api`（兼容既有调用方）两个前缀下；鉴权接口固定在 `/api/auth`，不加版本 —— refresh cookie 的 path 就限定在那里。登录后可在 `/docs` 打开交互式文档（Swagger UI，资源同源自带、不走 CDN），原始文档在 `/openapi.json`。
+
 除公开探针外，接口需登录会话（httpOnly Cookie）。完整机器可读定义见公开的
 `GET /openapi.json`（可粘贴到 https://editor.swagger.io 或用 Redoc/Swagger UI 查看）。
 
