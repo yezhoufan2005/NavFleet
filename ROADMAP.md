@@ -67,13 +67,17 @@ CD 用 **release-please**（贴合现有 conventional-commit 历史，自动 CHA
 - [ ] 所有带逻辑 SFC 逐步 `lang="ts"` + typed props（渐进）
 - **收口**：`vue-tsc`/`tsc` strict 全绿、无 `any`、god-file 拆分完成
 
-## Phase 8 — 健壮性与测试深度 ⚪ 待开始
+## Phase 8 — 健壮性与测试深度 ✅ 完成
 
-- [ ] store 摄入串行化队列（根治 read-modify-write 竞态）
-- [ ] Mongo 重连 + 真实健康探测；MQTT 摄入 zod 校验；前端 error boundary + 路由守卫
-- [ ] 后端 supertest 集成测试（路由/错误中间件/404/校验）、store/WS/configRegistry/persistence 单测
-- [ ] 前端组件测试 + store 测试；Playwright E2E 入库并进 CI（headless）；覆盖率门槛
-- **收口**：竞态回归通过、覆盖率达阈值、E2E 在 CI 跑通
+- [x] store 摄入串行化队列（根治 read-modify-write 竞态，PR #39）——修复前 4 个并发 payload 只剩 1 个，有「修复前必失败」的回归测试
+- [x] Mongo 重连 + 真实健康探测（#40，含 topology 事件驱动、有界退避、URI 脱敏）
+- [x] MQTT 摄入 zod 校验 + 路径参数校验（#41，含被拒计数指标；保留 `parseOnline` 的明文 status 白名单）
+- [x] 前端 error boundary + 全局错误处理 + 路由守卫 + 真 404（#42）
+- [x] 后端 supertest 集成测试（路由/鉴权/校验/404/错误中间件）+ configRegistry + WS 单测（#43，97→212）
+- [x] 前端 store/实时链路/api/auth·theme 测试（#44，45→115）
+- [x] Playwright E2E 入库并进 CI（#45，11 例，无需 Mongo/MQTT/docker）+ 两个 workspace 覆盖率门槛（ratchet）
+- **收口达成**：竞态回归通过 · 覆盖率门槛在 CI 生效 · **E2E 在 CI 跑通**（node 20 job 绿）
+- 测试总量：**61 → 327**（后端 212 + 前端 115）+ 11 E2E
 
 ## Phase 9 — 安全硬化与可观测性生产化 ⚪ 待开始
 
@@ -104,4 +108,7 @@ CD 用 **release-please**（贴合现有 conventional-commit 历史，自动 CHA
 - 2026-08-26：fix(mock)（#30）—— demo 发布器 PID 文件单实例守卫，修复电量每秒在 0/演示值间跳动（根因：两个发布器并发）。
 - 2026-08-26：Phase 7D —— fleetNormalize→TS（#32）、store 去 `any` + 开启 `no-explicit-any`（#33）。前端 `src` 无显式 `any`。
 - 剩余 Phase 7：抽 `formatters` 共享 util、带逻辑 SFC 渐进 `lang="ts"`。
+- 2026-08-26：Phase 7 收口（#35 RosSceneMap 拆分、#37 main.css 拆 19 partial 且构建产物逐字节一致、#38 formatters）；fix(mock) #36 电量改为可持续作业循环。
+- 2026-08-26：**Phase 8 收口** —— #39 竞态 · #40 Mongo 重连 · #41 摄入校验 · #42 前端韧性 · #43 后端集成测试 · #44 前端 store 测试 · #45 E2E 入 CI + 覆盖率门槛。测试 61 → 327 + 11 E2E。
+  期间两件值得记录：GitGuardian 拦住了 E2E harness 里硬编码的测试口令（改为每次运行 `crypto.randomBytes` 生成并压缩提交历史）；GitHub Actions 大范围故障导致 CI 一度无法运行，恢复后 11 项检查全绿方合并。
 - 2026-08-26：Phase 7E（#35 RosSceneMap 拆 composable）、fix(mock)（#36 电量改为可持续作业循环，修掉长跑后归零）、Phase 7F（#37 main.css 拆 19 partial，构建产物逐字节一致）。
