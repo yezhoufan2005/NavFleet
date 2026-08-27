@@ -158,11 +158,14 @@ describe("WebSocket upgrade", () => {
     expect(harness.bridge.clientCount()).toBe(1);
   });
 
-  it("accepts a token from the access_token query parameter", async () => {
+  it("rejects a token passed in the query string", async () => {
+    // A token in a URL leaks into access logs, Referer headers and history, so
+    // the cookie is the only accepted carrier.
     const harness = await startBridge();
-    await opened(connect(harness, `?access_token=${encodeURIComponent(token())}`));
+    const error = await failed(connect(harness, `?access_token=${encodeURIComponent(token())}`));
 
-    expect(harness.bridge.clientCount()).toBe(1);
+    expect(error.message).toContain("401");
+    expect(harness.bridge.clientCount()).toBe(0);
   });
 
   it("accepts an anonymous client when auth is disabled", async () => {

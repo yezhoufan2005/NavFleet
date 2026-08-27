@@ -16,6 +16,15 @@ export interface WebSocketBridge {
   close: () => void;
 }
 
+/**
+ * Read the access token from the handshake `Cookie` header.
+ *
+ * Cookie only, deliberately: a `?access_token=` fallback used to be accepted,
+ * and a token in a URL leaks — into nginx access logs, into `Referer`, into
+ * browser history and into any proxy in between. The frontend has always
+ * connected with the httpOnly cookie (stores/fleet.ts builds a bare `/ws` URL),
+ * so nothing depends on the query form.
+ */
 const extractWsAccessToken = (request: http.IncomingMessage): string => {
   const cookieHeader = request.headers.cookie || "";
   for (const part of cookieHeader.split(";")) {
@@ -24,8 +33,7 @@ const extractWsAccessToken = (request: http.IncomingMessage): string => {
       return decodeURIComponent(rest.join("="));
     }
   }
-  const url = new URL(request.url || "", "http://localhost");
-  return url.searchParams.get("access_token") || "";
+  return "";
 };
 
 /**

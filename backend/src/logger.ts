@@ -39,9 +39,21 @@ const REDACTED_PATHS = [
   "res.headers['set-cookie']",
 ];
 
-/** Shared application logger (data-pipeline modules keep their own named loggers). */
+/** Root application logger. */
 export const logger = pino({
   name: "fleet-backend",
   level: config.logLevel,
   redact: { paths: REDACTED_PATHS, censor: "[redacted]" },
 });
+
+/**
+ * A logger for one subsystem, e.g. `moduleLogger("persistence")`.
+ *
+ * Derived from the root logger rather than a fresh `pino({ name })`, so a module
+ * cannot opt out of LOG_LEVEL or of redaction. Four modules previously built
+ * their own: with `LOG_LEVEL=warn` they still emitted info lines (verified
+ * against a running process), which made the setting look broken and left their
+ * output unredacted. The emitted shape is unchanged — the child's `name` binding
+ * overrides the root's.
+ */
+export const moduleLogger = (name: string): pino.Logger => logger.child({ name });

@@ -162,6 +162,16 @@ const configSchema = z.object({
         .filter(Boolean),
     ),
   DEBUG_INGEST_ENABLED: envBool(false),
+  // Number of reverse-proxy hops to trust for the client IP. 0 (the default)
+  // means X-Forwarded-For is ignored: a directly exposed backend must not let a
+  // client pick its own rate-limit bucket by forging that header. The shipped
+  // compose puts one nginx in front and sets 1.
+  TRUST_PROXY: envInt(0, 0),
+  // Coarse per-IP limit for the whole /api surface, on top of the tighter
+  // credential limit on /api/auth. Generous by design: the dashboard's live data
+  // arrives over one WebSocket, so a legitimate session issues few REST calls.
+  RATE_LIMIT_WINDOW_MS: envInt(60_000, 1_000),
+  RATE_LIMIT_MAX: envInt(600, 1),
 });
 
 /**
@@ -203,6 +213,9 @@ export const parseConfig = (env: NodeJS.ProcessEnv) => {
     cookieSecure: e.COOKIE_SECURE,
     corsOrigins: e.CORS_ORIGINS,
     debugIngestEnabled: e.DEBUG_INGEST_ENABLED,
+    trustProxy: e.TRUST_PROXY,
+    rateLimitWindowMs: e.RATE_LIMIT_WINDOW_MS,
+    rateLimitMax: e.RATE_LIMIT_MAX,
   };
 };
 

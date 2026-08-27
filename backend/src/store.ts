@@ -1,7 +1,6 @@
 import { EventEmitter } from "node:events";
 import fs from "node:fs/promises";
 import path from "node:path";
-import pino from "pino";
 import { config } from "./config";
 import { ConfigRegistry } from "./configRegistry";
 import {
@@ -12,6 +11,7 @@ import {
   normalizePayload,
 } from "./normalize";
 import { Persistence } from "./persistence";
+import { moduleLogger } from "./logger";
 import {
   DeviceAlert,
   DeviceSnapshot,
@@ -22,7 +22,7 @@ import {
   SocketEvent,
 } from "./types";
 
-const logger = pino({ name: "dashboard-store" });
+const logger = moduleLogger("dashboard-store");
 
 export class DashboardStore extends EventEmitter {
   private rawDevices = new Map<string, DeviceSnapshot>();

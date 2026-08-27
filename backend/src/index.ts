@@ -1,6 +1,7 @@
 import http from "node:http";
 import { config } from "./config";
 import { logger } from "./logger";
+import { auditProductionConfig } from "./startupChecks";
 import { createRuntimeState } from "./runtimeState";
 import { ConfigRegistry } from "./configRegistry";
 import { Persistence } from "./persistence";
@@ -78,6 +79,16 @@ const shutdown = async (signal: string): Promise<void> => {
 };
 
 const start = async (): Promise<void> => {
+  // Refuse an unsafe production configuration before anything starts listening.
+  const issues = auditProductionConfig(config);
+  for (const issue of issues) {
+    logger[issue.level === "fatal" ? "fatal" : "warn"]({ setting: issue.setting }, issue.message);
+  }
+  if (issues.some((issue) => issue.level === "fatal")) {
+    logger.fatal("Refusing to start with an unsafe production configuration");
+    process.exit(1);
+  }
+
   await store.initialize();
   await authService.initialize();
   state.storeReady = true;
