@@ -34,7 +34,12 @@ describe("error middleware", () => {
 
     expect(response.status).toBe(500);
     expect(response.headers["content-type"]).toMatch(/application\/json/);
-    expect(response.body).toEqual({ error: "internal_error" });
+    // The correlation id is the only detail returned: it lets a reported failure
+    // be located in the logs without exposing anything about the failure itself.
+    expect(response.body).toEqual({
+      error: "internal_error",
+      requestId: response.headers["x-request-id"],
+    });
     // The internal detail is logged server-side only.
     expect(response.text).not.toContain("secret-dsn");
     expect(response.text).not.toContain("mongo exploded");
@@ -51,7 +56,10 @@ describe("error middleware", () => {
     const response = await request(context.app).get(path).set("Cookie", sessionCookie());
 
     expect(response.status).toBe(500);
-    expect(response.body).toEqual({ error: "internal_error" });
+    expect(response.body).toEqual({
+      error: "internal_error",
+      requestId: response.headers["x-request-id"],
+    });
   });
 
   it("catches a synchronous throw from a handler", async () => {
@@ -63,7 +71,10 @@ describe("error middleware", () => {
     const response = await request(context.app).get("/api/scenes").set("Cookie", sessionCookie());
 
     expect(response.status).toBe(500);
-    expect(response.body).toEqual({ error: "internal_error" });
+    expect(response.body).toEqual({
+      error: "internal_error",
+      requestId: response.headers["x-request-id"],
+    });
   });
 
   it("surfaces a malformed JSON body as 400, not 500", async () => {

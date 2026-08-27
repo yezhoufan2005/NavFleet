@@ -14,14 +14,14 @@ export default defineConfig({
       include: ["src/**/*.ts"],
       exclude: ["src/**/*.d.ts", "src/index.ts"],
       // A ratchet, not a target: set a few points under what the suite covers
-      // today (81.5% stmts / 80.5% branches / 83.8% funcs), so a regression
+      // today (82.1% stmts / 81.4% branches / 84.8% funcs), so a regression
       // fails CI while a small refactor does not. Raise them when coverage
       // climbs; never lower them to make a red build pass.
       thresholds: {
-        statements: 77,
-        branches: 76,
-        functions: 79,
-        lines: 77,
+        statements: 80,
+        branches: 79,
+        functions: 82,
+        lines: 80,
       },
     },
   },

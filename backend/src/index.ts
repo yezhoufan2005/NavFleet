@@ -28,6 +28,7 @@ const app = createApp({
   config,
   state,
   wsClientCount: () => wsClientCount(),
+  collectDefaultMetrics: true,
 });
 
 const server = http.createServer(app);

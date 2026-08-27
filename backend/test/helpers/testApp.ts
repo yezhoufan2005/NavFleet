@@ -103,6 +103,8 @@ export interface TestAppOptions {
   authService?: AuthServiceStub;
   state?: RuntimeState;
   wsClientCount?: () => number;
+  /** Off by default so test apps do not each install process-metric hooks. */
+  collectDefaultMetrics?: boolean;
 }
 
 export interface TestAppContext {
@@ -134,6 +136,7 @@ export const createTestApp = (options: TestAppOptions = {}): TestAppContext => {
     config,
     state,
     wsClientCount: options.wsClientCount ?? ((): number => 0),
+    collectDefaultMetrics: options.collectDefaultMetrics ?? false,
   });
 
   return { app, store, persistence, authService, state, config };
