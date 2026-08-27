@@ -79,15 +79,16 @@ CD 用 **release-please**（贴合现有 conventional-commit 历史，自动 CHA
 - **收口达成**：竞态回归通过 · 覆盖率门槛在 CI 生效 · **E2E 在 CI 跑通**（node 20 job 绿）
 - 测试总量：**61 → 327**（后端 212 + 前端 115）+ 11 E2E
 
-## Phase 9 — 安全硬化与可观测性生产化 ⚪ 待开始
+## Phase 9 — 安全硬化与可观测性生产化 🟢 进行中
 
-- [ ] mosquitto 关匿名 + ACL + 后端凭据、1883 不对宿主暴露
-- [ ] 强制 TLS + `COOKIE_SECURE`；WS 只用 cookie 传 token；全局限流；pino 脱敏；helmet CSP
-- [ ] edge `/metrics`+`/openapi` 鉴权；docker 三网隔离 + nginx 非 root
-- [ ] `prom-client` 替换手写 metrics + 请求直方图/per-route；request-id/correlation-id 贯穿日志
-- [ ] compose 加 Prometheus + Grafana profile + 预置面板 + 告警规则；备份自动化 + 恢复演练
-- [ ] `/api/v1` 前缀；OpenAPI 由 zod 代码生成 + Swagger UI
+- [x] `prom-client` 替换手写 metrics + per-route 请求直方图；request-id 贯穿日志与 500 响应（#47，9A）
+- [x] 全局限流 + `trust proxy`（修「整个部署共用一个限流额度」）、pino 脱敏落到全部子系统 logger、显式 CSP、生产配置审计 fail-fast、WS 只用 cookie 传 token（#48，9B）
+- [x] mosquitto 关匿名 + 双向 ACL + 1883 改绑 127.0.0.1；docker 三网分段；两个 nginx 非 root；edge 下线 `/metrics`、`/openapi.json` 移到鉴权后（#49，9C）
+- [x] TLS 叠加编排（HSTS / 308 跳转 / `COOKIE_SECURE` 硬编码 true / 路由表单一来源 `locations.conf`）+ 自签名证书脚本（#50，9D）
+- [ ] compose 加 Prometheus + Grafana profile + 预置面板 + 告警规则；备份自动化 + 恢复演练（9E）
+- [ ] `/api/v1` 前缀；OpenAPI 由 zod 代码生成 + Swagger UI（9F）
 - **收口**：安全清单达标、Grafana 面板+告警可用、契约与实现零 drift
+- 自检 ✅（2026-08-27，9A–9D）：`typecheck`/`lint`/`format:check`/`build` 全过 · 测试 212 → **260**（前端 115 不变）· `e2e` 11/11 · 后端覆盖率 82.4/81.9/85.0/82.4（ratchet 提到 80/79/82/80）· compose 基础与 TLS 两种编排均实跑通过（五容器 healthy）。
 
 ## Phase 10 — 产品体验打磨 ⚪ 待开始（i18n 本轮排除）
 
@@ -112,3 +113,11 @@ CD 用 **release-please**（贴合现有 conventional-commit 历史，自动 CHA
 - 2026-08-26：**Phase 8 收口** —— #39 竞态 · #40 Mongo 重连 · #41 摄入校验 · #42 前端韧性 · #43 后端集成测试 · #44 前端 store 测试 · #45 E2E 入 CI + 覆盖率门槛。测试 61 → 327 + 11 E2E。
   期间两件值得记录：GitGuardian 拦住了 E2E harness 里硬编码的测试口令（改为每次运行 `crypto.randomBytes` 生成并压缩提交历史）；GitHub Actions 大范围故障导致 CI 一度无法运行，恢复后 11 项检查全绿方合并。
 - 2026-08-26：Phase 7E（#35 RosSceneMap 拆 composable）、fix(mock)（#36 电量改为可持续作业循环，修掉长跑后归零）、Phase 7F（#37 main.css 拆 19 partial，构建产物逐字节一致）。
+- 2026-08-27：Phase 9A–9D（#47 可观测性生产化、#48 应用层硬化、#49 部署硬化、#50 TLS）。这四个 PR 里有五处是**修既有缺陷**而非加功能，都有实测证据：
+  1. `trust proxy` 从未配置 → 在 nginx 后面两个限流器把所有请求算到 nginx 一个地址上，登录限流「15 分钟 50 次」是全体用户共享的（有「修复前必失败」的测试）。
+  2. 四个子系统各自 `pino({ name })`，不继承 `LOG_LEVEL` 也不继承脱敏 → 实测 `LOG_LEVEL=warn` 下 `config-registry`/`dashboard-store`/`auth` 仍在打 info 行。
+  3. mosquitto `allow_anonymous true` 且绑 `0.0.0.0` → 任何能碰到 1883 的东西都能灌假遥测。ACL 双向隔离已用「发布账号能进、后端账号被丢」实测。
+  4. 边缘代理了未鉴权的 `/metrics`；`/openapi.json` 对匿名开放。
+  5. 直方图 route 标签在错误路径上与成功路径不一致（Express 在 `next(err)` 时已还原 `baseUrl`），一条路由裂成两条序列且错误延迟从面板消失 —— 被自己写的测试抓到。
+     过程记录：`prom-client` 已被 npm 标记 deprecated，官方后继 `@prometheus-io/client` 首个稳定版仅 3 天、周下载 ~750（对比 900 万），因此暂留并在代码里注明；E2E 因「每次运行临时口令 + Playwright 默认复用已有 server」在本机必然 401，改为独立端口 3199/5299 且不复用；mosquitto 首次起不来（root 生成的 0600 密码文件在 broker 降权到 uid 1883 后读不了）。
+- 剩余 Phase 9：9E（Prometheus + Grafana profile + 面板/告警 + 备份自动化与恢复演练）、9F（`/api/v1` + OpenAPI 由 zod 生成 + Swagger UI）。
