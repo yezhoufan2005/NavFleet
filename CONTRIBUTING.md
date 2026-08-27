@@ -41,8 +41,10 @@ npm run dev:frontend            # 前端 dev（vite）
 npm run mock:mqtt               # 发布确定性演示遥测
 ```
 
-`npm run e2e` 需要 3000（后端）与 5173（vite dev）两个端口空闲：本地已有 dev server 时
-Playwright 会直接复用它们，而复用的后端若没有开 `DEBUG_INGEST_ENABLED`，播种步骤会失败。
+`npm run e2e` 使用独立端口 3199（后端）与 5299（vite dev），并且**始终自己拉起服务**、
+不复用已有进程 —— 因为每次运行的登录口令是临时生成的，只有它自己启动的后端才认。
+所以可以和本地 `npm run dev`（3000/5173）同时跑。若这两个端口被占，用
+`E2E_BACKEND_PORT` / `E2E_FRONTEND_PORT` 覆盖。
 
 针对单个 workspace：`npm run <script> -w navfleet-backend`（或 `navfleet-frontend` / `@navfleet/shared`）。
 

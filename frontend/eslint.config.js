@@ -29,5 +29,14 @@ export default [
       "vue/block-lang": ["error", { script: { allowNoLang: true } }],
     },
   },
+  {
+    // Build/test tooling runs in Node, not the browser.
+    files: ["*.config.js", "*.config.ts"],
+    languageOptions: {
+      globals: {
+        ...globals.node,
+      },
+    },
+  },
   prettier,
 ];

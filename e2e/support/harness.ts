@@ -18,8 +18,16 @@ import path from "node:path";
 /** Repo root, resolved from `e2e/support/`. Both web servers run from here. */
 export const REPO_ROOT = path.resolve(__dirname, "..", "..");
 
-export const BACKEND_PORT = 3000;
-export const FRONTEND_PORT = 5173;
+/**
+ * Dedicated ports, deliberately not the 3000/5173 a developer's `npm run dev`
+ * occupies. The suite mints throw-away credentials per run (below), so a server
+ * it did not start cannot authenticate its requests — reusing a dev backend
+ * produced a baffling 401 during seeding. Separate ports let the suite run
+ * alongside a dev session instead, and make a leftover listener a clear port
+ * conflict rather than a silent credential mismatch.
+ */
+export const BACKEND_PORT = Number(process.env.E2E_BACKEND_PORT ?? 3199);
+export const FRONTEND_PORT = Number(process.env.E2E_FRONTEND_PORT ?? 5299);
 export const BACKEND_URL = `http://127.0.0.1:${BACKEND_PORT}`;
 export const FRONTEND_URL = `http://127.0.0.1:${FRONTEND_PORT}`;
 
@@ -85,8 +93,12 @@ export const backendEnv: Record<string, string> = {
  * which makes the GPS panel pull the AMap SDK over the network — behaviour that
  * differs from CI (no `.env` there) and adds console noise. Blanking both keys
  * pins the panel to its "no key configured" placeholder everywhere.
+ *
+ * `BACKEND_ORIGIN` points the dev-server proxy at this run's backend rather than
+ * the 3000 default (see vite.config.js).
  */
 export const frontendEnv: Record<string, string> = {
   VITE_AMAP_KEY: "",
   VITE_AMAP_SECURITY_JS_CODE: "",
+  BACKEND_ORIGIN: BACKEND_URL,
 };

@@ -65,17 +65,20 @@ export default defineConfig({
       cwd: path.join(REPO_ROOT, "backend"),
       url: `${BACKEND_URL}/health/ready`,
       env: backendEnv,
-      reuseExistingServer: !process.env.CI,
+      // Never reuse: this run's throw-away credentials only exist in a server
+      // this run started (see support/harness.ts).
+      reuseExistingServer: false,
       timeout: 120_000,
     },
     {
       // The dev server, not `vite preview`: only dev proxies /api, /ws, /health
-      // and /scene-maps to the backend.
-      command: "npm run dev -w navfleet-frontend",
+      // and /scene-maps to the backend. The trailing --port wins over the one in
+      // the workspace `dev` script.
+      command: `npm run dev -w navfleet-frontend -- --port ${FRONTEND_PORT}`,
       cwd: REPO_ROOT,
       url: FRONTEND_URL,
       env: frontendEnv,
-      reuseExistingServer: !process.env.CI,
+      reuseExistingServer: false,
       timeout: 120_000,
     },
   ],
