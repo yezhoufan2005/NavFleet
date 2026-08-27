@@ -19,6 +19,12 @@
 ```bash
 cd /path/to/NavFleet
 cp deploy/.env.example deploy/.env
+
+# MQTT broker 已关闭匿名访问，这两个口令没有默认值：留空时 compose 会直接报错退出，
+# 而不是起一个谁都能连的 broker。
+printf 'MQTT_SUBSCRIBER_PASSWORD=%s\nMQTT_PUBLISHER_PASSWORD=%s\n' \
+  "$(openssl rand -hex 16)" "$(openssl rand -hex 16)" >> deploy/.env
+
 docker compose --env-file deploy/.env -f deploy/docker-compose.yml up -d --build
 ```
 
