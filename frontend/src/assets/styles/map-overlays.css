@@ -64,18 +64,31 @@
   margin: 0 auto;
 }
 
+/*
+ * The marker's layout box is the pin, and *only* the pin.
+ *
+ * Two rules follow from that, and both matter for correctness rather than looks:
+ *
+ * 1. No `transform` here. AMap positions this element at the vehicle's
+ *    coordinate (anchor: "center"); a CSS translate would shift the pin by a
+ *    fixed number of screen pixels, which is a different *distance on the ground*
+ *    at every zoom level. The previous `translate(-50%, -100%)` put the pin 71px
+ *    left and 9px above its own coordinate — ~170 m of error at zoom 16 and
+ *    ~5 km at zoom 11, so vehicles appeared to slide across the map while zooming.
+ * 2. The label is taken out of flow. If it contributed to the box, the anchor
+ *    would centre the pin *and* the 132–220px label together, leaving the pin
+ *    offset from the coordinate by half a label — and by a different amount
+ *    whenever a device name changed length.
+ */
 .amap-device-marker {
-  position: relative;
-  display: flex;
-  align-items: flex-end;
-  gap: 10px;
-  transform: translate(-50%, -100%);
-}
-
-.amap-device-pin {
   position: relative;
   width: 18px;
   height: 18px;
+}
+
+.amap-device-pin {
+  position: absolute;
+  inset: 0;
   border-radius: 50%;
   border: 3px solid currentColor;
   background: rgba(255, 255, 255, 0.15);
@@ -83,21 +96,54 @@
   box-shadow: 0 0 0 8px rgba(var(--brand-rgb), 0.12);
 }
 
-.amap-device-pin::after {
+/*
+ * Direction of travel, as an arrow orbiting the pin rather than a stub hanging
+ * off it. The container is centred on the pin and rotated by the bearing, so 0°
+ * points north — the previous stub was pinned below the pin and rotated about
+ * its own top, which made a northbound vehicle point due south.
+ * Out of flow, so it does not affect the marker's 18×18 anchor box.
+ */
+.amap-device-heading {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: 46px;
+  height: 46px;
+  margin: -23px 0 0 -23px;
+  transform: rotate(var(--heading, 0deg));
+  pointer-events: none;
+}
+
+.amap-device-heading::after {
   content: "";
   position: absolute;
   left: 50%;
-  bottom: -10px;
-  width: 2px;
-  height: 12px;
-  transform: translateX(-50%) rotate(var(--heading, 0deg));
-  transform-origin: center top;
-  background: currentColor;
-  border-radius: 999px;
-  opacity: 0.7;
+  top: 0;
+  width: 0;
+  height: 0;
+  transform: translateX(-50%);
+  border-left: 5px solid transparent;
+  border-right: 5px solid transparent;
+  border-bottom: 8px solid currentColor;
+  opacity: 0.9;
 }
 
+/*
+ * Out of flow (see above) and hidden until the vehicle is selected or hovered.
+ * A permanent label per vehicle made a cluster unreadable: six 200px cards
+ * stacked on top of each other, none of them legible.
+ *
+ * Centred above the pin rather than off to one side: a right-hand card clipped
+ * against the map edge whenever the vehicle sat near it, and the fleet-fit
+ * padding already keeps pins well away from the top. The 24px gap clears the
+ * heading arrow's 23px orbit.
+ */
 .amap-device-label {
+  position: absolute;
+  left: 50%;
+  bottom: calc(100% + 24px);
+  transform: translateX(-50%);
+  width: max-content;
   min-width: 132px;
   max-width: 220px;
   padding: 10px 12px;
@@ -107,6 +153,24 @@
   box-shadow: var(--shadow);
   display: grid;
   gap: 4px;
+  opacity: 0;
+  visibility: hidden;
+  transition:
+    opacity 140ms ease,
+    visibility 140ms ease;
+  pointer-events: none;
+}
+
+.amap-device-marker:hover .amap-device-label,
+.amap-device-marker.is-selected .amap-device-label {
+  opacity: 1;
+  visibility: visible;
+}
+
+/* Hovering must lift the card above neighbouring pins, or a dense cluster
+   renders the label behind them. */
+.amap-device-marker:hover {
+  z-index: 200;
 }
 
 .amap-device-label strong,
@@ -127,28 +191,45 @@
   color: var(--muted);
 }
 
-.amap-device-marker.tone-normal .amap-device-pin {
+/* Tone owns `color` on the marker root so the pin ring and the heading arrow
+   pick it up together; only the halo differs per tone. */
+.amap-device-marker.tone-normal {
   color: var(--brand);
+}
+
+.amap-device-marker.tone-normal .amap-device-pin {
   box-shadow: 0 0 0 8px rgba(var(--brand-rgb), 0.14);
 }
 
-.amap-device-marker.tone-warning .amap-device-pin {
+.amap-device-marker.tone-warning {
   color: var(--warning);
+}
+
+.amap-device-marker.tone-warning .amap-device-pin {
   box-shadow: 0 0 0 8px rgba(var(--warning-rgb), 0.16);
 }
 
-.amap-device-marker.tone-critical .amap-device-pin {
+.amap-device-marker.tone-critical {
   color: var(--critical);
+}
+
+.amap-device-marker.tone-critical .amap-device-pin {
   box-shadow: 0 0 0 8px rgba(var(--critical-rgb), 0.16);
 }
 
-.amap-device-marker.tone-notice .amap-device-pin {
+.amap-device-marker.tone-notice {
   color: var(--notice);
+}
+
+.amap-device-marker.tone-notice .amap-device-pin {
   box-shadow: 0 0 0 8px rgba(var(--notice-rgb), 0.16);
 }
 
-.amap-device-marker.tone-offline .amap-device-pin {
+.amap-device-marker.tone-offline {
   color: var(--offline);
+}
+
+.amap-device-marker.tone-offline .amap-device-pin {
   box-shadow: 0 0 0 8px rgba(127, 142, 153, 0.14);
 }
 
@@ -300,6 +381,17 @@
 .ros-toolbar {
   top: 16px;
   right: 16px;
+}
+
+/* Same corner as the ROS map's control, so the two views feel like one product.
+   Sits left of AMap's own zoom buttons, which occupy the bottom-right. */
+.gps-toolbar {
+  position: absolute;
+  top: 16px;
+  right: 16px;
+  z-index: 1;
+  display: flex;
+  gap: 10px;
 }
 
 .ros-hud-card,

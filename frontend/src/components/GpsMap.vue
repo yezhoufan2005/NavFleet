@@ -33,7 +33,10 @@ let map = null;
 let markerCtor = null;
 const markerEntries = new Map();
 let lastSelectedDeviceId = "";
-let lastViewportKey = "";
+// The fleet view is fitted once, when the first devices arrive. After that the
+// viewport belongs to the user: re-fitting on every device set change (the demo
+// fleet has a vehicle that goes offline and back) yanked the map away mid-pan.
+let hasFittedOnce = false;
 
 // Keep the AMap base style in sync with the active light/dark theme.
 watch(amapStyle, (style) => {
@@ -66,11 +69,17 @@ function createMarkerContent(device, tone, selected) {
   const root = document.createElement("div");
   root.className = `amap-device-marker tone-${tone}${selected ? " is-selected" : ""}`;
 
+  // `gps.heading` is a compass bearing (0 = north, clockwise), which is exactly
+  // what a CSS rotation of an upward-pointing arrow needs.
+  if (Number.isFinite(device.gps?.heading)) {
+    root.style.setProperty("--heading", `${device.gps.heading}deg`);
+    const heading = document.createElement("div");
+    heading.className = "amap-device-heading";
+    root.appendChild(heading);
+  }
+
   const pin = document.createElement("div");
   pin.className = "amap-device-pin";
-  if (Number.isFinite(device.gps?.heading)) {
-    pin.style.setProperty("--heading", `${device.gps.heading}deg`);
-  }
 
   const label = document.createElement("div");
   label.className = "amap-device-label";
@@ -100,44 +109,31 @@ function destroyMarkers() {
   });
   markerEntries.clear();
   lastSelectedDeviceId = "";
-  lastViewportKey = "";
+  hasFittedOnce = false;
 }
 
-function fitMapToMarkers(force = false) {
+/** Frame the whole fleet. Called on first load and from the toolbar button. */
+function fitFleet() {
   if (!map || !markerEntries.size) {
     return;
   }
 
-  const viewportKey = [...markerEntries.keys()].sort().join("|");
-  const activeMarkers = [...markerEntries.values()].map((entry) => entry.marker);
-  const selectedChanged = props.selectedDeviceId !== lastSelectedDeviceId;
-
-  if (!force && viewportKey === lastViewportKey && !selectedChanged) {
+  if (markerEntries.size === 1) {
+    map.setZoomAndCenter(16, markerEntries.values().next().value.position, false, 300);
     return;
   }
 
-  if (activeMarkers.length === 1) {
-    const [lng, lat] = markerEntries.values().next().value.position;
-    map.setZoomAndCenter(16, [lng, lat], false, 300);
-    lastViewportKey = viewportKey;
-    lastSelectedDeviceId = props.selectedDeviceId;
+  const markers = [...markerEntries.values()].map((entry) => entry.marker);
+  map.setFitView(markers, false, [64, 72, 64, 72], 16);
+}
+
+/** Animate to the picked vehicle, keeping at least street-level zoom. */
+function focusSelected() {
+  const entry = props.selectedDeviceId ? markerEntries.get(props.selectedDeviceId) : null;
+  if (!map || !entry) {
     return;
   }
-
-  const selectedEntry = props.selectedDeviceId ? markerEntries.get(props.selectedDeviceId) : null;
-
-  if (selectedChanged && selectedEntry) {
-    // Focus the picked vehicle like a modern map: animated zoom-in + recenter,
-    // keeping at least a street-level zoom for context.
-    const targetZoom = Math.max(map.getZoom() || 0, 16);
-    map.setZoomAndCenter(targetZoom, selectedEntry.position, false, 300);
-  } else if (force || viewportKey !== lastViewportKey) {
-    // Set changed (devices appeared/vanished) → fit the whole fleet with padding.
-    map.setFitView(activeMarkers, false, [64, 72, 64, 72], 16);
-  }
-
-  lastViewportKey = viewportKey;
-  lastSelectedDeviceId = props.selectedDeviceId;
+  map.setZoomAndCenter(Math.max(map.getZoom() || 0, 16), entry.position, false, 300);
 }
 
 function syncMarkers() {
@@ -145,13 +141,11 @@ function syncMarkers() {
     return;
   }
 
-  let markerSetChanged = false;
   const nextIds = new Set(gpsDevices.value.map((device) => device.deviceId));
   markerEntries.forEach((entry, deviceId) => {
     if (!nextIds.has(deviceId)) {
       map.remove(entry.marker);
       markerEntries.delete(deviceId);
-      markerSetChanged = true;
     }
   });
 
@@ -179,8 +173,10 @@ function syncMarkers() {
 
     const marker = new markerCtor({
       position,
-      anchor: "bottom-center",
-      offset: new window.AMap.Pixel(0, 8),
+      // The content's box is the pin itself and the coordinate is its centre, so
+      // no pixel offset is wanted: any constant screen offset would place the
+      // vehicle a zoom-dependent distance away from where it actually is.
+      anchor: "center",
       content: createMarkerContent(device, tone, selected),
       zIndex: selected ? 160 : 110,
     });
@@ -192,10 +188,15 @@ function syncMarkers() {
       position,
       signature: `${tone}|${selected ? 1 : 0}|${device.deviceName}|${device.deviceId}|${device.gps?.heading ?? ""}`,
     });
-    markerSetChanged = true;
   });
 
-  fitMapToMarkers(markerSetChanged);
+  if (!hasFittedOnce && markerEntries.size) {
+    fitFleet();
+    hasFittedOnce = true;
+  } else if (props.selectedDeviceId !== lastSelectedDeviceId) {
+    focusSelected();
+  }
+  lastSelectedDeviceId = props.selectedDeviceId;
 }
 
 async function initializeMap() {
@@ -270,6 +271,10 @@ watch(
 
     <template v-else>
       <div ref="mapRoot" class="amap-root" aria-label="GPS 设备位置分布地图"></div>
+
+      <div v-if="gpsDevices.length && !isLoading" class="gps-toolbar">
+        <button type="button" class="secondary-btn" @click="fitFleet">适应车队</button>
+      </div>
 
       <div v-if="isLoading" class="gps-map-overlay">
         <div class="gps-overlay-card">
