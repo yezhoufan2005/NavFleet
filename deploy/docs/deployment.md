@@ -339,6 +339,40 @@ backend 是唯一同时在三段上的服务。实测：nginx 与 frontend **连
 里的本机演示要用 `127.0.0.1:1883`。若现场发布端都是远程车辆，删掉 mosquitto 的
 `ports` 段并给 `bus` 加上 `internal: true` 即可。
 
+### 9.2 启用 TLS
+
+TLS 是一个**叠加文件**，不改动基础编排：
+
+```bash
+# 1) 准备证书：deploy/nginx/certs/{fullchain.pem,privkey.pem}
+#    实验环境可生成自签名（浏览器会告警，仅供本地/内网试跑）：
+sh deploy/tools/generate-dev-certs.sh navfleet.local
+
+# 2) 带叠加文件启动
+docker compose --env-file deploy/.env \
+  -f deploy/docker-compose.yml -f deploy/docker-compose.tls.yml up -d
+```
+
+生效后：
+
+| 项                               | 行为                                                                                                       |
+| -------------------------------- | ---------------------------------------------------------------------------------------------------------- |
+| `https://主机/`（宿主 443）      | 正常提供服务，HTTP/2                                                                                       |
+| `http://主机:${HTTP_HOST_PORT}/` | **308** 重定向到 https（308 而非 301：保留方法与请求体，被重定向的 `POST /api/auth/login` 不会退化成 GET） |
+| 会话 Cookie                      | 带 `Secure`（叠加文件把 `COOKIE_SECURE` **硬编码**为 true，不受 `.env` 里的旧值影响）                      |
+| HSTS                             | 仅在 TLS 响应上出现（`map $scheme $hsts`），明文 HTTP 上不发送 —— RFC 6797 要求如此                        |
+| TLS 版本                         | 只接受 1.2 / 1.3；1.1 及以下被拒（实测返回 `alert protocol version`）                                      |
+
+想要经典的 80 → 443 跳转，把 `.env` 里的 `HTTP_HOST_PORT` 设为 `80`。
+HTTPS 宿主端口可用 `HTTPS_HOST_PORT` 覆盖。
+
+路由表只有一份：`deploy/nginx/locations.conf` 被明文入口与 TLS 入口共同 `include`，
+所以不会出现「HTTP 加了一条路由、HTTPS 忘了加」这种没人会立刻发现的差异。
+
+> 证书目录 `deploy/nginx/certs/` 已在 `.gitignore` 中：私钥不进仓库。生产请用组织
+> CA 或 Let's Encrypt 签发的证书替换自签名文件 —— 自签名只提供加密、不提供身份
+> 认证，能中间人劫持的一方同样能拿出一张自签证书。
+
 ## 10. MQTT 部署策略
 
 ### 使用内置 Mosquitto

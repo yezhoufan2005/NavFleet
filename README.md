@@ -259,6 +259,14 @@ HTTP_HOST_PORT=80
 
 完整部署说明见 [deploy/docs/deployment.md](./deploy/docs/deployment.md)。
 
+需要 HTTPS 时用 TLS 叠加文件（HTTP 自动 308 跳转、Cookie 带 `Secure`、HSTS 只在 TLS 响应上出现）：
+
+```bash
+sh deploy/tools/generate-dev-certs.sh navfleet.local   # 实验用自签名证书
+docker compose --env-file deploy/.env \
+  -f deploy/docker-compose.yml -f deploy/docker-compose.tls.yml up -d
+```
+
 ## 6. 运行期配置
 
 后端从 `CONFIG_ROOT_PATH` 读取运行期配置。Docker 中默认挂载为：

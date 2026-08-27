@@ -376,7 +376,7 @@ scene-maps/
 | `BCRYPT_ROUNDS`        | `10`                   | 密码哈希强度                                                                                                                               |
 | `ADMIN_USERNAME`       | `admin`                | 初始管理员用户名                                                                                                                           |
 | `ADMIN_PASSWORD`       | 空                     | **生产必填**：留空时开发环境创建 `admin/admin123` 并告警，生产环境拒绝创建默认管理员                                                       |
-| `COOKIE_SECURE`        | `false`                | HTTPS 部署时设为 `true`，使鉴权 Cookie 带 Secure 标记                                                                                      |
+| `COOKIE_SECURE`        | `false`                | HTTPS 部署时设为 `true`，使鉴权 Cookie 带 Secure 标记。用 `docker-compose.tls.yml` 叠加文件时该值被硬编码为 `true`                         |
 | `CORS_ORIGINS`         | 空（同源部署无需设置） | 允许的跨域来源，逗号分隔                                                                                                                   |
 | `DEBUG_INGEST_ENABLED` | `false`                | 调试注入端点开关；开启后仍需 admin 角色。`NODE_ENV=production` 下开启会**拒绝启动**                                                        |
 | `TRUST_PROXY`          | `0`（compose 为 `1`）  | 允许设置 `X-Forwarded-For` 的反代跳数。0 = 忽略该头（直连暴露时的安全默认）；留 0 而实际有 nginx 时，限流会把全部请求算到 nginx 一个地址上 |
