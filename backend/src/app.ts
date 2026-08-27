@@ -53,7 +53,30 @@ export const createApp = ({
     collectDefault: collectDefaultMetrics,
   });
 
-  app.use(helmet());
+  // How many reverse-proxy hops may set X-Forwarded-For. Without this the rate
+  // limiters below key every request behind nginx to the proxy's own address, so
+  // one bucket is shared by the whole deployment — one noisy client would lock
+  // everybody out. Trusting the header unconditionally is the opposite mistake:
+  // a directly exposed backend would let a client choose its own bucket.
+  app.set("trust proxy", config.trustProxy);
+
+  app.use(
+    helmet({
+      // The backend answers JSON and serves scene-map images; it renders no
+      // document, so nothing legitimate needs a fetch directive. `default-src
+      // 'none'` covers them all, and framing/base/form directives blunt the
+      // damage if a response ever does get interpreted as HTML.
+      contentSecurityPolicy: {
+        useDefaults: false,
+        directives: {
+          "default-src": ["'none'"],
+          "frame-ancestors": ["'none'"],
+          "base-uri": ["'none'"],
+          "form-action": ["'none'"],
+        },
+      },
+    }),
+  );
   if (config.corsOrigins.length) {
     app.use(cors({ origin: config.corsOrigins, credentials: true }));
   }
@@ -86,16 +109,33 @@ export const createApp = ({
     next();
   });
 
-  // Public operational endpoints (liveness/readiness/metrics/openapi).
+  // Public operational endpoints (liveness/readiness/metrics/openapi). Mounted
+  // ahead of the API rate limit so a probe or a Prometheus scrape can never be
+  // throttled by client traffic.
   app.use(captureRouteMount, buildOpsRouter({ persistence, state, config, metrics }));
+
+  // Coarse per-IP limit for the whole API, including the auth routes below.
+  // Complements the tighter credential limit rather than replacing it, and sits
+  // in front of the auth gate so unauthenticated probing is capped too.
+  app.use(
+    "/api",
+    rateLimit({
+      windowMs: config.rateLimitWindowMs,
+      limit: config.rateLimitMax,
+      standardHeaders: true,
+      legacyHeaders: false,
+      message: { error: "too_many_requests" },
+    }),
+  );
 
   // Auth routes are public (login/refresh/logout); /me is guarded inside the
   // router. A tight rate limit protects the credential endpoint from brute force.
   const authLimiter = rateLimit({
     windowMs: 15 * 60 * 1000,
-    max: 50,
+    limit: 50,
     standardHeaders: true,
     legacyHeaders: false,
+    message: { error: "too_many_requests" },
   });
   app.use("/api/auth", authLimiter, captureRouteMount, buildAuthRouter(authService));
 

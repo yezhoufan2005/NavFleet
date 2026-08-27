@@ -16,7 +16,7 @@ const secret = (): string => {
   }
   // Ephemeral secret: tokens survive within a single process only. Acceptable
   // for local/dev; production is required to set JWT_SECRET (enforced at startup
-  // by assertAuthConfig()).
+  // by AuthService.initialize()).
   return EPHEMERAL_SECRET;
 };
 

@@ -1,10 +1,10 @@
 import { Db, MongoClient, type MongoClientEvents } from "mongodb";
-import pino from "pino";
 import { config } from "./config";
 import { MongoConnectionSupervisor, type MongoSession, redactMongoUri } from "./mongoConnection";
 import { DeviceAlert, DeviceSnapshot, HistoryQuery, UserRecord } from "./types";
+import { moduleLogger } from "./logger";
 
-const logger = pino({ name: "persistence" });
+const logger = moduleLogger("persistence");
 
 interface TelemetryDocument {
   ts: Date;

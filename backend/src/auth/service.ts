@@ -1,10 +1,10 @@
-import pino from "pino";
 import { config } from "../config";
 import type { Persistence } from "../persistence";
 import type { PublicUser, UserRecord } from "../types";
 import { hashPassword, verifyPassword } from "./passwords";
+import { moduleLogger } from "../logger";
 
-const logger = pino({ name: "auth" });
+const logger = moduleLogger("auth");
 
 export const toPublicUser = (user: UserRecord): PublicUser => ({
   username: user.username,

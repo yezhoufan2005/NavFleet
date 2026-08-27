@@ -1,9 +1,9 @@
 import fs from "node:fs/promises";
 import path from "node:path";
 import chokidar, { FSWatcher } from "chokidar";
-import pino from "pino";
 import { config, runtimePaths } from "./config";
 import { parseLaneletOsmFile } from "./laneletOsm";
+import { moduleLogger } from "./logger";
 import {
   DeviceConfig,
   DeviceSnapshot,
@@ -15,7 +15,7 @@ import {
   SceneMapDefinition,
 } from "./types";
 
-const logger = pino({ name: "config-registry" });
+const logger = moduleLogger("config-registry");
 
 const CONFIG_ROOT = config.configRootPath;
 const FLEET_FILE = runtimePaths.fleetFilePath;
