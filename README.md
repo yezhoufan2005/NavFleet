@@ -19,6 +19,12 @@
 ```bash
 cd /path/to/NavFleet
 cp deploy/.env.example deploy/.env
+
+# MQTT broker 已关闭匿名访问，这两个口令没有默认值：留空时 compose 会直接报错退出，
+# 而不是起一个谁都能连的 broker。
+printf 'MQTT_SUBSCRIBER_PASSWORD=%s\nMQTT_PUBLISHER_PASSWORD=%s\n' \
+  "$(openssl rand -hex 16)" "$(openssl rand -hex 16)" >> deploy/.env
+
 docker compose --env-file deploy/.env -f deploy/docker-compose.yml up -d --build
 ```
 
@@ -149,7 +155,7 @@ scripts/dev.sh --mock     # 强制发布演示数据（需本机 1883 broker）
 scripts/dev.sh --no-mock  # 只启动前后端，不发布演示数据
 ```
 
-> 需要演示数据但本机没有 broker 时，可先用 Compose 起一个：`docker compose --env-file deploy/.env -f deploy/docker-compose.yml up -d mosquitto`。该 broker 已关闭匿名访问，所以还需要把 `deploy/.env` 里的 `MQTT_PUBLISHER_USERNAME` / `MQTT_PUBLISHER_PASSWORD` 导出到发布器环境（`scripts/dev.sh` 会透传当前 shell 的环境变量）。
+> 需要演示数据但本机没有 broker 时，可先用 Compose 起一个：`docker compose --env-file deploy/.env -f deploy/docker-compose.yml up -d mosquitto`。该 broker 已关闭匿名访问，但无需手工导出凭据：`scripts/dev.sh` 会从 `deploy/.env` 里读出 `MQTT_SUBSCRIBER_*`（给后端订阅）与 `MQTT_PUBLISHER_*`（给发布器）并分别注入。
 
 启动后访问 `http://127.0.0.1:5173`，默认登录账号 `admin / admin123`（脚本内置的开发口令，仅用于本地）。`Ctrl+C` 停止全部服务。
 
