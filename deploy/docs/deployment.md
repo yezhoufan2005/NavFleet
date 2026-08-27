@@ -373,6 +373,65 @@ HTTPS 宿主端口可用 `HTTPS_HOST_PORT` 覆盖。
 > CA 或 Let's Encrypt 签发的证书替换自签名文件 —— 自签名只提供加密、不提供身份
 > 认证，能中间人劫持的一方同样能拿出一张自签证书。
 
+### 9.3 监控栈（Prometheus + Grafana）
+
+同样是叠加文件，默认不启动：
+
+```bash
+# deploy/.env 里先设 GRAFANA_ADMIN_PASSWORD（留空则 compose 拒绝启动）
+docker compose --env-file deploy/.env \
+  -f deploy/docker-compose.yml -f deploy/docker-compose.monitoring.yml up -d
+```
+
+| 组件       | 地址               | 说明                                                 |
+| ---------- | ------------------ | ---------------------------------------------------- |
+| Grafana    | `http://主机:3001` | 已预置数据源与「NavFleet 车队监控」面板（14 个面板） |
+| Prometheus | `127.0.0.1:9090`   | **仅本机**：查询接口未鉴权                           |
+
+两者与 backend 同处一个 `monitoring` 网段，**够不到 mongo 和 mosquitto**。Prometheus
+在网络内抓 `backend:3000/metrics` —— 这正是 9C 里边缘 nginx 不再代理 `/metrics` 的原因。
+
+告警规则在 `deploy/prometheus/alerts.yml`，9 条，全部写在本项目**真实暴露**的指标上：
+后端失联、Mongo/MQTT 断开、遥测写入积压、摄入校验持续拒绝、「连着 broker 但十分钟
+没消息」、过半车辆离线、5xx 比例 >5%、p95 延迟 >1s。`for:` 都不为零 —— MQTT 与 Mongo
+本身带有界退避重连，几秒钟的断开是正常运行而不是该叫人起床的事。
+
+面板与数据源都是 **provisioned**：UI 里改了不会存活（`allowUiUpdates: false`），仓库里的
+JSON 是唯一来源，否则新部署拿到的会是一个坏掉的面板。
+
+### 9.4 备份自动化与恢复演练
+
+```bash
+docker compose --env-file deploy/.env \
+  -f deploy/docker-compose.yml -f deploy/docker-compose.backup.yml up -d
+```
+
+`mongo-backup` 容器按 `BACKUP_INTERVAL_SECONDS` 循环 `mongodump`，按
+`BACKUP_RETENTION_DAYS` 清理旧档，只删自己命名规则的文件（目录是宿主机挂载，可能有
+别的东西）。它只接在 `data` 网段上，既碰不到 Web 层也没有出网能力。
+
+「有备份」和「能恢复」是两件事。`deploy/tools/restore-drill.sh` 只证明后者：
+
+```bash
+deploy/tools/restore-drill.sh            # 默认取 deploy/backups 里最新的归档
+```
+
+它把归档用 `--nsFrom/--nsTo` 恢复到**临时库** `fleet_monitor_restore_drill`，逐集合对比
+文档数，然后把临时库删掉 —— 全程不写生产库。只有「恢复成功且每个集合都非空」才返回 0。
+
+实测输出：
+
+```text
+collection            restored     live
+users                        1        1
+alerts                      22       22
+telemetry_ts            987532   987767
+device_latest                6        6
+DRILL PASSED: 4 collection(s) restored, none empty.
+```
+
+`telemetry_ts` 少 235 条是正常的：dump 期间车队还在继续上报。
+
 ## 10. MQTT 部署策略
 
 ### 使用内置 Mosquitto

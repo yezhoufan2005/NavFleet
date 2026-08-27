@@ -1,0 +1,129 @@
+# Alert rules for the NavFleet backend.
+#
+# Every expression here is written against a metric this project actually
+# exposes (see backend/src/metrics.ts) — no rule references a metric that does
+# not exist, which is the usual way an alert file rots into decoration.
+#
+# `for:` durations are deliberately not zero: MQTT and MongoDB both reconnect on
+# their own with bounded backoff, so a few seconds of disconnection is normal
+# operation rather than something to wake anyone for.
+groups:
+  - name: navfleet-availability
+    rules:
+      - alert: NavFleetBackendDown
+        expr: up{job="navfleet-backend"} == 0
+        for: 1m
+        labels:
+          severity: critical
+        annotations:
+          summary: Backend is not answering scrapes
+          description: >-
+            Prometheus cannot reach backend:3000/metrics. The API, the WebSocket
+            feed and MQTT ingest are all in that process.
+
+      - alert: NavFleetMongoDisconnected
+        expr: navfleet_mongo_connected == 0
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: MongoDB has been unreachable for 5 minutes
+          description: >-
+            The store keeps serving live telemetry from memory, but history and
+            alerts are not being persisted. Buffered documents are counted by
+            navfleet_mongo_buffer_pending.
+
+      - alert: NavFleetMqttDisconnected
+        expr: navfleet_mqtt_connected == 0
+        for: 5m
+        labels:
+          severity: critical
+        annotations:
+          summary: MQTT broker has been unreachable for 5 minutes
+          description: >-
+            No telemetry is arriving. Everything on screen is now stale, and
+            devices will age into the offline state.
+
+  - name: navfleet-data-pipeline
+    rules:
+      - alert: NavFleetTelemetryBacklog
+        expr: navfleet_mongo_buffer_pending > 1000
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: Telemetry write buffer is filling up
+          description: >-
+            {{ $value }} documents are waiting to be flushed to MongoDB. The
+            buffer is capped by MONGO_BUFFER_LIMIT; past that, samples are
+            dropped and history gains a hole.
+
+      - alert: NavFleetIngestRejecting
+        expr: rate(navfleet_mqtt_messages_rejected_total[5m]) > 0
+        for: 10m
+        labels:
+          severity: warning
+        annotations:
+          summary: MQTT messages are being rejected by ingest validation
+          description: >-
+            Sustained rejections usually mean a publisher changed its payload
+            shape, not a transient glitch. Those messages never reach the store.
+
+      - alert: NavFleetNoTelemetry
+        expr: rate(navfleet_mqtt_messages_total[10m]) == 0 and navfleet_mqtt_connected == 1
+        for: 10m
+        labels:
+          severity: warning
+        annotations:
+          summary: Connected to the broker but receiving nothing
+          description: >-
+            The broker connection is up and no messages have arrived for ten
+            minutes. Suspect a topic-pattern mismatch or silent publishers —
+            this is the failure a plain connection check cannot see.
+
+  - name: navfleet-fleet-health
+    rules:
+      - alert: NavFleetMostlyOffline
+        expr: >-
+          navfleet_devices_total > 0
+          and (navfleet_devices_online / navfleet_devices_total) < 0.5
+        for: 10m
+        labels:
+          severity: warning
+        annotations:
+          summary: More than half the fleet is offline
+          description: >-
+            {{ $value | humanizePercentage }} of devices are reporting. A fleet-wide
+            drop is more often a network or broker problem than many vehicle faults.
+
+  - name: navfleet-http
+    rules:
+      - alert: NavFleetHttpErrorRatio
+        expr: >-
+          sum(rate(navfleet_http_request_duration_seconds_count{status=~"5.."}[5m]))
+          /
+          clamp_min(sum(rate(navfleet_http_request_duration_seconds_count[5m])), 0.001)
+          > 0.05
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: Over 5% of API requests are failing
+          description: >-
+            Server-side failures, not client mistakes: only 5xx counts here.
+            The request id in each 500 body locates the matching log line.
+
+      - alert: NavFleetHttpLatencyHigh
+        expr: >-
+          histogram_quantile(
+            0.95,
+            sum by (le) (rate(navfleet_http_request_duration_seconds_bucket[5m]))
+          ) > 1
+        for: 10m
+        labels:
+          severity: warning
+        annotations:
+          summary: p95 API latency above 1s
+          description: >-
+            Snapshot reads are served from memory and should be sub-millisecond,
+            so this points at MongoDB-backed history or alert queries.
