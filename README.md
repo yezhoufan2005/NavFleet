@@ -149,7 +149,7 @@ scripts/dev.sh --mock     # 强制发布演示数据（需本机 1883 broker）
 scripts/dev.sh --no-mock  # 只启动前后端，不发布演示数据
 ```
 
-> 需要演示数据但本机没有 broker 时，可先用 Compose 起一个：`docker compose --env-file deploy/.env -f deploy/docker-compose.yml up -d mosquitto`。
+> 需要演示数据但本机没有 broker 时，可先用 Compose 起一个：`docker compose --env-file deploy/.env -f deploy/docker-compose.yml up -d mosquitto`。该 broker 已关闭匿名访问，所以还需要把 `deploy/.env` 里的 `MQTT_PUBLISHER_USERNAME` / `MQTT_PUBLISHER_PASSWORD` 导出到发布器环境（`scripts/dev.sh` 会透传当前 shell 的环境变量）。
 
 启动后访问 `http://127.0.0.1:5173`，默认登录账号 `admin / admin123`（脚本内置的开发口令，仅用于本地）。`Ctrl+C` 停止全部服务。
 
@@ -244,12 +244,12 @@ docker compose --env-file deploy/.env -f deploy/docker-compose.yml down
 
 默认端口：
 
-| 服务 | 容器内端口 | 宿主机端口 | 说明 |
-| --- | --- | --- | --- |
-| Nginx | `80` | `8080` | Web 入口 |
-| Mosquitto | `1883` | `1883` | MQTT 接入 |
-| Backend | `3000` | 不直接暴露 | 通过 Nginx 代理 |
-| MongoDB | `27017` | 不直接暴露 | Compose 内部访问 |
+| 服务      | 容器内端口 | 宿主机端口       | 说明                           |
+| --------- | ---------- | ---------------- | ------------------------------ |
+| Nginx     | `8080`     | `8080`           | Web 入口（容器以非 root 运行） |
+| Mosquitto | `1883`     | `127.0.0.1:1883` | MQTT 接入，仅本机可达且需凭据  |
+| Backend   | `3000`     | 不直接暴露       | 通过 Nginx 代理                |
+| MongoDB   | `27017`    | 不直接暴露       | 仅 `data` 内部网络可达         |
 
 如果要使用 80 端口作为正式访问入口，把 `deploy/.env` 中的 `HTTP_HOST_PORT` 改为：
 

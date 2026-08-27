@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest";
 import request from "supertest";
-import { createTestApp } from "./helpers/testApp";
+import { createTestApp, sessionCookie } from "./helpers/testApp";
 
 describe("GET /health", () => {
   it("answers the liveness probe without a session", async () => {
@@ -94,9 +94,17 @@ describe("GET /metrics", () => {
 });
 
 describe("GET /openapi.json", () => {
-  it("serves the OpenAPI document without a session", async () => {
+  it("requires a session: an API map is not for anonymous callers", async () => {
     const { app } = createTestApp();
     const response = await request(app).get("/openapi.json");
+
+    expect(response.status).toBe(401);
+    expect(response.body).toEqual({ error: "unauthorized" });
+  });
+
+  it("serves the OpenAPI document to a signed-in caller", async () => {
+    const { app } = createTestApp();
+    const response = await request(app).get("/openapi.json").set("Cookie", sessionCookie());
 
     expect(response.status).toBe(200);
     expect(response.headers["content-type"]).toMatch(/application\/json/);

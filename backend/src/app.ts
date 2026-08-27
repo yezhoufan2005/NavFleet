@@ -13,7 +13,7 @@ import { createMetrics, captureRouteMount } from "./metrics";
 import { requestContext, requestLogger } from "./requestContext";
 import { authenticate } from "./auth/middleware";
 import { buildAuthRouter } from "./auth/routes";
-import { buildOpsRouter } from "./routes/ops";
+import { buildOpsRouter, buildOpenApiRouter } from "./routes/ops";
 import { buildFleetRouter } from "./routes/fleet";
 import { buildScenesRouter } from "./routes/scenes";
 import { buildDebugRouter } from "./routes/debug";
@@ -141,6 +141,8 @@ export const createApp = ({
 
   // Everything below requires a valid session.
   app.use(authenticate);
+
+  app.use(captureRouteMount, buildOpenApiRouter());
 
   app.use(
     "/scene-maps",
