@@ -43,6 +43,21 @@ ensure_deps() {
 
 broker_up() { command -v nc >/dev/null 2>&1 && nc -z 127.0.0.1 1883 2>/dev/null; }
 
+# The bundled broker refuses anonymous clients, so a dev stack pointed at it
+# needs the same credentials compose uses. Read only the MQTT_* keys out of
+# deploy/.env: sourcing that file would drag NODE_ENV=production, the Mongo URI
+# and COOKIE_SECURE into a development process. An already-exported value wins,
+# and an external broker without auth simply leaves these empty.
+DEPLOY_ENV="$ROOT/deploy/.env"
+deploy_var() {
+  [[ -f "$DEPLOY_ENV" ]] || return 0
+  sed -n "s/^$1=//p" "$DEPLOY_ENV" | tail -1
+}
+MQTT_SUBSCRIBER_USER="${MQTT_USERNAME:-$(deploy_var MQTT_SUBSCRIBER_USERNAME)}"
+MQTT_SUBSCRIBER_PASS="${MQTT_PASSWORD:-$(deploy_var MQTT_SUBSCRIBER_PASSWORD)}"
+MQTT_PUBLISHER_USER="${MQTT_PUBLISHER_USERNAME:-$(deploy_var MQTT_PUBLISHER_USERNAME)}"
+MQTT_PUBLISHER_PASS="${MQTT_PUBLISHER_PASSWORD:-$(deploy_var MQTT_PUBLISHER_PASSWORD)}"
+
 ensure_deps backend
 ensure_deps frontend
 
@@ -56,6 +71,8 @@ echo "启动后端 (:${BACKEND_PORT})…"
   ADMIN_USERNAME="$ADMIN_USER" \
   ADMIN_PASSWORD="$ADMIN_PASS" \
   DEBUG_INGEST_ENABLED="true" \
+  MQTT_USERNAME="$MQTT_SUBSCRIBER_USER" \
+  MQTT_PASSWORD="$MQTT_SUBSCRIBER_PASS" \
   npm run dev
 ) &
 PIDS+=($!)
@@ -76,7 +93,12 @@ echo " ok"
 if [[ "$MOCK_MODE" != "off" ]]; then
   if broker_up; then
     echo "检测到 MQTT broker，启动演示发布器…"
-    (cd "$ROOT/backend" && npm run mock:mqtt -- --interval 1000) &
+    (
+      cd "$ROOT/backend"
+      MQTT_PUBLISHER_USERNAME="$MQTT_PUBLISHER_USER" \
+      MQTT_PUBLISHER_PASSWORD="$MQTT_PUBLISHER_PASS" \
+      npm run mock:mqtt -- --interval 1000
+    ) &
     PIDS+=($!)
   elif [[ "$MOCK_MODE" == "force" ]]; then
     echo "⚠ 未检测到 127.0.0.1:1883 的 MQTT broker，无法发布演示数据。"
