@@ -110,6 +110,6 @@ describe("GET /openapi.json", () => {
     expect(response.headers["content-type"]).toMatch(/application\/json/);
     const body = response.body as { openapi: string; paths: Record<string, unknown> };
     expect(body.openapi).toBe("3.1.0");
-    expect(body.paths["/api/fleet/snapshot"]).toBeTruthy();
+    expect(body.paths["/api/v1/fleet/snapshot"]).toBeTruthy();
   });
 });

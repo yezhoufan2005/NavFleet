@@ -7,10 +7,60 @@
  * common request/response shapes are typed; free-form telemetry payloads are
  * described as generic objects (the normalizer accepts many shapes).
  *
- * Paths are unversioned (`/api/...`). A `/api/v1` prefix was consciously
- * deferred: this is an internal, single-instance, read-only monitoring tool, so
- * the version churn across frontend/nginx/tests is not yet justified.
+ * Paths are documented under `/api/v1`, the surface new clients should use.
+ * Every domain path is also served at bare `/api` for existing callers (see
+ * API_PREFIXES in app.ts); the document describes one of the two rather than
+ * listing every path twice. Authentication is deliberately unversioned.
  */
+
+import { z } from "zod";
+import {
+  alertsQuerySchema,
+  deviceIdParamSchema,
+  historyQuerySchema,
+  ingestBodySchema,
+  loginSchema,
+  sceneIdParamSchema,
+} from "./validation";
+
+/**
+ * A validator, rendered as the JSON Schema that describes it.
+ *
+ * This is the anti-drift mechanism: the constraints in the document are the ones
+ * the server actually enforces, because they come from the same zod schema. The
+ * hand-written `LoginRequest` this replaced had already drifted — it omitted the
+ * `minLength: 1` both fields require, so the doc promised empty strings were
+ * acceptable.
+ *
+ * `io: "input"` matters for anything with a transform (query `limit` is coerced
+ * from a string): the request shape is what a caller sends, not what the handler
+ * receives. The `$schema` key is dropped because OpenAPI 3.1 supplies its own
+ * dialect and repeating it in every component is noise.
+ */
+const fromValidator = (schema: z.ZodType): Record<string, unknown> => {
+  const { $schema: _dialect, ...rest } = z.toJSONSchema(schema, { io: "input" }) as Record<
+    string,
+    unknown
+  >;
+  return rest;
+};
+
+/** One query parameter per property of a validator object, descriptions merged in. */
+const queryParameters = (
+  schema: z.ZodType,
+  descriptions: Record<string, string> = {},
+): Array<Record<string, unknown>> => {
+  const generated = fromValidator(schema);
+  const properties = (generated.properties ?? {}) as Record<string, Record<string, unknown>>;
+  const required = new Set((generated.required as string[] | undefined) ?? []);
+  return Object.entries(properties).map(([name, propertySchema]) => ({
+    name,
+    in: "query",
+    required: required.has(name),
+    schema: propertySchema,
+    ...(descriptions[name] ? { description: descriptions[name] } : {}),
+  }));
+};
 
 const errorSchema = {
   type: "object",
@@ -59,14 +109,7 @@ export const openApiDocument = {
     schemas: {
       Error: errorSchema,
       CodeState: codeStateSchema,
-      LoginRequest: {
-        type: "object",
-        required: ["username", "password"],
-        properties: {
-          username: { type: "string", maxLength: 200 },
-          password: { type: "string", maxLength: 200 },
-        },
-      },
+      LoginRequest: fromValidator(loginSchema),
       PublicUser: {
         type: "object",
         properties: {
@@ -233,35 +276,36 @@ const badRequest = {
       },
     },
   },
-  "/api/fleet/snapshot": {
+  "/api/v1/fleet/snapshot": {
     get: {
       tags: ["fleet"],
       summary: "车队快照（设备/编队/汇总）",
       responses: { "200": ok("快照"), "401": unauthorized },
     },
   },
-  "/api/formations": {
+  "/api/v1/formations": {
     get: {
       tags: ["fleet"],
       summary: "编队列表",
       responses: { "200": ok("编队"), "401": unauthorized },
     },
   },
-  "/api/devices/{deviceId}/history": {
+  "/api/v1/devices/{deviceId}/history": {
     get: {
       tags: ["fleet"],
       summary: "设备历史轨迹（时序采样，最新在前）",
       parameters: [
-        { name: "deviceId", in: "path", required: true, schema: { type: "string" } },
         {
-          name: "from",
-          in: "query",
-          required: false,
-          schema: { type: "string" },
-          description: "ISO-8601 或 epoch",
+          name: "deviceId",
+          in: "path",
+          required: true,
+          schema: fromValidator(deviceIdParamSchema),
         },
-        { name: "to", in: "query", required: false, schema: { type: "string" } },
-        { name: "limit", in: "query", required: false, schema: { type: "integer", maximum: 5000 } },
+        ...queryParameters(historyQuerySchema, {
+          from: "ISO-8601 或 epoch",
+          to: "ISO-8601 或 epoch",
+          limit: "返回的最大采样数",
+        }),
       ],
       responses: {
         "200": {
@@ -283,25 +327,11 @@ const badRequest = {
       },
     },
   },
-  "/api/alerts": {
+  "/api/v1/alerts": {
     get: {
       tags: ["alerts"],
       summary: "告警查询",
-      parameters: [
-        {
-          name: "severity",
-          in: "query",
-          required: false,
-          schema: { type: "string", enum: ["critical", "warning", "notice"] },
-        },
-        { name: "deviceId", in: "query", required: false, schema: { type: "string" } },
-        {
-          name: "status",
-          in: "query",
-          required: false,
-          schema: { type: "string", enum: ["active", "cleared"] },
-        },
-      ],
+      parameters: queryParameters(alertsQuerySchema),
       responses: {
         "200": {
           description: "告警列表",
@@ -321,36 +351,40 @@ const badRequest = {
       },
     },
   },
-  "/api/scenes": {
+  "/api/v1/scenes": {
     get: {
       tags: ["scenes"],
       summary: "场景地图目录",
       responses: { "200": ok("场景列表"), "401": unauthorized },
     },
   },
-  "/api/scenes/{sceneId}": {
+  "/api/v1/scenes/{sceneId}": {
     get: {
       tags: ["scenes"],
       summary: "单个场景定义",
-      parameters: [{ name: "sceneId", in: "path", required: true, schema: { type: "string" } }],
+      parameters: [
+        { name: "sceneId", in: "path", required: true, schema: fromValidator(sceneIdParamSchema) },
+      ],
       responses: { "200": ok("场景"), "401": unauthorized, "404": ok("未找到") },
     },
   },
-  "/api/scenes/{sceneId}/overlay": {
+  "/api/v1/scenes/{sceneId}/overlay": {
     get: {
       tags: ["scenes"],
       summary: "场景 lanelet 叠加层",
-      parameters: [{ name: "sceneId", in: "path", required: true, schema: { type: "string" } }],
+      parameters: [
+        { name: "sceneId", in: "path", required: true, schema: fromValidator(sceneIdParamSchema) },
+      ],
       responses: { "200": ok("叠加层"), "401": unauthorized, "404": ok("未找到") },
     },
   },
-  "/api/debug/ingest": {
+  "/api/v1/debug/ingest": {
     post: {
       tags: ["debug"],
       summary: "调试注入遥测（需 admin，且 DEBUG_INGEST_ENABLED=true，否则 404）",
       requestBody: {
         required: true,
-        content: { "application/json": { schema: { type: "object", additionalProperties: true } } },
+        content: { "application/json": { schema: fromValidator(ingestBodySchema) } },
       },
       responses: {
         "200": ok("已注入并返回快照"),

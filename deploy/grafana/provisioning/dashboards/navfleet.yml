@@ -1,0 +1,16 @@
+apiVersion: 1
+
+providers:
+  - name: navfleet
+    orgId: 1
+    folder: NavFleet
+    type: file
+    disableDeletion: false
+    # Dashboards are read-only from Grafana's point of view: the JSON in the repo
+    # is the source of truth, so an edit made in the UI is discarded on reload
+    # rather than silently becoming the version nobody can review.
+    allowUiUpdates: false
+    updateIntervalSeconds: 30
+    options:
+      path: /var/lib/grafana/dashboards
+      foldersFromFilesStructure: false

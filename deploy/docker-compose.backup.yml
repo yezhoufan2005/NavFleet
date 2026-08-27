@@ -1,0 +1,40 @@
+# Scheduled MongoDB backups. Use alongside the base file:
+#
+#   docker compose --env-file deploy/.env \
+#     -f deploy/docker-compose.yml -f deploy/docker-compose.backup.yml up -d
+#
+# A container on a timer rather than host cron: the credentials, the mongo tools
+# and the retention policy then travel with the deployment instead of living in
+# somebody's crontab. `deploy/tools/mongo-backup.sh` stays as the manual,
+# run-it-now path, and `deploy/tools/restore-drill.sh` is what proves the
+# archives are actually restorable.
+services:
+  mongo-backup:
+    image: mongo:8.0
+    depends_on:
+      mongo:
+        condition: service_healthy
+    networks:
+      # `data` only: this container has no business reaching the web tier, and
+      # the segment is internal so it has no outbound access either.
+      - data
+    environment:
+      MONGO_URI: ${MONGO_URI:-mongodb://root:example@mongo:27017/fleet_monitor?authSource=admin}
+      MONGO_DB_NAME: ${MONGO_DB_NAME:-fleet_monitor}
+      BACKUP_INTERVAL_SECONDS: ${BACKUP_INTERVAL_SECONDS:-86400}
+      BACKUP_RETENTION_DAYS: ${BACKUP_RETENTION_DAYS:-14}
+    entrypoint: ["/bin/sh", "/opt/navfleet/backup-loop.sh"]
+    volumes:
+      - ./tools/backup-loop.sh:/opt/navfleet/backup-loop.sh:ro
+      - ${BACKUP_HOST_PATH:-./backups}:/backups
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+    deploy:
+      resources:
+        limits:
+          cpus: "0.50"
+          memory: 256M
+    restart: unless-stopped

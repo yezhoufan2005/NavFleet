@@ -1,0 +1,14 @@
+apiVersion: 1
+
+# Provisioned, not clicked in by hand: a datasource created through the UI lives
+# only in that container's volume, so the dashboards would arrive broken on any
+# fresh deployment.
+datasources:
+  - name: Prometheus
+    uid: navfleet-prometheus
+    type: prometheus
+    access: proxy
+    url: http://prometheus:9090
+    isDefault: true
+    jsonData:
+      timeInterval: 15s

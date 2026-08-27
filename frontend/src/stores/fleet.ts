@@ -281,15 +281,22 @@ export const useFleetStore = defineStore("fleet", () => {
     return grouped;
   });
 
+  /**
+   * Vehicles the scene map should draw alongside the selected one.
+   *
+   * With a formation selected, that formation's members; otherwise every vehicle
+   * standing in the same scene. It used to return nothing at all without a
+   * formation, so a scene map of a six-vehicle site showed exactly one vehicle
+   * and no hint that the others existed.
+   */
   const sceneDevices = computed<DeviceSnapshot[]>(() => {
-    if (!selectedFormation.value) {
-      return [];
-    }
     const currentSceneId = formationSceneId.value;
-    const formationDeviceIds = new Set(selectedFormation.value.deviceIds || []);
+    const formationDeviceIds = selectedFormation.value
+      ? new Set(selectedFormation.value.deviceIds || [])
+      : null;
     return sortedDevices.value.filter(
       (device) =>
-        formationDeviceIds.has(device.deviceId) &&
+        (!formationDeviceIds || formationDeviceIds.has(device.deviceId)) &&
         device.rosMapEnabled !== false &&
         (!currentSceneId || device.sceneId === currentSceneId),
     );

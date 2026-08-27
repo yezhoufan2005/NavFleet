@@ -1,0 +1,27 @@
+# Prometheus scrape config for the NavFleet stack.
+#
+# The backend is scraped in-network at backend:3000/metrics. That endpoint is
+# unauthenticated and, since Phase 9C, deliberately NOT routed by the edge nginx
+# — this file is the reason it does not need to be.
+global:
+  scrape_interval: 15s
+  evaluation_interval: 15s
+  external_labels:
+    stack: navfleet
+
+rule_files:
+  - /etc/prometheus/alerts.yml
+
+scrape_configs:
+  - job_name: navfleet-backend
+    metrics_path: /metrics
+    static_configs:
+      - targets: ["backend:3000"]
+        labels:
+          service: backend
+
+  # Prometheus scraping itself: cheap, and it makes "is the monitoring stack
+  # actually running" answerable from inside Grafana.
+  - job_name: prometheus
+    static_configs:
+      - targets: ["localhost:9090"]

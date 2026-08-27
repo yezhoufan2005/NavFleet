@@ -167,7 +167,9 @@ describe("fleet store derived state", () => {
       ),
     );
 
-    expect(store.sceneDevices).toEqual([]);
+    // No formation selected: every vehicle in the selected device's scene, minus
+    // the ones excluded from the ROS map. agv-3 stands in another scene.
+    expect(deviceIdsOf(store.sceneDevices)).toEqual(["agv-1"]);
 
     store.selectFormation("f-1");
     expect(store.formationSceneId).toBe("yard");

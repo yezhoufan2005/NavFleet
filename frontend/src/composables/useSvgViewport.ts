@@ -314,6 +314,16 @@ export function useSvgViewport(options: UseSvgViewportOptions) {
     return null;
   }
 
+  /**
+   * The default view for a scene: the whole scene, framed.
+   *
+   * It used to end with a 45-metre close-up whenever the selected vehicle had a
+   * pose, which computed to `viewport.width / 45` — 22.22x on a 1000px panel.
+   * On a 74m x 88m road network that showed about a sixth of it, so the map
+   * opened onto a vehicle floating in blank space with the road network out of
+   * frame. Framing the scene is what "reset" should mean; the close-up is now an
+   * explicit action (`focusSelectedDevice`).
+   */
   function resetView(): void {
     if (!sceneReady.value) {
       return;
@@ -321,31 +331,6 @@ export function useSvgViewport(options: UseSvgViewportOptions) {
 
     const scene = resolvedScene.value;
     const baseScale = getBaseScale();
-    fitWorldBounds(baseScale);
-
-    // A formation with several vehicles in view → frame them all (modern "fit to
-    // selection"); a single selected vehicle → a consistent close-up window.
-    if (formationPeerDevices.value.length && deviceExtentBounds.value) {
-      if (fitToRegion(deviceExtentBounds.value)) {
-        saveViewportState();
-        return;
-      }
-    }
-
-    const focusPose = getFocusPose();
-    if (focusPose) {
-      const FOCUS_WORLD_METERS = 45;
-      const focusScale = clampScale(
-        Math.max(baseScale * 1.3, viewport.width / FOCUS_WORLD_METERS),
-        baseScale,
-      );
-      viewport.scale = focusScale;
-      if (centerWorldPoint(focusPose.x, focusPose.y, focusScale)) {
-        saveViewportState();
-        return;
-      }
-    }
-
     const sceneZoom = Number.isFinite(scene.defaultView?.zoom) ? scene.defaultView!.zoom! : 1;
     const nextScale = clampScale(baseScale * sceneZoom, baseScale);
     viewport.scale = nextScale;
@@ -361,6 +346,43 @@ export function useSvgViewport(options: UseSvgViewportOptions) {
 
     fitWorldBounds(nextScale);
     saveViewportState();
+  }
+
+  /**
+   * Zoom to the selected vehicle — its formation if it has peers on screen,
+   * otherwise a fixed-size window around its own pose. Returns false when there
+   * is nothing to focus, so a caller can leave the viewport alone.
+   */
+  function focusSelectedDevice(): boolean {
+    if (!sceneReady.value) {
+      return false;
+    }
+
+    const baseScale = getBaseScale();
+
+    if (formationPeerDevices.value.length && deviceExtentBounds.value) {
+      if (fitToRegion(deviceExtentBounds.value)) {
+        saveViewportState();
+        return true;
+      }
+    }
+
+    const focusPose = getFocusPose();
+    if (!focusPose) {
+      return false;
+    }
+
+    const FOCUS_WORLD_METERS = 45;
+    const focusScale = clampScale(
+      Math.max(baseScale * 1.3, viewport.width / FOCUS_WORLD_METERS),
+      baseScale,
+    );
+    viewport.scale = focusScale;
+    if (centerWorldPoint(focusPose.x, focusPose.y, focusScale)) {
+      saveViewportState();
+      return true;
+    }
+    return false;
   }
 
   function applyStoredOrDefaultView(sceneId: string = activeSceneId.value): void {
@@ -565,6 +587,7 @@ export function useSvgViewport(options: UseSvgViewportOptions) {
     svgRef,
     dragging,
     resetView,
+    focusSelectedDevice,
     handleWheel,
     handlePointerDown,
     handlePointerMove,

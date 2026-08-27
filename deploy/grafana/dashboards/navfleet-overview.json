@@ -1,0 +1,843 @@
+{
+  "title": "NavFleet 车队监控",
+  "uid": "navfleet-overview",
+  "tags": ["navfleet"],
+  "timezone": "browser",
+  "schemaVersion": 39,
+  "version": 1,
+  "editable": true,
+  "refresh": "15s",
+  "time": {
+    "from": "now-1h",
+    "to": "now"
+  },
+  "panels": [
+    {
+      "type": "stat",
+      "title": "设备总数",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "navfleet-prometheus"
+      },
+      "gridPos": {
+        "x": 0,
+        "y": 0,
+        "w": 6,
+        "h": 4
+      },
+      "options": {
+        "colorMode": "value",
+        "graphMode": "area",
+        "justifyMode": "auto",
+        "textMode": "auto",
+        "reduceOptions": {
+          "calcs": ["lastNotNull"],
+          "fields": "",
+          "values": false
+        }
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "none",
+          "mappings": []
+        },
+        "overrides": []
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "navfleet-prometheus"
+          },
+          "editorMode": "code",
+          "expr": "navfleet_devices_total",
+          "range": true,
+          "refId": "A",
+          "format": "time_series"
+        }
+      ]
+    },
+    {
+      "type": "stat",
+      "title": "在线设备",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "navfleet-prometheus"
+      },
+      "gridPos": {
+        "x": 6,
+        "y": 0,
+        "w": 6,
+        "h": 4
+      },
+      "options": {
+        "colorMode": "value",
+        "graphMode": "area",
+        "justifyMode": "auto",
+        "textMode": "auto",
+        "reduceOptions": {
+          "calcs": ["lastNotNull"],
+          "fields": "",
+          "values": false
+        }
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "none",
+          "mappings": []
+        },
+        "overrides": []
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "navfleet-prometheus"
+          },
+          "editorMode": "code",
+          "expr": "navfleet_devices_online",
+          "range": true,
+          "refId": "A",
+          "format": "time_series"
+        }
+      ]
+    },
+    {
+      "type": "stat",
+      "title": "活跃告警",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "navfleet-prometheus"
+      },
+      "gridPos": {
+        "x": 12,
+        "y": 0,
+        "w": 6,
+        "h": 4
+      },
+      "options": {
+        "colorMode": "value",
+        "graphMode": "area",
+        "justifyMode": "auto",
+        "textMode": "auto",
+        "reduceOptions": {
+          "calcs": ["lastNotNull"],
+          "fields": "",
+          "values": false
+        }
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "none",
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "orange",
+                "value": 1
+              },
+              {
+                "color": "red",
+                "value": 5
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "navfleet-prometheus"
+          },
+          "editorMode": "code",
+          "expr": "navfleet_alerts_active",
+          "range": true,
+          "refId": "A",
+          "format": "time_series"
+        }
+      ]
+    },
+    {
+      "type": "stat",
+      "title": "WebSocket 连接",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "navfleet-prometheus"
+      },
+      "gridPos": {
+        "x": 18,
+        "y": 0,
+        "w": 6,
+        "h": 4
+      },
+      "options": {
+        "colorMode": "value",
+        "graphMode": "area",
+        "justifyMode": "auto",
+        "textMode": "auto",
+        "reduceOptions": {
+          "calcs": ["lastNotNull"],
+          "fields": "",
+          "values": false
+        }
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "none",
+          "mappings": []
+        },
+        "overrides": []
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "navfleet-prometheus"
+          },
+          "editorMode": "code",
+          "expr": "navfleet_ws_connections",
+          "range": true,
+          "refId": "A",
+          "format": "time_series"
+        }
+      ]
+    },
+    {
+      "type": "stat",
+      "title": "MongoDB",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "navfleet-prometheus"
+      },
+      "gridPos": {
+        "x": 0,
+        "y": 4,
+        "w": 6,
+        "h": 4
+      },
+      "options": {
+        "colorMode": "value",
+        "graphMode": "area",
+        "justifyMode": "auto",
+        "textMode": "auto",
+        "reduceOptions": {
+          "calcs": ["lastNotNull"],
+          "fields": "",
+          "values": false
+        }
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "none",
+          "mappings": [
+            {
+              "type": "value",
+              "options": {
+                "0": {
+                  "text": "断开",
+                  "color": "red",
+                  "index": 0
+                },
+                "1": {
+                  "text": "已连接",
+                  "color": "green",
+                  "index": 1
+                }
+              }
+            }
+          ]
+        },
+        "overrides": []
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "navfleet-prometheus"
+          },
+          "editorMode": "code",
+          "expr": "navfleet_mongo_connected",
+          "range": true,
+          "refId": "A",
+          "format": "time_series"
+        }
+      ]
+    },
+    {
+      "type": "stat",
+      "title": "MQTT Broker",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "navfleet-prometheus"
+      },
+      "gridPos": {
+        "x": 6,
+        "y": 4,
+        "w": 6,
+        "h": 4
+      },
+      "options": {
+        "colorMode": "value",
+        "graphMode": "area",
+        "justifyMode": "auto",
+        "textMode": "auto",
+        "reduceOptions": {
+          "calcs": ["lastNotNull"],
+          "fields": "",
+          "values": false
+        }
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "none",
+          "mappings": [
+            {
+              "type": "value",
+              "options": {
+                "0": {
+                  "text": "断开",
+                  "color": "red",
+                  "index": 0
+                },
+                "1": {
+                  "text": "已连接",
+                  "color": "green",
+                  "index": 1
+                }
+              }
+            }
+          ]
+        },
+        "overrides": []
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "navfleet-prometheus"
+          },
+          "editorMode": "code",
+          "expr": "navfleet_mqtt_connected",
+          "range": true,
+          "refId": "A",
+          "format": "time_series"
+        }
+      ]
+    },
+    {
+      "type": "stat",
+      "title": "待写入缓冲",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "navfleet-prometheus"
+      },
+      "gridPos": {
+        "x": 12,
+        "y": 4,
+        "w": 6,
+        "h": 4
+      },
+      "options": {
+        "colorMode": "value",
+        "graphMode": "area",
+        "justifyMode": "auto",
+        "textMode": "auto",
+        "reduceOptions": {
+          "calcs": ["lastNotNull"],
+          "fields": "",
+          "values": false
+        }
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "none",
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "orange",
+                "value": 500
+              },
+              {
+                "color": "red",
+                "value": 1000
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "navfleet-prometheus"
+          },
+          "editorMode": "code",
+          "expr": "navfleet_mongo_buffer_pending",
+          "range": true,
+          "refId": "A",
+          "format": "time_series"
+        }
+      ]
+    },
+    {
+      "type": "stat",
+      "title": "运行时长",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "navfleet-prometheus"
+      },
+      "gridPos": {
+        "x": 18,
+        "y": 4,
+        "w": 6,
+        "h": 4
+      },
+      "options": {
+        "colorMode": "value",
+        "graphMode": "area",
+        "justifyMode": "auto",
+        "textMode": "auto",
+        "reduceOptions": {
+          "calcs": ["lastNotNull"],
+          "fields": "",
+          "values": false
+        }
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "s",
+          "mappings": []
+        },
+        "overrides": []
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "navfleet-prometheus"
+          },
+          "editorMode": "code",
+          "expr": "navfleet_uptime_seconds",
+          "range": true,
+          "refId": "A",
+          "format": "time_series"
+        }
+      ]
+    },
+    {
+      "type": "timeseries",
+      "title": "MQTT 摄入速率",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "navfleet-prometheus"
+      },
+      "gridPos": {
+        "x": 0,
+        "y": 8,
+        "w": 12,
+        "h": 8
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "reqps",
+          "custom": {
+            "drawStyle": "line",
+            "lineWidth": 2,
+            "fillOpacity": 12,
+            "showPoints": "never",
+            "spanNulls": true,
+            "stacking": {
+              "mode": "none",
+              "group": "A"
+            }
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "navfleet-prometheus"
+          },
+          "editorMode": "code",
+          "expr": "rate(navfleet_mqtt_messages_total[1m])",
+          "range": true,
+          "refId": "A",
+          "format": "time_series",
+          "legendFormat": "已接收 msg/s"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "navfleet-prometheus"
+          },
+          "editorMode": "code",
+          "expr": "rate(navfleet_mqtt_messages_rejected_total[1m])",
+          "range": true,
+          "refId": "A",
+          "format": "time_series",
+          "legendFormat": "校验拒绝 msg/s"
+        }
+      ],
+      "description": "拒绝速率持续大于 0 通常意味着某个发布端改了 payload 结构，而不是偶发抖动。"
+    },
+    {
+      "type": "timeseries",
+      "title": "车队在线率",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "navfleet-prometheus"
+      },
+      "gridPos": {
+        "x": 12,
+        "y": 8,
+        "w": 12,
+        "h": 8
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "none",
+          "custom": {
+            "drawStyle": "line",
+            "lineWidth": 2,
+            "fillOpacity": 12,
+            "showPoints": "never",
+            "spanNulls": true,
+            "stacking": {
+              "mode": "normal",
+              "group": "A"
+            }
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "navfleet-prometheus"
+          },
+          "editorMode": "code",
+          "expr": "navfleet_devices_online",
+          "range": true,
+          "refId": "A",
+          "format": "time_series",
+          "legendFormat": "在线"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "navfleet-prometheus"
+          },
+          "editorMode": "code",
+          "expr": "navfleet_devices_total - navfleet_devices_online",
+          "range": true,
+          "refId": "A",
+          "format": "time_series",
+          "legendFormat": "离线"
+        }
+      ],
+      "description": "全队同时掉线更可能是网络或 broker 问题，而不是很多台车同时故障。"
+    },
+    {
+      "type": "timeseries",
+      "title": "HTTP 延迟 p95 / p50（按路由）",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "navfleet-prometheus"
+      },
+      "gridPos": {
+        "x": 0,
+        "y": 16,
+        "w": 12,
+        "h": 8
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "s",
+          "custom": {
+            "drawStyle": "line",
+            "lineWidth": 2,
+            "fillOpacity": 12,
+            "showPoints": "never",
+            "spanNulls": true,
+            "stacking": {
+              "mode": "none",
+              "group": "A"
+            }
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "navfleet-prometheus"
+          },
+          "editorMode": "code",
+          "expr": "histogram_quantile(0.95, sum by (le, route) (rate(navfleet_http_request_duration_seconds_bucket[5m])))",
+          "range": true,
+          "refId": "A",
+          "format": "time_series",
+          "legendFormat": "p95 {{route}}"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "navfleet-prometheus"
+          },
+          "editorMode": "code",
+          "expr": "histogram_quantile(0.50, sum by (le) (rate(navfleet_http_request_duration_seconds_bucket[5m])))",
+          "range": true,
+          "refId": "A",
+          "format": "time_series",
+          "legendFormat": "p50 合计"
+        }
+      ],
+      "description": "route 标签是路由模板（/api/devices/:deviceId/history），不是具体路径 —— 否则每个设备 id 都会新开一条时间序列。"
+    },
+    {
+      "type": "timeseries",
+      "title": "HTTP 请求速率（按状态）",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "navfleet-prometheus"
+      },
+      "gridPos": {
+        "x": 12,
+        "y": 16,
+        "w": 12,
+        "h": 8
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "reqps",
+          "custom": {
+            "drawStyle": "line",
+            "lineWidth": 2,
+            "fillOpacity": 12,
+            "showPoints": "never",
+            "spanNulls": true,
+            "stacking": {
+              "mode": "normal",
+              "group": "A"
+            }
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "navfleet-prometheus"
+          },
+          "editorMode": "code",
+          "expr": "sum by (status) (rate(navfleet_http_request_duration_seconds_count[1m]))",
+          "range": true,
+          "refId": "A",
+          "format": "time_series",
+          "legendFormat": "{{status}}"
+        }
+      ],
+      "description": "401 会落在 route=\"unmatched\"：鉴权中间件在任何路由匹配之前就返回，Express 没有模板可归属。"
+    },
+    {
+      "type": "timeseries",
+      "title": "Node 进程",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "navfleet-prometheus"
+      },
+      "gridPos": {
+        "x": 0,
+        "y": 24,
+        "w": 12,
+        "h": 8
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "bytes",
+          "custom": {
+            "drawStyle": "line",
+            "lineWidth": 2,
+            "fillOpacity": 12,
+            "showPoints": "never",
+            "spanNulls": true,
+            "stacking": {
+              "mode": "none",
+              "group": "A"
+            }
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "navfleet-prometheus"
+          },
+          "editorMode": "code",
+          "expr": "navfleet_process_nodejs_heap_size_used_bytes",
+          "range": true,
+          "refId": "A",
+          "format": "time_series",
+          "legendFormat": "堆已用"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "navfleet-prometheus"
+          },
+          "editorMode": "code",
+          "expr": "navfleet_process_nodejs_heap_size_total_bytes",
+          "range": true,
+          "refId": "A",
+          "format": "time_series",
+          "legendFormat": "堆总量"
+        }
+      ]
+    },
+    {
+      "type": "timeseries",
+      "title": "事件循环滞后",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "navfleet-prometheus"
+      },
+      "gridPos": {
+        "x": 12,
+        "y": 24,
+        "w": 12,
+        "h": 8
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "s",
+          "custom": {
+            "drawStyle": "line",
+            "lineWidth": 2,
+            "fillOpacity": 12,
+            "showPoints": "never",
+            "spanNulls": true,
+            "stacking": {
+              "mode": "none",
+              "group": "A"
+            }
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "navfleet-prometheus"
+          },
+          "editorMode": "code",
+          "expr": "navfleet_process_nodejs_eventloop_lag_p99_seconds",
+          "range": true,
+          "refId": "A",
+          "format": "time_series",
+          "legendFormat": "p99"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "navfleet-prometheus"
+          },
+          "editorMode": "code",
+          "expr": "navfleet_process_nodejs_eventloop_lag_mean_seconds",
+          "range": true,
+          "refId": "A",
+          "format": "time_series",
+          "legendFormat": "均值"
+        }
+      ],
+      "description": "摄入串行化队列在单个事件循环上跑；滞后升高说明它开始成为瓶颈。"
+    }
+  ]
+}
