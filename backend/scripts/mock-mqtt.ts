@@ -49,11 +49,12 @@ interface Point {
   x: number;
   y: number;
 }
-// __MOCK_1__
 interface DeviceState {
   deviceId: string;
   sceneId: string;
   gpsEnabled: boolean;
+  /** Where this vehicle's scene sits on the globe; see sceneGpsOrigin(). */
+  gpsOrigin: GpsOrigin;
   scenario: Scenario;
   route: Point[]; // closed patrol loop (corners); movement interpolates along it
   cruiseSpeed: number; // m/s along the route
@@ -68,7 +69,34 @@ interface DeviceState {
 
 const DEFAULT_BROKER = process.env.MQTT_URL || "mqtt://127.0.0.1:1883";
 const DEFAULT_INTERVAL = 1000;
+/**
+ * Base point for the demo fleet's synthetic GPS, and the spacing between scenes.
+ *
+ * Each scene gets its own origin. Every scene used to map onto this one point,
+ * so the whole demo fleet piled into a cluster ~30 px across: the GPS view was a
+ * single unreadable stack of labels however far you zoomed out, and "fit fleet"
+ * had nothing to fit. Real sites sit kilometres apart, so the demo should too.
+ */
 const GPS_ORIGIN = { lat: 31.2304, lng: 121.4737 };
+const SCENE_SPACING_KM = 3;
+const KM_PER_DEGREE_LAT = 110.574;
+
+interface GpsOrigin {
+  lat: number;
+  lng: number;
+}
+
+/** Scenes laid out on a 3-wide grid, in the order scenes.json declares them. */
+function sceneGpsOrigin(sceneIndex: number): GpsOrigin {
+  const safeIndex = sceneIndex < 0 ? 0 : sceneIndex;
+  const column = safeIndex % 3;
+  const row = Math.floor(safeIndex / 3);
+  const kmPerDegreeLng = 111.32 * Math.cos((GPS_ORIGIN.lat * Math.PI) / 180);
+  return {
+    lat: GPS_ORIGIN.lat + (row * SCENE_SPACING_KM) / KM_PER_DEGREE_LAT,
+    lng: GPS_ORIGIN.lng + (column * SCENE_SPACING_KM) / kmPerDegreeLng,
+  };
+}
 
 // Assigned round-robin by vehicle index so a full fleet covers the whole surface.
 const SCENARIO_RING: Scenario[] = [
@@ -166,21 +194,28 @@ function findBounds(scenes: SceneConfig[], sceneId: string): Bounds {
   }
   return { minX: 0, maxX: 60, minY: 0, maxY: 40 };
 }
-// __MOCK_2__
 const round = (value: number, digits = 3): number => Number(value.toFixed(digits));
 
-function normalizeHeading(yaw: number): number {
+/**
+ * Scene yaw (radians, maths convention: 0 = +x/east, counter-clockwise) to the
+ * compass bearing a GPS receiver reports (0 = north, clockwise). Emitting the
+ * raw yaw as `heading` made the map's direction arrow point 90° off and turn the
+ * wrong way, because every consumer reads `gps.heading` as a bearing.
+ */
+function headingFromYaw(yaw: number): number {
   const degrees = (yaw * 180) / Math.PI;
-  return round(((degrees % 360) + 360) % 360, 1);
+  const bearing = 90 - degrees;
+  return round(((bearing % 360) + 360) % 360, 1);
 }
 
-function sceneToGps(x: number, y: number, yaw: number) {
+/** Scene-local metres to latitude/longitude around the vehicle's scene origin. */
+function sceneToGps(origin: GpsOrigin, x: number, y: number, yaw: number) {
   const latFactor = 1 / 111320;
-  const lngFactor = 1 / (111320 * Math.cos((GPS_ORIGIN.lat * Math.PI) / 180));
+  const lngFactor = 1 / (111320 * Math.cos((origin.lat * Math.PI) / 180));
   return {
-    lat: round(GPS_ORIGIN.lat + y * latFactor, 6),
-    lng: round(GPS_ORIGIN.lng + x * lngFactor, 6),
-    heading: normalizeHeading(yaw),
+    lat: round(origin.lat + y * latFactor, 6),
+    lng: round(origin.lng + x * lngFactor, 6),
+    heading: headingFromYaw(yaw),
   };
 }
 
@@ -243,13 +278,15 @@ function buildStates(count: number): DeviceState[] {
   const limit = count > 0 ? Math.min(count, vehicles.length) : vehicles.length;
 
   return vehicles.slice(0, limit).map((vehicle, index) => {
-    const bounds = findBounds(scenes, vehicle.defaultSceneId || "");
+    const sceneId = vehicle.defaultSceneId || "";
+    const bounds = findBounds(scenes, sceneId);
     const scenario = SCENARIO_RING[index % SCENARIO_RING.length];
     const { route, station } = buildRoute(bounds, index);
     return {
       deviceId: vehicle.deviceId,
-      sceneId: vehicle.defaultSceneId || "",
+      sceneId,
       gpsEnabled: vehicle.gpsEnabled !== false,
+      gpsOrigin: sceneGpsOrigin(scenes.findIndex((scene) => scene.sceneId === sceneId)),
       scenario,
       route,
       cruiseSpeed: SCENARIO_SPEED[scenario],
@@ -263,7 +300,6 @@ function buildStates(count: number): DeviceState[] {
     };
   });
 }
-// __MOCK_3__
 type Motion = "route" | "charging";
 
 interface ScenarioFrame {
@@ -450,7 +486,7 @@ function buildTelemetry(state: DeviceState) {
   }
 
   stepBattery(state, motion === "charging", speed > 0);
-  const gps = state.gpsEnabled ? sceneToGps(x, y, yaw) : undefined;
+  const gps = state.gpsEnabled ? sceneToGps(state.gpsOrigin, x, y, yaw) : undefined;
 
   return {
     stamp,
@@ -478,7 +514,6 @@ function buildTelemetry(state: DeviceState) {
     },
   };
 }
-// __MOCK_4__
 // Single-instance guard: two demo publishers driving the same deviceIds make
 // telemetry (e.g. battery %) visibly flip between their two timelines every
 // tick. A PID file lets a fresh run evict any previous publisher so exactly one
