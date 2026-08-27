@@ -9,7 +9,8 @@ import type { AuthService } from "./auth/service";
 import type { AppConfig } from "./config";
 import type { RuntimeState } from "./runtimeState";
 import { runtimePaths } from "./config";
-import { logger } from "./logger";
+import { createMetrics, captureRouteMount } from "./metrics";
+import { requestContext, requestLogger } from "./requestContext";
 import { authenticate } from "./auth/middleware";
 import { buildAuthRouter } from "./auth/routes";
 import { buildOpsRouter } from "./routes/ops";
@@ -24,6 +25,8 @@ export interface AppDeps {
   config: AppConfig;
   state: RuntimeState;
   wsClientCount: () => number;
+  /** Register process-level metrics (heap/GC/event loop). See MetricsDeps. */
+  collectDefaultMetrics?: boolean;
 }
 
 /**
@@ -39,8 +42,16 @@ export const createApp = ({
   config,
   state,
   wsClientCount,
+  collectDefaultMetrics = false,
 }: AppDeps): express.Express => {
   const app = express();
+  const metrics = createMetrics({
+    store,
+    persistence,
+    state,
+    wsClientCount,
+    collectDefault: collectDefaultMetrics,
+  });
 
   app.use(helmet());
   if (config.corsOrigins.length) {
@@ -49,19 +60,25 @@ export const createApp = ({
   app.use(express.json({ limit: "2mb" }));
   app.use(cookieParser());
 
-  // Request logging: one line per request on completion. Health/metrics probes
-  // are noisy and logged at debug; everything else at info (gated by LOG_LEVEL).
+  // Correlation id first, so every later middleware (including the request log
+  // and the error handler) can attribute its output to one request.
+  app.use(requestContext);
+
+  // Request logging + latency histogram: one line and one observation per
+  // request on completion. Health/metrics probes are noisy and logged at debug;
+  // everything else at info (gated by LOG_LEVEL).
   app.use((request, response, next) => {
-    const startedAtMs = Date.now();
+    const startedAtNs = process.hrtime.bigint();
     response.on("finish", () => {
-      const durationMs = Date.now() - startedAtMs;
+      const durationSeconds = Number(process.hrtime.bigint() - startedAtNs) / 1e9;
+      metrics.observeHttpRequest(request, response, durationSeconds);
       const isProbe = request.path === "/health" || request.path.startsWith("/metrics");
-      logger[isProbe ? "debug" : "info"](
+      requestLogger(request)[isProbe ? "debug" : "info"](
         {
           method: request.method,
           path: request.path,
           status: response.statusCode,
-          durationMs,
+          durationMs: Math.round(durationSeconds * 1000),
         },
         "request",
       );
@@ -69,10 +86,8 @@ export const createApp = ({
     next();
   });
 
-  // __APP_BODY__
-
   // Public operational endpoints (liveness/readiness/metrics/openapi).
-  app.use(buildOpsRouter({ store, persistence, state, config, wsClientCount }));
+  app.use(captureRouteMount, buildOpsRouter({ persistence, state, config, metrics }));
 
   // Auth routes are public (login/refresh/logout); /me is guarded inside the
   // router. A tight rate limit protects the credential endpoint from brute force.
@@ -82,7 +97,7 @@ export const createApp = ({
     standardHeaders: true,
     legacyHeaders: false,
   });
-  app.use("/api/auth", authLimiter, buildAuthRouter(authService));
+  app.use("/api/auth", authLimiter, captureRouteMount, buildAuthRouter(authService));
 
   // Everything below requires a valid session.
   app.use(authenticate);
@@ -102,11 +117,9 @@ export const createApp = ({
     }),
   );
 
-  app.use("/api", buildFleetRouter(store));
-  app.use("/api", buildScenesRouter(store));
-  app.use("/api", buildDebugRouter(store, config));
-
-  // __APP_TAIL__
+  app.use("/api", captureRouteMount, buildFleetRouter(store));
+  app.use("/api", captureRouteMount, buildScenesRouter(store));
+  app.use("/api", captureRouteMount, buildDebugRouter(store, config));
 
   // JSON 404 for any unmatched route, keeping the error contract consistent
   // with the rest of the API (Express's default would return an HTML page).
@@ -117,7 +130,7 @@ export const createApp = ({
   app.use(
     (
       error: unknown,
-      _request: express.Request,
+      request: express.Request,
       response: express.Response,
       _next: express.NextFunction,
     ) => {
@@ -136,9 +149,10 @@ export const createApp = ({
         return;
       }
       // Log the detail server-side but return a generic message so internal
-      // error text (e.g. driver messages) never leaks to clients.
-      logger.error({ err: error }, "Unhandled request error");
-      response.status(500).json({ error: "internal_error" });
+      // error text (e.g. driver messages) never leaks to clients. The request id
+      // travels with the response so a reported failure can be found in the logs.
+      requestLogger(request).error({ err: error }, "Unhandled request error");
+      response.status(500).json({ error: "internal_error", requestId: request.requestId });
     },
   );
 

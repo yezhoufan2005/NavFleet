@@ -1,17 +1,15 @@
 import express from "express";
 import type { Persistence } from "../persistence";
-import type { DashboardStore } from "../store";
 import type { RuntimeState } from "../runtimeState";
 import type { AppConfig } from "../config";
-import { renderMetrics } from "../metrics";
+import type { Metrics } from "../metrics";
 import { openApiDocument } from "../openapi";
 
 export interface OpsRouterDeps {
-  store: DashboardStore;
   persistence: Persistence;
   state: RuntimeState;
   config: AppConfig;
-  wsClientCount: () => number;
+  metrics: Metrics;
 }
 
 /**
@@ -19,11 +17,10 @@ export interface OpsRouterDeps {
  * metrics and the OpenAPI document. Mounted at the root before the auth gate.
  */
 export const buildOpsRouter = ({
-  store,
   persistence,
   state,
   config,
-  wsClientCount,
+  metrics,
 }: OpsRouterDeps): express.Router => {
   const router = express.Router();
 
@@ -55,13 +52,18 @@ export const buildOpsRouter = ({
   });
 
   // Prometheus metrics (gated by METRICS_ENABLED). Internal scraping only.
-  router.get("/metrics", (_request, response) => {
+  router.get("/metrics", (_request, response, next) => {
     if (!config.metricsEnabled) {
       response.status(404).json({ error: "not_found" });
       return;
     }
-    response.setHeader("Content-Type", "text/plain; version=0.0.4; charset=utf-8");
-    response.send(renderMetrics({ store, persistence, state, wsClientCount }));
+    metrics
+      .render()
+      .then((body) => {
+        response.setHeader("Content-Type", metrics.contentType);
+        response.send(body);
+      })
+      .catch(next);
   });
 
   // OpenAPI document (no auth): describes the API for tooling / Swagger UI.
