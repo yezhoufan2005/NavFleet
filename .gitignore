@@ -19,6 +19,11 @@ backend/.tmp-*.json
 .playwright-mcp/
 .claude/
 
+# Playwright e2e artifacts (traces, screenshots, HTML report)
+test-results/
+playwright-report/
+.playwright/
+
 .DS_Store
 Thumbs.db
 

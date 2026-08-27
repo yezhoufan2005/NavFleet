@@ -27,16 +27,22 @@ navfleet/
 ```bash
 npm install                     # 安装所有 workspace 依赖
 
-npm run lint                    # 所有 workspace 的 ESLint
+npm run lint                    # 所有 workspace + e2e 的 ESLint
 npm run format:check            # Prettier 校验
-npm run typecheck               # shared / backend / frontend 类型检查
+npm run typecheck               # shared / backend / frontend / e2e 类型检查
 npm test                        # 所有 workspace 单测
 npm run build                   # shared → backend(tsc) → frontend(vite)
+
+npm run e2e                     # Playwright 端到端（自动拉起 backend + vite，
+                                # 无需 MongoDB / MQTT；首次先 npx playwright install chromium）
 
 npm run dev:backend             # 后端 dev（tsx watch）
 npm run dev:frontend            # 前端 dev（vite）
 npm run mock:mqtt               # 发布确定性演示遥测
 ```
+
+`npm run e2e` 需要 3000（后端）与 5173（vite dev）两个端口空闲：本地已有 dev server 时
+Playwright 会直接复用它们，而复用的后端若没有开 `DEBUG_INGEST_ENABLED`，播种步骤会失败。
 
 针对单个 workspace：`npm run <script> -w navfleet-backend`（或 `navfleet-frontend` / `@navfleet/shared`）。
 

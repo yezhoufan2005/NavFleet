@@ -14,20 +14,33 @@
   "license": "UNLICENSED",
   "scripts": {
     "prepare": "husky",
-    "typecheck": "npm run typecheck --workspaces --if-present",
-    "lint": "npm run lint --workspaces --if-present",
-    "lint:fix": "npm run lint:fix --workspaces --if-present",
-    "format:check": "npm run format:check --workspaces --if-present",
+    "typecheck": "npm run typecheck --workspaces --if-present && npm run typecheck:e2e",
+    "typecheck:e2e": "tsc -p e2e/tsconfig.json",
+    "lint": "npm run lint --workspaces --if-present && npm run lint:e2e",
+    "lint:e2e": "eslint e2e",
+    "lint:fix": "npm run lint:fix --workspaces --if-present && eslint e2e --fix",
+    "format:check": "npm run format:check --workspaces --if-present && prettier --check \"e2e/**/*.{ts,json}\"",
+    "format:e2e": "prettier --write \"e2e/**/*.{ts,json}\"",
     "test": "npm run test --workspaces --if-present",
+    "e2e": "playwright test -c e2e",
+    "e2e:ui": "playwright test -c e2e --ui",
     "build": "npm run build -w @navfleet/shared --if-present && npm run build -w navfleet-backend && npm run build -w navfleet-frontend",
     "dev:backend": "npm run dev -w navfleet-backend",
     "dev:frontend": "npm run dev -w navfleet-frontend",
     "mock:mqtt": "npm run mock:mqtt -w navfleet-backend"
   },
   "devDependencies": {
+    "@eslint/js": "^9.39.5",
+    "@playwright/test": "^1.62.1",
+    "@types/node": "^24.13.3",
+    "eslint": "^9.39.5",
+    "eslint-config-prettier": "^10.1.8",
+    "globals": "^17.11.0",
     "husky": "^9.1.7",
     "lint-staged": "^17.3.0",
-    "prettier": "^3.9.6"
+    "prettier": "^3.9.6",
+    "typescript": "^5.9.3",
+    "typescript-eslint": "^8.68.0"
   },
   "lint-staged": {
     "*.{ts,js,vue,json,md,yml,yaml,css}": "prettier --write"
