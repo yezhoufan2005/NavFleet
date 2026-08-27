@@ -16,7 +16,7 @@
 
 ```text
 Web:  http://127.0.0.1:8080
-MQTT: mqtt://127.0.0.1:1883
+MQTT: mqtt://127.0.0.1:1883   # 仅宿主机本机可达，且需要凭据
 ```
 
 ## 2. 推荐目录结构
@@ -118,7 +118,28 @@ ADMIN_PASSWORD=一个强口令
 COOKIE_SECURE=true
 ```
 
+### 4.2.1 Broker 凭据（必填，否则 compose 拒绝启动）
+
+Mosquitto 已关闭匿名访问，所以这四个变量**没有默认值**：留空时 `docker compose up`
+会直接报错退出，而不是起一个谁都能连的 broker。
+
+```env
+MQTT_SUBSCRIBER_USERNAME=navfleet-backend
+MQTT_SUBSCRIBER_PASSWORD=$(openssl rand -hex 16)
+MQTT_PUBLISHER_USERNAME=navfleet-publisher
+MQTT_PUBLISHER_PASSWORD=$(openssl rand -hex 16)
+```
+
+两个账号权限是分开的：订阅方（后端）对 `/fleet/#` **只读**，发布方（车辆或演示脚本）
+**只写**。任一凭据泄露都做不了对方的事 —— 后端凭据无法伪造遥测，车辆凭据无法读取
+整个车队。密码文件与 ACL 由容器启动脚本用 `mosquitto_passwd` 现场生成写入
+`mosquitto-auth` 卷，不落仓库；改密码后重启即完成轮换。
+
+> 后端读取的仍是 `MQTT_USERNAME` / `MQTT_PASSWORD`，compose 会把
+> `MQTT_SUBSCRIBER_*` 映射过去，无需重复填写。
+
 > `NODE_ENV=production`（compose 默认）下，后端在 `AUTH_ENABLED=true` 且 `JWT_SECRET` 为空时会**拒绝启动**；`ADMIN_PASSWORD` 为空时会跳过管理员种子并记录错误日志。务必在首次启动前设置二者。
+> 同样在生产下，`DEBUG_INGEST_ENABLED=true` 或 `CORS_ORIGINS` 含 `*` 会**拒绝启动**；`COOKIE_SECURE=false`、`AUTH_ENABLED=false` 只告警。
 
 如果需要 80 端口：
 
@@ -130,8 +151,8 @@ HTTP_HOST_PORT=80
 
 ```env
 MQTT_URL=mqtt://10.0.0.10:1883
-MQTT_USERNAME=现场用户名
-MQTT_PASSWORD=现场密码
+MQTT_SUBSCRIBER_USERNAME=现场用户名
+MQTT_SUBSCRIBER_PASSWORD=现场密码
 ```
 
 这时内置 Mosquitto 仍会启动，但后端会连接外部 Broker。
@@ -290,12 +311,33 @@ docker compose --env-file deploy/.env -f deploy/docker-compose.yml up -d --build
 - `/` 代理到前端容器（并注入 SPA 安全响应头与高德地图作用域的 CSP）。
 - `/api/` 代理到后端（边缘限流 ~30r/s）。
 - `/health` 代理到后端存活探针。
-- `/metrics` 代理到后端 Prometheus 指标（未鉴权，仅供内网抓取）。
-- `/openapi.json` 代理到后端 OpenAPI 文档。
+- `/openapi.json` 代理到后端 OpenAPI 文档（后端侧已要求登录会话）。
 - `/ws` 代理到后端 WebSocket。
 - `/scene-maps/` 代理到后端静态资源。
 
-这样前端不需要关心后端容器地址，浏览器始终访问同一个域名。
+两个 nginx 容器（边缘与前端）都用 `nginxinc/nginx-unprivileged` 镜像，以 uid 101
+运行、容器内监听 8080；宿主机端口仍由 `HTTP_HOST_PORT` 决定，对外不变。
+
+> **`/metrics` 不再由边缘代理。** 该端点未鉴权，而「只放行内网 IP」在内网部署里是
+> 自欺欺人 —— 所有客户端本来就都是内网地址。抓取方应在 compose 网络内直接访问
+> `backend:3000/metrics`。若原先在用 `http://主机:8080/metrics`，升级后会返回 404。
+
+### 9.1 网络分段
+
+compose 不再使用单一默认网络，而是三段：
+
+| 网络   | 成员                     | 说明                                   |
+| ------ | ------------------------ | -------------------------------------- |
+| `edge` | nginx、frontend、backend | 唯一有宿主机端口映射的一段             |
+| `data` | backend、mongo           | `internal: true`，mongo 无任何出网能力 |
+| `bus`  | backend、mosquitto       | broker 段                              |
+
+backend 是唯一同时在三段上的服务。实测：nginx 与 frontend **连 `mongo` /
+`mosquitto` 的域名都解析不了**，backend 两者都能连通。
+
+`bus` 没有设 `internal: true`：docker 会静默丢弃 internal 网络上的端口映射，而文档
+里的本机演示要用 `127.0.0.1:1883`。若现场发布端都是远程车辆，删掉 mosquitto 的
+`ports` 段并给 `bus` 加上 `internal: true` 即可。
 
 ## 10. MQTT 部署策略
 
@@ -308,13 +350,16 @@ MQTT_URL=mqtt://mosquitto:1883
 MQTT_HOST_PORT=1883
 ```
 
-设备接入：
+**broker 已关闭匿名访问**，凭据见 [4.2.1](#421-broker-凭据必填否则-compose-拒绝启动)。
+端口只绑定在宿主机 `127.0.0.1`（此前是 `0.0.0.0`），所以局域网内的设备**不能**直接
+用 `mqtt://服务器IP:1883` 接入；需要现场车辆直连时，把 mosquitto 的 `ports` 改回
+`"${MQTT_HOST_PORT}:1883"`，并为车辆单独发一套发布凭据。
+
+设备接入（改回全网段绑定后）：
 
 ```text
-mqtt://服务器IP:1883
+mqtt://服务器IP:1883   # 用户名/口令 = MQTT_PUBLISHER_*
 ```
-
-默认 `deploy/mosquitto/mosquitto.conf` 允许匿名连接，适合开发和内网验收。
 
 ### 使用外部 Broker
 
@@ -322,11 +367,12 @@ mqtt://服务器IP:1883
 
 ```env
 MQTT_URL=mqtt://外部BrokerIP:1883
-MQTT_USERNAME=用户名
-MQTT_PASSWORD=密码
+MQTT_SUBSCRIBER_USERNAME=用户名
+MQTT_SUBSCRIBER_PASSWORD=密码
 ```
 
-如果不想暴露内置 Mosquitto，可把 `MQTT_HOST_PORT` 改成未使用端口，或在 compose 中移除端口映射。
+内置 Mosquitto 仍会启动（compose 仍会校验它自己的四个凭据变量）。彻底不需要时，把
+`mosquitto` 服务从 compose 中移除，或用 `docker compose up -d --scale mosquitto=0`。
 
 ## 11. 常见问题
 

@@ -51,7 +51,9 @@ export const buildOpsRouter = ({
     });
   });
 
-  // Prometheus metrics (gated by METRICS_ENABLED). Internal scraping only.
+  // Prometheus metrics (gated by METRICS_ENABLED). Unauthenticated so a scraper
+  // needs no session, and therefore NOT proxied by the edge nginx: scraping
+  // happens from inside the deployment's network.
   router.get("/metrics", (_request, response, next) => {
     if (!config.metricsEnabled) {
       response.status(404).json({ error: "not_found" });
@@ -66,7 +68,19 @@ export const buildOpsRouter = ({
       .catch(next);
   });
 
-  // OpenAPI document (no auth): describes the API for tooling / Swagger UI.
+  return router;
+};
+
+/**
+ * The OpenAPI document, mounted after the auth gate.
+ *
+ * Behind a session on purpose: it is a complete map of the API, and an
+ * unauthenticated scanner has no business reading one. A browser (or Swagger UI)
+ * already carries the session cookie, so nothing legitimate loses access.
+ */
+export const buildOpenApiRouter = (): express.Router => {
+  const router = express.Router();
+
   router.get("/openapi.json", (_request, response) => {
     response.json(openApiDocument);
   });

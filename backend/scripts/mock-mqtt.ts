@@ -544,6 +544,11 @@ async function main() {
 
   const client = mqtt.connect(options.broker, {
     clientId: `fleet-mock-${Math.random().toString(16).slice(2, 10)}`,
+    // The bundled broker no longer allows anonymous clients. Prefer the
+    // publisher account (write-only on the fleet topics); fall back to the
+    // backend's own credentials so a single-account external broker works too.
+    username: process.env.MQTT_PUBLISHER_USERNAME || process.env.MQTT_USERNAME || undefined,
+    password: process.env.MQTT_PUBLISHER_PASSWORD || process.env.MQTT_PASSWORD || undefined,
     reconnectPeriod: 3000,
   });
 
@@ -595,6 +600,14 @@ async function main() {
 
   client.on("error", (error) => {
     console.error("[mock-mqtt] broker error:", error.message);
+    // mqtt.js surfaces CONNACK 4/5 as a "Connection refused" error. Anonymous
+    // access is off in the bundled broker, so this is the likely first stumble.
+    if (/not authorized|bad user name or password/i.test(error.message)) {
+      console.error(
+        "[mock-mqtt] the broker rejected these credentials. Export MQTT_PUBLISHER_USERNAME and\n" +
+          "            MQTT_PUBLISHER_PASSWORD (see deploy/.env) before publishing.",
+      );
+    }
   });
 
   const shutdown = () => {

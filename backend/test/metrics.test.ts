@@ -24,6 +24,35 @@ const samplesFor = (body: string, metric: string): string[] =>
     .map((line) => line.trim())
     .filter((line) => line.startsWith(`${metric} `) || line.startsWith(`${metric}{`));
 
+const HISTOGRAM_COUNT = "navfleet_http_request_duration_seconds_count";
+
+/**
+ * Scrape until every expected histogram sample is present, then return the body.
+ *
+ * A request is observed in `response.on("finish")`, and supertest's promise
+ * resolves when the *client* has the full response — the server-side finish
+ * callback usually runs first but is not ordered against it. Asserting on an
+ * immediate scrape was flaky (one run in three), so wait for the samples under
+ * test instead of sleeping on a guess.
+ */
+const scrapeUntil = async (app: Express, expected: string[]): Promise<string> => {
+  let body = "";
+  for (let attempt = 0; attempt < 50; attempt += 1) {
+    body = await scrape(app);
+    const samples = samplesFor(body, HISTOGRAM_COUNT);
+    if (expected.every((line) => samples.includes(line))) {
+      return body;
+    }
+    await new Promise((resolve) => setTimeout(resolve, 10));
+  }
+  throw new Error(
+    `expected histogram samples never appeared.\nwanted:\n${expected.join("\n")}\ngot:\n${samplesFor(
+      body,
+      HISTOGRAM_COUNT,
+    ).join("\n")}`,
+  );
+};
+
 describe("metric exposition", () => {
   it("keeps the metric names and types the previous hand-rolled exposition published", async () => {
     const { app } = createTestApp({ wsClientCount: () => 3 });
@@ -101,12 +130,10 @@ describe("http request duration histogram", () => {
       .get(`/api/devices/${DEVICE_ID}/history`)
       .set("Cookie", sessionCookie());
 
-    const body = await scrape(context.app);
-    const counts = samplesFor(body, "navfleet_http_request_duration_seconds_count");
+    const body = await scrapeUntil(context.app, [
+      `${HISTOGRAM_COUNT}{method="GET",route="/api/devices/:deviceId/history",status="200"} 1`,
+    ]);
 
-    expect(counts).toContain(
-      'navfleet_http_request_duration_seconds_count{method="GET",route="/api/devices/:deviceId/history",status="200"} 1',
-    );
     // The whole point of the template: one device id per series would make the
     // histogram's cardinality grow with the fleet.
     expect(body).not.toContain(DEVICE_ID);
@@ -117,10 +144,9 @@ describe("http request duration histogram", () => {
     await request(context.app).get("/api/nope/one").set("Cookie", sessionCookie());
     await request(context.app).get("/api/nope/two").set("Cookie", sessionCookie());
 
-    const body = await scrape(context.app);
-    expect(samplesFor(body, "navfleet_http_request_duration_seconds_count")).toContain(
-      'navfleet_http_request_duration_seconds_count{method="GET",route="unmatched",status="404"} 2',
-    );
+    await scrapeUntil(context.app, [
+      `${HISTOGRAM_COUNT}{method="GET",route="unmatched",status="404"} 2`,
+    ]);
   });
 
   it("separates statuses on the same route", async () => {
@@ -131,16 +157,10 @@ describe("http request duration histogram", () => {
     });
     await request(context.app).get("/api/fleet/snapshot").set("Cookie", sessionCookie());
 
-    const counts = samplesFor(
-      await scrape(context.app),
-      "navfleet_http_request_duration_seconds_count",
-    );
-    expect(counts).toContain(
-      'navfleet_http_request_duration_seconds_count{method="GET",route="/api/fleet/snapshot",status="200"} 1',
-    );
-    expect(counts).toContain(
-      'navfleet_http_request_duration_seconds_count{method="GET",route="/api/fleet/snapshot",status="500"} 1',
-    );
+    await scrapeUntil(context.app, [
+      `${HISTOGRAM_COUNT}{method="GET",route="/api/fleet/snapshot",status="200"} 1`,
+      `${HISTOGRAM_COUNT}{method="GET",route="/api/fleet/snapshot",status="500"} 1`,
+    ]);
   });
 
   it("attributes an auth-gate rejection to `unmatched`, distinguished by its status", async () => {
@@ -151,18 +171,19 @@ describe("http request duration histogram", () => {
     const context = createTestApp();
     await request(context.app).get("/api/fleet/snapshot");
 
-    expect(
-      samplesFor(await scrape(context.app), "navfleet_http_request_duration_seconds_count"),
-    ).toContain(
-      'navfleet_http_request_duration_seconds_count{method="GET",route="unmatched",status="401"} 1',
-    );
+    await scrapeUntil(context.app, [
+      `${HISTOGRAM_COUNT}{method="GET",route="unmatched",status="401"} 1`,
+    ]);
   });
 
   it("records a bounded, plausible duration", async () => {
     const context = createTestApp();
     await request(context.app).get("/api/formations").set("Cookie", sessionCookie());
 
-    const sum = samplesFor(await scrape(context.app), "navfleet_http_request_duration_seconds_sum")
+    const body = await scrapeUntil(context.app, [
+      `${HISTOGRAM_COUNT}{method="GET",route="/api/formations",status="200"} 1`,
+    ]);
+    const sum = samplesFor(body, "navfleet_http_request_duration_seconds_sum")
       .map((line) => Number(line.split(" ").pop()))
       .find((value) => Number.isFinite(value));
 
