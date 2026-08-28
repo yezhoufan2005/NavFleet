@@ -15,7 +15,26 @@
   display: grid;
   gap: 20px;
   align-content: start;
-  max-width: 760px;
+}
+
+/*
+ * The groups share the width instead of stacking in a narrow column.
+ *
+ * This panel was capped at `max-width: 760px` for line length, which on a 1440px
+ * console left 648px — 46% of the content area — empty, while every other view
+ * (alerts 1393px, history 1351px) filled it. The page read as though it belonged
+ * to a different app.
+ *
+ * `auto-fit` + `minmax` does the whole job without a media query: three columns
+ * on a wide console, one on a phone, and whatever fits in between. The inner
+ * `min(320px, 100%)` is the part that matters below 320px — a bare `320px`
+ * minimum would refuse to shrink and push the page into horizontal scroll.
+ */
+.settings-groups {
+  display: grid;
+  gap: 16px;
+  grid-template-columns: repeat(auto-fit, minmax(min(320px, 100%), 1fr));
+  align-items: start;
 }
 
 .settings-group {

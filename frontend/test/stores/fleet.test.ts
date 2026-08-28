@@ -44,6 +44,9 @@ beforeEach(() => {
   // Ingesting a device primes its scene definition over REST; answer 404 so the
   // store keeps its local fallback instead of reaching for the network.
   stubFetchRoutes({});
+  // The map surface preference is persisted, and localStorage is shared across
+  // cases in a file — clear it so each case starts from the real default.
+  window.localStorage.removeItem("navfleet:map-mode");
   setActivePinia(createPinia());
   store = useFleetStore();
   store.registerWindowApi();
@@ -396,5 +399,36 @@ describe("fleet store buildFleetSnapshot", () => {
 
     snapshot.devices[0].deviceName = "被改名";
     expect(store.state.devicesById["agv-1"].deviceName).toBe("车 agv-1");
+  });
+});
+
+/**
+ * Map surface preference.
+ *
+ * It used to live only in memory, so every refresh threw an operator watching a
+ * vehicle on the ROS scene map back to the GPS view.
+ */
+describe("fleet store map mode persistence", () => {
+  const MAP_MODE_KEY = "navfleet:map-mode";
+
+  it("remembers the chosen surface", () => {
+    store.setMapMode("scene");
+    expect(window.localStorage.getItem(MAP_MODE_KEY)).toBe("scene");
+  });
+
+  it("opens on the remembered surface in a fresh store", () => {
+    window.localStorage.setItem(MAP_MODE_KEY, "scene");
+
+    setActivePinia(createPinia());
+    expect(useFleetStore().state.selectedMapMode).toBe("scene");
+  });
+
+  it("ignores a stored value that is not a surface", () => {
+    // Anything could be in localStorage — another app, an old build, a user
+    // poking at devtools. An unrecognised value must not leave the map blank.
+    window.localStorage.setItem(MAP_MODE_KEY, "definitely-not-a-map");
+
+    setActivePinia(createPinia());
+    expect(useFleetStore().state.selectedMapMode).toBe("gps");
   });
 });

@@ -123,6 +123,12 @@ export function useSvgViewport(options: UseSvgViewportOptions) {
   let dragOriginX = 0;
   let dragOriginY = 0;
   let dragMoved = false;
+  /**
+   * False until `updateViewportSize` has read a real panel size. `viewport`'s
+   * initial 1000x620 is a placeholder, and any view computed against it is wrong
+   * for the panel the user is actually looking at — see `applyStoredOrDefaultView`.
+   */
+  let hasMeasuredPanel = false;
 
   function getBaseScale(): number {
     if (!sceneReady.value) {
@@ -349,9 +355,32 @@ export function useSvgViewport(options: UseSvgViewportOptions) {
   }
 
   /**
-   * Zoom to the selected vehicle — its formation if it has peers on screen,
-   * otherwise a fixed-size window around its own pose. Returns false when there
-   * is nothing to focus, so a caller can leave the viewport alone.
+   * The smallest region centred on `pose` that still contains all of `extent`.
+   *
+   * Fitting the raw extent of every drawn pose frames the *formation*, which is
+   * not what "locate this vehicle" means: if the selected vehicle sits at one
+   * edge of the spread, it ends up against the edge of the panel — measured at
+   * 262px from centre in a 637px-wide panel, which is what made the button look
+   * broken. Mirroring the extent about the vehicle's own pose puts the vehicle
+   * dead centre and still keeps every peer on screen; the cost is a slightly
+   * wider view than the tight bounding box would give.
+   */
+  function regionCenteredOn(pose: WorldPoint, extent: WorldBounds): WorldBounds {
+    const halfWidth = Math.max(pose.x - extent.minX, extent.maxX - pose.x);
+    const halfHeight = Math.max(pose.y - extent.minY, extent.maxY - pose.y);
+    return {
+      minX: pose.x - halfWidth,
+      maxX: pose.x + halfWidth,
+      minY: pose.y - halfHeight,
+      maxY: pose.y + halfHeight,
+    };
+  }
+
+  /**
+   * Zoom to the selected vehicle — centred on its own pose, wide enough to keep
+   * its formation peers on screen when it has any, otherwise a fixed-size window
+   * around it. Returns false when there is nothing to focus, so a caller can
+   * leave the viewport alone.
    */
   function focusSelectedDevice(): boolean {
     if (!sceneReady.value) {
@@ -359,17 +388,25 @@ export function useSvgViewport(options: UseSvgViewportOptions) {
     }
 
     const baseScale = getBaseScale();
+    const focusPose = getFocusPose();
+
+    if (!focusPose) {
+      // No pose for the selected vehicle. Framing its formation is still more
+      // useful than doing nothing, so fall back to that when peers are drawn.
+      if (formationPeerDevices.value.length && deviceExtentBounds.value) {
+        if (fitToRegion(deviceExtentBounds.value)) {
+          saveViewportState();
+          return true;
+        }
+      }
+      return false;
+    }
 
     if (formationPeerDevices.value.length && deviceExtentBounds.value) {
-      if (fitToRegion(deviceExtentBounds.value)) {
+      if (fitToRegion(regionCenteredOn(focusPose, deviceExtentBounds.value))) {
         saveViewportState();
         return true;
       }
-    }
-
-    const focusPose = getFocusPose();
-    if (!focusPose) {
-      return false;
     }
 
     const FOCUS_WORLD_METERS = 45;
@@ -385,12 +422,35 @@ export function useSvgViewport(options: UseSvgViewportOptions) {
     return false;
   }
 
+  /**
+   * Apply the view a scene should open with: the one this tab last left, else
+   * the selected vehicle located on the map, else the whole scene framed.
+   *
+   * Locating the vehicle before falling back to the scene fit is deliberate.
+   * Opening on the whole scene left the vehicle wherever it happened to be —
+   * measured 276px off-centre and 59px from the right edge — so the first thing
+   * an operator did on every visit was hunt for it and click 定位车辆. Note this
+   * is *not* a return to the pre-Phase-9 behaviour: `resetView` (适应场景) still
+   * fits the scene, which is what that button should mean; only the initial view
+   * changed.
+   */
   function applyStoredOrDefaultView(sceneId: string = activeSceneId.value): void {
-    if (!sceneId || !sceneReady.value) {
+    // `hasMeasuredPanel` is the important guard, and it fixes the defect that
+    // made this whole path look broken. The bounds watcher below runs with
+    // `immediate: true`, i.e. during setup, before `onMounted` has measured the
+    // panel — so the view used to be computed against the 1000x620 placeholder
+    // size. `updateViewportSize` then overwrote width/height *without* touching
+    // the offsets, silently invalidating it, and the ResizeObserver pass that
+    // followed derived its "previous centre" from that already-inconsistent
+    // state and faithfully preserved the wrong thing. Traced end to end: the
+    // vehicle was centred for a 1000x620 panel and ended up 274px off-centre in
+    // the real 637x802 one. Deferring until the panel is measured (onMounted
+    // hydrates straight after) is what makes the first view correct.
+    if (!sceneId || !sceneReady.value || !hasMeasuredPanel) {
       return;
     }
 
-    if (!restoreViewportState(sceneId)) {
+    if (!restoreViewportState(sceneId) && !focusSelectedDevice()) {
       resetView();
     }
 
@@ -404,6 +464,7 @@ export function useSvgViewport(options: UseSvgViewportOptions) {
     }
     viewport.width = rect.width;
     viewport.height = rect.height;
+    hasMeasuredPanel = true;
   }
 
   function syncViewportAfterResize(): void {
@@ -428,6 +489,31 @@ export function useSvgViewport(options: UseSvgViewportOptions) {
     if (hydratedSceneId.value !== activeSceneId.value) {
       applyStoredOrDefaultView(activeSceneId.value);
     }
+  }
+
+  /**
+   * Hold the view still when the world origin moves.
+   *
+   * `stageTransform` places the scene as `offset + (worldX - bounds.minX) *
+   * scale`, so the offsets are anchored to `bounds.minX` / `bounds.maxY`. When the
+   * lanelet overlay finishes loading and widens `effectiveWorldBounds`, that
+   * anchor moves and every pixel slides by the delta — the view silently pans away
+   * from whatever it was centred on, and the bounds watcher then *saves* the
+   * drifted result. Measured as a 199px drift in a 637px-wide panel immediately
+   * after the initial focus: the vehicle was centred, the overlay arrived, and it
+   * ended up a third of the panel off-centre, which read as "the map never located
+   * the vehicle at all".
+   *
+   * The correction is a pure translation, derived from holding the screen position
+   * of any world point constant across the anchor change.
+   */
+  function rebaseOffsetsToBounds(previousMinX: number, previousMaxY: number): void {
+    const bounds = effectiveWorldBounds.value;
+    if (!bounds) {
+      return;
+    }
+    viewport.offsetX += (bounds.minX - previousMinX) * viewport.scale;
+    viewport.offsetY -= (bounds.maxY - previousMaxY) * viewport.scale;
   }
 
   function handleWheel(event: WheelEvent): void {
@@ -508,6 +594,12 @@ export function useSvgViewport(options: UseSvgViewportOptions) {
 
   onMounted(() => {
     updateViewportSize();
+    // First chance to hydrate against a real panel size: the bounds watcher ran
+    // during setup and deliberately skipped, because back then the panel was
+    // still the 1000x620 placeholder.
+    if (hydratedSceneId.value !== activeSceneId.value) {
+      applyStoredOrDefaultView(activeSceneId.value);
+    }
     resizeObserver = new ResizeObserver(() => {
       syncViewportAfterResize();
     });
@@ -541,9 +633,22 @@ export function useSvgViewport(options: UseSvgViewportOptions) {
       effectiveWorldBounds.value?.minY,
       effectiveWorldBounds.value?.maxY,
     ],
-    () => {
+    (next, previous) => {
       if (!sceneReady.value || !activeSceneId.value) {
         return;
+      }
+
+      // Same scene, already hydrated, but the world origin moved: hold the view
+      // still rather than letting it slide. See `rebaseOffsetsToBounds`.
+      const previousMinX = previous?.[3];
+      const previousMaxY = previous?.[6];
+      if (
+        next[0] === previous?.[0] &&
+        hydratedSceneId.value === activeSceneId.value &&
+        typeof previousMinX === "number" &&
+        typeof previousMaxY === "number"
+      ) {
+        rebaseOffsetsToBounds(previousMinX, previousMaxY);
       }
 
       if (hydratedSceneId.value !== activeSceneId.value) {
@@ -575,7 +680,12 @@ export function useSvgViewport(options: UseSvgViewportOptions) {
         return;
       }
 
-      if (previousDeviceId && nextDeviceId !== previousDeviceId) {
+      // Picking another vehicle in the same scene: locate the one just selected.
+      // This used to re-fit the whole scene, which answered a question nobody
+      // asked — you clicked a specific vehicle, so that vehicle is what the map
+      // should show. Falls back to the scene fit when the new selection has no
+      // pose yet.
+      if (previousDeviceId && nextDeviceId !== previousDeviceId && !focusSelectedDevice()) {
         resetView();
       }
     },
