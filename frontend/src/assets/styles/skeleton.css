@@ -1,0 +1,58 @@
+/**
+ * Loading placeholders (skeleton screens).
+ *
+ * Used while the first snapshot is in flight. The alternative — rendering the
+ * empty state — reads as "there is no data", which is a different and wrong
+ * message during a request that has not answered yet.
+ */
+
+.skeleton-stack {
+  display: grid;
+  gap: 10px;
+}
+
+.skeleton {
+  position: relative;
+  overflow: hidden;
+  border-radius: var(--radius-sm);
+  /* Two stops of the same hue: visible as a block on both themes without
+     inventing a colour token that only this file would use. */
+  background: linear-gradient(90deg, var(--bg-hover) 0%, var(--border) 50%, var(--bg-hover) 100%);
+  background-size: 200% 100%;
+  animation: skeleton-sweep 1.4s ease-in-out infinite;
+}
+
+.skeleton-line {
+  height: 14px;
+}
+
+.skeleton-line:last-child:not(:only-child) {
+  /* A ragged last line reads as text rather than as a solid block. */
+  width: 62%;
+}
+
+.skeleton-card {
+  height: 74px;
+  border-radius: var(--radius);
+}
+
+@keyframes skeleton-sweep {
+  from {
+    background-position: 200% 0;
+  }
+  to {
+    background-position: -200% 0;
+  }
+}
+
+/*
+ * A sweeping gradient is exactly the kind of repetitive motion that triggers
+ * discomfort for motion-sensitive users, and it repeats indefinitely. Hold a
+ * static block instead — the placeholder still communicates "not yet here".
+ */
+@media (prefers-reduced-motion: reduce) {
+  .skeleton {
+    animation: none;
+    background: var(--border);
+  }
+}

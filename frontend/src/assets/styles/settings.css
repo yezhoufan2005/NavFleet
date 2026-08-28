@@ -1,0 +1,129 @@
+/**
+ * Settings view.
+ *
+ * `fieldset`/`legend` are used for their semantics (a labelled group of related
+ * controls, which is what a screen reader needs here), so the browser's default
+ * border and legend positioning are reset rather than avoided by using a `div`.
+ */
+
+.settings-view {
+  display: grid;
+  gap: 16px;
+}
+
+.settings-panel {
+  display: grid;
+  gap: 20px;
+  align-content: start;
+  max-width: 760px;
+}
+
+.settings-group {
+  display: grid;
+  gap: 12px;
+  margin: 0;
+  padding: 16px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--bg-hover);
+}
+
+.settings-group > legend {
+  padding: 0 8px;
+  font-size: 0.86rem;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  color: var(--muted);
+  text-transform: uppercase;
+}
+
+.settings-hint {
+  margin: 0;
+  font-size: 0.86rem;
+  line-height: 1.6;
+  color: var(--muted);
+}
+
+.settings-radio-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.settings-radio {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 14px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--bg-panel);
+  color: var(--text);
+  cursor: pointer;
+  transition: border-color var(--transition);
+}
+
+.settings-radio:hover {
+  border-color: var(--border-strong);
+}
+
+/* The ring follows the native radio's focus so keyboard users see the group
+   member they are on, not just the checked one. */
+.settings-radio:focus-within {
+  border-color: var(--brand);
+  box-shadow: 0 0 0 2px rgba(var(--brand-rgb), 0.32);
+}
+
+.settings-radio input {
+  accent-color: var(--brand);
+}
+
+.settings-action-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  align-items: center;
+  justify-content: space-between;
+  padding-top: 12px;
+  border-top: 1px solid var(--border);
+}
+
+.settings-action-text {
+  display: grid;
+  gap: 3px;
+}
+
+.settings-action-text span {
+  font-size: 0.82rem;
+  color: var(--muted);
+}
+
+.settings-facts {
+  display: grid;
+  grid-template-columns: minmax(120px, max-content) 1fr;
+  gap: 8px 20px;
+  margin: 0;
+  font-size: 0.9rem;
+}
+
+.settings-facts dt {
+  color: var(--muted);
+}
+
+.settings-facts dd {
+  margin: 0;
+  color: var(--text);
+  overflow-wrap: anywhere;
+}
+
+.settings-facts dd[data-tone="ok"] {
+  color: var(--brand);
+}
+
+.settings-facts dd[data-tone="warning"] {
+  color: var(--warning);
+}
+
+.settings-facts dd[data-tone="critical"] {
+  color: var(--critical);
+}

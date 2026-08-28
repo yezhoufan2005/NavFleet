@@ -318,3 +318,41 @@ describe("fleet store heartbeat", () => {
     expect(FakeWebSocket.instances).toHaveLength(2);
   });
 });
+
+/**
+ * The flag the dashboard keys its skeletons off. The failure mode that matters
+ * is not the happy path but the `finally`: a bootstrap that throws must still
+ * clear it, or a backend outage leaves the dashboard shimmering forever.
+ */
+describe("fleet store bootstrapPending", () => {
+  it("is false before anything starts", () => {
+    expect(store.bootstrapPending).toBe(false);
+  });
+
+  it("is set while the first snapshot is in flight and cleared after", async () => {
+    const pending = store.bootstrap();
+    expect(store.bootstrapPending).toBe(true);
+
+    await pending;
+    expect(store.bootstrapPending).toBe(false);
+  });
+
+  it("is cleared even when the backend rejects the snapshot", async () => {
+    stubBackend(503);
+
+    await store.bootstrap();
+
+    expect(store.state.realtime.apiReady).toBe(false);
+    expect(store.bootstrapPending).toBe(false);
+  });
+
+  it("is set again by a manual retry", async () => {
+    await store.bootstrap();
+
+    const retry = store.retryBootstrap();
+    expect(store.bootstrapPending).toBe(true);
+
+    await retry;
+    expect(store.bootstrapPending).toBe(false);
+  });
+});

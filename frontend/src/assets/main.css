@@ -18,4 +18,6 @@
 @import "./styles/buttons.css";
 @import "./styles/history.css";
 @import "./styles/alert-center.css";
+@import "./styles/settings.css";
+@import "./styles/skeleton.css";
 @import "./styles/fallback.css";

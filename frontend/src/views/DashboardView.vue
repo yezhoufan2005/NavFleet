@@ -3,6 +3,7 @@ import { computed, ref } from "vue";
 import { storeToRefs } from "pinia";
 import GpsMap from "../components/GpsMap.vue";
 import RosSceneMap from "../components/RosSceneMap.vue";
+import SkeletonBlock from "../components/SkeletonBlock.vue";
 import { useFleetStore } from "../stores/fleet";
 import { round, hasPose } from "../lib/fleetNormalize";
 import { formatNumber, formatStamp, formatValue } from "../utils/formatters";
@@ -20,6 +21,7 @@ const {
   sceneDevices,
   formationSceneId,
   trailsByDeviceId,
+  bootstrapPending,
 } = storeToRefs(store);
 const {
   getSceneDefinition,
@@ -133,22 +135,26 @@ function handleDeviceSelect(deviceId) {
 
 <template>
   <div class="dashboard-view">
-    <section class="headline-stats">
+    <section class="headline-stats" :aria-busy="bootstrapPending">
       <article class="headline-stat">
         <span class="stat-label">在线设备</span>
-        <strong>{{ summary.onlineCount }} / {{ summary.totalCount }}</strong>
+        <SkeletonBlock v-if="bootstrapPending" />
+        <strong v-else>{{ summary.onlineCount }} / {{ summary.totalCount }}</strong>
       </article>
       <article class="headline-stat">
         <span class="stat-label">活动告警</span>
-        <strong>{{ summary.alertTotal }}</strong>
+        <SkeletonBlock v-if="bootstrapPending" />
+        <strong v-else>{{ summary.alertTotal }}</strong>
       </article>
       <article class="headline-stat">
         <span class="stat-label">当前编队</span>
-        <strong>{{ selectedFormationLabel }}</strong>
+        <SkeletonBlock v-if="bootstrapPending" />
+        <strong v-else>{{ selectedFormationLabel }}</strong>
       </article>
       <article class="headline-stat">
         <span class="stat-label">当前场景</span>
-        <strong>{{ selectedSceneLabel }}</strong>
+        <SkeletonBlock v-if="bootstrapPending" />
+        <strong v-else>{{ selectedSceneLabel }}</strong>
       </article>
     </section>
 
@@ -182,7 +188,8 @@ function handleDeviceSelect(deviceId) {
               </button>
             </div>
 
-            <div class="formation-list">
+            <div class="formation-list" :aria-busy="bootstrapPending">
+              <SkeletonBlock v-if="bootstrapPending" :rows="2" />
               <button
                 v-for="formation in sortedFormations"
                 :key="formation.formationId"
@@ -198,13 +205,14 @@ function handleDeviceSelect(deviceId) {
                 </span>
               </button>
 
-              <div v-if="!sortedFormations.length" class="empty-alert compact">
+              <div v-if="!bootstrapPending && !sortedFormations.length" class="empty-alert compact">
                 当前没有编队配置
               </div>
             </div>
           </section>
 
-          <div class="device-list">
+          <div class="device-list" :aria-busy="bootstrapPending">
+            <SkeletonBlock v-if="bootstrapPending" :rows="4" variant="card" />
             <button
               v-for="device in filteredDevices"
               :key="device.deviceId"
@@ -238,7 +246,9 @@ function handleDeviceSelect(deviceId) {
               </div>
             </button>
 
-            <div v-if="!filteredDevices.length" class="empty-alert">当前筛选条件下没有设备数据</div>
+            <div v-if="!bootstrapPending && !filteredDevices.length" class="empty-alert">
+              当前筛选条件下没有设备数据
+            </div>
           </div>
         </template>
       </aside>

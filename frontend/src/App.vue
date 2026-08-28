@@ -103,7 +103,7 @@ onMounted(async () => {
 
   <div v-else class="app-shell">
     <!--
-      Skip link: the header carries a brand block, three nav links, a theme
+      Skip link: the header carries a brand block, four nav links, a theme
       toggle and a sign-out button, so reaching the actual content by keyboard
       costs half a dozen tabs on every navigation. Visually hidden until focused.
     -->
@@ -124,6 +124,7 @@ onMounted(async () => {
             <span>告警中心</span>
             <span v-if="summary.alertTotal" class="nav-badge">{{ summary.alertTotal }}</span>
           </RouterLink>
+          <RouterLink to="/settings" class="nav-link">设置</RouterLink>
         </nav>
 
         <div class="header-actions">
