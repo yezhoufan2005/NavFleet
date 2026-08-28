@@ -84,69 +84,71 @@ const connectionRows = computed(() => [
         <h2>设置</h2>
       </div>
 
-      <fieldset class="settings-group">
-        <legend>外观</legend>
-        <p class="settings-hint">当前生效：{{ themeResolvedLabel }}</p>
-        <div class="settings-radio-row">
-          <label v-for="option in themeOptions" :key="option.value" class="settings-radio">
-            <input
-              type="radio"
-              name="theme-preference"
-              :value="option.value"
-              :checked="themeState.preference === option.value"
-              @change="setPreference(option.value)"
-            />
-            <span>{{ option.label }}</span>
-          </label>
-        </div>
-      </fieldset>
-
-      <fieldset class="settings-group">
-        <legend>本地数据</legend>
-        <p class="settings-hint">
-          告警确认与场景视图都只保存在这台浏览器上，不会同步到服务器或其他用户。
-        </p>
-
-        <div class="settings-action-row">
-          <div class="settings-action-text">
-            <strong>已确认告警</strong>
-            <span>{{ ackedCount }} 条记录（清除后这些告警会重新显示）</span>
+      <div class="settings-groups">
+        <fieldset class="settings-group">
+          <legend>外观</legend>
+          <p class="settings-hint">当前生效：{{ themeResolvedLabel }}</p>
+          <div class="settings-radio-row">
+            <label v-for="option in themeOptions" :key="option.value" class="settings-radio">
+              <input
+                type="radio"
+                name="theme-preference"
+                :value="option.value"
+                :checked="themeState.preference === option.value"
+                @change="setPreference(option.value)"
+              />
+              <span>{{ option.label }}</span>
+            </label>
           </div>
-          <button
-            type="button"
-            class="tab-btn ghost"
-            :disabled="!ackedCount"
-            @click="handleClearAcked"
-          >
-            清除
-          </button>
-        </div>
+        </fieldset>
 
-        <div class="settings-action-row">
-          <div class="settings-action-text">
-            <strong>场景视图记忆</strong>
-            <span>{{ savedViewCount }} 个场景（清除后 ROS 地图恢复为适应场景）</span>
+        <fieldset class="settings-group">
+          <legend>本地数据</legend>
+          <p class="settings-hint">
+            告警确认与场景视图都只保存在这台浏览器上，不会同步到服务器或其他用户。
+          </p>
+
+          <div class="settings-action-row">
+            <div class="settings-action-text">
+              <strong>已确认告警</strong>
+              <span>{{ ackedCount }} 条记录（清除后这些告警会重新显示）</span>
+            </div>
+            <button
+              type="button"
+              class="tab-btn ghost"
+              :disabled="!ackedCount"
+              @click="handleClearAcked"
+            >
+              清除
+            </button>
           </div>
-          <button
-            type="button"
-            class="tab-btn ghost"
-            :disabled="!savedViewCount"
-            @click="handleClearSavedViews"
-          >
-            清除
-          </button>
-        </div>
-      </fieldset>
 
-      <fieldset class="settings-group">
-        <legend>连接与数据源</legend>
-        <dl class="settings-facts">
-          <template v-for="row in connectionRows" :key="row.label">
-            <dt>{{ row.label }}</dt>
-            <dd :data-tone="row.tone">{{ row.value }}</dd>
-          </template>
-        </dl>
-      </fieldset>
+          <div class="settings-action-row">
+            <div class="settings-action-text">
+              <strong>场景视图记忆</strong>
+              <span>{{ savedViewCount }} 个场景（清除后 ROS 地图恢复为适应场景）</span>
+            </div>
+            <button
+              type="button"
+              class="tab-btn ghost"
+              :disabled="!savedViewCount"
+              @click="handleClearSavedViews"
+            >
+              清除
+            </button>
+          </div>
+        </fieldset>
+
+        <fieldset class="settings-group">
+          <legend>连接与数据源</legend>
+          <dl class="settings-facts">
+            <template v-for="row in connectionRows" :key="row.label">
+              <dt>{{ row.label }}</dt>
+              <dd :data-tone="row.tone">{{ row.value }}</dd>
+            </template>
+          </dl>
+        </fieldset>
+      </div>
     </section>
   </div>
 </template>

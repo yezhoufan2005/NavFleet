@@ -252,9 +252,9 @@ config-runtime/scene-maps/warehouse-a.svg
 
 ```json
 {
-  "sceneId": "factory-lanelet",
-  "sceneName": "工厂路网",
-  "osmUrl": "/scene-maps/factory-lanelet/factory.osm",
+  "sceneId": "kangcheng-airy",
+  "sceneName": "康城 Airy 路网",
+  "osmUrl": "/scene-maps/kangcheng-airy/kangcheng_airy.osm",
   "mapFrame": "map",
   "resolution": 1,
   "origin": { "x": 0, "y": 0, "yaw": 0 },
@@ -266,7 +266,7 @@ config-runtime/scene-maps/warehouse-a.svg
 文件位置：
 
 ```text
-config-runtime/scene-maps/factory-lanelet/factory.osm
+config-runtime/scene-maps/kangcheng-airy/kangcheng_airy.osm
 ```
 
 后端会自动：
@@ -300,6 +300,32 @@ config-runtime/scene-maps/factory-lanelet/factory.osm
 - `pointCloudUrl`：PCD 文件路径。
 - `pointCloudMetaUrl`：点云元数据路径。
 - `pointCloudMode`：当前推荐 `topdown`。
+
+### 6.6 从 CloudPoint 离线成果导入栅格场景
+
+CloudPoint 产出的是一张占据栅格图 + 它自己格式的元数据。
+`deploy/tools/import-cloudpoint-map.py` 负责把图拷进 `scene-maps/`，并按本章的
+schema 生成 `scenes.json` 条目 —— 关键是 `bounds` 必须是**米**为单位的图幅范围
+（`origin + 尺寸 × resolution`），前端整个世界坐标系都由它推导。
+
+```bash
+# 先看一眼生成的条目
+python3 deploy/tools/import-cloudpoint-map.py \
+    --scene-id plant-b --scene-name "B 厂区" \
+    --source-dir ~/cloudpoint/out/plant-b
+
+# 确认无误后直接写入场景注册表（同 sceneId 会被替换）
+python3 deploy/tools/import-cloudpoint-map.py \
+    --scene-id plant-b --scene-name "B 厂区" \
+    --source-dir ~/cloudpoint/out/plant-b \
+    --write-scenes config-runtime/scenes.json
+```
+
+`--variant full` 取未裁剪的整幅地图；`--min-zoom` / `--max-zoom` / `--default-zoom`
+覆盖缩放默认值。写入后无需重启：后端监听 `scenes.json` 并热加载。
+
+Lanelet2 路网**不要**用这个脚本 —— 直接配 `osmUrl`（见 6.4）。脚本的 `--overlay`
+只为兼容早期流水线预生成的 overlay JSON 而保留。
 
 ## 7. `scene-maps/` 资源目录
 
@@ -526,16 +552,16 @@ scene-maps/
 放文件：
 
 ```text
-config-runtime/scene-maps/factory-lanelet/factory.osm
+config-runtime/scene-maps/kangcheng-airy/kangcheng_airy.osm
 ```
 
 在 `scenes.json` 中加入：
 
 ```json
 {
-  "sceneId": "factory-lanelet",
+  "sceneId": "kangcheng-airy",
   "sceneName": "工厂 Lanelet 路网",
-  "osmUrl": "/scene-maps/factory-lanelet/factory.osm",
+  "osmUrl": "/scene-maps/kangcheng-airy/kangcheng_airy.osm",
   "mapFrame": "map",
   "resolution": 1,
   "origin": { "x": 0, "y": 0, "yaw": 0 },

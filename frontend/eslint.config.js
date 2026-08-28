@@ -6,7 +6,7 @@ import globals from "globals";
 
 export default [
   {
-    ignores: ["dist/**", "node_modules/**", "legacy/**", "coverage/**"],
+    ignores: ["dist/**", "node_modules/**", "coverage/**"],
   },
   js.configs.recommended,
   ...pluginVue.configs["flat/recommended"],
@@ -23,9 +23,12 @@ export default [
         { argsIgnorePattern: "^_", varsIgnorePattern: "^_", caughtErrorsIgnorePattern: "^_" },
       ],
       "@typescript-eslint/no-explicit-any": "error",
-      // Progressive migration: legacy .js/.vue files are not fully typed yet.
+      // Single-word component names are fine here: every component is in
+      // `src/components` or `src/views`, so there is no global-registration
+      // collision to guard against.
       "vue/multi-word-component-names": "off",
-      // Allow both JS and TS <script> blocks while components are migrated to TS.
+      // `src/**` is TypeScript, but the SFCs still carry plain `<script setup>`;
+      // allow both until they are migrated.
       "vue/block-lang": ["error", { script: { allowNoLang: true } }],
     },
   },

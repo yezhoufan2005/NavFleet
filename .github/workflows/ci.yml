@@ -77,6 +77,11 @@ jobs:
           cache-dependency-path: package-lock.json
       - run: npm ci
       - run: npx playwright install --with-deps chromium
+      # `e2e/` is the only source tree outside the npm workspaces, so the
+      # per-workspace gates in the other jobs never see it. Without these two
+      # steps its lint and type errors reach main unchallenged.
+      - run: npm run lint:e2e
+      - run: npm run typecheck:e2e
       # Playwright starts the backend and the vite dev server itself; the run
       # needs neither MongoDB nor an MQTT broker (see e2e/support/harness.ts).
       - run: npm run e2e

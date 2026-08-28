@@ -94,6 +94,28 @@ interface FleetState {
   realtime: RealtimeState;
 }
 
+/**
+ * Which map surface is showing, remembered across reloads.
+ *
+ * It used to reset to GPS on every refresh, so an operator watching a vehicle on
+ * the ROS scene map was thrown back to the GPS view by an F5 and had to
+ * re-select the tab every time. localStorage rather than sessionStorage: this is
+ * a lasting preference for how you use the console, unlike a scene's pan and zoom
+ * (per-tab and deliberately forgotten — see `useSceneViewportPersistence`).
+ */
+const MAP_MODE_STORAGE_KEY = "navfleet:map-mode";
+const MAP_MODES: readonly string[] = ["gps", "scene"];
+
+const readStoredMapMode = (): string => {
+  try {
+    const stored = localStorage.getItem(MAP_MODE_STORAGE_KEY);
+    return stored && MAP_MODES.includes(stored) ? stored : "gps";
+  } catch {
+    // Storage unavailable (private mode) — fall back to the default surface.
+    return "gps";
+  }
+};
+
 export const useFleetStore = defineStore("fleet", () => {
   const state = reactive<FleetState>({
     fleetName: fallbackFleetPayload.fleetName,
@@ -102,7 +124,7 @@ export const useFleetStore = defineStore("fleet", () => {
     formationsById: {},
     selectedDeviceId: "",
     selectedFormationId: "",
-    selectedMapMode: "gps",
+    selectedMapMode: readStoredMapMode(),
     lastSource: "bootstrap",
     lastUpdateAt: null,
     sceneDefinitions: cloneValue(sceneCatalog),
@@ -456,8 +478,14 @@ export const useFleetStore = defineStore("fleet", () => {
     ensureSelectedDevice();
   };
 
+  /** See `readStoredMapMode` for why this preference is persisted. */
   const setMapMode = (mode: string) => {
     state.selectedMapMode = mode;
+    try {
+      localStorage.setItem(MAP_MODE_STORAGE_KEY, mode);
+    } catch {
+      // Ignore persistence failures; the mode still applies for this session.
+    }
   };
 
   const resolveWebSocketUrl = () => {

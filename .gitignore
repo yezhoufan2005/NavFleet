@@ -12,12 +12,11 @@ coverage/
 *.err.log
 *.tmp
 *.tmp.*
-.tmp-mosq-sub.txt
-backend/.tmp-*.json
 
-.playwright-cli/
 .playwright-mcp/
 .claude/
+.vscode/
+.idea/
 
 # Playwright e2e artifacts (traces, screenshots, HTML report)
 test-results/
