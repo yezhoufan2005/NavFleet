@@ -2,7 +2,7 @@
   "name": "navfleet",
   "version": "0.3.0",
   "private": true,
-  "description": "NavFleet — read-only real-time fleet monitoring platform (monorepo root).",
+  "description": "NavFleet \u2014 read-only real-time fleet monitoring platform (monorepo root).",
   "workspaces": [
     "packages/*",
     "backend",
@@ -32,7 +32,7 @@
   "devDependencies": {
     "@eslint/js": "^9.39.5",
     "@playwright/test": "^1.62.1",
-    "@types/node": "^24.13.3",
+    "@types/node": "^26.2.0",
     "eslint": "^9.39.5",
     "eslint-config-prettier": "^10.1.8",
     "globals": "^17.11.0",
