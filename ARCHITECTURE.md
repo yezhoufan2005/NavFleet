@@ -78,7 +78,7 @@ flowchart LR
 ## 4. 目录职责
 
 ```text
-mqtt/
+NavFleet/
 ├─ backend/
 │  ├─ src/
 │  │  ├─ auth/               # 登录 / JWT / RBAC 中间件
@@ -98,19 +98,23 @@ mqtt/
 │  └─ Dockerfile
 ├─ frontend/
 │  ├─ src/
-│  │  ├─ components/         # GpsMap / RosSceneMap / LoginForm / NotificationHost
+│  │  ├─ components/         # GpsMap / RosSceneMap / LoginForm / SkeletonBlock 等
 │  │  ├─ composables/        # useAuth / useTheme / useNotifications / useAlertAck
+│  │  │                      # useSvgViewport / useSceneOverlay / useHistoryPlayback
 │  │  ├─ lib/                # fleetNormalize（纯归一化）
 │  │  ├─ services/           # fleetApi（REST）
 │  │  ├─ stores/             # fleet（Pinia）
 │  │  ├─ router/             # vue-router
-│  │  ├─ views/              # DashboardView / HistoryView / AlertsView
+│  │  ├─ views/              # Dashboard / History / Alerts / Settings / NotFound
 │  │  ├─ utils/
 │  │  ├─ App.vue
 │  │  └─ main.ts
 │  ├─ test/                  # Vitest 单测
 │  ├─ package.json
 │  └─ Dockerfile
+├─ packages/
+│  └─ shared/                # @navfleet/shared —— 领域类型单一来源，前后端共同引用
+├─ e2e/                      # Playwright 端到端 + axe-core 无障碍审计
 ├─ config-runtime/
 │  ├─ fleet.json
 │  ├─ vehicles.json
@@ -119,12 +123,17 @@ mqtt/
 │  └─ scene-maps/
 ├─ scripts/                  # dev.sh / smoke.sh
 └─ deploy/
-   ├─ docker-compose.yml
+   ├─ docker-compose.yml     # 基础编排
+   ├─ docker-compose.tls.yml # TLS 叠加
+   ├─ docker-compose.monitoring.yml  # Prometheus + Grafana 叠加
+   ├─ docker-compose.backup.yml      # 定时备份叠加
    ├─ .env.example
-   ├─ nginx/default.conf
-   ├─ mosquitto/mosquitto.conf
-   ├─ docs/
-   └─ tools/                 # mongo-backup.sh / mongo-restore.sh
+   ├─ nginx/                 # default.conf / locations.conf / tls.conf
+   ├─ mosquitto/             # mosquitto.conf + 生成账号与 ACL 的 entrypoint
+   ├─ prometheus/            # 抓取配置 + 告警规则
+   ├─ grafana/               # 预置数据源与面板
+   ├─ docs/                  # 部署 / 配置 / 备份恢复
+   └─ tools/                 # 备份恢复、自签证书、点云导入等脚本
 ```
 
 ## 5. 后端模块
@@ -165,17 +174,29 @@ mqtt/
 - `scenes.json`
 - `scene-maps/**/*.osm`
 
-### `src/index.ts`
+### `src/index.ts` 与它拆出的模块
 
-职责：
+`index.ts` 只负责**组装运行时并启动**（约 115 行）；此前它是一个 548 行的 god-file，
+PR #28 按职责拆开：
 
-- 创建 Express 服务。
-- 提供 REST API。
-- 暴露 `/scene-maps/**` 静态资源。
-- 创建 WebSocket `/ws`。
-- 连接 MQTT Broker。
-- 订阅 `/fleet/+/vehicle_info` 和 `/fleet/+/status`。
-- 定期执行离线检测。
+| 模块                 | 职责                                                                         |
+| -------------------- | ---------------------------------------------------------------------------- |
+| `app.ts`             | 组装 Express：中间件顺序、鉴权闸门、`/api/v1` 与 `/api` 双挂载、404/错误处理 |
+| `routes/ops.ts`      | 公开运维端点：`/health`、`/health/ready`、`/metrics`、`/openapi.json`        |
+| `routes/fleet.ts`    | 车队快照、编队、历史、告警                                                   |
+| `routes/scenes.ts`   | 场景定义与 Lanelet2 overlay                                                  |
+| `routes/debug.ts`    | `/debug/ingest`（仅在显式开启且非生产时挂载）                                |
+| `routes/docs.ts`     | 同源自带的 Swagger UI                                                        |
+| `websocket.ts`       | `/ws` 升级握手（只认 cookie 里的 token）、心跳、广播                         |
+| `mqtt.ts`            | Broker 连接、订阅、zod 校验后的摄入                                          |
+| `metrics.ts`         | `prom-client` 注册表与 per-route 请求直方图                                  |
+| `logger.ts`          | pino 根 logger + 脱敏路径 + `moduleLogger()`                                 |
+| `requestContext.ts`  | request-id 贯穿日志与 500 响应                                               |
+| `runtimeState.ts`    | 跨模块共享的运行时状态（连接状态、启动时间等）                               |
+| `startupChecks.ts`   | 生产配置审计，危险组合 fail-fast                                             |
+| `mongoConnection.ts` | Mongo 连接、重连退避与真实健康探测                                           |
+
+静态资源 `/scene-maps/**` 与离线检测定时器仍在 `app.ts` / `index.ts` 中装配。
 
 ### `src/normalize.ts`
 
@@ -245,7 +266,7 @@ router。原先的单体 `useDashboard` 组合式函数已拆分为 store + 服�
 
 - 集中的 REST 访问层（snapshot/scenes/history/alerts），统一 `credentials` 与非 2xx 抛错。
 
-### `src/lib/fleetNormalize.js`
+### `src/lib/fleetNormalize.ts`
 
 - 纯归一化 / 塑形函数（多格式遥测归一、告警派生、lidar→fusion 回退、场景合并、轨迹）。无 Vue 依赖，可单测。
 
@@ -277,7 +298,7 @@ router。原先的单体 `useDashboard` 组合式函数已拆分为 store + 服�
 - 支持缩放、拖拽、视角重置。
 - 展示 fusion/lidar 位姿、车辆连线和编队成员，并叠加历史轨迹线（只读监控，不含路径下发/编辑）。
 
-### `src/data-defaults.js`
+### `src/data-defaults.ts`
 
 职责：
 
@@ -552,5 +573,7 @@ Compose 服务：
 - 修改代码后需要重新构建 Docker 镜像。
 - 修改 `config-runtime` 中的 JSON 配置不需要重新构建。
 - 修改 `.osm` 文件不需要重新构建，但浏览器需要刷新。
-- 默认 Mosquitto 允许匿名连接，只适合内网验收或开发环境；生产环境建议开启账号、密码、ACL 和 TLS。
-- 默认 MongoDB 密码是示例值，生产环境必须修改。
+- Mosquitto **默认关闭匿名连接**（`allow_anonymous false` + 双向 ACL），compose 用
+  `${MQTT_SUBSCRIBER_PASSWORD:?}` 强制必填：口令留空时 `up` 直接报错退出，而不是起一个
+  谁都能连的 broker。1883 端口只绑 `127.0.0.1`。生产环境仍建议在此之上加 TLS。
+- `deploy/.env.example` 里的 MongoDB 口令是占位值，部署前必须替换。
