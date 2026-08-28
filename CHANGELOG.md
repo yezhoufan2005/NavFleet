@@ -1,5 +1,41 @@
 # Changelog
 
+## [0.3.0](https://github.com/yezhoufan2005/NavFleet/compare/v0.2.0...v0.3.0) (2026-08-27)
+
+
+### Features
+
+* **api:** /api/v1 prefix, validator-generated schemas and self-hosted Swagger UI ([d66331a](https://github.com/yezhoufan2005/NavFleet/commit/d66331a5b5c45e37b26990893eee1bef8bd8b4d9))
+* **backend:** prom-client metrics, per-route latency histogram, request ids ([d9d3b45](https://github.com/yezhoufan2005/NavFleet/commit/d9d3b45dd3dd728a4cfb0d50c73ca7227b04e511))
+* **backend:** rate limiting, real client IPs, tight CSP, production config audit ([cc40150](https://github.com/yezhoufan2005/NavFleet/commit/cc40150d404d410522e3d966fec6bd0efad613a6))
+* **deploy:** authenticated broker with ACLs, network segmentation, non-root nginx ([36bee99](https://github.com/yezhoufan2005/NavFleet/commit/36bee9956a9e5c82c9ae32141e4e6727e4b54443))
+* **deploy:** Prometheus + Grafana and verified-restorable backups ([362121a](https://github.com/yezhoufan2005/NavFleet/commit/362121ae845ccfa6ad5199fcd884e3710818e2ef))
+* **deploy:** TLS overlay with HSTS, 308 redirect and Secure cookies ([22270e9](https://github.com/yezhoufan2005/NavFleet/commit/22270e920cc9c3e9dc6553a84e15a79064b33e85))
+* **frontend:** error boundary, global handlers, route guard and a real 404 ([ae2423b](https://github.com/yezhoufan2005/NavFleet/commit/ae2423bfc4d4ce13a46c163a623bed6c4fb2eaa9))
+* **frontend:** error boundary, global handlers, route guard and a real 404 ([884a8e3](https://github.com/yezhoufan2005/NavFleet/commit/884a8e3b836c0f161726fea0258c2e3e9e87be1b))
+* **ingest:** validate MQTT payloads and route params before they reach the store ([34c9e44](https://github.com/yezhoufan2005/NavFleet/commit/34c9e448e147326fef391265a33874f096418102))
+* **ingest:** validate MQTT payloads and route params before they reach the store ([0f9c67f](https://github.com/yezhoufan2005/NavFleet/commit/0f9c67ff3712404c438c3648d13ae1dedb03ae64))
+
+
+### Bug Fixes
+
+* **dev:** give the dev stack the broker credentials it now needs ([52c5fb3](https://github.com/yezhoufan2005/NavFleet/commit/52c5fb392ea55cba59c6aed6523791d6b09d5808))
+* **e2e:** dedicated ports and no server reuse ([70e348c](https://github.com/yezhoufan2005/NavFleet/commit/70e348c00b63760e7591509a370d2747e4190b81))
+* **gps:** anchor vehicle markers to their coordinate, not to a pixel offset ([45dac28](https://github.com/yezhoufan2005/NavFleet/commit/45dac28517c54bbd243c7d124bf7f3dc71e7b534))
+* **gps:** 车标锚定到真实坐标（缩放时不再漂移）+ 方向/标签/演示分布修正 ([ecfb690](https://github.com/yezhoufan2005/NavFleet/commit/ecfb690f588dd2ee3175253890fbf8ed3ffc231f))
+* **mock:** single-instance guard so battery/SOC stops flipping ([8be3730](https://github.com/yezhoufan2005/NavFleet/commit/8be3730f83f6beba4d497a4091f3c69ea324f59a))
+* **mock:** single-instance guard so battery/SOC stops flipping ([356a0e2](https://github.com/yezhoufan2005/NavFleet/commit/356a0e2b9f23e56da4551ffac9464f6765a98898))
+* **mock:** sustainable battery duty cycle instead of draining to 0% ([2a69534](https://github.com/yezhoufan2005/NavFleet/commit/2a69534e58bd8b6cf5fff468fd55cefa2e243ab7))
+* **mock:** sustainable battery duty cycle instead of draining to 0% ([35ea4b6](https://github.com/yezhoufan2005/NavFleet/commit/35ea4b68e1033fec0c95b68c4fead3850b15f469))
+* **persistence:** reconnect to MongoDB and report real connectivity ([f47effa](https://github.com/yezhoufan2005/NavFleet/commit/f47effab82502d206d1b769b245cdea3e50bb629))
+* **persistence:** reconnect to MongoDB and report real connectivity ([1dc521a](https://github.com/yezhoufan2005/NavFleet/commit/1dc521a0a0ccd7268ca890a83f58896d6fc9aeed))
+* **ros:** fit the scene by default and drive the real road network ([c50d5d9](https://github.com/yezhoufan2005/NavFleet/commit/c50d5d9e8b7504831075c19aee3b92020a42b036))
+* **store:** serialize mutations to stop losing concurrent updates ([b6d0f1e](https://github.com/yezhoufan2005/NavFleet/commit/b6d0f1ed89fc29584b588221cfe408edca4046d6))
+* **store:** serialize mutations to stop losing concurrent updates ([314e771](https://github.com/yezhoufan2005/NavFleet/commit/314e7712251ba871fb461b8d9c3982423156e41b))
+* **test:** stop supertest reusing pooled sockets across recycled ports ([59ecefc](https://github.com/yezhoufan2005/NavFleet/commit/59ecefcdca43665a8e38c435d68cc50ad6132b63))
+* **test:** type-safe keep-alive disable ([15a1a27](https://github.com/yezhoufan2005/NavFleet/commit/15a1a277e323d6af2b15263f94d9c03a598f5f41))
+* **test:** 修掉后端套件约 50% 概率的偶发失败（supertest 复用已失效的 keep-alive socket） ([f707728](https://github.com/yezhoufan2005/NavFleet/commit/f707728d6391d08241c765276deceb63bae4fcf9))
+
 ## [0.2.0](https://github.com/yezhoufan2005/NavFleet/compare/v0.1.0...v0.2.0) (2026-08-26)
 
 
