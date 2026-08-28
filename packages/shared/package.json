@@ -1,6 +1,6 @@
 {
   "name": "@navfleet/shared",
-  "version": "0.1.0",
+  "version": "1.0.0",
   "private": true,
   "license": "MIT",
   "description": "Shared NavFleet domain contracts — the single source of truth for types used by both backend and frontend.",

@@ -69,3 +69,18 @@ npm run mock:mqtt               # 发布确定性演示遥测
 跨前后端的数据契约只在 `packages/shared/src/index.ts` 定义一次；前后端通过
 `import type { … } from "@navfleet/shared"` 引用（纯类型导入，编译期擦除，不进运行时产物）。
 改数据模型时改这里一处即可。
+
+## 版本与发布
+
+版本由 **release-please** 从约定式提交推导：合并到 `main` 后它会开一个 release PR，合并
+该 PR 即打 tag、生成 `CHANGELOG.md` 条目、并触发 GHCR 镜像发布。
+
+需要指定版本号时（例如从 0.x 进入 1.0.0），在任意一个进入本次发布范围的提交里加脚注：
+
+```text
+Release-As: 1.0.0
+```
+
+release-please 只管理**根** `package.json` 的版本。三个 workspace（`backend` /
+`frontend` / `packages/shared`）都是 `private: true` 且从不发布到 npm，它们的 `version`
+仅为可读性与根版本保持一致，**需要手动跟随**大版本更新。
