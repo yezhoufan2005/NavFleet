@@ -1,5 +1,5 @@
-import { vi, type Mock } from "vitest";
-import type { Express } from "express";
+import http from "node:http";
+import { afterAll, vi, type Mock } from "vitest";
 import { createApp } from "../../src/app";
 import { parseConfig, type AppConfig } from "../../src/config";
 import { createRuntimeState, type RuntimeState } from "../../src/runtimeState";
@@ -108,13 +108,44 @@ export interface TestAppOptions {
 }
 
 export interface TestAppContext {
-  app: Express;
+  /**
+   * A *listening* server, not the bare Express app.
+   *
+   * supertest starts its own server per request when handed an app, and closes
+   * it as soon as the response arrives — hundreds of listen/close cycles per run
+   * on recycled ephemeral ports. That produced a suite that failed about one run
+   * in six in a different test each time: a request could hang until the test
+   * timed out, or be delivered to another test's server (a REST assertion once
+   * got `426 Upgrade Required`, which only the WebSocket harness can produce).
+   *
+   * Because `server.address()` is already set here, supertest reuses this server
+   * and never opens or closes one of its own, so each test file binds one port
+   * for its whole lifetime. Named `app` so call sites read the same as before.
+   */
+  app: http.Server;
   store: StoreStub;
   persistence: PersistenceStub;
   authService: AuthServiceStub;
   state: RuntimeState;
   config: AppConfig;
 }
+
+/**
+ * Every server this module opened, closed once the test file finishes. Vitest
+ * gives each file its own module instance, so this list is per-file.
+ */
+const openServers: http.Server[] = [];
+
+afterAll(async () => {
+  await Promise.all(
+    openServers.splice(0).map(
+      (server) =>
+        new Promise<void>((resolve) => {
+          server.close(() => resolve());
+        }),
+    ),
+  );
+});
 
 /** Build the real Express app on top of stubbed collaborators. */
 export const createTestApp = (options: TestAppOptions = {}): TestAppContext => {
@@ -129,7 +160,7 @@ export const createTestApp = (options: TestAppOptions = {}): TestAppContext => {
     ...options.configOverrides,
   };
 
-  const app = createApp({
+  const expressApp = createApp({
     store: store as unknown as DashboardStore,
     persistence: persistence as unknown as Persistence,
     authService: authService as unknown as AuthService,
@@ -139,7 +170,12 @@ export const createTestApp = (options: TestAppOptions = {}): TestAppContext => {
     collectDefaultMetrics: options.collectDefaultMetrics ?? false,
   });
 
-  return { app, store, persistence, authService, state, config };
+  // Bind immediately: `listen()` performs the bind before returning, so
+  // `address()` is populated by the time supertest looks at it.
+  const server = expressApp.listen(0);
+  openServers.push(server);
+
+  return { app: server, store, persistence, authService, state, config };
 };
 
 /**

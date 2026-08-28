@@ -12,7 +12,14 @@ import {
 
 /**
  * End-to-end suite: real backend + real vite dev server, driven through
- * chromium. Playwright owns both processes (`webServer` below), so
+ * chromium.
+ *
+ * `@playwright/test` is pinned to an exact version in the root manifest, not a
+ * caret range. Playwright downloads a browser build matched to its own version,
+ * so a patch bump silently invalidates the local browser cache and every run
+ * then fails with "Executable doesn't exist" until someone re-runs
+ * `playwright install`. The `e2e` script also installs chromium first (a no-op
+ * once cached), so a fresh checkout and a version bump both self-heal. Playwright owns both processes (`webServer` below), so
  * `npm run e2e` works from a clean checkout with no MongoDB and no MQTT broker
  * running — see `support/harness.ts` for why that is safe.
  *
