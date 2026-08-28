@@ -59,6 +59,23 @@ describe("DashboardView bootstrap skeletons", () => {
     wrapper.unmount();
   });
 
+  it("reserves the stat value's own line height so nothing jumps on arrival", () => {
+    store.state.realtime.bootstrapPending = true;
+
+    const wrapper = mountDashboard();
+
+    // jsdom does no layout, so the guard is on the variant rather than on
+    // pixels: `skeleton-value` is the one sized to `.headline-stat strong`.
+    // A plain `skeleton-line` here measured 13px short per card in a browser.
+    const statPlaceholders = wrapper.findAll(".headline-stat .skeleton");
+    expect(statPlaceholders).toHaveLength(4);
+    statPlaceholders.forEach((bar) => {
+      expect(bar.classes()).toContain("skeleton-value");
+    });
+
+    wrapper.unmount();
+  });
+
   it("falls back to the empty state once bootstrap finishes with no devices", () => {
     store.state.realtime.bootstrapPending = false;
 

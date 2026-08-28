@@ -26,6 +26,17 @@
   height: 14px;
 }
 
+/*
+ * Sized to the line box of `.headline-stat strong` (20px font x 1.35
+ * line-height = 27px) so the stat cards do not resize when the real number
+ * arrives. A placeholder that reserves the wrong height does not remove the
+ * layout jump, it just moves it to the moment the data lands — measured at 13px
+ * per card before this existed. Keep the two in step if that type scale changes.
+ */
+.skeleton-value {
+  height: 27px;
+}
+
 .skeleton-line:last-child:not(:only-child) {
   /* A ragged last line reads as text rather than as a solid block. */
   width: 62%;
