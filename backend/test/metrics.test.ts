@@ -1,13 +1,13 @@
 import { describe, it, expect } from "vitest";
 import request from "supertest";
-import type { Express } from "express";
+import type { Server } from "node:http";
 import { DEVICE_ID, createTestApp, sessionCookie } from "./helpers/testApp";
 
 /**
  * The exposition is scraped by Prometheus, so these tests read it as text the
  * way a scraper would rather than reaching into prom-client internals.
  */
-const scrape = async (app: Express): Promise<string> => {
+const scrape = async (app: Server): Promise<string> => {
   const response = await request(app).get("/metrics");
   expect(response.status).toBe(200);
   return response.text;
@@ -35,7 +35,7 @@ const HISTOGRAM_COUNT = "navfleet_http_request_duration_seconds_count";
  * immediate scrape was flaky (one run in three), so wait for the samples under
  * test instead of sleeping on a guess.
  */
-const scrapeUntil = async (app: Express, expected: string[]): Promise<string> => {
+const scrapeUntil = async (app: Server, expected: string[]): Promise<string> => {
   let body = "";
   for (let attempt = 0; attempt < 50; attempt += 1) {
     body = await scrape(app);
