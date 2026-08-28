@@ -116,8 +116,15 @@
   overflow-wrap: anywhere;
 }
 
+/*
+ * `--brand-ink`, not `--brand`. The brand teal is a mid-tone picked to read as a
+ * colour on dark panels; as *text* on this near-white group background it lands
+ * around 2.6:1, well under the 4.5:1 AA needs. axe never flagged it because the
+ * rule returns `incomplete` on the translucent surface underneath rather than a
+ * violation — so this one has to be caught by reading, not by the suite.
+ */
 .settings-facts dd[data-tone="ok"] {
-  color: var(--brand);
+  color: var(--brand-ink);
 }
 
 .settings-facts dd[data-tone="warning"] {

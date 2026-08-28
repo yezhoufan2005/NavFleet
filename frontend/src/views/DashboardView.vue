@@ -138,27 +138,30 @@ function handleDeviceSelect(deviceId) {
     <section class="headline-stats" :aria-busy="bootstrapPending">
       <article class="headline-stat">
         <span class="stat-label">在线设备</span>
-        <SkeletonBlock v-if="bootstrapPending" />
+        <SkeletonBlock v-if="bootstrapPending" variant="value" />
         <strong v-else>{{ summary.onlineCount }} / {{ summary.totalCount }}</strong>
       </article>
       <article class="headline-stat">
         <span class="stat-label">活动告警</span>
-        <SkeletonBlock v-if="bootstrapPending" />
+        <SkeletonBlock v-if="bootstrapPending" variant="value" />
         <strong v-else>{{ summary.alertTotal }}</strong>
       </article>
       <article class="headline-stat">
         <span class="stat-label">当前编队</span>
-        <SkeletonBlock v-if="bootstrapPending" />
+        <SkeletonBlock v-if="bootstrapPending" variant="value" />
         <strong v-else>{{ selectedFormationLabel }}</strong>
       </article>
       <article class="headline-stat">
         <span class="stat-label">当前场景</span>
-        <SkeletonBlock v-if="bootstrapPending" />
+        <SkeletonBlock v-if="bootstrapPending" variant="value" />
         <strong v-else>{{ selectedSceneLabel }}</strong>
       </article>
     </section>
 
-    <main class="dashboard-grid" :class="{ 'fleet-collapsed': fleetCollapsed }">
+    <!-- A plain layout wrapper: the document's `main` landmark lives in the app
+         shell (`App.vue`), and nesting a second one here would be invalid HTML
+         and would give assistive tech two competing "main content" regions. -->
+    <div class="dashboard-grid" :class="{ 'fleet-collapsed': fleetCollapsed }">
       <aside class="panel fleet-panel">
         <div class="panel-head">
           <h2 v-show="!fleetCollapsed">设备与编队</h2>
@@ -178,10 +181,17 @@ function handleDeviceSelect(deviceId) {
           <section class="formation-section">
             <div class="formation-head">
               <span class="section-kicker">编队</span>
+              <!--
+                `aria-pressed` mirrors the `active` class on every toggle in this
+                view: the class is the only visual cue for "this filter is on",
+                and a class means nothing to a screen reader, which would
+                otherwise announce a row of identical, plain "button"s.
+              -->
               <button
                 type="button"
                 class="formation-clear-btn"
                 :class="{ active: !selectedFormation }"
+                :aria-pressed="!selectedFormation"
                 @click="clearFormationSelection"
               >
                 全部设备
@@ -196,6 +206,7 @@ function handleDeviceSelect(deviceId) {
                 type="button"
                 class="formation-chip"
                 :class="{ active: selectedFormation?.formationId === formation.formationId }"
+                :aria-pressed="selectedFormation?.formationId === formation.formationId"
                 :style="formation.color ? { '--formation-color': formation.color } : {}"
                 @click="handleFormationSelect(formation.formationId)"
               >
@@ -220,6 +231,7 @@ function handleDeviceSelect(deviceId) {
               class="device-item"
               :data-tone="getDeviceTone(device)"
               :class="{ selected: device.deviceId === state.selectedDeviceId }"
+              :aria-current="device.deviceId === state.selectedDeviceId"
               @click="handleDeviceSelect(device.deviceId)"
             >
               <div class="device-row">
@@ -261,6 +273,7 @@ function handleDeviceSelect(deviceId) {
               type="button"
               class="tab-btn"
               :class="{ active: state.selectedMapMode === 'gps' }"
+              :aria-pressed="state.selectedMapMode === 'gps'"
               @click="setMapMode('gps')"
             >
               GPS
@@ -269,6 +282,7 @@ function handleDeviceSelect(deviceId) {
               type="button"
               class="tab-btn"
               :class="{ active: state.selectedMapMode === 'scene' }"
+              :aria-pressed="state.selectedMapMode === 'scene'"
               @click="setMapMode('scene')"
             >
               ROS
@@ -323,7 +337,12 @@ function handleDeviceSelect(deviceId) {
           <span class="state-pill" :data-tone="selectedTone">{{ selectedToneLabel }}</span>
         </div>
 
-        <div v-if="selectedDevice" class="detail-scroll">
+        <!--
+          `tabindex="0"` because this column scrolls and none of the telemetry
+          inside it is focusable: without it, everything below the fold is
+          unreachable for anyone driving the page from the keyboard.
+        -->
+        <div v-if="selectedDevice" class="detail-scroll" tabindex="0">
           <section class="detail-section">
             <h3 class="section-title">车辆信息</h3>
             <div class="detail-data-grid compact-grid">
@@ -463,6 +482,6 @@ function handleDeviceSelect(deviceId) {
           <span>请先从左侧选择一台设备或一个编队。</span>
         </div>
       </aside>
-    </main>
+    </div>
   </div>
 </template>

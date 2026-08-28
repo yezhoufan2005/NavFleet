@@ -136,10 +136,16 @@ function nextPage() {
     </div>
 
     <div class="drawer-summary">
+      <!--
+        `aria-pressed` mirrors the `active` class: the class alone is a purely
+        visual cue, so without it a screen reader announces four identical
+        "button"s with no hint of which severity filter is applied.
+      -->
       <button
         type="button"
         class="brief-card alert-tab-card"
         :class="{ active: severityFilter === 'all' }"
+        :aria-pressed="severityFilter === 'all'"
         @click="setSeverityFilter('all')"
       >
         <span>全部</span>
@@ -152,6 +158,7 @@ function nextPage() {
         class="brief-card alert-tab-card"
         :data-severity="severity"
         :class="{ active: severityFilter === severity }"
+        :aria-pressed="severityFilter === severity"
         @click="setSeverityFilter(severity)"
       >
         <span>{{ severityLabelMap[severity] }}</span>

@@ -109,7 +109,7 @@
 
 .pose-status.ready {
   background: rgba(var(--brand-rgb), 0.16);
-  color: #a7ffee;
+  color: var(--brand-ink);
   border-color: rgba(var(--brand-rgb), 0.2);
 }
 

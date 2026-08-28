@@ -251,12 +251,13 @@ router。原先的单体 `useDashboard` 组合式函数已拆分为 store + 服�
 
 ### `src/router/index.ts` 与 `src/views/`
 
-- 路由：`/` 实时监控（`DashboardView.vue`）、`/history` 历史回放（`HistoryView.vue`，时间轴回放，复用 `RosSceneMap`）、`/alerts` 告警中心（`AlertsView.vue`，筛选/确认/分页）。
-- `App.vue` 为鉴权门 + 外壳（品牌、导航、主题切换、会话、离线横幅、`<RouterView>`）。
+- 路由：`/` 实时监控（`DashboardView.vue`）、`/history` 历史回放（`HistoryView.vue`，时间轴回放，复用 `RosSceneMap`）、`/alerts` 告警中心（`AlertsView.vue`，筛选/确认/分页）、`/settings` 设置（`SettingsView.vue`，主题偏好 + 清除本地数据 + 连接诊断，只读监控范围内不含任何改变车队行为的开关）。
+- `App.vue` 为鉴权门 + 外壳（品牌、导航、主题切换、会话、离线横幅、skip-link、唯一的 `<main>` 地标、`<RouterView>`）。视图内部只用 `<div>`/`<section>` 布局：再嵌一层 `<main>` 属于非法 HTML，也会让辅助技术看到两个「主内容」区域。
+- 首屏快照到达前，`bootstrapPending` 让受影响区域渲染骨架屏而不是空态文案 —— 「还没到」和「筛选后没有」是两回事，后者会误导操作员去改筛选条件。
 
 ### `src/composables/`
 
-- `useAuth.ts`（模块单例，登录/会话/自动续签）、`useTheme.ts`（明暗双主题）、`useNotifications.ts`（toast）、`useAlertAck.ts`（告警确认，localStorage 持久化）。
+- `useAuth.ts`（模块单例，登录/会话/自动续签）、`useTheme.ts`（明暗双主题）、`useNotifications.ts`（toast）、`useAlertAck.ts`（告警确认，localStorage 持久化）、`useHistoryPlayback.ts`（时间轴回放，`samples` 只读 + `setSamples` 修改器）。
 
 ### `src/components/GpsMap.vue`
 
