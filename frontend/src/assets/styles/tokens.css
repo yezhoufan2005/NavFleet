@@ -22,7 +22,11 @@
   --text: #eaf2fb;
   --muted: #93a7bd;
   --brand: #4fd6c4;
+  /* Ink for text sitting *on* a solid --brand surface (buttons, active pills). */
   --brand-contrast: #04231f;
+  /* Ink for text on a faint rgba(--brand-rgb, …) tint, which stays close to the
+     surrounding surface — so it needs the opposite lightness of --brand-contrast. */
+  --brand-ink: #a7ffee;
   --brand-rgb: 70, 215, 195;
   --notice-rgb: 134, 184, 255;
   --warning-rgb: 255, 179, 87;
@@ -58,7 +62,15 @@
   --text: #10233a;
   --muted: #5b6f83;
   --brand: #0ea88f;
-  --brand-contrast: #ffffff;
+  /*
+   * Dark ink, same as the dark theme: white failed WCAG AA on every surface this
+   * token lands on. --brand is a mid-tone teal (white reaches only 2.99:1, and
+   * 4.5:1 is required), and the pale-mint surfaces that also use it
+   * (.tab-btn.active, .state-pill[data-tone="normal"]) are lighter still. Dark
+   * ink clears 5.5:1 on --brand and ~9:1 on the mint ones.
+   */
+  --brand-contrast: #04231f;
+  --brand-ink: #0a5f52;
   --brand-rgb: 14, 168, 143;
   --notice-rgb: 47, 111, 214;
   --warning-rgb: 201, 116, 26;

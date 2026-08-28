@@ -210,7 +210,9 @@ async function loadHistory() {
       </div>
     </section>
 
-    <main class="history-stage">
+    <!-- Layout wrapper only. The document's `main` landmark is in the app shell
+         (`App.vue`); a second, nested one would be invalid HTML. -->
+    <div class="history-stage">
       <section class="panel history-map-panel">
         <div class="panel-head">
           <h2>轨迹回放</h2>
@@ -258,16 +260,28 @@ async function loadHistory() {
           <button type="button" class="tab-btn ghost" :disabled="!samples.length" @click="restart">
             重播
           </button>
+          <!--
+            Both controls are icon-free and label-free by design — the playback
+            bar reads as a row of media controls — so their accessible names have
+            to come from `aria-label`, or a screen reader announces them as an
+            unnamed slider and an unnamed combobox.
+          -->
           <input
             class="playback-slider"
             type="range"
+            aria-label="回放进度"
             min="0"
             :max="Math.max(0, samples.length - 1)"
             :value="cursor"
             :disabled="!samples.length"
             @input="cursor = Number($event.target.value)"
           />
-          <select v-model.number="speed" class="playback-speed" :disabled="!samples.length">
+          <select
+            v-model.number="speed"
+            class="playback-speed"
+            aria-label="回放速度"
+            :disabled="!samples.length"
+          >
             <option :value="0.5">0.5×</option>
             <option :value="1">1×</option>
             <option :value="2">2×</option>
@@ -319,6 +333,6 @@ async function loadHistory() {
           <span>加载轨迹后，这里会显示当前回放位置的遥测详情。</span>
         </div>
       </aside>
-    </main>
+    </div>
   </div>
 </template>

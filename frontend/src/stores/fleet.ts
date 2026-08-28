@@ -66,6 +66,16 @@ interface RealtimeState {
   wsReady: boolean;
   ws: WebSocket | null;
   reconnectAttempts: number;
+  /**
+   * True while the very first snapshot request is in flight.
+   *
+   * Without it a view cannot tell "no data has arrived yet" from "no data
+   * matches the current filters", so a cold load rendered the empty-filter
+   * message for however long the request took — telling the operator their
+   * filters were wrong when nothing had been filtered at all. Views render
+   * skeleton placeholders while this is set.
+   */
+  bootstrapPending: boolean;
 }
 
 interface FleetState {
@@ -103,6 +113,7 @@ export const useFleetStore = defineStore("fleet", () => {
       wsReady: false,
       ws: null,
       reconnectAttempts: 0,
+      bootstrapPending: false,
     },
   });
 
@@ -641,19 +652,31 @@ export const useFleetStore = defineStore("fleet", () => {
   };
 
   const retryBootstrap = async () => {
-    const ready = await bootstrapFromBackend();
-    if (!ready) {
-      await bootstrapEmptyState();
+    state.realtime.bootstrapPending = true;
+    try {
+      const ready = await bootstrapFromBackend();
+      if (!ready) {
+        await bootstrapEmptyState();
+      }
+      return ready;
+    } finally {
+      state.realtime.bootstrapPending = false;
     }
-    return ready;
   };
 
   const bootstrap = async () => {
-    const backendReady = await bootstrapFromBackend();
-    if (!backendReady) {
-      await bootstrapEmptyState();
+    state.realtime.bootstrapPending = true;
+    try {
+      const backendReady = await bootstrapFromBackend();
+      if (!backendReady) {
+        await bootstrapEmptyState();
+      }
+    } finally {
+      state.realtime.bootstrapPending = false;
     }
   };
+
+  const bootstrapPending = computed(() => state.realtime.bootstrapPending);
 
   const registerWindowApi = () => {
     (window as unknown as Record<string, unknown>).vehicleDashboard = {
@@ -687,6 +710,7 @@ export const useFleetStore = defineStore("fleet", () => {
     selectedFormation,
     summary,
     groupedAlerts,
+    bootstrapPending,
     sceneDevices,
     formationSceneId,
     hasPose,

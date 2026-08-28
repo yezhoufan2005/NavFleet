@@ -31,6 +31,7 @@
     "e2e:install": "playwright install chromium"
   },
   "devDependencies": {
+    "@axe-core/playwright": "4.13.0",
     "@eslint/js": "^9.39.5",
     "@playwright/test": "1.62.1",
     "@types/node": "^26.2.0",

@@ -91,11 +91,48 @@ CD 用 **release-please**（贴合现有 conventional-commit 历史，自动 CHA
 - **收口达成**：安全清单达标 · 告警规则全部写在真实暴露的指标上（机检 25 处引用零缺失）· 恢复演练实跑通过 · 入参契约由验证器生成、结构上无法 drift
 - 自检 ✅（2026-08-27，9A–9D）：`typecheck`/`lint`/`format:check`/`build` 全过 · 测试 212 → **260**（前端 115 不变）· `e2e` 11/11 · 后端覆盖率 82.4/81.9/85.0/82.4（ratchet 提到 80/79/82/80）· compose 基础与 TLS 两种编排均实跑通过（五容器 healthy）。
 
-## Phase 10 — 产品体验打磨 ⚪ 待开始（i18n 本轮排除）
+## Phase 10 — 产品体验打磨 ✅ 完成（i18n 本轮排除）
 
-- [ ] a11y 修复（LoginForm 无 aria、focus 管理、skip-link）、骨架屏、404/设置页
-- [ ] `useHistoryPlayback` composable、告警中心增强、GpsMap deep-watch 优化/列表虚拟化
-- **收口**：Lighthouse a11y 达标、大规模车队渲染无卡顿
+- [x] a11y：LoginForm 表单命名/错误播报/自动聚焦、skip-link、唯一 `<main>` 地标 + 导航后焦点转移（#59）
+- [x] a11y 自动化：`@axe-core/playwright` 进 E2E，5 个页面 × 明暗两套主题，WCAG 2.1 A+AA
+- [x] 骨架屏：`bootstrapPending` 贯穿 store→视图，首屏快照在途时渲染占位而非空态文案
+- [x] 设置页 `/settings`（主题单选组、清除本地数据、连接诊断）；404 页此前已在 #42 落地
+- [x] `useHistoryPlayback` composable（12 例单测）、GpsMap deep-watch 改签名比对（#59）
+- [x] 列表虚拟化：**实测后决定不做**（见下）
+- [x] 告警中心：筛选/搜索/批量确认/分页此前已完整，本轮补 `aria-pressed`（严重度筛选此前只有 `active` class，读屏器听到四个一模一样的「按钮」）
+
+**本阶段修掉的真实缺陷**
+
+1. **空态文案冒充加载态**。首屏快照到达前，仪表盘渲染的是「当前筛选条件下没有设备数据」——什么都没被筛选，却在让操作员去改筛选条件；同时统计卡显示「在线设备 0 / 0」「活动告警 0」，读起来像全队掉线，而不是像一个还没回答的请求。现在由 `bootstrapPending`（在 `finally` 里清除，所以 bootstrap 失败也不会让页面永久闪烁）驱动骨架屏 + `aria-busy`，占位条本身用 `aria-hidden` 留在无障碍树外。浏览器实测（把 snapshot 请求压住 3 秒）：加载中 10 条占位、两个区域 `aria-busy=true`、**零条空态文案**、统计值留空；到达后 0 条占位、5 台设备、真实数值。
+2. **嵌套 `<main>`（我在 #59 引入的回归）**。`App.vue` 加了 `<main id="main-content">` 地标，但 `DashboardView`/`HistoryView` 各自已有一个 `<main>`，于是每页两个 `main` 地标且互相嵌套 —— 非法 HTML，辅助技术会看到两个「主内容」区域。两处改回布局用 `<div>`；四个页面实测均为 `main=1 / 嵌套=0 / h1=1`。
+3. **骨架屏自己带来的布局跳动**。统计卡占位是 14px 的行，替代的却是 27px 的行盒，真实数值到达时每张卡长高 13px —— 占位高度不对，等于把跳动从加载时挪到落数据时。加 `skeleton-value`（对齐 `.headline-stat strong` 的 20px×1.35 行盒）后实测位移 **0px**。
+4. **覆盖率门槛被「空覆盖」撑高**。v8 对任何测试都没 import 过的文件报 100% functions（没插桩，自然没有遗漏），`DashboardView.vue` 正是其一。给它补上真实的挂载+交互测试后，那个虚的 100% 变成真实的 75%，全局 functions 反而从 91.5% 掉到 84%，而同一改动让语句覆盖率翻倍（31%→62.5%）。门槛已按真实测量重新标定：statements/lines 27→58、branches 82→84、**functions 87→81（唯一下调项，原因是度量口径变了而非代码变差）**。`AlertsView`/`HistoryView` 仍是虚的 100%，将来补测时 functions 会再掉一次、语句会再涨一次。
+5. **浅色主题的品牌色对比度整体不合格**。`--brand-contrast: #ffffff` 落在中调青绿 `--brand` 上只有 **2.99:1**（AA 要求 4.5:1），影响登录提交按钮、导航激活态、历史页主按钮；改成与深色主题同一套深墨 `#04231f` 后 5.55:1。另有两处硬编码的深色主题薄荷色（`.pose-status.ready` 的 `#a7ffee`、`.detail-formation-tag` 的 `#bffbf3`）落在浅色品牌浅底上只有 **1.02:1**，抽出 `--brand-ink` 语义 token（深色 `#a7ffee` / 浅色 `#0a5f52`）解决。两个 token 的区别写进注释：`--brand-contrast` 用于**实心** brand 表面，`--brand-ink` 用于 `rgba(--brand-rgb, …)` 薄底 —— 后者贴近周围表面，所以明度需求正好相反。
+6. **回放条两个控件没有可访问名称**（`label` / `select-name`，均为 critical）：进度滑块和倍速下拉按设计不带文字，读屏器只会念「滑块」「组合框」。补 `aria-label`。
+7. **可滚动区域键盘不可达**（`scrollable-region-focusable`）：`.detail-scroll` 会滚动且内部没有任何可聚焦元素，折叠线以下的遥测对键盘用户完全取不到。补 `tabindex="0"`。
+
+**列表虚拟化：实测后决定不做**
+
+jsdom 四档实测（`frontend/test/views/largeFleet.test.ts`，jsdom 比真实浏览器高估 DOM 成本数倍）：
+
+| 设备数 | 挂载   | 全量更新（含 DOM patch） |
+| ------ | ------ | ------------------------ |
+| 6      | 2.8ms  | 2.1ms                    |
+| 50     | 8.9ms  | 5.2ms                    |
+| 200    | 34.5ms | 17.4ms                   |
+| 500    | 85.3ms | 43.5ms                   |
+
+本平台实际监控 6 台车，列表成本可忽略；引入虚拟滚动要付出 Ctrl-F 失效、焦点管理复杂化、多一层滚动容器的代价，换不到任何收益。**该测量本身入库**，但断言放在唯一确定的量上——每行 DOM 节点数（当前 8，上限 16）——那才是让长列表变成渲染问题的原因；时间只打印给人看，不作断言（墙钟数在 CI 里必然不稳）。真要重做虚拟化，触发条件是节点数上限被突破或部署规模量级变化，而不是「感觉列表长了」。
+
+- **收口**：大规模车队渲染无卡顿 ✅（以实测数据结论化，而非加复杂度）；a11y ✅ —— 用 `@axe-core/playwright` 进 E2E 取代一次性 Lighthouse 跑分：跑分是某台机器上的一个瞬时数字，进了 CI 的规则集才是回归网。5 个页面（登录 + 4 个已登录视图）× 明暗两套主题，`wcag2a + wcag2aa`，serious/critical 为红线，失败信息打印 axe 报的**全部**违规（规则 id、影响级别、每个失败选择器、以及 `failureSummary` 里的对比度数值），无任何 `exclude` 或 `disableRules`。修完后 10 次审计**零违规**（含 minor/moderate）。
+
+**a11y 自动化的已知边界**（写下来免得把「测过」当成「都覆盖了」）
+
+- 深色主题这一趟是专门加的：Chromium 报 `prefers-color-scheme: light`、应用默认偏好是 `system`，所以不显式播种 `navfleet:theme` 就只会审到浅色，而深色恰恰是本控制台的默认观感。该用例带一条前提断言（`html[data-theme=dark]`），否则偏好一旦失效就会静默变成「又审了一遍浅色」的假绿。
+- 单一视口（1440×900）、单一引擎（chromium），无响应式与跨引擎审计。
+- 只审各视图的默认状态：告警抽屉、toast、hover/focus 态、`data-tone="normal"` 徽标在 axe 运行时都不在屏上。
+- **axe 的 `incomplete` 桶没有断言**。半透明/渐变表面会落进这一桶而不产生违规，所以 `.tab-btn.active`（薄荷渐变）和设置页 `dd[data-tone="ok"]` 都躲过了检查 —— 后者是真实缺陷（`--brand` 作为文字落在近白面板上约 2.6:1），靠读代码发现并改用 `--brand-ink` 修掉了。**这类缺陷这套suite 抓不到**，仍需人看。
+- 未跑 `npm ci` 验证重新生成的 lockfile 在 Linux 上干净安装（已独立核对：diff 内 `npmmirror` 命中 0 次，两个新包的 `resolved` 均为 `registry.npmjs.org`，版本精确钉在 `4.13.0`）。
 
 ---
 
@@ -129,3 +166,7 @@ CD 用 **release-please**（贴合现有 conventional-commit 历史，自动 CHA
   5. 监控用**叠加文件**而非 compose `profiles:` —— compose 会在应用 profile **之前**插值整个文件，profiled 服务上的 `${GRAFANA_ADMIN_PASSWORD:?}` 会让所有没启用监控的部署 `up` 失败。两个方向都实测过。
   6. OpenAPI 的入参 schema 改由 zod 生成后立刻暴露了一处既有 drift：手写的 `LoginRequest` 漏了 `minLength: 1`，文档在承诺空字符串可用。
 - 已知遗留：后端测试仍有约 1/6 的偶发失败（issue #53，根因是 supertest 每请求起一个服务器导致端口/socket 串台，#52 已消掉客户端连接池那一半）；`prom-client` 上游已 deprecated，待 `@prometheus-io/client` 有采用度后替换；88 条 lanelet 中 46 条带 `delete="true"` 标记但解析器未过滤，仍被绘制。
+- 2026-08-28：Phase 10 完成。骨架屏（含 store 侧 `bootstrapPending`）、设置页 `/settings`、axe-core 进 E2E（5 页 × 明暗双主题）、大规模渲染实测后决定不做虚拟化。修掉 7 处真实缺陷，其中 3 处是我自己前一轮引入或遗留的：嵌套 `<main>` 地标（#59 加地标时没检查视图已有 `<main>`）、骨架屏自身的 13px 布局跳动、设置页 `--brand` 当文字用的 2.6:1 对比度。
+  - 浅色主题 `--brand-contrast: #ffffff` 在中调青绿上只有 2.99:1，影响登录按钮/导航激活态/历史页主按钮 —— 这是**产品自始存在**的缺陷，靠机检才浮出来，此前三轮人工审阅都没发现。
+  - 覆盖率门槛重标定，`functions` 87→81 是唯一下调项：v8 把「没被 import 过」的文件报成 100% functions，`DashboardView` 补真实测试后由虚的 100% 变成真实 75%，同期语句覆盖率 31%→62.5%。度量变诚实导致数字下降，不是代码变差。
+  - 测试总量：后端 279 + 前端 **158**（+26）+ E2E **14**（+3）。

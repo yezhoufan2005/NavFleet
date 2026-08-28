@@ -39,7 +39,7 @@
   border-radius: 999px;
   background: rgba(var(--brand-rgb), 0.12);
   border: 1px solid rgba(var(--brand-rgb), 0.18);
-  color: #bffbf3;
+  color: var(--brand-ink);
   font-size: 12px;
   font-weight: 700;
 }

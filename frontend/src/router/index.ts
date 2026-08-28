@@ -34,6 +34,12 @@ const routes: RouteRecordRaw[] = [
     meta: { title: "告警中心" },
   },
   {
+    path: "/settings",
+    name: "settings",
+    component: () => import("../views/SettingsView.vue"),
+    meta: { title: "设置" },
+  },
+  {
     // A mistyped deep link used to be redirected to "/" silently, which looked
     // like the app had ignored the address; say so instead.
     path: "/:pathMatch(.*)*",

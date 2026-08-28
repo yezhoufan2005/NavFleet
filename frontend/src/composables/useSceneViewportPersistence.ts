@@ -69,6 +69,19 @@ function writeSavedSceneViews(nextValue: SavedSceneViews): void {
   }
 }
 
+function clearSavedSceneViews(): void {
+  const storage = getStorage();
+  if (!storage) {
+    return;
+  }
+
+  try {
+    storage.removeItem(ROS_VIEW_STORAGE_KEY);
+  } catch {
+    // Ignore privacy mode failures.
+  }
+}
+
 export function useSceneViewportPersistence() {
-  return { readSavedSceneViews, writeSavedSceneViews };
+  return { readSavedSceneViews, writeSavedSceneViews, clearSavedSceneViews };
 }
