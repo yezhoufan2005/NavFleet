@@ -1,8 +1,8 @@
 {
   "name": "navfleet",
-  "version": "0.3.0",
+  "version": "0.4.0",
   "private": true,
-  "description": "NavFleet \u2014 read-only real-time fleet monitoring platform (monorepo root).",
+  "description": "NavFleet — read-only real-time fleet monitoring platform (monorepo root).",
   "workspaces": [
     "packages/*",
     "backend",
