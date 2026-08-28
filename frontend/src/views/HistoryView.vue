@@ -1,10 +1,11 @@
 <script setup>
-import { computed, onBeforeUnmount, ref, watch } from "vue";
+import { computed, ref, watch } from "vue";
 import { storeToRefs } from "pinia";
 import RosSceneMap from "../components/RosSceneMap.vue";
 import { useFleetStore } from "../stores/fleet";
 import { fleetApi } from "../services/fleetApi";
 import { notify } from "../composables/useNotifications";
+import { useHistoryPlayback } from "../composables/useHistoryPlayback";
 import { round, hasPose, formatDateTime, pickTrailPose } from "../lib/fleetNormalize";
 import { formatNumber } from "../utils/formatters";
 import { taskStatusMap, formatEnum } from "../utils/enums";
@@ -20,11 +21,18 @@ const limit = ref(1000);
 
 const loading = ref(false);
 const loaded = ref(false);
-const samples = ref([]); // ascending by time
-const cursor = ref(0);
-const playing = ref(false);
-const speed = ref(1);
-let playTimer = null;
+const {
+  samples,
+  cursor,
+  playing,
+  speed,
+  currentSample,
+  progressLabel,
+  setSamples,
+  stopPlayback,
+  togglePlay,
+  restart,
+} = useHistoryPlayback();
 
 // Default the device picker to the first device once the fleet loads.
 watch(
@@ -43,8 +51,6 @@ const deviceOptions = computed(() =>
     label: device.deviceName || device.deviceId,
   })),
 );
-
-const currentSample = computed(() => samples.value[cursor.value] || null);
 
 function measurementsOf(sample) {
   return (sample && sample.measurements) || {};
@@ -107,59 +113,9 @@ const trailsForMap = computed(() => {
   return { [deviceId.value]: points };
 });
 
-const progressLabel = computed(() => {
-  if (!samples.value.length) {
-    return "0 / 0";
-  }
-  return `${cursor.value + 1} / ${samples.value.length}`;
-});
-
 const currentStamp = computed(() =>
   currentSample.value ? formatDateTime(currentSample.value.ts) : "--",
 );
-
-function stopPlayback() {
-  playing.value = false;
-  if (playTimer) {
-    window.clearInterval(playTimer);
-    playTimer = null;
-  }
-}
-
-function tick() {
-  if (cursor.value >= samples.value.length - 1) {
-    stopPlayback();
-    return;
-  }
-  cursor.value += 1;
-}
-
-function togglePlay() {
-  if (!samples.value.length) {
-    return;
-  }
-  if (playing.value) {
-    stopPlayback();
-    return;
-  }
-  if (cursor.value >= samples.value.length - 1) {
-    cursor.value = 0;
-  }
-  playing.value = true;
-  playTimer = window.setInterval(tick, Math.max(80, 600 / speed.value));
-}
-
-function restart() {
-  stopPlayback();
-  cursor.value = 0;
-}
-
-watch(speed, () => {
-  if (playing.value) {
-    stopPlayback();
-    togglePlay();
-  }
-});
 
 function applyPreset(hours) {
   const now = new Date();
@@ -189,8 +145,7 @@ async function loadHistory() {
     }
     const response = await fleetApi.getHistory(deviceId.value, params);
     // Endpoint returns newest-first; playback needs oldest-first.
-    samples.value = [...(response.items || [])].reverse();
-    cursor.value = 0;
+    setSamples([...(response.items || [])].reverse());
     loaded.value = true;
     if (!samples.value.length) {
       notify("该设备在所选时间范围内没有历史轨迹数据", {
@@ -199,15 +154,13 @@ async function loadHistory() {
       });
     }
   } catch {
-    samples.value = [];
+    setSamples([]);
     loaded.value = true;
     notify("加载历史数据失败，请稍后重试", { type: "error", dedupeKey: "history-failed" });
   } finally {
     loading.value = false;
   }
 }
-
-onBeforeUnmount(stopPlayback);
 </script>
 
 <template>

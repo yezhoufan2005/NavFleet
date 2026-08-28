@@ -74,3 +74,38 @@
     justify-content: center;
   }
 }
+
+/*
+ * Skip link: off-screen until focused, then pinned to the top-left. Not
+ * `display: none` — a hidden element cannot receive focus, which would make the
+ * link unreachable by the only input method that needs it.
+ */
+.skip-link {
+  position: absolute;
+  left: 12px;
+  top: -60px;
+  z-index: 100;
+  padding: 10px 16px;
+  border-radius: 12px;
+  background: var(--bg-elevated);
+  border: 1px solid var(--brand);
+  color: var(--text);
+  font-size: 13px;
+  text-decoration: none;
+  transition: top 140ms ease;
+}
+
+.skip-link:focus-visible,
+.skip-link:focus {
+  top: 12px;
+}
+
+/* The focus ring on the main region would otherwise frame the whole page. */
+#main-content:focus {
+  outline: none;
+}
+
+#main-content:focus-visible {
+  outline: 2px solid var(--brand);
+  outline-offset: 4px;
+}

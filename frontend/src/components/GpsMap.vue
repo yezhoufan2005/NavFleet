@@ -252,13 +252,30 @@ onBeforeUnmount(() => {
   markerCtor = null;
 });
 
-watch(
-  () => [gpsDevices.value, props.selectedDeviceId],
-  () => {
-    syncMarkers();
-  },
-  { deep: true },
-);
+/**
+ * Everything the markers are actually derived from, as one comparable string.
+ *
+ * The watcher below used to be `{ deep: true }` over the device array. The
+ * parent hands down a fresh array on every telemetry tick, so that walked every
+ * device's entire object graph — pose, vehicleInfo, three code blocks, the alert
+ * list — once per second per device, to decide whether to redraw. Marker
+ * rendering only depends on the six fields below (the same ones `syncMarkers`
+ * puts in its per-marker signature), so comparing them directly is both cheaper
+ * and more selective: a tick that only moved `soc` no longer redraws anything.
+ */
+const markerSignature = computed(() => {
+  const devices = gpsDevices.value
+    .map(
+      (device) =>
+        `${device.deviceId}|${device.gps.lat}|${device.gps.lng}|${device.gps.heading}|${props.getDeviceTone(device)}|${device.deviceName}`,
+    )
+    .join(";");
+  return `${devices}#${props.selectedDeviceId}`;
+});
+
+watch(markerSignature, () => {
+  syncMarkers();
+});
 </script>
 
 <template>
