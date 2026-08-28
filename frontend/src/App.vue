@@ -1,5 +1,5 @@
 <script setup>
-import { computed, onMounted, ref } from "vue";
+import { computed, onMounted, ref, watch } from "vue";
 import { RouterView, RouterLink, useRoute } from "vue-router";
 import { storeToRefs } from "pinia";
 import ErrorBoundary from "./components/ErrorBoundary.vue";
@@ -16,6 +16,23 @@ const { bootstrap, registerWindowApi, retryBootstrap, disconnectRealtime } = sto
 
 const route = useRoute();
 
+const mainRegion = ref(null);
+
+/**
+ * Move focus into the main region after a route change.
+ *
+ * A SPA navigation replaces the content without moving focus, so a keyboard or
+ * screen-reader user is left on the nav link they just activated with no signal
+ * that the page changed. Focusing the region (which is `tabindex="-1"`, so it is
+ * not otherwise tabbable) announces the new content and puts the next Tab where
+ * the user expects it.
+ */
+watch(
+  () => route.fullPath,
+  () => {
+    mainRegion.value?.focus();
+  },
+);
 const auth = useAuth();
 const authState = auth.state;
 const { state: themeState, cycleTheme } = useTheme();
@@ -85,6 +102,13 @@ onMounted(async () => {
   />
 
   <div v-else class="app-shell">
+    <!--
+      Skip link: the header carries a brand block, three nav links, a theme
+      toggle and a sign-out button, so reaching the actual content by keyboard
+      costs half a dozen tabs on every navigation. Visually hidden until focused.
+    -->
+    <a class="skip-link" href="#main-content">跳到主内容</a>
+
     <header class="panel page-header">
       <div class="page-header-top">
         <div class="brand-block">
@@ -93,7 +117,7 @@ onMounted(async () => {
           <span class="brand-meta">{{ state.fleetName || "默认车队" }}</span>
         </div>
 
-        <nav class="app-nav">
+        <nav class="app-nav" aria-label="主导航">
           <RouterLink to="/" class="nav-link">实时监控</RouterLink>
           <RouterLink to="/history" class="nav-link">历史回放</RouterLink>
           <RouterLink to="/alerts" class="nav-link">
@@ -140,9 +164,17 @@ onMounted(async () => {
 
     <!-- Boundary sits inside the shell so the header and nav survive a broken
          view; the route path doubles as its reset key. -->
-    <ErrorBoundary :reset-key="route.fullPath">
-      <RouterView />
-    </ErrorBoundary>
+    <!--
+      `tabindex="-1"` makes this focusable as a skip-link target without putting
+      it in the tab order. The route watcher below moves focus here after a
+      navigation so a keyboard user continues from the new content rather than
+      from wherever the old page left them.
+    -->
+    <main id="main-content" ref="mainRegion" tabindex="-1">
+      <ErrorBoundary :reset-key="route.fullPath">
+        <RouterView />
+      </ErrorBoundary>
+    </main>
   </div>
 
   <NotificationHost />
