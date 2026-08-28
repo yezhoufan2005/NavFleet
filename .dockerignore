@@ -16,6 +16,13 @@ node_modules
 backend/dist
 frontend/dist
 
+# test + audit output (regenerated locally; nothing in an image needs it)
+**/coverage
+test-results
+playwright-report
+.playwright-mcp
+e2e
+
 # secrets / local env
 **/.env
 **/.env.local
