@@ -3,6 +3,20 @@
   --radius-sm: 10px;
   --radius: 14px;
   --radius-lg: 22px;
+
+  /*
+   * Spacing scale for page-level layout.
+   *
+   * These exist because the four views had drifted to four different answers:
+   * panel padding was 18px on the dashboard, 18/20px on the history controls,
+   * 20/22px on the alert centre and — because nothing supplied a default —
+   * **0px** on the settings page, whose content sat flush against the panel
+   * border. `--panel-pad` is now the default on `.panel` itself, so a new view
+   * cannot forget it, and `--view-gap` is the space between stacked panels.
+   */
+  --panel-pad: 18px;
+  --view-gap: 18px;
+
   --transition: 160ms cubic-bezier(0.4, 0, 0.2, 1);
   --font-sans: "Inter", "Segoe UI", "PingFang SC", "Microsoft YaHei", system-ui, sans-serif;
   --glass-blur: blur(18px) saturate(140%);

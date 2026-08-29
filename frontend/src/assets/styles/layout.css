@@ -5,6 +5,9 @@
 }
 
 .panel {
+  /* Default rather than a per-view responsibility: see `--panel-pad`. Panels
+     that genuinely need a different inset (the page header) override it. */
+  padding: var(--panel-pad);
   background: var(--bg-panel);
   border: 1px solid var(--border);
   border-radius: var(--radius-lg);
@@ -18,8 +21,11 @@
 }
 
 .page-header {
-  padding: 16px 22px;
-  margin-bottom: 18px;
+  /* Inherits `--panel-pad` horizontally so the brand block's left edge lines up
+     with the content of every panel below it; it was 4px out at 22px. The block
+     inset stays tighter than a content panel — this is a header bar, not a page. */
+  padding: 14px var(--panel-pad);
+  margin-bottom: var(--view-gap);
 }
 
 .page-header-top,

@@ -2,13 +2,20 @@ import { describe, it, expect } from "vitest";
 import { z } from "zod";
 import { openApiDocument } from "../src/openapi";
 import { alertsQuerySchema, loginSchema } from "../src/validation";
+import { version as releaseVersion } from "../../package.json";
 
 describe("openApiDocument", () => {
   it("is a well-formed OpenAPI 3.1 document", () => {
     expect(openApiDocument.openapi).toBe("3.1.0");
     const info = openApiDocument.info as { title: string; version: string };
     expect(info.title).toBe("NavFleet API");
-    expect(info.version).toBe("0.1.0");
+    // Asserted against the ROOT manifest — the version release-please tags and
+    // the image carries — not a literal. The literal used to be `0.1.0` and
+    // stayed wrong through two releases, because a hardcoded version in a test is
+    // the same drift as one in the document; it just moves which file nobody
+    // remembers to edit.
+    expect(info.version).toBe(releaseVersion);
+    expect(info.version).toMatch(/^\d+\.\d+\.\d+/);
   });
 
   it("documents the core public and authenticated paths", () => {
