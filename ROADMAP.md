@@ -65,15 +65,21 @@ v1.0.0 的架构分层与文档质量已经超出多数同规模项目，但四�
 
 ## P0 缺陷批次（穿插，不占用阶段序号）
 
-### P0-a — WebSocket 连接异常可致进程退出（1.0.1，立刻）
+### P0-a — WebSocket 连接异常可致进程退出 ✅ 完成（v1.0.1 已发布）
 
 `backend/src/websocket.ts` 没有为客户端连接和 server 注册 `error` 监听器。Node 的 EventEmitter 在
 没有 `error` 监听器时会把错误抛出，而进程级 `uncaughtException` 处理器的动作是关闭并退出 ——
 于是一个连接层面的异常就足以终止后端。**影响：可用性，高。**
 
-- [ ] `client.on("error")` + `wsServer.on("error")`，记日志并只清理受影响的那一条连接
-- [ ] `WebSocketServer` 显式设置 `maxPayload`（当前用的是库默认值，100 MiB）
-- [ ] 回归测试：连接层异常发生后进程仍在、其他客户端不受影响
+- [x] `client.on("error")` + `wsServer.on("error")`，记日志并只清理受影响的那一条连接；另加
+      `socket.on("error")` 到 upgrade 处理器 —— 那个 socket 还没交给 `ws`，此前没有任何监听方
+- [x] `WebSocketServer` 显式设置 `maxPayload` 为 64 KiB（库默认 100 MiB）。故意不做成配置项：
+      入站协议只有 `{"type":"ping"}` 一种形态，没有部署有理由去调它
+- [x] 回归测试：连接层异常发生后进程仍在、其他客户端不受影响
+- 自检 ✅（2026-08-29，PR #67）：两个用例**修复前让整个文件红**而不是某条断言失败 —— vitest 把它们
+  报成 uncaught exception 并以 1 退出，与缺陷在生产里的行为一致（`Errors 2 errors`）；修复后
+  `15 passed`、零 uncaught error。后端测试 280 → 282，`websocket.ts` 覆盖率 97.27% statements /
+  100% functions，总覆盖率 82.76/81.99/85.27/82.76（ratchet 80/79/82/80）；E2E 17/17 走真实 socket。
 
 ### P0-b～P0-e — 后端健壮性批次（1.0.2，与 Phase 12 并行）
 
@@ -454,3 +460,15 @@ v1.0.0 的架构分层与文档质量已经超出多数同规模项目，但四�
      才发现。拦得对，但文档已经推上去了。已改为"先修后写"：面向仓库的缺陷条目只写影响与待办，
      完整机制留在会话与本地笔记。同期核实并否决一条子代理误报（说 PR #39 的摄入串行化队列找
      不到实现 —— 那个 PR 改的是后端 `store.ts`，子代理去前端 `stores/fleet.ts` 找自然找不到）。
+- 2026-08-29：**v1.0.1 发布**（#67 P0-a 修复）。tag / Release / 两个 GHCR 镜像全部到位，
+  `1.0.1` · `1.0` · `latest` · `sha-c403acc` 四个标签同一 digest，镜像内 manifest 报 1.0.1。
+- 2026-08-29：**版本号收敛为单一来源**（#70）。第一次**自动**发版立刻暴露了一个手工发版掩盖着的
+  缺口：release-please 只 bump 根 manifest，所以 1.0.1 之后三个 workspace manifest 还停在 1.0.0。
+  查证后发现实际情况更糟 —— 那三份 manifest 在 1.0.0 收尾时被手工改成 1.0.0，但**lockfile 里它们
+  仍记着 `0.1.0`**，没有任何检查会看那个字段，所以直到这次才被发现。v1.0.0 记录里"六处版本全部
+  一致"的说法对 lockfile 的 workspace 条目是不成立的。
+  修法不是让它们跟着涨，而是**把 version 字段从三份 private manifest 里删掉**：它们从不发布，
+  release-please 也只管根，一个没有消费方又无法自动同步的字段只会变质。影响面已核实为零 ——
+  唯一在运行时读版本的是 `openapi.ts`，读的是根 manifest；镜像内 `/app/package.json` 也是根那份，
+  实测仍报 1.0.1。附 `release-version.test.ts`（5 例）**断言这三处不存在 version 字段**，
+  并已验证反向：把字段加回去测试立刻变红。断言"不存在"才让漂移结构上不可能，而不只是当下正确。
