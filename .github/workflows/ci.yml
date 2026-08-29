@@ -89,6 +89,38 @@ jobs:
           if-no-files-found: ignore
           retention-days: 14
 
+  console:
+    name: Console v3 (node ${{ matrix.node }})
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        node: [20, 22]
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: ${{ matrix.node }}
+          cache: npm
+          cache-dependency-path: package-lock.json
+      - run: npm ci
+      # A separate job from `frontend` rather than extra steps in it: the two
+      # consoles are independent deliverables for the whole of Phase 12-13, and a
+      # red v3 build should not hide behind — or block — the v1.0.0 one that is
+      # actually in production.
+      - run: npm run lint -w navfleet-console
+      - run: npm run format:check -w navfleet-console
+      - run: npm run typecheck -w navfleet-console
+      - run: npm run test:coverage -w navfleet-console
+      - run: npm run build -w navfleet-console
+      - if: matrix.node == 20
+        uses: actions/upload-artifact@v4
+        with:
+          name: console-coverage
+          path: frontend-next/coverage/
+          if-no-files-found: ignore
+          retention-days: 14
+
   e2e:
     name: E2E (playwright, node 20)
     runs-on: ubuntu-latest

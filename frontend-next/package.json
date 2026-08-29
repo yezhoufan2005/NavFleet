@@ -1,0 +1,48 @@
+{
+  "name": "navfleet-console",
+  "private": true,
+  "license": "MIT",
+  "type": "module",
+  "description": "NavFleet console — the v3 frontend. Runs alongside navfleet-frontend until it reaches parity (see docs/frontend-parity.md).",
+  "scripts": {
+    "dev": "vite --host 127.0.0.1 --port 5273",
+    "build": "vue-tsc --noEmit -p tsconfig.json && vite build",
+    "preview": "vite preview --port 4273",
+    "lint": "eslint .",
+    "format:check": "prettier --check \"src/**/*.{ts,vue,css}\" \"test/**/*.ts\"",
+    "typecheck": "vue-tsc --noEmit -p tsconfig.json",
+    "test": "vitest run",
+    "test:coverage": "vitest run --coverage"
+  },
+  "dependencies": {
+    "@navfleet/fleet-core": "*",
+    "@navfleet/shared": "*",
+    "pinia": "^4.0.3",
+    "reka-ui": "^2.10.4",
+    "vue": "^3.5.13",
+    "vue-router": "^5.3.0"
+  },
+  "devDependencies": {
+    "@eslint/js": "*",
+    "@tailwindcss/vite": "^4.3.3",
+    "@vitejs/plugin-vue": "^6.0.8",
+    "@vitest/coverage-v8": "^3.2.7",
+    "@vue/test-utils": "*",
+    "@vue/tsconfig": "*",
+    "eslint": "*",
+    "eslint-config-prettier": "*",
+    "eslint-plugin-vue": "*",
+    "globals": "*",
+    "jsdom": "*",
+    "prettier": "*",
+    "tailwindcss": "^4.3.3",
+    "typescript": "*",
+    "typescript-eslint": "*",
+    "vite": "^8.2.2",
+    "vitest": "^3.2.7",
+    "vue-tsc": "^3.3.11"
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}

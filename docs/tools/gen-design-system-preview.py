@@ -41,7 +41,11 @@ SEMANTIC = [
     ("ink-subtle", "slate-600", "slate-400"),
     ("border", "slate-200", "slate-800"),
     ("border-strong", "slate-300", "slate-700"),
+    # 焦点环。它是非文本 UI 组件，WCAG 1.4.11 要求 3:1 而不是 4.5:1，所以不进
+    # 下面那张按 4.5:1 判定的审计表 —— 混进去会用错的标准误报。
+    ("border-focus", "teal-600", "teal-400"),
     ("brand", "teal-700", "teal-300"),
+    ("brand-hover", "teal-800", "teal-200"),
     ("brand-contrast", "teal-25", "teal-950"),
     ("brand-ink", "teal-800", "teal-200"),
     ("brand-wash", "teal-50", "teal-900"),
@@ -220,7 +224,115 @@ def main():
     print(f"  色阶 {len(RAMPS)} × {len(STEPS)} = {len(RAMPS) * len(STEPS)} 个值")
     print(f"  语义 token {len(SEMANTIC)} 个 × 双主题成对定义")
     print(f"  待机检的对比度配对 {len(PAIRS)} 组")
+    write_styles()
 
+
+
+# ── 同一份数据也生成 frontend-next 的真实 token ──────────────────────────────
+# 预览页与实际代码由同一处数据产出，所以预览页里那 14 组对比度审计审的就是线上
+# 真正用的值 —— 两者结构上无法漂移。
+
+STYLES = HERE.parent.parent / "frontend-next" / "src" / "styles"
+
+TYPE_CSS = "\n".join(
+    f"  --text-{k}: {px}px;\n  --text-{k}--line-height: {lh};" for k, px, lh, _ in TYPE_SCALE
+)
+WALL_CSS = "\n".join(f"  --text-{k}: {px}px;" for k, px, _ in WALL_SCALE)
+
+RAMP_FILE = '''/* 由 docs/tools/gen-design-system-preview.py 生成，不要手改。 */
+
+/*
+ * 原始层：与主题无关的刻度。进 @theme 所以 Tailwind 为它们生成工具类
+ * （bg-teal-600 / text-lg / p-4 / rounded-md / shadow-raised / ease-standard / 3xl:）。
+ *
+ * 色阶用 oklch 而非 hex，为的是明度阶梯在感知上均匀。注意一条 11D 用机检才发现的事：
+ * 感知均匀**不等于** WCAG 亮度比达标 —— L 0.55 对 L 0.20 看着差很多，实测只有约 3.7:1。
+ * 所以语义层的前景/背景配对必须单独验证，见 docs/frontend-design-system-preview.html。
+ */
+@theme {
+__RAMPS__
+
+  --color-white: oklch(1 0 0);
+
+  /* 字阶：基准 14px 而非 16px —— 这是控制台密度，不是文章。 */
+__TYPE__
+
+  /* 大屏字阶：仅在 wall 断点下使用，按"两米外可读"设计。 */
+__WALL__
+
+  --spacing: 4px;
+
+  --radius-xs: 6px;
+  --radius-sm: 10px;
+  --radius-md: 14px;
+  --radius-lg: 22px;
+
+  --shadow-raised: 0 1px 2px oklch(0.2 0.02 205 / 0.06), 0 8px 20px oklch(0.2 0.02 205 / 0.07);
+  --shadow-overlay: 0 4px 10px oklch(0.2 0.02 205 / 0.1), 0 20px 40px oklch(0.2 0.02 205 / 0.12);
+  --shadow-drawer: 0 0 0 1px oklch(0.2 0.02 205 / 0.08), -12px 0 32px oklch(0.2 0.02 205 / 0.14);
+  --shadow-modal: 0 8px 20px oklch(0.2 0.02 205 / 0.14), 0 32px 64px oklch(0.2 0.02 205 / 0.18);
+
+  /* 状态切换 / 进场 / 出场三类，用途不同不能共用一条。 */
+  --ease-standard: cubic-bezier(0.4, 0, 0.2, 1);
+  --ease-entrance: cubic-bezier(0.16, 1, 0.3, 1);
+  --ease-exit: cubic-bezier(0.4, 0, 1, 1);
+
+  /* 断点（11C 决定）：两端是平板与墙面看板，不是手机。 */
+  --breakpoint-md: 768px;
+  --breakpoint-lg: 1024px;
+  --breakpoint-xl: 1280px;
+  --breakpoint-2xl: 1536px;
+  --breakpoint-3xl: 1920px;
+  --breakpoint-wall: 2560px;
+
+  --font-sans: "IBM Plex Sans", "PingFang SC", "Microsoft YaHei", system-ui, sans-serif;
+  --font-mono: "IBM Plex Mono", ui-monospace, "SFMono-Regular", Menlo, monospace;
+}
+'''
+
+SEMANTIC_FILE = '''/* 由 docs/tools/gen-design-system-preview.py 生成，不要手改。 */
+
+/*
+ * 语义层。三条必须记住的规则：
+ *
+ * 1. 进 @theme 但**绝不能加 inline**。inline 会把值嵌进工具类
+ *    （.bg-surface { background: var(--color-slate-25) }），于是下面两个覆盖块就失效了。
+ *    不加 inline 时工具类引用的是 token 本身，主题覆盖才生效 —— 写错的症状是
+ *    「深色主题下颜色完全不切换」。
+ * 2. 深浅两套必须列出**同一组 token**。漏一个的表现是该处在深色下继续用浅色值。
+ *    这两个块由脚本从同一份成对数据生成，所以结构上不可能漏。
+ * 3. 绝大多数场景**不该用 dark: 前缀** —— 语义 token 已经把主题差异吸收掉了，
+ *    写 dark: 说明该处漏了 token。
+ */
+@theme {
+__LIGHT__
+}
+
+/* 跟随系统：未标记 data-theme 的默认态。 */
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+__DARK__
+  }
+}
+
+/* 显式选深色，优先于系统偏好。 */
+:root[data-theme="dark"] {
+__DARK__
+}
+'''
+
+
+def write_styles():
+    STYLES.mkdir(parents=True, exist_ok=True)
+    ramp = RAMP_FILE.replace("__RAMPS__", ramp_css()).replace("__TYPE__", TYPE_CSS).replace("__WALL__", WALL_CSS)
+    (STYLES / "ramp.css").write_text(ramp, encoding="utf-8")
+    semantic = SEMANTIC_FILE.replace("__LIGHT__", semantic_css(1)).replace("__DARK__", semantic_css(2))
+    (STYLES / "semantic.css").write_text(semantic, encoding="utf-8")
+    subprocess.run(
+        ["npx", "prettier", "--write", str(STYLES / "ramp.css"), str(STYLES / "semantic.css")],
+        cwd=HERE.parent.parent, check=False, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
+    )
+    print(f"  也写出了 frontend-next/src/styles/{{ramp,semantic}}.css（与预览页同源）")
 
 if __name__ == "__main__":
     main()
