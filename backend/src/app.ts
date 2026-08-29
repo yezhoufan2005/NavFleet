@@ -137,9 +137,13 @@ export const createApp = ({
 
   // Auth routes are public (login/refresh/logout); /me is guarded inside the
   // router. A tight rate limit protects the credential endpoint from brute force.
+  // Configurable rather than constant: the window/limit trade off brute-force
+  // resistance against legitimate bursts from one address (a shared-NAT office,
+  // or a test suite that signs in per case), and a constant cannot be tuned
+  // without a fork.
   const authLimiter = rateLimit({
-    windowMs: 15 * 60 * 1000,
-    limit: 50,
+    windowMs: config.authRateLimitWindowMs,
+    limit: config.authRateLimitMax,
     standardHeaders: true,
     legacyHeaders: false,
     message: { error: "too_many_requests" },

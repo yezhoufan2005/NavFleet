@@ -433,6 +433,34 @@ DRILL PASSED: 4 collection(s) restored, none empty.
 
 `telemetry_ts` 少 235 条是正常的：dump 期间车队还在继续上报。
 
+### 9.5 GHCR 镜像发布
+
+合并 release-please 的 release PR 后，`Release` workflow 会在打完 tag 之后直接调用
+`publish-images.yml`，把 `navfleet-backend` 与 `navfleet-frontend` 推到
+`ghcr.io/<owner>/`，标签为 `<x.y.z>`、`<x.y>`、`latest` 与短 sha。
+
+**发布前需要在仓库 Settings → Secrets and variables → Actions 配好两个 secret**：
+
+| Secret                       | 作用                                       |
+| ---------------------------- | ------------------------------------------ |
+| `VITE_AMAP_KEY`              | 高德地图浏览器 Key，**构建期**烘进前端镜像 |
+| `VITE_AMAP_SECURITY_JS_CODE` | 与上面配套的安全密钥                       |
+
+这是 Vite 的构建期变量，不是运行期环境变量 —— 镜像构建时没有它，跑起来的前端 GPS 地图
+会显示「未配置 Key」提示（其余功能不受影响），且**必须重新构建镜像**才能补上，改容器
+环境变量没有用。
+
+需要为某个已有 tag 补发镜像时，手动触发即可：
+
+```bash
+gh workflow run publish-images.yml -f tag=v1.0.0
+```
+
+> 历史注意：该 workflow 早期用 `on: release: [published]` 触发，而 release-please 是用
+> `GITHUB_TOKEN` 创建 Release 的 —— GitHub 的防循环规则不允许 `GITHUB_TOKEN` 产生的事件
+> 触发其他 workflow，所以 v0.2.0 / v0.3.0 / v1.0.0 三个版本都没有自动产出镜像。现在改为
+> 由 release job 直接 `workflow_call` 调用，不再依赖那条永远不会触发的链路。
+
 ## 10. MQTT 部署策略
 
 ### 使用内置 Mosquitto

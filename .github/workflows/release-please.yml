@@ -1,9 +1,13 @@
 name: Release
 
 # release-please watches conventional commits on main, maintains a release PR,
-# and (when that PR merges) bumps the version, updates CHANGELOG.md, tags v<x.y.z>,
-# and cuts a GitHub Release. The Release "published" event drives image publishing
-# (see publish-images.yml).
+# and (when that PR merges) bumps the version, updates CHANGELOG.md, tags
+# v<x.y.z>, and cuts a GitHub Release.
+#
+# The `images` job below then publishes to GHCR. It is invoked directly rather
+# than through `on: release: [published]` because a Release created with
+# GITHUB_TOKEN cannot start another workflow — see publish-images.yml for the
+# three releases that shipped without images because of it.
 on:
   push:
     branches: [main]
@@ -15,9 +19,28 @@ permissions:
 jobs:
   release-please:
     runs-on: ubuntu-latest
+    outputs:
+      release_created: ${{ steps.release.outputs.release_created }}
+      tag_name: ${{ steps.release.outputs.tag_name }}
     steps:
       - uses: googleapis/release-please-action@v4
+        id: release
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
           config-file: release-please-config.json
           manifest-file: .release-please-manifest.json
+
+  images:
+    needs: release-please
+    # Every push to main runs this workflow; only a run that actually cut a
+    # release should build images.
+    if: needs.release-please.outputs.release_created == 'true'
+    permissions:
+      contents: read
+      packages: write
+    uses: ./.github/workflows/publish-images.yml
+    with:
+      tag: ${{ needs.release-please.outputs.tag_name }}
+    # The frontend bakes VITE_AMAP_KEY in at build time; without inherit the
+    # called workflow sees no secrets and the image ships with the map disabled.
+    secrets: inherit

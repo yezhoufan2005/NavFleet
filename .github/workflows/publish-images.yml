@@ -1,12 +1,28 @@
 name: Publish images
 
-# Builds and pushes the backend + frontend images to GHCR on each published
-# Release (created by release-please) and on manual dispatch. Both images build
-# from the repo root context (npm workspaces monorepo).
+# Builds and pushes the backend + frontend images to GHCR for a released tag.
+# Both images build from the repo root context (npm workspaces monorepo).
+#
+# Called by release-please.yml when a release is created, and available manually.
+# It is deliberately NOT triggered by `on: release: [published]` any more: that
+# never once fired. release-please creates the Release with GITHUB_TOKEN, and
+# GitHub does not let events raised by GITHUB_TOKEN start other workflows (loop
+# prevention) — so three releases shipped with the workflow sitting at zero runs
+# while the docs claimed images were published. A `workflow_call` from the job
+# that cuts the release is an explicit invocation, and is not suppressed.
 on:
-  release:
-    types: [published]
+  workflow_call:
+    inputs:
+      tag:
+        description: Release tag to build, e.g. v1.0.0
+        type: string
+        required: true
   workflow_dispatch:
+    inputs:
+      tag:
+        description: Release tag to build, e.g. v1.0.0
+        type: string
+        required: true
 
 permissions:
   contents: read
@@ -23,7 +39,12 @@ jobs:
           - name: frontend
             dockerfile: frontend/Dockerfile
     steps:
+      # The tag, not the default branch: this workflow now runs from the release
+      # job on main, so without an explicit ref it would build main's tip and
+      # label it with the release version.
       - uses: actions/checkout@v7
+        with:
+          ref: ${{ inputs.tag }}
 
       - uses: docker/setup-buildx-action@v3
 
@@ -39,10 +60,13 @@ jobs:
         uses: docker/metadata-action@v5
         with:
           images: ghcr.io/${{ github.repository_owner }}/navfleet-${{ matrix.name }}
+          # `value:` supplies the version explicitly. The semver types normally
+          # read it from `github.ref`, which is `refs/heads/main` here and would
+          # yield no tags at all.
           tags: |
-            type=semver,pattern={{version}}
-            type=semver,pattern={{major}}.{{minor}}
-            type=raw,value=latest,enable={{is_default_branch}}
+            type=semver,pattern={{version}},value=${{ inputs.tag }}
+            type=semver,pattern={{major}}.{{minor}},value=${{ inputs.tag }}
+            type=raw,value=latest
             type=sha,format=short
 
       - name: Build and push
