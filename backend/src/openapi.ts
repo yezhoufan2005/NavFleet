@@ -13,6 +13,8 @@
  * listing every path twice. Authentication is deliberately unversioned.
  */
 
+import fs from "node:fs";
+import path from "node:path";
 import { z } from "zod";
 import {
   alertsQuerySchema,
@@ -79,11 +81,40 @@ const codeStateSchema = {
   },
 } as const;
 
+/**
+ * The API version reported by `/openapi.json`, read from the repository manifest
+ * rather than written out here.
+ *
+ * It was hardcoded `0.1.0` and had been wrong since the first release — a third
+ * version number nobody would think to update, in the one place a client actually
+ * reads it from. The **root** manifest is the source of truth: that is the version
+ * release-please tags and the GHCR image carries, whereas the workspace manifests
+ * only follow a major by hand (see CONTRIBUTING). Reading the root one means the
+ * API version cannot depend on someone remembering.
+ *
+ * Read with `fs` rather than `import`/`require`: a static import of a file above
+ * `rootDir: "src"` breaks the build layout, and `require()` is banned by lint.
+ * `src/openapi.ts` and `dist/openapi.js` sit at the same depth under `backend/`,
+ * so `../../package.json` resolves to the repo root from both, and the runtime
+ * image stage copies that file to `/app/package.json`. The fallback exists so a
+ * missing manifest degrades to an obviously-unset value instead of throwing at
+ * import time.
+ */
+const apiVersion = ((): string => {
+  try {
+    const manifestPath = path.join(__dirname, "..", "..", "package.json");
+    const manifest = JSON.parse(fs.readFileSync(manifestPath, "utf8")) as { version?: string };
+    return manifest.version ?? "0.0.0";
+  } catch {
+    return "0.0.0";
+  }
+})();
+
 export const openApiDocument = {
   openapi: "3.1.0",
   info: {
     title: "NavFleet API",
-    version: "0.1.0",
+    version: apiVersion,
     description:
       "AGV/智能车队实时监控后端。只读监控范围：设备/编队快照、历史轨迹、告警、场景地图，" +
       "以及登录鉴权与可观测性探针。除公开探针外，接口需 httpOnly Cookie 会话。",
