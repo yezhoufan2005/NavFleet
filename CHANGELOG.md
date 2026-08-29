@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.0.1](https://github.com/yezhoufan2005/NavFleet/compare/v1.0.0...v1.0.1) (2026-08-29)
+
+
+### Bug Fixes
+
+* **ws:** contain connection errors instead of taking the process down ([82bbcc6](https://github.com/yezhoufan2005/NavFleet/commit/82bbcc6729148c7656219478094192ec25c56d1a))
+
 ## 1.0.0 (2026-08-29)
 
 首个基准版本。NavFleet 是一套面向 AGV / 巡检车 / 无人搬运车的**只读**实时监控平台：
