@@ -1,5 +1,29 @@
 # Changelog
 
+## [1.0.0](https://github.com/yezhoufan2005/NavFleet/compare/v0.3.0...v1.0.0) (2026-08-29)
+
+
+### Features
+
+* **a11y:** axe-core in E2E over both themes, and fix what it found ([adf29c8](https://github.com/yezhoufan2005/NavFleet/commit/adf29c8c6cb4589b30ef815774f7bfb517057c1d))
+* **frontend:** accessibility pass, history playback composable, cheaper GPS watch ([c7c4b16](https://github.com/yezhoufan2005/NavFleet/commit/c7c4b16948722a71fc2143c548b5316931e5f707))
+* **frontend:** loading skeletons, settings page, large-fleet measurement ([4ae6848](https://github.com/yezhoufan2005/NavFleet/commit/4ae6848c930742e7deaa017daf3ab221b93a2dbc))
+
+
+### Bug Fixes
+
+* **api:** report the real version in /openapi.json instead of a stale literal ([d8976eb](https://github.com/yezhoufan2005/NavFleet/commit/d8976eb803eed65a8365abdd0b55d9c59429b9f9))
+* **frontend:** locate the vehicle on the ROS map, and let settings use the screen ([5f4f7f3](https://github.com/yezhoufan2005/NavFleet/commit/5f4f7f3a6ff9c97fa2386de9261adc6aa027b0e9))
+* **frontend:** one spacing scale for every view, instead of four answers ([2324437](https://github.com/yezhoufan2005/NavFleet/commit/2324437aaaec522b4174667d5eb10edd8f35ba71))
+* **test:** bind one port per test file, and tidy the repo for 1.0 ([ba1bbeb](https://github.com/yezhoufan2005/NavFleet/commit/ba1bbebc23c5f51f385c5795db702ab429e27b15))
+* **test:** one long-lived server per test file, and pin the browser build ([30b9ea1](https://github.com/yezhoufan2005/NavFleet/commit/30b9ea11c8c74381ab5d97c3d7781ea3dd67d152))
+* **test:** 根治 socket 串台（0/14）+ 锁定 chromium 构建版本 ([7c04f05](https://github.com/yezhoufan2005/NavFleet/commit/7c04f05d11dd50bc8af3b88c92c0d24678fbf223))
+
+
+### Miscellaneous Chores
+
+* release 1.0.0 ([31c56bb](https://github.com/yezhoufan2005/NavFleet/commit/31c56bb77dbca94bc74ca69324c419926e9bc881))
+
 ## [0.3.0](https://github.com/yezhoufan2005/NavFleet/compare/v0.2.0...v0.3.0) (2026-08-27)
 
 ### Features
