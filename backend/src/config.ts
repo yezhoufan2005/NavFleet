@@ -172,6 +172,12 @@ const configSchema = z.object({
   // arrives over one WebSocket, so a legitimate session issues few REST calls.
   RATE_LIMIT_WINDOW_MS: envInt(60_000, 1_000),
   RATE_LIMIT_MAX: envInt(600, 1),
+  // The tighter credential limit on /api/auth. Defaults are the values that used
+  // to be hardcoded in app.ts; they are configurable because 50-per-15-minutes is
+  // a judgement call about brute-force risk versus a shared-NAT office, and
+  // because a test suite that logs in per case has no way to raise a constant.
+  AUTH_RATE_LIMIT_WINDOW_MS: envInt(15 * 60_000, 1_000),
+  AUTH_RATE_LIMIT_MAX: envInt(50, 1),
 });
 
 /**
@@ -216,6 +222,8 @@ export const parseConfig = (env: NodeJS.ProcessEnv) => {
     trustProxy: e.TRUST_PROXY,
     rateLimitWindowMs: e.RATE_LIMIT_WINDOW_MS,
     rateLimitMax: e.RATE_LIMIT_MAX,
+    authRateLimitWindowMs: e.AUTH_RATE_LIMIT_WINDOW_MS,
+    authRateLimitMax: e.AUTH_RATE_LIMIT_MAX,
   };
 };
 

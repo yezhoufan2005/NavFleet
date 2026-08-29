@@ -34,6 +34,31 @@ describe("API rate limit", () => {
     expect(blocked.body).toEqual({ error: "too_many_requests" });
   });
 
+  it("limits the credential endpoint separately from the rest of the API", async () => {
+    // The auth limiter used to be a hardcoded 50-per-15-minutes, which no
+    // deployment and no test could adjust. Two limiters now apply to
+    // /api/auth: this proves the tighter one bites first, at its own number.
+    const { app } = createTestApp({
+      configOverrides: { authRateLimitMax: 2, rateLimitMax: 1_000 },
+    });
+
+    const statuses: number[] = [];
+    for (let attempt = 0; attempt < 3; attempt += 1) {
+      const response = await request(app)
+        .post("/api/auth/login")
+        .send({ username: "nobody", password: "wrong-on-purpose" });
+      statuses.push(response.status);
+    }
+
+    // Two rejected logins, then the limiter takes over from the credential check.
+    expect(statuses).toEqual([401, 401, 429]);
+
+    // The rest of the API is untouched by the credential limiter.
+    expect((await request(app).get("/api/formations").set("Cookie", sessionCookie())).status).toBe(
+      200,
+    );
+  });
+
   it("never throttles the probes and the metrics scrape", async () => {
     const { app } = createTestApp({ configOverrides: { rateLimitMax: 1 } });
 
