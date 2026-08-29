@@ -1,9 +1,25 @@
 name: CI
 
+# `push` is limited to main so a branch is validated once — by its pull request —
+# instead of twice. Every change in this repo goes through a PR, and main is still
+# checked on the merge commit. Before this, one commit on a branch ran the whole
+# matrix twice, concurrently: on 2026-08-29 that produced a red E2E and a green
+# E2E for the same tree, which was useful by accident but paid for on every push.
 on:
   push:
-    branches: ["**"]
+    branches: [main]
   pull_request:
+  # Manual trigger, so an intermittent failure can be sampled on purpose instead
+  # of by pushing empty commits — which is what the duplicate runs were doing for
+  # us by accident.
+  workflow_dispatch:
+
+# Supersede a PR's in-flight run when new commits land on it. Runs on main are
+# never cancelled: each one records whether a specific merge commit is good, so
+# losing it would leave a gap in that record.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 # Monorepo (npm workspaces): a single root lockfile drives one install per job,
 # then each job runs its workspace's gates via `-w`, across a Node version matrix.
