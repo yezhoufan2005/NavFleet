@@ -4,11 +4,25 @@ import type { DashboardStore } from "./store";
 import type { AppConfig } from "./config";
 import { ACCESS_COOKIE } from "./auth/middleware";
 import { verifyToken } from "./auth/tokens";
+import { moduleLogger } from "./logger";
 import type { SocketEvent } from "./types";
+
+const log = moduleLogger("websocket");
 
 interface LiveSocket {
   isAlive: boolean;
 }
+
+/**
+ * Cap on an inbound frame, in bytes.
+ *
+ * Not configurable on purpose: the inbound protocol is exactly one message shape
+ * (`{"type":"ping"}`, see the app-level heartbeat below), so no deployment has a
+ * reason to tune this, and 64 KiB already leaves four orders of magnitude of
+ * headroom. It is set explicitly because `ws` defaults to 100 MiB, which lets a
+ * single client make the server allocate that much per connection.
+ */
+export const WS_MAX_PAYLOAD_BYTES = 64 * 1024;
 
 export interface WebSocketBridge {
   broadcast: (event: SocketEvent) => void;
@@ -46,9 +60,23 @@ export const createWebSocketBridge = (
   store: DashboardStore,
   config: AppConfig,
 ): WebSocketBridge => {
-  const wsServer = new WebSocketServer({ noServer: true });
+  const wsServer = new WebSocketServer({ noServer: true, maxPayload: WS_MAX_PAYLOAD_BYTES });
+
+  // A `ws` server reports listener-level problems here. Without this handler the
+  // EventEmitter rethrows and the process-level `uncaughtException` hook shuts
+  // the backend down — see the "connection errors" tests.
+  wsServer.on("error", (error) => {
+    log.error({ err: error }, "WebSocket server error");
+  });
 
   server.on("upgrade", (request, socket, head) => {
+    // The handshake socket is raw and pre-`ws`, so nothing else would be
+    // listening if the peer vanished between the request and our reply below.
+    socket.on("error", (error) => {
+      log.warn({ err: error }, "WebSocket handshake socket error");
+      socket.destroy();
+    });
+
     const url = new URL(request.url || "", "http://localhost");
     if (url.pathname !== "/ws") {
       socket.destroy();
@@ -70,6 +98,14 @@ export const createWebSocketBridge = (
   });
 
   wsServer.on("connection", (client) => {
+    // Per-connection faults — a reset peer, a frame that violates the protocol,
+    // a payload over the cap — must stay contained to that one client. `ws`
+    // closes the socket itself after emitting; terminating is belt-and-braces
+    // for the case where it is already half-open.
+    client.on("error", (error) => {
+      log.warn({ err: error }, "WebSocket client error; dropping that connection");
+      client.terminate();
+    });
     (client as unknown as LiveSocket).isAlive = true;
     client.on("pong", () => {
       (client as unknown as LiveSocket).isAlive = true;

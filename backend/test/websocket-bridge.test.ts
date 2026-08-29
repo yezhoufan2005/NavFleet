@@ -6,7 +6,11 @@ import { describe, it, expect, afterEach, vi } from "vitest";
 import WebSocket from "ws";
 import { ACCESS_COOKIE } from "../src/auth/middleware";
 import { signAccessToken } from "../src/auth/tokens";
-import { createWebSocketBridge, type WebSocketBridge } from "../src/websocket";
+import {
+  createWebSocketBridge,
+  WS_MAX_PAYLOAD_BYTES,
+  type WebSocketBridge,
+} from "../src/websocket";
 import type { AppConfig } from "../src/config";
 import type { DashboardStore } from "../src/store";
 import type { FleetSnapshot, SocketEvent } from "../src/types";
@@ -299,5 +303,65 @@ describe("WebSocket heartbeat", () => {
 
     expect(harness.bridge.clientCount()).toBe(1);
     expect(client.readyState).toBe(WebSocket.OPEN);
+  });
+});
+
+/**
+ * Both cases below fail before the connection-error fix, and they fail the whole
+ * file rather than a single assertion: `ws` reports these two conditions by
+ * emitting "error" on the server-side WebSocket, and a Node EventEmitter with no
+ * "error" listener rethrows. That escapes into the process, where
+ * `uncaughtException` is wired to shut the backend down — so one connection's
+ * problem took the whole service with it.
+ */
+describe("WebSocket connection errors", () => {
+  it("survives a malformed frame and leaves other clients connected", async () => {
+    const harness = await startBridge();
+    const bystander = authedConnect(harness);
+    await nextMessage(bystander);
+
+    const socket = await rawUpgrade(harness, { token: token() });
+    await new Promise<void>((resolve) => socket.once("data", () => resolve()));
+    await vi.waitFor(() => {
+      expect(harness.bridge.clientCount()).toBe(2);
+    });
+
+    const closed = new Promise<void>((resolve) => socket.once("close", () => resolve()));
+    // FIN + RSV1 set, opcode 1, masked, zero length. RSV1 must be clear when no
+    // extension negotiated it, so the receiver rejects the frame.
+    socket.write(Buffer.from([0xc1, 0x80, 0x00, 0x00, 0x00, 0x00]));
+    await closed;
+
+    await vi.waitFor(() => {
+      expect(harness.bridge.clientCount()).toBe(1);
+    });
+
+    const pong = nextMessage(bystander);
+    bystander.send(JSON.stringify({ type: "ping" }));
+    expect((await pong).type).toBe("pong");
+    expect(bystander.readyState).toBe(WebSocket.OPEN);
+  });
+
+  it("rejects a frame over the payload limit without dropping other clients", async () => {
+    const harness = await startBridge();
+    const bystander = authedConnect(harness);
+    await nextMessage(bystander);
+
+    const offender = authedConnect(harness);
+    await nextMessage(offender);
+    // The client sees its own connection fail; that is expected here.
+    offender.on("error", () => undefined);
+
+    const closed = new Promise<void>((resolve) => offender.once("close", () => resolve()));
+    offender.send(Buffer.alloc(WS_MAX_PAYLOAD_BYTES + 1));
+    await closed;
+
+    await vi.waitFor(() => {
+      expect(harness.bridge.clientCount()).toBe(1);
+    });
+
+    const pong = nextMessage(bystander);
+    bystander.send(JSON.stringify({ type: "ping" }));
+    expect((await pong).type).toBe("pong");
   });
 });
