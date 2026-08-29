@@ -1,179 +1,456 @@
-# NavFleet 升级路线图（v2：工程产品级）
+# NavFleet 升级路线图 · v3（Phase 11–18）
 
-v1（Phase 0–5）已交付：MQTT→归一化→内存快照→Mongo→REST/WS→Vue 的完整只读监控系统，含
-RBAC、Docker、探针/metrics、文档。本路线图承接 v1，把项目推向**工程产品级可交付**。
+**起点是 v1.0.0（2026-08-29）** —— 后续所有改动都从那里开始。v1.0.0 之前的阶段计划与执行记录已
+搬到 [docs/roadmap-archive.md](docs/roadmap-archive.md)，本文件只讲往前走的路。
 
-范围锁定：只读监控，不做控制下发 / 多租户。四项既定决策：
-先工程基座 → 迁 monorepo → 暂不做 i18n → **面向更广交付**（TLS/CD/镜像发布按更高标准）。
+目标：把 v1.0.0 这个干净但功能保守的基准版，做成一款有竞争力的车队监控产品。
 
-工作方式：**每个 Phase 拆为若干 PR**，每个 PR = 独立分支 → 实现 → 本地自检（lint/format/typecheck/test/build）
-→ 推送 → CI 全绿 → `--no-ff` 合并 → 更新本文件。每完成一个增量都回来勾选并记录自检结果。
+两条不变的红线：**只读监控**（无控制下发）、**单实例内网**（无多租户 / 无水平扩展）。
 
-工具选型（本轮）：**npm workspaces**（非 pnpm，最小改动、保留现有 npm/Docker/CI 流、可逆）；
-CD 用 **release-please**（贴合现有 conventional-commit 历史，自动 CHANGELOG + GHCR 发布）。
+工作方式：每个 PR = 独立分支 → 实现 → 本地自检（lint / format / typecheck / test / build）→ 推送 →
+CI 全绿 → `--no-ff` 合并 → 回写本文件并记录自检结果。
 
 图例：`[ ]` 待办 · `[~]` 进行中 · `[x]` 完成（附自检）
 
+## 起点：2026-08-29 的第二轮审计
+
+v1.0.0 的架构分层与文档质量已经超出多数同规模项目，但四路审计（后端健壮性 / 前端技术债 /
+测试门禁 / 部署运维）加一轮鉴权与领域模型复审，暴露出三件事，它们共同定义了 v3 的范围：
+
+1. **RBAC 是名义上的。** `requireRole` 在全仓库只有一处调用，且那条路由默认关闭、生产环境直接拒绝
+   启动。也就是说生产部署下 `admin` / `operator` / `viewer` 三个角色权限完全相同，前端也没有任何
+   角色门禁（无 `meta.roles`、无按角色隐藏的操作）。**没有任何用户管理 API，连改密码都没有**——
+   用户唯一来源是环境变量种子的单个管理员，加第二个人只能直接写数据库。登出不使已签发的 token
+   失效。零审计日志。告警确认只存在浏览器本地，不落库、不跨人、无操作人无时间。
+   → **v1.0.0 实质是「口令保护的看板」，不是多用户系统。** README:43 / :59 声称的 RBAC 属于过度
+   承诺，随 Phase 15 一并修正。
+2. **大量已采集数据从未被产品利用。** `alerts` 集合的 `firstSeenAt` / `lastSeenAt` / `clearedAt` /
+   `active=false` 全部落库却零读取方，`/api/v1/alerts` 端点存在而前端从不调用；`telemetry_ts` 落库
+   17 个 measurements，历史面板只渲染 5 个；`tags` / `formation.description` / `extra.temperature` /
+   `networkQuality` / `vehicleModel` / `summary.gpsCount` 全链路搬运却零展示。**报码字典根本不存在**
+   ——现存 4 个报码只是 mock 与 e2e 里的演示常量。→ 这是 v3 里最便宜的一批竞争力。
+3. **前端主体来自最初的手搓 demo。** 12 个 SFC 全部无 `lang="ts"`（约 2,300 行逻辑在 `vue-tsc` 视野
+   外），零图表组件，单一视口无响应式审计，信息架构是「一个塞满的仪表盘 + 三个附属页」。
+
+另有五处运行时健壮性缺陷（详见 P0 批次），其中一处会导致进程退出，已列为最高优先级。
+
+> **关于缺陷条目的写法**：本仓库是公开的，所以未修复缺陷在这里只写「是什么 / 在哪个模块 /
+> 影响等级 / 要做什么」，不写触发条件与利用路径 —— 那些留在工作会话与本地笔记里。修复合并后
+> 可以在执行记录中完整说明。
+
+## 已确认的决策（2026-08-29 与项目负责人对齐）
+
+| #   | 决策                                                                | 依据                                                                                         |
+| --- | ------------------------------------------------------------------- | -------------------------------------------------------------------------------------------- |
+| 1   | **数据范围隔离暂不做**（用户组只能看指定编队/场景），等确有客户要求 | 每个读接口都要带范围裁剪 + WS 广播裁剪，测试面显著变大，收益待验证；核心与实际需要的功能照做 |
+| 2   | 设计系统底座 = **无头库 Reka UI + Tailwind + 自建 token 层**        | 不撞脸中后台模板；a11y 底座（焦点管理/键盘/ARIA）免费拿，契合已有 axe serious/critical 门禁  |
+| 3   | 图表 = **ECharts**                                                  | 负责人熟悉；Phase 12D 留下性能基线，出现瓶颈再评估 uPlot                                     |
+| 4   | **IA 重构**，但重构前先充分调研评估                                 | Phase 11 全部是调研与设计，不写产品代码；逐步推进而非一次性掀翻                              |
+| 5   | **先焕新前端 → 负责人验收调整 → 再补齐功能**                        | 待补的功能大部分需要新页面（用户管理/报表/规则配置），在旧前端上做等于做两遍                 |
+| 6   | 五个 P0 缺陷按合理时机穿插，不等阶段边界                            | 它们是缺陷而非功能，各自的合理时机见 P0 批次                                                 |
+
+## 发版节奏
+
+| 版本      | 内容                                                 | 时机               |
+| --------- | ---------------------------------------------------- | ------------------ |
+| **1.0.1** | P0-a 修复（hotfix）                                  | 立刻，不等任何阶段 |
+| **1.0.2** | 后端健壮性批次（P0-b～P0-e + 优雅关闭）              | 与 Phase 12 并行   |
+| **1.1.0** | 新前端替换旧前端                                     | Phase 14 收口      |
+| **1.2.0** | 用户 / 用户组 / 真 RBAC / 审计（含 schema 迁移机制） | Phase 15 收口      |
+| **1.3.0** | 告警体系深化（ack 落库 / 历史 / 规则 / 外发）        | Phase 16 收口      |
+| **1.4.0** | 报表与数据价值（聚合 / 导出 / 大屏）                 | Phase 17 收口      |
+
+发版顺序有一条从 v1.0.0 学到的纪律：**先发镜像、再建 Release**。那次顺序反了，说明文档里的镜像
+地址一度指向尚不存在的产物。
+
+## P0 缺陷批次（穿插，不占用阶段序号）
+
+### P0-a — WebSocket 连接异常可致进程退出（1.0.1，立刻）
+
+`backend/src/websocket.ts` 没有为客户端连接和 server 注册 `error` 监听器。Node 的 EventEmitter 在
+没有 `error` 监听器时会把错误抛出，而进程级 `uncaughtException` 处理器的动作是关闭并退出 ——
+于是一个连接层面的异常就足以终止后端。**影响：可用性，高。**
+
+- [ ] `client.on("error")` + `wsServer.on("error")`，记日志并只清理受影响的那一条连接
+- [ ] `WebSocketServer` 显式设置 `maxPayload`（当前用的是库默认值，100 MiB）
+- [ ] 回归测试：连接层异常发生后进程仍在、其他客户端不受影响
+
+### P0-b～P0-e — 后端健壮性批次（1.0.2，与 Phase 12 并行）
+
+放在这里的理由：全部在后端，与前端焕新零冲突；而新前端开发期正好需要一个不会莫名重启的后端。
+
+- [ ] **P0-b 摄入无背压。** `store.ts` 的变更串行链没有长度上限，且每条消息的处理成本随设备总数
+      线性增长（两次全量 Map 复制 + 一次全设备排序的快照重建，**而那个快照的返回值在调用处被直接
+      丢弃**）。先摘掉这处纯浪费，再加有界队列 + 满时策略（丢最旧 / 采样）+ 队列深度与丢弃计数
+      指标 + Grafana 面板与告警规则。放大项：`persistence.ts` 只设了 `serverSelectionTimeoutMS`，
+      数据库半死时每条消息的写操作都在这条串行链上排队。**影响：稳定性，高。**
+- [ ] **P0-c 数据库断连期间遥测丢失。** `persistence.ts` 在连接为空时直接返回，**不进缓冲**；缓冲
+      溢出时静默丢弃最旧数据且**没有计数器**，监控面板上看不到任何丢失痕迹。→ 断连也进缓冲、
+      溢出计数上指标、定时刷盘（现在只在下一次写入成功后被动触发）。**影响：数据完整性，高。**
+- [ ] **P0-d 内存无上界。** `src/` 内不存在任何 `Map.delete()`，设备一旦进入内存永不移出；四个
+      按设备键的结构都没有数量上限。容器内存限额 512M，OOM 后由 restart 策略拉起、内存态全丢。
+      → 设备标识的格式与长度约束 + 未知设备数量上限 + 长期未上报设备的淘汰 + 淘汰计数指标。
+      **影响：可用性，高。**
+- [ ] **P0-e 全量替换语义过宽。** 归一化器支持一种「整体替换」的载荷形态，对只读监控没有正当
+      用途。→ 收敛为仅调试摄入接口可用。**影响：数据完整性，中。**
+- [ ] **优雅关闭补全。** MQTT client 从不 `end()`（`connectMqtt` 的返回值在入口处被丢弃），收到
+      SIGTERM 后 broker 仍在投递；不 drain 变更串行链；缓冲中的遥测不刷盘（最多 2000 条随进程
+      消失）；WS 关闭不带 1001 码、不等握手完成。另 compose 未设 `stop_grace_period`（Docker 默认
+      10s）。**影响：数据完整性，中。**
+
+### P0-f — 工程门禁（随 1.1.0，Phase 14 之后）
+
+推到旧前端下线之后的理由：type-aware lint 会在两套前端上各产生一遍修复工作，等下线后做只需修一次。
+
+- [ ] ESLint 启用 `recommendedTypeChecked` —— 现在三份配置全是 `recommended`，
+      `no-floating-promises` / `no-misused-promises` / `await-thenable` **全不生效**，而 P0-a 与 P0-b
+      恰是这个规则集专抓的那一类（async 事件回调、被丢弃的 Promise）
+- [ ] `--max-warnings 0` —— `no-unused-vars` 三处都降为 `warn` 且全仓无 `--max-warnings`，
+      warning 永不让 CI 红，等于没配
+- [ ] Playwright CI `retries: 1` → 0，flaky 不再被重跑掩盖
+- [ ] `packages/shared` 纳入 lint（根 `eslint.config.mjs:23` 显式 ignore）、e2e 纳入 `format:check`
+- [ ] 覆盖率近零区补测：后端 `persistence.ts` 42.6%（3 例）/ `store.ts` 57.4%（**2 例**）
+- [ ] tsconfig 补 `noUncheckedIndexedAccess` 等严格开关（四份配置现在只开了 `strict`）
+
+## Phase 11 — 前端焕新：调研与设计（**不写产品代码**）
+
+> 目标：在动手之前把「新前端长什么样、凭什么说它更好、怎么证明它不比旧的少功能」三个问题答完。
+> 本阶段唯一产出是文档与原型；负责人评审通过才进入 Phase 12。
+
+### PR 11A — 现状穷举与功能等价基线
+
+- [ ] 把现有 4 页的**全部**功能点、数据绑定、交互态、空态、快捷键穷举成清单（含右侧详情面板的
+      每一个字段、告警抽屉、地图的 pan/zoom/定位/适应场景/视图记忆）
+- [ ] 标注每一项的去留：保留 / 改造 / 废弃，废弃项写明理由
+- [ ] 产出 `docs/frontend-parity.md` —— 这份清单就是 Phase 14 的验收 checklist
+
+### PR 11B — 角色任务流与竞品调研
+
+- [ ] 六类角色（值班调度员 / 运维工程师 / 车间主管 / 系统管理员 / 实施工程师 / 远程支持）的核心任务流，
+      每条标注「当前几步完成、目标几步完成」
+- [ ] 竞品 IA 调研：Grafana、Datadog、主流 AGV 厂商 HMI、车队管理 SaaS —— 看导航模型、
+      详情页组织、告警中心形态、大屏模式
+- [ ] 产出 `docs/frontend-research.md`
+
+### PR 11C — IA 与信息层级设计
+
+- [ ] 分区取舍（候选：总览 / 态势 / 设备详情 / 告警中心 / 报表 / 管理 / 大屏——**不一定七个都要**，
+      合并方案与理由要写出来）
+- [ ] 导航模型（顶栏 / 侧栏 / 混合）、页面骨架、URL 设计（是否从 hash history 迁到 web history——
+      注意现在 nginx 无 `try_files`、Dockerfile 无自定义 conf，迁移要动部署）
+- [ ] 响应式断点，含**大屏值班模式**（值班室墙面 TV 是真实场景，而现在 a11y 只审过 1440×900）
+- [ ] 产出 IA 文档 + 低保真线框（用 Artifact 呈现，便于评审）
+
+### PR 11D — 设计系统设计
+
+- [ ] token 体系：从现有 37 个变量（8 几何 + 29 语义）升级为完整体系——色阶、间距刻度、字阶、
+      层级/阴影、动效曲线。**保留 `--brand-contrast` / `--brand-ink` 的区分**（实心 brand 表面 vs
+      rgba 薄底，明度需求相反，这是 Phase 10 用 axe 才发现的教训）
+- [ ] Reka UI + Tailwind v4 接入方案：token 如何映射为 Tailwind theme、明暗双主题如何与
+      `[data-theme]` 共存、CSS 体积预算
+- [ ] 组件清单（原子 → 分子 → 页面级），标注哪些用 Reka 无头件、哪些自建
+- [ ] 产出设计系统文档 + 可视化预览页
+
+### PR 11E — 技术方案与风险评估
+
+- [ ] 新 workspace 结构与命名（**初步选择 `frontend-next/` 顶层目录**：`packages/*` 是通配符能自动纳入
+      根 lint/typecheck/test，但 `packages/` 语义是库不是应用；顶层需手动加 `package.json:6-10` 一行 +
+      CI job。替换时改名。此项可逆，评审时定）
+- [ ] **纯逻辑抽取方案**：把 `fleetNormalize`(510) / `fleetApi`(114) / `enums`(60) / `gps`(57) /
+      `formatters`(34) / `data-defaults`(21) 从 `frontend/src` 抽到 `packages/fleet-core`，两个前端共同
+      引用 —— **并行期最大的风险是这批逻辑分叉成两份**，抽取是唯一的根治办法
+- [ ] 可搬 Vue 逻辑的搬迁边界：`useSvgViewport`(706) / `useSceneOverlay`(146) / `useHistoryPlayback`(123) /
+      `useAuth`(114) / `guards`(113) / `useTheme`(83) / `useNotifications`(74) / `useAlertAck`(65)；
+      `stores/fleet`(761) 要不要顺手按职责拆开（它现在同时是 state + 归一化入口 + 9 个 computed +
+      整个 WS 传输层 + 场景加载 + window 调试 API，返回对象 30 个键）
+- [ ] 接入点清单：根 `build` 是逐个 `-w` 硬编码、CI 的 frontend job 也是（**新 workspace 在加 job 前
+      CI 覆盖为零**）、`frontend/Dockerfile:13-16` 逐个 COPY 三个 workspace 的 manifest
+- [ ] **并行与切换策略**：并行期**不通过 nginx 暴露**新前端（`vite.config.js` 无 `base`，产物是绝对
+      `/assets/…`，子路径挂载必 404；且安全响应头全写在 `location /` 内部，nginx `add_header` 不跨
+      location 继承）。开发期 vite dev 直连后端；验收期用 compose overlay 覆盖 `frontend` 服务的
+      image 一行，**切换原子、回滚一条命令**
+- [ ] 决策：新前端全部 SFC 带 `lang="ts"`（顺手还掉 v2 推到 1.1 的债）
+- [ ] 风险清单与回滚方案；产出 `docs/frontend-next-plan.md`
+
+**Phase 11 收口**：五份文档评审通过，负责人签字；`docs/frontend-parity.md` 作为后续所有阶段的验收基线。
+
+## Phase 12 — 前端焕新：底座搭建
+
+> 目标：一个能跑、进 CI、有设计系统、有图表能力的空壳。此阶段结束时新前端还没有业务页面，
+> 但**每一条工程管线都已打通**——后面每个页面都是纯增量。
+
+### PR 12A — 共享逻辑抽取（先做，避免分叉）
+
+- [ ] 新建 `packages/fleet-core`，迁入 6 个纯逻辑模块（合计 796 行）+ 对应 5 个测试文件
+      （`fleetNormalize.test` 149 / `fleetApi.test` 95 / `enums.test` 37 / `gps.test` 25 / `fleetFixtures` 210）
+- [ ] 现有 `frontend` 改为引用 `@navfleet/fleet-core`，**构建产物应逐字节一致**（此为验收判据）
+- [ ] 顺手清死代码：`hasGps`（零引用）、`fleetApi.getAlerts`（生产零调用，仅自己的单测在用，
+      连带 `AlertRecord` 15 字段死类型）、`sceneCatalog = {}`（三处查表恒不命中）
+- [ ] 顺手合并重复实现：`hasPose` 三份、`mergeSceneDefinition` 两份、`toneLabelMap` 两份逐字重复
+
+### PR 12B — workspace 骨架与工程管线
+
+- [ ] `frontend-next/`：Vite + Vue 3 + TS strict + Pinia + vue-router，**全 SFC `lang="ts"`**
+- [ ] Tailwind v4 + Reka UI + token 层落地（按 11D 的设计）
+- [ ] 基础组件第一批：按钮 / 输入 / 选择 / 卡片 / 表格 / 标签 / 徽标 / 骨架 / toast / 对话框 / 抽屉
+- [ ] 工程接入：`package.json` workspaces + 根 `build`、CI 新 job（lint / format:check / typecheck /
+      test:coverage / build，node 20+22 矩阵）、覆盖率门槛（**按真实测量标定，不要沿用旧数字**）
+- [ ] `vue/block-lang` 在新 workspace 里设为**强制 `lang="ts"`**（旧 frontend 保持 `allowNoLang`）
+
+### PR 12C — 应用外壳
+
+- [ ] 导航 + 路由 + 鉴权（搬 `useAuth` / `guards`）+ 主题（搬 `useTheme`，接新 token）+
+      错误边界 + 通知（搬 `useNotifications`）+ 全局错误处理
+- [ ] 响应式断点 + 大屏模式骨架
+- [ ] **E2E 等价性网接线**：新增指向新前端的 playwright project。现有 17 例**零 `data-testid`**、
+      全部用 `getByRole` + 中文可访问名匹配，只要新前端保持相同语义结构与可见文案就能一字不改复用 ——
+      这是"新前端是否功能等价"最硬的判据。注意 `outputDir` / html report 路径写死在
+      `REPO_ROOT/test-results` 与 `playwright-report`，两套并行会互相覆盖，需参数化
+- [ ] axe 审计同步接线（5 页 × 明暗双主题，serious/critical 阻塞）
+
+### PR 12D — 图表基座
+
+- [ ] ECharts 接入：按需引入控制体积、明暗双主题与 token 联动、时序曲线封装组件
+      （现在**零图表组件**，这是从头建的能力）
+- [ ] **性能基线测量并入库**：1/6/50 台设备 × 500/2000/5000 点的渲染与更新耗时。参照 Phase 10
+      虚拟化那次的做法——断言放在确定量上（DOM 节点数 / 实例数），墙钟只打印不断言。这份基线是
+      将来判断「要不要换 uPlot」的唯一依据，而不是靠感觉
+- [ ] 大数据量下的降采样策略（后端 history 最多返回 500 点，见下方 Phase 17 的口径修正）
+
+**Phase 12 收口**：新 workspace 进 CI 全绿、设计系统预览页可访问、17 例 E2E 能在新前端空壳上
+跑到"登录成功"、ECharts 性能基线入库。
+
+## Phase 13 — 前端焕新：页面实现
+
+> 每个 PR 一批页面，收口条件都是「对应的 parity 清单项全部勾掉 + 该页 axe 双主题零违规」。
+> 顺序按依赖排：先立主干（态势 + 总览），再补纵深（详情 + 曲线），最后是改造幅度最大的告警与历史。
+
+### PR 13A — 态势视图（地图为主体）
+
+- [ ] 搬 `useSvgViewport`(706) —— **原样搬，不重写**。它是 v1.0.0 里花三次尝试才定位到根因
+      （bounds watcher 的 `immediate: true` 早于 `onMounted` 测量面板）的文件，重写一遍会重踩所有坑
+- [ ] 搬 `useSceneOverlay`(146) + `point-cloud`(375) + `amap`(91) + `useSceneViewportPersistence`(87)
+- [ ] `RosSceneMap`(594) / `GpsMap`(311) 重写为新设计：地图升为页面主体、侧栏可折叠
+      （现在地图只是面板里的一格）
+- [ ] 顺手补 `useSvgViewport` 的测试 —— 它现在覆盖率 **1.07%**，706 行几乎裸奔
+- [ ] 顺手修未节流热路径：`pointermove` 直接写 viewport 无 rAF 合帧；`wheel` **每个刻度**一次同步
+      sessionStorage 读写 + 两次 `getBoundingClientRect`
+
+### PR 13B — 总览页（新增）
+
+- [ ] 车队健康度、KPI 卡、告警热区、快速跳转
+- [ ] 接上被丢弃的服务端数据：`summary.gpsCount`（后端算好下发，前端 `ingestPayload` 完全忽略、
+      改用本地重算）、服务端 `updatedAt`（被 `new Date()` 覆盖）
+- [ ] `formation.description`（3 条配置文案，下发但零展示）、`LaneletOverlay.stats` 场景信息卡
+
+### PR 13C — 设备详情页（新增，纵深）
+
+- [ ] 单车体检：实时遥测 + ECharts 曲线 + 告警史占位（数据源在 Phase 16）
+- [ ] **把落库却未展示的遥测字段接上**：`speedLimit` / `online`（历史面板映射了但没渲染）、
+      `controlMode` / `gear` / `omega` / `platformTaskStatus`（连映射都没有）、
+      `extra.temperature` / `networkQuality` / `vehicleModel`（前端 grep 零命中）
+- [ ] `tags` 变成可用的筛选与展示维度（6 台车各 2 个标签，现在全链路搬运却零 UI）
+- [ ] `mapProfile` / `runtimeSceneId` vs `sceneId` 的差异是否值得暴露 —— 按 11A 的去留结论执行
+
+### PR 13D — 告警中心（等价优先，深化留 Phase 16）
+
+- [ ] 先做到与旧版功能等价：严重度分桶 / 设备筛选 / 搜索 / 确认 / 分页，`aria-pressed` 不能丢
+- [ ] 为 Phase 16 的历史与统计预留信息架构位置，但不提前实现
+
+### PR 13E — 历史回放
+
+- [ ] 搬 `useHistoryPlayback`(123)，重写回放条（进度滑块与倍速下拉的 `aria-label` 不能丢，
+      那是 Phase 10 被 axe 抓到的 critical）
+- [ ] **修 `trailsForMap` 的 O(N²)**：现在每 tick 都从 index 0 重走整段前缀，且每 tick 产生新的
+      `{ [deviceId]: points }` 对象字面量，必然让下游 SVG path 全量重建。`limit` 上限 5000、
+      4x 播放 150ms/帧 —— 这是当前唯一确定的前端性能缺陷
+- [ ] 回放时的遥测曲线联动（ECharts + 游标同步）
+
+### PR 13F — 设置 / 个人中心 / 404 / 收尾
+
+- [ ] 设置页（主题 / 清本地数据 / 连接诊断）+ 为 Phase 15 的个人中心预留位置
+- [ ] 404 + 错误页
+- [ ] 全站键盘可达性复核（`.detail-scroll` 那类"可滚动但无可聚焦元素"的坑要在新实现里避免）
+
+**Phase 13 收口**：`docs/frontend-parity.md` 全部勾掉；17 例 E2E 在新前端全绿；axe 5 页 × 双主题零违规。
+
+## Phase 14 — 切换与替换（发版 1.1.0）
+
+- [ ] **等价性验收**：parity 清单 + 17 例 E2E + axe 零违规 + **负责人人工验收**（第 5 条决策明确
+      要"检查前端是否符合预期且调整后"才进下一步，这里预留调整迭代的余量，不设时限）
+- [ ] 性能对比：首屏、交互延迟、大列表（复用 Phase 10 的 largeFleet 测量口径）、地图帧率、包体积
+- [ ] compose overlay 原子切换 → 观察期 → 旧 `frontend` workspace 下线、`frontend-next` 改名
+- [ ] 同步收尾：`frontend/Dockerfile` manifest 清单、CI job、根 `build`、`publish-images.yml` matrix、
+      `playwright.config.ts` 的 workspace 名、`CONTRIBUTING.md` / `deploy/docs/deployment.md` 的引用
+- [ ] 文档：README 的技术栈与截图、ARCHITECTURE 的前端章节
+- [ ] **P0-f 工程门禁批次**在此之后执行（见前文，旧前端下线后 type-aware lint 只需修一遍）
+- [ ] 发版 **1.1.0**（先发镜像、再建 Release —— v1.0.0 那次顺序反了，说明文档一度先于产物存在）
+
+## Phase 15 — 用户体系与真 RBAC（发版 1.2.0）
+
+> 这是把「口令保护的看板」变成「多用户系统」的阶段。**15A 必须先做**：后面每个 PR 都要改集合结构，
+> 而现在全仓库没有任何迁移机制（无 migrations 目录、无 schema 版本字段、升级文档无回滚步骤）。
+
+### PR 15A — schema 迁移机制（前置，非可选）
+
+- [ ] 迁移框架：版本标记集合 + 顺序化迁移脚本 + 启动时自动执行（幂等）+ 失败即拒绝启动
+- [ ] 补一处已确认的坑：`telemetry_ts` 的 TTL 只在 `createCollection` 分支设定
+      （`persistence.ts:151-160`），集合已存在时不 `collMod` → **改 `TELEMETRY_RETENTION_SECONDS`
+      对已建库无效**，而 `deploy/docs/backup-and-restore.md:63-64` 只说"通过环境变量调整"，未区分
+- [ ] 升级文档补回滚步骤与"升级前强制备份"环节（现在两者都没有）
+
+### PR 15B — 用户模型与管理 API
+
+- [ ] `UserRecord` 从 5 个字段扩展：显示名、邮箱/手机（通知用）、启用状态、最后登录、
+      `tokenVersion`、密码更新时间
+- [ ] 用户 CRUD + **改密码**（自己改 / 管理员重置）+ 启用禁用 + 角色分配
+- [ ] `tokenVersion` 让登出与改密**真正失效 token**（现在 logout 只 `clearCookie`，已签发 token 在
+      TTL 内仍有效，refresh 最长 7 天）
+- [ ] 密码复杂度校验（现在无注册/改密路径，所以从未校验过）
+- [ ] refresh token 轮转（现在 `/refresh` 不换 refresh cookie）
+
+### PR 15C — 用户组与权限矩阵
+
+- [ ] 用户组 = **权限集 + 通知收件方**两合一（数据范围按决策 1 暂不做，但**数据模型留出位置**，
+      避免将来加范围时要动全表）
+- [ ] 权限矩阵落地：**每条路由标注所需权限**，`requireRole` 从 1 处调用扩展到全量；
+      前端路由带 `meta.roles`、UI 按权限隐藏操作
+- [ ] 三角色的实际边界定义清楚并写进文档；**修正 README:43 / :59 的 RBAC 表述**
+- [ ] 权限边界的集成测试（每条受保护路由 × 每个角色）
+
+### PR 15D — 审计日志
+
+- [ ] `audit_log` 集合 + 中间件：登录/登出/失败、用户与用户组变更、权限变更、告警确认、配置变更
+- [ ] 请求日志补用户名（现在只记 method/path/status/durationMs）
+- [ ] 查询接口 + 管理页（筛选、分页、导出）+ TTL 保留策略
+- [ ] 顺手补一处日志脱敏缺口：broker 连接串没有走 pino 的 redact 路径，若运维把凭据写进
+      `MQTT_URL` 就会明文入日志（`mongoUri` 已有脱敏，这一处漏了）
+
+### PR 15E — 会话管理与管理端 UI
+
+- [ ] 会话可见性（当前登录设备列表）+ 管理员强制下线
+- [ ] 账号级登录失败锁定（现在只有 IP 级限流，无 `failedAttempts` / `lockedUntil`）
+- [ ] 管理页：用户 / 用户组 / 审计日志；个人中心：改密 / 改显示名
+- [ ] 发版 **1.2.0**
+
+## Phase 16 — 告警体系深化（发版 1.3.0）
+
+> 告警现在是**纯派生、无状态**：规则只有 2 条（低电量阈值 20 在前后端各硬编码一遍）、
+> 唯一可配阈值是 `OFFLINE_AFTER_SECONDS`、确认只存浏览器、`alerts` 集合积累的历史零读取方。
+
+### PR 16A — 确认落库
+
+- [ ] `StoredAlert` 补 `ackedBy` / `ackedAt` / `comment`（现在连字段都没有）
+- [ ] 确认/取消确认 API + 审计联动；localStorage 数据一次性迁移并下线 `useAlertAck` 的本地存储
+- [ ] 跨设备跨用户实时同步（WS 事件）
+
+### PR 16B — 告警历史与统计
+
+- [ ] 接线 `/api/v1/alerts` —— 端点早就存在，前端 `getAlerts()` **唯一调用方是它自己的单元测试**
+- [ ] 展示已落库却零读取的字段：`firstSeenAt` / `lastSeenAt` / `clearedAt` / `active=false` 的已清除告警；
+      `status=cleared` 查询能力已有 schema 支持却无 UI 入口
+- [ ] 持续时长、发生频次、Top 排行、按设备/严重度/时间的分布
+
+### PR 16C — 可配置规则引擎与报码字典
+
+- [ ] 规则配置化：阈值、启停、作用范围（设备/编队/标签）、去抖动窗口。消除前后端两份硬编码规则
+      （`normalize.ts:207-236` 与 `fleetNormalize.ts:222-250` 各写一遍，且已存在差异——前端不产出
+      `alerts[].active`）
+- [ ] **报码字典**（`code` → 名称 / 等级 / 分类 / 处理建议），可配置 + 管理 UI + 导入导出。
+      现存 4 个报码只是 mock 与 e2e 的演示常量；不同厂商车型报码不同，这是这类产品最常被要求定制的地方
+- [ ] 规则与字典的热重载（沿用 configRegistry 的原子替换 + 校验失败保留旧快照）
+
+### PR 16D — 告警外发
+
+- [ ] 渠道：webhook / 企业微信 / 钉钉 / 邮件（可扩展）
+- [ ] 分级路由（critical 立即、warning 汇总）+ 静默窗口 + 去重 + 升级策略 + 发送失败重试
+- [ ] 收件方接到用户组（Phase 15C 的第二个职责）
+- [ ] 发送记录与可观测性（成功率、延迟指标 + Grafana 面板）
+- [ ] 发版 **1.3.0**
+
+## Phase 17 — 报表与数据价值（发版 1.4.0）
+
+> 现在 `persistence.ts` 里**一个 `$group`/`aggregate` 都没有**，没有任何聚合端点；唯一的"统计"是
+> Prometheus 的瞬时值，无历史聚合语义。这个阶段把已经躺了 30 天的时序数据变成能交给主管的数字。
+
+### PR 17A — 聚合层
+
+- [ ] 聚合管道：在线率 / 可用率 / 告警统计 / 里程或行驶时长（若 `fusionLoc` 精度足够）/ 电量循环
+- [ ] 时间分桶（时/日/班次）+ 降采样，避免每次全量扫时序库
+- [ ] 修正一处口径不一致：schema 允许 `limit ≤ 5000`（`validation.ts:15`），服务端硬夹到
+      `MAX_HISTORY_POINTS`（默认 500），而前端默认请求 1000、输入框上限 5000 —— **实际最多返回 500 点**
+- [ ] history 支持字段投影（现在整条文档原样返回，17 个 measurements 全传）
+
+### PR 17B — 报表页与导出
+
+- [ ] 报表页：班次日报 / 周报、可用率趋势、告警 Top、单车对比
+- [ ] 导出 CSV / Excel（运维交班与主管汇报的刚需）
+- [ ] 定时报表（可选：邮件推送，复用 16D 的渠道）
+
+### PR 17C — 大屏值班模式
+
+- [ ] 免交互看板：车队态势 + 关键 KPI + 滚动告警，长时间无人值守可运行
+- [ ] kiosk 账号方案（长期 token + 只读权限 + 审计标记），**不做匿名开放**
+- [ ] 多分辨率适配（1920×1080 / 2560×1440 / 4K）与烧屏规避
+
+### PR 17D — 象限 B 收尾
+
+- [ ] 把 Phase 13 未接完的"已有数据未利用"项清零，逐项对照第 2 条起点结论核销
+- [ ] 场景侧未消费配置的去留：`occupiedThresh` / `freeThresh` / `negate` / `mapFrame`（前后端各 0 消费点）、
+      `pointCloudMode`、点云 meta 的 `cell_values` / `counts`、`metadataUrl`（有消费代码但没有场景配置它）
+- [ ] `mapProfile` 的处置：解析→合并→下发后**无任何读取方**，且 `vehicles.json` 里写的 `"rosRaster"`
+      既不在 `MapProfile` 字面量内也不影响渲染（渲染实际由 scene 的 imageUrl/osmUrl/pointCloudUrl 决定）
+      —— 要么真正消费，要么删掉，不留半截
+- [ ] 发版 **1.4.0**
+
+## Phase 18 — 交付成熟度收尾
+
+> 不设发版号；按需并入前面某个 minor。这里放的是"给别人用"才会暴露的问题。
+
+- [ ] **设备接入向导**：把改 `config-runtime/*.json` 变成 UI 操作（校验 + 预览 + 热重载反馈）。
+      现在实施工程师必须登服务器改文件，且 `.pcd` 与 SVG 底图**不在 chokidar watch 列表**
+      （只监听 `**/*.osm` 与 4 个 JSON）
+- [ ] 场景地图上传与管理（含越权路径防护复核）
+- [ ] 多平台镜像（当前 amd64-only）+ 镜像 SBOM / 签名（v2 的 PR 6C 已延后一次）
+- [ ] `prom-client` → `@prometheus-io/client`（上游已 deprecated，v2 因新包采用度不足暂留）
+- [ ] Lanelet2 `delete="true"` 过滤（88 条 lanelet 中 46 条带删除标记仍被绘制）
+- [ ] 运维盲区补齐：Mongo 写入延迟与失败计数、缓冲溢出丢弃计数、WS 广播背压指标；
+      mongo / mosquitto / nginx 的 exporter（Prometheus 现在只有 backend 与自身两个 job）
+- [ ] 安全余项：`Permissions-Policy` 与其他 location 的安全头（nginx 的 `add_header` 不跨 location 继承，
+      所以目前只有 SPA 那一个 location 带全套安全头）；mongo healthcheck 的口令传递方式
+      与备份脚本不一致（后者刻意避开了命令行参数，前者没有）；MQTT over TLS
+- [ ] i18n（v2 两次排除，若确有海外交付需求再启动）
+- [ ] axe `incomplete` 桶的人工审阅流程（半透明/渐变表面落进该桶而不产生违规，Phase 10 已确认
+      这类缺陷 suite 抓不到）
+
 ---
 
-## Phase 6 — 工程基座升级 ✅ 完成（v0.2.0 已发布）
+## v3 风险登记
 
-> 目标：monorepo + 共享类型单一来源 + 治理 + CD/发布，让后续重构都在统一流水线与单一类型源上进行。
-
-### PR 6A — monorepo 基座 + 共享类型包
-
-- [x] npm workspaces 根 manifest（`backend` / `frontend` / `packages/*`），单一根 lockfile
-- [x] `packages/shared`（`@navfleet/shared`）：领域类型单一来源，前后端共同引用
-- [x] 后端 `types.ts` 与前端 `types.ts` 收敛为 `export type *` 引用 shared，删除重复源
-- [x] CI 改为 workspace 感知（单根 lockfile，`npm ci` + 各 workspace `-w` 门禁）
-- 自检 ✅（2026-08-26）：根 `typecheck`（shared/backend/frontend 三包全过）· `test` 后端 56 + 前端 29 全绿 · `lint` 无错 · `format:check` 全过 · `build` 后端 tsc + 前端 vite 均成功；已验证 `import type` 在后端产物中被完全擦除（`dist/types.js` 无 `require("@navfleet/shared")`，运行时零耦合）。
-
-### PR 6B — 仓库治理与预提交护栏
-
-- [x] `husky` + `lint-staged` 预提交（暂存文件 `prettier --write`；完整门禁仍在 CI）
-- [x] `dependabot`（npm workspaces @ `/` 分组 + GitHub Actions，每周）
-- [x] `CONTRIBUTING.md`、PR 模板、Issue 模板（bug/feature）；`package.json` 标 `UNLICENSED`
-- [ ] `LICENSE`（待用户拍板授权类型）、`CHANGELOG.md`（改由 PR 6C 的 release-please 托管）
-- 自检 ✅（2026-08-26）：根 `format:check` 全过 · husky 钩子已装（`.husky/pre-commit` → lint-staged）· 既有 lint/typecheck/test/build 未受影响。
-
-### PR 6C — CD 与发布自动化（面向更广交付）
-
-- [x] Docker 改造为 workspace 感知构建（root context + 根 lockfile + `npm ci --ignore-scripts` 跳过 husky；backend/frontend 均从仓库根构建，前端 context 由 `../frontend` 改为 `..`）
-- [x] GHCR 镜像构建并发布（`publish-images.yml`：release published / 手动触发，backend+frontend 矩阵，semver+latest+sha 标签，gha 缓存）
-- [x] `release-please`（manifest 模式，单根组件）：语义化版本 + tag + 自动 CHANGELOG + GitHub Release
-- [ ] 可选：镜像 SBOM / 签名（延后）
-- 自检 ✅（2026-08-26）：本地 `docker compose build backend frontend` 均成功；backend 镜像入口 `backend/dist/index.js` 存在且运行时依赖全部从 hoisted node_modules 解析通过；frontend 镜像 `/usr/share/nginx/html` 资产齐全。两个 CD workflow 为 YAML，合并到 main 后首跑验证（release-please 需仓库开启「Allow GitHub Actions to create and approve pull requests」；GHCR 发布用 workflow 内置 GITHUB_TOKEN + packages:write）。
-
-### PR 6D — 收尾与漂移修复
-
-- [~] 清理遗留 phase 分支、`origin/HEAD` 指向 main（分支清理为纯 git 操作，PR 外单独执行）
-- [x] 修 `deploy/docs/deployment.md` 弱口令 drift（最小配置改占位口令）、`config-reference.md` Windows 路径示例改 POSIX
-- [x] CI 覆盖率上报（`@vitest/coverage-v8` + 产物上传）+ Node matrix（20/22）
-- 自检：_容器验证 test:coverage 通过后回填_
-
-**Phase 6 收口**：根级 `npm run build/test/lint` 全绿；push tag 自动出镜像 + release；shared 包被前后端引用。
+| 风险                                       | 影响                         | 应对                                                                                           |
+| ------------------------------------------ | ---------------------------- | ---------------------------------------------------------------------------------------------- |
+| 并行期两个前端的共享逻辑分叉               | 修一处漏一处，且分叉不会报错 | **PR 12A 先抽 `packages/fleet-core`**，从结构上让分叉不可能                                    |
+| 新前端"看起来焕新了但少了功能"             | 切换后才发现，回滚代价高     | `docs/frontend-parity.md` 逐项核销 + 17 例 E2E 等价性网（零 testid、纯 ARIA 匹配，可直接复用） |
+| IA 重构范围失控                            | 阶段无限延长                 | Phase 11 是纯设计阶段且要签字；13A–13F 逐页交付，任一页可独立收口                              |
+| Reka UI / Tailwind v4 的实际契合度不如预期 | 底座返工                     | Phase 12B 是最小可验证切片；若 12B 就发现不合，此时沉没成本仅一个 PR                           |
+| ECharts 在大数据量下不够快                 | 曲线卡顿                     | 12D 留下性能基线作为换 uPlot 的客观判据，而非靠感觉                                            |
+| Phase 15/16 改集合结构无迁移机制           | 已交付部署升级即坏数据       | **PR 15A 前置**，非可选                                                                        |
+| P0 缺陷在新功能之下被遗忘                  | 生产事故                     | P0-a 立刻单独发 1.0.1；P0-b～e 与 Phase 12 并行发 1.0.2；本表每阶段收口时回查                  |
 
 ---
 
-## Phase 7 — 类型安全与架构重构 ✅ 完成
-
-- [x] 后端 `index.ts`（548→~115 行）拆 `app.ts` + `routes/*`（ops/fleet/scenes/debug）+ `websocket.ts` + `mqtt.ts` + `metrics.ts` + `logger.ts` + `runtimeState.ts`（PR #28，7B）
-- [x] 后端 config → zod 校验 + fail-fast（消灭静默兜底），`parseConfig` 单测（PR #27，7A）
-- [x] 前端标准 util 全部 .js→.ts：`amap`/`data-defaults`/`point-cloud`（PR #29，7C）、`fleetNormalize`（457 行核心，PR #32）
-- [x] `fleet.ts` 去 `Record<string,any>`（用 `@navfleet/shared` 类型 + `unknown` 收窄），前端 `no-explicit-any` 由 off→**error**（PR #33）——至此前端 `src` 下**无显式 `any`**
-- [x] 前端 `RosSceneMap.vue`（1162→592 行）拆 `useSvgViewport`/`useSceneOverlay`/`useSceneViewportPersistence`（PR #35；jsdom 10 场景逐字节等价 + Playwright 明暗实测）
-- [x] `main.css`（2091 行）拆 19 个 partial + 按级联顺序 `@import`（PR #37）——构建产物 CSS **逐字节一致**（Vite 内容哈希未变），级联零风险
-- [x] 抽 `formatters` 共享 util（消除 Dashboard/History 重复，#38）
-- [ ] 所有带逻辑 SFC 逐步 `lang="ts"` + typed props —— **本轮未做**，11 个 `.vue` 仍是普通 `<script setup>`；推到 1.1，`vue/block-lang` 已按「允许无 lang」放行
-- **收口**：`vue-tsc`/`tsc` strict 全绿、无 `any`、god-file 拆分完成
-
-## Phase 8 — 健壮性与测试深度 ✅ 完成
-
-- [x] store 摄入串行化队列（根治 read-modify-write 竞态，PR #39）——修复前 4 个并发 payload 只剩 1 个，有「修复前必失败」的回归测试
-- [x] Mongo 重连 + 真实健康探测（#40，含 topology 事件驱动、有界退避、URI 脱敏）
-- [x] MQTT 摄入 zod 校验 + 路径参数校验（#41，含被拒计数指标；保留 `parseOnline` 的明文 status 白名单）
-- [x] 前端 error boundary + 全局错误处理 + 路由守卫 + 真 404（#42）
-- [x] 后端 supertest 集成测试（路由/鉴权/校验/404/错误中间件）+ configRegistry + WS 单测（#43，97→212）
-- [x] 前端 store/实时链路/api/auth·theme 测试（#44，45→115）
-- [x] Playwright E2E 入库并进 CI（#45，11 例，无需 Mongo/MQTT/docker）+ 两个 workspace 覆盖率门槛（ratchet）
-- **收口达成**：竞态回归通过 · 覆盖率门槛在 CI 生效 · **E2E 在 CI 跑通**（node 20 job 绿）
-- 测试总量：**61 → 327**（后端 212 + 前端 115）+ 11 E2E
-
-## Phase 9 — 安全硬化与可观测性生产化 ✅ 完成
-
-- [x] `prom-client` 替换手写 metrics + per-route 请求直方图；request-id 贯穿日志与 500 响应（#47，9A）
-- [x] 全局限流 + `trust proxy`（修「整个部署共用一个限流额度」）、pino 脱敏落到全部子系统 logger、显式 CSP、生产配置审计 fail-fast、WS 只用 cookie 传 token（#48，9B）
-- [x] mosquitto 关匿名 + 双向 ACL + 1883 改绑 127.0.0.1；docker 三网分段；两个 nginx 非 root；edge 下线 `/metrics`、`/openapi.json` 移到鉴权后（#49，9C）
-- [x] TLS 叠加编排（HSTS / 308 跳转 / `COOKIE_SECURE` 硬编码 true / 路由表单一来源 `locations.conf`）+ 自签名证书脚本（#50，9D）
-- [x] Prometheus + Grafana 叠加编排 + 预置数据源/14 面板 + 9 条告警规则；备份容器 + **恢复演练脚本**（#55，9E）
-- [x] `/api/v1` 前缀（双挂载，鉴权保持不加版本）；OpenAPI 入参 schema 由 zod 生成；Swagger UI 同源自带（#55，9F）
-- [x] ROS 地图：默认视口改为适应场景（原为 22.22x 的 45m 特写）、演示车沿 lanelet 中心线行驶、场景内全部车辆可见（#55）
-- **收口达成**：安全清单达标 · 告警规则全部写在真实暴露的指标上（机检 25 处引用零缺失）· 恢复演练实跑通过 · 入参契约由验证器生成、结构上无法 drift
-- 自检 ✅（2026-08-27，9A–9D）：`typecheck`/`lint`/`format:check`/`build` 全过 · 测试 212 → **260**（前端 115 不变）· `e2e` 11/11 · 后端覆盖率 82.4/81.9/85.0/82.4（ratchet 提到 80/79/82/80）· compose 基础与 TLS 两种编排均实跑通过（五容器 healthy）。
-
-## Phase 10 — 产品体验打磨 ✅ 完成（i18n 本轮排除）
-
-- [x] a11y：LoginForm 表单命名/错误播报/自动聚焦、skip-link、唯一 `<main>` 地标 + 导航后焦点转移（#59）
-- [x] a11y 自动化：`@axe-core/playwright` 进 E2E，5 个页面 × 明暗两套主题，WCAG 2.1 A+AA
-- [x] 骨架屏：`bootstrapPending` 贯穿 store→视图，首屏快照在途时渲染占位而非空态文案
-- [x] 设置页 `/settings`（主题单选组、清除本地数据、连接诊断）；404 页此前已在 #42 落地
-- [x] `useHistoryPlayback` composable（12 例单测）、GpsMap deep-watch 改签名比对（#59）
-- [x] 列表虚拟化：**实测后决定不做**（见下）
-- [x] 告警中心：筛选/搜索/批量确认/分页此前已完整，本轮补 `aria-pressed`（严重度筛选此前只有 `active` class，读屏器听到四个一模一样的「按钮」）
-
-**本阶段修掉的真实缺陷**
-
-1. **空态文案冒充加载态**。首屏快照到达前，仪表盘渲染的是「当前筛选条件下没有设备数据」——什么都没被筛选，却在让操作员去改筛选条件；同时统计卡显示「在线设备 0 / 0」「活动告警 0」，读起来像全队掉线，而不是像一个还没回答的请求。现在由 `bootstrapPending`（在 `finally` 里清除，所以 bootstrap 失败也不会让页面永久闪烁）驱动骨架屏 + `aria-busy`，占位条本身用 `aria-hidden` 留在无障碍树外。浏览器实测（把 snapshot 请求压住 3 秒）：加载中 10 条占位、两个区域 `aria-busy=true`、**零条空态文案**、统计值留空；到达后 0 条占位、5 台设备、真实数值。
-2. **嵌套 `<main>`（我在 #59 引入的回归）**。`App.vue` 加了 `<main id="main-content">` 地标，但 `DashboardView`/`HistoryView` 各自已有一个 `<main>`，于是每页两个 `main` 地标且互相嵌套 —— 非法 HTML，辅助技术会看到两个「主内容」区域。两处改回布局用 `<div>`；四个页面实测均为 `main=1 / 嵌套=0 / h1=1`。
-3. **骨架屏自己带来的布局跳动**。统计卡占位是 14px 的行，替代的却是 27px 的行盒，真实数值到达时每张卡长高 13px —— 占位高度不对，等于把跳动从加载时挪到落数据时。加 `skeleton-value`（对齐 `.headline-stat strong` 的 20px×1.35 行盒）后实测位移 **0px**。
-4. **覆盖率门槛被「空覆盖」撑高**。v8 对任何测试都没 import 过的文件报 100% functions（没插桩，自然没有遗漏），`DashboardView.vue` 正是其一。给它补上真实的挂载+交互测试后，那个虚的 100% 变成真实的 75%，全局 functions 反而从 91.5% 掉到 84%，而同一改动让语句覆盖率翻倍（31%→62.5%）。门槛已按真实测量重新标定：statements/lines 27→58、branches 82→84、**functions 87→81（唯一下调项，原因是度量口径变了而非代码变差）**。`AlertsView`/`HistoryView` 仍是虚的 100%，将来补测时 functions 会再掉一次、语句会再涨一次。
-5. **浅色主题的品牌色对比度整体不合格**。`--brand-contrast: #ffffff` 落在中调青绿 `--brand` 上只有 **2.99:1**（AA 要求 4.5:1），影响登录提交按钮、导航激活态、历史页主按钮；改成与深色主题同一套深墨 `#04231f` 后 5.55:1。另有两处硬编码的深色主题薄荷色（`.pose-status.ready` 的 `#a7ffee`、`.detail-formation-tag` 的 `#bffbf3`）落在浅色品牌浅底上只有 **1.02:1**，抽出 `--brand-ink` 语义 token（深色 `#a7ffee` / 浅色 `#0a5f52`）解决。两个 token 的区别写进注释：`--brand-contrast` 用于**实心** brand 表面，`--brand-ink` 用于 `rgba(--brand-rgb, …)` 薄底 —— 后者贴近周围表面，所以明度需求正好相反。
-6. **回放条两个控件没有可访问名称**（`label` / `select-name`，均为 critical）：进度滑块和倍速下拉按设计不带文字，读屏器只会念「滑块」「组合框」。补 `aria-label`。
-7. **可滚动区域键盘不可达**（`scrollable-region-focusable`）：`.detail-scroll` 会滚动且内部没有任何可聚焦元素，折叠线以下的遥测对键盘用户完全取不到。补 `tabindex="0"`。
-
-**列表虚拟化：实测后决定不做**
-
-jsdom 四档实测（`frontend/test/views/largeFleet.test.ts`，jsdom 比真实浏览器高估 DOM 成本数倍）：
-
-| 设备数 | 挂载   | 全量更新（含 DOM patch） |
-| ------ | ------ | ------------------------ |
-| 6      | 2.8ms  | 2.1ms                    |
-| 50     | 8.9ms  | 5.2ms                    |
-| 200    | 34.5ms | 17.4ms                   |
-| 500    | 85.3ms | 43.5ms                   |
-
-本平台实际监控 6 台车，列表成本可忽略；引入虚拟滚动要付出 Ctrl-F 失效、焦点管理复杂化、多一层滚动容器的代价，换不到任何收益。**该测量本身入库**，但断言放在唯一确定的量上——每行 DOM 节点数（当前 8，上限 16）——那才是让长列表变成渲染问题的原因；时间只打印给人看，不作断言（墙钟数在 CI 里必然不稳）。真要重做虚拟化，触发条件是节点数上限被突破或部署规模量级变化，而不是「感觉列表长了」。
-
-- **收口**：大规模车队渲染无卡顿 ✅（以实测数据结论化，而非加复杂度）；a11y ✅ —— 用 `@axe-core/playwright` 进 E2E 取代一次性 Lighthouse 跑分：跑分是某台机器上的一个瞬时数字，进了 CI 的规则集才是回归网。5 个页面（登录 + 4 个已登录视图）× 明暗两套主题，`wcag2a + wcag2aa`，serious/critical 为红线，失败信息打印 axe 报的**全部**违规（规则 id、影响级别、每个失败选择器、以及 `failureSummary` 里的对比度数值），无任何 `exclude` 或 `disableRules`。修完后 10 次审计**零违规**（含 minor/moderate）。
-
-**a11y 自动化的已知边界**（写下来免得把「测过」当成「都覆盖了」）
-
-- 深色主题这一趟是专门加的：Chromium 报 `prefers-color-scheme: light`、应用默认偏好是 `system`，所以不显式播种 `navfleet:theme` 就只会审到浅色，而深色恰恰是本控制台的默认观感。该用例带一条前提断言（`html[data-theme=dark]`），否则偏好一旦失效就会静默变成「又审了一遍浅色」的假绿。
-- 单一视口（1440×900）、单一引擎（chromium），无响应式与跨引擎审计。
-- 只审各视图的默认状态：告警抽屉、toast、hover/focus 态、`data-tone="normal"` 徽标在 axe 运行时都不在屏上。
-- **axe 的 `incomplete` 桶没有断言**。半透明/渐变表面会落进这一桶而不产生违规，所以 `.tab-btn.active`（薄荷渐变）和设置页 `dd[data-tone="ok"]` 都躲过了检查 —— 后者是真实缺陷（`--brand` 作为文字落在近白面板上约 2.6:1），靠读代码发现并改用 `--brand-ink` 修掉了。**这类缺陷这套suite 抓不到**，仍需人看。
-- 未跑 `npm ci` 验证重新生成的 lockfile 在 Linux 上干净安装（已独立核对：diff 内 `npmmirror` 命中 0 次，两个新包的 `resolved` 均为 `registry.npmjs.org`，版本精确钉在 `4.13.0`）。
-
 ---
 
-## 变更日志（本路线图执行记录）
+## 执行记录
 
-- 2026-08-26：完成三路架构审计（后端/前端/DevOps），生成 v2 路线图，启动 Phase 6 / PR 6A。
-- 2026-08-26：PR 6A（monorepo+shared 类型，#1）、PR 6B（治理+预提交，#3）已合并入 main；修复 npm#4828 跨平台 lockfile 陷阱（见记忆 navfleet-ci-lockfile）。
-- 2026-08-26：PR 6C —— Docker workspace 化（本地 compose build 通过）+ release-please + GHCR 镜像发布。
-- 2026-08-26：PR 6D（#17）—— CI 覆盖率上报 + Node 20/22 矩阵 + 文档漂移修复；release-please 首次发布 **v0.2.0**。Phase 6 收口。
-- 2026-08-26：依赖现代化（自做 bump 取代 dependabot PR）—— vue-tsc 3 / lint-staged 17 / vite 8 / @vitejs/plugin-vue 6 / pino 10 / **express 5** / **mongodb 7**，均含运行时/连库冒烟验证；TypeScript 7 因 breaking 暂缓。
-- 2026-08-26：Phase 7A（#27 config zod fail-fast）、7B（#28 index.ts 拆分）、7C（#29 utils→TS）合并。
-- 2026-08-26：fix(mock)（#30）—— demo 发布器 PID 文件单实例守卫，修复电量每秒在 0/演示值间跳动（根因：两个发布器并发）。
-- 2026-08-26：Phase 7D —— fleetNormalize→TS（#32）、store 去 `any` + 开启 `no-explicit-any`（#33）。前端 `src` 无显式 `any`。
-- 2026-08-26：Phase 7 收口（#35 RosSceneMap 拆分、#37 main.css 拆 19 partial 且构建产物逐字节一致、#38 formatters）；fix(mock) #36 电量改为可持续作业循环。
-- 2026-08-26：**Phase 8 收口** —— #39 竞态 · #40 Mongo 重连 · #41 摄入校验 · #42 前端韧性 · #43 后端集成测试 · #44 前端 store 测试 · #45 E2E 入 CI + 覆盖率门槛。测试 61 → 327 + 11 E2E。
-  期间两件值得记录：GitGuardian 拦住了 E2E harness 里硬编码的测试口令（改为每次运行 `crypto.randomBytes` 生成并压缩提交历史）；GitHub Actions 大范围故障导致 CI 一度无法运行，恢复后 11 项检查全绿方合并。
-- 2026-08-26：Phase 7E（#35 RosSceneMap 拆 composable）、fix(mock)（#36 电量改为可持续作业循环，修掉长跑后归零）、Phase 7F（#37 main.css 拆 19 partial，构建产物逐字节一致）。
-- 2026-08-27：Phase 9A–9D（#47 可观测性生产化、#48 应用层硬化、#49 部署硬化、#50 TLS）。这四个 PR 里有五处是**修既有缺陷**而非加功能，都有实测证据：
-  1. `trust proxy` 从未配置 → 在 nginx 后面两个限流器把所有请求算到 nginx 一个地址上，登录限流「15 分钟 50 次」是全体用户共享的（有「修复前必失败」的测试）。
-  2. 四个子系统各自 `pino({ name })`，不继承 `LOG_LEVEL` 也不继承脱敏 → 实测 `LOG_LEVEL=warn` 下 `config-registry`/`dashboard-store`/`auth` 仍在打 info 行。
-  3. mosquitto `allow_anonymous true` 且绑 `0.0.0.0` → 任何能碰到 1883 的东西都能灌假遥测。ACL 双向隔离已用「发布账号能进、后端账号被丢」实测。
-  4. 边缘代理了未鉴权的 `/metrics`；`/openapi.json` 对匿名开放。
-  5. 直方图 route 标签在错误路径上与成功路径不一致（Express 在 `next(err)` 时已还原 `baseUrl`），一条路由裂成两条序列且错误延迟从面板消失 —— 被自己写的测试抓到。
-     过程记录：`prom-client` 已被 npm 标记 deprecated，官方后继 `@prometheus-io/client` 首个稳定版仅 3 天、周下载 ~750（对比 900 万），因此暂留并在代码里注明；E2E 因「每次运行临时口令 + Playwright 默认复用已有 server」在本机必然 401，改为独立端口 3199/5299 且不复用；mosquitto 首次起不来（root 生成的 0600 密码文件在 broker 降权到 uid 1883 后读不了）。
-- 2026-08-27：**Phase 9 收口**（#54 GPS 车标锚定、#55 9E+9F+ROS 地图）。几处值得记录：
-  1. GPS 车标带着 `translate(-50%,-100%)`，叠加在 AMap 自身锚点之上 —— 实测偏离坐标 71px，而像素偏移在不同缩放下代表不同地面距离（zoom 16 约 170m、zoom 11 约 5km），这就是「车随缩放漂移」的成因。
-  2. `gps.heading` 发的是场景 yaw（0=东、逆时针），消费方按罗盘方位角读 —— 方向指示偏 90° 且转反。改为发真方位角后，四台车「上报值 vs 位移推算」误差 0.0°。
-  3. ROS 地图 22.22x 是**计算出来的默认值**（`viewport.width / 45` 的特写覆盖了正确的整场景 fit），不是残留状态；改后 7.21x、整张路网可见。
-  4. 演示车原先沿 `scene.bounds` 算出的矩形跑，与路网无关；改为沿 lanelet 中心线后实测距路网 0.00–0.01m。样本网络 88 条 lanelet 只有 36 条声明 centerline，其余由左右边界求平均（Lanelet2 本身也这么做）。
-  5. 监控用**叠加文件**而非 compose `profiles:` —— compose 会在应用 profile **之前**插值整个文件，profiled 服务上的 `${GRAFANA_ADMIN_PASSWORD:?}` 会让所有没启用监控的部署 `up` 失败。两个方向都实测过。
-  6. OpenAPI 的入参 schema 改由 zod 生成后立刻暴露了一处既有 drift：手写的 `LoginRequest` 漏了 `minLength: 1`，文档在承诺空字符串可用。
-- 已知遗留：后端测试仍有约 1/6 的偶发失败（issue #53，根因是 supertest 每请求起一个服务器导致端口/socket 串台，#52 已消掉客户端连接池那一半）；`prom-client` 上游已 deprecated，待 `@prometheus-io/client` 有采用度后替换；88 条 lanelet 中 46 条带 `delete="true"` 标记但解析器未过滤，仍被绘制。
-- 2026-08-28：Phase 10 完成。骨架屏（含 store 侧 `bootstrapPending`）、设置页 `/settings`、axe-core 进 E2E（5 页 × 明暗双主题）、大规模渲染实测后决定不做虚拟化。修掉 7 处真实缺陷，其中 3 处是我自己前一轮引入或遗留的：嵌套 `<main>` 地标（#59 加地标时没检查视图已有 `<main>`）、骨架屏自身的 13px 布局跳动、设置页 `--brand` 当文字用的 2.6:1 对比度。
-  - 浅色主题 `--brand-contrast: #ffffff` 在中调青绿上只有 2.99:1，影响登录按钮/导航激活态/历史页主按钮 —— 这是**产品自始存在**的缺陷，靠机检才浮出来，此前三轮人工审阅都没发现。
-  - 覆盖率门槛重标定，`functions` 87→81 是唯一下调项：v8 把「没被 import 过」的文件报成 100% functions，`DashboardView` 补真实测试后由虚的 100% 变成真实 75%，同期语句覆盖率 31%→62.5%。度量变诚实导致数字下降，不是代码变差。
-  - 测试总量：后端 279 + 前端 **158**（+26）+ E2E **14**（+3）。
-- 2026-08-29：**v1.0.0 发布**（#61 收尾 · #62 间距与版本一致性 · #63 release）。v2 路线图（Phase 6–10）到此全部完成，1.0 作为后续作业的地基。
-  - 根治 issue #53：`createTestApp()` 每个测试都 `listen(0)`（整套约 280 次），改为**每文件一个长生命周期服务器池**后降到 12 次。翻转率 10 次 2 红 → 42 次连续通过（30 次由子代理 + 12 次独立复跑），随后 CI 在 node 20/22 上连续三个 PR 全绿，补上了 Linux 侧证据。
-  - ROS 地图不定位车辆，**根因不是最初两次猜测的任何一个**：bounds watcher 带 `immediate: true` 在 setup 阶段就跑，早于 `onMounted` 测量面板，于是开屏视图按 1000×620 占位尺寸算完后被 `updateViewportSize` 静默作废，ResizeObserver 再从这个自相矛盾的状态推出「上一个中心点」并忠实保住那个错的点，保存的视图又把偏移持久化 —— 所以逐次刷新累积（276px → 199px → 406px 出屏）。两次失败后停下来做全程打点才定位。修法是**面板测到真实尺寸前拒绝 hydration**。
-  - 版本号一度三处漂移：release PR 标题写 1.0.0 而分支文件写 0.4.0（合并会打错版本，已关闭重建）；`openapi.ts` 的 `info.version` 硬编码 `0.1.0` 自首次发版起就错。现在六处版本（根/三个 workspace/manifest/lockfile）全部一致，且 `/openapi.json` 在运行时读根 manifest —— **结构上无法再漂**。
-  - 间距体系：四个视图对同一问题给了四个答案（18 / 18-20 / 20-22 / **0**），设置页内容贴在面板边框上。`--panel-pad` 收为 `.panel` 默认值，新页面无法再忘记；四页共享同一条左边界（实测偏差 0px）。
-  - 补齐 LICENSE (MIT)、删除三个已验证零引用的文件、修好点云导入脚本、CI 补上此前从未运行的 `lint:e2e` / `typecheck:e2e`、README 完全重写、修掉 ARCHITECTURE.md 一行在安全上主动误导的陈述。
-  - 交付量：后端 **279** · 前端 **161** · E2E **17**（含 5 页 × 明暗双主题 axe 审计）。
-  - **明确推到 1.1 的**：11 个 SFC 的 `lang="ts"`、MQTT 摄入背压、`prom-client` → `@prometheus-io/client`、Lanelet2 `delete="true"` 过滤、axe `incomplete` 桶的人工审阅。均已写入 README「路线与已知边界」。
+- 2026-08-29：**v1.0.0 发布**，作为 v3 全部工作的起点。此前的阶段记录见
+  [docs/roadmap-archive.md](docs/roadmap-archive.md)。
+- 2026-08-29：完成第二轮审计（后端健壮性 / 前端技术债 / 测试门禁 / 部署运维 + 鉴权与领域模型
+  复审），与负责人对齐六项决策，**生成本路线图（Phase 11–18）**。过程中两件值得记录：
+  1. 审计发现的 P0-a 此前四轮审阅都没看到 —— 它不在任何"已知边界"清单里，是这次逐文件读
+     事件监听器注册时才浮出来的。这类"缺一个监听器"的缺陷不会在测试里表现为失败，只会在
+     生产里表现为重启。
+  2. **我把未修复缺陷的利用细节写进了本文件并推送到这个公开仓库**，创建 PR 时被权限分类器拦下
+     才发现。拦得对，但文档已经推上去了。已改为"先修后写"：面向仓库的缺陷条目只写影响与待办，
+     完整机制留在会话与本地笔记。同期核实并否决一条子代理误报（说 PR #39 的摄入串行化队列找
+     不到实现 —— 那个 PR 改的是后端 `store.ts`，子代理去前端 `stores/fleet.ts` 找自然找不到）。
