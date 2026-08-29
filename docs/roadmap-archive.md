@@ -54,7 +54,8 @@ CD 用 **release-please**（贴合现有 conventional-commit 历史，自动 CHA
 
 ### PR 6D — 收尾与漂移修复
 
-- [~] 清理遗留 phase 分支、`origin/HEAD` 指向 main（分支清理为纯 git 操作，PR 外单独执行）
+- [x] 清理遗留 phase 分支、`origin/HEAD` 指向 main —— **2026-08-29 完成**：远端 8 个分支（逐个用
+      `git merge-base --is-ancestor` 复核已含于 main 后）+ 本地 41 个已合入分支全部删除，远端只剩 `main`
 - [x] 修 `deploy/docs/deployment.md` 弱口令 drift（最小配置改占位口令）、`config-reference.md` Windows 路径示例改 POSIX
 - [x] CI 覆盖率上报（`@vitest/coverage-v8` + 产物上传）+ Node matrix（20/22）
 - 自检：_容器验证 test:coverage 通过后回填_

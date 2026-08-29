@@ -474,7 +474,9 @@
         <p style="max-width: 62ch; font-size: 1.06rem; color: var(--ink-2)">
           v1.0.0 的信息架构是「一个塞满的仪表盘 +
           三个附属页」。下面三个候选各自代表一种取舍。线框刻意画成 灰阶细线 ——
-          这一轮要判断的是<strong>结构</strong>，不是配色和视觉。三张图纸之后是四个需要你拍板的问题。
+          这一轮要判断的是<strong>结构</strong>，不是配色和视觉。<strong
+            >2026-08-29 已定稿：采用 B</strong
+          >，四项决定见页末。
         </p>
         <div class="scroll">
           <table style="max-width: 720px">
@@ -1017,34 +1019,36 @@
       </section>
       <section style="display: flex; flex-direction: column; gap: 18px">
         <div>
-          <p class="eyebrow">需要你拍板</p>
-          <h2 style="margin-top: 6px">四个问题</h2>
+          <p class="eyebrow">2026-08-29 已定稿</p>
+          <h2 style="margin-top: 6px">四项决定</h2>
         </div>
 
         <div class="ask">
-          <p class="label">01 · 选哪张图纸</p>
+          <p class="label">01 · 采用 B</p>
           <p style="margin-top: 6px">
-            我推 <strong>B</strong>。理由不是"总览更时髦"，而是 A
-            让主屏答错了问题（答"大家都在哪"而不是 "该管哪几台"），C
-            则把决策转移给了每一个使用者。如果你认为在我们的实际规模（示范 6
-            台、目标几十到 数百）下 A 仍然成立，那是一个合理的反对意见 ——
-            调研那条经验的前提是 40 台以上。
+            采用 <strong>B</strong> —— 总览为默认落地页，地图降为
+            <code>/devices</code> 的一个视图。 选它的理由不是"总览更时髦"，而是
+            A 的主屏答错了问题（答"大家都在哪"而不是"该管哪几台"）， C
+            则把决策转移给了每一个使用者。A / C
+            的完整对比保留在上面的图纸里，实现期不必重新论证。
           </p>
         </div>
 
         <div class="ask">
-          <p class="label">02 · 规模退化要不要做</p>
+          <p class="label">02 · 做规模退化，阈值 40</p>
           <p style="margin-top: 6px">
-            6 台与 200 台的最优默认视图不同。方案：<code>/devices</code>
-            的默认视图按车辆数自动选 —— 不超过阈值
-            默认地图，超过则默认列表。好处是同一套 IA
-            在两端都不难用；代价是多一条"为什么今天变成列表了"的
-            解释成本。<strong>要做的话阈值定多少？</strong>我倾向 24。
+            阈值 = <strong>40 台</strong>。我先前给的 24
+            是估的、没有依据；调研里唯一一个实测数字是 40 ——
+            管四十台以上的主管第一周之内就不再看实时坐标画面。列表侧不构成约束（200
+            台实测挂载 34.5ms、500 台
+            85.3ms），<strong>决定阈值的是地图的可扫读性，不是列表的性能</strong>。
+            风险也小：用户显式切换过视图之后，这个选择被记住并优先于自动判定，所以阈值只决定
+            <strong>第一次进入</strong>看到哪个视图，猜错的代价是一次点击。
           </p>
         </div>
 
         <div class="ask">
-          <p class="label">03 · 迁到 web history 同意吗</p>
+          <p class="label">03 · 迁 web history（已同意）</p>
           <p style="margin-top: 6px">
             它要动部署（前端镜像加 nginx conf +
             边缘路由同步），所以必须现在定，不能等 Phase 14 再说。
@@ -1053,7 +1057,7 @@
         </div>
 
         <div class="ask">
-          <p class="label">04 · 声音提醒要不要做</p>
+          <p class="label">04 · 做声音提醒</p>
           <p style="margin-top: 6px">
             值班室无人时它是刚需，但浏览器自动播放策略要求先有一次用户交互才能解锁，且会带出静音、音量、
             免打扰时段一串配置。<strong>做</strong>的话我会在登录后放一个一次性的"启用声音提醒"；
