@@ -1,0 +1,609 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>NavFleet 色板标样</title>
+    <!--
+      本文件由 docs/tools/gen-design-system-preview.py 从
+      docs/tools/design-system-preview.template.html 生成，不要手改。
+      设计与理由见 frontend-design-system.md；这一页的作用是机检：每一组语义
+      前景/背景的 WCAG 对比度都在页面里实时算出来，不合格的标红。Phase 10 的教训是
+      人工审阅三轮都没看出 2.99:1，所以这件事不能靠记得。
+    -->
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      rel="stylesheet"
+      href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans+Condensed:wght@600;700&family=IBM+Plex+Sans:wght@400;500;600&display=swap"
+    />
+    <style>
+      /* ── 原始层：色阶（生成）。实际项目里这一块进 @theme ── */
+      :root {
+        __RAMP_CSS__
+
+        --color-white: oklch(1 0 0);
+        --spacing: 4px;
+        --radius-xs: 6px;
+        --radius-sm: 10px;
+        --radius-md: 14px;
+        --radius-lg: 22px;
+        --ease-standard: 160ms cubic-bezier(0.4, 0, 0.2, 1);
+        --ease-entrance: 220ms cubic-bezier(0.16, 1, 0.3, 1);
+        --ease-exit: 140ms cubic-bezier(0.4, 0, 1, 1);
+        --sans: "IBM Plex Sans", "PingFang SC", "Microsoft YaHei", system-ui, sans-serif;
+        --cond: "IBM Plex Sans Condensed", "IBM Plex Sans", "PingFang SC", system-ui, sans-serif;
+        --mono: "IBM Plex Mono", ui-monospace, Menlo, monospace;
+      }
+
+      /* ── 语义层：浅色基线。进 @theme 但不加 inline，否则主题覆盖失效 ── */
+      :root {
+        __SEMANTIC_LIGHT__
+
+        --shadow-raised: 0 1px 2px oklch(0.2 0.02 205 / 0.06), 0 8px 20px oklch(0.2 0.02 205 / 0.07);
+        --shadow-overlay: 0 4px 10px oklch(0.2 0.02 205 / 0.1),
+          0 20px 40px oklch(0.2 0.02 205 / 0.12);
+        color-scheme: light;
+      }
+
+      /* ── 跟随系统：未标记 data-theme 的默认态 ── */
+      @media (prefers-color-scheme: dark) {
+        :root:not([data-theme="light"]) {
+          __SEMANTIC_DARK__
+
+          --shadow-raised: 0 1px 2px oklch(0 0 0 / 0.4), 0 10px 26px oklch(0 0 0 / 0.45);
+          --shadow-overlay: 0 6px 14px oklch(0 0 0 / 0.5), 0 24px 48px oklch(0 0 0 / 0.55);
+          color-scheme: dark;
+        }
+      }
+
+      /* ── 显式选深色，优先于系统 ── */
+      :root[data-theme="dark"] {
+        __SEMANTIC_DARK__
+
+        --shadow-raised: 0 1px 2px oklch(0 0 0 / 0.4), 0 10px 26px oklch(0 0 0 / 0.45);
+        --shadow-overlay: 0 6px 14px oklch(0 0 0 / 0.5), 0 24px 48px oklch(0 0 0 / 0.55);
+        color-scheme: dark;
+      }
+    </style>
+    <style>
+      * {
+        box-sizing: border-box;
+      }
+      body {
+        margin: 0;
+        background: var(--color-surface);
+        color: var(--color-ink);
+        font-family: var(--sans);
+        font-size: 14px;
+        line-height: 1.6;
+        -webkit-font-smoothing: antialiased;
+      }
+      .sheet {
+        max-width: 1080px;
+        margin: 0 auto;
+        padding: calc(var(--spacing) * 12) calc(var(--spacing) * 6)
+          calc(var(--spacing) * 20);
+        display: flex;
+        flex-direction: column;
+        gap: calc(var(--spacing) * 12);
+      }
+      h1,
+      h2 {
+        font-family: var(--cond);
+        font-weight: 700;
+        margin: 0;
+        text-wrap: balance;
+      }
+      h1 {
+        font-size: 38px;
+        line-height: 1.1;
+        letter-spacing: -0.01em;
+      }
+      h2 {
+        font-size: 24px;
+        line-height: 1.25;
+      }
+      p {
+        margin: 0;
+      }
+      code {
+        font-family: var(--mono);
+        font-size: 0.86em;
+        background: var(--color-surface-sunken);
+        border: 1px solid var(--color-border);
+        padding: 1px 5px;
+        border-radius: var(--radius-xs);
+      }
+      .eyebrow {
+        font-family: var(--mono);
+        font-size: 11px;
+        letter-spacing: 0.16em;
+        text-transform: uppercase;
+        color: var(--color-ink-subtle);
+      }
+      section {
+        display: flex;
+        flex-direction: column;
+        gap: calc(var(--spacing) * 5);
+      }
+      .card {
+        background: var(--color-surface-raised);
+        border: 1px solid var(--color-border);
+        border-radius: var(--radius-md);
+        box-shadow: var(--shadow-raised);
+        padding: calc(var(--spacing) * 6);
+      }
+      .scroll {
+        overflow-x: auto;
+      }
+      table {
+        width: 100%;
+        border-collapse: collapse;
+        font-size: 13px;
+      }
+      th,
+      td {
+        text-align: left;
+        padding: 8px 12px 8px 0;
+        border-bottom: 1px solid var(--color-border);
+        vertical-align: middle;
+      }
+      th {
+        font-family: var(--mono);
+        font-size: 11px;
+        letter-spacing: 0.09em;
+        text-transform: uppercase;
+        color: var(--color-ink-subtle);
+        font-weight: 400;
+      }
+      .num {
+        font-variant-numeric: tabular-nums;
+        font-family: var(--mono);
+      }
+      .ramp {
+        display: grid;
+        grid-template-columns: 200px minmax(0, 1fr);
+        gap: calc(var(--spacing) * 4);
+        align-items: center;
+      }
+      .ramp-label b {
+        display: block;
+        font-family: var(--mono);
+        font-size: 13px;
+      }
+      .ramp-label span {
+        font-size: 12px;
+        color: var(--color-ink-subtle);
+      }
+      .ramp-strip {
+        display: flex;
+        border-radius: var(--radius-xs);
+        overflow: hidden;
+        border: 1px solid var(--color-border);
+      }
+      .ramp-strip i {
+        flex: 1;
+        height: 46px;
+        display: grid;
+        place-items: end center;
+        padding-bottom: 3px;
+      }
+      .ramp-strip em {
+        font-family: var(--mono);
+        font-size: 9px;
+        font-style: normal;
+        color: oklch(1 0 0 / 0.85);
+        mix-blend-mode: difference;
+      }
+      @media (max-width: 760px) {
+        .ramp {
+          grid-template-columns: minmax(0, 1fr);
+        }
+      }
+      .sample {
+        display: inline-block;
+        padding: 7px 12px;
+        border-radius: var(--radius-xs);
+        white-space: nowrap;
+      }
+      .ratio {
+        font-family: var(--mono);
+        font-variant-numeric: tabular-nums;
+      }
+      .verdict {
+        font-family: var(--mono);
+        font-size: 11px;
+        white-space: nowrap;
+      }
+      tr[data-state="fail"] {
+        background: var(--color-critical-wash);
+      }
+      tr[data-state="fail"] .verdict {
+        color: var(--color-critical-ink);
+      }
+      tr[data-state="aa"] .verdict {
+        color: var(--color-ink-muted);
+      }
+      tr[data-state="aaa"] .verdict {
+        color: var(--color-brand-ink);
+      }
+      .audit-summary {
+        display: flex;
+        flex-wrap: wrap;
+        gap: calc(var(--spacing) * 3);
+        font-family: var(--mono);
+        font-size: 12px;
+      }
+      .audit-summary span {
+        border: 1px solid var(--color-border-strong);
+        border-radius: var(--radius-xs);
+        padding: 3px 10px;
+      }
+      .audit-summary span[data-bad="true"] {
+        border-color: var(--color-critical);
+        color: var(--color-critical-ink);
+        background: var(--color-critical-wash);
+      }
+      .sp {
+        display: flex;
+        align-items: center;
+        gap: calc(var(--spacing) * 3);
+      }
+      .sp i {
+        height: 14px;
+        background: var(--color-brand);
+        border-radius: 2px;
+        display: block;
+      }
+      .sp span {
+        font-family: var(--mono);
+        font-size: 12px;
+        color: var(--color-ink-muted);
+      }
+      .elev {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(min(210px, 100%), 1fr));
+        gap: calc(var(--spacing) * 4);
+      }
+      .elev > div {
+        background: var(--color-surface-raised);
+        border: 1px solid var(--color-border);
+        border-radius: var(--radius-md);
+        padding: calc(var(--spacing) * 4);
+        font-family: var(--mono);
+        font-size: 12px;
+      }
+      .toggle {
+        font-family: var(--mono);
+        font-size: 12px;
+        cursor: pointer;
+        background: var(--color-brand);
+        color: var(--color-brand-contrast);
+        border: 0;
+        border-radius: var(--radius-sm);
+        padding: 7px 14px;
+      }
+      .toggle:focus-visible {
+        outline: 2px solid var(--color-brand);
+        outline-offset: 3px;
+      }
+      @media (prefers-reduced-motion: no-preference) {
+        .toggle {
+          transition: filter var(--ease-standard);
+        }
+        .toggle:hover {
+          filter: brightness(1.08);
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <div class="sheet">
+      <header
+        style="
+          display: flex;
+          flex-direction: column;
+          gap: calc(var(--spacing) * 4);
+        "
+      >
+        <p class="eyebrow">NavFleet · Phase 11D · 设计系统标样</p>
+        <h1>__RAMP_COUNT__ 条色阶，__PAIR_COUNT__ 组对比度，自己检查自己</h1>
+        <p
+          style="
+            max-width: 64ch;
+            color: var(--color-ink-muted);
+            font-size: 15px;
+          "
+        >
+          这一页不是色板展示，是<strong>机检</strong>。下面每一组语义前景/背景的
+          WCAG 对比度都由页面实时算出， 低于 4.5:1 标红。Phase 10
+          的经历是：浅色主题的品牌前景只有 2.99:1，而三轮人工审阅都没看出来 ——
+          所以这件事不该靠记得。切换主题按钮会让全部数字重算。
+        </p>
+        <div
+          style="
+            display: flex;
+            flex-wrap: wrap;
+            gap: calc(var(--spacing) * 3);
+            align-items: center;
+          "
+        >
+          <button class="toggle" type="button" data-role="toggle">
+            切换主题（当前：跟随系统）
+          </button>
+          <span class="eyebrow" data-role="theme-state"></span>
+        </div>
+      </header>
+
+      <section>
+        <div>
+          <p class="eyebrow">① 原始层</p>
+          <h2 style="margin-top: calc(var(--spacing) * 2)">
+            色阶 —— __RAMP_COUNT__ × __STEP_COUNT__ 阶，oklch 生成
+          </h2>
+        </div>
+        <p style="color: var(--color-ink-muted); max-width: 66ch">
+          用 <code>oklch()</code> 而不是
+          hex，是为了让明度阶梯在感知上均匀：同一个 L 值在不同色相下看起来
+          一样亮。彩度在 500
+          阶达峰、向两端线性收敛，避免浅色端发灰、深色端糊成一团。中性色
+          <code>slate</code> 刻意带一点青绿偏色而不是纯灰 ——
+          纯中灰在品牌色旁边会显脏。
+        </p>
+        <div
+          class="card"
+          style="
+            display: flex;
+            flex-direction: column;
+            gap: calc(var(--spacing) * 4);
+          "
+        >
+          __RAMP_ROWS__
+        </div>
+      </section>
+
+      <section>
+        <div>
+          <p class="eyebrow">② 语义层 · 机检</p>
+          <h2 style="margin-top: calc(var(--spacing) * 2)">
+            对比度审计（__SEMANTIC_COUNT__ 个 token）
+          </h2>
+        </div>
+        <div class="audit-summary" data-role="summary"></div>
+        <p style="color: var(--color-ink-muted); max-width: 66ch">
+          规则：<code>X-contrast</code> 用于<strong>实心</strong> X 表面，明度与
+          X 相反；<code>X-ink</code> 用于 X 的
+          <strong>薄底</strong
+          >（<code>X-wash</code>），明度与周围表面同向。两者需求正好相反 —— 这是
+          Phase 10 用 axe 才发现的，现在升级成对每个状态色都成立的规则。
+        </p>
+        <div class="card scroll">
+          <table>
+            <thead>
+              <tr>
+                <th>前景</th>
+                <th>背景</th>
+                <th>用途</th>
+                <th>实样</th>
+                <th>比值</th>
+                <th>判定</th>
+              </tr>
+            </thead>
+            <tbody data-role="pairs">
+              __PAIR_ROWS__
+            </tbody>
+          </table>
+        </div>
+      </section>
+
+      <section>
+        <div>
+          <p class="eyebrow">① 原始层</p>
+          <h2 style="margin-top: calc(var(--spacing) * 2)">
+            字阶 —— 基准 14px
+          </h2>
+        </div>
+        <p style="color: var(--color-ink-muted); max-width: 66ch">
+          基准取 14px 而非 16px：这是控制台密度，不是文章。现状是字号散落在各
+          partial 里、从 9px 到 22px 至少 11 种且没有刻度。
+        </p>
+        <div class="card scroll">
+          <table>
+            <thead>
+              <tr>
+                <th>token</th>
+                <th>字号</th>
+                <th>行高</th>
+                <th>实样</th>
+                <th>用在</th>
+              </tr>
+            </thead>
+            <tbody>
+              __TYPE_ROWS__
+            </tbody>
+          </table>
+        </div>
+        <div class="card scroll">
+          <p class="eyebrow" style="margin-bottom: calc(var(--spacing) * 3)">
+            大屏字阶（仅 wall 断点 ≥2560px 生效）
+          </p>
+          <table>
+            <thead>
+              <tr>
+                <th>token</th>
+                <th>字号</th>
+                <th>实样</th>
+                <th>用在</th>
+              </tr>
+            </thead>
+            <tbody>
+              __WALL_ROWS__
+            </tbody>
+          </table>
+        </div>
+      </section>
+
+      <section>
+        <div>
+          <p class="eyebrow">① 原始层</p>
+          <h2 style="margin-top: calc(var(--spacing) * 2)">
+            间距、圆角、层级、动效
+          </h2>
+        </div>
+        <div
+          class="card"
+          style="
+            display: flex;
+            flex-direction: column;
+            gap: calc(var(--spacing) * 2);
+          "
+        >
+          <p class="eyebrow">间距刻度 · 基准 <code>--spacing: 4px</code></p>
+          __SPACING_ROWS__
+        </div>
+        <div class="elev">
+          <div style="box-shadow: var(--shadow-raised)">
+            --shadow-raised<br />卡片、面板
+          </div>
+          <div style="box-shadow: var(--shadow-overlay)">
+            --shadow-overlay<br />popover、dropdown
+          </div>
+          <div style="border-radius: var(--radius-xs)">--radius-xs 6px</div>
+          <div style="border-radius: var(--radius-sm)">--radius-sm 10px</div>
+          <div style="border-radius: var(--radius-md)">--radius-md 14px</div>
+          <div style="border-radius: var(--radius-lg)">--radius-lg 22px</div>
+        </div>
+        <div class="card">
+          <p class="eyebrow">动效曲线</p>
+          <table style="margin-top: calc(var(--spacing) * 3)">
+            <tbody>
+              <tr>
+                <td><code>--ease-standard</code></td>
+                <td class="num">160ms</td>
+                <td>状态切换（hover、选中）</td>
+              </tr>
+              <tr>
+                <td><code>--ease-entrance</code></td>
+                <td class="num">220ms</td>
+                <td>进场，减速曲线</td>
+              </tr>
+              <tr>
+                <td><code>--ease-exit</code></td>
+                <td class="num">140ms</td>
+                <td>出场，加速曲线</td>
+              </tr>
+            </tbody>
+          </table>
+          <p
+            style="
+              margin-top: calc(var(--spacing) * 3);
+              color: var(--color-ink-muted);
+            "
+          >
+            三者全部包在 <code>prefers-reduced-motion: no-preference</code> 之下
+            —— 现状只有骨架屏动画做了 这层处理，hover 位移没做。
+          </p>
+        </div>
+      </section>
+
+      <footer
+        style="
+          border-top: 1px solid var(--color-border);
+          padding-top: calc(var(--spacing) * 5);
+          display: flex;
+          flex-wrap: wrap;
+          gap: calc(var(--spacing) * 2) calc(var(--spacing) * 5);
+        "
+      >
+        <p class="eyebrow">NavFleet v3 · Phase 11D · 2026-08-29</p>
+        <p class="eyebrow" style="margin-left: auto">
+          由 docs/tools/gen-design-system-preview.py 生成
+        </p>
+      </footer>
+    </div>
+
+    <script>
+      // 对比度计算：不自己解析 oklch，交给浏览器 —— 把计算色填进 1×1 canvas 再读回 sRGB。
+      // 这样任何颜色语法（oklch / color-mix / 变量链）都能算，而且用的就是屏幕上的实际值。
+      const probe = document.createElement("canvas");
+      probe.width = probe.height = 1;
+      const ctx = probe.getContext("2d", { willReadFrequently: true });
+
+      function toRgb(cssColor) {
+        ctx.clearRect(0, 0, 1, 1);
+        ctx.fillStyle = "#000";
+        ctx.fillStyle = cssColor;
+        ctx.fillRect(0, 0, 1, 1);
+        const [r, g, b] = ctx.getImageData(0, 0, 1, 1).data;
+        return [r, g, b];
+      }
+
+      function luminance([r, g, b]) {
+        const channel = (value) => {
+          const v = value / 255;
+          return v <= 0.03928 ? v / 12.92 : Math.pow((v + 0.055) / 1.055, 2.4);
+        };
+        return 0.2126 * channel(r) + 0.7152 * channel(g) + 0.0722 * channel(b);
+      }
+
+      function ratio(fg, bg) {
+        const a = luminance(toRgb(fg));
+        const b = luminance(toRgb(bg));
+        const [hi, lo] = a > b ? [a, b] : [b, a];
+        return (hi + 0.05) / (lo + 0.05);
+      }
+
+      function audit() {
+        const root = getComputedStyle(document.documentElement);
+        const rows = document.querySelectorAll("[data-role='pairs'] tr");
+        let fail = 0;
+        let aa = 0;
+        let aaa = 0;
+        rows.forEach((row) => {
+          const fg = root.getPropertyValue(`--color-${row.dataset.fg}`).trim();
+          const bg = root.getPropertyValue(`--color-${row.dataset.bg}`).trim();
+          const value = ratio(fg, bg);
+          const state = value < 4.5 ? "fail" : value >= 7 ? "aaa" : "aa";
+          row.dataset.state = state;
+          row.querySelector("[data-role='ratio']").textContent =
+            `${value.toFixed(2)}:1`;
+          row.querySelector("[data-role='verdict']").textContent =
+            state === "fail" ? "低于 AA" : state === "aaa" ? "AAA" : "AA";
+          if (state === "fail") fail += 1;
+          else if (state === "aaa") aaa += 1;
+          else aa += 1;
+        });
+        const resolved = matchMedia("(prefers-color-scheme: dark)").matches
+          ? "dark"
+          : "light";
+        const stamped = document.documentElement.dataset.theme;
+        document.querySelector("[data-role='summary']").innerHTML =
+          `<span data-bad="${fail > 0}">低于 AA ${fail}</span>` +
+          `<span>AA ${aa}</span><span>AAA ${aaa}</span>` +
+          `<span>当前主题 ${stamped || `跟随系统 → ${resolved}`}</span>`;
+      }
+
+      const states = [null, "light", "dark"];
+      let index = 0;
+      document
+        .querySelector("[data-role='toggle']")
+        .addEventListener("click", () => {
+          index = (index + 1) % states.length;
+          const next = states[index];
+          if (next) document.documentElement.dataset.theme = next;
+          else delete document.documentElement.dataset.theme;
+          document.querySelector("[data-role='toggle']").textContent =
+            `切换主题（当前：${next === "light" ? "浅色" : next === "dark" ? "深色" : "跟随系统"}）`;
+          audit();
+        });
+
+      matchMedia("(prefers-color-scheme: dark)").addEventListener(
+        "change",
+        audit,
+      );
+      document.fonts.ready.then(audit);
+      audit();
+    </script>
+  </body>
+</html>
