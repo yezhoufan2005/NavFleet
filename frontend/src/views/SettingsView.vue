@@ -17,7 +17,7 @@ import { useTheme } from "../composables/useTheme";
 import { useAlertAck } from "../composables/useAlertAck";
 import { useSceneViewportPersistence } from "../composables/useSceneViewportPersistence";
 import { useNotifications } from "../composables/useNotifications";
-import { formatStamp } from "../utils/formatters";
+import { formatStamp } from "@navfleet/fleet-core";
 
 const store = useFleetStore();
 const state = store.state;

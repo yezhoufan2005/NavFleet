@@ -5,9 +5,15 @@ import GpsMap from "../components/GpsMap.vue";
 import RosSceneMap from "../components/RosSceneMap.vue";
 import SkeletonBlock from "../components/SkeletonBlock.vue";
 import { useFleetStore } from "../stores/fleet";
-import { round, hasPose } from "../lib/fleetNormalize";
-import { formatNumber, formatStamp, formatValue } from "../utils/formatters";
-import { controlModeMap, gearMap, taskStatusMap, formatEnum, describeEnum } from "../utils/enums";
+import { round, hasPose } from "@navfleet/fleet-core";
+import { formatNumber, formatStamp, formatValue } from "@navfleet/fleet-core";
+import {
+  controlModeMap,
+  gearMap,
+  taskStatusMap,
+  formatEnum,
+  describeEnum,
+} from "@navfleet/fleet-core";
 
 const store = useFleetStore();
 const state = store.state;

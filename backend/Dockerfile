@@ -5,9 +5,13 @@
 FROM node:20-alpine AS build
 WORKDIR /app
 
-# Manifests + root lockfile first for a cache-friendly install layer.
+# Manifests + root lockfile first for a cache-friendly install layer. Every workspace
+# manifest has to be here even though the backend imports none of the frontend ones:
+# `npm ci` validates the lockfile against the full workspace set and refuses it as out
+# of sync if one is missing.
 COPY package.json package-lock.json ./
 COPY packages/shared/package.json ./packages/shared/
+COPY packages/fleet-core/package.json ./packages/fleet-core/
 COPY backend/package.json ./backend/
 COPY frontend/package.json ./frontend/
 RUN npm ci --ignore-scripts
@@ -25,6 +29,7 @@ ENV NODE_ENV=production
 # Production dependencies only, resolved from the same root lockfile.
 COPY package.json package-lock.json ./
 COPY packages/shared/package.json ./packages/shared/
+COPY packages/fleet-core/package.json ./packages/fleet-core/
 COPY backend/package.json ./backend/
 COPY frontend/package.json ./frontend/
 RUN npm ci --omit=dev --ignore-scripts && npm cache clean --force

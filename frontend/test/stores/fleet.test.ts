@@ -10,7 +10,7 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 import { createPinia, setActivePinia } from "pinia";
 import { useFleetStore } from "../../src/stores/fleet";
-import { TRAIL_MAX_POINTS } from "../../src/lib/fleetNormalize";
+import { TRAIL_MAX_POINTS } from "@navfleet/fleet-core";
 import {
   rawAlert,
   rawDevice,

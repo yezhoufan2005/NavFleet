@@ -5,7 +5,7 @@ import {
   taskStatusMap,
   formatEnum,
   describeEnum,
-} from "../../src/utils/enums";
+} from "../src/enums";
 
 describe("formatEnum", () => {
   it("renders label with the raw code appended", () => {

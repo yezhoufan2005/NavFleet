@@ -1,4 +1,4 @@
-import { formatDateTime } from "../lib/fleetNormalize";
+import { formatDateTime } from "./fleetNormalize";
 
 /**
  * Display formatters shared by the views.

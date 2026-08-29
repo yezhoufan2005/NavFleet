@@ -8,7 +8,7 @@
  * keeps that explicit and future-proofs a split-origin deployment.
  */
 
-import type { DeviceSnapshot } from "../types";
+import type { DeviceSnapshot } from "@navfleet/shared";
 
 export interface FleetSnapshotResponse {
   fleetName?: string;
@@ -61,7 +61,10 @@ export interface AlertsQueryParams {
   status?: "active" | "cleared";
 }
 
-async function requestJson<T>(path: string, init: RequestInit = {}): Promise<T> {
+async function requestJson<T>(
+  path: string,
+  init: RequestInit = {},
+): Promise<T> {
   const response = await fetch(path, {
     credentials: "include",
     cache: "no-store",
@@ -96,7 +99,9 @@ export const fleetApi = {
   },
 
   getScene(sceneId: string): Promise<SceneDefinition> {
-    return requestJson<SceneDefinition>(`/api/v1/scenes/${encodeURIComponent(sceneId)}`);
+    return requestJson<SceneDefinition>(
+      `/api/v1/scenes/${encodeURIComponent(sceneId)}`,
+    );
   },
 
   getHistory(
@@ -109,6 +114,8 @@ export const fleetApi = {
   },
 
   getAlerts(params: AlertsQueryParams = {}): Promise<{ items: AlertRecord[] }> {
-    return requestJson<{ items: AlertRecord[] }>(`/api/v1/alerts${buildQuery(params)}`);
+    return requestJson<{ items: AlertRecord[] }>(
+      `/api/v1/alerts${buildQuery(params)}`,
+    );
   },
 };

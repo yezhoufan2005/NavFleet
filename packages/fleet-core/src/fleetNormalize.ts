@@ -35,7 +35,12 @@ interface AlertLike {
 /** Loose, partial scene-definition parts consumed by the scene merge helpers. */
 interface ScenePartLike {
   origin?: { x?: number | null; y?: number | null; yaw?: number | null } | null;
-  bounds?: { minX?: number; maxX?: number; minY?: number; maxY?: number } | null;
+  bounds?: {
+    minX?: number;
+    maxX?: number;
+    minY?: number;
+    maxY?: number;
+  } | null;
   defaultView?: { zoom?: number; centerX?: number; centerY?: number } | null;
   width?: number | null;
   height?: number | null;
@@ -53,7 +58,10 @@ export const round = (value: unknown, digits = 2): number => {
   return Number(numeric.toFixed(digits));
 };
 
-export const toNumeric = (value: unknown, fallback: number | null = null): number | null => {
+export const toNumeric = (
+  value: unknown,
+  fallback: number | null = null,
+): number | null => {
   const numeric = Number(value);
   return Number.isFinite(numeric) ? numeric : fallback;
 };
@@ -73,7 +81,8 @@ export const toTimestampMs = (value: unknown): number => {
   return Number.isFinite(parsed) ? parsed : Date.now();
 };
 
-export const toIsoString = (value: unknown): string => new Date(toTimestampMs(value)).toISOString();
+export const toIsoString = (value: unknown): string =>
+  new Date(toTimestampMs(value)).toISOString();
 
 export const formatDateTime = (value: unknown): string =>
   new Date(toTimestampMs(value)).toLocaleString("zh-CN", {
@@ -104,7 +113,9 @@ export const createDefaultCode = (): CodeState => ({
   stamp: null,
 });
 
-export const createDefaultFormation = (formationId = ""): FormationSnapshot => ({
+export const createDefaultFormation = (
+  formationId = "",
+): FormationSnapshot => ({
   formationId,
   formationName: formationId || "未命名编队",
   deviceIds: [],
@@ -115,7 +126,10 @@ export const createDefaultFormation = (formationId = ""): FormationSnapshot => (
   color: "",
 });
 
-export const createDefaultDevice = (deviceId: string, topic = ""): DeviceSnapshot => ({
+export const createDefaultDevice = (
+  deviceId: string,
+  topic = "",
+): DeviceSnapshot => ({
   deviceId,
   deviceName: deviceId || "未命名设备",
   topic,
@@ -132,7 +146,13 @@ export const createDefaultDevice = (deviceId: string, topic = ""): DeviceSnapsho
   gps: { lat: null, lng: null, heading: null },
   fusionLoc: { x: null, y: null, yaw: null },
   lidarLoc: { x: null, y: null, yaw: null },
-  vehicleInfo: { controlMode: null, gear: null, speed: null, omega: null, soc: null },
+  vehicleInfo: {
+    controlMode: null,
+    gear: null,
+    speed: null,
+    omega: null,
+    soc: null,
+  },
   taskStatus: null,
   platformTaskStatus: null,
   infoCode: createDefaultCode(),
@@ -144,7 +164,8 @@ export const createDefaultDevice = (deviceId: string, topic = ""): DeviceSnapsho
 });
 
 export const normalizeCode = (rawCode: unknown): CodeState => {
-  const raw = rawCode as { code?: unknown; info?: unknown; stamp?: unknown } | null | undefined;
+  const raw = rawCode as
+    { code?: unknown; info?: unknown; stamp?: unknown } | null | undefined;
   return {
     code: toNumeric(raw?.code, 0) ?? 0,
     info: (raw?.info as string) || "",
@@ -155,8 +176,12 @@ export const normalizeFormation = (
   rawInput: unknown,
   existingFormation: Partial<FormationSnapshot> | null = null,
 ): FormationSnapshot => {
-  const raw = (rawInput && typeof rawInput === "object" ? rawInput : {}) as Record<string, unknown>;
-  const formationId = String(raw.formationId || raw.id || existingFormation?.formationId || "");
+  const raw = (
+    rawInput && typeof rawInput === "object" ? rawInput : {}
+  ) as Record<string, unknown>;
+  const formationId = String(
+    raw.formationId || raw.id || existingFormation?.formationId || "",
+  );
   const base = createDefaultFormation(formationId);
   const deviceIds = Array.isArray(raw.deviceIds)
     ? raw.deviceIds.map((deviceId) => String(deviceId)).filter(Boolean)
@@ -167,7 +192,10 @@ export const normalizeFormation = (
     ...existingFormation,
     formationId,
     formationName: String(
-      raw.formationName || raw.name || existingFormation?.formationName || formationId,
+      raw.formationName ||
+        raw.name ||
+        existingFormation?.formationName ||
+        formationId,
     ),
     deviceIds,
     deviceCount: Number.isFinite(Number(raw.deviceCount))
@@ -177,7 +205,9 @@ export const normalizeFormation = (
       ? Number(raw.onlineCount)
       : existingFormation?.onlineCount || 0,
     sceneId: String(raw.sceneId || existingFormation?.sceneId || ""),
-    description: String(raw.description || existingFormation?.description || ""),
+    description: String(
+      raw.description || existingFormation?.description || "",
+    ),
     color: String(raw.color || existingFormation?.color || ""),
   };
 };
@@ -196,10 +226,30 @@ export const dedupeAlerts = <T extends AlertLike>(alerts: T[]): T[] => {
 };
 
 export const buildCodeAlerts = (device: DeviceSnapshot): DeviceAlert[] => {
-  const items: Array<{ severity: Severity; source: string; payload: CodeState; title: string }> = [
-    { severity: "notice", source: "info_code", payload: device.infoCode, title: "提示报码" },
-    { severity: "warning", source: "warning_code", payload: device.warningCode, title: "预警报码" },
-    { severity: "critical", source: "error_code", payload: device.errorCode, title: "告警报码" },
+  const items: Array<{
+    severity: Severity;
+    source: string;
+    payload: CodeState;
+    title: string;
+  }> = [
+    {
+      severity: "notice",
+      source: "info_code",
+      payload: device.infoCode,
+      title: "提示报码",
+    },
+    {
+      severity: "warning",
+      source: "warning_code",
+      payload: device.warningCode,
+      title: "预警报码",
+    },
+    {
+      severity: "critical",
+      source: "error_code",
+      payload: device.errorCode,
+      title: "告警报码",
+    },
   ];
 
   return items
@@ -257,24 +307,43 @@ export const normalizeDevice = (
     !Array.isArray(source.payload)
       ? {
           ...(source.payload as Record<string, unknown>),
-          topic: source.topic || (source.payload as Record<string, unknown>).topic,
+          topic:
+            source.topic || (source.payload as Record<string, unknown>).topic,
         }
       : rawInput
   ) as Record<string, unknown>;
 
-  const topic = (raw.topic || topicHint || existingDevice?.topic || "") as string;
+  const topic = (raw.topic ||
+    topicHint ||
+    existingDevice?.topic ||
+    "") as string;
   const deviceId = (raw.deviceId ||
     raw.id ||
     raw.device_id ||
     extractDeviceIdFromTopic(topic) ||
     existingDevice?.deviceId ||
     `device-${Date.now()}`) as string;
-  const base = createDefaultDevice(deviceId, topic || `/fleet/${deviceId}/vehicle_info`);
+  const base = createDefaultDevice(
+    deviceId,
+    topic || `/fleet/${deviceId}/vehicle_info`,
+  );
 
-  const fusionLoc = (raw.fusion_loc || raw.fusionLoc || {}) as Record<string, unknown>;
-  const lidarLoc = (raw.lidar_loc || raw.lidarLoc || {}) as Record<string, unknown>;
-  const vehicleInfo = (raw.vehicle_info || raw.vehicleInfo || {}) as Record<string, unknown>;
-  const speedLimit = (raw.speed_limit || raw.speedLimit || {}) as Record<string, unknown>;
+  const fusionLoc = (raw.fusion_loc || raw.fusionLoc || {}) as Record<
+    string,
+    unknown
+  >;
+  const lidarLoc = (raw.lidar_loc || raw.lidarLoc || {}) as Record<
+    string,
+    unknown
+  >;
+  const vehicleInfo = (raw.vehicle_info || raw.vehicleInfo || {}) as Record<
+    string,
+    unknown
+  >;
+  const speedLimit = (raw.speed_limit || raw.speedLimit || {}) as Record<
+    string,
+    unknown
+  >;
   const gps = (raw.gps || raw.location || {}) as Record<string, unknown>;
   const runtimeSceneId = (raw.runtimeSceneId ||
     raw.scene_id ||
@@ -292,9 +361,17 @@ export const normalizeDevice = (
       existingDevice?.deviceName ||
       deviceId) as string,
     topic: topic || existingDevice?.topic || base.topic,
-    online: typeof raw.online === "boolean" ? raw.online : (existingDevice?.online ?? true),
+    online:
+      typeof raw.online === "boolean"
+        ? raw.online
+        : (existingDevice?.online ?? true),
     stamp: toIsoString(
-      raw.stamp || raw.lastSeen || raw.timestamp || raw.time || existingDevice?.stamp || Date.now(),
+      raw.stamp ||
+        raw.lastSeen ||
+        raw.timestamp ||
+        raw.time ||
+        existingDevice?.stamp ||
+        Date.now(),
     ),
     sceneId: (raw.scene_id ||
       raw.sceneId ||
@@ -303,15 +380,23 @@ export const normalizeDevice = (
       existingDevice?.sceneId ||
       "") as string,
     runtimeSceneId,
-    defaultSceneId: (raw.defaultSceneId || existingDevice?.defaultSceneId || "") as string,
-    mapProfile: (raw.mapProfile || existingDevice?.mapProfile || "lanelet") as MapProfile,
+    defaultSceneId: (raw.defaultSceneId ||
+      existingDevice?.defaultSceneId ||
+      "") as string,
+    mapProfile: (raw.mapProfile ||
+      existingDevice?.mapProfile ||
+      "lanelet") as MapProfile,
     gpsEnabled:
-      typeof raw.gpsEnabled === "boolean" ? raw.gpsEnabled : (existingDevice?.gpsEnabled ?? true),
+      typeof raw.gpsEnabled === "boolean"
+        ? raw.gpsEnabled
+        : (existingDevice?.gpsEnabled ?? true),
     rosMapEnabled:
       typeof raw.rosMapEnabled === "boolean"
         ? raw.rosMapEnabled
         : (existingDevice?.rosMapEnabled ?? true),
-    tags: Array.isArray(raw.tags) ? raw.tags.map((tag) => String(tag)) : existingDevice?.tags || [],
+    tags: Array.isArray(raw.tags)
+      ? raw.tags.map((tag) => String(tag))
+      : existingDevice?.tags || [],
     formationIds: Array.isArray(raw.formationIds)
       ? raw.formationIds.map((formationId) => String(formationId))
       : existingDevice?.formationIds || [],
@@ -344,9 +429,18 @@ export const normalizeDevice = (
         vehicleInfo.control_mode ?? vehicleInfo.controlMode,
         existingDevice?.vehicleInfo?.controlMode ?? null,
       ),
-      gear: toNumeric(vehicleInfo.gear, existingDevice?.vehicleInfo?.gear ?? null),
-      speed: toNumeric(vehicleInfo.speed, existingDevice?.vehicleInfo?.speed ?? null),
-      omega: toNumeric(vehicleInfo.omega, existingDevice?.vehicleInfo?.omega ?? null),
+      gear: toNumeric(
+        vehicleInfo.gear,
+        existingDevice?.vehicleInfo?.gear ?? null,
+      ),
+      speed: toNumeric(
+        vehicleInfo.speed,
+        existingDevice?.vehicleInfo?.speed ?? null,
+      ),
+      omega: toNumeric(
+        vehicleInfo.omega,
+        existingDevice?.vehicleInfo?.omega ?? null,
+      ),
       soc: toNumeric(vehicleInfo.soc, existingDevice?.vehicleInfo?.soc ?? null),
     },
     taskStatus: toNumeric(
@@ -359,11 +453,20 @@ export const normalizeDevice = (
       raw.platform_task_status ?? raw.platformTaskStatus,
       existingDevice?.platformTaskStatus ?? null,
     ),
-    infoCode: normalizeCode(raw.info_code || raw.infoCode || existingDevice?.infoCode),
-    warningCode: normalizeCode(raw.warning_code || raw.warningCode || existingDevice?.warningCode),
-    errorCode: normalizeCode(raw.error_code || raw.errorCode || existingDevice?.errorCode),
+    infoCode: normalizeCode(
+      raw.info_code || raw.infoCode || existingDevice?.infoCode,
+    ),
+    warningCode: normalizeCode(
+      raw.warning_code || raw.warningCode || existingDevice?.warningCode,
+    ),
+    errorCode: normalizeCode(
+      raw.error_code || raw.errorCode || existingDevice?.errorCode,
+    ),
     speedLimit: {
-      limit: toNumeric(speedLimit.limit, existingDevice?.speedLimit?.limit ?? null),
+      limit: toNumeric(
+        speedLimit.limit,
+        existingDevice?.speedLimit?.limit ?? null,
+      ),
       slowdownTime: toNumeric(
         speedLimit.slowdown_time ?? speedLimit.slowdownTime,
         existingDevice?.speedLimit?.slowdownTime ?? null,
@@ -382,7 +485,10 @@ export const normalizeDevice = (
       ...((raw.extra as Record<string, unknown>) || {}),
     },
   };
-  if (!hasPose(normalizedDevice.fusionLoc) && hasPose(normalizedDevice.lidarLoc)) {
+  if (
+    !hasPose(normalizedDevice.fusionLoc) &&
+    hasPose(normalizedDevice.lidarLoc)
+  ) {
     normalizedDevice.fusionLoc = { ...normalizedDevice.lidarLoc };
   }
 
@@ -422,9 +528,15 @@ export const mergeDevice = (
     gps: { ...existingDevice.gps, ...incomingDevice.gps },
     fusionLoc: { ...existingDevice.fusionLoc, ...incomingDevice.fusionLoc },
     lidarLoc: { ...existingDevice.lidarLoc, ...incomingDevice.lidarLoc },
-    vehicleInfo: { ...existingDevice.vehicleInfo, ...incomingDevice.vehicleInfo },
+    vehicleInfo: {
+      ...existingDevice.vehicleInfo,
+      ...incomingDevice.vehicleInfo,
+    },
     infoCode: { ...existingDevice.infoCode, ...incomingDevice.infoCode },
-    warningCode: { ...existingDevice.warningCode, ...incomingDevice.warningCode },
+    warningCode: {
+      ...existingDevice.warningCode,
+      ...incomingDevice.warningCode,
+    },
     errorCode: { ...existingDevice.errorCode, ...incomingDevice.errorCode },
     speedLimit: { ...existingDevice.speedLimit, ...incomingDevice.speedLimit },
     extra: { ...existingDevice.extra, ...incomingDevice.extra },
@@ -442,9 +554,13 @@ const mergeBounds = (
   overrideBounds ||
   baseBounds || {
     minX: definition.origin?.x || 0,
-    maxX: (definition.origin?.x || 0) + (definition.width || 1000) * (definition.resolution || 0.1),
+    maxX:
+      (definition.origin?.x || 0) +
+      (definition.width || 1000) * (definition.resolution || 0.1),
     minY: definition.origin?.y || 0,
-    maxY: (definition.origin?.y || 0) + (definition.height || 620) * (definition.resolution || 0.1),
+    maxY:
+      (definition.origin?.y || 0) +
+      (definition.height || 620) * (definition.resolution || 0.1),
   };
 
 export const mergeSceneDefinitionParts = (
@@ -471,7 +587,9 @@ export const mergeSceneDefinitionParts = (
       : undefined,
 });
 
-export const normalizePathPoint = (point: MaybePoint): { x: number; y: number } | null => {
+export const normalizePathPoint = (
+  point: MaybePoint,
+): { x: number; y: number } | null => {
   if (!Number.isFinite(point?.x) || !Number.isFinite(point?.y)) {
     return null;
   }
@@ -481,7 +599,11 @@ export const normalizePathPoint = (point: MaybePoint): { x: number; y: number } 
   };
 };
 
-export const pointsAreNear = (left: MaybePoint, right: MaybePoint, epsilon = 0.05): boolean =>
+export const pointsAreNear = (
+  left: MaybePoint,
+  right: MaybePoint,
+  epsilon = 0.05,
+): boolean =>
   Number.isFinite(left?.x) &&
   Number.isFinite(left?.y) &&
   Number.isFinite(right?.x) &&
@@ -500,10 +622,16 @@ export const TRAIL_MIN_DISTANCE = 0.12;
 export const pickTrailPose = (
   device: { fusionLoc?: MaybePoint; lidarLoc?: MaybePoint } | null | undefined,
 ): MaybePoint => {
-  if (Number.isFinite(device?.fusionLoc?.x) && Number.isFinite(device?.fusionLoc?.y)) {
+  if (
+    Number.isFinite(device?.fusionLoc?.x) &&
+    Number.isFinite(device?.fusionLoc?.y)
+  ) {
     return device!.fusionLoc;
   }
-  if (Number.isFinite(device?.lidarLoc?.x) && Number.isFinite(device?.lidarLoc?.y)) {
+  if (
+    Number.isFinite(device?.lidarLoc?.x) &&
+    Number.isFinite(device?.lidarLoc?.y)
+  ) {
     return device!.lidarLoc;
   }
   return null;

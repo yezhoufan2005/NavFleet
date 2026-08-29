@@ -239,12 +239,31 @@ v1.0.0 的架构分层与文档质量已经超出多数同规模项目，但四�
 
 ### PR 12A — 共享逻辑抽取（先做，避免分叉）
 
-- [ ] 新建 `packages/fleet-core`，迁入 6 个纯逻辑模块（合计 796 行）+ 对应 5 个测试文件
-      （`fleetNormalize.test` 149 / `fleetApi.test` 95 / `enums.test` 37 / `gps.test` 25 / `fleetFixtures` 210）
-- [ ] 现有 `frontend` 改为引用 `@navfleet/fleet-core`，**构建产物应逐字节一致**（此为验收判据）
-- [ ] 顺手清死代码：`hasGps`（零引用）、`fleetApi.getAlerts`（生产零调用，仅自己的单测在用，
-      连带 `AlertRecord` 15 字段死类型）、`sceneCatalog = {}`（三处查表恒不命中）
-- [ ] 顺手合并重复实现：`hasPose` 三份、`mergeSceneDefinition` 两份、`toneLabelMap` 两份逐字重复
+- [x] 新建 `packages/fleet-core`（`@navfleet/fleet-core`），迁入 6 个纯逻辑模块 + 4 个测试文件；
+      现有 `frontend` 的 16 处 import 改指该包，另修 3 处注释里的旧路径
+- [x] **`fleetFixtures.ts` 没进这个包** —— 它是 store 的 WebSocket/fetch 替身，而 store 留在 frontend，
+      放进来两边都用不上（包的 `exports` 不暴露 test 目录）。已移回 `frontend/test/helpers/`。
+      其中的 payload 构造器确实属于领域层，等 12C 新前端真要用时再拆
+- [x] **验收判据换了**：原写的"构建产物逐字节一致"对 JS **不成立** —— 模块搬进包必然改变模块图，
+      Vite 因此重新分块、内容 hash 全变（`enums-*.js` 合并进他处、`RosSceneMap-*.js` 独立成块）。
+      换成四条能真正证明"没改行为"的：① **CSS 逐字节一致**（md5 `b9510483…`，且在 Docker 镜像内再验一次）
+      ② JS 总体积 192752 → 192738，**差 -14 字节**（重复打包会是几百到几千） ③ 用中文字面量查重
+      （「自动驾驶」「异常中断」「未命名设备」「暂无内容」各只出现在 **1 个** chunk） ④ **E2E 17/17**
+- [x] **死代码清理与重复实现合并推到 12C**，理由两条：① 这个 PR 的价值全在"没改行为"可验证，混进删除就
+      失去判据；② `fleetApi.getAlerts` 原计划要删（生产零调用），但 **Phase 16B 明确要接线它** ——
+      删了再加是纯粹的来回。`hasGps` 零引用、`sceneCatalog = {}` 恒不命中、`hasPose` 三份实现都仍在
+- [x] fleet-core 自带 eslint 配置与 `lint` / `format:check` / `typecheck` / `test:coverage` 四个脚本，
+      并接进 CI 的 frontend job（与 `@navfleet/shared` 接在 backend job 同理）。**新包不加入
+      `packages/shared` 那个"从未被 lint 过"的集合** —— 那是 P0-f 记着的缺口，不该再添一个
+- [x] 覆盖率门槛按首次真实测量标定：**85 / 79 / 87 / 85**（实测 86.86 / 80.73 / 88.37 / 86.86）。
+      抽包暴露出 `formatters.ts` 覆盖率是 **0%** —— 它在旧前端只被 DashboardView 的组件测试**间接**
+      带到过，这是 Phase 10「虚假 100%」那条教训的反向版本。补了 9 例直接测试，其中 3 条**钉住
+      `formatNumber(null) → "0.00"` 这个缺陷的现有行为而不是修它**（本 PR 不改行为；修在 Phase 13，
+      届时这几条期望要在同一个 commit 里一起改，而不是悄悄漂移）
+- 自检 ✅（2026-08-29，PR #77）：fleet-core 38 例（新增 formatters 9 例）· 后端 287 · 前端 132
+  （161 − 29 迁走）· lint / format:check / typecheck / build 全过 · **两个 Docker 镜像实建通过**
+  （`npm ci` 会校验完整 workspace 集合，缺一份 manifest 就拒绝 lockfile，所以 backend 与 frontend
+  两个 Dockerfile 各自都要加 —— backend 有两个 stage，共三处）
 
 ### PR 12B — workspace 骨架与工程管线
 

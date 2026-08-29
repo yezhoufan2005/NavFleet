@@ -3,8 +3,8 @@ import { computed, ref, watch } from "vue";
 import { storeToRefs } from "pinia";
 import { useFleetStore } from "../stores/fleet";
 import { useAlertAck } from "../composables/useAlertAck";
-import { toTimestampMs } from "../lib/fleetNormalize";
-import { formatStamp } from "../utils/formatters";
+import { toTimestampMs } from "@navfleet/fleet-core";
+import { formatStamp } from "@navfleet/fleet-core";
 
 const store = useFleetStore();
 const { groupedAlerts, selectedDevice } = storeToRefs(store);

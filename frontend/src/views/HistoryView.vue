@@ -3,12 +3,12 @@ import { computed, ref, watch } from "vue";
 import { storeToRefs } from "pinia";
 import RosSceneMap from "../components/RosSceneMap.vue";
 import { useFleetStore } from "../stores/fleet";
-import { fleetApi } from "../services/fleetApi";
+import { fleetApi } from "@navfleet/fleet-core";
 import { notify } from "../composables/useNotifications";
 import { useHistoryPlayback } from "../composables/useHistoryPlayback";
-import { round, hasPose, formatDateTime, pickTrailPose } from "../lib/fleetNormalize";
-import { formatNumber } from "../utils/formatters";
-import { taskStatusMap, formatEnum } from "../utils/enums";
+import { round, hasPose, formatDateTime, pickTrailPose } from "@navfleet/fleet-core";
+import { formatNumber } from "@navfleet/fleet-core";
+import { taskStatusMap, formatEnum } from "@navfleet/fleet-core";
 
 const store = useFleetStore();
 const { sortedDevices } = storeToRefs(store);
