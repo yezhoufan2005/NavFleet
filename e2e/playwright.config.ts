@@ -36,8 +36,16 @@ export default defineConfig({
   expect: { timeout: 10_000 },
   // Kept at the repo root so CI can archive them with a stable path.
   outputDir: path.join(REPO_ROOT, "test-results"),
+  // The `github` reporter is what makes a CI failure diagnosable at all. Job
+  // logs and the uploaded HTML report both need repository admin rights to
+  // download, so without it a red E2E job reports nothing beyond "Process
+  // completed with exit code 1" — which is exactly the wall an intermittent
+  // failure on 2026-08-29 ran into. This reporter emits `::error::` workflow
+  // commands, and GitHub turns those into check annotations carrying the spec
+  // file, line and assertion message, readable by anyone who can see the repo.
   reporter: [
     ["list"],
+    ...(process.env.CI ? ([["github"]] as const) : []),
     [
       "html",
       {
