@@ -17,6 +17,7 @@
     "test:coverage": "vitest run --coverage"
   },
   "dependencies": {
+    "@navfleet/fleet-core": "*",
     "@navfleet/shared": "*",
     "pinia": "^4.0.3",
     "vue": "^3.5.13",

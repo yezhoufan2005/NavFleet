@@ -8,7 +8,7 @@ import {
   pointsAreNear,
   pickTrailPose,
   toTimestampMs,
-} from "../../src/lib/fleetNormalize";
+} from "../src/fleetNormalize";
 
 describe("normalizeDevice", () => {
   it("maps snake_case telemetry into the canonical camelCase shape", () => {
@@ -29,7 +29,10 @@ describe("normalizeDevice", () => {
   });
 
   it("derives deviceId from an MQTT topic when none is provided", () => {
-    const device = normalizeDevice({ vehicle_info: { soc: 50 } }, "/fleet/robot-9/vehicle_info");
+    const device = normalizeDevice(
+      { vehicle_info: { soc: 50 } },
+      "/fleet/robot-9/vehicle_info",
+    );
     expect(device.deviceId).toBe("robot-9");
   });
 
@@ -54,15 +57,22 @@ describe("normalizeDevice", () => {
   });
 
   it("derives a low-battery warning when soc drops below the threshold", () => {
-    const device = normalizeDevice({ deviceId: "agv-4", vehicle_info: { soc: 12 } });
-    const lowSoc = device.alerts.find((alert: { id: string }) => alert.id.endsWith("low-soc"));
+    const device = normalizeDevice({
+      deviceId: "agv-4",
+      vehicle_info: { soc: 12 },
+    });
+    const lowSoc = device.alerts.find((alert: { id: string }) =>
+      alert.id.endsWith("low-soc"),
+    );
     expect(lowSoc).toBeTruthy();
     expect(lowSoc.severity).toBe("warning");
   });
 
   it("derives an offline alert when the device is marked offline", () => {
     const device = normalizeDevice({ deviceId: "agv-5", online: false });
-    const offline = device.alerts.find((alert: { id: string }) => alert.id.endsWith("offline"));
+    const offline = device.alerts.find((alert: { id: string }) =>
+      alert.id.endsWith("offline"),
+    );
     expect(offline).toBeTruthy();
     expect(offline.severity).toBe("critical");
   });
@@ -75,7 +85,10 @@ describe("mergeDevice", () => {
   });
 
   it("deep-merges nested telemetry so partial updates keep prior values", () => {
-    const existing = normalizeDevice({ deviceId: "agv-7", vehicle_info: { soc: 90, speed: 1 } });
+    const existing = normalizeDevice({
+      deviceId: "agv-7",
+      vehicle_info: { soc: 90, speed: 1 },
+    });
     // A partial update: the normalizer carries prior fields forward via existingDevice,
     // then mergeDevice deep-merges the nested telemetry objects.
     const incoming = normalizeDevice(
@@ -109,7 +122,12 @@ describe("dedupeAlerts", () => {
     const alerts = [
       { id: "x", severity: "warning", title: "t", ts: "2026-01-01T00:00:00Z" },
       { id: "x", severity: "warning", title: "t", ts: "2026-01-01T00:00:00Z" },
-      { id: "y", severity: "critical", title: "t2", ts: "2026-01-02T00:00:00Z" },
+      {
+        id: "y",
+        severity: "critical",
+        title: "t2",
+        ts: "2026-01-02T00:00:00Z",
+      },
     ];
     const result = dedupeAlerts(alerts);
     expect(result).toHaveLength(2);
@@ -119,7 +137,10 @@ describe("dedupeAlerts", () => {
 
 describe("path + trail helpers", () => {
   it("rounds path points and rejects non-finite coordinates", () => {
-    expect(normalizePathPoint({ x: 1.23456, y: 2.34567 })).toEqual({ x: 1.235, y: 2.346 });
+    expect(normalizePathPoint({ x: 1.23456, y: 2.34567 })).toEqual({
+      x: 1.235,
+      y: 2.346,
+    });
     expect(normalizePathPoint({ x: NaN, y: 1 })).toBeNull();
   });
 
@@ -129,11 +150,18 @@ describe("path + trail helpers", () => {
   });
 
   it("prefers fusion pose, then lidar, for trail recording", () => {
-    expect(pickTrailPose({ fusionLoc: { x: 1, y: 2 }, lidarLoc: { x: 9, y: 9 } })).toEqual({
+    expect(
+      pickTrailPose({ fusionLoc: { x: 1, y: 2 }, lidarLoc: { x: 9, y: 9 } }),
+    ).toEqual({
       x: 1,
       y: 2,
     });
-    expect(pickTrailPose({ fusionLoc: { x: null, y: null }, lidarLoc: { x: 5, y: 6 } })).toEqual({
+    expect(
+      pickTrailPose({
+        fusionLoc: { x: null, y: null },
+        lidarLoc: { x: 5, y: 6 },
+      }),
+    ).toEqual({
       x: 5,
       y: 6,
     });

@@ -4,15 +4,15 @@
  * Successor to the monolithic `useDashboard` composable. Owns the reactive
  * fleet state, derived views (sorted/filtered devices, formations, grouped
  * alerts, per-device trails), and the resilient realtime (WebSocket) link.
- * Pure shaping logic lives in `../lib/fleetNormalize`; REST access lives in
- * `../services/fleetApi`. Being a store (single instance) it is safely shared
+ * Pure shaping logic and REST access both live in `@navfleet/fleet-core`, so
+ * the two frontends cannot fork them. Being a store (single instance) it is safely shared
  * across router views without duplicating the socket or state.
  */
 
 import { computed, reactive, toRaw } from "vue";
 import { defineStore } from "pinia";
-import { fallbackFleetPayload, sceneCatalog } from "../data-defaults";
-import { fleetApi } from "../services/fleetApi";
+import { fallbackFleetPayload, sceneCatalog } from "@navfleet/fleet-core";
+import { fleetApi } from "@navfleet/fleet-core";
 import { notify } from "../composables/useNotifications";
 import {
   cloneValue,
@@ -30,7 +30,7 @@ import {
   mergeSceneDefinitionParts,
   TRAIL_MAX_POINTS,
   TRAIL_MIN_DISTANCE,
-} from "../lib/fleetNormalize";
+} from "@navfleet/fleet-core";
 import type {
   DeviceAlert,
   DeviceSnapshot,
@@ -38,7 +38,7 @@ import type {
   SceneMapDefinition,
   Severity,
 } from "@navfleet/shared";
-import type { SceneDefinition } from "../services/fleetApi";
+import type { SceneDefinition } from "@navfleet/fleet-core";
 
 /**
  * Loose scene-definition record: seeded from the typed catalog and then merged

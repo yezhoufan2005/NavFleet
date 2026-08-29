@@ -4,7 +4,7 @@
  */
 
 import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
-import { fleetApi } from "../../src/services/fleetApi";
+import { fleetApi } from "../src/fleetApi";
 
 interface FetchCall {
   url: string;
@@ -49,7 +49,9 @@ describe("fleetApi", () => {
   it("returns the parsed JSON body for the scene catalog", async () => {
     stubFetch(200, { items: [{ sceneId: "yard" }] });
 
-    await expect(fleetApi.getScenes()).resolves.toEqual({ items: [{ sceneId: "yard" }] });
+    await expect(fleetApi.getScenes()).resolves.toEqual({
+      items: [{ sceneId: "yard" }],
+    });
     expect(calls[0].url).toBe("/api/v1/scenes");
   });
 
@@ -70,7 +72,11 @@ describe("fleetApi", () => {
   it("builds a query string from the defined params only", async () => {
     stubFetch(200, { deviceId: "agv-1", items: [] });
 
-    await fleetApi.getHistory("agv 1", { from: "2026-08-26T00:00:00Z", to: "", limit: 50 });
+    await fleetApi.getHistory("agv 1", {
+      from: "2026-08-26T00:00:00Z",
+      to: "",
+      limit: 50,
+    });
 
     expect(calls[0].url).toBe(
       "/api/v1/devices/agv%201/history?from=2026-08-26T00%3A00%3A00Z&limit=50",
@@ -88,8 +94,14 @@ describe("fleetApi", () => {
   it("passes alert filters through as query params", async () => {
     stubFetch(200, { items: [] });
 
-    await fleetApi.getAlerts({ severity: "critical", deviceId: "agv-1", status: "active" });
+    await fleetApi.getAlerts({
+      severity: "critical",
+      deviceId: "agv-1",
+      status: "active",
+    });
 
-    expect(calls[0].url).toBe("/api/v1/alerts?severity=critical&deviceId=agv-1&status=active");
+    expect(calls[0].url).toBe(
+      "/api/v1/alerts?severity=critical&deviceId=agv-1&status=active",
+    );
   });
 });

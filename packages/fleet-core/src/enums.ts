@@ -39,7 +39,10 @@ export const taskStatusMap: EnumMap = {
  * so the underlying value stays visible. Returns "--" for empty input and the
  * bare value for codes not present in the map.
  */
-export function formatEnum(value: number | string | null | undefined, map: EnumMap): string {
+export function formatEnum(
+  value: number | string | null | undefined,
+  map: EnumMap,
+): string {
   if (value === null || value === undefined || value === "") {
     return "--";
   }

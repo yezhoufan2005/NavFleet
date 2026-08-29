@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { wgs84ToGcj02 } from "../../src/utils/gps";
+import { wgs84ToGcj02 } from "../src/gps";
 
 describe("wgs84ToGcj02", () => {
   it("returns null for non-finite input", () => {

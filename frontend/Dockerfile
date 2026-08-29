@@ -12,12 +12,17 @@ ENV VITE_AMAP_SECURITY_JS_CODE=$VITE_AMAP_SECURITY_JS_CODE
 # Manifests + root lockfile first for a cache-friendly install layer.
 COPY package.json package-lock.json ./
 COPY packages/shared/package.json ./packages/shared/
+COPY packages/fleet-core/package.json ./packages/fleet-core/
 COPY backend/package.json ./backend/
 COPY frontend/package.json ./frontend/
 RUN npm ci --ignore-scripts
 
-# Shared types (source, type-only) + frontend sources, then build the frontend workspace.
+# Shared types (type-only) + the shared fleet logic + frontend sources, then build
+# the frontend workspace. `npm ci` above needs every workspace manifest listed or it
+# refuses the lockfile as out of sync, and the build needs fleet-core's sources
+# because the frontend imports it as a linked workspace, not a published tarball.
 COPY packages/shared ./packages/shared
+COPY packages/fleet-core ./packages/fleet-core
 COPY frontend ./frontend
 RUN npm run build -w navfleet-frontend
 

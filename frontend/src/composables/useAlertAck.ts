@@ -1,7 +1,7 @@
 /**
  * Client-side alert acknowledgement.
  *
- * Alerts are derived from live telemetry (see `lib/fleetNormalize`) and are
+ * Alerts are derived from live telemetry (see `@navfleet/fleet-core`) and are
  * therefore read-only — there is no backend mutation to "clear" one. Operators
  * still need to mute an alert they have seen, so acknowledgement is tracked
  * locally, keyed by the alert's stable id, and persisted to localStorage so it

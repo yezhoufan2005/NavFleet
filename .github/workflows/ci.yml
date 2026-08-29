@@ -68,6 +68,14 @@ jobs:
           cache: npm
           cache-dependency-path: package-lock.json
       - run: npm ci
+      # `@navfleet/fleet-core` is the frontends' shared logic layer, so its gates
+      # run here for the same reason `@navfleet/shared`'s run in the backend job:
+      # whoever breaks it breaks this job's dependency, and finding out in the
+      # same run is cheaper than a second one.
+      - run: npm run lint -w @navfleet/fleet-core
+      - run: npm run format:check -w @navfleet/fleet-core
+      - run: npm run typecheck -w @navfleet/fleet-core
+      - run: npm run test:coverage -w @navfleet/fleet-core
       - run: npm run lint -w navfleet-frontend
       - run: npm run format:check -w navfleet-frontend
       - run: npm run typecheck -w navfleet-frontend

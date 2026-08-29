@@ -1,7 +1,7 @@
 <script setup>
 import { computed, onBeforeUnmount, onMounted, ref, watch } from "vue";
 import { getAmapConfigError, hasAmapConfig, loadAmap } from "../utils/amap";
-import { wgs84ToGcj02 } from "../utils/gps";
+import { wgs84ToGcj02 } from "@navfleet/fleet-core";
 import { useTheme } from "../composables/useTheme";
 
 const props = defineProps({
