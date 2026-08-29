@@ -1,0 +1,1355 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>NavFleet 色板标样</title>
+    <!--
+      本文件由 docs/tools/gen-design-system-preview.py 从
+      docs/tools/design-system-preview.template.html 生成，不要手改。
+      设计与理由见 frontend-design-system.md；这一页的作用是机检：每一组语义
+      前景/背景的 WCAG 对比度都在页面里实时算出来，不合格的标红。Phase 10 的教训是
+      人工审阅三轮都没看出 2.99:1，所以这件事不能靠记得。
+    -->
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      rel="stylesheet"
+      href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans+Condensed:wght@600;700&family=IBM+Plex+Sans:wght@400;500;600&display=swap"
+    />
+    <style>
+      /* ── 原始层：色阶（生成）。实际项目里这一块进 @theme ── */
+      :root {
+        --color-teal-25: oklch(0.985 0.034 178);
+        --color-teal-50: oklch(0.97 0.045 178);
+        --color-teal-100: oklch(0.94 0.056 178);
+        --color-teal-200: oklch(0.88 0.067 178);
+        --color-teal-300: oklch(0.8 0.078 178);
+        --color-teal-400: oklch(0.71 0.089 178);
+        --color-teal-500: oklch(0.63 0.1 178);
+        --color-teal-600: oklch(0.55 0.089 178);
+        --color-teal-700: oklch(0.46 0.078 178);
+        --color-teal-800: oklch(0.37 0.067 178);
+        --color-teal-900: oklch(0.28 0.056 178);
+        --color-teal-950: oklch(0.2 0.045 178);
+
+        --color-slate-25: oklch(0.985 0.0068 205);
+        --color-slate-50: oklch(0.97 0.009 205);
+        --color-slate-100: oklch(0.94 0.0112 205);
+        --color-slate-200: oklch(0.88 0.0134 205);
+        --color-slate-300: oklch(0.8 0.0156 205);
+        --color-slate-400: oklch(0.71 0.0178 205);
+        --color-slate-500: oklch(0.63 0.02 205);
+        --color-slate-600: oklch(0.55 0.0178 205);
+        --color-slate-700: oklch(0.46 0.0156 205);
+        --color-slate-800: oklch(0.37 0.0134 205);
+        --color-slate-900: oklch(0.28 0.0112 205);
+        --color-slate-950: oklch(0.2 0.009 205);
+
+        --color-blue-25: oklch(0.985 0.051 250);
+        --color-blue-50: oklch(0.97 0.0675 250);
+        --color-blue-100: oklch(0.94 0.084 250);
+        --color-blue-200: oklch(0.88 0.1005 250);
+        --color-blue-300: oklch(0.8 0.117 250);
+        --color-blue-400: oklch(0.71 0.1335 250);
+        --color-blue-500: oklch(0.63 0.15 250);
+        --color-blue-600: oklch(0.55 0.1335 250);
+        --color-blue-700: oklch(0.46 0.117 250);
+        --color-blue-800: oklch(0.37 0.1005 250);
+        --color-blue-900: oklch(0.28 0.084 250);
+        --color-blue-950: oklch(0.2 0.0675 250);
+
+        --color-amber-25: oklch(0.985 0.0476 72);
+        --color-amber-50: oklch(0.97 0.063 72);
+        --color-amber-100: oklch(0.94 0.0784 72);
+        --color-amber-200: oklch(0.88 0.0938 72);
+        --color-amber-300: oklch(0.8 0.1092 72);
+        --color-amber-400: oklch(0.71 0.1246 72);
+        --color-amber-500: oklch(0.63 0.14 72);
+        --color-amber-600: oklch(0.55 0.1246 72);
+        --color-amber-700: oklch(0.46 0.1092 72);
+        --color-amber-800: oklch(0.37 0.0938 72);
+        --color-amber-900: oklch(0.28 0.0784 72);
+        --color-amber-950: oklch(0.2 0.063 72);
+
+        --color-rose-25: oklch(0.985 0.0578 16);
+        --color-rose-50: oklch(0.97 0.0765 16);
+        --color-rose-100: oklch(0.94 0.0952 16);
+        --color-rose-200: oklch(0.88 0.1139 16);
+        --color-rose-300: oklch(0.8 0.1326 16);
+        --color-rose-400: oklch(0.71 0.1513 16);
+        --color-rose-500: oklch(0.63 0.17 16);
+        --color-rose-600: oklch(0.55 0.1513 16);
+        --color-rose-700: oklch(0.46 0.1326 16);
+        --color-rose-800: oklch(0.37 0.1139 16);
+        --color-rose-900: oklch(0.28 0.0952 16);
+        --color-rose-950: oklch(0.2 0.0765 16);
+
+        --color-zinc-25: oklch(0.985 0.0027 235);
+        --color-zinc-50: oklch(0.97 0.0036 235);
+        --color-zinc-100: oklch(0.94 0.0045 235);
+        --color-zinc-200: oklch(0.88 0.0054 235);
+        --color-zinc-300: oklch(0.8 0.0062 235);
+        --color-zinc-400: oklch(0.71 0.0071 235);
+        --color-zinc-500: oklch(0.63 0.008 235);
+        --color-zinc-600: oklch(0.55 0.0071 235);
+        --color-zinc-700: oklch(0.46 0.0062 235);
+        --color-zinc-800: oklch(0.37 0.0054 235);
+        --color-zinc-900: oklch(0.28 0.0045 235);
+        --color-zinc-950: oklch(0.2 0.0036 235);
+
+        --color-white: oklch(1 0 0);
+        --spacing: 4px;
+        --radius-xs: 6px;
+        --radius-sm: 10px;
+        --radius-md: 14px;
+        --radius-lg: 22px;
+        --ease-standard: 160ms cubic-bezier(0.4, 0, 0.2, 1);
+        --ease-entrance: 220ms cubic-bezier(0.16, 1, 0.3, 1);
+        --ease-exit: 140ms cubic-bezier(0.4, 0, 1, 1);
+        --sans:
+          "IBM Plex Sans", "PingFang SC", "Microsoft YaHei", system-ui,
+          sans-serif;
+        --cond:
+          "IBM Plex Sans Condensed", "IBM Plex Sans", "PingFang SC", system-ui,
+          sans-serif;
+        --mono: "IBM Plex Mono", ui-monospace, Menlo, monospace;
+      }
+
+      /* ── 语义层：浅色基线。进 @theme 但不加 inline，否则主题覆盖失效 ── */
+      :root {
+        --color-surface: var(--color-slate-25);
+        --color-surface-raised: var(--color-white);
+        --color-surface-sunken: var(--color-slate-50);
+        --color-ink: var(--color-slate-900);
+        --color-ink-muted: var(--color-slate-700);
+        --color-ink-subtle: var(--color-slate-600);
+        --color-border: var(--color-slate-200);
+        --color-border-strong: var(--color-slate-300);
+        --color-brand: var(--color-teal-700);
+        --color-brand-contrast: var(--color-teal-25);
+        --color-brand-ink: var(--color-teal-800);
+        --color-brand-wash: var(--color-teal-50);
+        --color-notice: var(--color-blue-700);
+        --color-notice-contrast: var(--color-blue-25);
+        --color-notice-ink: var(--color-blue-800);
+        --color-notice-wash: var(--color-blue-50);
+        --color-warning: var(--color-amber-700);
+        --color-warning-contrast: var(--color-amber-25);
+        --color-warning-ink: var(--color-amber-800);
+        --color-warning-wash: var(--color-amber-50);
+        --color-critical: var(--color-rose-700);
+        --color-critical-contrast: var(--color-rose-25);
+        --color-critical-ink: var(--color-rose-800);
+        --color-critical-wash: var(--color-rose-50);
+        --color-offline: var(--color-zinc-600);
+        --color-offline-contrast: var(--color-zinc-25);
+        --color-offline-ink: var(--color-zinc-700);
+        --color-offline-wash: var(--color-zinc-100);
+
+        --shadow-raised:
+          0 1px 2px oklch(0.2 0.02 205 / 0.06),
+          0 8px 20px oklch(0.2 0.02 205 / 0.07);
+        --shadow-overlay:
+          0 4px 10px oklch(0.2 0.02 205 / 0.1),
+          0 20px 40px oklch(0.2 0.02 205 / 0.12);
+        color-scheme: light;
+      }
+
+      /* ── 跟随系统：未标记 data-theme 的默认态 ── */
+      @media (prefers-color-scheme: dark) {
+        :root:not([data-theme="light"]) {
+          --color-surface: var(--color-slate-900);
+          --color-surface-raised: var(--color-slate-800);
+          --color-surface-sunken: var(--color-slate-950);
+          --color-ink: var(--color-slate-50);
+          --color-ink-muted: var(--color-slate-300);
+          --color-ink-subtle: var(--color-slate-400);
+          --color-border: var(--color-slate-800);
+          --color-border-strong: var(--color-slate-700);
+          --color-brand: var(--color-teal-300);
+          --color-brand-contrast: var(--color-teal-950);
+          --color-brand-ink: var(--color-teal-200);
+          --color-brand-wash: var(--color-teal-900);
+          --color-notice: var(--color-blue-300);
+          --color-notice-contrast: var(--color-blue-950);
+          --color-notice-ink: var(--color-blue-200);
+          --color-notice-wash: var(--color-blue-900);
+          --color-warning: var(--color-amber-300);
+          --color-warning-contrast: var(--color-amber-950);
+          --color-warning-ink: var(--color-amber-200);
+          --color-warning-wash: var(--color-amber-900);
+          --color-critical: var(--color-rose-300);
+          --color-critical-contrast: var(--color-rose-950);
+          --color-critical-ink: var(--color-rose-200);
+          --color-critical-wash: var(--color-rose-900);
+          --color-offline: var(--color-zinc-400);
+          --color-offline-contrast: var(--color-zinc-950);
+          --color-offline-ink: var(--color-zinc-300);
+          --color-offline-wash: var(--color-zinc-800);
+
+          --shadow-raised:
+            0 1px 2px oklch(0 0 0 / 0.4), 0 10px 26px oklch(0 0 0 / 0.45);
+          --shadow-overlay:
+            0 6px 14px oklch(0 0 0 / 0.5), 0 24px 48px oklch(0 0 0 / 0.55);
+          color-scheme: dark;
+        }
+      }
+
+      /* ── 显式选深色，优先于系统 ── */
+      :root[data-theme="dark"] {
+        --color-surface: var(--color-slate-900);
+        --color-surface-raised: var(--color-slate-800);
+        --color-surface-sunken: var(--color-slate-950);
+        --color-ink: var(--color-slate-50);
+        --color-ink-muted: var(--color-slate-300);
+        --color-ink-subtle: var(--color-slate-400);
+        --color-border: var(--color-slate-800);
+        --color-border-strong: var(--color-slate-700);
+        --color-brand: var(--color-teal-300);
+        --color-brand-contrast: var(--color-teal-950);
+        --color-brand-ink: var(--color-teal-200);
+        --color-brand-wash: var(--color-teal-900);
+        --color-notice: var(--color-blue-300);
+        --color-notice-contrast: var(--color-blue-950);
+        --color-notice-ink: var(--color-blue-200);
+        --color-notice-wash: var(--color-blue-900);
+        --color-warning: var(--color-amber-300);
+        --color-warning-contrast: var(--color-amber-950);
+        --color-warning-ink: var(--color-amber-200);
+        --color-warning-wash: var(--color-amber-900);
+        --color-critical: var(--color-rose-300);
+        --color-critical-contrast: var(--color-rose-950);
+        --color-critical-ink: var(--color-rose-200);
+        --color-critical-wash: var(--color-rose-900);
+        --color-offline: var(--color-zinc-400);
+        --color-offline-contrast: var(--color-zinc-950);
+        --color-offline-ink: var(--color-zinc-300);
+        --color-offline-wash: var(--color-zinc-800);
+
+        --shadow-raised:
+          0 1px 2px oklch(0 0 0 / 0.4), 0 10px 26px oklch(0 0 0 / 0.45);
+        --shadow-overlay:
+          0 6px 14px oklch(0 0 0 / 0.5), 0 24px 48px oklch(0 0 0 / 0.55);
+        color-scheme: dark;
+      }
+    </style>
+    <style>
+      * {
+        box-sizing: border-box;
+      }
+      body {
+        margin: 0;
+        background: var(--color-surface);
+        color: var(--color-ink);
+        font-family: var(--sans);
+        font-size: 14px;
+        line-height: 1.6;
+        -webkit-font-smoothing: antialiased;
+      }
+      .sheet {
+        max-width: 1080px;
+        margin: 0 auto;
+        padding: calc(var(--spacing) * 12) calc(var(--spacing) * 6)
+          calc(var(--spacing) * 20);
+        display: flex;
+        flex-direction: column;
+        gap: calc(var(--spacing) * 12);
+      }
+      h1,
+      h2 {
+        font-family: var(--cond);
+        font-weight: 700;
+        margin: 0;
+        text-wrap: balance;
+      }
+      h1 {
+        font-size: 38px;
+        line-height: 1.1;
+        letter-spacing: -0.01em;
+      }
+      h2 {
+        font-size: 24px;
+        line-height: 1.25;
+      }
+      p {
+        margin: 0;
+      }
+      code {
+        font-family: var(--mono);
+        font-size: 0.86em;
+        background: var(--color-surface-sunken);
+        border: 1px solid var(--color-border);
+        padding: 1px 5px;
+        border-radius: var(--radius-xs);
+      }
+      .eyebrow {
+        font-family: var(--mono);
+        font-size: 11px;
+        letter-spacing: 0.16em;
+        text-transform: uppercase;
+        color: var(--color-ink-subtle);
+      }
+      section {
+        display: flex;
+        flex-direction: column;
+        gap: calc(var(--spacing) * 5);
+      }
+      .card {
+        background: var(--color-surface-raised);
+        border: 1px solid var(--color-border);
+        border-radius: var(--radius-md);
+        box-shadow: var(--shadow-raised);
+        padding: calc(var(--spacing) * 6);
+      }
+      .scroll {
+        overflow-x: auto;
+      }
+      table {
+        width: 100%;
+        border-collapse: collapse;
+        font-size: 13px;
+      }
+      th,
+      td {
+        text-align: left;
+        padding: 8px 12px 8px 0;
+        border-bottom: 1px solid var(--color-border);
+        vertical-align: middle;
+      }
+      th {
+        font-family: var(--mono);
+        font-size: 11px;
+        letter-spacing: 0.09em;
+        text-transform: uppercase;
+        color: var(--color-ink-subtle);
+        font-weight: 400;
+      }
+      .num {
+        font-variant-numeric: tabular-nums;
+        font-family: var(--mono);
+      }
+      .ramp {
+        display: grid;
+        grid-template-columns: 200px minmax(0, 1fr);
+        gap: calc(var(--spacing) * 4);
+        align-items: center;
+      }
+      .ramp-label b {
+        display: block;
+        font-family: var(--mono);
+        font-size: 13px;
+      }
+      .ramp-label span {
+        font-size: 12px;
+        color: var(--color-ink-subtle);
+      }
+      .ramp-strip {
+        display: flex;
+        border-radius: var(--radius-xs);
+        overflow: hidden;
+        border: 1px solid var(--color-border);
+      }
+      .ramp-strip i {
+        flex: 1;
+        height: 46px;
+        display: grid;
+        place-items: end center;
+        padding-bottom: 3px;
+      }
+      .ramp-strip em {
+        font-family: var(--mono);
+        font-size: 9px;
+        font-style: normal;
+        color: oklch(1 0 0 / 0.85);
+        mix-blend-mode: difference;
+      }
+      @media (max-width: 760px) {
+        .ramp {
+          grid-template-columns: minmax(0, 1fr);
+        }
+      }
+      .sample {
+        display: inline-block;
+        padding: 7px 12px;
+        border-radius: var(--radius-xs);
+        white-space: nowrap;
+      }
+      .ratio {
+        font-family: var(--mono);
+        font-variant-numeric: tabular-nums;
+      }
+      .verdict {
+        font-family: var(--mono);
+        font-size: 11px;
+        white-space: nowrap;
+      }
+      tr[data-state="fail"] {
+        background: var(--color-critical-wash);
+      }
+      tr[data-state="fail"] .verdict {
+        color: var(--color-critical-ink);
+      }
+      tr[data-state="aa"] .verdict {
+        color: var(--color-ink-muted);
+      }
+      tr[data-state="aaa"] .verdict {
+        color: var(--color-brand-ink);
+      }
+      .audit-summary {
+        display: flex;
+        flex-wrap: wrap;
+        gap: calc(var(--spacing) * 3);
+        font-family: var(--mono);
+        font-size: 12px;
+      }
+      .audit-summary span {
+        border: 1px solid var(--color-border-strong);
+        border-radius: var(--radius-xs);
+        padding: 3px 10px;
+      }
+      .audit-summary span[data-bad="true"] {
+        border-color: var(--color-critical);
+        color: var(--color-critical-ink);
+        background: var(--color-critical-wash);
+      }
+      .sp {
+        display: flex;
+        align-items: center;
+        gap: calc(var(--spacing) * 3);
+      }
+      .sp i {
+        height: 14px;
+        background: var(--color-brand);
+        border-radius: 2px;
+        display: block;
+      }
+      .sp span {
+        font-family: var(--mono);
+        font-size: 12px;
+        color: var(--color-ink-muted);
+      }
+      .elev {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(min(210px, 100%), 1fr));
+        gap: calc(var(--spacing) * 4);
+      }
+      .elev > div {
+        background: var(--color-surface-raised);
+        border: 1px solid var(--color-border);
+        border-radius: var(--radius-md);
+        padding: calc(var(--spacing) * 4);
+        font-family: var(--mono);
+        font-size: 12px;
+      }
+      .toggle {
+        font-family: var(--mono);
+        font-size: 12px;
+        cursor: pointer;
+        background: var(--color-brand);
+        color: var(--color-brand-contrast);
+        border: 0;
+        border-radius: var(--radius-sm);
+        padding: 7px 14px;
+      }
+      .toggle:focus-visible {
+        outline: 2px solid var(--color-brand);
+        outline-offset: 3px;
+      }
+      @media (prefers-reduced-motion: no-preference) {
+        .toggle {
+          transition: filter var(--ease-standard);
+        }
+        .toggle:hover {
+          filter: brightness(1.08);
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <div class="sheet">
+      <header
+        style="
+          display: flex;
+          flex-direction: column;
+          gap: calc(var(--spacing) * 4);
+        "
+      >
+        <p class="eyebrow">NavFleet · Phase 11D · 设计系统标样</p>
+        <h1>6 条色阶，14 组对比度，自己检查自己</h1>
+        <p
+          style="
+            max-width: 64ch;
+            color: var(--color-ink-muted);
+            font-size: 15px;
+          "
+        >
+          这一页不是色板展示，是<strong>机检</strong>。下面每一组语义前景/背景的
+          WCAG 对比度都由页面实时算出， 低于 4.5:1 标红。Phase 10
+          的经历是：浅色主题的品牌前景只有 2.99:1，而三轮人工审阅都没看出来 ——
+          所以这件事不该靠记得。切换主题按钮会让全部数字重算。
+        </p>
+        <div
+          style="
+            display: flex;
+            flex-wrap: wrap;
+            gap: calc(var(--spacing) * 3);
+            align-items: center;
+          "
+        >
+          <button class="toggle" type="button" data-role="toggle">
+            切换主题（当前：跟随系统）
+          </button>
+          <span class="eyebrow" data-role="theme-state"></span>
+        </div>
+      </header>
+
+      <section>
+        <div>
+          <p class="eyebrow">① 原始层</p>
+          <h2 style="margin-top: calc(var(--spacing) * 2)">
+            色阶 —— 6 × 12 阶，oklch 生成
+          </h2>
+        </div>
+        <p style="color: var(--color-ink-muted); max-width: 66ch">
+          用 <code>oklch()</code> 而不是
+          hex，是为了让明度阶梯在感知上均匀：同一个 L 值在不同色相下看起来
+          一样亮。彩度在 500
+          阶达峰、向两端线性收敛，避免浅色端发灰、深色端糊成一团。中性色
+          <code>slate</code> 刻意带一点青绿偏色而不是纯灰 ——
+          纯中灰在品牌色旁边会显脏。
+        </p>
+        <div
+          class="card"
+          style="
+            display: flex;
+            flex-direction: column;
+            gap: calc(var(--spacing) * 4);
+          "
+        >
+          <div class="ramp">
+            <div class="ramp-label"><b>teal</b><span>品牌</span></div>
+            <div class="ramp-strip">
+              <i style="background: var(--color-teal-25)" title="teal-25"
+                ><em>25</em></i
+              ><i style="background: var(--color-teal-50)" title="teal-50"
+                ><em>50</em></i
+              ><i style="background: var(--color-teal-100)" title="teal-100"
+                ><em>100</em></i
+              ><i style="background: var(--color-teal-200)" title="teal-200"
+                ><em>200</em></i
+              ><i style="background: var(--color-teal-300)" title="teal-300"
+                ><em>300</em></i
+              ><i style="background: var(--color-teal-400)" title="teal-400"
+                ><em>400</em></i
+              ><i style="background: var(--color-teal-500)" title="teal-500"
+                ><em>500</em></i
+              ><i style="background: var(--color-teal-600)" title="teal-600"
+                ><em>600</em></i
+              ><i style="background: var(--color-teal-700)" title="teal-700"
+                ><em>700</em></i
+              ><i style="background: var(--color-teal-800)" title="teal-800"
+                ><em>800</em></i
+              ><i style="background: var(--color-teal-900)" title="teal-900"
+                ><em>900</em></i
+              ><i style="background: var(--color-teal-950)" title="teal-950"
+                ><em>950</em></i
+              >
+            </div>
+          </div>
+          <div class="ramp">
+            <div class="ramp-label">
+              <b>slate</b><span>中性（带青绿偏色，不是纯灰）</span>
+            </div>
+            <div class="ramp-strip">
+              <i style="background: var(--color-slate-25)" title="slate-25"
+                ><em>25</em></i
+              ><i style="background: var(--color-slate-50)" title="slate-50"
+                ><em>50</em></i
+              ><i style="background: var(--color-slate-100)" title="slate-100"
+                ><em>100</em></i
+              ><i style="background: var(--color-slate-200)" title="slate-200"
+                ><em>200</em></i
+              ><i style="background: var(--color-slate-300)" title="slate-300"
+                ><em>300</em></i
+              ><i style="background: var(--color-slate-400)" title="slate-400"
+                ><em>400</em></i
+              ><i style="background: var(--color-slate-500)" title="slate-500"
+                ><em>500</em></i
+              ><i style="background: var(--color-slate-600)" title="slate-600"
+                ><em>600</em></i
+              ><i style="background: var(--color-slate-700)" title="slate-700"
+                ><em>700</em></i
+              ><i style="background: var(--color-slate-800)" title="slate-800"
+                ><em>800</em></i
+              ><i style="background: var(--color-slate-900)" title="slate-900"
+                ><em>900</em></i
+              ><i style="background: var(--color-slate-950)" title="slate-950"
+                ><em>950</em></i
+              >
+            </div>
+          </div>
+          <div class="ramp">
+            <div class="ramp-label"><b>blue</b><span>notice</span></div>
+            <div class="ramp-strip">
+              <i style="background: var(--color-blue-25)" title="blue-25"
+                ><em>25</em></i
+              ><i style="background: var(--color-blue-50)" title="blue-50"
+                ><em>50</em></i
+              ><i style="background: var(--color-blue-100)" title="blue-100"
+                ><em>100</em></i
+              ><i style="background: var(--color-blue-200)" title="blue-200"
+                ><em>200</em></i
+              ><i style="background: var(--color-blue-300)" title="blue-300"
+                ><em>300</em></i
+              ><i style="background: var(--color-blue-400)" title="blue-400"
+                ><em>400</em></i
+              ><i style="background: var(--color-blue-500)" title="blue-500"
+                ><em>500</em></i
+              ><i style="background: var(--color-blue-600)" title="blue-600"
+                ><em>600</em></i
+              ><i style="background: var(--color-blue-700)" title="blue-700"
+                ><em>700</em></i
+              ><i style="background: var(--color-blue-800)" title="blue-800"
+                ><em>800</em></i
+              ><i style="background: var(--color-blue-900)" title="blue-900"
+                ><em>900</em></i
+              ><i style="background: var(--color-blue-950)" title="blue-950"
+                ><em>950</em></i
+              >
+            </div>
+          </div>
+          <div class="ramp">
+            <div class="ramp-label"><b>amber</b><span>warning</span></div>
+            <div class="ramp-strip">
+              <i style="background: var(--color-amber-25)" title="amber-25"
+                ><em>25</em></i
+              ><i style="background: var(--color-amber-50)" title="amber-50"
+                ><em>50</em></i
+              ><i style="background: var(--color-amber-100)" title="amber-100"
+                ><em>100</em></i
+              ><i style="background: var(--color-amber-200)" title="amber-200"
+                ><em>200</em></i
+              ><i style="background: var(--color-amber-300)" title="amber-300"
+                ><em>300</em></i
+              ><i style="background: var(--color-amber-400)" title="amber-400"
+                ><em>400</em></i
+              ><i style="background: var(--color-amber-500)" title="amber-500"
+                ><em>500</em></i
+              ><i style="background: var(--color-amber-600)" title="amber-600"
+                ><em>600</em></i
+              ><i style="background: var(--color-amber-700)" title="amber-700"
+                ><em>700</em></i
+              ><i style="background: var(--color-amber-800)" title="amber-800"
+                ><em>800</em></i
+              ><i style="background: var(--color-amber-900)" title="amber-900"
+                ><em>900</em></i
+              ><i style="background: var(--color-amber-950)" title="amber-950"
+                ><em>950</em></i
+              >
+            </div>
+          </div>
+          <div class="ramp">
+            <div class="ramp-label"><b>rose</b><span>critical</span></div>
+            <div class="ramp-strip">
+              <i style="background: var(--color-rose-25)" title="rose-25"
+                ><em>25</em></i
+              ><i style="background: var(--color-rose-50)" title="rose-50"
+                ><em>50</em></i
+              ><i style="background: var(--color-rose-100)" title="rose-100"
+                ><em>100</em></i
+              ><i style="background: var(--color-rose-200)" title="rose-200"
+                ><em>200</em></i
+              ><i style="background: var(--color-rose-300)" title="rose-300"
+                ><em>300</em></i
+              ><i style="background: var(--color-rose-400)" title="rose-400"
+                ><em>400</em></i
+              ><i style="background: var(--color-rose-500)" title="rose-500"
+                ><em>500</em></i
+              ><i style="background: var(--color-rose-600)" title="rose-600"
+                ><em>600</em></i
+              ><i style="background: var(--color-rose-700)" title="rose-700"
+                ><em>700</em></i
+              ><i style="background: var(--color-rose-800)" title="rose-800"
+                ><em>800</em></i
+              ><i style="background: var(--color-rose-900)" title="rose-900"
+                ><em>900</em></i
+              ><i style="background: var(--color-rose-950)" title="rose-950"
+                ><em>950</em></i
+              >
+            </div>
+          </div>
+          <div class="ramp">
+            <div class="ramp-label"><b>zinc</b><span>offline / 禁用</span></div>
+            <div class="ramp-strip">
+              <i style="background: var(--color-zinc-25)" title="zinc-25"
+                ><em>25</em></i
+              ><i style="background: var(--color-zinc-50)" title="zinc-50"
+                ><em>50</em></i
+              ><i style="background: var(--color-zinc-100)" title="zinc-100"
+                ><em>100</em></i
+              ><i style="background: var(--color-zinc-200)" title="zinc-200"
+                ><em>200</em></i
+              ><i style="background: var(--color-zinc-300)" title="zinc-300"
+                ><em>300</em></i
+              ><i style="background: var(--color-zinc-400)" title="zinc-400"
+                ><em>400</em></i
+              ><i style="background: var(--color-zinc-500)" title="zinc-500"
+                ><em>500</em></i
+              ><i style="background: var(--color-zinc-600)" title="zinc-600"
+                ><em>600</em></i
+              ><i style="background: var(--color-zinc-700)" title="zinc-700"
+                ><em>700</em></i
+              ><i style="background: var(--color-zinc-800)" title="zinc-800"
+                ><em>800</em></i
+              ><i style="background: var(--color-zinc-900)" title="zinc-900"
+                ><em>900</em></i
+              ><i style="background: var(--color-zinc-950)" title="zinc-950"
+                ><em>950</em></i
+              >
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section>
+        <div>
+          <p class="eyebrow">② 语义层 · 机检</p>
+          <h2 style="margin-top: calc(var(--spacing) * 2)">
+            对比度审计（28 个 token）
+          </h2>
+        </div>
+        <div class="audit-summary" data-role="summary"></div>
+        <p style="color: var(--color-ink-muted); max-width: 66ch">
+          规则：<code>X-contrast</code> 用于<strong>实心</strong> X 表面，明度与
+          X 相反；<code>X-ink</code> 用于 X 的
+          <strong>薄底</strong
+          >（<code>X-wash</code>），明度与周围表面同向。两者需求正好相反 —— 这是
+          Phase 10 用 axe 才发现的，现在升级成对每个状态色都成立的规则。
+        </p>
+        <div class="card scroll">
+          <table>
+            <thead>
+              <tr>
+                <th>前景</th>
+                <th>背景</th>
+                <th>用途</th>
+                <th>实样</th>
+                <th>比值</th>
+                <th>判定</th>
+              </tr>
+            </thead>
+            <tbody data-role="pairs">
+              <tr data-fg="ink" data-bg="surface">
+                <td><code>ink</code></td>
+                <td><code>surface</code></td>
+                <td>正文</td>
+                <td>
+                  <span
+                    class="sample"
+                    style="
+                      background: var(--color-surface);
+                      color: var(--color-ink);
+                    "
+                    >车队 42 台在线 Aa</span
+                  >
+                </td>
+                <td class="ratio" data-role="ratio">—</td>
+                <td class="verdict" data-role="verdict">—</td>
+              </tr>
+              <tr data-fg="ink" data-bg="surface-raised">
+                <td><code>ink</code></td>
+                <td><code>surface-raised</code></td>
+                <td>卡片上的正文</td>
+                <td>
+                  <span
+                    class="sample"
+                    style="
+                      background: var(--color-surface-raised);
+                      color: var(--color-ink);
+                    "
+                    >车队 42 台在线 Aa</span
+                  >
+                </td>
+                <td class="ratio" data-role="ratio">—</td>
+                <td class="verdict" data-role="verdict">—</td>
+              </tr>
+              <tr data-fg="ink-muted" data-bg="surface">
+                <td><code>ink-muted</code></td>
+                <td><code>surface</code></td>
+                <td>次要文本</td>
+                <td>
+                  <span
+                    class="sample"
+                    style="
+                      background: var(--color-surface);
+                      color: var(--color-ink-muted);
+                    "
+                    >车队 42 台在线 Aa</span
+                  >
+                </td>
+                <td class="ratio" data-role="ratio">—</td>
+                <td class="verdict" data-role="verdict">—</td>
+              </tr>
+              <tr data-fg="ink-subtle" data-bg="surface">
+                <td><code>ink-subtle</code></td>
+                <td><code>surface</code></td>
+                <td>第三级文本（仅非关键信息）</td>
+                <td>
+                  <span
+                    class="sample"
+                    style="
+                      background: var(--color-surface);
+                      color: var(--color-ink-subtle);
+                    "
+                    >车队 42 台在线 Aa</span
+                  >
+                </td>
+                <td class="ratio" data-role="ratio">—</td>
+                <td class="verdict" data-role="verdict">—</td>
+              </tr>
+              <tr data-fg="brand-contrast" data-bg="brand">
+                <td><code>brand-contrast</code></td>
+                <td><code>brand</code></td>
+                <td>实心 brand 表面上的文字</td>
+                <td>
+                  <span
+                    class="sample"
+                    style="
+                      background: var(--color-brand);
+                      color: var(--color-brand-contrast);
+                    "
+                    >车队 42 台在线 Aa</span
+                  >
+                </td>
+                <td class="ratio" data-role="ratio">—</td>
+                <td class="verdict" data-role="verdict">—</td>
+              </tr>
+              <tr data-fg="brand-ink" data-bg="brand-wash">
+                <td><code>brand-ink</code></td>
+                <td><code>brand-wash</code></td>
+                <td>brand 薄底上的文字</td>
+                <td>
+                  <span
+                    class="sample"
+                    style="
+                      background: var(--color-brand-wash);
+                      color: var(--color-brand-ink);
+                    "
+                    >车队 42 台在线 Aa</span
+                  >
+                </td>
+                <td class="ratio" data-role="ratio">—</td>
+                <td class="verdict" data-role="verdict">—</td>
+              </tr>
+              <tr data-fg="notice-contrast" data-bg="notice">
+                <td><code>notice-contrast</code></td>
+                <td><code>notice</code></td>
+                <td>实心 notice 表面</td>
+                <td>
+                  <span
+                    class="sample"
+                    style="
+                      background: var(--color-notice);
+                      color: var(--color-notice-contrast);
+                    "
+                    >车队 42 台在线 Aa</span
+                  >
+                </td>
+                <td class="ratio" data-role="ratio">—</td>
+                <td class="verdict" data-role="verdict">—</td>
+              </tr>
+              <tr data-fg="notice-ink" data-bg="notice-wash">
+                <td><code>notice-ink</code></td>
+                <td><code>notice-wash</code></td>
+                <td>notice 薄底</td>
+                <td>
+                  <span
+                    class="sample"
+                    style="
+                      background: var(--color-notice-wash);
+                      color: var(--color-notice-ink);
+                    "
+                    >车队 42 台在线 Aa</span
+                  >
+                </td>
+                <td class="ratio" data-role="ratio">—</td>
+                <td class="verdict" data-role="verdict">—</td>
+              </tr>
+              <tr data-fg="warning-contrast" data-bg="warning">
+                <td><code>warning-contrast</code></td>
+                <td><code>warning</code></td>
+                <td>实心 warning 表面</td>
+                <td>
+                  <span
+                    class="sample"
+                    style="
+                      background: var(--color-warning);
+                      color: var(--color-warning-contrast);
+                    "
+                    >车队 42 台在线 Aa</span
+                  >
+                </td>
+                <td class="ratio" data-role="ratio">—</td>
+                <td class="verdict" data-role="verdict">—</td>
+              </tr>
+              <tr data-fg="warning-ink" data-bg="warning-wash">
+                <td><code>warning-ink</code></td>
+                <td><code>warning-wash</code></td>
+                <td>warning 薄底</td>
+                <td>
+                  <span
+                    class="sample"
+                    style="
+                      background: var(--color-warning-wash);
+                      color: var(--color-warning-ink);
+                    "
+                    >车队 42 台在线 Aa</span
+                  >
+                </td>
+                <td class="ratio" data-role="ratio">—</td>
+                <td class="verdict" data-role="verdict">—</td>
+              </tr>
+              <tr data-fg="critical-contrast" data-bg="critical">
+                <td><code>critical-contrast</code></td>
+                <td><code>critical</code></td>
+                <td>实心 critical 表面</td>
+                <td>
+                  <span
+                    class="sample"
+                    style="
+                      background: var(--color-critical);
+                      color: var(--color-critical-contrast);
+                    "
+                    >车队 42 台在线 Aa</span
+                  >
+                </td>
+                <td class="ratio" data-role="ratio">—</td>
+                <td class="verdict" data-role="verdict">—</td>
+              </tr>
+              <tr data-fg="critical-ink" data-bg="critical-wash">
+                <td><code>critical-ink</code></td>
+                <td><code>critical-wash</code></td>
+                <td>critical 薄底</td>
+                <td>
+                  <span
+                    class="sample"
+                    style="
+                      background: var(--color-critical-wash);
+                      color: var(--color-critical-ink);
+                    "
+                    >车队 42 台在线 Aa</span
+                  >
+                </td>
+                <td class="ratio" data-role="ratio">—</td>
+                <td class="verdict" data-role="verdict">—</td>
+              </tr>
+              <tr data-fg="offline-contrast" data-bg="offline">
+                <td><code>offline-contrast</code></td>
+                <td><code>offline</code></td>
+                <td>实心 offline 表面</td>
+                <td>
+                  <span
+                    class="sample"
+                    style="
+                      background: var(--color-offline);
+                      color: var(--color-offline-contrast);
+                    "
+                    >车队 42 台在线 Aa</span
+                  >
+                </td>
+                <td class="ratio" data-role="ratio">—</td>
+                <td class="verdict" data-role="verdict">—</td>
+              </tr>
+              <tr data-fg="offline-ink" data-bg="offline-wash">
+                <td><code>offline-ink</code></td>
+                <td><code>offline-wash</code></td>
+                <td>offline 薄底</td>
+                <td>
+                  <span
+                    class="sample"
+                    style="
+                      background: var(--color-offline-wash);
+                      color: var(--color-offline-ink);
+                    "
+                    >车队 42 台在线 Aa</span
+                  >
+                </td>
+                <td class="ratio" data-role="ratio">—</td>
+                <td class="verdict" data-role="verdict">—</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </section>
+
+      <section>
+        <div>
+          <p class="eyebrow">① 原始层</p>
+          <h2 style="margin-top: calc(var(--spacing) * 2)">
+            字阶 —— 基准 14px
+          </h2>
+        </div>
+        <p style="color: var(--color-ink-muted); max-width: 66ch">
+          基准取 14px 而非 16px：这是控制台密度，不是文章。现状是字号散落在各
+          partial 里、从 9px 到 22px 至少 11 种且没有刻度。
+        </p>
+        <div class="card scroll">
+          <table>
+            <thead>
+              <tr>
+                <th>token</th>
+                <th>字号</th>
+                <th>行高</th>
+                <th>实样</th>
+                <th>用在</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td><code>text-2xs</code></td>
+                <td class="num">11px</td>
+                <td class="num">1.45</td>
+                <td style="font-size: 11px; line-height: 1.45">
+                  在线设备 42 / 48 · Fleet ready
+                </td>
+                <td>表格里的次要注记</td>
+              </tr>
+              <tr>
+                <td><code>text-xs</code></td>
+                <td class="num">12px</td>
+                <td class="num">1.5</td>
+                <td style="font-size: 12px; line-height: 1.5">
+                  在线设备 42 / 48 · Fleet ready
+                </td>
+                <td>标签、徽标</td>
+              </tr>
+              <tr>
+                <td><code>text-sm</code></td>
+                <td class="num">13px</td>
+                <td class="num">1.55</td>
+                <td style="font-size: 13px; line-height: 1.55">
+                  在线设备 42 / 48 · Fleet ready
+                </td>
+                <td>辅助文本</td>
+              </tr>
+              <tr>
+                <td><code>text-base</code></td>
+                <td class="num">14px</td>
+                <td class="num">1.6</td>
+                <td style="font-size: 14px; line-height: 1.6">
+                  在线设备 42 / 48 · Fleet ready
+                </td>
+                <td>正文基准（控制台密度，不是文章）</td>
+              </tr>
+              <tr>
+                <td><code>text-md</code></td>
+                <td class="num">15px</td>
+                <td class="num">1.6</td>
+                <td style="font-size: 15px; line-height: 1.6">
+                  在线设备 42 / 48 · Fleet ready
+                </td>
+                <td>强调正文</td>
+              </tr>
+              <tr>
+                <td><code>text-lg</code></td>
+                <td class="num">17px</td>
+                <td class="num">1.45</td>
+                <td style="font-size: 17px; line-height: 1.45">
+                  在线设备 42 / 48 · Fleet ready
+                </td>
+                <td>卡片标题</td>
+              </tr>
+              <tr>
+                <td><code>text-xl</code></td>
+                <td class="num">20px</td>
+                <td class="num">1.35</td>
+                <td style="font-size: 20px; line-height: 1.35">
+                  在线设备 42 / 48 · Fleet ready
+                </td>
+                <td>统计数值、区块标题</td>
+              </tr>
+              <tr>
+                <td><code>text-2xl</code></td>
+                <td class="num">24px</td>
+                <td class="num">1.25</td>
+                <td style="font-size: 24px; line-height: 1.25">
+                  在线设备 42 / 48 · Fleet ready
+                </td>
+                <td>页面标题</td>
+              </tr>
+              <tr>
+                <td><code>text-3xl</code></td>
+                <td class="num">30px</td>
+                <td class="num">1.2</td>
+                <td style="font-size: 30px; line-height: 1.2">
+                  在线设备 42 / 48 · Fleet ready
+                </td>
+                <td>总览页的关键数字</td>
+              </tr>
+              <tr>
+                <td><code>text-4xl</code></td>
+                <td class="num">38px</td>
+                <td class="num">1.1</td>
+                <td style="font-size: 38px; line-height: 1.1">
+                  在线设备 42 / 48 · Fleet ready
+                </td>
+                <td>少用</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+        <div class="card scroll">
+          <p class="eyebrow" style="margin-bottom: calc(var(--spacing) * 3)">
+            大屏字阶（仅 wall 断点 ≥2560px 生效）
+          </p>
+          <table>
+            <thead>
+              <tr>
+                <th>token</th>
+                <th>字号</th>
+                <th>实样</th>
+                <th>用在</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td><code>text-wall-sm</code></td>
+                <td class="num">20px</td>
+                <td style="font-size: 20px; line-height: 1.1; font-weight: 600">
+                  42 / 48
+                </td>
+                <td>大屏标签</td>
+              </tr>
+              <tr>
+                <td><code>text-wall-base</code></td>
+                <td class="num">26px</td>
+                <td style="font-size: 26px; line-height: 1.1; font-weight: 600">
+                  42 / 48
+                </td>
+                <td>大屏正文</td>
+              </tr>
+              <tr>
+                <td><code>text-wall-lg</code></td>
+                <td class="num">34px</td>
+                <td style="font-size: 34px; line-height: 1.1; font-weight: 600">
+                  42 / 48
+                </td>
+                <td>大屏卡片标题</td>
+              </tr>
+              <tr>
+                <td><code>text-wall-xl</code></td>
+                <td class="num">48px</td>
+                <td style="font-size: 44px; line-height: 1.1; font-weight: 600">
+                  42 / 48
+                </td>
+                <td>大屏统计值（此处按 44px 截显，实际 48px）</td>
+              </tr>
+              <tr>
+                <td><code>text-wall-2xl</code></td>
+                <td class="num">72px</td>
+                <td style="font-size: 44px; line-height: 1.1; font-weight: 600">
+                  42 / 48
+                </td>
+                <td>大屏主指标（两米外可读）（此处按 44px 截显，实际 72px）</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </section>
+
+      <section>
+        <div>
+          <p class="eyebrow">① 原始层</p>
+          <h2 style="margin-top: calc(var(--spacing) * 2)">
+            间距、圆角、层级、动效
+          </h2>
+        </div>
+        <div
+          class="card"
+          style="
+            display: flex;
+            flex-direction: column;
+            gap: calc(var(--spacing) * 2);
+          "
+        >
+          <p class="eyebrow">间距刻度 · 基准 <code>--spacing: 4px</code></p>
+          <div class="sp">
+            <i style="width: calc(var(--spacing) * 1)"></i><span>1 · 4px</span>
+          </div>
+          <div class="sp">
+            <i style="width: calc(var(--spacing) * 2)"></i><span>2 · 8px</span>
+          </div>
+          <div class="sp">
+            <i style="width: calc(var(--spacing) * 3)"></i><span>3 · 12px</span>
+          </div>
+          <div class="sp">
+            <i style="width: calc(var(--spacing) * 4)"></i><span>4 · 16px</span>
+          </div>
+          <div class="sp">
+            <i style="width: calc(var(--spacing) * 5)"></i><span>5 · 20px</span>
+          </div>
+          <div class="sp">
+            <i style="width: calc(var(--spacing) * 6)"></i><span>6 · 24px</span>
+          </div>
+          <div class="sp">
+            <i style="width: calc(var(--spacing) * 8)"></i><span>8 · 32px</span>
+          </div>
+          <div class="sp">
+            <i style="width: calc(var(--spacing) * 10)"></i
+            ><span>10 · 40px</span>
+          </div>
+          <div class="sp">
+            <i style="width: calc(var(--spacing) * 12)"></i
+            ><span>12 · 48px</span>
+          </div>
+          <div class="sp">
+            <i style="width: calc(var(--spacing) * 16)"></i
+            ><span>16 · 64px</span>
+          </div>
+        </div>
+        <div class="elev">
+          <div style="box-shadow: var(--shadow-raised)">
+            --shadow-raised<br />卡片、面板
+          </div>
+          <div style="box-shadow: var(--shadow-overlay)">
+            --shadow-overlay<br />popover、dropdown
+          </div>
+          <div style="border-radius: var(--radius-xs)">--radius-xs 6px</div>
+          <div style="border-radius: var(--radius-sm)">--radius-sm 10px</div>
+          <div style="border-radius: var(--radius-md)">--radius-md 14px</div>
+          <div style="border-radius: var(--radius-lg)">--radius-lg 22px</div>
+        </div>
+        <div class="card">
+          <p class="eyebrow">动效曲线</p>
+          <table style="margin-top: calc(var(--spacing) * 3)">
+            <tbody>
+              <tr>
+                <td><code>--ease-standard</code></td>
+                <td class="num">160ms</td>
+                <td>状态切换（hover、选中）</td>
+              </tr>
+              <tr>
+                <td><code>--ease-entrance</code></td>
+                <td class="num">220ms</td>
+                <td>进场，减速曲线</td>
+              </tr>
+              <tr>
+                <td><code>--ease-exit</code></td>
+                <td class="num">140ms</td>
+                <td>出场，加速曲线</td>
+              </tr>
+            </tbody>
+          </table>
+          <p
+            style="
+              margin-top: calc(var(--spacing) * 3);
+              color: var(--color-ink-muted);
+            "
+          >
+            三者全部包在 <code>prefers-reduced-motion: no-preference</code> 之下
+            —— 现状只有骨架屏动画做了 这层处理，hover 位移没做。
+          </p>
+        </div>
+      </section>
+
+      <footer
+        style="
+          border-top: 1px solid var(--color-border);
+          padding-top: calc(var(--spacing) * 5);
+          display: flex;
+          flex-wrap: wrap;
+          gap: calc(var(--spacing) * 2) calc(var(--spacing) * 5);
+        "
+      >
+        <p class="eyebrow">NavFleet v3 · Phase 11D · 2026-08-29</p>
+        <p class="eyebrow" style="margin-left: auto">
+          由 docs/tools/gen-design-system-preview.py 生成
+        </p>
+      </footer>
+    </div>
+
+    <script>
+      // 对比度计算：不自己解析 oklch，交给浏览器 —— 把计算色填进 1×1 canvas 再读回 sRGB。
+      // 这样任何颜色语法（oklch / color-mix / 变量链）都能算，而且用的就是屏幕上的实际值。
+      const probe = document.createElement("canvas");
+      probe.width = probe.height = 1;
+      const ctx = probe.getContext("2d", { willReadFrequently: true });
+
+      function toRgb(cssColor) {
+        ctx.clearRect(0, 0, 1, 1);
+        ctx.fillStyle = "#000";
+        ctx.fillStyle = cssColor;
+        ctx.fillRect(0, 0, 1, 1);
+        const [r, g, b] = ctx.getImageData(0, 0, 1, 1).data;
+        return [r, g, b];
+      }
+
+      function luminance([r, g, b]) {
+        const channel = (value) => {
+          const v = value / 255;
+          return v <= 0.03928 ? v / 12.92 : Math.pow((v + 0.055) / 1.055, 2.4);
+        };
+        return 0.2126 * channel(r) + 0.7152 * channel(g) + 0.0722 * channel(b);
+      }
+
+      function ratio(fg, bg) {
+        const a = luminance(toRgb(fg));
+        const b = luminance(toRgb(bg));
+        const [hi, lo] = a > b ? [a, b] : [b, a];
+        return (hi + 0.05) / (lo + 0.05);
+      }
+
+      function audit() {
+        const root = getComputedStyle(document.documentElement);
+        const rows = document.querySelectorAll("[data-role='pairs'] tr");
+        let fail = 0;
+        let aa = 0;
+        let aaa = 0;
+        rows.forEach((row) => {
+          const fg = root.getPropertyValue(`--color-${row.dataset.fg}`).trim();
+          const bg = root.getPropertyValue(`--color-${row.dataset.bg}`).trim();
+          const value = ratio(fg, bg);
+          const state = value < 4.5 ? "fail" : value >= 7 ? "aaa" : "aa";
+          row.dataset.state = state;
+          row.querySelector("[data-role='ratio']").textContent =
+            `${value.toFixed(2)}:1`;
+          row.querySelector("[data-role='verdict']").textContent =
+            state === "fail" ? "低于 AA" : state === "aaa" ? "AAA" : "AA";
+          if (state === "fail") fail += 1;
+          else if (state === "aaa") aaa += 1;
+          else aa += 1;
+        });
+        const resolved = matchMedia("(prefers-color-scheme: dark)").matches
+          ? "dark"
+          : "light";
+        const stamped = document.documentElement.dataset.theme;
+        document.querySelector("[data-role='summary']").innerHTML =
+          `<span data-bad="${fail > 0}">低于 AA ${fail}</span>` +
+          `<span>AA ${aa}</span><span>AAA ${aaa}</span>` +
+          `<span>当前主题 ${stamped || `跟随系统 → ${resolved}`}</span>`;
+      }
+
+      const states = [null, "light", "dark"];
+      let index = 0;
+      document
+        .querySelector("[data-role='toggle']")
+        .addEventListener("click", () => {
+          index = (index + 1) % states.length;
+          const next = states[index];
+          if (next) document.documentElement.dataset.theme = next;
+          else delete document.documentElement.dataset.theme;
+          document.querySelector("[data-role='toggle']").textContent =
+            `切换主题（当前：${next === "light" ? "浅色" : next === "dark" ? "深色" : "跟随系统"}）`;
+          audit();
+        });
+
+      matchMedia("(prefers-color-scheme: dark)").addEventListener(
+        "change",
+        audit,
+      );
+      document.fonts.ready.then(audit);
+      audit();
+    </script>
+  </body>
+</html>

@@ -187,13 +187,27 @@ v1.0.0 的架构分层与文档质量已经超出多数同规模项目，但四�
 
 ### PR 11D — 设计系统设计
 
-- [ ] token 体系：从现有 37 个变量（8 几何 + 29 语义）升级为完整体系——色阶、间距刻度、字阶、
-      层级/阴影、动效曲线。**保留 `--brand-contrast` / `--brand-ink` 的区分**（实心 brand 表面 vs
-      rgba 薄底，明度需求相反，这是 Phase 10 用 axe 才发现的教训）
-- [ ] Reka UI + Tailwind v4 接入方案：token 如何映射为 Tailwind theme、明暗双主题如何与
-      `[data-theme]` 共存、CSS 体积预算
-- [ ] 组件清单（原子 → 分子 → 页面级），标注哪些用 Reka 无头件、哪些自建
-- [ ] 产出设计系统文档 + 可视化预览页
+- [x] token 体系：三层（原始色阶 → 语义 → 组件，第三层设准入门槛防硬编码 rgba 回流）。原始层
+      **6 条 ramp × 12 阶 = 72 个 oklch 值，由脚本生成**；字阶 10 档 + 大屏另一套 5 档；间距以
+      `--spacing: 4px` 为基准；层级 4 档、动效 3 条曲线、断点 6 档
+- [x] `-contrast` / `-ink` 的区分从两个特例**升级为对每个状态色都成立的规则** —— 并且第一版被机检
+      打回：`oklch` 的感知均匀明度**不等于** WCAG 亮度比（`L 0.55` 对 `L 0.20` 只有约 3.7:1），
+      实心表面用 `X-600` + 前景 `X-950` 时 14 组里红了 4 组。改为表面 `700/300`、前景 `25/950` 后
+      浅色 14/14 最低 4.62:1、深色 14/14 最低 5.58:1
+- [x] Tailwind v4 接入方案，含一条枢纽结论：**语义 token 必须进 `@theme` 但绝不能用 `@theme inline`**
+      —— `inline` 会把值嵌进工具类，于是按主题重定义 token 就失效，表现为"深色主题下颜色完全不切换"；
+      另需把 `dark:` 变体重绑到 `[data-theme]`，但绝大多数场景不该用 `dark:`（语义 token 已吸收主题差异）
+- [x] CSS 体积预算 **gzip ≤ 14 KB**（现状实测基线 36.4 KB 未压缩 / 7.7 KB gzip），并写明超预算时
+      先查三类成因而不是提高预算
+- [x] 组件清单：Reka UI 40 个 primitive 里**采用 14 个**（列出各自替掉现在的什么）、备选 3 个、
+      明确自建的 5 类；自有组件 12 原子 + 14 分子 + 11 领域 + 8 页面级（页面级按 IA 候选 B 的层级）
+- [x] 产出 [docs/frontend-design-system.md](docs/frontend-design-system.md) +
+      [docs/frontend-design-system-preview.html](docs/frontend-design-system-preview.html)
+      （由 `docs/tools/gen-design-system-preview.py` + 模板生成，**不要手改**）
+- 自检 ✅（2026-08-29，PR #76）：预览页在 Chrome 三种主题态（浅 / 深 / 跟随系统）实测，**14 组对比度
+  全部通过、零红**；72 个色阶格子齐全、无横向滚动、无未替换占位符、无未渲染的 markdown 标记。
+  过程中修掉三处自造问题：4 组对比度不达标（见上）、模板里 5 处 `**加粗**` 写进 HTML 不会渲染、
+  深色阶上的数字标签用 `mix-blend-mode: luminosity` 读不清（改 `difference` + 白字后两端都可读）。
 
 ### PR 11E — 技术方案与风险评估
 
