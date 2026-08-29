@@ -1,5 +1,13 @@
 # Changelog
 
+## [1.0.1](https://github.com/yezhoufan2005/NavFleet/compare/v1.0.0...v1.0.1) (2026-08-29)
+
+
+### Bug Fixes
+
+* **auth:** make the credential rate limit configurable, and stop the E2E 429 ([c590ce0](https://github.com/yezhoufan2005/NavFleet/commit/c590ce03c972af56428a4677a02da945e561072e))
+* **ci:** actually publish release images, which has never once happened ([d8634ce](https://github.com/yezhoufan2005/NavFleet/commit/d8634ce3058085d230c93b879f36339898ff0479))
+
 ## [1.0.0](https://github.com/yezhoufan2005/NavFleet/compare/v0.3.0...v1.0.0) (2026-08-29)
 
 
