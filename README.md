@@ -314,15 +314,16 @@ CI 在 Node 20 / 22 上跑全部门禁，E2E 单独一个 job。提交前 husky 
 
 ## 文档索引
 
-| 文档                                                                   | 内容                                         |
-| ---------------------------------------------------------------------- | -------------------------------------------- |
-| [ARCHITECTURE.md](ARCHITECTURE.md)                                     | 分层、模块职责、数据流、前后端各文件的作用   |
-| [deploy/docs/deployment.md](deploy/docs/deployment.md)                 | 部署步骤、TLS、反代、镜像发布                |
-| [deploy/docs/config-reference.md](deploy/docs/config-reference.md)     | 34 个环境变量 + 运行期 JSON 全字段           |
-| [deploy/docs/backup-and-restore.md](deploy/docs/backup-and-restore.md) | 备份、恢复、演练                             |
-| [CONTRIBUTING.md](CONTRIBUTING.md)                                     | 分支、提交规范、本地门禁                     |
-| [ROADMAP.md](ROADMAP.md)                                               | 历史阶段与决策记录（含每阶段修掉的真实缺陷） |
-| [CHANGELOG.md](CHANGELOG.md)                                           | 版本变更（release-please 生成）              |
+| 文档                                                                   | 内容                                        |
+| ---------------------------------------------------------------------- | ------------------------------------------- |
+| [ARCHITECTURE.md](ARCHITECTURE.md)                                     | 分层、模块职责、数据流、前后端各文件的作用  |
+| [deploy/docs/deployment.md](deploy/docs/deployment.md)                 | 部署步骤、TLS、反代、镜像发布               |
+| [deploy/docs/config-reference.md](deploy/docs/config-reference.md)     | 34 个环境变量 + 运行期 JSON 全字段          |
+| [deploy/docs/backup-and-restore.md](deploy/docs/backup-and-restore.md) | 备份、恢复、演练                            |
+| [CONTRIBUTING.md](CONTRIBUTING.md)                                     | 分支、提交规范、本地门禁                    |
+| [ROADMAP.md](ROADMAP.md)                                               | 当前路线图（v1.0.0 之后的计划与决策）       |
+| [docs/roadmap-archive.md](docs/roadmap-archive.md)                     | v1.0.0 之前的阶段记录（含每阶段修掉的缺陷） |
+| [CHANGELOG.md](CHANGELOG.md)                                           | 版本变更（release-please 生成）             |
 
 ## 路线与已知边界
 
