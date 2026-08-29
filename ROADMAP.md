@@ -125,10 +125,18 @@ v1.0.0 的架构分层与文档质量已经超出多数同规模项目，但四�
 
 ### PR 11A — 现状穷举与功能等价基线
 
-- [ ] 把现有 4 页的**全部**功能点、数据绑定、交互态、空态、快捷键穷举成清单（含右侧详情面板的
-      每一个字段、告警抽屉、地图的 pan/zoom/定位/适应场景/视图记忆）
-- [ ] 标注每一项的去留：保留 / 改造 / 废弃，废弃项写明理由
-- [ ] 产出 `docs/frontend-parity.md` —— 这份清单就是 Phase 14 的验收 checklist
+- [x] 把现有 4 页的**全部**功能点、数据绑定、交互态、空态穷举成清单（含右侧详情面板的每一个字段、
+      地图的 pan/zoom/定位/适应场景/视图记忆）—— **338 项**。盘点纠正了本条目自身的三处错误认知：
+      仪表盘没有任何筛选/搜索/排序控件、**快捷键一个都不存在**、**告警抽屉不存在**（`alert-drawer.css`
+      161 行仍被 import 但标记不在任何 `.vue` 里，是死 CSS）
+- [x] 标注每一项的去留：🟢 保留 / 🟡 改造 / 🔴 废弃，另加 ⚠️ 缺陷一档 —— 盘点中发现 **30 处缺陷**，
+      它们是**反向**目标（照抄就是失职），单列第 9 节并按影响排序
+- [x] 产出 [docs/frontend-parity.md](docs/frontend-parity.md)（737 行）—— 这份清单就是 Phase 14 的验收 checklist
+- 自检 ✅（2026-08-29，PR #71）：四路并行盘点（仪表盘 / 两类地图 / 历史与告警 / 外壳与全局机制），
+  逐文件读取共 12 个 SFC + 8 个 composable + store + 22 个 CSS partial，全部条目可回溯 `file:line`。
+  最有价值的一项发现：现有 17 例 e2e **零 `data-testid`**、全部用 `getByRole` + 中文可访问名匹配，
+  所以只要新前端保持相同语义结构与文案，这 17 例能一字不改复用 —— 「新前端是否功能等价」因此有客观判据，
+  不靠人眼比对。`prettier --check` 通过；无代码改动。
 
 ### PR 11B — 角色任务流与竞品调研
 
@@ -168,7 +176,7 @@ v1.0.0 的架构分层与文档质量已经超出多数同规模项目，但四�
 - [ ] 可搬 Vue 逻辑的搬迁边界：`useSvgViewport`(706) / `useSceneOverlay`(146) / `useHistoryPlayback`(123) /
       `useAuth`(114) / `guards`(113) / `useTheme`(83) / `useNotifications`(74) / `useAlertAck`(65)；
       `stores/fleet`(761) 要不要顺手按职责拆开（它现在同时是 state + 归一化入口 + 9 个 computed +
-      整个 WS 传输层 + 场景加载 + window 调试 API，返回对象 30 个键）
+      整个 WS 传输层 + 场景加载 + window 调试 API，返回对象 **28** 个键）
 - [ ] 接入点清单：根 `build` 是逐个 `-w` 硬编码、CI 的 frontend job 也是（**新 workspace 在加 job 前
       CI 覆盖为零**）、`frontend/Dockerfile:13-16` 逐个 COPY 三个 workspace 的 manifest
 - [ ] **并行与切换策略**：并行期**不通过 nginx 暴露**新前端（`vite.config.js` 无 `base`，产物是绝对
