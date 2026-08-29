@@ -2,10 +2,9 @@
 .history-view {
   display: flex;
   flex-direction: column;
-  gap: 18px;
+  gap: var(--view-gap);
 }
 .history-controls {
-  padding: 18px 20px;
   display: flex;
   flex-direction: column;
   gap: 14px;
@@ -51,7 +50,6 @@
 }
 .history-map-panel,
 .history-detail {
-  padding: 18px;
   display: flex;
   flex-direction: column;
   gap: 14px;

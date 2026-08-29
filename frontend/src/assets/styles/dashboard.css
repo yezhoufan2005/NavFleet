@@ -78,7 +78,6 @@
 .detail-panel {
   height: 100vh;
   min-height: 0;
-  padding: 18px;
   display: flex;
   flex-direction: column;
 }

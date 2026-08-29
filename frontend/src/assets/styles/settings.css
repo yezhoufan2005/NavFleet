@@ -8,7 +8,7 @@
 
 .settings-view {
   display: grid;
-  gap: 16px;
+  gap: var(--view-gap);
 }
 
 .settings-panel {
@@ -32,7 +32,7 @@
  */
 .settings-groups {
   display: grid;
-  gap: 16px;
+  gap: var(--view-gap);
   grid-template-columns: repeat(auto-fit, minmax(min(320px, 100%), 1fr));
   align-items: start;
 }
