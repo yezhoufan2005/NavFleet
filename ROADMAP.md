@@ -169,3 +169,11 @@ jsdom 四档实测（`frontend/test/views/largeFleet.test.ts`，jsdom 比真实�
   - 浅色主题 `--brand-contrast: #ffffff` 在中调青绿上只有 2.99:1，影响登录按钮/导航激活态/历史页主按钮 —— 这是**产品自始存在**的缺陷，靠机检才浮出来，此前三轮人工审阅都没发现。
   - 覆盖率门槛重标定，`functions` 87→81 是唯一下调项：v8 把「没被 import 过」的文件报成 100% functions，`DashboardView` 补真实测试后由虚的 100% 变成真实 75%，同期语句覆盖率 31%→62.5%。度量变诚实导致数字下降，不是代码变差。
   - 测试总量：后端 279 + 前端 **158**（+26）+ E2E **14**（+3）。
+- 2026-08-29：**v1.0.0 发布**（#61 收尾 · #62 间距与版本一致性 · #63 release）。v2 路线图（Phase 6–10）到此全部完成，1.0 作为后续作业的地基。
+  - 根治 issue #53：`createTestApp()` 每个测试都 `listen(0)`（整套约 280 次），改为**每文件一个长生命周期服务器池**后降到 12 次。翻转率 10 次 2 红 → 42 次连续通过（30 次由子代理 + 12 次独立复跑），随后 CI 在 node 20/22 上连续三个 PR 全绿，补上了 Linux 侧证据。
+  - ROS 地图不定位车辆，**根因不是最初两次猜测的任何一个**：bounds watcher 带 `immediate: true` 在 setup 阶段就跑，早于 `onMounted` 测量面板，于是开屏视图按 1000×620 占位尺寸算完后被 `updateViewportSize` 静默作废，ResizeObserver 再从这个自相矛盾的状态推出「上一个中心点」并忠实保住那个错的点，保存的视图又把偏移持久化 —— 所以逐次刷新累积（276px → 199px → 406px 出屏）。两次失败后停下来做全程打点才定位。修法是**面板测到真实尺寸前拒绝 hydration**。
+  - 版本号一度三处漂移：release PR 标题写 1.0.0 而分支文件写 0.4.0（合并会打错版本，已关闭重建）；`openapi.ts` 的 `info.version` 硬编码 `0.1.0` 自首次发版起就错。现在六处版本（根/三个 workspace/manifest/lockfile）全部一致，且 `/openapi.json` 在运行时读根 manifest —— **结构上无法再漂**。
+  - 间距体系：四个视图对同一问题给了四个答案（18 / 18-20 / 20-22 / **0**），设置页内容贴在面板边框上。`--panel-pad` 收为 `.panel` 默认值，新页面无法再忘记；四页共享同一条左边界（实测偏差 0px）。
+  - 补齐 LICENSE (MIT)、删除三个已验证零引用的文件、修好点云导入脚本、CI 补上此前从未运行的 `lint:e2e` / `typecheck:e2e`、README 完全重写、修掉 ARCHITECTURE.md 一行在安全上主动误导的陈述。
+  - 交付量：后端 **279** · 前端 **161** · E2E **17**（含 5 页 × 明暗双主题 axe 审计）。
+  - **明确推到 1.1 的**：11 个 SFC 的 `lang="ts"`、MQTT 摄入背压、`prom-client` → `@prometheus-io/client`、Lanelet2 `delete="true"` 过滤、axe `incomplete` 桶的人工审阅。均已写入 README「路线与已知边界」。
