@@ -1,0 +1,1089 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <!--
+      Phase 11C 的评审用线框页。独立成文件是为了能直接用浏览器打开：
+        open docs/frontend-ia-options.html
+      结论与理由写在 frontend-ia.md，这里只放可视化对比。字体走 Google Fonts，
+      离线时回落到 PingFang SC / system-ui，排版会松一点但结构不变。
+    -->
+    <title>NavFleet 导航图纸</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      rel="stylesheet"
+      href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans+Condensed:wght@600;700&family=IBM+Plex+Sans:wght@400;500;600&display=swap"
+    />
+    <style>
+      :root {
+        --paper: #eff3f2;
+        --surface: #ffffff;
+        --surface-2: #e5ebea;
+        --ink: #0f1c23;
+        --ink-2: #3b5361;
+        --ink-3: #6d8794;
+        --rule: #ccd8d7;
+        --rule-2: #a4b7b7;
+        --brand: #0ea88f;
+        --brand-text: #075c4e;
+        --brand-wash: rgba(14, 168, 143, 0.1);
+        --amber: #b47318;
+        --amber-text: #7c4e0b;
+        --amber-wash: rgba(180, 115, 24, 0.11);
+        --crit: #bb3a44;
+        --crit-text: #8d232c;
+        --crit-wash: rgba(187, 58, 68, 0.1);
+        --blue: #396a8d;
+        --fill-1: rgba(15, 28, 35, 0.03);
+        --fill-2: rgba(15, 28, 35, 0.06);
+        --fill-3: rgba(15, 28, 35, 0.1);
+        --shadow:
+          0 1px 2px rgba(15, 28, 35, 0.06), 0 12px 28px rgba(15, 28, 35, 0.07);
+        --sans:
+          "IBM Plex Sans", "PingFang SC", "Microsoft YaHei", system-ui,
+          sans-serif;
+        --cond:
+          "IBM Plex Sans Condensed", "IBM Plex Sans", "PingFang SC", system-ui,
+          sans-serif;
+        --mono:
+          "IBM Plex Mono", ui-monospace, "SFMono-Regular", Menlo, monospace;
+      }
+      :root:not([data-theme="light"]) {
+        color-scheme: light;
+      }
+      @media (prefers-color-scheme: dark) {
+        :root:not([data-theme="light"]) {
+          --paper: #0a141a;
+          --surface: #0f1d26;
+          --surface-2: #16262f;
+          --ink: #e7eff0;
+          --ink-2: #a6bcc3;
+          --ink-3: #77919f;
+          --rule: #20313b;
+          --rule-2: #334955;
+          --brand: #4fd6c4;
+          --brand-text: #8ce8da;
+          --brand-wash: rgba(79, 214, 196, 0.12);
+          --amber: #e0a355;
+          --amber-text: #f0c68e;
+          --amber-wash: rgba(224, 163, 85, 0.13);
+          --crit: #e05a68;
+          --crit-text: #f3a3ab;
+          --crit-wash: rgba(224, 90, 104, 0.13);
+          --blue: #7fb2d8;
+          --fill-1: rgba(231, 239, 240, 0.04);
+          --fill-2: rgba(231, 239, 240, 0.07);
+          --fill-3: rgba(231, 239, 240, 0.12);
+          --shadow:
+            0 1px 2px rgba(0, 0, 0, 0.4), 0 16px 40px rgba(0, 0, 0, 0.45);
+          color-scheme: dark;
+        }
+      }
+      :root[data-theme="dark"] {
+        --paper: #0a141a;
+        --surface: #0f1d26;
+        --surface-2: #16262f;
+        --ink: #e7eff0;
+        --ink-2: #a6bcc3;
+        --ink-3: #77919f;
+        --rule: #20313b;
+        --rule-2: #334955;
+        --brand: #4fd6c4;
+        --brand-text: #8ce8da;
+        --brand-wash: rgba(79, 214, 196, 0.12);
+        --amber: #e0a355;
+        --amber-text: #f0c68e;
+        --amber-wash: rgba(224, 163, 85, 0.13);
+        --crit: #e05a68;
+        --crit-text: #f3a3ab;
+        --crit-wash: rgba(224, 90, 104, 0.13);
+        --blue: #7fb2d8;
+        --fill-1: rgba(231, 239, 240, 0.04);
+        --fill-2: rgba(231, 239, 240, 0.07);
+        --fill-3: rgba(231, 239, 240, 0.12);
+        --shadow: 0 1px 2px rgba(0, 0, 0, 0.4), 0 16px 40px rgba(0, 0, 0, 0.45);
+        color-scheme: dark;
+      }
+
+      body {
+        margin: 0;
+        background: var(--paper);
+        color: var(--ink);
+        font-family: var(--sans);
+        font-size: 16px;
+        line-height: 1.65;
+        -webkit-font-smoothing: antialiased;
+      }
+      .sheet {
+        max-width: 1120px;
+        margin: 0 auto;
+        padding: 56px 24px 96px;
+        display: flex;
+        flex-direction: column;
+        gap: 56px;
+      }
+      h1,
+      h2,
+      h3 {
+        font-family: var(--cond);
+        font-weight: 700;
+        letter-spacing: -0.01em;
+        text-wrap: balance;
+        margin: 0;
+      }
+      h1 {
+        font-size: clamp(2.1rem, 4.4vw, 3.1rem);
+        line-height: 1.08;
+      }
+      h2 {
+        font-size: clamp(1.35rem, 2.2vw, 1.7rem);
+        line-height: 1.15;
+      }
+      h3 {
+        font-size: 1.02rem;
+        font-weight: 600;
+      }
+      p {
+        margin: 0;
+      }
+      a {
+        color: var(--brand-text);
+        text-decoration-thickness: 1px;
+        text-underline-offset: 2px;
+      }
+      :focus-visible {
+        outline: 2px solid var(--brand);
+        outline-offset: 3px;
+      }
+      .eyebrow {
+        font-family: var(--mono);
+        font-size: 0.72rem;
+        letter-spacing: 0.16em;
+        text-transform: uppercase;
+        color: var(--ink-3);
+      }
+    </style>
+    <style>
+      /* ---- drawing plate ---- */
+      .plate {
+        background: var(--surface);
+        border: 1px solid var(--rule);
+        border-radius: 2px;
+        box-shadow: var(--shadow);
+        display: flex;
+        flex-direction: column;
+      }
+      .plate-head {
+        display: flex;
+        flex-wrap: wrap;
+        align-items: baseline;
+        gap: 8px 16px;
+        padding: 18px 22px;
+        border-bottom: 1px solid var(--rule);
+      }
+      .plate-no {
+        font-family: var(--mono);
+        font-size: 0.8rem;
+        color: var(--ink-3);
+        border: 1px solid var(--rule-2);
+        padding: 1px 7px;
+        border-radius: 2px;
+      }
+      .plate-head h2 {
+        flex: 1 1 260px;
+      }
+      .badge {
+        font-family: var(--mono);
+        font-size: 0.71rem;
+        letter-spacing: 0.06em;
+        text-transform: uppercase;
+        padding: 3px 9px;
+        border-radius: 2px;
+        border: 1px solid;
+        white-space: nowrap;
+      }
+      .badge.rec {
+        color: var(--brand-text);
+        border-color: var(--brand);
+        background: var(--brand-wash);
+      }
+      .badge.warn {
+        color: var(--amber-text);
+        border-color: var(--amber);
+        background: var(--amber-wash);
+      }
+      .badge.no {
+        color: var(--crit-text);
+        border-color: var(--crit);
+        background: var(--crit-wash);
+      }
+      .plate-body {
+        display: grid;
+        grid-template-columns: minmax(0, 1.45fr) minmax(0, 1fr);
+        gap: 0;
+      }
+      .plate-body > * {
+        padding: 22px;
+        min-width: 0;
+      }
+      .plate-body > :first-child {
+        border-right: 1px solid var(--rule);
+      }
+      @media (max-width: 860px) {
+        .plate-body {
+          grid-template-columns: minmax(0, 1fr);
+        }
+        .plate-body > :first-child {
+          border-right: 0;
+          border-bottom: 1px solid var(--rule);
+        }
+      }
+
+      /* ---- schematic wireframe: hairline blocks, no product colour ---- */
+      .wf {
+        display: grid;
+        gap: 3px;
+        background: var(--rule);
+        border: 1px solid var(--rule-2);
+        aspect-ratio: 16 / 10;
+        font-family: var(--mono);
+        font-size: 0.68rem;
+        line-height: 1.3;
+        color: var(--ink-3);
+      }
+      .wf b {
+        display: block;
+        font-weight: 500;
+        color: var(--ink-2);
+        font-size: 0.7rem;
+      }
+      .wf-b {
+        background: var(--surface);
+        padding: 7px 8px;
+        overflow: hidden;
+        display: flex;
+        flex-direction: column;
+        gap: 3px;
+      }
+      .wf-b.f1 {
+        background: color-mix(in srgb, var(--surface) 94%, var(--ink) 6%);
+      }
+      .wf-b.f2 {
+        background: color-mix(in srgb, var(--surface) 88%, var(--ink) 12%);
+      }
+      .wf-b.hero {
+        background: var(--brand-wash);
+        box-shadow: inset 0 0 0 1px var(--brand);
+      }
+      .wf-b.hero b {
+        color: var(--brand-text);
+      }
+      .wf-note {
+        margin-top: 9px;
+        font-family: var(--mono);
+        font-size: 0.72rem;
+        color: var(--ink-3);
+      }
+      .bars {
+        display: flex;
+        flex-direction: column;
+        gap: 4px;
+        margin-top: 2px;
+      }
+      .bars i {
+        height: 5px;
+        border-radius: 1px;
+        background: var(--fill-3);
+        display: block;
+      }
+      .bars i:nth-child(even) {
+        background: var(--fill-2);
+        width: 78%;
+      }
+      .chips {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 4px;
+        margin-top: 3px;
+      }
+      .chips span {
+        border: 1px solid var(--rule-2);
+        border-radius: 1px;
+        padding: 0 5px;
+        font-size: 0.64rem;
+      }
+    </style>
+    <style>
+      /* ---- nav tree ---- */
+      .tree {
+        font-family: var(--mono);
+        font-size: 0.79rem;
+        line-height: 1.9;
+        margin: 0;
+        padding: 0;
+        list-style: none;
+      }
+      .tree li {
+        border-bottom: 1px dotted var(--rule);
+        display: flex;
+        gap: 10px;
+        align-items: baseline;
+      }
+      .tree li:last-child {
+        border-bottom: 0;
+      }
+      .tree .lv {
+        color: var(--ink-3);
+        font-size: 0.68rem;
+        min-width: 2.2em;
+      }
+      .tree .path {
+        color: var(--blue);
+        margin-left: auto;
+        font-size: 0.72rem;
+        white-space: nowrap;
+      }
+      .tree .sub {
+        padding-left: 1.3em;
+        color: var(--ink-2);
+      }
+      .tree .home {
+        color: var(--brand-text);
+        font-weight: 500;
+      }
+
+      /* ---- verdict ---- */
+      .verdict {
+        display: flex;
+        flex-direction: column;
+        gap: 14px;
+      }
+      .vlist {
+        margin: 0;
+        padding: 0;
+        list-style: none;
+        display: flex;
+        flex-direction: column;
+        gap: 7px;
+        font-size: 0.9rem;
+      }
+      .vlist li {
+        position: relative;
+        padding-left: 18px;
+        color: var(--ink-2);
+      }
+      .vlist li::before {
+        content: "+";
+        position: absolute;
+        left: 0;
+        top: 0;
+        font-family: var(--mono);
+        color: var(--brand-text);
+        line-height: 1.65;
+      }
+      .vlist.minus li::before {
+        content: "−";
+        color: var(--crit-text);
+      }
+      .label {
+        font-family: var(--mono);
+        font-size: 0.7rem;
+        letter-spacing: 0.1em;
+        text-transform: uppercase;
+        color: var(--ink-3);
+      }
+      .flow {
+        border-top: 1px solid var(--rule);
+        padding-top: 12px;
+        font-size: 0.88rem;
+        color: var(--ink-2);
+      }
+      .flow b {
+        font-family: var(--mono);
+        color: var(--ink);
+        font-weight: 500;
+      }
+
+      /* ---- generic blocks ---- */
+      .card {
+        background: var(--surface);
+        border: 1px solid var(--rule);
+        border-radius: 2px;
+        padding: 20px 22px;
+      }
+      .grid2 {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(min(300px, 100%), 1fr));
+        gap: 18px;
+      }
+      table {
+        width: 100%;
+        border-collapse: collapse;
+        font-size: 0.88rem;
+      }
+      .scroll {
+        overflow-x: auto;
+      }
+      th,
+      td {
+        text-align: left;
+        padding: 8px 12px 8px 0;
+        border-bottom: 1px solid var(--rule);
+        vertical-align: top;
+      }
+      th {
+        font-family: var(--mono);
+        font-size: 0.7rem;
+        letter-spacing: 0.09em;
+        text-transform: uppercase;
+        color: var(--ink-3);
+        font-weight: 400;
+      }
+      td code,
+      p code,
+      li code {
+        font-family: var(--mono);
+        font-size: 0.85em;
+        background: var(--fill-2);
+        padding: 1px 4px;
+        border-radius: 2px;
+      }
+      .ask {
+        border-left: 3px solid var(--amber);
+        background: var(--amber-wash);
+        padding: 14px 18px;
+        border-radius: 0 2px 2px 0;
+      }
+      .ask .label {
+        color: var(--amber-text);
+      }
+      @media (prefers-reduced-motion: no-preference) {
+        .plate {
+          transition: box-shadow 200ms ease;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <div class="sheet">
+      <header style="display: flex; flex-direction: column; gap: 18px">
+        <p class="eyebrow">NavFleet · Phase 11C · 信息架构选型</p>
+        <h1>三张导航图纸，<br />请你挑一张</h1>
+        <p style="max-width: 62ch; font-size: 1.06rem; color: var(--ink-2)">
+          v1.0.0 的信息架构是「一个塞满的仪表盘 +
+          三个附属页」。下面三个候选各自代表一种取舍。线框刻意画成 灰阶细线 ——
+          这一轮要判断的是<strong>结构</strong>，不是配色和视觉。三张图纸之后是四个需要你拍板的问题。
+        </p>
+        <div class="scroll">
+          <table style="max-width: 720px">
+            <tbody>
+              <tr>
+                <th style="width: 8em">盘点依据</th>
+                <td>
+                  <code>docs/frontend-parity.md</code> 338 条现状清单 ·
+                  <code>docs/frontend-research.md</code> 24 项任务流与 8
+                  条调研约束
+                </td>
+              </tr>
+              <tr>
+                <th>硬约束</th>
+                <td>
+                  IA 1–3 级进主导航、4 级用 tab（Grafana）·
+                  分区依据是「谁在什么时候要做什么」（Datadog）· 主屏收敛到 4–5
+                  个信号（仓储机器人车队）· 大屏不可交互且无会话超时
+                </td>
+              </tr>
+              <tr>
+                <th>红线</th>
+                <td>只读监控（无控制下发）· 单实例内网（无多租户）</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </header>
+
+      <section class="card" style="border-left: 3px solid var(--brand)">
+        <p class="label" style="color: var(--brand-text)">三个候选的共同结论</p>
+        <p style="margin-top: 8px; color: var(--ink-2)">
+          不管选哪一个，有两处收敛我建议照做，因为它们与「地图放哪」无关：
+        </p>
+        <ul class="vlist" style="margin-top: 12px">
+          <li>
+            <strong>大屏不是一个分区，是一种模式。</strong
+            >它必须不可交互、无会话超时，所以它是独立入口 <code>/wall</code> +
+            kiosk
+            凭据，<strong>不进主导航</strong>。原计划的七个分区因此先减一。
+          </li>
+          <li>
+            <strong>历史回放不是一个页面，是设备详情的一个 tab。</strong
+            >现在它是独立页，代价是工程师查完 实时还要在历史页<strong
+              >重新选一次设备</strong
+            >
+            —— 这正是那条「6 步且拿不到答案」的排故流程的一半。
+          </li>
+        </ul>
+      </section>
+      <article class="plate">
+        <div class="plate-head">
+          <span class="plate-no">A</span>
+          <h2>地图为主体 —— 现状的直系升级</h2>
+          <span class="badge no">与调研冲突</span>
+        </div>
+        <div class="plate-body">
+          <div>
+            <div
+              class="wf"
+              style="
+                grid-template-columns: 44px 148px minmax(0, 1fr) 176px;
+                grid-template-rows: 28px minmax(0, 1fr);
+              "
+            >
+              <div class="wf-b f2" style="grid-row: span 2; padding: 6px 5px">
+                <b style="font-size: 0.62rem">侧栏</b>
+                <div class="bars"><i></i><i></i><i></i><i></i><i></i></div>
+              </div>
+              <div
+                class="wf-b f1"
+                style="
+                  grid-column: 2 / -1;
+                  flex-direction: row;
+                  align-items: center;
+                "
+              >
+                <b>顶栏</b>
+                <span style="margin-left: auto">车队 · 会话 · 实时点</span>
+              </div>
+              <div class="wf-b">
+                <b>设备列表</b>
+                <span>编队筛选</span>
+                <div class="bars">
+                  <i></i><i></i><i></i><i></i><i></i><i></i>
+                </div>
+              </div>
+              <div class="wf-b hero">
+                <b>态势地图（默认落地）</b>
+                <span>GPS / ROS 切换 · 全部车辆位姿</span>
+              </div>
+              <div class="wf-b f1">
+                <b>选中设备详情</b>
+                <div class="bars"><i></i><i></i><i></i><i></i></div>
+                <span>报码 · 位姿 · 限速</span>
+              </div>
+            </div>
+            <p class="wf-note">
+              落地页 = 全幅地图；列表与详情是它的左右两翼。与 v1.0.0 布局同构。
+            </p>
+          </div>
+          <div class="verdict">
+            <div>
+              <p class="label">导航（5 个一级项）</p>
+              <ul class="tree">
+                <li>
+                  <span class="lv">L1</span><span class="home">态势 ←默认</span
+                  ><span class="path">/</span>
+                </li>
+                <li>
+                  <span class="lv">L1</span><span>告警</span
+                  ><span class="path">/alerts</span>
+                </li>
+                <li>
+                  <span class="lv">L1</span><span>历史</span
+                  ><span class="path">/history</span>
+                </li>
+                <li>
+                  <span class="lv">L1</span><span>报表</span
+                  ><span class="path">/reports</span>
+                </li>
+                <li>
+                  <span class="lv">L1</span><span>管理</span
+                  ><span class="path">/admin</span>
+                </li>
+              </ul>
+            </div>
+            <ul class="vlist">
+              <li>
+                与现状连续，迁移成本最低；地图能力（<code>useSvgViewport</code>
+                706 行）原样搬即可。
+              </li>
+              <li>6 台车规模下最直观 —— 一眼看到全部车在哪。</li>
+            </ul>
+            <ul class="vlist minus">
+              <li>
+                与 11B
+                调研直接冲突：管四十台以上的主管<strong>第一周之内就不再看那个画面</strong>。
+              </li>
+              <li>主屏答不了「现在该管哪几台」，只答「大家都在哪」。</li>
+              <li>
+                主管与管理员的入口被埋在一级项的第 4、5
+                位，他们的首屏是别人的工作台。
+              </li>
+            </ul>
+            <p class="flow">
+              任务流影响：排故仍是
+              <b>6 步</b>（历史页要重选设备）；主管要的数字仍<b>拿不到</b>。
+            </p>
+          </div>
+        </div>
+      </article>
+      <article
+        class="plate"
+        style="
+          box-shadow:
+            var(--shadow),
+            0 0 0 2px var(--brand-wash);
+        "
+      >
+        <div class="plate-head" style="background: var(--brand-wash)">
+          <span
+            class="plate-no"
+            style="border-color: var(--brand); color: var(--brand-text)"
+            >B</span
+          >
+          <h2>总览为默认，地图降为分区</h2>
+          <span class="badge rec">我的推荐</span>
+        </div>
+        <div class="plate-body">
+          <div>
+            <div
+              class="wf"
+              style="
+                grid-template-columns: 44px minmax(0, 1fr);
+                grid-template-rows: 28px 54px minmax(0, 1fr);
+              "
+            >
+              <div class="wf-b f2" style="grid-row: span 3; padding: 6px 5px">
+                <b style="font-size: 0.62rem">侧栏</b>
+                <div class="bars"><i></i><i></i><i></i><i></i><i></i></div>
+              </div>
+              <div
+                class="wf-b f1"
+                style="flex-direction: row; align-items: center"
+              >
+                <b>顶栏</b>
+                <span style="margin-left: auto"
+                  >面包屑 · 车队 · 会话 · 实时点</span
+                >
+              </div>
+              <div class="wf-b hero" style="padding: 6px 8px">
+                <b>4–5 个车队级信号</b>
+                <div class="chips">
+                  <span>在线 / 总数</span><span>活动告警</span
+                  ><span>可用率</span><span>今日里程</span
+                  ><span>数据新鲜度</span>
+                </div>
+              </div>
+              <div
+                style="
+                  display: grid;
+                  grid-template-columns: minmax(0, 1.15fr) minmax(0, 1fr);
+                  grid-template-rows: minmax(0, 1fr) minmax(0, 0.85fr);
+                  gap: 3px;
+                  background: var(--rule);
+                "
+              >
+                <div class="wf-b hero">
+                  <b>现在需要你处理的车辆</b>
+                  <span>3–4 张卡 · 症状 + 一键确认 / 进详情</span>
+                  <div class="bars"><i></i><i></i><i></i></div>
+                </div>
+                <div class="wf-b f1" style="grid-row: span 2">
+                  <b>告警热区</b>
+                  <span>按严重度 / 编队分布</span>
+                  <div class="bars"><i></i><i></i><i></i><i></i></div>
+                </div>
+                <div class="wf-b">
+                  <b>迷你地图 → 点入设备·地图视图</b>
+                </div>
+              </div>
+            </div>
+            <p class="wf-note">
+              落地页答的是「现在该管哪几台」。地图仍是一级能力，但要主动进入 ——
+              它在
+              <code>/devices</code> 下与列表并列为两个视图。
+            </p>
+          </div>
+          <div class="verdict">
+            <div>
+              <p class="label">导航（5 个一级项，地图在二级）</p>
+              <ul class="tree">
+                <li>
+                  <span class="lv">L1</span><span class="home">总览 ←默认</span
+                  ><span class="path">/</span>
+                </li>
+                <li>
+                  <span class="lv">L1</span><span>设备</span
+                  ><span class="path">/devices</span>
+                </li>
+                <li>
+                  <span class="lv">L2</span
+                  ><span class="sub">列表 ⇄ 地图（同一集合两个投影）</span>
+                </li>
+                <li>
+                  <span class="lv">L2</span><span class="sub">设备详情</span
+                  ><span class="path">/devices/:id</span>
+                </li>
+                <li>
+                  <span class="lv">L3</span
+                  ><span class="sub" style="padding-left: 2.4em"
+                    >实时 · 曲线 · 历史回放 · 告警史（tab）</span
+                  >
+                </li>
+                <li>
+                  <span class="lv">L1</span><span>告警</span
+                  ><span class="path">/alerts</span>
+                </li>
+                <li>
+                  <span class="lv">L2</span
+                  ><span class="sub">实时 · 历史 · 统计 · 规则（tab）</span>
+                </li>
+                <li>
+                  <span class="lv">L1</span><span>报表</span
+                  ><span class="path">/reports</span>
+                </li>
+                <li>
+                  <span class="lv">L1</span><span>管理</span
+                  ><span class="path">/admin</span>
+                </li>
+                <li>
+                  <span class="lv">L2</span
+                  ><span class="sub"
+                    >用户 · 用户组 · 审计 · 设备接入 · 场景 · 报码字典 ·
+                    系统状态</span
+                  >
+                </li>
+              </ul>
+            </div>
+            <ul class="vlist">
+              <li>
+                满足「主屏 4–5
+                个信号」这条硬约束，且直接回答值班调度员的第一个问题。
+              </li>
+              <li>
+                排故从 <strong>6 步压到 2 步</strong>：设备详情一屏给实时 + 曲线
+                + 告警史，不必再去历史页重选设备。
+              </li>
+              <li>
+                主管（报表）与管理员（管理）各有一级入口，不再寄居在别人的工作台里。
+              </li>
+              <li>
+                「列表 ⇄ 地图」是同一集合的两个投影，符合 Datadog
+                那条「按工作流而非数据分区」。
+              </li>
+            </ul>
+            <ul class="vlist minus">
+              <li>
+                与现状差异最大，四个页面全部重排 ——
+                需要你认同「地图不再是第一眼」。
+              </li>
+              <li>总览页是<strong>新页面</strong>，没有现成实现可搬。</li>
+            </ul>
+            <p class="flow">
+              任务流影响：排故 6→<b>2 步</b>；开账号 <b>做不到→3 步</b>；可用率
+              <b>做不到→1 步</b>； 13 项「做不到」里有
+              <b>9 项</b>在这个骨架下有了落点。
+            </p>
+          </div>
+        </div>
+      </article>
+      <article class="plate">
+        <div class="plate-head">
+          <span class="plate-no">C</span>
+          <h2>总览与态势并列，落地页可配置</h2>
+          <span class="badge warn">不建议</span>
+        </div>
+        <div class="plate-body">
+          <div>
+            <div
+              class="wf"
+              style="
+                grid-template-columns: 44px minmax(0, 1fr) minmax(0, 1fr);
+                grid-template-rows: 28px minmax(0, 1fr) 46px;
+              "
+            >
+              <div class="wf-b f2" style="grid-row: span 3; padding: 6px 5px">
+                <b style="font-size: 0.62rem">侧栏 ×6</b>
+                <div class="bars">
+                  <i></i><i></i><i></i><i></i><i></i><i></i>
+                </div>
+              </div>
+              <div
+                class="wf-b f1"
+                style="
+                  grid-column: 2 / -1;
+                  flex-direction: row;
+                  align-items: center;
+                "
+              >
+                <b>顶栏</b>
+                <span style="margin-left: auto">车队 · 会话 · 实时点</span>
+              </div>
+              <div class="wf-b hero">
+                <b>总览（可设为默认）</b>
+                <span>信号 + 待处理车辆</span>
+                <div class="bars"><i></i><i></i><i></i></div>
+              </div>
+              <div class="wf-b hero">
+                <b>态势（也可设为默认）</b>
+                <span>全幅地图</span>
+              </div>
+              <div
+                class="wf-b f1"
+                style="
+                  grid-column: 2 / -1;
+                  align-items: center;
+                  justify-content: center;
+                "
+              >
+                <b style="color: var(--crit-text)"
+                  >↑ 两个高度相似的一级项，每次都要想「我该去哪个」</b
+                >
+              </div>
+            </div>
+            <p class="wf-note">
+              不做取舍：两个都留，让用户在设置里选默认。表面上兼顾所有角色。
+            </p>
+          </div>
+          <div class="verdict">
+            <div>
+              <p class="label">导航（6 个一级项）</p>
+              <ul class="tree">
+                <li>
+                  <span class="lv">L1</span><span class="home">总览</span
+                  ><span class="path">/</span>
+                </li>
+                <li>
+                  <span class="lv">L1</span><span class="home">态势</span
+                  ><span class="path">/situation</span>
+                </li>
+                <li>
+                  <span class="lv">L1</span><span>设备</span
+                  ><span class="path">/devices</span>
+                </li>
+                <li>
+                  <span class="lv">L1</span><span>告警</span
+                  ><span class="path">/alerts</span>
+                </li>
+                <li>
+                  <span class="lv">L1</span><span>报表</span
+                  ><span class="path">/reports</span>
+                </li>
+                <li>
+                  <span class="lv">L1</span><span>管理</span
+                  ><span class="path">/admin</span>
+                </li>
+              </ul>
+            </div>
+            <ul class="vlist">
+              <li>不用赌 —— 如果 B 的判断错了，态势还在那儿。</li>
+              <li>不同角色可以各取所需，不必统一。</li>
+            </ul>
+            <ul class="vlist minus">
+              <li>
+                <strong>「可配置默认页」通常是「没做决定」的代名词。</strong
+                >决策成本没有消失，只是从我这里 转移给了每一个使用者。
+              </li>
+              <li>
+                两个高度相似的一级项，会持续制造「我该去哪个」的犹豫 —— 这是 IA
+                最典型的失败形态。
+              </li>
+              <li>
+                违反「1–3 级进主导航」的精简取向：6 个一级项已经到上限，后面
+                Phase 17 还要加东西。
+              </li>
+              <li>
+                两套落地页要各自维护、各自测试、各自做响应式与 a11y 审计。
+              </li>
+            </ul>
+            <p class="flow">
+              任务流影响：与 B 相同 ——
+              它并没有多解决任何一项，代价却多一个页面加一项配置。
+            </p>
+          </div>
+        </div>
+      </article>
+      <section style="display: flex; flex-direction: column; gap: 22px">
+        <div>
+          <p class="eyebrow">与选型无关，但要一起定</p>
+          <h2 style="margin-top: 6px">三项跨候选的设计</h2>
+        </div>
+        <div class="grid2">
+          <div class="card">
+            <h3>导航模型：左侧栏 + 细顶栏</h3>
+            <p style="margin-top: 8px; color: var(--ink-2); font-size: 0.93rem">
+              侧栏三态（展开 / 收起 /
+              覆盖），顶栏只放面包屑、车队选择、会话、实时状态点。
+            </p>
+            <p
+              style="margin-top: 10px; color: var(--ink-2); font-size: 0.93rem"
+            >
+              选侧栏而非顶栏导航的理由是具体的：16:9
+              屏上<strong>垂直像素比水平稀缺</strong>，而地图与曲线画布
+              吃的正是高度。顶栏导航要占掉 56–64px 通高，侧栏收起后只占 44px
+              通宽。
+            </p>
+          </div>
+          <div class="card">
+            <h3>URL：从 hash 迁到 web history</h3>
+            <p style="margin-top: 8px; color: var(--ink-2); font-size: 0.93rem">
+              现在是
+              <code>createWebHashHistory()</code>，原因写在代码注释里：nginx
+              没有 <code>try_files</code>，前端镜像也没有自定义 conf。
+            </p>
+            <p
+              style="margin-top: 10px; color: var(--ink-2); font-size: 0.93rem"
+            >
+              迁移的收益是刚需而非美观：Phase 16D
+              的告警外发要「点通知直达那一条告警」，而告警中心的筛选状态
+              <strong>现在完全不进 URL</strong>，刷新即回默认。代价明确 ——
+              前端镜像加一份 nginx conf （<code>try_files $uri /index.html</code
+              >）+ 边缘 <code>location /</code> 同步，属于部署改动。
+            </p>
+          </div>
+          <div class="card">
+            <h3>断点：两端是平板与大屏，不是手机</h3>
+            <p style="margin-top: 8px; color: var(--ink-2); font-size: 0.93rem">
+              现状是四个凭手感加的断点（1560 / 1320 / 1240 /
+              860）。改为一条刻度：
+            </p>
+            <p
+              style="
+                margin-top: 10px;
+                font-family: var(--mono);
+                font-size: 0.83rem;
+                color: var(--ink-2);
+              "
+            >
+              768 平板竖 · 1024 平板横 · 1280 笔记本 · 1536 桌面 · 1920 值班台 ·
+              2560 墙面
+            </p>
+            <p
+              style="margin-top: 10px; color: var(--ink-2); font-size: 0.93rem"
+            >
+              现在的 a11y 审计只跑过 1440×900 一个视口 —— 新前端要把 1024 与
+              2560 也纳进 axe。
+            </p>
+          </div>
+        </div>
+
+        <div class="card" style="border-left: 3px solid var(--amber)">
+          <p class="label" style="color: var(--amber-text)">
+            大屏值班模式 · 独立入口
+          </p>
+          <h3 style="margin-top: 8px">
+            它的难点在凭据与「屏幕卡住看不出来」，不在布局
+          </h3>
+          <div class="scroll" style="margin-top: 12px">
+            <table>
+              <thead>
+                <tr>
+                  <th style="width: 12em">墙面看板的硬规则</th>
+                  <th>NavFleet 现状的冲突</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td>不能有会话超时</td>
+                  <td>
+                    15 分钟 access token + 静默刷新，而刷新是
+                    fire-and-forget、失败时不做任何事 →
+                    一块挂三个月的屏会在某次刷新静默失败后停住，<strong
+                      >而且看不出它停了</strong
+                    >
+                  </td>
+                </tr>
+                <tr>
+                  <td>不可交互、无光标无菜单</td>
+                  <td>需要一套专门的只读渲染路径，不能复用带侧栏的外壳</td>
+                </tr>
+                <tr>
+                  <td>大字号、高对比、隔房间可读</td>
+                  <td>
+                    自检问题：<strong>有人在两米外、两秒内能看懂什么？</strong>另外显示墙底边通常离地约
+                    1.2m，画面下部三分之一容易被前排设备遮挡，重要内容不放最下面
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+          <p style="margin-top: 14px; color: var(--ink-2); font-size: 0.93rem">
+            结论：<code>/wall</code> 需要 kiosk 凭据（长期有效 + 只读 +
+            审计可辨识，<strong>不做匿名开放</strong>）、
+            画面上必须有数据新鲜度指示（最后更新时刻 +
+            超阈值变色），刷新失败要能自愈或显式报错。
+          </p>
+        </div>
+      </section>
+      <section style="display: flex; flex-direction: column; gap: 18px">
+        <div>
+          <p class="eyebrow">需要你拍板</p>
+          <h2 style="margin-top: 6px">四个问题</h2>
+        </div>
+
+        <div class="ask">
+          <p class="label">01 · 选哪张图纸</p>
+          <p style="margin-top: 6px">
+            我推 <strong>B</strong>。理由不是"总览更时髦"，而是 A
+            让主屏答错了问题（答"大家都在哪"而不是 "该管哪几台"），C
+            则把决策转移给了每一个使用者。如果你认为在我们的实际规模（示范 6
+            台、目标几十到 数百）下 A 仍然成立，那是一个合理的反对意见 ——
+            调研那条经验的前提是 40 台以上。
+          </p>
+        </div>
+
+        <div class="ask">
+          <p class="label">02 · 规模退化要不要做</p>
+          <p style="margin-top: 6px">
+            6 台与 200 台的最优默认视图不同。方案：<code>/devices</code>
+            的默认视图按车辆数自动选 —— 不超过阈值
+            默认地图，超过则默认列表。好处是同一套 IA
+            在两端都不难用；代价是多一条"为什么今天变成列表了"的
+            解释成本。<strong>要做的话阈值定多少？</strong>我倾向 24。
+          </p>
+        </div>
+
+        <div class="ask">
+          <p class="label">03 · 迁到 web history 同意吗</p>
+          <p style="margin-top: 6px">
+            它要动部署（前端镜像加 nginx conf +
+            边缘路由同步），所以必须现在定，不能等 Phase 14 再说。
+            不迁的后果是告警直达链接与筛选状态入 URL 这两项都要绕着走。
+          </p>
+        </div>
+
+        <div class="ask">
+          <p class="label">04 · 声音提醒要不要做</p>
+          <p style="margin-top: 6px">
+            值班室无人时它是刚需，但浏览器自动播放策略要求先有一次用户交互才能解锁，且会带出静音、音量、
+            免打扰时段一串配置。<strong>做</strong>的话我会在登录后放一个一次性的"启用声音提醒"；
+            <strong>不做</strong>则大屏模式对无人值守场景的价值会打折。
+          </p>
+        </div>
+
+        <p style="color: var(--ink-2); font-size: 0.93rem; max-width: 66ch">
+          这四个答完，我把结论写进 <code>docs/frontend-ia.md</code>，然后进
+          11D（设计系统：token 体系、 Reka UI + Tailwind
+          接入方案、组件清单）。Phase 11
+          全部是设计，<strong>一行产品代码都不写</strong>。
+        </p>
+      </section>
+
+      <footer
+        style="
+          border-top: 1px solid var(--rule);
+          padding-top: 20px;
+          display: flex;
+          flex-wrap: wrap;
+          gap: 6px 20px;
+          align-items: baseline;
+        "
+      >
+        <p class="eyebrow">NavFleet v3 · Phase 11C · 2026-08-29</p>
+        <p class="eyebrow" style="margin-left: auto">
+          线框为灰阶示意 · 视觉与配色留到 11D
+        </p>
+      </footer>
+    </div>
+  </body>
+</html>
