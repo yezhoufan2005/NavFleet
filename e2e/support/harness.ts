@@ -28,8 +28,16 @@ export const REPO_ROOT = path.resolve(__dirname, "..", "..");
  */
 export const BACKEND_PORT = Number(process.env.E2E_BACKEND_PORT ?? 3199);
 export const FRONTEND_PORT = Number(process.env.E2E_FRONTEND_PORT ?? 5299);
+/**
+ * The v3 console runs alongside the v1.0.0 frontend for the whole of Phase 12–13,
+ * so the suite drives both in one run: two projects over two dev servers against
+ * one backend. That is what makes "does the new frontend still do what the old one
+ * did" a question the same specs can answer.
+ */
+export const CONSOLE_PORT = Number(process.env.E2E_CONSOLE_PORT ?? 5298);
 export const BACKEND_URL = `http://127.0.0.1:${BACKEND_PORT}`;
 export const FRONTEND_URL = `http://127.0.0.1:${FRONTEND_PORT}`;
+export const CONSOLE_URL = `http://127.0.0.1:${CONSOLE_PORT}`;
 
 /**
  * Per-run throw-away credentials.

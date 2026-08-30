@@ -1,6 +1,15 @@
 import { ADMIN } from "../support/harness";
 import { expect, signIn, test } from "../support/fixtures";
 
+/**
+ * Sign-in, on both frontends.
+ *
+ * Everything here is behaviour neither frontend gets to change: a wrong password
+ * says so and mounts nothing, a right one reaches the shell with the session
+ * visible, and signing out puts the login form back. The only per-frontend details
+ * are the landing section's names and how sign-out is reached — both from
+ * `support/ia.ts`.
+ */
 test.describe("authentication", () => {
   test("rejects a wrong password and stays on the login form", async ({
     page,
@@ -21,8 +30,9 @@ test.describe("authentication", () => {
     await expect(page.getByRole("navigation")).toHaveCount(0);
   });
 
-  test("signs in with valid credentials and reaches the dashboard", async ({
+  test("signs in with valid credentials and reaches the landing page", async ({
     page,
+    ia,
   }) => {
     await signIn(page);
 
@@ -30,15 +40,17 @@ test.describe("authentication", () => {
     await expect(page.getByRole("banner")).toContainText(ADMIN.username);
     await expect(page.getByRole("banner")).toContainText("管理员");
     await expect(
-      page.getByRole("link", { name: "实时监控", exact: true }),
+      page.getByRole("link", { name: ia.landing.link, exact: true }),
     ).toBeVisible();
-    await expect(page.getByRole("heading", { name: "地图视图" })).toBeVisible();
+    await expect(
+      page.getByRole("heading", { name: ia.landing.heading }).first(),
+    ).toBeVisible();
   });
 
-  test("logout returns to the login form", async ({ page }) => {
+  test("logout returns to the login form", async ({ page, ia }) => {
     await signIn(page);
 
-    await page.getByRole("button", { name: "退出" }).click();
+    await ia.signOut(page);
 
     await expect(page.getByRole("button", { name: "登录" })).toBeVisible();
     await expect(page.getByText("请登录以访问车队监控台")).toBeVisible();
