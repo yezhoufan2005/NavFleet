@@ -113,7 +113,9 @@ v1.0.0 的架构分层与文档质量已经超出多数同规模项目，但四�
       恰是这个规则集专抓的那一类（async 事件回调、被丢弃的 Promise）
 - [ ] `--max-warnings 0` —— `no-unused-vars` 三处都降为 `warn` 且全仓无 `--max-warnings`，
       warning 永不让 CI 红，等于没配
-- [ ] Playwright CI `retries: 1` → 0，flaky 不再被重跑掩盖
+- [ ] Playwright CI `retries: 1` → 0，flaky 不再被重跑掩盖。**这条现在有实测依据**：#79 那次抖动
+      是一个真的对比度缺陷（过渡中间态 1.38:1），而重试对它完全无效 —— 重跑同一段"导航→审计"只会
+      再落进同一个窗口，`retries` 唯一的作用是把真缺陷标成 flaky 然后放行。详见执行记录 2026-08-29 条
 - [ ] `packages/shared` 纳入 lint（根 `eslint.config.mjs:23` 显式 ignore）、e2e 纳入 `format:check`
 - [ ] 覆盖率近零区补测：后端 `persistence.ts` 42.6%（3 例）/ `store.ts` 57.4%（**2 例**）
 - [ ] tsconfig 补 `noUncheckedIndexedAccess` 等严格开关（四份配置现在只开了 `strict`）
@@ -297,11 +299,12 @@ v1.0.0 的架构分层与文档质量已经超出多数同规模项目，但四�
 - 自检 ✅（2026-08-29，PR #78）：console 6 例 · fleet-core 38 · 后端 287 · 前端 132（**旧前端零改动**）·
   lint / format:check / typecheck / build 全过 · console 镜像实建并跑通 SPA fallback ·
   CSS **4.32 KB gzip**（预算 14 KB）· lockfile 在 `node:22-alpine` 里生成、零 npmmirror
-- [ ] **web history 迁移的部署侧**（11C 决定 3，必须在这里落地而不是拖到 Phase 14）：
-      `frontend/Dockerfile` 加 nginx conf 含 `try_files $uri $uri/ /index.html`、边缘
-      `deploy/nginx/locations.conf` 的 `location /` 同步同一 fallback、**两处都要带上安全响应头**
-      （`add_header` 不跨 location 继承，现在全套头只挂在 SPA 那一个 location 上）、compose 实跑验证
-      直接访问 `/devices/xxx` 与刷新都不 404、e2e 新增深链接用例
+- [ ] **web history 的部署侧 —— 剩下的部分归 Phase 14，口径在此更正**。11C 决定 3 要求"必须在 12B
+      落地"，落地的是**新前端自己那一份**（上一条，已实测）。剩下两项刻意不在这里做：- **旧前端不迁 hash**。它在 Phase 14 下线，为一个即将退役的前端改路由模式 + 镜像 nginx conf
+      是纯粹的返工，且会让两套前端的 e2e URL 断言同时变动 —— 风险换不到任何收益。- **边缘 `deploy/nginx/locations.conf` 的 fallback 归 Phase 14**：compose 现在把 `/` 指向旧前端
+      镜像，边缘改 fallback 在新前端进 compose 之前没有作用点。**但有一条现存缺口要带过去**：
+      全套安全响应头现在只挂在 SPA 那一个 location 上，而 `add_header` 不跨 location 继承，
+      所以 Phase 14 换镜像时必须同时核对每个 location 的头，而不是只改 `try_files`。
 
 ### PR 12C-1 — 应用外壳
 
@@ -313,6 +316,9 @@ v1.0.0 的架构分层与文档质量已经超出多数同规模项目，但四�
       **`/devices/:deviceId` 是 `/devices` 的子路由而不是兄弟**，因为 `router-link-active` 按
       matched 记录判定 —— 兄弟路由会让工程师停留最久的那一页整条侧栏都不亮。已有测试钉住
 - [x] 鉴权（搬 `useAuth` / `guards`）+ 通知（搬 `useNotifications`）+ 错误边界 + 全局错误处理
+- [x] **用测试钉住了导航高亮的匹配语义**（上一版 12C 条目里记的待办）。两个类名的分工也定了：
+      `router-link-active` 管**视觉高亮**（分区级，子路由上保持亮），而 `aria-current="page"` 只跟
+      `isExactActive` —— 打开设备详情时「设备」是所在分区而不是当前页，两个都报当前页是撒谎
 - [x] 外壳结构：全宽 `banner`（唯一一个）+ 侧栏三态（240 / 44 / 抽屉，`lg` 以下强制抽屉）+
       自动面包屑（C3）+ 跳转链接 + 可聚焦 `main`（导航后自动接管焦点）
 - [x] 抽屉用 Reka `Dialog`、会话菜单用 Reka `DropdownMenu` —— 这是设计系统选的组件库第一次真用，
@@ -355,11 +361,15 @@ v1.0.0 的架构分层与文档质量已经超出多数同规模项目，但四�
       `REPO_ROOT/test-results` 与 `playwright-report`，两套并行会互相覆盖，需参数化；端口同理
       （`E2E_BACKEND_PORT` / `E2E_FRONTEND_PORT` 已可覆盖，但 webServer 的 `-w navfleet-frontend`
       是写死的 workspace 名）
-- [ ] **把 11A 那句"17 例可一字不改复用"按实际情况改准**。它成立的前提是语义结构与文案都不变，
-      而 11C 决定重构 IA 就意味着导航文案必然变。逐条核过之后的实际情况是：- **1 例可原样复用**：登录失败那条（只碰登录表单，而登录页的 IA 没变）- **2 例需小改**：登录成功那条断言 `实时监控` 链接与 `地图视图` 标题（新 IA 是 `总览`）；
-      登出那条要多一步（`退出` 移进了会话菜单 —— 这是 11C §1「个人偏好进用户菜单」的直接结果，
-      是决定而不是意外）- **404 那条**要把 `/#/no-such-page` 改成 `/no-such-page`（web history），`返回实时监控`
-      改成 `返回总览` - **其余 13 例依赖 Phase 13 的页面**，随对应页面逐个转绿；project 的 spec 白名单每个 13x PR
+- [ ] **把 11A 那句"17 例可一字不改复用"按实际情况改准。** 它成立的前提是语义结构与文案都不变，
+      而 11C 决定重构 IA 就意味着导航文案必然变 —— 逐条核过之后的实际情况见下面四条
+- [ ] **1 例可原样复用**：登录失败那条。它只碰登录表单，而登录页的 IA 没变
+- [ ] **2 例需小改**：登录成功那条断言 `实时监控` 链接与 `地图视图` 标题（新 IA 是 `总览`）；
+      登出那条要多一步 —— `退出` 移进了会话菜单，这是 11C §1「个人偏好进用户菜单」的直接结果，
+      是决定而不是意外
+- [ ] **404 那条**要把 `/#/no-such-page` 改成 `/no-such-page`（web history），`返回实时监控`
+      改成 `返回总览`
+- [ ] **其余 13 例依赖 Phase 13 的页面**，随对应页面逐个转绿。project 的 spec 白名单每个 13x PR
       扩一次，白名单本身就是"等价性网覆盖了多少"的可读记录
 - [ ] 把 12C-1 那次手工 axe 扫描落成提交进仓库的 spec：11 个界面 × 明暗 × 四个视口，
       外加抽屉打开与菜单打开两个瞬时态。**`animation.finished` 在动画被取消时会 reject
@@ -634,6 +644,35 @@ v1.0.0 的架构分层与文档质量已经超出多数同规模项目，但四�
   唯一在运行时读版本的是 `openapi.ts`，读的是根 manifest；镜像内 `/app/package.json` 也是根那份，
   实测仍报 1.0.1。附 `release-version.test.ts`（5 例）**断言这三处不存在 version 字段**，
   并已验证反向：把字段加回去测试立刻变红。断言"不存在"才让漂移结构上不可能，而不只是当下正确。
+- 2026-08-29：**追了三个 PR 的 E2E 抖动，最后是一个真缺陷**（#73 诊断能力 → #79 定位 → #80 修复）。
+  值得完整记一次，因为过程中我两次猜错，而两次都是被自己的实测推翻的：
+
+  1. **#72 首次遇到**：同一个 commit 一次红一次绿。我拿不到证据 —— job 日志需要 admin 权限（403）、
+     artifact 下载 401，红的那次只留下"某个用例失败"。本地 `--repeat-each` 又被一个卡住的 Playwright
+     chromium 下载堵着（缓存 4 KB 且不再增长），改用系统 Chrome 跑了 65 例，复现不出来。
+     我当时的假设是 `poseOffsetFromPanelCentre` 那条不会自动重试的断言（`expect(await x)` 不重试），
+     **但我自己的探针否掉了它** —— 1.4 秒内采样 24 次，offset 恒为 0。既然定位不了，就先修
+     **可观测性**：Playwright 加 `github` reporter，让红色 CI 直接在 check 上标出是哪条用例、哪个
+     元素、什么数值。
+  2. **#79 拿到证据**：新 reporter 报出 `color-contrast 1.38`，`#93a7bd on #4fd6c4`，位置
+     `.router-link-active > span:nth-child(1)`。这两个颜色是 `--muted` 落在 `--brand` 上 —— 而 CSS
+     里 active 态声明的是 `--brand-contrast`。**这个组合在任何稳定状态下都不存在**，只在过渡中间
+     可达。本地 8 次重复 + 8 倍 CPU 降速全绿，复现不出来，我如实说了。
+  3. **探针给出准确机制，并纠正了我的第二个猜测**：我猜是**将要点亮**的那一项，实测是**正在熄灭**
+     的那一项 —— 导航后立刻取计算值，*离开*的链接仍是 `fg=rgb(4,35,31)` / `bg=rgb(79,214,196)`，
+     过渡结束后才变成 `fg=rgb(147,167,189)` / `bg=transparent`。background 与 color 的过渡曲线不同步，
+     中间那 160ms 里前景已经走完、背景还没走完。
+  4. **修法两条**：`.nav-link.router-link-active` 上 `transition: none`（active 态本就不该淡入，
+     它是"你在这里"的即时反馈）；`accessibility.spec.ts` 每次审计前 `settleTransitions(page)`。后者
+     必须把 `document.getAnimations()` **过滤到 `CSSTransition`** —— 页面上有一个无限循环的 pulse
+     动画，不过滤就永远等不到。
+  5. **一条给 P0-f 的硬依据**：`retries: 1` 对这类抖动**完全无效**。重试是把"导航→审计"整段重跑一遍，
+     于是再一次落进同一个窗口。它唯一的作用是把一个真缺陷标成 flaky 然后放行。
+
+- 2026-08-29：**CI 每次改动只跑一遍**（`concurrency` group 按 PR 号 / ref，PR 上
+  `cancel-in-progress`）。此前一个 PR 的 push 与 pull_request 两个事件各触发一整轮，E2E 跑两遍、
+  检查项 11 个；现在 6 个，且 PR 的旧轮次会被新 push 顶掉。
+
 - 2026-08-30：**12C-1 应用外壳落地，而这一步最有价值的产出不是外壳本身，是 axe 抓到的两个缺陷。**
   外壳做完后按 11C §3.3 的要求把审计视口从 1440 一个扩到 1024 / 1440 / 1920 / 2560 四个，
   界面从 5 个扩到 11 个（含抽屉打开、菜单打开两个瞬时态），共 40 次审计。第一轮 13 个
@@ -653,9 +692,11 @@ v1.0.0 的架构分层与文档质量已经超出多数同规模项目，但四�
      还能 Tab 进去，axe 报 `aria-hidden-focus`。菜单不是对话框，ARIA 的 menu-button 模式并不
      要求隐藏页面，所以设 `modal="false"`。**这正是 11D「尽早真用一次组件库」想换到的信息**，
      和 12B 用 token 切片退役 `@theme` 风险是同一个手法。
-     另外搬运 v1.0.0 的外壳时修了它两个缺陷而不是照抄：token 刷新原本丢弃响应、失败什么都不做
-     （parity 9.23，对挂三个月的大屏是致命的）；`useTheme` 的 `watchEffect` 建在第一个调用者的
-     组件作用域里，而第一个调用者是会话菜单 —— 登出即卸载，主题切换从此静默失效。
-     最后一条工程结论：Playwright 自带浏览器的下载在这台机器上第二次卡住，已加
-     `E2E_BROWSER_CHANNEL` 逃生口（CI 不设），本地验证不再被它挡住 —— 17 例旧 e2e 因此能在本地
-     实跑确认 `signIn` 的收紧对两套前端都兼容。
+
+  搬运 v1.0.0 的外壳时另修了它两个缺陷而不是照抄：token 刷新原本丢弃响应、失败什么都不做
+  （parity 9.23，对挂三个月的大屏是致命的）；`useTheme` 的 `watchEffect` 建在第一个调用者的
+  组件作用域里，而第一个调用者是会话菜单 —— 登出即卸载，主题切换从此静默失效。
+
+  最后一条工程结论：Playwright 自带浏览器的下载在这台机器上第二次卡住，已加
+  `E2E_BROWSER_CHANNEL` 逃生口（CI 不设），本地验证不再被它挡住 —— 17 例旧 e2e 因此能在本地
+  实跑确认 `signIn` 的收紧对两套前端都兼容。
