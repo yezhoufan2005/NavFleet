@@ -24,6 +24,7 @@
 import {
   DropdownMenuContent,
   DropdownMenuItem,
+  DropdownMenuCheckboxItem,
   DropdownMenuLabel,
   DropdownMenuPortal,
   DropdownMenuRadioGroup,
@@ -34,16 +35,45 @@ import {
 } from "reka-ui";
 import type { AuthUser } from "@/composables/useAuth";
 import { useTheme, type ThemePreference } from "@/composables/useTheme";
+import { useAlertSound } from "@/composables/useAlertSound";
+import type { QuietHours, SoundVolume } from "@/composables/useAlertSound";
 
 const { user } = defineProps<{ user: AuthUser }>();
 const emit = defineEmits<{ logout: [] }>();
 
 const { preference, setPreference } = useTheme();
+const sound = useAlertSound();
 
 const ROLE_LABELS: Record<AuthUser["role"], string> = {
   admin: "管理员",
   operator: "操作员",
   viewer: "只读",
+};
+
+const VOLUME_OPTIONS: readonly { value: SoundVolume; label: string }[] = [
+  { value: "low", label: "轻" },
+  { value: "medium", label: "中" },
+  { value: "high", label: "响" },
+];
+
+/**
+ * One preset window rather than a time picker. A free-form range needs a form, and a
+ * form belongs on a settings page this IA deliberately does not have — see 13D-2 for
+ * why that is a deferral rather than a claim that presets are the same thing.
+ */
+const QUIET_OPTIONS: readonly { value: QuietHours; label: string }[] = [
+  { value: "off", label: "关闭" },
+  { value: "night", label: "夜间 22:00–07:00" },
+];
+
+const onVolumeChange = (value: unknown): void => {
+  const match = VOLUME_OPTIONS.find((option) => option.value === value);
+  if (match) sound.setVolume(match.value);
+};
+
+const onQuietChange = (value: unknown): void => {
+  const match = QUIET_OPTIONS.find((option) => option.value === value);
+  if (match) sound.setQuietHours(match.value);
 };
 
 const THEME_OPTIONS: readonly { value: ThemePreference; label: string }[] = [
@@ -113,6 +143,68 @@ const onThemeChange = (value: unknown): void => {
             {{ option.label }}
             <span
               v-if="preference === option.value"
+              class="text-brand-ink"
+              aria-hidden="true"
+              >✓</span
+            >
+          </DropdownMenuRadioItem>
+        </DropdownMenuRadioGroup>
+
+        <DropdownMenuSeparator class="my-1 h-px bg-border" />
+
+        <DropdownMenuLabel class="px-2 py-1 text-2xs text-ink-subtle">
+          告警声音（仅告警级）
+        </DropdownMenuLabel>
+        <!-- `@select.prevent` so toggling does not close the menu: someone adjusting
+             sound usually adjusts more than one of these. -->
+        <DropdownMenuCheckboxItem
+          :model-value="sound.muted.value"
+          class="flex cursor-default items-center justify-between rounded-sm px-2 py-1.5 text-sm text-ink-muted select-none data-[highlighted]:bg-surface-sunken data-[highlighted]:text-ink"
+          @select.prevent
+          @update:model-value="sound.setMuted(!sound.muted.value)"
+        >
+          静音
+          <span
+            v-if="sound.muted.value"
+            class="text-brand-ink"
+            aria-hidden="true"
+            >✓</span
+          >
+        </DropdownMenuCheckboxItem>
+        <DropdownMenuRadioGroup
+          :model-value="sound.volume.value"
+          @update:model-value="onVolumeChange"
+        >
+          <DropdownMenuRadioItem
+            v-for="option in VOLUME_OPTIONS"
+            :key="option.value"
+            :value="option.value"
+            class="flex cursor-default items-center justify-between rounded-sm px-2 py-1.5 text-sm text-ink-muted select-none data-[highlighted]:bg-surface-sunken data-[highlighted]:text-ink data-[state=checked]:text-ink"
+            @select.prevent
+          >
+            音量 {{ option.label }}
+            <span
+              v-if="sound.volume.value === option.value"
+              class="text-brand-ink"
+              aria-hidden="true"
+              >✓</span
+            >
+          </DropdownMenuRadioItem>
+        </DropdownMenuRadioGroup>
+        <DropdownMenuRadioGroup
+          :model-value="sound.quietHours.value"
+          @update:model-value="onQuietChange"
+        >
+          <DropdownMenuRadioItem
+            v-for="option in QUIET_OPTIONS"
+            :key="option.value"
+            :value="option.value"
+            class="flex cursor-default items-center justify-between rounded-sm px-2 py-1.5 text-sm text-ink-muted select-none data-[highlighted]:bg-surface-sunken data-[highlighted]:text-ink data-[state=checked]:text-ink"
+            @select.prevent
+          >
+            免打扰 {{ option.label }}
+            <span
+              v-if="sound.quietHours.value === option.value"
               class="text-brand-ink"
               aria-hidden="true"
               >✓</span

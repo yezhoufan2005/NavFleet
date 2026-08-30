@@ -29,6 +29,7 @@ import type { AuthUser } from "@/composables/useAuth";
 import type { SidebarMode } from "@/composables/useSidebar";
 import { useFleetStore } from "@/stores/fleet";
 import type { ConnectionTone } from "@/stores/fleet";
+import { useAlertSound } from "@/composables/useAlertSound";
 
 const PRODUCT_NAME = "智能车队监控平台";
 
@@ -62,6 +63,39 @@ const fleetName = computed(() => {
  * `ok` is `brand` because the palette has no success colour on purpose: the four
  * status colours describe problems, and "healthy" is the absence of one.
  */
+/**
+ * The sound control, which is both the state readout and the unlock gesture.
+ *
+ * Browsers refuse to start audio without a prior user gesture, so the console cannot
+ * decide to be audible on its own — someone has to click something. Making the control
+ * that *reports* the state also the one that unlocks it means the click a person makes
+ * to say "make sound work" is exactly the gesture the policy requires.
+ *
+ * Until then it says so out loud. Silently not sounding is the one behaviour that must
+ * never happen here: it is indistinguishable from "nothing is wrong".
+ */
+const sound = useAlertSound();
+
+const SILENT_LABELS: Record<string, string> = {
+  locked: "声音未启用",
+  muted: "已静音",
+  quiet: "免打扰中",
+};
+
+const soundLabel = computed(
+  () => SILENT_LABELS[sound.silentReason.value] ?? "声音已启用",
+);
+
+const soundTitle = computed(() =>
+  sound.silentReason.value === "locked"
+    ? "点击启用告警声音。浏览器要求先有一次点击才允许播放，所以在此之前告警不会响。"
+    : `告警声音：${soundLabel.value}（仅告警级会响，可在用户菜单中调整）`,
+);
+
+const onSoundClick = (): void => {
+  if (sound.silentReason.value === "locked") void sound.unlock();
+};
+
 const TONE_DOT: Record<ConnectionTone, string> = {
   ok: "bg-brand",
   warning: "bg-warning",
@@ -146,6 +180,35 @@ const NAV_TOGGLE_LABELS: Record<SidebarMode, string> = {
         />
         <span class="whitespace-nowrap">{{ connection.label }}</span>
       </span>
+
+      <button
+        type="button"
+        class="flex items-center gap-1.5 rounded-sm px-1.5 py-1 text-xs transition-colors duration-150 ease-standard"
+        :class="
+          sound.silentReason.value === 'locked'
+            ? 'text-warning-ink hover:bg-warning-wash'
+            : 'text-ink-muted hover:bg-surface-sunken hover:text-ink'
+        "
+        :aria-pressed="!sound.silentReason.value"
+        :title="soundTitle"
+        @click="onSoundClick"
+      >
+        <svg
+          class="size-4 shrink-0"
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          stroke-width="1.8"
+          stroke-linecap="round"
+          aria-hidden="true"
+          focusable="false"
+        >
+          <path d="M5 9v6h3l5 4V5L8 9H5Z" />
+          <path v-if="!sound.silentReason.value" d="M17 8a5 5 0 0 1 0 8" />
+          <path v-else d="M17 9l4 6M21 9l-4 6" />
+        </svg>
+        <span class="hidden whitespace-nowrap lg:inline">{{ soundLabel }}</span>
+      </button>
 
       <AppSessionMenu v-if="user" :user="user" @logout="emit('logout')" />
     </div>

@@ -29,6 +29,7 @@ import LoginForm from "@/components/LoginForm.vue";
 import NotificationHost from "@/components/NotificationHost.vue";
 import { useAuth } from "@/composables/useAuth";
 import { useFleetStore } from "@/stores/fleet";
+import { useAlertSound } from "@/composables/useAlertSound";
 
 const PRODUCT_NAME = "智能车队监控平台";
 
@@ -36,6 +37,7 @@ const route = useRoute();
 const auth = useAuth();
 const authState = auth.state;
 const fleet = useFleetStore();
+const sound = useAlertSound();
 
 /** `/wall` renders without the shell — see `WallView.vue` for why. */
 const bare = computed(() => route.meta.bare === true);
@@ -66,6 +68,22 @@ const handleLogin = async (credentials: {
 }): Promise<void> => {
   await auth.login(credentials.username, credentials.password);
 };
+
+/**
+ * Audible criticals, watched here rather than on the alert page — an operator looking
+ * at the map still needs to hear one, and `/wall` renders without the shell at all.
+ *
+ * Only the ids are watched, so a telemetry tick that changes nothing about *which*
+ * conditions are critical does no work. Whether it actually sounds is entirely
+ * `useAlertSound`'s decision: first observation seeds, bursts collapse, and muted /
+ * quiet / not-yet-unlocked all stay silent while still consuming the ids.
+ */
+watch(
+  () => fleet.groupedAlerts.critical.map((alert) => alert.id).join(","),
+  (joined) => {
+    sound.announce(joined ? joined.split(",") : []);
+  },
+);
 
 /**
  * The document title, in one place. v1.0.0 declared `meta.title` on every route
