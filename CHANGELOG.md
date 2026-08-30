@@ -1,5 +1,23 @@
 # Changelog
 
+## [1.0.2](https://github.com/yezhoufan2005/NavFleet/compare/v1.0.1...v1.0.2) (2026-08-30)
+
+
+### Features
+
+* **console:** scaffold frontend-next and retire the theme risk ([2e0a499](https://github.com/yezhoufan2005/NavFleet/commit/2e0a499c39584d045e92a5f29cd68bda006af7e9))
+* **fleet-core:** extract the logic both frontends will share ([c485a3d](https://github.com/yezhoufan2005/NavFleet/commit/c485a3d063ec79c7249cd28badddb7de6e3f443e))
+
+
+### Bug Fixes
+
+* **a11y:** stop the nav pill animating into an unreadable colour pair ([69ccfc4](https://github.com/yezhoufan2005/NavFleet/commit/69ccfc48ec02f3aa5596e8a792f79666dfc58a21))
+
+
+### Miscellaneous Chores
+
+* **release:** put the version back to 1.0.1 and pin the next release to 1.0.2 ([a0b9d19](https://github.com/yezhoufan2005/NavFleet/commit/a0b9d19710b8b7e3d27b9446961f71404642d95b))
+
 ## [1.0.1](https://github.com/yezhoufan2005/NavFleet/compare/v1.0.0...v1.0.1) (2026-08-29)
 
 ### Bug Fixes
