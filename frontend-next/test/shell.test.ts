@@ -108,7 +108,9 @@ const openSessionMenu = async (
 };
 
 /** The menu renders through a portal, so it is in the body rather than the wrapper. */
-const menuItems = (role: "menuitem" | "menuitemradio"): HTMLElement[] => [
+const menuItems = (
+  role: "menuitem" | "menuitemradio" | "menuitemcheckbox",
+): HTMLElement[] => [
   ...document.body.querySelectorAll<HTMLElement>(`[role='${role}']`),
 ];
 
@@ -312,10 +314,13 @@ describe("session menu", () => {
     const wrapper = await signedIn();
     await openSessionMenu(wrapper);
 
+    // The menu also carries the sound preferences (13D-2), so this asserts the theme
+    // group is intact rather than that it is the only radio group in the menu.
     const options = menuItems("menuitemradio");
-    expect(
-      options.map((option) => option.textContent?.replace(/[\s✓]/g, "")),
-    ).toEqual(["跟随系统", "浅色", "深色"]);
+    const labels = options.map((option) =>
+      option.textContent?.replace(/[\s✓]/g, ""),
+    );
+    expect(labels.slice(0, 3)).toEqual(["跟随系统", "浅色", "深色"]);
 
     options.find((option) => option.textContent?.includes("深色"))?.click();
     await flushPromises();
@@ -429,5 +434,36 @@ describe("the wall display", () => {
     // No sidebar, no top bar, no session menu: it has to be non-interactive.
     expect(wrapper.find("header").exists()).toBe(false);
     expect(wrapper.findAll("nav")).toHaveLength(0);
+  });
+});
+
+describe("the sound control", () => {
+  /**
+   * The control is both the state readout and the unlock gesture, so what matters is
+   * that it *reports* being unable to sound rather than being quietly silent — that
+   * state is indistinguishable from "nothing is wrong".
+   */
+  it("says sound is not enabled until someone enables it", async () => {
+    const wrapper = await signedIn();
+    const control = wrapper
+      .findAll("header button")
+      .find((button) => button.text().includes("声音"));
+
+    expect(control?.text()).toContain("声音未启用");
+    expect(control?.attributes("aria-pressed")).toBe("false");
+    expect(control?.attributes("title")).toContain("浏览器要求先有一次点击");
+  });
+
+  it("carries the three sound preferences in the session menu", async () => {
+    const wrapper = await signedIn();
+    await openSessionMenu(wrapper);
+
+    const labels = menuItems("menuitemradio")
+      .concat(menuItems("menuitemcheckbox"))
+      .map((item) => item.textContent?.replace(/[\s✓]/g, ""));
+
+    expect(labels).toContain("静音");
+    expect(labels.some((label) => label?.startsWith("音量"))).toBe(true);
+    expect(labels.some((label) => label?.startsWith("免打扰"))).toBe(true);
   });
 });

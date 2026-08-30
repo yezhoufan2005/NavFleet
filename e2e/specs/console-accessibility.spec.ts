@@ -150,17 +150,24 @@ for (const theme of ["light", "dark"] as const) {
       await expectAccessible(page, `登录页 — ${label}`);
     });
 
-    test("every route is clean at every viewport on the scale", async ({
-      page,
-    }) => {
-      await useTheme(page, theme);
-      await signIn(page);
-
-      for (const viewport of VIEWPORTS) {
+    /**
+     * One test per viewport rather than one test for the whole grid.
+     *
+     * Eight routes x four viewports is 32 axe analyses, and axe is not fast: as one
+     * test that is a couple of minutes against a 45s budget, and on a cold CI runner
+     * it started timing out — a timeout that says nothing about which route or which
+     * width was slow. Split, each test does eight analyses, gets its own budget, and
+     * names the viewport in its own title when it fails.
+     */
+    for (const viewport of VIEWPORTS) {
+      test(`every route is clean at ${viewport.label}`, async ({ page }) => {
+        await useTheme(page, theme);
+        await signIn(page);
         await page.setViewportSize({
           width: viewport.width,
           height: viewport.height,
         });
+
         for (const route of ROUTES) {
           await page.goto(route.path);
           await expect(
@@ -171,8 +178,8 @@ for (const theme of ["light", "dark"] as const) {
             `${route.path} @ ${viewport.label} — ${label}`,
           );
         }
-      }
-    });
+      });
+    }
 
     test("the open drawer and the open session menu are clean", async ({
       page,
