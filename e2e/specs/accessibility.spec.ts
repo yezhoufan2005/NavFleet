@@ -52,7 +52,33 @@ const formatViolations = (violations: readonly AxeViolation[]): string => {
 };
 
 /** Analyse the current page and fail on any serious/critical violation. */
+/**
+ * Wait until no CSS transition is still running before sampling colours.
+ *
+ * A navigation click starts the nav pill's 160ms transition, and axe measuring
+ * inside that window reads a half-changed foreground against a half-changed
+ * background. That produced a genuine intermittent failure — `--muted` on
+ * `--brand` at 1.38:1 — which read as flakiness for a day because it depends
+ * purely on timing. The pill itself no longer animates (navigation.css explains
+ * why), but every other transition in the app is still a candidate, so the audit
+ * should not race the UI on principle rather than one rule at a time.
+ *
+ * Filtered to `CSSTransition`: `getAnimations()` also returns the status dot's
+ * infinite `realtime-pulse` keyframes, and awaiting that would never resolve.
+ */
+const settleTransitions = (page: Page): Promise<void> =>
+  page.evaluate(async () => {
+    const running = document
+      .getAnimations()
+      .filter((animation) => animation instanceof CSSTransition);
+    await Promise.all(
+      running.map((animation) => animation.finished.catch(() => undefined)),
+    );
+  });
+
 const expectAccessible = async (page: Page, view: string): Promise<void> => {
+  await settleTransitions(page);
+
   const { violations } = await new AxeBuilder({ page })
     .withTags(TAGS)
     .analyze();

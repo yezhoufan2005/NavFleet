@@ -24,10 +24,30 @@
   color: var(--text);
   background: var(--bg-panel-strong);
 }
+/*
+ * The active pill swaps instantly, with no transition — and that is the fix for a
+ * real intermittent axe failure rather than a style preference.
+ *
+ * `.nav-link` above transitions `color` and `background` independently over the
+ * same 160ms. Every intermediate frame therefore pairs a partly-changed
+ * foreground with a partly-changed background, and for this pair the midpoint is
+ * unreadable: axe caught `--muted` (#93a7bd, the *inactive* colour) sitting on
+ * `--brand` (#4fd6c4, the *active* ground) at **1.38:1**, against a 4.5:1
+ * requirement. It only failed on some runs because it depends on whether the
+ * audit samples inside that 160ms window — which is why it read as flaky for a
+ * day rather than as a defect.
+ *
+ * Dropping just the colour from the transition does not help: mid-transition
+ * would then be near-black `--brand-contrast` on the still-dark panel ground,
+ * which is the same problem mirrored. The two properties have to land together,
+ * so they land immediately. Hover keeps its transition, because both of its
+ * endpoints (`--muted` and `--text` on `--bg-panel-strong`) are legible pairs.
+ */
 .nav-link.router-link-active {
   color: var(--brand-contrast);
   background: var(--brand);
   border-color: transparent;
+  transition: none;
 }
 .nav-badge {
   min-width: 20px;
