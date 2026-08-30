@@ -6,7 +6,8 @@
   "workspaces": [
     "packages/*",
     "backend",
-    "frontend"
+    "frontend",
+    "frontend-next"
   ],
   "engines": {
     "node": ">=20"
@@ -24,11 +25,12 @@
     "test": "npm run test --workspaces --if-present",
     "e2e": "npm run e2e:install && playwright test -c e2e",
     "e2e:ui": "npm run e2e:install && playwright test -c e2e --ui",
-    "build": "npm run build -w @navfleet/shared --if-present && npm run build -w navfleet-backend && npm run build -w navfleet-frontend",
+    "build": "npm run build -w @navfleet/shared --if-present && npm run build -w navfleet-backend && npm run build -w navfleet-frontend && npm run build -w navfleet-console",
     "dev:backend": "npm run dev -w navfleet-backend",
     "dev:frontend": "npm run dev -w navfleet-frontend",
     "mock:mqtt": "npm run mock:mqtt -w navfleet-backend",
-    "e2e:install": "playwright install chromium"
+    "e2e:install": "playwright install chromium",
+    "dev:console": "npm run dev -w navfleet-console"
   },
   "devDependencies": {
     "@axe-core/playwright": "4.13.0",

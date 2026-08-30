@@ -1,0 +1,27 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>智能车队监控平台</title>
+    <script>
+      // Stamp the stored theme before the first paint. The v1.0.0 frontend writes
+      // data-theme from useTheme() during App setup, which means a viewer whose
+      // saved preference is dark sees a flash of the light baseline first. Doing it
+      // inline is the only way to be ahead of the initial render.
+      try {
+        var saved = localStorage.getItem("navfleet:theme");
+        if (saved === "dark" || saved === "light") {
+          document.documentElement.dataset.theme = saved;
+        }
+      } catch (error) {
+        // Private mode or a blocked storage partition — fall through to the
+        // prefers-color-scheme default, which is a correct answer too.
+      }
+    </script>
+  </head>
+  <body>
+    <div id="app"></div>
+    <script type="module" src="/src/main.ts"></script>
+  </body>
+</html>

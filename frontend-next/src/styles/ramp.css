@@ -1,0 +1,156 @@
+/* 由 docs/tools/gen-design-system-preview.py 生成，不要手改。 */
+
+/*
+ * 原始层：与主题无关的刻度。进 @theme 所以 Tailwind 为它们生成工具类
+ * （bg-teal-600 / text-lg / p-4 / rounded-md / shadow-raised / ease-standard / 3xl:）。
+ *
+ * 色阶用 oklch 而非 hex，为的是明度阶梯在感知上均匀。注意一条 11D 用机检才发现的事：
+ * 感知均匀**不等于** WCAG 亮度比达标 —— L 0.55 对 L 0.20 看着差很多，实测只有约 3.7:1。
+ * 所以语义层的前景/背景配对必须单独验证，见 docs/frontend-design-system-preview.html。
+ */
+@theme {
+  --color-teal-25: oklch(0.985 0.034 178);
+  --color-teal-50: oklch(0.97 0.045 178);
+  --color-teal-100: oklch(0.94 0.056 178);
+  --color-teal-200: oklch(0.88 0.067 178);
+  --color-teal-300: oklch(0.8 0.078 178);
+  --color-teal-400: oklch(0.71 0.089 178);
+  --color-teal-500: oklch(0.63 0.1 178);
+  --color-teal-600: oklch(0.55 0.089 178);
+  --color-teal-700: oklch(0.46 0.078 178);
+  --color-teal-800: oklch(0.37 0.067 178);
+  --color-teal-900: oklch(0.28 0.056 178);
+  --color-teal-950: oklch(0.2 0.045 178);
+
+  --color-slate-25: oklch(0.985 0.0068 205);
+  --color-slate-50: oklch(0.97 0.009 205);
+  --color-slate-100: oklch(0.94 0.0112 205);
+  --color-slate-200: oklch(0.88 0.0134 205);
+  --color-slate-300: oklch(0.8 0.0156 205);
+  --color-slate-400: oklch(0.71 0.0178 205);
+  --color-slate-500: oklch(0.63 0.02 205);
+  --color-slate-600: oklch(0.55 0.0178 205);
+  --color-slate-700: oklch(0.46 0.0156 205);
+  --color-slate-800: oklch(0.37 0.0134 205);
+  --color-slate-900: oklch(0.28 0.0112 205);
+  --color-slate-950: oklch(0.2 0.009 205);
+
+  --color-blue-25: oklch(0.985 0.051 250);
+  --color-blue-50: oklch(0.97 0.0675 250);
+  --color-blue-100: oklch(0.94 0.084 250);
+  --color-blue-200: oklch(0.88 0.1005 250);
+  --color-blue-300: oklch(0.8 0.117 250);
+  --color-blue-400: oklch(0.71 0.1335 250);
+  --color-blue-500: oklch(0.63 0.15 250);
+  --color-blue-600: oklch(0.55 0.1335 250);
+  --color-blue-700: oklch(0.46 0.117 250);
+  --color-blue-800: oklch(0.37 0.1005 250);
+  --color-blue-900: oklch(0.28 0.084 250);
+  --color-blue-950: oklch(0.2 0.0675 250);
+
+  --color-amber-25: oklch(0.985 0.0476 72);
+  --color-amber-50: oklch(0.97 0.063 72);
+  --color-amber-100: oklch(0.94 0.0784 72);
+  --color-amber-200: oklch(0.88 0.0938 72);
+  --color-amber-300: oklch(0.8 0.1092 72);
+  --color-amber-400: oklch(0.71 0.1246 72);
+  --color-amber-500: oklch(0.63 0.14 72);
+  --color-amber-600: oklch(0.55 0.1246 72);
+  --color-amber-700: oklch(0.46 0.1092 72);
+  --color-amber-800: oklch(0.37 0.0938 72);
+  --color-amber-900: oklch(0.28 0.0784 72);
+  --color-amber-950: oklch(0.2 0.063 72);
+
+  --color-rose-25: oklch(0.985 0.0578 16);
+  --color-rose-50: oklch(0.97 0.0765 16);
+  --color-rose-100: oklch(0.94 0.0952 16);
+  --color-rose-200: oklch(0.88 0.1139 16);
+  --color-rose-300: oklch(0.8 0.1326 16);
+  --color-rose-400: oklch(0.71 0.1513 16);
+  --color-rose-500: oklch(0.63 0.17 16);
+  --color-rose-600: oklch(0.55 0.1513 16);
+  --color-rose-700: oklch(0.46 0.1326 16);
+  --color-rose-800: oklch(0.37 0.1139 16);
+  --color-rose-900: oklch(0.28 0.0952 16);
+  --color-rose-950: oklch(0.2 0.0765 16);
+
+  --color-zinc-25: oklch(0.985 0.0027 235);
+  --color-zinc-50: oklch(0.97 0.0036 235);
+  --color-zinc-100: oklch(0.94 0.0045 235);
+  --color-zinc-200: oklch(0.88 0.0054 235);
+  --color-zinc-300: oklch(0.8 0.0062 235);
+  --color-zinc-400: oklch(0.71 0.0071 235);
+  --color-zinc-500: oklch(0.63 0.008 235);
+  --color-zinc-600: oklch(0.55 0.0071 235);
+  --color-zinc-700: oklch(0.46 0.0062 235);
+  --color-zinc-800: oklch(0.37 0.0054 235);
+  --color-zinc-900: oklch(0.28 0.0045 235);
+  --color-zinc-950: oklch(0.2 0.0036 235);
+
+  --color-white: oklch(1 0 0);
+
+  /* 字阶：基准 14px 而非 16px —— 这是控制台密度，不是文章。 */
+  --text-2xs: 11px;
+  --text-2xs--line-height: 1.45;
+  --text-xs: 12px;
+  --text-xs--line-height: 1.5;
+  --text-sm: 13px;
+  --text-sm--line-height: 1.55;
+  --text-base: 14px;
+  --text-base--line-height: 1.6;
+  --text-md: 15px;
+  --text-md--line-height: 1.6;
+  --text-lg: 17px;
+  --text-lg--line-height: 1.45;
+  --text-xl: 20px;
+  --text-xl--line-height: 1.35;
+  --text-2xl: 24px;
+  --text-2xl--line-height: 1.25;
+  --text-3xl: 30px;
+  --text-3xl--line-height: 1.2;
+  --text-4xl: 38px;
+  --text-4xl--line-height: 1.1;
+
+  /* 大屏字阶：仅在 wall 断点下使用，按"两米外可读"设计。 */
+  --text-wall-sm: 20px;
+  --text-wall-base: 26px;
+  --text-wall-lg: 34px;
+  --text-wall-xl: 48px;
+  --text-wall-2xl: 72px;
+
+  --spacing: 4px;
+
+  --radius-xs: 6px;
+  --radius-sm: 10px;
+  --radius-md: 14px;
+  --radius-lg: 22px;
+
+  --shadow-raised:
+    0 1px 2px oklch(0.2 0.02 205 / 0.06), 0 8px 20px oklch(0.2 0.02 205 / 0.07);
+  --shadow-overlay:
+    0 4px 10px oklch(0.2 0.02 205 / 0.1), 0 20px 40px oklch(0.2 0.02 205 / 0.12);
+  --shadow-drawer:
+    0 0 0 1px oklch(0.2 0.02 205 / 0.08),
+    -12px 0 32px oklch(0.2 0.02 205 / 0.14);
+  --shadow-modal:
+    0 8px 20px oklch(0.2 0.02 205 / 0.14),
+    0 32px 64px oklch(0.2 0.02 205 / 0.18);
+
+  /* 状态切换 / 进场 / 出场三类，用途不同不能共用一条。 */
+  --ease-standard: cubic-bezier(0.4, 0, 0.2, 1);
+  --ease-entrance: cubic-bezier(0.16, 1, 0.3, 1);
+  --ease-exit: cubic-bezier(0.4, 0, 1, 1);
+
+  /* 断点（11C 决定）：两端是平板与墙面看板，不是手机。 */
+  --breakpoint-md: 768px;
+  --breakpoint-lg: 1024px;
+  --breakpoint-xl: 1280px;
+  --breakpoint-2xl: 1536px;
+  --breakpoint-3xl: 1920px;
+  --breakpoint-wall: 2560px;
+
+  --font-sans:
+    "IBM Plex Sans", "PingFang SC", "Microsoft YaHei", system-ui, sans-serif;
+  --font-mono:
+    "IBM Plex Mono", ui-monospace, "SFMono-Regular", Menlo, monospace;
+}

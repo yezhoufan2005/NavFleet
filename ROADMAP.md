@@ -267,12 +267,36 @@ v1.0.0 的架构分层与文档质量已经超出多数同规模项目，但四�
 
 ### PR 12B — workspace 骨架与工程管线
 
-- [ ] `frontend-next/`：Vite + Vue 3 + TS strict + Pinia + vue-router，**全 SFC `lang="ts"`**
-- [ ] Tailwind v4 + Reka UI + token 层落地（按 11D 的设计）
-- [ ] 基础组件第一批：按钮 / 输入 / 选择 / 卡片 / 表格 / 标签 / 徽标 / 骨架 / toast / 对话框 / 抽屉
-- [ ] 工程接入：`package.json` workspaces + 根 `build`、CI 新 job（lint / format:check / typecheck /
-      test:coverage / build，node 20+22 矩阵）、覆盖率门槛（**按真实测量标定，不要沿用旧数字**）
-- [ ] `vue/block-lang` 在新 workspace 里设为**强制 `lang="ts"`**（旧 frontend 保持 `allowNoLang`）
+- [x] `frontend-next/`（包名 `navfleet-console`）：Vite 8 + Vue 3 + Tailwind 4.3 + Reka UI 2.10；
+      tsconfig 除 `strict` 外**另开** `noUncheckedIndexedAccess` / `noImplicitOverride` /
+      `noFallthroughCasesInSwitch` / `noUnusedLocals` / `noUnusedParameters`（旧四份配置只开了 `strict`，
+      新包不迁就）；dev 端口 **5273**，刻意不与旧前端的 5173 撞
+- [x] **token 层与预览页同源**：`gen-design-system-preview.py` 现在同时产出
+      `frontend-next/src/styles/{ramp,semantic}.css` —— 所以预览页里那 14 组对比度审计审的就是线上真正
+      用的值，两者结构上无法漂移
+- [x] **最高风险项已退役**：11D 标记的 `@theme` 覆盖机制在浏览器里实测成立。构建产物里
+      `.bg-surface{background-color:var(--color-surface)}` —— **引用 token 而非嵌入值**；
+      `--color-surface` 共 3 处定义（1 浅色基线 + 2 深色：媒体查询与属性选择器各一）；
+      点一次切换后实测 body 底 `slate-25 → slate-900`、ink `slate-900 → slate-50`、
+      `surface-raised` `white → slate-800`、brand 徽标底/字 `teal-50/800 → teal-900/200`，
+      **源码里零 `dark:` 前缀**
+- [x] 基础组件第一批只做了 `UiButton`（4 变体 × 2 尺寸 + disabled）—— 其余组件推到 12C，
+      理由是它们的形状取决于外壳与页面，先做会做两遍
+- [x] 工程接入：根 workspaces + 根 `build`/`dev:console`、**CI 独立 job**（node 20+22，
+      lint / format:check / typecheck / test:coverage / build）。独立而非并进 frontend job 的理由：
+      两个前端在 Phase 12–13 是各自独立的交付物，v3 红不该躲在生产中那个后面、也不该拖它
+- [x] `vue/block-lang` 设为**强制 `lang="ts"`**（无 `allowNoLang`），`no-unused-vars` 直接 `error`
+      而非 `warn`
+- [x] **web history 的部署侧已落地并实测**（11C 决定 3）：`frontend-next/nginx.conf` +
+      `Dockerfile`；起容器后 `/`、`/devices`、`/devices/agv-01`、`/alerts/history` 全部 200 且返回
+      index.html，而 `/assets/nope.js` 正确 **404**（没被 fallback 吞掉 —— 这条最容易漏），
+      四个安全响应头在 fallback 响应上齐全（`add_header` 不跨 location 继承，所以镜像里也写了一份）
+- [x] token 机检 6 例，**反向验证过**：把 `@theme` 改成 `@theme inline` 后立刻变红。其中一条检查
+      「组件里不得出现 `dark:`」、一条检查「类名必须是字面量」—— 后者抓的是 Tailwind 只扫字面量、
+      `bg-${'{'}token{'}'}` 会静默不生成 CSS 的坑（我自己第一版就是这么写的）
+- 自检 ✅（2026-08-29，PR #78）：console 6 例 · fleet-core 38 · 后端 287 · 前端 132（**旧前端零改动**）·
+  lint / format:check / typecheck / build 全过 · console 镜像实建并跑通 SPA fallback ·
+  CSS **4.32 KB gzip**（预算 14 KB）· lockfile 在 `node:22-alpine` 里生成、零 npmmirror
 - [ ] **web history 迁移的部署侧**（11C 决定 3，必须在这里落地而不是拖到 Phase 14）：
       `frontend/Dockerfile` 加 nginx conf 含 `try_files $uri $uri/ /index.html`、边缘
       `deploy/nginx/locations.conf` 的 `location /` 同步同一 fallback、**两处都要带上安全响应头**

@@ -1,0 +1,17 @@
+@import "tailwindcss";
+@import "./ramp.css";
+@import "./semantic.css";
+@import "./base.css";
+
+/*
+ * Tailwind's `dark:` variant defaults to a `.dark` class. NavFleet has always
+ * switched themes with a `data-theme` attribute on the root element (useTheme
+ * writes it), so the variant is rebound here to match.
+ *
+ * That said: reaching for `dark:` should be rare. The semantic tokens in
+ * semantic.css already absorb the difference between themes, so a `dark:` in a
+ * component usually means a token is missing rather than that this variant was
+ * needed. It exists for the genuine exceptions — an image that needs a different
+ * opacity, a shadow that cannot be expressed as a token.
+ */
+@custom-variant dark (&:where([data-theme="dark"], [data-theme="dark"] *));
