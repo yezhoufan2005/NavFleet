@@ -220,7 +220,20 @@ const formatStamp = (stamp: number): string =>
       data-testid="chart-surface"
     />
 
-    <div v-else class="max-h-96 overflow-auto rounded-sm border border-border">
+    <!--
+      Focusable, and that is a keyboard requirement rather than a nicety: the box is
+      capped at 24rem and the table runs to 500 rows, so without a tab stop there is
+      no way to scroll it without a pointer (WCAG 2.1.1; axe calls it
+      `scrollable-region-focusable`). A named region is what makes the stop
+      announceable instead of a mystery landing spot.
+    -->
+    <div
+      v-else
+      class="max-h-96 overflow-auto rounded-sm border border-border"
+      tabindex="0"
+      role="region"
+      :aria-label="`${label} 数据表`"
+    >
       <table class="w-full border-collapse text-left text-sm">
         <caption class="sr-only">
           {{

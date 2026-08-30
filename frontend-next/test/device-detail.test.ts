@@ -69,6 +69,23 @@ const mountDetail = async (deviceId = "agv-01", tab?: string) => {
 
   const wrapper = mount(DeviceDetailView, { global: { plugins: [router] } });
   await flushPromises();
+
+  // The three non-default panels are `defineAsyncComponent`, so one microtask flush
+  // does not guarantee the child has mounted — how many ticks a dynamic import takes
+  // depends on whether another test file already warmed the module cache, which is
+  // exactly the kind of thing that makes a suite pass alone and fail together. Wait on
+  // the condition instead: *some* panel has content. (Not the first one — Reka renders
+  // all four `tabpanel` elements and leaves the inactive ones empty, so `get()` would
+  // wait forever on the live panel.)
+  if (tab) {
+    await vi.waitFor(() =>
+      expect(
+        wrapper
+          .findAll("[role='tabpanel']")
+          .some((panel) => panel.text().length > 0),
+      ).toBe(true),
+    );
+  }
   return wrapper;
 };
 
@@ -245,11 +262,11 @@ describe("视图切换", () => {
     await flushPromises();
   };
 
-  it("offers the three views, with 实时 first", async () => {
+  it("offers the four views, with 实时 first", async () => {
     seed();
     const wrapper = await mountDetail();
 
-    expect(tabLabels(wrapper)).toEqual(["实时", "曲线", "历史回放"]);
+    expect(tabLabels(wrapper)).toEqual(["实时", "曲线", "历史回放", "告警史"]);
     expect(wrapper.find("[role='tab'][aria-selected='true']").text()).toBe(
       "实时",
     );
@@ -299,6 +316,19 @@ describe("视图切换", () => {
     await openTab(wrapper, 0);
 
     expect(router.currentRoute.value.query.tab).toBeUndefined();
+  });
+
+  it("does not download the chart or map engine to show 实时", async () => {
+    // The three non-default panels are async, and the tab boundary is the split point:
+    // Reka does not mount an inactive panel, so "not needed yet" and "not loaded yet"
+    // coincide. Measured: this view's chunk went from 564 kB to 14.5 kB.
+    seed();
+    const wrapper = await mountDetail();
+
+    expect(wrapper.findComponent(TimeSeriesChart).exists()).toBe(false);
+    // The panel element exists (Reka renders the active one only), and the live tab's
+    // own content is there.
+    expect(wrapper.text()).toContain("报码解读");
   });
 });
 

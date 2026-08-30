@@ -41,6 +41,9 @@ const ROUTES: readonly { path: string; heading: string | RegExp }[] = [
   // and an unnamed slider is exactly the critical Phase 10 found on the old history
   // page. Auditing 实时 would never reach it.
   { path: "/devices/agv-c12?tab=playback", heading: /c12/i },
+  // 告警史 is a list of severity badges and dated rows — its own surface, and the one
+  // where "still running" has to read as a word rather than a colour.
+  { path: "/devices/agv-c12?tab=alerts", heading: /c12/i },
   { path: "/alerts", heading: "告警" },
   { path: "/reports", heading: "报表" },
   { path: "/admin", heading: "管理" },

@@ -29,12 +29,10 @@
  * is a URL rather than a sentence with a step in it. `replace` rather than `push`, so
  * the back button leaves the device instead of walking back through tabs.
  */
-import { computed } from "vue";
+import { computed, defineAsyncComponent } from "vue";
 import { useRoute, useRouter } from "vue-router";
 import { TabsContent, TabsList, TabsRoot, TabsTrigger } from "reka-ui";
 import PageHeader from "@/components/PageHeader.vue";
-import DeviceChartsTab from "@/components/device/DeviceChartsTab.vue";
-import DevicePlaybackTab from "@/components/device/DevicePlaybackTab.vue";
 import { useFleetStore } from "@/stores/fleet";
 import {
   CODE_IMPACTS,
@@ -55,11 +53,37 @@ const route = useRoute();
 const router = useRouter();
 const fleet = useFleetStore();
 
+/**
+ * The four L3 views `docs/frontend-ia.md` asks for, in the order the questions get
+ * asked: right now / lately / that afternoon / has this happened before.
+ */
 const TABS = [
   { value: "live", label: "实时" },
   { value: "charts", label: "曲线" },
   { value: "playback", label: "历史回放" },
+  { value: "alerts", label: "告警史" },
 ] as const;
+
+/**
+ * The three non-default panels are async, and the tab boundary is why that is exactly
+ * right rather than merely possible: Reka does not mount an inactive panel, so the
+ * split point and the "do we need this yet" point are the same line.
+ *
+ * The measured reason: ECharts and the map engine were static imports of this view, so
+ * opening a device on 实时 downloaded **564 kB** to render six panels of text. Deferring
+ * them leaves the live tab with what it actually uses. Each panel already renders its
+ * own loading state after mount, so the brief blank while the chunk arrives is the
+ * state that tab shows anyway.
+ */
+const DeviceChartsTab = defineAsyncComponent(
+  () => import("@/components/device/DeviceChartsTab.vue"),
+);
+const DevicePlaybackTab = defineAsyncComponent(
+  () => import("@/components/device/DevicePlaybackTab.vue"),
+);
+const DeviceAlertsTab = defineAsyncComponent(
+  () => import("@/components/device/DeviceAlertsTab.vue"),
+);
 
 const activeTab = computed({
   get: () => {
@@ -342,6 +366,10 @@ const panels = computed(() =>
 
         <TabsContent value="playback">
           <DevicePlaybackTab :device-id="deviceId" />
+        </TabsContent>
+
+        <TabsContent value="alerts">
+          <DeviceAlertsTab :device-id="deviceId" />
         </TabsContent>
       </TabsRoot>
     </template>

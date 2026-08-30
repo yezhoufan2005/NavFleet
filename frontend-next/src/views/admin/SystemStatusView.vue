@@ -415,7 +415,16 @@ const AREA_LABELS: Record<StoredEntry["area"], string> = {
         这个浏览器没有留存任何 NavFleet 数据。
       </p>
 
-      <div v-else class="overflow-auto rounded-sm border border-border">
+      <!-- Focusable for the same reason as the chart's table: it scrolls sideways on a
+           narrow viewport, and a scroll container with no focusable content cannot be
+           reached from a keyboard at all. -->
+      <div
+        v-else
+        class="overflow-auto rounded-sm border border-border"
+        tabindex="0"
+        role="region"
+        aria-label="本浏览器留存的数据"
+      >
         <table class="w-full border-collapse text-left text-sm">
           <caption class="sr-only">
             本浏览器留存的 NavFleet 数据，共
