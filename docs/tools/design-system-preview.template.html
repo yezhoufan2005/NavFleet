@@ -365,6 +365,34 @@
 
       <section>
         <div>
+          <p class="eyebrow">① 原始层 · 图表系列色</p>
+          <h2 style="margin-top: calc(var(--spacing) * 2)">
+            chart-1…8 —— 分类色，与状态色分开
+          </h2>
+        </div>
+        <p style="color: var(--color-ink-muted); max-width: 66ch">
+          <strong>刻意不从上面那 6 条 ramp 里取。</strong>分类色靠色相彼此可分，而这套
+          ramp 只有 4 条有彩色相，凑 8 个系列必然出现"同色相两档"的配对 ——
+          而那恰好是分类编码最不该有的东西：第 1 与第 5 条曲线看起来像同一条。
+          槽位<strong>顺序本身就是 CVD 安全机制</strong>，不要重排。取值已按 NavFleet
+          自己的表面（浅色 <code>#ffffff</code> / 深色 <code>slate-800</code>，图表画在
+          <code>surface-raised</code> 上）跑过校验器：明度带与彩度下限 PASS，CVD
+          最差相邻 ΔE 9.1 / 8.4，正常视觉最差相邻 ΔE 19.6 / 19.3。两套都是
+          <strong>对比度 WARN</strong>，按救济规则组件必须同时给可见标签或数据表视图 ——
+          所以 TimeSeriesChart 内置表格视图，那不是附加功能。
+        </p>
+        <div class="card">
+          <div class="ramp">
+            <div class="ramp-label">
+              <b>chart</b><span>系列 1 → 8，按顺序分配，不循环</span>
+            </div>
+            <div class="ramp-strip">__CHART_CHIPS__</div>
+          </div>
+        </div>
+      </section>
+
+      <section>
+        <div>
           <p class="eyebrow">② 语义层 · 机检</p>
           <h2 style="margin-top: calc(var(--spacing) * 2)">
             对比度审计（__SEMANTIC_COUNT__ 个 token）

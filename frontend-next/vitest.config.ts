@@ -14,7 +14,14 @@ export default defineConfig({
     coverage: {
       provider: "v8",
       include: ["src/**/*.{ts,vue}"],
-      exclude: ["src/main.ts", "src/env.d.ts"],
+      exclude: [
+        "src/main.ts",
+        "src/env.d.ts",
+        // A development-only harness, absent from the production bundle. Counting it
+        // would drag the ratchet down and put pressure on someone to write tests for
+        // a measuring instrument.
+        "src/views/ChartPerfView.vue",
+      ],
       // Calibrated from the first real measurement rather than guessed —
       // 94.07 / 88.07 / 89.23 / 94.07 — with a couple of points of headroom, the
       // same way the fleet-core thresholds were set. 12B deliberately left these

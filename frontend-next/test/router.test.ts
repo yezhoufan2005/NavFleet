@@ -43,6 +43,11 @@ describe("route table", () => {
       { path: "/reports", name: "reports", title: "报表" },
       { path: "/admin", name: "admin", title: "管理" },
       { path: "/wall", name: "wall", title: "大屏值班" },
+      // Present here because vitest runs with `import.meta.env.DEV` true. It is a
+      // development tool, not a page: the production build drops it, and
+      // `scripts/assert-no-dev-only-chunks.mjs` fails the build if its chunk ever
+      // appears in `dist/`.
+      { path: "/__charts-perf", name: "charts-perf", title: "图表性能基线" },
       { path: "/:pathMatch(.*)*", name: "not-found", title: "页面不存在" },
     ]);
   });
@@ -66,6 +71,18 @@ describe("route table", () => {
     expect(wall?.meta.bare).toBe(true);
     expect(NAV_SECTIONS.map((section) => section.routeName)).not.toContain(
       "wall",
+    );
+  });
+
+  it("keeps the chart harness out of the navigation and out of the shell", async () => {
+    // If it ever gained a nav entry, a development tool would be one click from an
+    // operator's dashboard.
+    const router = createAppRouter(createMemoryHistory());
+    await router.push("/__charts-perf");
+
+    expect(router.currentRoute.value.meta.bare).toBe(true);
+    expect(NAV_SECTIONS.map((section) => section.routeName)).not.toContain(
+      "charts-perf",
     );
   });
 
