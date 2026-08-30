@@ -11,6 +11,21 @@ export default defineConfig({
     environment: "jsdom",
     include: ["test/**/*.test.ts"],
     setupFiles: ["./test/setup.ts"],
+    /**
+     * Pin the timezone, because otherwise the suite's result depends on where it runs.
+     *
+     * This was not a precaution: a single assertion on a `toLocaleString` output passed
+     * on a UTC+8 laptop and failed on both CI legs, which run UTC — deterministically,
+     * and with a log I could not read from here. Pinning is what makes that class of
+     * failure reproducible locally instead of only in CI.
+     *
+     * **Asia/Shanghai rather than UTC**, deliberately. Under UTC a timezone offset is
+     * zero, so the local-wall-clock arithmetic in the playback window
+     * (`toLocalInput` / the end-of-minute rounding) would be exercised only in the one
+     * case where getting it wrong is invisible. A non-zero offset keeps that path
+     * honest, and it is also the locale this console is deployed into.
+     */
+    env: { TZ: "Asia/Shanghai" },
     coverage: {
       provider: "v8",
       include: ["src/**/*.{ts,vue}"],

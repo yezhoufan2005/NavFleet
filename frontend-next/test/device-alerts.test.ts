@@ -3,7 +3,7 @@ import type { MockInstance } from "vitest";
 import { createPinia, setActivePinia } from "pinia";
 import { createMemoryHistory, createRouter } from "vue-router";
 import { enableAutoUnmount, flushPromises, mount } from "@vue/test-utils";
-import { fleetApi } from "@navfleet/fleet-core";
+import { fleetApi, formatDateTime } from "@navfleet/fleet-core";
 import type { AlertRecord } from "@navfleet/fleet-core";
 import DeviceAlertsTab from "@/components/device/DeviceAlertsTab.vue";
 
@@ -104,7 +104,12 @@ describe("告警史", () => {
     const row = wrapper.get("li");
     expect(row.text()).toContain("已清除");
     expect(row.text()).not.toContain("仍活跃");
-    expect(row.text()).toContain("2026/8/30 10:01:30");
+    // Built with the same formatter rather than typed out. A literal "2026/8/30
+    // 10:01:30" is the UTC+8 rendering of this instant, so it asserted the author's
+    // timezone — it passed here and failed on both CI legs, which run UTC. The
+    // timezone is pinned in `vitest.config.ts` now; this still goes through the
+    // formatter, because what the test means is "the cleared instant is shown".
+    expect(row.text()).toContain(formatDateTime(BASE + 90_000));
   });
 
   it("最新的排在最前，因为时间线是从现在往回读的", async () => {
