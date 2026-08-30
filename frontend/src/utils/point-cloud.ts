@@ -1,11 +1,30 @@
+/**
+ * Rasterizes a scene's point cloud into a PNG data URL for the scene map backdrop.
+ *
+ * As of 13A-2 everything except the canvas lives in `@navfleet/fleet-core`: the PCD
+ * header parse, the geometry fallbacks, the z-band classifier, the binning loop and
+ * the pixel arithmetic. This file is the part that genuinely needs a document.
+ * Extracting it is what finally gave that arithmetic tests (23 of them) — it had
+ * none while it lived here.
+ *
+ * **The palette stays the hardcoded dark pair on purpose.** In `fleet-core` it is
+ * now a parameter, and the new console passes its theme's colours; passing them here
+ * too would change how the production map looks in light mode, and that is a change
+ * to review against a rendered map rather than to slip into a refactor. The old
+ * frontend therefore keeps producing byte-identical images, and the theme fix ships
+ * with the console in Phase 14.
+ */
+
+import {
+  buildOccupancyGrid,
+  paintOccupancy,
+  type PointCloudBounds,
+  type PointCloudMeta,
+  type PointCloudPalette,
+} from "@navfleet/fleet-core";
 import type { SceneMapDefinition } from "@navfleet/shared";
 
-export interface PointCloudBounds {
-  minX: number;
-  maxX: number;
-  minY: number;
-  maxY: number;
-}
+export type { PointCloudBounds, PointCloudMeta };
 
 export interface PointCloudBackdrop {
   dataUrl: string;
@@ -15,41 +34,15 @@ export interface PointCloudBackdrop {
   meta: PointCloudMeta;
 }
 
-/** Loose shape of the optional point-cloud metadata JSON (all fields optional). */
-export interface PointCloudMeta {
-  grid_size?: unknown;
-  origin?: { x?: unknown; y?: unknown };
-  shape?: { width?: unknown; height?: unknown };
-  floor_band?: { min_z?: unknown; max_z?: unknown };
-  obstacle_band?: { min_z?: unknown; max_z?: unknown };
-}
-
-interface PcdFieldDescriptor {
-  name: string;
-  size: number;
-  type: string;
-  count: number;
-  offset: number;
-}
-
-interface PcdHeader {
-  headerLength: number;
-  pointCount: number;
-  pointStride: number;
-  fields: PcdFieldDescriptor[];
-}
-
 type ScenePart = Partial<SceneMapDefinition>;
 
 const POINT_CLOUD_CACHE = new Map<string, Promise<PointCloudBackdrop>>();
 
-const HEADER_SCAN_BYTES = 64 * 1024;
-const ASCII_DECODER = new TextDecoder("ascii");
-
-function toFiniteNumber(value: unknown, fallback: number | null = null): number | null {
-  const numeric = Number(value);
-  return Number.isFinite(numeric) ? numeric : fallback;
-}
+/** The values this file wrote inline before 13A-2 — see the header. */
+const LEGACY_DARK_PALETTE: PointCloudPalette = {
+  obstacle: [182, 237, 255],
+  floor: [108, 132, 148],
+};
 
 function fetchJson(url: string): Promise<PointCloudMeta> {
   return fetch(url, { cache: "no-store" }).then((response) => {
@@ -69,226 +62,13 @@ function fetchArrayBuffer(url: string): Promise<ArrayBuffer> {
   });
 }
 
-function parsePcdHeader(arrayBuffer: ArrayBuffer): PcdHeader {
-  const headerSlice = new Uint8Array(
-    arrayBuffer,
-    0,
-    Math.min(arrayBuffer.byteLength, HEADER_SCAN_BYTES),
-  );
-  const headerText = ASCII_DECODER.decode(headerSlice);
-  const match = headerText.match(/DATA\s+binary[^\r\n]*\r?\n/i);
-
-  if (!match || match.index === undefined) {
-    throw new Error("暂不支持当前 PCD 格式，未找到 DATA binary 头信息");
-  }
-
-  const headerLength = match.index + match[0].length;
-  const lines = headerText
-    .slice(0, headerLength)
-    .split(/\r?\n/)
-    .map((line) => line.trim())
-    .filter(Boolean);
-  const header: Record<string, string[]> = {};
-
-  lines.forEach((line) => {
-    const [keyword, ...rest] = line.split(/\s+/);
-    header[keyword.toUpperCase()] = rest;
-  });
-
-  const fields = header.FIELDS || [];
-  const sizes = (header.SIZE || []).map((value) => Number(value));
-  const types = header.TYPE || [];
-  const counts = (header.COUNT || []).map((value) => Number(value));
-  const normalizedCounts = fields.map((_, index) => counts[index] || 1);
-
-  let runningOffset = 0;
-  const descriptors: PcdFieldDescriptor[] = fields.map((name, index) => {
-    const descriptor: PcdFieldDescriptor = {
-      name,
-      size: sizes[index] || 4,
-      type: types[index] || "F",
-      count: normalizedCounts[index] || 1,
-      offset: runningOffset,
-    };
-    runningOffset += descriptor.size * descriptor.count;
-    return descriptor;
-  });
-
-  const width = Number(header.WIDTH?.[0] || 0);
-  const height = Number(header.HEIGHT?.[0] || 1);
-  const points = Number(header.POINTS?.[0] || width * height || 0);
-
-  return {
-    headerLength,
-    pointCount: points,
-    pointStride: runningOffset,
-    fields: descriptors,
-  };
-}
-
-function readScalar(
-  dataView: DataView,
-  offset: number,
-  descriptor: PcdFieldDescriptor | undefined,
-): number {
-  if (!descriptor || descriptor.count !== 1) {
-    return Number.NaN;
-  }
-
-  const littleEndian = true;
-  if (descriptor.type === "F" && descriptor.size === 4) {
-    return dataView.getFloat32(offset, littleEndian);
-  }
-  if (descriptor.type === "F" && descriptor.size === 8) {
-    return dataView.getFloat64(offset, littleEndian);
-  }
-  if (descriptor.type === "I" && descriptor.size === 1) {
-    return dataView.getInt8(offset);
-  }
-  if (descriptor.type === "I" && descriptor.size === 2) {
-    return dataView.getInt16(offset, littleEndian);
-  }
-  if (descriptor.type === "I" && descriptor.size === 4) {
-    return dataView.getInt32(offset, littleEndian);
-  }
-  if (descriptor.type === "U" && descriptor.size === 1) {
-    return dataView.getUint8(offset);
-  }
-  if (descriptor.type === "U" && descriptor.size === 2) {
-    return dataView.getUint16(offset, littleEndian);
-  }
-  if (descriptor.type === "U" && descriptor.size === 4) {
-    return dataView.getUint32(offset, littleEndian);
-  }
-
-  return Number.NaN;
-}
-
-interface PointCloudGeometry {
-  gridSize: number;
-  originX: number;
-  originY: number;
-  width: number;
-  height: number;
-  bounds: PointCloudBounds;
-}
-
-function derivePointCloudGeometry(
-  sceneDefinition: ScenePart = {},
-  meta: PointCloudMeta = {},
-): PointCloudGeometry {
-  const gridSize =
-    toFiniteNumber(meta.grid_size, toFiniteNumber(sceneDefinition.resolution, 0.2)) || 0.2;
-  const originX = toFiniteNumber(meta.origin?.x, toFiniteNumber(sceneDefinition.origin?.x, 0)) || 0;
-  const originY = toFiniteNumber(meta.origin?.y, toFiniteNumber(sceneDefinition.origin?.y, 0)) || 0;
-  const width = Math.max(
-    1,
-    Math.round(toFiniteNumber(meta.shape?.width, toFiniteNumber(sceneDefinition.width, 1)) || 1),
-  );
-  const height = Math.max(
-    1,
-    Math.round(toFiniteNumber(meta.shape?.height, toFiniteNumber(sceneDefinition.height, 1)) || 1),
-  );
-
-  return {
-    gridSize,
-    originX,
-    originY,
-    width,
-    height,
-    bounds: {
-      minX: originX,
-      maxX: originX + width * gridSize,
-      minY: originY,
-      maxY: originY + height * gridSize,
-    },
-  };
-}
-
-function classifyPoint(pointZ: number, meta: PointCloudMeta): number {
-  const floorMin = toFiniteNumber(meta.floor_band?.min_z);
-  const floorMax = toFiniteNumber(meta.floor_band?.max_z);
-  const obstacleMin = toFiniteNumber(meta.obstacle_band?.min_z);
-  const obstacleMax = toFiniteNumber(meta.obstacle_band?.max_z);
-
-  if (
-    Number.isFinite(obstacleMin) &&
-    Number.isFinite(obstacleMax) &&
-    pointZ >= (obstacleMin as number) &&
-    pointZ <= (obstacleMax as number)
-  ) {
-    return 2;
-  }
-
-  if (
-    Number.isFinite(floorMin) &&
-    Number.isFinite(floorMax) &&
-    pointZ >= (floorMin as number) &&
-    pointZ <= (floorMax as number)
-  ) {
-    return 1;
-  }
-
-  if (!Number.isFinite(obstacleMin) && !Number.isFinite(floorMin)) {
-    return 1;
-  }
-
-  return 0;
-}
-
 function rasterizePointCloud(
   arrayBuffer: ArrayBuffer,
   meta: PointCloudMeta,
   sceneDefinition: ScenePart,
 ): PointCloudBackdrop {
-  const geometry = derivePointCloudGeometry(sceneDefinition, meta);
-  const { width, height, gridSize, originX, originY, bounds } = geometry;
-  const occupancy = new Uint8Array(width * height);
-  const intensityBuckets = new Uint8Array(width * height);
-  const dataView = new DataView(arrayBuffer);
-  const header = parsePcdHeader(arrayBuffer);
-  const fieldMap: Record<string, PcdFieldDescriptor> = Object.fromEntries(
-    header.fields.map((field) => [field.name, field]),
-  );
-
-  for (let index = 0; index < header.pointCount; index += 1) {
-    const baseOffset = header.headerLength + index * header.pointStride;
-    if (baseOffset + header.pointStride > arrayBuffer.byteLength) {
-      break;
-    }
-
-    const x = readScalar(dataView, baseOffset + (fieldMap.x?.offset || 0), fieldMap.x);
-    const y = readScalar(dataView, baseOffset + (fieldMap.y?.offset || 0), fieldMap.y);
-    const z = readScalar(dataView, baseOffset + (fieldMap.z?.offset || 0), fieldMap.z);
-    const intensity = readScalar(
-      dataView,
-      baseOffset + (fieldMap.intensity?.offset || 0),
-      fieldMap.intensity,
-    );
-
-    if (!Number.isFinite(x) || !Number.isFinite(y) || !Number.isFinite(z)) {
-      continue;
-    }
-
-    const cellX = Math.floor((x - originX) / gridSize);
-    const cellY = Math.floor((y - originY) / gridSize);
-    if (cellX < 0 || cellX >= width || cellY < 0 || cellY >= height) {
-      continue;
-    }
-
-    const cellIndex = cellY * width + cellX;
-    const nextClass = classifyPoint(z, meta);
-    if (nextClass === 2 || (nextClass === 1 && occupancy[cellIndex] !== 2)) {
-      occupancy[cellIndex] = nextClass;
-    }
-
-    if (Number.isFinite(intensity)) {
-      intensityBuckets[cellIndex] = Math.max(
-        intensityBuckets[cellIndex],
-        Math.max(0, Math.min(255, Math.round(intensity))),
-      );
-    }
-  }
+  const grid = buildOccupancyGrid(arrayBuffer, meta, sceneDefinition);
+  const { width, height, bounds } = grid.geometry;
 
   const canvas = document.createElement("canvas");
   canvas.width = width;
@@ -300,32 +80,7 @@ function rasterizePointCloud(
   }
 
   const imageData = context.createImageData(width, height);
-  const pixels = imageData.data;
-
-  for (let cellY = 0; cellY < height; cellY += 1) {
-    for (let cellX = 0; cellX < width; cellX += 1) {
-      const sourceIndex = cellY * width + cellX;
-      const pixelIndex = ((height - 1 - cellY) * width + cellX) * 4;
-      const pointClass = occupancy[sourceIndex];
-      const intensity = intensityBuckets[sourceIndex];
-
-      if (pointClass === 2) {
-        pixels[pixelIndex] = 182;
-        pixels[pixelIndex + 1] = 237;
-        pixels[pixelIndex + 2] = 255;
-        pixels[pixelIndex + 3] = Math.max(164, intensity);
-        continue;
-      }
-
-      if (pointClass === 1) {
-        pixels[pixelIndex] = 108;
-        pixels[pixelIndex + 1] = 132;
-        pixels[pixelIndex + 2] = 148;
-        pixels[pixelIndex + 3] = Math.max(64, Math.min(146, Math.round(intensity * 0.75) || 82));
-      }
-    }
-  }
-
+  imageData.data.set(paintOccupancy(grid, LEGACY_DARK_PALETTE));
   context.putImageData(imageData, 0, 0);
 
   return {
