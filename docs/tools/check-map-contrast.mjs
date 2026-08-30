@@ -39,10 +39,33 @@ const PAIRS = [
   ["map-scale", "ros-canvas", 3, "内容图形：WCAG 1.4.11"],
 ];
 
+/**
+ * 点云背景的两个类别色（13A-2b）。
+ *
+ * 它们**总是带透明度画的**，所以不能像上面那样单独判 —— 透明色的对比度取决于它叠在什么
+ * 上面。这里叠的东西是确定的（`ros-canvas`），alpha 也是确定的：栅格化时 obstacle 的
+ * alpha 下限是 164/255、floor 的默认值是 82/255（见 fleet-core 的 `paintOccupancy`）。
+ * 所以按"最不利但真实会出现"的 alpha 合成后再判。
+ *
+ * 第三组是这里最要紧的一组：obstacle 与 floor 编码的是**两件不同的事**（撞得到 / 开得过），
+ * 把它们混起来才是真正的失效模式，所以它们之间也要够分。
+ */
+const CLOUD_PAIRS = [
+  ["ros-cloud-obstacle", "ros-canvas", 3, "障碍物：必须看得见"],
+  ["ros-cloud-floor", "ros-canvas", 1.3, "可通行区：可见但不抢戏"],
+  ["ros-cloud-obstacle", "ros-cloud-floor", 3, "两类之间：混淆才是真失效"],
+];
+
+/**
+ * Every custom property in a block, keyed without the `--color-` prefix so that
+ * colours read as `ros-canvas` and the non-colour ones (the point-cloud alphas) read
+ * under their own names.
+ */
 const readTokens = (css) => {
   const tokens = new Map();
-  for (const [, name, value] of css.matchAll(/--color-([\w-]+):\s*([^;]+);/g)) {
-    if (!tokens.has(name)) tokens.set(name, value.trim());
+  for (const [, name, value] of css.matchAll(/--([\w-]+):\s*([^;]+);/g)) {
+    const key = name.startsWith("color-") ? name.slice("color-".length) : name;
+    if (!tokens.has(key)) tokens.set(key, value.trim());
   }
   return tokens;
 };
@@ -146,7 +169,27 @@ const resolve1 = (tokens, name) => {
   return indirect ? (ramp.get(indirect[1]) ?? tokens.get(indirect[1])) : value;
 };
 
+/**
+ * 把带 alpha 的前景合成到背景上，得到屏幕上真正出现的颜色。
+ *
+ * 在**线性**空间做合成而不是在 sRGB 空间：alpha 混合是物理光量的加权和，在 gamma 编码的
+ * 数值上直接插值会得到偏暗的结果。
+ */
+const composite = (fgLinear, bgLinear, alpha) =>
+  fgLinear.map(
+    (channel, index) => channel * alpha + bgLinear[index] * (1 - alpha),
+  );
+
 let failed = 0;
+const report = (themeName, label, ratio, floor, why) => {
+  const pass = ratio >= floor;
+  if (!pass) failed += 1;
+  console.log(
+    `  ${themeName}  ${label.padEnd(38)} ${ratio.toFixed(2)}:1  ≥${floor}  ` +
+      `${pass ? "PASS" : "FAIL"}  ${why}`,
+  );
+};
+
 console.log("地图非文本图形对比度（下限按各自用途，见文件头）\n");
 for (const [themeName, tokens] of Object.entries(themes)) {
   for (const [fgName, bgName, floor, why] of PAIRS) {
@@ -154,11 +197,29 @@ for (const [themeName, tokens] of Object.entries(themes)) {
       toLinearRgb(resolve1(tokens, fgName)),
       toLinearRgb(resolve1(tokens, bgName)),
     );
-    const pass = ratio >= floor;
-    if (!pass) failed += 1;
-    console.log(
-      `  ${themeName}  ${fgName.padEnd(10)} on ${bgName.padEnd(11)} ` +
-        `${ratio.toFixed(2)}:1  ≥${floor}  ${pass ? "PASS" : "FAIL"}  ${why}`,
+    report(themeName, `${fgName} on ${bgName}`, ratio, floor, why);
+  }
+
+  const canvas = toLinearRgb(resolve1(tokens, "ros-canvas"));
+  // Read the alphas rather than restating them: the point of generating the tokens
+  // is that this check and the renderer cannot disagree about what will be drawn.
+  const alphaOf = (name) => {
+    const raw = tokens.get(`${name}-alpha`);
+    if (raw === undefined) throw new Error(`token 缺失: --${name}-alpha`);
+    return Number(raw) / 255;
+  };
+  const washed = (name) =>
+    name === "ros-canvas"
+      ? canvas
+      : composite(toLinearRgb(resolve1(tokens, name)), canvas, alphaOf(name));
+
+  for (const [fgName, bgName, floor, why] of CLOUD_PAIRS) {
+    report(
+      themeName,
+      `${fgName} on ${bgName}`,
+      contrast(washed(fgName), washed(bgName)),
+      floor,
+      why,
     );
   }
 }

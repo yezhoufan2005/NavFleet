@@ -340,7 +340,7 @@ export const buildOccupancyGrid = (
 };
 
 /**
- * The two colours the backdrop is drawn in.
+ * The two colours the backdrop is drawn in, and how opaque each may get.
  *
  * A parameter rather than a constant, and that is **a fix, not a port**: v1.0.0
  * wrote `rgb(182,237,255)` and `rgb(108,132,148)` straight into the pixel loop —
@@ -348,11 +348,35 @@ export const buildOccupancyGrid = (
  * drawn for the wrong background, and no amount of CSS could correct it because by
  * then it was a PNG. Whoever calls this must also put the palette in the cache key;
  * see `pointCloudBackdrop.ts` for why a theme switch otherwise serves a stale image.
+ *
+ * **The alphas are part of the palette, not constants, and that is not a knob for
+ * its own sake.** How opaque a wash has to be depends on what it is drawn over: a
+ * translucent pale wash reads clearly on a near-black canvas, and the same 64%
+ * opacity on a near-white one cannot reach 3:1 contrast *whatever colour it is* —
+ * the canvas showing through the remaining 36% sets a luminance floor above the one
+ * 3:1 allows. Machine-checked in `docs/tools/check-map-contrast.mjs`, which is what
+ * found that; the light theme therefore uses a higher obstacle floor.
  */
 export interface PointCloudPalette {
   obstacle: readonly [number, number, number];
   floor: readonly [number, number, number];
+  /** Defaults are v1.0.0's values, so an omitted `alpha` reproduces its output. */
+  alpha?: {
+    /** Obstacles never fade below this, however low the reported intensity. */
+    obstacleMin?: number;
+    floorMin?: number;
+    floorMax?: number;
+    /** What a floor cell that reported no intensity at all is drawn at. */
+    floorDefault?: number;
+  };
 }
+
+const LEGACY_ALPHA = {
+  obstacleMin: 164,
+  floorMin: 64,
+  floorMax: 146,
+  floorDefault: 82,
+} as const;
 
 /**
  * Grid → RGBA pixels, row-flipped.
@@ -361,16 +385,17 @@ export interface PointCloudPalette {
  * a raster written in grid order is vertically mirrored against the vehicles drawn
  * on top of it.
  *
- * The alpha curves are carried over verbatim. They are what keeps the backdrop
- * readable without competing with the vehicle markers: obstacles never fade below
- * 164, floor is held between 64 and 146, and a floor cell that reported no
- * intensity at all still draws at 82 rather than vanishing.
+ * The alpha curves keep the backdrop readable without competing with the vehicle
+ * markers: obstacles never fade below `obstacleMin`, floor is held between
+ * `floorMin` and `floorMax`, and a floor cell that reported no intensity at all
+ * still draws at `floorDefault` rather than vanishing.
  */
 export const paintOccupancy = (
   grid: OccupancyGrid,
   palette: PointCloudPalette,
 ): Uint8ClampedArray => {
   const { width, height } = grid.geometry;
+  const alpha = { ...LEGACY_ALPHA, ...palette.alpha };
   const pixels = new Uint8ClampedArray(width * height * 4);
 
   for (let cellY = 0; cellY < height; cellY += 1) {
@@ -384,7 +409,7 @@ export const paintOccupancy = (
         pixels[pixelIndex] = palette.obstacle[0];
         pixels[pixelIndex + 1] = palette.obstacle[1];
         pixels[pixelIndex + 2] = palette.obstacle[2];
-        pixels[pixelIndex + 3] = Math.max(164, intensity);
+        pixels[pixelIndex + 3] = Math.max(alpha.obstacleMin, intensity);
         continue;
       }
 
@@ -393,8 +418,11 @@ export const paintOccupancy = (
         pixels[pixelIndex + 1] = palette.floor[1];
         pixels[pixelIndex + 2] = palette.floor[2];
         pixels[pixelIndex + 3] = Math.max(
-          64,
-          Math.min(146, Math.round(intensity * 0.75) || 82),
+          alpha.floorMin,
+          Math.min(
+            alpha.floorMax,
+            Math.round(intensity * 0.75) || alpha.floorDefault,
+          ),
         );
       }
     }

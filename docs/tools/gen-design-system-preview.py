@@ -133,6 +133,23 @@ MAP = [
     ("ros-lanelet-line", "rgba(37, 99, 235, 0.55)", "rgba(133, 214, 255, 0.5)"),
     ("ros-lanelet-center", "rgba(30, 41, 59, 0.32)", "rgba(255, 255, 255, 0.28)"),
     ("ros-link", "rgba(30, 41, 59, 0.5)", "rgba(255, 255, 255, 0.72)"),
+    # 点云的两个类别色（13A-2b）。深色两个是 13A-2a 从旧前端原值搬来的；浅色那一对是
+    # 这一轮新定的 —— 现在地图真在屏幕上，才判得了。**四组都过机检**，判定见
+    # check-map-contrast.mjs：它们总是带 alpha 画的，所以按真实 alpha 合成到 ros-canvas
+    # 上再判，并且 obstacle 与 floor 之间也要够分（混淆"撞得到"和"开得过"才是真失效）。
+    ("ros-cloud-obstacle", "#123a52", "#b6edff"),
+    ("ros-cloud-floor", "#5a6b7a", "#6c8494"),
+]
+
+# 点云两个类别色的 alpha 下限。**不是颜色，所以不带 --color- 前缀。**
+#
+# 为什么 alpha 必须跟着主题走：一层半透明的浅色洗在近黑底上读得很清楚，同样 64% 的
+# 不透明度洗在近白底上**无论取什么颜色都到不了 3:1** —— 剩下 36% 透出来的画布本身就把
+# 亮度垫在了 3:1 允许的上限之上。这不是挑色挑得不好，是 alpha 定死了上限。
+# 这条是机检算出来的：浅色第一版按 164 试，三组全 FAIL，且代数上无解。
+MAP_CLOUD_ALPHA = [
+    ("ros-cloud-obstacle-alpha", 220, 164),
+    ("ros-cloud-floor-alpha", 82, 82),
 ]
 
 # 网格与比例尺是 11D §2.2 承诺要补的两个，取自 ramp（与 chart-grid / chart-axis 同源）。
@@ -228,6 +245,9 @@ def semantic_css(index):
     lines.append("    /* 地图：ros-* 为原值搬迁的字面值，网格/比例尺取自 ramp。 */")
     lines += [f"    --color-{r[0]}: {r[index]};" for r in MAP]
     lines += [f"    --color-{r[0]}: var(--color-{r[index]});" for r in MAP_FRAME]
+    lines.append("")
+    lines.append("    /* 点云 alpha 下限：不是颜色，所以不带 --color- 前缀。 */")
+    lines += [f"    --{r[0]}: {r[index]};" for r in MAP_CLOUD_ALPHA]
     return "\n".join(lines)
 
 
