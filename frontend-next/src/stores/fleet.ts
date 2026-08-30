@@ -1,0 +1,702 @@
+/**
+ * Fleet monitoring store (Pinia) — the console's data layer.
+ *
+ * Owns the reactive fleet state, the derived views every page reads, and the
+ * bootstrap sequence. Pure shaping logic and REST access live in
+ * `@navfleet/fleet-core`, and the socket lives in `lib/realtimeLink.ts`; what is
+ * left here is the part that is genuinely about *this* application's state.
+ *
+ * Ported from the v1.0.0 store with three deliberate differences:
+ *
+ * - **The socket is not in the state.** v1.0.0 kept the live `WebSocket` on
+ *   `state.realtime.ws`. Nothing rendered it, and a connection object inside a
+ *   `reactive()` invites the question of whether calls on it go through a proxy.
+ *   The link is a closure in `realtimeLink.ts`; the store keeps only what the UI
+ *   can display — a status, an attempt count, and whether the API answered.
+ * - **No `window.vehicleDashboard` bridge.** v1.0.0 published `updateFromPayload`
+ *   and friends on `window` for the pre-Vue page to drive. Nothing reads it: not
+ *   the app, and not one of the 36 e2e assertions. Porting a debug surface that
+ *   accepts arbitrary state into the console would be adding an injection point
+ *   for no gain, so it stops here.
+ * - **No map-mode preference.** v1.0.0 persisted a two-value `gps|scene` toggle.
+ *   Phase 13A-2 needs a three-state list/map/auto mode with a vehicle-count
+ *   threshold, so porting the two-state version now would only be something to
+ *   delete. It arrives with the maps that need it.
+ */
+
+import { computed, reactive } from "vue";
+import { defineStore } from "pinia";
+import {
+  cloneValue,
+  extractDeviceIdFromTopic,
+  fallbackFleetPayload,
+  fleetApi,
+  formatDateTime,
+  getDeviceTone,
+  hasPose,
+  mergeDevice,
+  mergeSceneDefinitionParts,
+  normalizeDevice,
+  normalizeFormation,
+  normalizePathPoint,
+  pickTrailPose,
+  pointsAreNear,
+  round,
+  sceneCatalog,
+  toTimestampMs,
+  TRAIL_MAX_POINTS,
+  TRAIL_MIN_DISTANCE,
+} from "@navfleet/fleet-core";
+import type { SceneDefinition } from "@navfleet/fleet-core";
+import type {
+  DeviceAlert,
+  DeviceSnapshot,
+  FormationSnapshot,
+  SceneMapDefinition,
+  Severity,
+} from "@navfleet/shared";
+import { notify } from "@/composables/useNotifications";
+import { createRealtimeLink } from "@/lib/realtimeLink";
+import type { RealtimeLink, RealtimeLinkStatus } from "@/lib/realtimeLink";
+
+/**
+ * Loose scene-definition record: seeded from the typed catalog and then merged
+ * with dynamically-shaped backend parts, so a value is either a known
+ * `SceneMapDefinition` or an open record.
+ */
+type SceneDefinitionRecord = SceneMapDefinition | Record<string, unknown>;
+/** A movement-trail sample (world-space point). */
+export type TrailPoint = { x: number; y: number };
+/** One grouped alert row: a device alert annotated with its owning device. */
+export type GroupedAlert = DeviceAlert & {
+  deviceId: string;
+  deviceName: string;
+};
+export type GroupedAlerts = Record<Severity, GroupedAlert[]>;
+
+/** Canonical shape produced by `normalizePayload` from a raw inbound payload. */
+interface NormalizedPayload {
+  replace: boolean;
+  fleetName: string;
+  topicPattern: string;
+  devices: DeviceSnapshot[];
+  formations: FormationSnapshot[] | null;
+}
+
+interface RealtimeState {
+  /** Did the last snapshot request succeed? */
+  apiReady: boolean;
+  linkStatus: RealtimeLinkStatus;
+  reconnectAttempts: number;
+  /**
+   * True while the very first snapshot request is in flight.
+   *
+   * Without it a view cannot tell "no data has arrived yet" from "no data matches
+   * the current filters", so a cold load rendered the empty-filter message for
+   * however long the request took — telling the operator their filters were wrong
+   * when nothing had been filtered at all. Views render skeletons while it is set.
+   */
+  bootstrapPending: boolean;
+}
+
+interface FleetState {
+  fleetName: string;
+  topicPattern: string;
+  devicesById: Record<string, DeviceSnapshot>;
+  formationsById: Record<string, FormationSnapshot>;
+  selectedDeviceId: string;
+  selectedFormationId: string;
+  lastSource: string;
+  lastUpdateAt: string | null;
+  sceneDefinitions: Record<string, SceneDefinitionRecord>;
+  pendingSceneLoads: Record<string, boolean>;
+  trailsByDeviceId: Record<string, TrailPoint[]>;
+  realtime: RealtimeState;
+}
+
+/** How the link should be described on screen. See `connection` below. */
+export type ConnectionTone = "ok" | "warning" | "critical" | "pending";
+
+export const useFleetStore = defineStore("fleet", () => {
+  const state = reactive<FleetState>({
+    fleetName: fallbackFleetPayload.fleetName,
+    topicPattern: fallbackFleetPayload.topicPattern,
+    devicesById: {},
+    formationsById: {},
+    selectedDeviceId: "",
+    selectedFormationId: "",
+    lastSource: "bootstrap",
+    lastUpdateAt: null,
+    sceneDefinitions: cloneValue(sceneCatalog),
+    pendingSceneLoads: {},
+    trailsByDeviceId: {},
+    realtime: {
+      apiReady: false,
+      linkStatus: "idle",
+      reconnectAttempts: 0,
+      bootstrapPending: false,
+    },
+  });
+
+  const getSceneDefinition = (
+    sceneId: string,
+  ): SceneDefinitionRecord | null => {
+    if (!sceneId) return null;
+    return state.sceneDefinitions[sceneId] || sceneCatalog[sceneId] || null;
+  };
+
+  const mergeSceneDefinition = (definition: SceneDefinition): void => {
+    if (!definition?.sceneId) return;
+    // `SceneMapDefinition` has no index signature, so bridge it to the loose,
+    // dynamically-merged shape `mergeSceneDefinitionParts` consumes.
+    const fallback = (sceneCatalog[definition.sceneId] ||
+      {}) as unknown as Record<string, unknown>;
+    state.sceneDefinitions[definition.sceneId] = mergeSceneDefinitionParts(
+      fallback,
+      definition,
+    );
+  };
+
+  const loadSceneDefinition = async (sceneId: string): Promise<void> => {
+    if (!sceneId || state.pendingSceneLoads[sceneId]) return;
+    state.pendingSceneLoads[sceneId] = true;
+    try {
+      mergeSceneDefinition(await fleetApi.getScene(sceneId));
+    } catch {
+      // Keep whatever local fallback we have; a missing scene must not blank the map.
+    } finally {
+      delete state.pendingSceneLoads[sceneId];
+    }
+  };
+
+  const loadSceneCatalog = async (): Promise<boolean> => {
+    try {
+      const payload = await fleetApi.getScenes();
+      (payload.items || []).forEach(mergeSceneDefinition);
+      return true;
+    } catch {
+      return false;
+    }
+  };
+
+  /**
+   * Four inbound shapes, because the backend, the MQTT bridge and the offline
+   * fallback do not agree on one: a bare array of devices, a full snapshot, a
+   * `{topic, payload}` envelope, and a single loose device record.
+   */
+  const normalizePayload = (input: unknown): NormalizedPayload => {
+    if (!input || typeof input !== "object") {
+      throw new Error("消息必须是 JSON 对象");
+    }
+
+    if (Array.isArray(input)) {
+      return {
+        replace: true,
+        fleetName: state.fleetName,
+        topicPattern: state.topicPattern,
+        devices: input.map((item) => normalizeDevice(item)),
+        formations: null,
+      };
+    }
+
+    const record = input as Record<string, unknown>;
+
+    if (Array.isArray(record.devices)) {
+      return {
+        replace: true,
+        fleetName: (record.fleetName as string) || state.fleetName,
+        topicPattern: (record.topicPattern as string) || state.topicPattern,
+        devices: record.devices.map((item) => normalizeDevice(item)),
+        formations: Array.isArray(record.formations)
+          ? record.formations.map((item) => normalizeFormation(item))
+          : null,
+      };
+    }
+
+    if (record.topic && record.payload !== undefined) {
+      const payloadBody =
+        typeof record.payload === "string"
+          ? JSON.parse(record.payload)
+          : record.payload;
+      const body = payloadBody as Record<string, unknown>;
+      const existing =
+        state.devicesById[
+          (body.deviceId as string) || extractDeviceIdFromTopic(record.topic)
+        ];
+      return {
+        replace: false,
+        fleetName: state.fleetName,
+        topicPattern: state.topicPattern,
+        devices: [
+          normalizeDevice(payloadBody, record.topic as string, existing),
+        ],
+        formations: Array.isArray(body.formations)
+          ? body.formations.map((item) => normalizeFormation(item))
+          : null,
+      };
+    }
+
+    const existing =
+      state.devicesById[
+        (record.deviceId as string) || extractDeviceIdFromTopic(record.topic)
+      ];
+    return {
+      replace: false,
+      fleetName: (record.fleetName as string) || state.fleetName,
+      topicPattern: (record.topicPattern as string) || state.topicPattern,
+      devices: [normalizeDevice(record, record.topic as string, existing)],
+      formations: Array.isArray(record.formations)
+        ? record.formations.map((item) => normalizeFormation(item))
+        : null,
+    };
+  };
+
+  const devices = computed<DeviceSnapshot[]>(() =>
+    Object.values(state.devicesById),
+  );
+
+  const formations = computed<FormationSnapshot[]>(() =>
+    Object.values(state.formationsById).map((formation) => {
+      // A predicate rather than `.filter(Boolean)`: a formation may list a device
+      // the fleet has not sent yet, so the lookup really can miss, and `Boolean`
+      // does not tell the compiler the misses are gone. v1.0.0 wrote it the short
+      // way and only compiled because its tsconfig did not check index access.
+      const memberDevices = (formation.deviceIds || [])
+        .map((deviceId: string) => state.devicesById[deviceId])
+        .filter((device): device is DeviceSnapshot => device !== undefined);
+      const sceneCandidates = memberDevices
+        .map(
+          (device) =>
+            device.sceneId ||
+            device.runtimeSceneId ||
+            device.defaultSceneId ||
+            "",
+        )
+        .filter(Boolean);
+      const uniqueScenes = [...new Set(sceneCandidates)];
+
+      return {
+        ...formation,
+        deviceCount: memberDevices.length || formation.deviceCount || 0,
+        onlineCount: memberDevices.filter((device) => device.online).length,
+        sceneId:
+          formation.sceneId ||
+          (uniqueScenes.length === 1
+            ? (uniqueScenes[0] ?? "")
+            : memberDevices[0]?.sceneId || ""),
+      };
+    }),
+  );
+
+  // Fixed, stable ordering by device id so rows never jump as telemetry updates —
+  // severity is conveyed by each row's status, not by its position.
+  const sortedDevices = computed<DeviceSnapshot[]>(() =>
+    [...devices.value].sort((left, right) =>
+      String(left.deviceId).localeCompare(String(right.deviceId), "en"),
+    ),
+  );
+
+  const sortedFormations = computed<FormationSnapshot[]>(() =>
+    [...formations.value].sort((left, right) =>
+      String(left.formationId).localeCompare(String(right.formationId), "en"),
+    ),
+  );
+
+  const selectedDevice = computed<DeviceSnapshot | null>(
+    () => state.devicesById[state.selectedDeviceId] || null,
+  );
+  const selectedFormation = computed<FormationSnapshot | null>(
+    () => state.formationsById[state.selectedFormationId] || null,
+  );
+
+  const filteredDevices = computed<DeviceSnapshot[]>(() => {
+    if (!selectedFormation.value) return sortedDevices.value;
+    const formationDeviceIds = new Set(selectedFormation.value.deviceIds || []);
+    return sortedDevices.value.filter((device) =>
+      formationDeviceIds.has(device.deviceId),
+    );
+  });
+
+  const formationSceneId = computed(
+    () =>
+      selectedFormation.value?.sceneId || selectedDevice.value?.sceneId || "",
+  );
+
+  const summary = computed(() => {
+    const onlineCount = devices.value.filter((device) => device.online).length;
+    const alertTotal = devices.value.reduce(
+      (sum, device) => sum + device.alerts.length,
+      0,
+    );
+    return {
+      totalCount: devices.value.length,
+      onlineCount,
+      alertTotal,
+      focusName:
+        selectedFormation.value?.formationName ||
+        selectedDevice.value?.deviceName ||
+        "--",
+    };
+  });
+
+  const groupedAlerts = computed<GroupedAlerts>(() => {
+    const grouped: GroupedAlerts = { critical: [], warning: [], notice: [] };
+    devices.value.forEach((device) => {
+      device.alerts.forEach((alert) => {
+        grouped[alert.severity].push({
+          ...alert,
+          deviceId: device.deviceId,
+          deviceName: device.deviceName,
+        });
+      });
+    });
+    Object.values(grouped).forEach((list) => {
+      list.sort(
+        (left, right) => toTimestampMs(right.ts) - toTimestampMs(left.ts),
+      );
+    });
+    return grouped;
+  });
+
+  /**
+   * Vehicles the scene map should draw alongside the selected one: a formation's
+   * members when one is selected, otherwise every vehicle standing in the same
+   * scene. v1.0.0 returned nothing at all without a formation, so a scene map of a
+   * six-vehicle site showed one vehicle and no hint that the others existed.
+   */
+  const sceneDevices = computed<DeviceSnapshot[]>(() => {
+    const currentSceneId = formationSceneId.value;
+    const formationDeviceIds = selectedFormation.value
+      ? new Set(selectedFormation.value.deviceIds || [])
+      : null;
+    return sortedDevices.value.filter(
+      (device) =>
+        (!formationDeviceIds || formationDeviceIds.has(device.deviceId)) &&
+        device.rosMapEnabled !== false &&
+        (!currentSceneId || device.sceneId === currentSceneId),
+    );
+  });
+
+  const ensureSelectedDevice = (): void => {
+    if (state.selectedDeviceId && state.devicesById[state.selectedDeviceId]) {
+      if (!selectedFormation.value) return;
+      if (
+        (selectedFormation.value.deviceIds || []).includes(
+          state.selectedDeviceId,
+        )
+      ) {
+        return;
+      }
+    }
+
+    if (selectedFormation.value) {
+      const preferred = filteredDevices.value.find(
+        (device) =>
+          !formationSceneId.value || device.sceneId === formationSceneId.value,
+      );
+      state.selectedDeviceId =
+        preferred?.deviceId || filteredDevices.value[0]?.deviceId || "";
+      return;
+    }
+
+    state.selectedDeviceId = sortedDevices.value[0]?.deviceId || "";
+  };
+
+  const primeSceneDefinitions = (list: DeviceSnapshot[]): void => {
+    list.forEach((device) => {
+      if (device.sceneId && !getSceneDefinition(device.sceneId)) {
+        void loadSceneDefinition(device.sceneId);
+      }
+    });
+  };
+
+  const recordTrails = (
+    incomingDevices: DeviceSnapshot[],
+    mergedById: Record<string, DeviceSnapshot>,
+    replace: boolean,
+  ): void => {
+    const nextTrails: Record<string, TrailPoint[]> = {
+      ...state.trailsByDeviceId,
+    };
+    incomingDevices.forEach((device) => {
+      const pose = pickTrailPose(mergedById[device.deviceId]);
+      const point = pose ? normalizePathPoint(pose) : null;
+      if (!point) return;
+      const existing = nextTrails[device.deviceId] || [];
+      const last = existing[existing.length - 1];
+      // Drop samples the vehicle has not meaningfully moved between, or a parked
+      // vehicle accumulates 240 identical points and its trail means nothing.
+      if (last && pointsAreNear(last, point, TRAIL_MIN_DISTANCE)) return;
+      const appended = [...existing, point];
+      nextTrails[device.deviceId] =
+        appended.length > TRAIL_MAX_POINTS
+          ? appended.slice(appended.length - TRAIL_MAX_POINTS)
+          : appended;
+    });
+    if (replace) {
+      Object.keys(nextTrails).forEach((deviceId) => {
+        if (!mergedById[deviceId]) delete nextTrails[deviceId];
+      });
+    }
+    state.trailsByDeviceId = nextTrails;
+  };
+
+  const ingestPayload = (rawPayload: unknown, source: string): void => {
+    const normalized = normalizePayload(rawPayload);
+    const nextDevicesById: Record<string, DeviceSnapshot> = normalized.replace
+      ? {}
+      : { ...state.devicesById };
+
+    normalized.devices.forEach((device) => {
+      nextDevicesById[device.deviceId] = mergeDevice(
+        state.devicesById[device.deviceId] ?? null,
+        device,
+      );
+    });
+
+    if (normalized.formations) {
+      const nextFormationsById: Record<string, FormationSnapshot> = {};
+      normalized.formations.forEach((formation) => {
+        nextFormationsById[formation.formationId] = normalizeFormation(
+          formation,
+          state.formationsById[formation.formationId] ?? null,
+        );
+      });
+      state.formationsById = nextFormationsById;
+    }
+
+    state.devicesById = nextDevicesById;
+    recordTrails(normalized.devices, nextDevicesById, normalized.replace);
+    state.fleetName = normalized.fleetName;
+    state.topicPattern = normalized.topicPattern;
+    state.lastSource = source;
+    state.lastUpdateAt = new Date().toISOString();
+    primeSceneDefinitions(Object.values(state.devicesById));
+    ensureSelectedDevice();
+  };
+
+  const trailsByDeviceId = computed(() => state.trailsByDeviceId);
+
+  const clearTrail = (deviceId = state.selectedDeviceId): void => {
+    if (!deviceId || !state.trailsByDeviceId[deviceId]) return;
+    const next = { ...state.trailsByDeviceId };
+    delete next[deviceId];
+    state.trailsByDeviceId = next;
+  };
+
+  const selectDevice = (
+    deviceId: string,
+    options: { preserveFormation?: boolean } = {},
+  ): void => {
+    if (!state.devicesById[deviceId]) return;
+
+    state.selectedDeviceId = deviceId;
+    if (options.preserveFormation) return;
+    const belongsToSelectedFormation =
+      selectedFormation.value &&
+      (selectedFormation.value.deviceIds || []).includes(deviceId);
+    if (!belongsToSelectedFormation) state.selectedFormationId = "";
+  };
+
+  const selectFormation = (formationId: string): void => {
+    if (!state.formationsById[formationId]) return;
+    state.selectedFormationId = formationId;
+    ensureSelectedDevice();
+  };
+
+  const clearFormationSelection = (): void => {
+    state.selectedFormationId = "";
+    ensureSelectedDevice();
+  };
+
+  // ── realtime ──────────────────────────────────────────────────────────────
+  /**
+   * One link per store instance, created lazily so importing the store does not
+   * open a socket (the router's guards import it at module scope).
+   */
+  let link: RealtimeLink | null = null;
+
+  const handleRealtimeMessage = (message: unknown): void => {
+    const envelope = message as
+      { type?: string; payload?: unknown } | null | undefined;
+    if (!envelope?.type) return;
+    try {
+      if (envelope.type === "fleet.snapshot") {
+        ingestPayload(envelope.payload, "ws");
+        return;
+      }
+      if (envelope.type === "fleet.delta") {
+        const payload = envelope.payload as { device?: unknown } | undefined;
+        ingestPayload(payload?.device ?? envelope.payload, "mqtt");
+      }
+    } catch {
+      // A frame we cannot normalize must not take the socket down with it: the
+      // next telemetry message is a second later and is usually fine.
+    }
+  };
+
+  const handleRealtimeStatus = (
+    status: RealtimeLinkStatus,
+    attempt: number,
+  ): void => {
+    const previous = state.realtime.linkStatus;
+    state.realtime.linkStatus = status;
+    state.realtime.reconnectAttempts = attempt;
+
+    // Announce only the transitions a person needs to know about. Notifying on
+    // every retry would repeat itself for as long as the backend is down; the
+    // status indicator in the top bar is what reports the ongoing condition.
+    if (status === "reconnecting" && previous === "open") {
+      notify("实时连接中断，正在自动重连…", {
+        type: "warning",
+        dedupeKey: "ws-down",
+      });
+    }
+    if (status === "open" && previous === "reconnecting") {
+      notify("实时连接已恢复", { type: "success", dedupeKey: "ws-restored" });
+    }
+  };
+
+  const connectRealtime = (): void => {
+    link ??= createRealtimeLink({
+      onMessage: handleRealtimeMessage,
+      onStatus: handleRealtimeStatus,
+    });
+    link.connect();
+  };
+
+  const disconnectRealtime = (): void => {
+    link?.disconnect();
+  };
+
+  /**
+   * What the top bar says about the link, in one place.
+   *
+   * A four-state indicator rather than a boolean, because "the API answered but
+   * the socket is down" and "nothing is reachable" call for different actions from
+   * whoever is watching. Derived here rather than in the component so a second
+   * consumer (the wall view) reads the same answer instead of re-deriving one —
+   * the same argument that hoisted device tone into `fleet-core`.
+   *
+   * `connecting` is grouped with the bootstrap rather than with `reconnecting`, and
+   * that distinction is a defect the first test on this found: every cold start
+   * spent the socket's opening moments claiming to be **重连中**, announcing a
+   * failure that had not happened. A link on its way up is not a link coming back.
+   */
+  const connection = computed<{
+    tone: ConnectionTone;
+    label: string;
+    detail: string;
+  }>(() => {
+    if (state.realtime.bootstrapPending) {
+      return { tone: "pending", label: "连接中", detail: "正在获取车队快照…" };
+    }
+    if (!state.realtime.apiReady) {
+      return {
+        tone: "critical",
+        label: "后端离线",
+        detail: "无法连接后端服务，页面显示的是最后一次已知状态",
+      };
+    }
+    if (state.realtime.linkStatus === "open") {
+      return { tone: "ok", label: "实时", detail: "实时数据连接正常" };
+    }
+    if (state.realtime.linkStatus !== "reconnecting") {
+      return {
+        tone: "pending",
+        label: "连接中",
+        detail: "正在建立实时数据连接…",
+      };
+    }
+    return {
+      tone: "warning",
+      label: "重连中",
+      detail: `实时连接已中断，正在重试（第 ${state.realtime.reconnectAttempts} 次）`,
+    };
+  });
+
+  // ── bootstrap ─────────────────────────────────────────────────────────────
+  const bootstrapFromBackend = async (): Promise<boolean> => {
+    let payload;
+    try {
+      await loadSceneCatalog();
+      payload = await fleetApi.getSnapshot();
+    } catch {
+      state.realtime.apiReady = false;
+      notify("无法连接后端服务，请检查服务状态后重试", {
+        type: "error",
+        dedupeKey: "bootstrap-failed",
+      });
+      return false;
+    }
+
+    // Reached separately from the request above on purpose: a snapshot we cannot
+    // read is not an unreachable backend, and saying "检查服务状态" about a service
+    // that answered promptly sends whoever is on shift to look in the wrong place.
+    try {
+      state.realtime.apiReady = true;
+      ingestPayload(payload, "api");
+    } catch {
+      notify("后端返回的车队快照无法解析", {
+        type: "error",
+        dedupeKey: "bootstrap-unreadable",
+      });
+      return false;
+    }
+
+    connectRealtime();
+    return true;
+  };
+
+  const bootstrapEmptyState = (): void => {
+    ingestPayload(cloneValue(fallbackFleetPayload), "bootstrap");
+  };
+
+  const bootstrap = async (): Promise<boolean> => {
+    state.realtime.bootstrapPending = true;
+    try {
+      const ready = await bootstrapFromBackend();
+      if (!ready) bootstrapEmptyState();
+      return ready;
+    } finally {
+      state.realtime.bootstrapPending = false;
+    }
+  };
+
+  /** Same sequence as `bootstrap`; named for the retry button that calls it. */
+  const retryBootstrap = bootstrap;
+
+  const bootstrapPending = computed(() => state.realtime.bootstrapPending);
+
+  return {
+    state,
+    devices,
+    formations,
+    sortedDevices,
+    sortedFormations,
+    filteredDevices,
+    selectedDevice,
+    selectedFormation,
+    formationSceneId,
+    sceneDevices,
+    summary,
+    groupedAlerts,
+    trailsByDeviceId,
+    bootstrapPending,
+    connection,
+    getSceneDefinition,
+    getDeviceTone,
+    hasPose,
+    round,
+    formatDateTime,
+    ingestPayload,
+    selectDevice,
+    selectFormation,
+    clearFormationSelection,
+    clearTrail,
+    bootstrap,
+    retryBootstrap,
+    connectRealtime,
+    disconnectRealtime,
+  };
+});
