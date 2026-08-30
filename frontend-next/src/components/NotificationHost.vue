@@ -20,7 +20,7 @@ import {
   type NotificationType,
 } from "@/composables/useNotifications";
 
-const { items, dismiss } = useNotifications();
+const { items, dismiss, runAction } = useNotifications();
 
 const ICONS: Record<NotificationType, string> = {
   info: "ℹ",
@@ -64,6 +64,16 @@ const TONES: Record<NotificationType, string> = {
           ICONS[item.type]
         }}</span>
         <span class="min-w-0 flex-1 break-words">{{ item.message }}</span>
+        <!-- An undo, when the action that raised this offered one. Before the close
+             button so it is the first thing Tab reaches. -->
+        <button
+          v-if="item.action"
+          type="button"
+          class="shrink-0 rounded-xs px-1.5 py-0.5 text-xs font-semibold underline underline-offset-2"
+          @click="runAction(item.id)"
+        >
+          {{ item.action.label }}
+        </button>
         <button
           type="button"
           class="shrink-0 rounded-xs px-1 leading-none opacity-70 transition-opacity duration-150 ease-standard hover:opacity-100"

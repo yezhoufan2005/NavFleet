@@ -16,11 +16,25 @@ import { reactive } from "vue";
  */
 export type NotificationType = "info" | "success" | "warning" | "error";
 
+/**
+ * An action offered alongside the message — in practice, an undo.
+ *
+ * It exists because a bulk action is both easy to trigger by accident and tedious to
+ * reverse by hand, and a toast is where the person is already looking when it happens.
+ * Activating it dismisses the toast: leaving "撤销" on screen after it has been used
+ * invites a second click that would undo the undo.
+ */
+export interface NotificationAction {
+  label: string;
+  handler: () => void;
+}
+
 export interface NotificationItem {
   id: number;
   type: NotificationType;
   message: string;
   dedupeKey?: string;
+  action?: NotificationAction;
 }
 
 export interface NotifyOptions {
@@ -29,6 +43,8 @@ export interface NotifyOptions {
   timeout?: number;
   /** While a toast with this key is on screen, further ones are suppressed. */
   dedupeKey?: string;
+  /** An undo, offered as a button on the toast. */
+  action?: NotificationAction;
 }
 
 /** Longer for the ones a person has to act on than for the ones they only note. */
@@ -72,6 +88,7 @@ export const notify = (
   nextId += 1;
 
   const item: NotificationItem = { id, type, message };
+  if (options.action) item.action = options.action;
   if (dedupeKey !== undefined) {
     item.dedupeKey = dedupeKey;
     activeDedupeKeys.add(dedupeKey);
@@ -89,10 +106,22 @@ export const notify = (
   return id;
 };
 
+/**
+ * Runs a toast's action and dismisses it. Both, together: an undo that leaves its
+ * own button on screen invites a second click that undoes the undo.
+ */
+export const runNotificationAction = (id: number): void => {
+  const item = items.find((entry) => entry.id === id);
+  if (!item?.action) return;
+  item.action.handler();
+  dismissNotification(id);
+};
+
 export const useNotifications = () => ({
   items,
   notify,
   dismiss: dismissNotification,
+  runAction: runNotificationAction,
 });
 
 /** Test-only reset. Module singletons otherwise leak between test files. */
