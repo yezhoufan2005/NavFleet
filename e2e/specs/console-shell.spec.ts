@@ -110,7 +110,10 @@ test.describe("console shell", () => {
     // handle, and the reason the image needs an SPA fallback.
     await page.goto("/devices/agv-c12");
 
-    await expect(page.getByRole("heading", { name: /agv-c12/ })).toBeVisible();
+    // The page titles itself with the vehicle's name, which is what an operator
+    // recognises; the id it was deep-linked by stays visible in the lede.
+    await expect(page.getByRole("heading", { name: /c12/i })).toBeVisible();
+    await expect(page.getByText("编号 agv-c12")).toBeVisible();
 
     // The trail is built from the nesting, and 设备 stays the current section even
     // though the current *page* is the detail page.

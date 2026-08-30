@@ -32,7 +32,10 @@ const TAGS = ["wcag2a", "wcag2aa"];
 const ROUTES: readonly { path: string; heading: string | RegExp }[] = [
   { path: "/", heading: "总览" },
   { path: "/devices", heading: "设备" },
-  { path: "/devices/agv-c12", heading: /agv-c12/ },
+  // Case-insensitive because the detail page titles itself with the *vehicle's
+  // name* ("C12 巡检车") once the fleet is loaded, and falls back to "设备 agv-c12"
+  // for an id the fleet does not carry. Either is a resolved page.
+  { path: "/devices/agv-c12", heading: /c12/i },
   { path: "/alerts", heading: "告警" },
   { path: "/reports", heading: "报表" },
   { path: "/admin", heading: "管理" },
