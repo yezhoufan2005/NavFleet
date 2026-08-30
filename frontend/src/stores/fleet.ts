@@ -20,6 +20,7 @@ import {
   toTimestampMs,
   formatDateTime,
   extractDeviceIdFromTopic,
+  getDeviceTone,
   hasPose,
   normalizeDevice,
   normalizeFormation,
@@ -236,22 +237,6 @@ export const useFleetStore = defineStore("fleet", () => {
       };
     }),
   );
-
-  const getDeviceTone = (device: DeviceSnapshot) => {
-    if (!device.online) {
-      return "offline";
-    }
-    if (Number(device.errorCode?.code) !== 0) {
-      return "critical";
-    }
-    if (Number(device.warningCode?.code) !== 0) {
-      return "warning";
-    }
-    if (Number(device.infoCode?.code) !== 0) {
-      return "notice";
-    }
-    return "normal";
-  };
 
   // Fixed, stable ordering by device id so rows never jump as telemetry/alerts
   // update — severity is still conveyed by each row's colour/status, not order.

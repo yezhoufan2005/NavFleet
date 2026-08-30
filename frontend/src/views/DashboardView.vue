@@ -5,7 +5,7 @@ import GpsMap from "../components/GpsMap.vue";
 import RosSceneMap from "../components/RosSceneMap.vue";
 import SkeletonBlock from "../components/SkeletonBlock.vue";
 import { useFleetStore } from "../stores/fleet";
-import { round, hasPose } from "@navfleet/fleet-core";
+import { deviceToneLabels, round, hasPose } from "@navfleet/fleet-core";
 import { formatNumber, formatStamp, formatValue } from "@navfleet/fleet-core";
 import {
   controlModeMap,
@@ -38,14 +38,6 @@ const {
   setMapMode,
   clearTrail,
 } = store;
-
-const toneLabelMap = {
-  normal: "正常",
-  warning: "预警",
-  critical: "告警",
-  notice: "提示",
-  offline: "离线",
-};
 
 const activeSceneId = computed(() => formationSceneId.value || selectedDevice.value?.sceneId || "");
 const selectedSceneDefinition = computed(() => getSceneDefinition(activeSceneId.value));
@@ -90,7 +82,7 @@ const duplicateNames = computed(() => {
 const selectedTone = computed(() =>
   selectedDevice.value ? getDeviceTone(selectedDevice.value) : "normal",
 );
-const selectedToneLabel = computed(() => toneLabelMap[selectedTone.value] || "正常");
+const selectedToneLabel = computed(() => deviceToneLabels[selectedTone.value] || "正常");
 const selectedSceneLabel = computed(
   () => selectedSceneDefinition.value?.sceneName || activeSceneId.value || "未配置场景",
 );
@@ -248,7 +240,7 @@ function handleDeviceSelect(deviceId) {
                   }}</span>
                 </div>
                 <span class="device-status" :data-tone="getDeviceTone(device)">
-                  {{ toneLabelMap[getDeviceTone(device)] || "正常" }}
+                  {{ deviceToneLabels[getDeviceTone(device)] || "正常" }}
                 </span>
               </div>
 
