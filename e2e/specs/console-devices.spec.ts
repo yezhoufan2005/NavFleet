@@ -135,4 +135,22 @@ test.describe("console devices", () => {
 
     expect(await markerOffsetFromCentre(page)).toBeLessThan(24);
   });
+
+  test("the detail page explains a report code instead of printing its number", async ({
+    page,
+  }) => {
+    // The seeded fleet has a faulted vehicle carrying 5102. v1.0.0 showed the number
+    // and the firmware's string; this page has to say what it means, what causes it,
+    // what to do, and — the part a dispatcher acts on — what the vehicle can still do.
+    const faulted = SEEDED_DEVICES.find((item) => item.errorCode?.code);
+    test.skip(!faulted, "seed carries no faulted vehicle");
+
+    await page.goto(`/devices/${faulted!.deviceId}`);
+    const codes = page.locator("section[aria-labelledby='codes-heading']");
+
+    await expect(codes).toContainText(String(faulted!.errorCode!.code));
+    await expect(codes).toContainText("路径规划超时");
+    await expect(codes).toContainText("任务受阻");
+    await expect(codes).toContainText("处理建议");
+  });
 });
