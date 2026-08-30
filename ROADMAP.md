@@ -113,7 +113,9 @@ v1.0.0 的架构分层与文档质量已经超出多数同规模项目，但四�
       恰是这个规则集专抓的那一类（async 事件回调、被丢弃的 Promise）
 - [ ] `--max-warnings 0` —— `no-unused-vars` 三处都降为 `warn` 且全仓无 `--max-warnings`，
       warning 永不让 CI 红，等于没配
-- [ ] Playwright CI `retries: 1` → 0，flaky 不再被重跑掩盖
+- [ ] Playwright CI `retries: 1` → 0，flaky 不再被重跑掩盖。**这条现在有实测依据**：#79 那次抖动
+      是一个真的对比度缺陷（过渡中间态 1.38:1），而重试对它完全无效 —— 重跑同一段"导航→审计"只会
+      再落进同一个窗口，`retries` 唯一的作用是把真缺陷标成 flaky 然后放行。详见执行记录 2026-08-29 条
 - [ ] `packages/shared` 纳入 lint（根 `eslint.config.mjs:23` 显式 ignore）、e2e 纳入 `format:check`
 - [ ] 覆盖率近零区补测：后端 `persistence.ts` 42.6%（3 例）/ `store.ts` 57.4%（**2 例**）
 - [ ] tsconfig 补 `noUncheckedIndexedAccess` 等严格开关（四份配置现在只开了 `strict`）
@@ -297,11 +299,12 @@ v1.0.0 的架构分层与文档质量已经超出多数同规模项目，但四�
 - 自检 ✅（2026-08-29，PR #78）：console 6 例 · fleet-core 38 · 后端 287 · 前端 132（**旧前端零改动**）·
   lint / format:check / typecheck / build 全过 · console 镜像实建并跑通 SPA fallback ·
   CSS **4.32 KB gzip**（预算 14 KB）· lockfile 在 `node:22-alpine` 里生成、零 npmmirror
-- [ ] **web history 迁移的部署侧**（11C 决定 3，必须在这里落地而不是拖到 Phase 14）：
-      `frontend/Dockerfile` 加 nginx conf 含 `try_files $uri $uri/ /index.html`、边缘
-      `deploy/nginx/locations.conf` 的 `location /` 同步同一 fallback、**两处都要带上安全响应头**
-      （`add_header` 不跨 location 继承，现在全套头只挂在 SPA 那一个 location 上）、compose 实跑验证
-      直接访问 `/devices/xxx` 与刷新都不 404、e2e 新增深链接用例
+- [ ] **web history 的部署侧 —— 剩下的部分归 Phase 14，口径在此更正**。11C 决定 3 要求"必须在 12B
+      落地"，落地的是**新前端自己那一份**（上一条，已实测）。剩下两项刻意不在这里做：- **旧前端不迁 hash**。它在 Phase 14 下线，为一个即将退役的前端改路由模式 + 镜像 nginx conf
+      是纯粹的返工，且会让两套前端的 e2e URL 断言同时变动 —— 风险换不到任何收益。- **边缘 `deploy/nginx/locations.conf` 的 fallback 归 Phase 14**：compose 现在把 `/` 指向旧前端
+      镜像，边缘改 fallback 在新前端进 compose 之前没有作用点。**但有一条现存缺口要带过去**：
+      全套安全响应头现在只挂在 SPA 那一个 location 上，而 `add_header` 不跨 location 继承，
+      所以 Phase 14 换镜像时必须同时核对每个 location 的头，而不是只改 `try_files`。
 
 ### PR 12C — 应用外壳
 
@@ -313,6 +316,11 @@ v1.0.0 的架构分层与文档质量已经超出多数同规模项目，但四�
       这是"新前端是否功能等价"最硬的判据。注意 `outputDir` / html report 路径写死在
       `REPO_ROOT/test-results` 与 `playwright-report`，两套并行会互相覆盖，需参数化
 - [ ] axe 审计同步接线（5 页 × 明暗双主题，serious/critical 阻塞）
+- [ ] **用测试钉住导航高亮的匹配语义**。新 IA 有真正的嵌套（`/devices/:id` 在 `/devices` 下、
+      告警的 tab 在 `/alerts` 下），一级项在子路由上应当**保持**高亮，而这依赖 vue-router 的
+      `router-link-active` 是按 matched 记录判定的 —— 这一点要有测试断言，而不是靠记忆：它在
+      vue-router 3 是路径前缀式的（那时 `to="/"` 会在所有页面上亮），4 之后改为记录式。
+      两个类名（`router-link-active` / `router-link-exact-active`）分别用在哪一级要显式决定并写进注释
 
 ### PR 12D — 图表基座
 
@@ -582,3 +590,31 @@ v1.0.0 的架构分层与文档质量已经超出多数同规模项目，但四�
   唯一在运行时读版本的是 `openapi.ts`，读的是根 manifest；镜像内 `/app/package.json` 也是根那份，
   实测仍报 1.0.1。附 `release-version.test.ts`（5 例）**断言这三处不存在 version 字段**，
   并已验证反向：把字段加回去测试立刻变红。断言"不存在"才让漂移结构上不可能，而不只是当下正确。
+- 2026-08-29：**追了三个 PR 的 E2E 抖动，最后是一个真缺陷**（#73 诊断能力 → #79 定位 → #80 修复）。
+  值得完整记一次，因为过程中我两次猜错，而两次都是被自己的实测推翻的：
+
+  1. **#72 首次遇到**：同一个 commit 一次红一次绿。我拿不到证据 —— job 日志需要 admin 权限（403）、
+     artifact 下载 401，红的那次只留下"某个用例失败"。本地 `--repeat-each` 又被一个卡住的 Playwright
+     chromium 下载堵着（缓存 4 KB 且不再增长），改用系统 Chrome 跑了 65 例，复现不出来。
+     我当时的假设是 `poseOffsetFromPanelCentre` 那条不会自动重试的断言（`expect(await x)` 不重试），
+     **但我自己的探针否掉了它** —— 1.4 秒内采样 24 次，offset 恒为 0。既然定位不了，就先修
+     **可观测性**：Playwright 加 `github` reporter，让红色 CI 直接在 check 上标出是哪条用例、哪个
+     元素、什么数值。
+  2. **#79 拿到证据**：新 reporter 报出 `color-contrast 1.38`，`#93a7bd on #4fd6c4`，位置
+     `.router-link-active > span:nth-child(1)`。这两个颜色是 `--muted` 落在 `--brand` 上 —— 而 CSS
+     里 active 态声明的是 `--brand-contrast`。**这个组合在任何稳定状态下都不存在**，只在过渡中间
+     可达。本地 8 次重复 + 8 倍 CPU 降速全绿，复现不出来，我如实说了。
+  3. **探针给出准确机制，并纠正了我的第二个猜测**：我猜是**将要点亮**的那一项，实测是**正在熄灭**
+     的那一项 —— 导航后立刻取计算值，*离开*的链接仍是 `fg=rgb(4,35,31)` / `bg=rgb(79,214,196)`，
+     过渡结束后才变成 `fg=rgb(147,167,189)` / `bg=transparent`。background 与 color 的过渡曲线不同步，
+     中间那 160ms 里前景已经走完、背景还没走完。
+  4. **修法两条**：`.nav-link.router-link-active` 上 `transition: none`（active 态本就不该淡入，
+     它是"你在这里"的即时反馈）；`accessibility.spec.ts` 每次审计前 `settleTransitions(page)`。后者
+     必须把 `document.getAnimations()` **过滤到 `CSSTransition`** —— 页面上有一个无限循环的 pulse
+     动画，不过滤就永远等不到。
+  5. **一条给 P0-f 的硬依据**：`retries: 1` 对这类抖动**完全无效**。重试是把"导航→审计"整段重跑一遍，
+     于是再一次落进同一个窗口。它唯一的作用是把一个真缺陷标成 flaky 然后放行。
+
+- 2026-08-29：**CI 每次改动只跑一遍**（`concurrency` group 按 PR 号 / ref，PR 上
+  `cancel-in-progress`）。此前一个 PR 的 push 与 pull_request 两个事件各触发一整轮，E2E 跑两遍、
+  检查项 11 个；现在 6 个，且 PR 的旧轮次会被新 push 顶掉。
