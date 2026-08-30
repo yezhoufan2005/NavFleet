@@ -99,5 +99,10 @@ export async function signIn(page: Page): Promise<void> {
   await page.getByLabel("用户名").fill(ADMIN.username);
   await page.getByLabel("密码").fill(ADMIN.password);
   await page.getByRole("button", { name: "登录" }).click();
-  await expect(page.getByRole("navigation")).toBeVisible();
+  // Named rather than a bare role query. The v3 console has two navigation
+  // landmarks — the primary nav and the breadcrumb trail — and a bare
+  // `getByRole("navigation")` would be a strict-mode violation there rather than a
+  // failed assertion, which is a confusing way to find out. The v1.0.0 shell names
+  // its nav the same way, so this is compatible with both.
+  await expect(page.getByRole("navigation", { name: "主导航" })).toBeVisible();
 }

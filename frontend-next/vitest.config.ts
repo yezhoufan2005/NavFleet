@@ -10,14 +10,22 @@ export default defineConfig({
   test: {
     environment: "jsdom",
     include: ["test/**/*.test.ts"],
+    setupFiles: ["./test/setup.ts"],
     coverage: {
       provider: "v8",
       include: ["src/**/*.{ts,vue}"],
       exclude: ["src/main.ts", "src/env.d.ts"],
-      // No thresholds yet, on purpose. The scaffold is one button and one page,
-      // so any number set now would be measuring the wrong thing and would have
-      // to be reset in 12C when real views arrive. Coverage is reported so the
-      // trend is visible; the ratchet goes in with the first real view.
+      // Calibrated from the first real measurement rather than guessed —
+      // 94.07 / 88.07 / 89.23 / 94.07 — with a couple of points of headroom, the
+      // same way the fleet-core thresholds were set. 12B deliberately left these
+      // empty: with one button and one page, any number would have been measuring
+      // the scaffold rather than the code.
+      thresholds: {
+        statements: 92,
+        branches: 85,
+        functions: 86,
+        lines: 92,
+      },
     },
   },
 });

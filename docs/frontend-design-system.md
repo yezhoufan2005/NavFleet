@@ -79,6 +79,25 @@
 只有满足**两条**才允许新增组件 token：① 语义层确实没有能表达它的值；② 该值在两个以上组件里复用。
 否则用语义 token 的组合。这条规则要写进 CONTRIBUTING。
 
+### 2.4 一条硬规则：凹陷区上的文字至少用 `ink-muted`
+
+**`ink-subtle` × `surface-sunken` 是禁用组合**，浅色下只有 4.43:1。它过不去的原因是结构性的，
+所以不要试图靠调值绕过：浅色 `ink-subtle` 必须明显浅于 `ink-muted`(slate-700)，而 slate-600 在
+任何比 slate-25 更暗的底上都到不了 4.5；色阶里没有 650 这一档，插一档又会改变 `chroma()` 的
+索引距离、连带动到所有深色端的彩度。所以这条组合被显式排除在审计表之外，规则写在这里。
+
+这条是 12C 实测出来的，同时暴露出**审计表本身漏检**：11D 只审了 `ink`/`surface`、
+`ink`/`surface-raised`、`ink-muted`/`surface`、`ink-subtle`/`surface` 四组，于是漏掉了
+`ink-subtle` 落在 `surface-raised` 上的那一组 —— 深色下只有 4.06:1，而占位卡、下拉菜单、抽屉
+全都是 raised。漏检的机理值得记住：**深色的 `surface-raised`(slate-800) 比 `surface`(slate-900)
+更亮**，所以"在 surface 上够用"推不出"在 raised 上也够用"。
+
+修法两处，都在生成器里：
+
+1. 审计配对从 4 组扩到「文本 × 表面」的组合（18 组），只排除上面那一组禁用组合；
+2. 深色文本整体上移一档 —— `ink-muted` slate-300 → slate-200、`ink-subtle` slate-400 → slate-300。
+   之后最差一组是 `ink-subtle` on `surface-raised` **5.58:1**。
+
 ## 3. Tailwind v4 接入方案
 
 ### 3.1 文件结构
@@ -273,8 +292,12 @@ docs/tools/design-system-preview.template.html     骨架，用 __PLACEHOLDER__ 
 
 ### 6.1 对比度：预览页实时机检
 
-预览页对每一组 `(X-contrast, X)` 与 `(X-ink, X-wash)` 用 WCAG 相对亮度公式算比值，双主题各算一遍，
-低于 4.5:1 标红。**这条替代"记得检查对比度"**，因为 Phase 10 证明人工审阅三轮都没发现 2.99:1。
+预览页对每一组配对用 WCAG 相对亮度公式算比值，双主题各算一遍，低于 4.5:1 标红。
+**这条替代"记得检查对比度"**，因为 Phase 10 证明人工审阅三轮都没发现 2.99:1。
+
+配对表在 12C 扩到 **18 组**：原来的 `(X-contrast, X)` 与 `(X-ink, X-wash)` 十组，加上「文本 ×
+表面」的组合。扩的理由与那次漏检见 2.4 —— 一句话说：只审四组文本配对，会漏掉深色下
+`ink-subtle` 落在 `surface-raised` 上的 4.06:1，而那正是占位卡、下拉菜单与抽屉的底色。
 
 ### 6.2 深浅 token 集合一致性：脚本机检
 

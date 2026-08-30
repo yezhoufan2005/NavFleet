@@ -306,21 +306,75 @@ v1.0.0 的架构分层与文档质量已经超出多数同规模项目，但四�
       全套安全响应头现在只挂在 SPA 那一个 location 上，而 `add_header` 不跨 location 继承，
       所以 Phase 14 换镜像时必须同时核对每个 location 的头，而不是只改 `try_files`。
 
-### PR 12C — 应用外壳
+### PR 12C-1 — 应用外壳
 
-- [ ] 导航 + 路由 + 鉴权（搬 `useAuth` / `guards`）+ 主题（搬 `useTheme`，接新 token）+
-      错误边界 + 通知（搬 `useNotifications`）+ 全局错误处理
-- [ ] 响应式断点 + 大屏模式骨架
-- [ ] **E2E 等价性网接线**：新增指向新前端的 playwright project。现有 17 例**零 `data-testid`**、
-      全部用 `getByRole` + 中文可访问名匹配，只要新前端保持相同语义结构与可见文案就能一字不改复用 ——
-      这是"新前端是否功能等价"最硬的判据。注意 `outputDir` / html report 路径写死在
-      `REPO_ROOT/test-results` 与 `playwright-report`，两套并行会互相覆盖，需参数化
-- [ ] axe 审计同步接线（5 页 × 明暗双主题，serious/critical 阻塞）
-- [ ] **用测试钉住导航高亮的匹配语义**。新 IA 有真正的嵌套（`/devices/:id` 在 `/devices` 下、
-      告警的 tab 在 `/alerts` 下），一级项在子路由上应当**保持**高亮，而这依赖 vue-router 的
-      `router-link-active` 是按 matched 记录判定的 —— 这一点要有测试断言，而不是靠记忆：它在
-      vue-router 3 是路径前缀式的（那时 `to="/"` 会在所有页面上亮），4 之后改为记录式。
-      两个类名（`router-link-active` / `router-link-exact-active`）分别用在哪一级要显式决定并写进注释
+拆成两个 PR 的理由：外壳本身与「把 e2e 接到新前端」是两件独立可验证的事，混在一起会得到一个
+既改结构又改测试基建的大 diff，出问题时分不清是哪一半。
+
+- [x] 路由（web history）+ 候选 B 的层级：`/` 总览 · `/devices` ⇄ `/devices/:deviceId` ·
+      `/alerts` · `/reports` · `/admin` · `/wall`（`meta.bare`，不进导航）· 404。
+      **`/devices/:deviceId` 是 `/devices` 的子路由而不是兄弟**，因为 `router-link-active` 按
+      matched 记录判定 —— 兄弟路由会让工程师停留最久的那一页整条侧栏都不亮。已有测试钉住
+- [x] 鉴权（搬 `useAuth` / `guards`）+ 通知（搬 `useNotifications`）+ 错误边界 + 全局错误处理
+- [x] **用测试钉住了导航高亮的匹配语义**（上一版 12C 条目里记的待办）。两个类名的分工也定了：
+      `router-link-active` 管**视觉高亮**（分区级，子路由上保持亮），而 `aria-current="page"` 只跟
+      `isExactActive` —— 打开设备详情时「设备」是所在分区而不是当前页，两个都报当前页是撒谎
+- [x] 外壳结构：全宽 `banner`（唯一一个）+ 侧栏三态（240 / 44 / 抽屉，`lg` 以下强制抽屉）+
+      自动面包屑（C3）+ 跳转链接 + 可聚焦 `main`（导航后自动接管焦点）
+- [x] 抽屉用 Reka `Dialog`、会话菜单用 Reka `DropdownMenu` —— 这是设计系统选的组件库第一次真用，
+      跟 12B 用 token 切片退役 `@theme` 风险同一个思路：尽早在最便宜的地方验证它合不合适
+- [x] 响应式：断点接 11C 刻度，axe 覆盖 1024 / 1440 / 1920 / 2560 四个视口
+- [x] 大屏模式骨架：`/wall` 走不带外壳的渲染路径（kiosk 凭据与新鲜度指示留 17C）
+- [x] **补了 v1.0.0 的两个真缺陷**，都在搬运时顺手修掉而不是照抄：
+      ① token 刷新原来是 `void request(...)` 丢弃响应、失败什么都不做（parity 9.23，
+      对挂三个月的大屏是致命的）→ 改成自调度链：401 直接登出并提示、网络故障走退避重试、
+      整条阶梯都失败才放弃并给不消失的提示；② `useTheme` 的 `watchEffect` 建在**第一个调用者的
+      组件作用域**里，而第一个调用者是会话菜单 —— 登出时它卸载，主题切换从此静默失效。
+      改成 `effectScope(true)`
+- [x] 单测 84 例（新增 78）：路由表与导航高亮、守卫、会话与刷新退避、通知去重、错误边界、
+      外壳的地标结构。覆盖率门槛按首测标定 **92 / 85 / 86 / 92**（实测 94.07 / 88.07 / 89.23 / 94.07）
+- [x] `lint` 加 `--max-warnings 0` —— P0-f 记的那条门禁在这个 workspace 里先立起来
+- 自检 ✅（2026-08-30）：console 84 例 · fleet-core 38 · 后端 287 · 前端 132（**旧前端零改动**）·
+  lint / format:check / typecheck / build 全过 · CSS **5.86 KB gzip**（预算 14 KB）·
+  **axe 40 次审计零 serious/critical**（11 个界面 × 明暗，含抽屉打开与菜单打开两个瞬时态）·
+  17 例旧 e2e 仍全绿（`signIn` 收紧为按名字取导航地标，两套前端都兼容）
+
+**axe 那 40 次审计抓到两个真缺陷，都不是外壳的问题而是设计系统的问题**，所以修在生成器里：
+
+1. **深色下 `ink-subtle` 落在 `surface-raised` 上只有 4.06:1。** 11D 的审计表只审了四组文本配对，
+   漏掉的正是这一组，而占位卡、下拉菜单、抽屉全是 raised 底。机理值得记住：**深色的
+   `surface-raised`(slate-800) 比 `surface`(slate-900) 更亮**，所以"在 surface 上够用"推不出
+   "在 raised 上也够用"。修法：配对表扩到 18 组，深色文本整体上移一档（`ink-muted` 300→200、
+   `ink-subtle` 400→300），最差一组变成 5.58:1。同时发现 `ink-subtle` × `surface-sunken` 在浅色下
+   只有 4.43:1 且**结构上修不了**，已定为禁用组合并写进 design-system §2.4
+2. **会话菜单打开时 `aria-hidden-focus`（serious）。** Reka 的 `DropdownMenu` 默认 `modal`，会给
+   页面其余部分挂 `aria-hidden` 但不把里面的元素移出 tab 序 —— 屏幕阅读器被告知外壳不存在，键盘
+   却还能 Tab 进去。菜单不是对话框，ARIA 的 menu-button 模式并不要求隐藏页面，所以设
+   `modal="false"`；Esc、外点关闭、焦点归还都还在
+
+- [x] 新增 `E2E_BROWSER_CHANNEL` 逃生口：Playwright 自带浏览器的下载在这台机器上会卡住（第二次
+      了），设成 `chrome` 就能用已装的 Chrome 本地验证。CI 不设，判定仍以固定版本为准
+
+### PR 12C-2 — E2E 等价性网与 axe 接线
+
+- [ ] 新增指向新前端的 playwright project。注意 `outputDir` 与 html report 路径写死在
+      `REPO_ROOT/test-results` 与 `playwright-report`，两套并行会互相覆盖，需参数化；端口同理
+      （`E2E_BACKEND_PORT` / `E2E_FRONTEND_PORT` 已可覆盖，但 webServer 的 `-w navfleet-frontend`
+      是写死的 workspace 名）
+- [ ] **把 11A 那句"17 例可一字不改复用"按实际情况改准。** 它成立的前提是语义结构与文案都不变，
+      而 11C 决定重构 IA 就意味着导航文案必然变 —— 逐条核过之后的实际情况见下面四条
+- [ ] **1 例可原样复用**：登录失败那条。它只碰登录表单，而登录页的 IA 没变
+- [ ] **2 例需小改**：登录成功那条断言 `实时监控` 链接与 `地图视图` 标题（新 IA 是 `总览`）；
+      登出那条要多一步 —— `退出` 移进了会话菜单，这是 11C §1「个人偏好进用户菜单」的直接结果，
+      是决定而不是意外
+- [ ] **404 那条**要把 `/#/no-such-page` 改成 `/no-such-page`（web history），`返回实时监控`
+      改成 `返回总览`
+- [ ] **其余 13 例依赖 Phase 13 的页面**，随对应页面逐个转绿。project 的 spec 白名单每个 13x PR
+      扩一次，白名单本身就是"等价性网覆盖了多少"的可读记录
+- [ ] 把 12C-1 那次手工 axe 扫描落成提交进仓库的 spec：11 个界面 × 明暗 × 四个视口，
+      外加抽屉打开与菜单打开两个瞬时态。**`animation.finished` 在动画被取消时会 reject
+      `AbortError`**（抽屉的过渡就会），必须 `.catch()` —— 现有 `settleTransitions` 已经这么写了，
+      新的不要漏
 
 ### PR 12D — 图表基座
 
@@ -331,8 +385,8 @@ v1.0.0 的架构分层与文档质量已经超出多数同规模项目，但四�
       将来判断「要不要换 uPlot」的唯一依据，而不是靠感觉
 - [ ] 大数据量下的降采样策略（后端 history 最多返回 500 点，见下方 Phase 17 的口径修正）
 
-**Phase 12 收口**：新 workspace 进 CI 全绿、设计系统预览页可访问、17 例 E2E 能在新前端空壳上
-跑到"登录成功"、ECharts 性能基线入库。
+**Phase 12 收口**：新 workspace 进 CI 全绿、设计系统预览页可访问、E2E 等价性网接到新前端且
+登录流程转绿（其余用例随 Phase 13 逐页转绿，白名单本身就是覆盖度记录）、ECharts 性能基线入库。
 
 ## Phase 13 — 前端焕新：页面实现
 
@@ -618,3 +672,31 @@ v1.0.0 的架构分层与文档质量已经超出多数同规模项目，但四�
 - 2026-08-29：**CI 每次改动只跑一遍**（`concurrency` group 按 PR 号 / ref，PR 上
   `cancel-in-progress`）。此前一个 PR 的 push 与 pull_request 两个事件各触发一整轮，E2E 跑两遍、
   检查项 11 个；现在 6 个，且 PR 的旧轮次会被新 push 顶掉。
+
+- 2026-08-30：**12C-1 应用外壳落地，而这一步最有价值的产出不是外壳本身，是 axe 抓到的两个缺陷。**
+  外壳做完后按 11C §3.3 的要求把审计视口从 1440 一个扩到 1024 / 1440 / 1920 / 2560 四个，
+  界面从 5 个扩到 11 个（含抽屉打开、菜单打开两个瞬时态），共 40 次审计。第一轮 13 个
+  serious 违规，归成两类，**两类都不是外壳的问题**：
+  1. **设计系统的审计表自己漏检。** 深色下 `ink-subtle` 落在 `surface-raised` 上只有 4.06:1，
+     而 11D 的配对表只审了四组文本配对，没有这一组。漏检机理值得单独记住：**深色的
+     `surface-raised`(slate-800) 比 `surface`(slate-900) 更亮**，所以"在 surface 上够用"
+     推不出"在 raised 上也够用" —— 而占位卡、下拉菜单、抽屉的底色全是 raised。
+     修在生成器里（配对表 4 组 → 18 组，深色文本整体上移一档），顺带发现
+     `ink-subtle` × `surface-sunken` 在浅色下只有 4.43:1 且结构上修不掉（浅色 `ink-subtle`
+     必须明显浅于 slate-700，而 slate-600 在任何比 slate-25 更暗的底上都不够 4.5；色阶没有
+     650，插一档会改变 `chroma()` 的索引距离、连带动到所有深色端的彩度），因此定为禁用组合
+     写进 design-system §2.4。**规则立完之后它立刻发挥了作用** —— 下一轮唯一的红正是会话菜单
+     悬停态踩了这条组合，按规则改成 `ink-muted` 即过。
+  2. **组件库的默认值与 a11y 冲突。** Reka 的 `DropdownMenu` 默认 `modal`，打开时给页面其余
+     部分挂 `aria-hidden`，但不把里面的元素移出 tab 序 —— 屏幕阅读器被告知外壳不存在，键盘却
+     还能 Tab 进去，axe 报 `aria-hidden-focus`。菜单不是对话框，ARIA 的 menu-button 模式并不
+     要求隐藏页面，所以设 `modal="false"`。**这正是 11D「尽早真用一次组件库」想换到的信息**，
+     和 12B 用 token 切片退役 `@theme` 风险是同一个手法。
+
+  搬运 v1.0.0 的外壳时另修了它两个缺陷而不是照抄：token 刷新原本丢弃响应、失败什么都不做
+  （parity 9.23，对挂三个月的大屏是致命的）；`useTheme` 的 `watchEffect` 建在第一个调用者的
+  组件作用域里，而第一个调用者是会话菜单 —— 登出即卸载，主题切换从此静默失效。
+
+  最后一条工程结论：Playwright 自带浏览器的下载在这台机器上第二次卡住，已加
+  `E2E_BROWSER_CHANNEL` 逃生口（CI 不设），本地验证不再被它挡住 —— 17 例旧 e2e 因此能在本地
+  实跑确认 `signIn` 的收紧对两套前端都兼容。
