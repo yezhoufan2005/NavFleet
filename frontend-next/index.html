@@ -3,6 +3,13 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <!--
+      Same mark as the v1.0.0 frontend: it is the same product, and the two consoles
+      only run side by side for a couple of phases. Declaring it also stops the
+      browser asking for /favicon.ico, which a strict test run counts as a failed
+      request rather than as the browser being thorough.
+    -->
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
     <title>智能车队监控平台</title>
     <script>
       // Stamp the stored theme before the first paint. The v1.0.0 frontend writes

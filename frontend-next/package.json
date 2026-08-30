@@ -8,7 +8,7 @@
     "dev": "vite --host 127.0.0.1 --port 5273",
     "build": "vue-tsc --noEmit -p tsconfig.json && vite build",
     "preview": "vite preview --port 4273",
-    "lint": "eslint .",
+    "lint": "eslint . --max-warnings 0",
     "format:check": "prettier --check \"src/**/*.{ts,vue,css}\" \"test/**/*.ts\"",
     "typecheck": "vue-tsc --noEmit -p tsconfig.json",
     "test": "vitest run",

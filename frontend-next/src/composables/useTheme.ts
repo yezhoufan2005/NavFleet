@@ -1,4 +1,4 @@
-import { readonly, ref, watchEffect } from "vue";
+import { effectScope, readonly, ref, watchEffect } from "vue";
 
 /**
  * Theme preference, kept compatible on purpose.
@@ -47,6 +47,18 @@ const resolved = ref<ResolvedTheme>("light");
 
 let started = false;
 
+/**
+ * Detached scope, and this matters more than it looks.
+ *
+ * `watchEffect` called during a component's setup belongs to that component and
+ * stops when it unmounts. The first caller of `useTheme()` therefore used to own
+ * the effect that writes `data-theme` — and the first caller is the session menu,
+ * which unmounts on sign-out. The theme would keep switching until someone logged
+ * out, and silently stop afterwards. An unowned scope makes the singleton's
+ * lifetime actually match the singleton's state.
+ */
+const scope = effectScope(true);
+
 const start = (): void => {
   if (started) return;
   started = true;
@@ -68,22 +80,24 @@ const start = (): void => {
     );
   }
 
-  watchEffect(() => {
-    const next: ResolvedTheme =
-      preference.value === "system"
-        ? systemPrefersDark.value
-          ? "dark"
-          : "light"
-        : preference.value;
-    resolved.value = next;
+  scope.run(() => {
+    watchEffect(() => {
+      const next: ResolvedTheme =
+        preference.value === "system"
+          ? systemPrefersDark.value
+            ? "dark"
+            : "light"
+          : preference.value;
+      resolved.value = next;
 
-    if (typeof document === "undefined") return;
-    const root = document.documentElement;
-    // "system" removes the attribute rather than stamping a value: that is what
-    // lets `prefers-color-scheme` win, and it is the state the inline script in
-    // index.html leaves behind for a viewer who has never chosen.
-    if (preference.value === "system") delete root.dataset.theme;
-    else root.dataset.theme = preference.value;
+      if (typeof document === "undefined") return;
+      const root = document.documentElement;
+      // "system" removes the attribute rather than stamping a value: that is what
+      // lets `prefers-color-scheme` win, and it is the state the inline script in
+      // index.html leaves behind for a viewer who has never chosen.
+      if (preference.value === "system") delete root.dataset.theme;
+      else root.dataset.theme = preference.value;
+    });
   });
 };
 

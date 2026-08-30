@@ -126,6 +126,7 @@
         --color-ink-subtle: var(--color-slate-600);
         --color-border: var(--color-slate-200);
         --color-border-strong: var(--color-slate-300);
+        --color-scrim: var(--color-slate-950);
         --color-border-focus: var(--color-teal-600);
         --color-brand: var(--color-teal-700);
         --color-brand-hover: var(--color-teal-800);
@@ -165,10 +166,11 @@
           --color-surface-raised: var(--color-slate-800);
           --color-surface-sunken: var(--color-slate-950);
           --color-ink: var(--color-slate-50);
-          --color-ink-muted: var(--color-slate-300);
-          --color-ink-subtle: var(--color-slate-400);
+          --color-ink-muted: var(--color-slate-200);
+          --color-ink-subtle: var(--color-slate-300);
           --color-border: var(--color-slate-800);
           --color-border-strong: var(--color-slate-700);
+          --color-scrim: var(--color-slate-950);
           --color-border-focus: var(--color-teal-400);
           --color-brand: var(--color-teal-300);
           --color-brand-hover: var(--color-teal-200);
@@ -206,10 +208,11 @@
         --color-surface-raised: var(--color-slate-800);
         --color-surface-sunken: var(--color-slate-950);
         --color-ink: var(--color-slate-50);
-        --color-ink-muted: var(--color-slate-300);
-        --color-ink-subtle: var(--color-slate-400);
+        --color-ink-muted: var(--color-slate-200);
+        --color-ink-subtle: var(--color-slate-300);
         --color-border: var(--color-slate-800);
         --color-border-strong: var(--color-slate-700);
+        --color-scrim: var(--color-slate-950);
         --color-border-focus: var(--color-teal-400);
         --color-brand: var(--color-teal-300);
         --color-brand-hover: var(--color-teal-200);
@@ -482,7 +485,7 @@
         "
       >
         <p class="eyebrow">NavFleet · Phase 11D · 设计系统标样</p>
-        <h1>6 条色阶，14 组对比度，自己检查自己</h1>
+        <h1>6 条色阶，18 组对比度，自己检查自己</h1>
         <p
           style="
             max-width: 64ch;
@@ -722,7 +725,7 @@
         <div>
           <p class="eyebrow">② 语义层 · 机检</p>
           <h2 style="margin-top: calc(var(--spacing) * 2)">
-            对比度审计（30 个 token）
+            对比度审计（31 个 token）
           </h2>
         </div>
         <div class="audit-summary" data-role="summary"></div>
@@ -780,6 +783,23 @@
                 <td class="ratio" data-role="ratio">—</td>
                 <td class="verdict" data-role="verdict">—</td>
               </tr>
+              <tr data-fg="ink" data-bg="surface-sunken">
+                <td><code>ink</code></td>
+                <td><code>surface-sunken</code></td>
+                <td>凹陷区上的正文</td>
+                <td>
+                  <span
+                    class="sample"
+                    style="
+                      background: var(--color-surface-sunken);
+                      color: var(--color-ink);
+                    "
+                    >车队 42 台在线 Aa</span
+                  >
+                </td>
+                <td class="ratio" data-role="ratio">—</td>
+                <td class="verdict" data-role="verdict">—</td>
+              </tr>
               <tr data-fg="ink-muted" data-bg="surface">
                 <td><code>ink-muted</code></td>
                 <td><code>surface</code></td>
@@ -797,6 +817,40 @@
                 <td class="ratio" data-role="ratio">—</td>
                 <td class="verdict" data-role="verdict">—</td>
               </tr>
+              <tr data-fg="ink-muted" data-bg="surface-raised">
+                <td><code>ink-muted</code></td>
+                <td><code>surface-raised</code></td>
+                <td>卡片上的次要文本</td>
+                <td>
+                  <span
+                    class="sample"
+                    style="
+                      background: var(--color-surface-raised);
+                      color: var(--color-ink-muted);
+                    "
+                    >车队 42 台在线 Aa</span
+                  >
+                </td>
+                <td class="ratio" data-role="ratio">—</td>
+                <td class="verdict" data-role="verdict">—</td>
+              </tr>
+              <tr data-fg="ink-muted" data-bg="surface-sunken">
+                <td><code>ink-muted</code></td>
+                <td><code>surface-sunken</code></td>
+                <td>凹陷区上的次要文本（凹陷区的下限）</td>
+                <td>
+                  <span
+                    class="sample"
+                    style="
+                      background: var(--color-surface-sunken);
+                      color: var(--color-ink-muted);
+                    "
+                    >车队 42 台在线 Aa</span
+                  >
+                </td>
+                <td class="ratio" data-role="ratio">—</td>
+                <td class="verdict" data-role="verdict">—</td>
+              </tr>
               <tr data-fg="ink-subtle" data-bg="surface">
                 <td><code>ink-subtle</code></td>
                 <td><code>surface</code></td>
@@ -806,6 +860,23 @@
                     class="sample"
                     style="
                       background: var(--color-surface);
+                      color: var(--color-ink-subtle);
+                    "
+                    >车队 42 台在线 Aa</span
+                  >
+                </td>
+                <td class="ratio" data-role="ratio">—</td>
+                <td class="verdict" data-role="verdict">—</td>
+              </tr>
+              <tr data-fg="ink-subtle" data-bg="surface-raised">
+                <td><code>ink-subtle</code></td>
+                <td><code>surface-raised</code></td>
+                <td>卡片上的第三级文本</td>
+                <td>
+                  <span
+                    class="sample"
+                    style="
+                      background: var(--color-surface-raised);
                       color: var(--color-ink-subtle);
                     "
                     >车队 42 台在线 Aa</span

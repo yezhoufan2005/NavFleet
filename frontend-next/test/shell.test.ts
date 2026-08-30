@@ -1,0 +1,320 @@
+import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
+import { createMemoryHistory } from "vue-router";
+import type { Router } from "vue-router";
+import { createPinia } from "pinia";
+import { enableAutoUnmount, flushPromises, mount } from "@vue/test-utils";
+import App from "@/App.vue";
+import { createAppRouter } from "@/router";
+import { createAuthGuard } from "@/router/guards";
+import { useAuth, __resetAuth } from "@/composables/useAuth";
+import { __resetNotifications } from "@/composables/useNotifications";
+import { SIDEBAR_STORAGE_KEY } from "@/composables/useSidebar";
+import { THEME_STORAGE_KEY } from "@/composables/useTheme";
+import { setViewportWidth } from "./setup";
+
+/**
+ * The shell as a whole: which of the three top-level states renders, and whether the
+ * structural promises the Playwright suite matches on actually hold.
+ *
+ * Those promises are worth being explicit about, because the e2e specs assert them
+ * by *role* and would fail somewhere confusing if the markup drifted:
+ *
+ * - exactly one `banner`, and it carries the product name
+ * - two named `navigation` landmarks (主导航 and 面包屑) and no unnamed one
+ * - no `navigation` at all while nobody is signed in
+ * - a `main` that can take focus
+ *
+ * Every wrapper is unmounted between cases. The session is a module singleton, so a
+ * wrapper left mounted keeps reacting to it with a router that has been thrown
+ * away — which surfaces as "Unhandled error during execution of component update"
+ * pointing at whichever test runs next.
+ */
+enableAutoUnmount(afterEach);
+
+const ADMIN = { username: "admin", role: "admin" } as const;
+
+const jsonResponse = (body: unknown, status = 200): Response =>
+  new Response(JSON.stringify(body), {
+    status,
+    headers: { "Content-Type": "application/json" },
+  });
+
+let fetchMock: ReturnType<typeof vi.fn>;
+let router: Router;
+
+/**
+ * Boots the app the way a browser does — mount first, then navigate — rather than
+ * navigating before anything has asked the backend who we are. Done the other way
+ * round, the guard on a gated route waits out its full timeout because the session
+ * probe has not started yet.
+ */
+const mountApp = async (path = "/") => {
+  router = createAppRouter(createMemoryHistory());
+  router.beforeEach(createAuthGuard(useAuth().state));
+
+  const wrapper = mount(App, {
+    global: { plugins: [createPinia(), router] },
+    attachTo: document.body,
+  });
+
+  await router.isReady();
+  await flushPromises();
+
+  if (path !== "/") {
+    await router.push(path);
+    await flushPromises();
+  }
+  return wrapper;
+};
+
+const signedIn = async (path = "/") => {
+  fetchMock.mockResolvedValue(jsonResponse({ user: ADMIN }));
+  return mountApp(path);
+};
+
+const openSessionMenu = async (
+  wrapper: Awaited<ReturnType<typeof mountApp>>,
+): Promise<void> => {
+  await wrapper.find("header button[aria-haspopup]").trigger("click");
+  await flushPromises();
+};
+
+/** The menu renders through a portal, so it is in the body rather than the wrapper. */
+const menuItems = (role: "menuitem" | "menuitemradio"): HTMLElement[] => [
+  ...document.body.querySelectorAll<HTMLElement>(`[role='${role}']`),
+];
+
+beforeEach(() => {
+  __resetAuth();
+  __resetNotifications();
+  delete document.documentElement.dataset.theme;
+  fetchMock = vi.fn();
+  vi.stubGlobal("fetch", fetchMock);
+});
+
+afterEach(() => {
+  vi.unstubAllGlobals();
+});
+
+describe("session states", () => {
+  it("says it is working while the session probe is in flight", async () => {
+    // A blank page during the probe is indistinguishable from a broken one.
+    fetchMock.mockReturnValue(new Promise(() => undefined));
+    router = createAppRouter(createMemoryHistory());
+    const wrapper = mount(App, {
+      global: { plugins: [createPinia(), router] },
+    });
+    await router.isReady();
+
+    expect(wrapper.text()).toContain("正在加载…");
+    expect(wrapper.find("nav").exists()).toBe(false);
+  });
+
+  it("renders the login form instead of the shell when anonymous", async () => {
+    fetchMock.mockResolvedValue(new Response(null, { status: 401 }));
+    const wrapper = await mountApp();
+
+    expect(wrapper.text()).toContain("请登录以访问车队监控台");
+    // The absence of any navigation is the access gate, not a styling choice.
+    expect(wrapper.findAll("nav")).toHaveLength(0);
+    expect(wrapper.find("#main-content").exists()).toBe(false);
+  });
+
+  it("renders the shell once the session is known", async () => {
+    const wrapper = await signedIn();
+
+    expect(wrapper.find("header").exists()).toBe(true);
+    expect(wrapper.find("header").text()).toContain("智能车队监控平台");
+    expect(wrapper.find("#main-content").exists()).toBe(true);
+    expect(wrapper.text()).not.toContain("请登录以访问车队监控台");
+  });
+
+  it("signs in from the form and swaps the login screen for the shell", async () => {
+    fetchMock.mockResolvedValueOnce(new Response(null, { status: 401 }));
+    const wrapper = await mountApp();
+
+    fetchMock.mockResolvedValueOnce(jsonResponse({ user: ADMIN }));
+    await wrapper.find('input[name="username"]').setValue("admin");
+    await wrapper.find('input[name="password"]').setValue("secret");
+    await wrapper.find("form").trigger("submit");
+    await flushPromises();
+
+    expect(wrapper.find("nav[aria-label='主导航']").exists()).toBe(true);
+  });
+
+  it("refuses to submit an empty form and explains why", async () => {
+    // v1.0.0 returned silently from the handler, so on a browser that had not
+    // enforced `required` the button looked dead.
+    fetchMock.mockResolvedValue(new Response(null, { status: 401 }));
+    const wrapper = await mountApp();
+
+    await wrapper.find("form").trigger("submit");
+    expect(wrapper.text()).toContain("请输入用户名和密码");
+    expect(fetchMock).toHaveBeenCalledTimes(1); // the probe only
+  });
+});
+
+describe("landmarks", () => {
+  it("has exactly one banner and two named navigations", async () => {
+    const wrapper = await signedIn();
+
+    expect(wrapper.findAll("header")).toHaveLength(1);
+    // Both are named, because there are two of them: an unnamed one would make
+    // "jump to navigation" a coin flip. DOM order follows the visual layout — the
+    // top bar (which holds the trail) sits above the rail.
+    const labels = wrapper
+      .findAll("nav")
+      .map((nav) => nav.attributes("aria-label"));
+    expect(labels).toEqual(["面包屑", "主导航"]);
+  });
+
+  it("puts a skip link ahead of the navigation", async () => {
+    // Five nav links sit between the top of the document and the content on every
+    // page, so this is the difference between one keystroke and six.
+    const wrapper = await signedIn();
+    const skip = wrapper.find("a[href='#main-content']");
+
+    expect(skip.exists()).toBe(true);
+    expect(skip.text()).toBe("跳到主内容");
+  });
+
+  it("makes the content region focusable", async () => {
+    const wrapper = await signedIn();
+    expect(wrapper.find("#main-content").attributes("tabindex")).toBe("-1");
+  });
+
+  it("moves focus into the content after a navigation", async () => {
+    // Otherwise a keyboard user who activates a nav link is still parked in the
+    // sidebar and has to tab past all of it to reach what they asked for.
+    const wrapper = await signedIn();
+    await router.push("/alerts");
+    await flushPromises();
+
+    expect(document.activeElement).toBe(wrapper.find("#main-content").element);
+  });
+});
+
+describe("breadcrumbs", () => {
+  it("shows one crumb for a top-level section", async () => {
+    const wrapper = await signedIn("/alerts");
+    expect(wrapper.find("nav[aria-label='面包屑']").text()).toContain("告警");
+  });
+
+  it("builds the trail from the nesting, not from a hand-kept list", async () => {
+    const wrapper = await signedIn("/devices/agv-c12");
+    const crumbs = wrapper
+      .find("nav[aria-label='面包屑']")
+      .findAll("li")
+      .map((item) => item.text().replace(/^›\s*/, ""));
+
+    expect(crumbs).toEqual(["设备", "设备详情"]);
+  });
+
+  it("does not link the page you are already on", async () => {
+    const wrapper = await signedIn("/devices/agv-c12");
+    const trail = wrapper.find("nav[aria-label='面包屑']");
+
+    expect(trail.findAll("a")).toHaveLength(1);
+    expect(trail.find("[aria-current='page']").text()).toBe("设备详情");
+  });
+});
+
+describe("sidebar", () => {
+  it("starts expanded and remembers being collapsed", async () => {
+    const wrapper = await signedIn();
+    const toggle = () => wrapper.find("header button");
+
+    expect(toggle().attributes("aria-label")).toBe("收起侧栏");
+    await toggle().trigger("click");
+
+    expect(toggle().attributes("aria-label")).toBe("展开侧栏");
+    expect(localStorage.getItem(SIDEBAR_STORAGE_KEY)).toBe("collapsed");
+  });
+
+  it("restores the remembered width on the next visit", async () => {
+    localStorage.setItem(SIDEBAR_STORAGE_KEY, "collapsed");
+    // The module singleton has already read storage, so re-read it the way a fresh
+    // tab would by importing into a clean module registry.
+    vi.resetModules();
+    const { useSidebar } = await import("@/composables/useSidebar");
+    expect(useSidebar().preference.value).toBe("collapsed");
+  });
+
+  it("becomes a drawer below the lg breakpoint", async () => {
+    // 240px of rail on a 900px tablet leaves too little for a map, so the rail is
+    // not the user's choice down there.
+    const wrapper = await signedIn();
+    setViewportWidth(900);
+    await flushPromises();
+
+    expect(wrapper.find("header button").attributes("aria-label")).toBe(
+      "打开导航",
+    );
+  });
+});
+
+describe("session menu", () => {
+  it("names the signed-in user and their role on the trigger", async () => {
+    const wrapper = await signedIn();
+    const trigger = wrapper.find("header button[aria-haspopup]");
+
+    expect(trigger.text()).toContain("admin");
+    expect(trigger.text()).toContain("管理员");
+  });
+
+  it("signs out and returns to the login form", async () => {
+    const wrapper = await signedIn();
+    await openSessionMenu(wrapper);
+
+    const logout = menuItems("menuitem").find((item) =>
+      item.textContent?.includes("退出"),
+    );
+    expect(logout).toBeDefined();
+
+    fetchMock.mockResolvedValueOnce(new Response(null, { status: 204 }));
+    logout?.click();
+    await flushPromises();
+
+    expect(wrapper.text()).toContain("请登录以访问车队监控台");
+  });
+
+  it("carries the theme preference, which is why there is no settings page", async () => {
+    const wrapper = await signedIn();
+    await openSessionMenu(wrapper);
+
+    const options = menuItems("menuitemradio");
+    expect(
+      options.map((option) => option.textContent?.replace(/[\s✓]/g, "")),
+    ).toEqual(["跟随系统", "浅色", "深色"]);
+
+    options.find((option) => option.textContent?.includes("深色"))?.click();
+    await flushPromises();
+
+    expect(localStorage.getItem(THEME_STORAGE_KEY)).toBe("dark");
+    expect(document.documentElement.dataset.theme).toBe("dark");
+  });
+});
+
+describe("document title", () => {
+  it("names the current section once someone is signed in", async () => {
+    await signedIn("/alerts");
+    expect(document.title).toBe("告警 · 智能车队监控平台");
+  });
+
+  it("does not claim to be showing a section while nobody is signed in", async () => {
+    fetchMock.mockResolvedValue(new Response(null, { status: 401 }));
+    await mountApp();
+    expect(document.title).toBe("智能车队监控平台");
+  });
+});
+
+describe("the wall display", () => {
+  it("renders without the shell", async () => {
+    const wrapper = await signedIn("/wall");
+
+    expect(wrapper.text()).toContain("大屏值班模式");
+    // No sidebar, no top bar, no session menu: it has to be non-interactive.
+    expect(wrapper.find("header").exists()).toBe(false);
+    expect(wrapper.findAll("nav")).toHaveLength(0);
+  });
+});

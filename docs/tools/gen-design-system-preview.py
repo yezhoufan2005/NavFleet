@@ -37,10 +37,17 @@ SEMANTIC = [
     ("surface-raised", "white", "slate-800"),
     ("surface-sunken", "slate-50", "slate-950"),
     ("ink", "slate-900", "slate-50"),
-    ("ink-muted", "slate-700", "slate-300"),
-    ("ink-subtle", "slate-600", "slate-400"),
+    # 深色侧原来是 300 / 400，被 12C 的 axe 审计打回：ink-subtle(slate-400) 落在
+    # surface-raised(slate-800) 上只有 4.06:1。整体上移一档 —— muted 300→200、
+    # subtle 400→300 —— 之后最差一组是 subtle on raised 5.58:1。
+    ("ink-muted", "slate-700", "slate-200"),
+    ("ink-subtle", "slate-600", "slate-300"),
     ("border", "slate-200", "slate-800"),
     ("border-strong", "slate-300", "slate-700"),
+    # 遮罩。两个主题**故意取同一个值**：遮罩的作用是压暗下层，浅色主题下压暗、深色主题下
+    # 压亮是把它的语义反过来了 —— 12C 里第一版抽屉就是这么做的，深色下整块内容被"洗白"。
+    # 它总是带透明度使用（bg-scrim/55），所以不进按 4.5:1 判定的审计表。
+    ("scrim", "slate-950", "slate-950"),
     # 焦点环。它是非文本 UI 组件，WCAG 1.4.11 要求 3:1 而不是 4.5:1，所以不进
     # 下面那张按 4.5:1 判定的审计表 —— 混进去会用错的标准误报。
     ("border-focus", "teal-600", "teal-400"),
@@ -68,10 +75,24 @@ SEMANTIC = [
 ]
 
 PAIRS = [
+    # 文本 × 表面的组合，穷举而非挑几组。原先只审了四组，漏掉的正是 12C 里 axe 抓到的
+    # 那一组：深色下 ink-subtle 落在 surface-raised 上只有 4.06:1。漏的原因很具体 ——
+    # 深色 surface-raised(slate-800) 比 surface(slate-900) **更亮**，所以"在 surface 上
+    # 够用"推不出"在 raised 上也够用"，而占位卡、下拉菜单、抽屉全都是 raised。
+    #
+    # 少一组：**ink-subtle × surface-sunken 在浅色下只有 4.43:1，是禁用组合**。它过不去
+    # 的原因是结构性的：浅色 ink-subtle 必须明显浅于 ink-muted(slate-700)，而 slate-600
+    # 在任何比 slate-25 更暗的底上都不够 4.5。色阶里没有 650 这一档，而插一档会改变
+    # chroma() 的索引距离、连带动到所有深色端的彩度 —— 代价远大于收益。
+    # 所以规则是：**凹陷区上的文字至少用 ink-muted**，见 frontend-design-system.md §2.3。
     ("ink", "surface", "正文"),
     ("ink", "surface-raised", "卡片上的正文"),
+    ("ink", "surface-sunken", "凹陷区上的正文"),
     ("ink-muted", "surface", "次要文本"),
+    ("ink-muted", "surface-raised", "卡片上的次要文本"),
+    ("ink-muted", "surface-sunken", "凹陷区上的次要文本（凹陷区的下限）"),
     ("ink-subtle", "surface", "第三级文本（仅非关键信息）"),
+    ("ink-subtle", "surface-raised", "卡片上的第三级文本"),
     ("brand-contrast", "brand", "实心 brand 表面上的文字"),
     ("brand-ink", "brand-wash", "brand 薄底上的文字"),
     ("notice-contrast", "notice", "实心 notice 表面"),

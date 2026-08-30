@@ -32,5 +32,12 @@ export default tseslint.config(
       "vue/block-lang": ["error", { script: { lang: "ts" } }],
     },
   },
+  {
+    // Test files build throwaway components inline — a fixture that throws during
+    // render, a stub that renders one line — and each is clearer beside the case
+    // that uses it than in a file of its own.
+    files: ["test/**/*.ts"],
+    rules: { "vue/one-component-per-file": "off" },
+  },
   prettier,
 );

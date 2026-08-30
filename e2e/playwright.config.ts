@@ -68,6 +68,13 @@ export default defineConfig({
       use: {
         ...devices["Desktop Chrome"],
         viewport: { width: 1440, height: 900 },
+        // Escape hatch for a machine whose bundled-browser download will not
+        // complete — set `E2E_BROWSER_CHANNEL=chrome` to run against an installed
+        // Chrome instead. Left unset everywhere it matters (CI included), so the
+        // pinned build stays the one the suite is judged on; this only exists so a
+        // stalled download does not mean "cannot verify locally", which has now
+        // cost two investigations.
+        channel: process.env.E2E_BROWSER_CHANNEL ?? undefined,
       },
       dependencies: ["seed"],
     },
