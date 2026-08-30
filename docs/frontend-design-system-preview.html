@@ -162,6 +162,16 @@
         --color-chart-grid: var(--color-slate-200);
         --color-chart-axis: var(--color-slate-400);
 
+        /* 地图：ros-* 为原值搬迁的字面值，网格/比例尺取自 ramp。 */
+        --color-ros-canvas: #e9eef4;
+        --color-ros-free: #c4cfdc;
+        --color-ros-lanelet-bg: #dbe3ec;
+        --color-ros-lanelet-line: rgba(37, 99, 235, 0.55);
+        --color-ros-lanelet-center: rgba(30, 41, 59, 0.32);
+        --color-ros-link: rgba(30, 41, 59, 0.5);
+        --color-map-grid: var(--color-slate-300);
+        --color-map-scale: var(--color-slate-600);
+
         --shadow-raised:
           0 1px 2px oklch(0.2 0.02 205 / 0.06),
           0 8px 20px oklch(0.2 0.02 205 / 0.07);
@@ -218,6 +228,16 @@
           --color-chart-grid: var(--color-slate-700);
           --color-chart-axis: var(--color-slate-500);
 
+          /* 地图：ros-* 为原值搬迁的字面值，网格/比例尺取自 ramp。 */
+          --color-ros-canvas: #071119;
+          --color-ros-free: #8c9498;
+          --color-ros-lanelet-bg: #09131b;
+          --color-ros-lanelet-line: rgba(133, 214, 255, 0.5);
+          --color-ros-lanelet-center: rgba(255, 255, 255, 0.28);
+          --color-ros-link: rgba(255, 255, 255, 0.72);
+          --color-map-grid: var(--color-slate-800);
+          --color-map-scale: var(--color-slate-300);
+
           --shadow-raised:
             0 1px 2px oklch(0 0 0 / 0.4), 0 10px 26px oklch(0 0 0 / 0.45);
           --shadow-overlay:
@@ -271,6 +291,16 @@
         --color-chart-8: #e66767;
         --color-chart-grid: var(--color-slate-700);
         --color-chart-axis: var(--color-slate-500);
+
+        /* 地图：ros-* 为原值搬迁的字面值，网格/比例尺取自 ramp。 */
+        --color-ros-canvas: #071119;
+        --color-ros-free: #8c9498;
+        --color-ros-lanelet-bg: #09131b;
+        --color-ros-lanelet-line: rgba(133, 214, 255, 0.5);
+        --color-ros-lanelet-center: rgba(255, 255, 255, 0.28);
+        --color-ros-link: rgba(255, 255, 255, 0.72);
+        --color-map-grid: var(--color-slate-800);
+        --color-map-scale: var(--color-slate-300);
 
         --shadow-raised:
           0 1px 2px oklch(0 0 0 / 0.4), 0 10px 26px oklch(0 0 0 / 0.45);
@@ -800,6 +830,68 @@
                 ><em>7</em></i
               ><i style="background: var(--color-chart-8)" title="chart-8"
                 ><em>8</em></i
+              >
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section>
+        <h2>地图表面</h2>
+        <p>
+          6 个
+          <code>ros-*</code>
+          是<strong>原值搬迁</strong>而非重新取色：它们是对着点云栅格 与 lanelet
+          叠加层手调出来的，<code>canvas</code> 与
+          <code>free</code> 之间那点明度差
+          决定的是"可通行区域看不看得出来"。重取一遍属于改地图外观，而地图要到
+          13A-2 才在 屏幕上 —— 看不见渲染结果就不该定。<code>map-grid</code> /
+          <code>map-scale</code> 取自 ramp，是 11D §2.2 承诺要补的两个。
+        </p>
+        <p>
+          这两个画在
+          <code>ros-canvas</code>
+          上而不是在语义表面上，所以<strong>不在下面那张审计表的覆盖范围内</strong>，改用
+          <code>docs/tools/check-map-contrast.mjs</code>
+          单独机检，且<strong>两者标准不同</strong>：比例尺是"读出距离"的全部依据，属于内容图形，按
+          WCAG 1.4.11 的 3:1 判（浅 4.12:1 / 深
+          10.26:1）；网格整条消失也不丢任何信息，是装饰参考线，只设 1.3:1
+          的可见性下限（浅 1.59:1 / 深 1.84:1）—— 给网格套 3:1
+          只会得到一张吵到盖住小 标记的底图，而车辆必须是最跳的那一层。
+        </p>
+        <p>
+          深色网格原取 <code>slate-700</code>，实测 2.70:1，比浅色显眼近一倍 ——
+          同一元素在两套主题里轻重不一致。<strong>这是机检抓出来的，不是看出来的</strong>，改
+          <code>slate-800</code> 后两边齐平。
+        </p>
+        <div class="card">
+          <div class="ramp">
+            <div class="ramp-label">
+              <b>map</b><span>场景底图与叠加层，随主题成对定义</span>
+            </div>
+            <div class="ramp-strip">
+              <i style="background: var(--color-ros-canvas)" title="ros-canvas"
+                ><em>canvas</em></i
+              ><i style="background: var(--color-ros-free)" title="ros-free"
+                ><em>free</em></i
+              ><i
+                style="background: var(--color-ros-lanelet-bg)"
+                title="ros-lanelet-bg"
+                ><em>lanelet-bg</em></i
+              ><i
+                style="background: var(--color-ros-lanelet-line)"
+                title="ros-lanelet-line"
+                ><em>lanelet-line</em></i
+              ><i
+                style="background: var(--color-ros-lanelet-center)"
+                title="ros-lanelet-center"
+                ><em>lanelet-center</em></i
+              ><i style="background: var(--color-ros-link)" title="ros-link"
+                ><em>link</em></i
+              ><i style="background: var(--color-map-grid)" title="map-grid"
+                ><em>grid</em></i
+              ><i style="background: var(--color-map-scale)" title="map-scale"
+                ><em>scale</em></i
               >
             </div>
           </div>

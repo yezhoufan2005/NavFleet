@@ -113,6 +113,41 @@ CHART_FRAME = [
     ("chart-axis", "slate-400", "slate-500"),
 ]
 
+# ---------------------------------------------------------------------------
+# 地图表面（13A-1）
+# ---------------------------------------------------------------------------
+#
+# 这 6 个 `ros-*` 是**原值搬迁**，不是重新取色。理由有两条，都不是省事：
+#
+# 1. 11D §2.2 当时就定了"沿用现有 6 个"。它们是对着点云栅格与 lanelet 叠加层手调出来
+#    的 —— canvas 与 free 之间那一点点明度差，决定的是"可通行区域"看不看得出来。
+# 2. **改这几个值是对地图外观的改动，而地图要到 13A-2 才在屏幕上。** 在看不见渲染结果的
+#    情况下重取一遍，跟 12C 里那个"写死成绿色的状态点"是同一类错误：无法判断，就不该定。
+#
+# 与 CHART 一样是字面量而非 ramp token，还有一个具体原因：点云栅格化是往 ImageData 里
+# 逐像素写值，zrender 与 canvas 都自己解析颜色，两者都不认识 oklch。
+MAP = [
+    ("ros-canvas", "#e9eef4", "#071119"),
+    ("ros-free", "#c4cfdc", "#8c9498"),
+    ("ros-lanelet-bg", "#dbe3ec", "#09131b"),
+    ("ros-lanelet-line", "rgba(37, 99, 235, 0.55)", "rgba(133, 214, 255, 0.5)"),
+    ("ros-lanelet-center", "rgba(30, 41, 59, 0.32)", "rgba(255, 255, 255, 0.28)"),
+    ("ros-link", "rgba(30, 41, 59, 0.5)", "rgba(255, 255, 255, 0.72)"),
+]
+
+# 网格与比例尺是 11D §2.2 承诺要补的两个，取自 ramp（与 chart-grid / chart-axis 同源）。
+# 它们画在 ros-canvas 上而不是在语义表面上，所以不在下面那张审计表的覆盖范围内 ——
+# 改用 docs/tools/check-map-contrast.mjs 单独机检，两者判定标准不同（比例尺是内容，按
+# WCAG 1.4.11 的 3:1；网格是装饰参考线，只保 1.3:1 的可见性下限，理由见该脚本文件头）。
+#
+# 实测（该脚本输出）：grid 浅 1.59:1 / 深 1.84:1，scale 浅 4.12:1 / 深 10.26:1。
+# 深色网格原写 slate-700，实测 2.70:1 —— 比浅色显眼近一倍，同一元素在两套主题里轻重
+# 不一致。改 slate-800 后齐平。**这条是机检抓出来的，不是看出来的。**
+MAP_FRAME = [
+    ("map-grid", "slate-300", "slate-800"),
+    ("map-scale", "slate-600", "slate-300"),
+]
+
 PAIRS = [
     # 文本 × 表面的组合，穷举而非挑几组。原先只审了四组，漏掉的正是 12C 里 axe 抓到的
     # 那一组：深色下 ink-subtle 落在 surface-raised 上只有 4.06:1。漏的原因很具体 ——
@@ -183,12 +218,16 @@ def ramp_css():
 
 
 def semantic_css(index):
-    """语义层 + 图表层。前者引用 ramp token，后者是字面值（见 CHART 的注释）。"""
+    """语义层 + 图表层 + 地图层。前者引用 ramp token，字面值的那些见各自注释。"""
     lines = [f"    --color-{r[0]}: var(--color-{r[index]});" for r in SEMANTIC]
     lines.append("")
     lines.append("    /* 图表：系列色为字面值，坐标轴/网格取自 ramp。 */")
     lines += [f"    --color-{r[0]}: {r[index]};" for r in CHART]
     lines += [f"    --color-{r[0]}: var(--color-{r[index]});" for r in CHART_FRAME]
+    lines.append("")
+    lines.append("    /* 地图：ros-* 为原值搬迁的字面值，网格/比例尺取自 ramp。 */")
+    lines += [f"    --color-{r[0]}: {r[index]};" for r in MAP]
+    lines += [f"    --color-{r[0]}: var(--color-{r[index]});" for r in MAP_FRAME]
     return "\n".join(lines)
 
 
@@ -198,6 +237,15 @@ def chart_chips():
         f'<i style="background: var(--color-{name})" title="{name}">'
         f"<em>{index}</em></i>"
         for index, (name, _light, _dark) in enumerate(CHART, start=1)
+    )
+
+
+def map_chips():
+    """地图表面。画在 ros-canvas 上，所以整条带子先铺上它自己的底。"""
+    return "".join(
+        f'<i style="background: var(--color-{name})" title="{name}">'
+        f"<em>{name.replace('ros-', '').replace('map-', '')}</em></i>"
+        for name, _light, _dark in MAP + MAP_FRAME
     )
 
 
@@ -274,6 +322,7 @@ def main():
         ("__SEMANTIC_DARK__", semantic_css(2)),
         ("__RAMP_ROWS__", ramp_rows()),
         ("__CHART_CHIPS__", chart_chips()),
+        ("__MAP_CHIPS__", map_chips()),
         ("__PAIR_ROWS__", pair_rows()),
         ("__TYPE_ROWS__", type_rows()),
         ("__WALL_ROWS__", wall_rows()),
@@ -284,7 +333,7 @@ def main():
         ("__SEMANTIC_COUNT__", str(len(SEMANTIC))),
     ):
         html = html.replace(placeholder, value)
-    leftover = [token for token in ("__RAMP", "__SEMANTIC", "__PAIR", "__TYPE", "__WALL", "__SPACING", "__STEP", "__CHART") if token in html]
+    leftover = [token for token in ("__RAMP", "__SEMANTIC", "__PAIR", "__TYPE", "__WALL", "__SPACING", "__STEP", "__CHART", "__MAP") if token in html]
     if leftover:
         raise SystemExit(f"模板里还有未替换的占位符: {leftover}")
     OUTPUT.write_text(html, encoding="utf-8")
@@ -298,7 +347,8 @@ def main():
     html = OUTPUT.read_text(encoding="utf-8")
     print(f"已写出 {OUTPUT.relative_to(HERE.parent.parent)}（{len(html)} 字节，已 prettier 定型）")
     print(f"  色阶 {len(RAMPS)} × {len(STEPS)} = {len(RAMPS) * len(STEPS)} 个值")
-    print(f"  语义 token {len(SEMANTIC)} 个 + 图表 {len(CHART) + len(CHART_FRAME)} 个 × 双主题成对定义")
+    print(f"  语义 token {len(SEMANTIC)} 个 + 图表 {len(CHART) + len(CHART_FRAME)} 个"
+          f" + 地图 {len(MAP) + len(MAP_FRAME)} 个 × 双主题成对定义")
     print(f"  待机检的对比度配对 {len(PAIRS)} 组")
     write_styles()
 

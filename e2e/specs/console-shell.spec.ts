@@ -10,6 +10,24 @@ import { expect, signIn, test } from "../support/fixtures";
  * resolving rather than 404ing.
  */
 test.describe("console shell", () => {
+  test("the realtime indicator reaches 实时 against a real backend", async ({
+    page,
+  }) => {
+    // The unit tests drive a stubbed socket, so what they cannot answer is whether
+    // the link actually connects: same-origin `/ws` through the dev server's proxy,
+    // accepted by the real backend, answering the app-level ping. If any of that is
+    // wrong the indicator sits at 连接中 forever and every page shows stale data
+    // while claiming to be live.
+    await signIn(page);
+
+    const indicator = page
+      .getByRole("status")
+      .filter({ hasText: /实时|连接中/ });
+    await expect(indicator).toHaveText("实时");
+    // The fleet's configured name, not the product name again.
+    await expect(page.getByRole("banner")).toContainText("综合示范车队");
+  });
+
   test("the skip link jumps straight to the content", async ({ page }) => {
     // Five nav links sit between the top of the document and the content on every
     // page. Whether the link is *reachable* is what a unit test cannot answer: it is

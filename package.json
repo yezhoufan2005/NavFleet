@@ -23,6 +23,7 @@
     "format:check": "npm run format:check --workspaces --if-present && prettier --check \"e2e/**/*.{ts,json}\"",
     "format:e2e": "prettier --write \"e2e/**/*.{ts,json}\"",
     "test": "npm run test --workspaces --if-present",
+    "check:map-contrast": "node docs/tools/check-map-contrast.mjs",
     "e2e": "npm run e2e:install && playwright test -c e2e",
     "e2e:ui": "npm run e2e:install && playwright test -c e2e --ui",
     "build": "npm run build -w @navfleet/shared --if-present && npm run build -w navfleet-backend && npm run build -w navfleet-frontend && npm run build -w navfleet-console",

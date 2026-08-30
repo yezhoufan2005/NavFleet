@@ -12,20 +12,25 @@
  * It stays slim on purpose. Everything that belongs to a page lives on that page;
  * this bar only carries what must be reachable from all of them.
  *
- * Two things the IA calls for are **not** here yet, and their absence is
- * deliberate rather than forgotten:
+ * The two things 12C deliberately left blank now arrive with the store (13A-1):
  *
- * - **The realtime status dot.** It reports whether the WebSocket is live, so it
- *   needs the fleet store — that arrives in Phase 13A. A dot hardcoded to green
- *   would be worse than no dot at all.
- * - **The fleet selector.** NavFleet is single-instance and single-fleet by design,
- *   so a picker with one option is a control that cannot be used. The fleet's
- *   *name* belongs here as text once the store can supply it.
+ * - **The realtime status indicator**, which is a dot *and a word*. Colour alone
+ *   cannot carry it: a dot that only changes hue says nothing to a colourblind
+ *   operator and nothing at all to a screen reader. `role="status"` makes it a live
+ *   region, so losing the link is announced rather than merely recoloured.
+ * - **The fleet name**, as text. There is still no fleet *selector*: NavFleet is
+ *   single-fleet by design, and a picker with one option is a control that cannot
+ *   be used.
  */
+import { computed } from "vue";
 import AppBreadcrumbs from "./AppBreadcrumbs.vue";
 import AppSessionMenu from "./AppSessionMenu.vue";
 import type { AuthUser } from "@/composables/useAuth";
 import type { SidebarMode } from "@/composables/useSidebar";
+import { useFleetStore } from "@/stores/fleet";
+import type { ConnectionTone } from "@/stores/fleet";
+
+const PRODUCT_NAME = "智能车队监控平台";
 
 const { user, sidebarMode } = defineProps<{
   user: AuthUser | null;
@@ -33,6 +38,36 @@ const { user, sidebarMode } = defineProps<{
 }>();
 
 const emit = defineEmits<{ logout: []; toggleNav: [] }>();
+
+const fleet = useFleetStore();
+const connection = computed(() => fleet.connection);
+
+/**
+ * The deployment's fleet name, unless it would only repeat the product name.
+ *
+ * A single-fleet deployment that never configured one is called 智能车队, and
+ * rendering "智能车队监控平台 · 智能车队" spends the most valuable strip of the
+ * screen restating the title. A deployment that *did* name its fleet (北区仓储车队)
+ * gets it shown, which is the case the name is for.
+ */
+const fleetName = computed(() => {
+  const name = fleet.state.fleetName;
+  return name && !PRODUCT_NAME.includes(name) ? name : "";
+});
+
+/**
+ * Literal class strings, not `` `bg-${tone}` `` — Tailwind only generates what it
+ * can see written out, so an interpolated class silently produces no CSS.
+ *
+ * `ok` is `brand` because the palette has no success colour on purpose: the four
+ * status colours describe problems, and "healthy" is the absence of one.
+ */
+const TONE_DOT: Record<ConnectionTone, string> = {
+  ok: "bg-brand",
+  warning: "bg-warning",
+  critical: "bg-critical",
+  pending: "bg-offline",
+};
 
 /**
  * One control, three meanings — because to the person clicking it there is only
@@ -82,6 +117,11 @@ const NAV_TOGGLE_LABELS: Record<SidebarMode, string> = {
       <h1 class="text-md font-semibold whitespace-nowrap text-ink">
         智能车队监控平台
       </h1>
+      <span
+        v-if="fleetName"
+        class="hidden max-w-40 truncate text-xs text-ink-muted lg:block"
+        >{{ fleetName }}</span
+      >
     </span>
 
     <span
@@ -92,6 +132,21 @@ const NAV_TOGGLE_LABELS: Record<SidebarMode, string> = {
     <AppBreadcrumbs class="hidden md:block" />
 
     <div class="ml-auto flex shrink-0 items-center gap-2">
+      <!-- The word beside the dot is what makes this readable without colour
+           vision; `role="status"` is what makes losing the link audible. -->
+      <span
+        role="status"
+        class="flex items-center gap-1.5 rounded-sm px-1.5 py-1 text-xs text-ink-muted"
+        :title="connection.detail"
+      >
+        <span
+          class="size-2 shrink-0 rounded-full"
+          :class="TONE_DOT[connection.tone]"
+          aria-hidden="true"
+        />
+        <span class="whitespace-nowrap">{{ connection.label }}</span>
+      </span>
+
       <AppSessionMenu v-if="user" :user="user" @logout="emit('logout')" />
     </div>
   </header>

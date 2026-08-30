@@ -10,7 +10,7 @@ import { useAuth, __resetAuth } from "@/composables/useAuth";
 import { __resetNotifications } from "@/composables/useNotifications";
 import { SIDEBAR_STORAGE_KEY } from "@/composables/useSidebar";
 import { THEME_STORAGE_KEY } from "@/composables/useTheme";
-import { setViewportWidth } from "./setup";
+import { acceptLastSocket, openedSockets, setViewportWidth } from "./setup";
 
 /**
  * The shell as a whole: which of the three top-level states renders, and whether the
@@ -33,6 +33,13 @@ enableAutoUnmount(afterEach);
 
 const ADMIN = { username: "admin", role: "admin" } as const;
 
+/** A fleet whose name is not just the product name again — see `AppTopBar`. */
+const FLEET = {
+  fleetName: "北区仓储车队",
+  topicPattern: "/fleet/{deviceId}/vehicle_info",
+  devices: [{ deviceId: "agv-01", deviceName: "AGV 01", online: true }],
+};
+
 const jsonResponse = (body: unknown, status = 200): Response =>
   new Response(JSON.stringify(body), {
     status,
@@ -41,6 +48,26 @@ const jsonResponse = (body: unknown, status = 200): Response =>
 
 let fetchMock: ReturnType<typeof vi.fn>;
 let router: Router;
+
+/**
+ * Answers by endpoint rather than returning one body for everything.
+ *
+ * Signing in now starts the fleet bootstrap, so a single canned response would feed
+ * the session payload to `/api/v1/fleet/snapshot` and leave the store holding a
+ * device invented out of the `user` object. The tests that follow would still pass,
+ * which is precisely the problem.
+ */
+const routedFetch = (
+  session: Response,
+  fleet: Response = jsonResponse(FLEET),
+) =>
+  vi.fn((input: RequestInfo | URL) => {
+    const url = String(input);
+    if (url.includes("/scenes"))
+      return Promise.resolve(jsonResponse({ items: [] }));
+    if (url.includes("/fleet/snapshot")) return Promise.resolve(fleet);
+    return Promise.resolve(session);
+  });
 
 /**
  * Boots the app the way a browser does — mount first, then navigate — rather than
@@ -68,7 +95,8 @@ const mountApp = async (path = "/") => {
 };
 
 const signedIn = async (path = "/") => {
-  fetchMock.mockResolvedValue(jsonResponse({ user: ADMIN }));
+  fetchMock = routedFetch(jsonResponse({ user: ADMIN }));
+  vi.stubGlobal("fetch", fetchMock);
   return mountApp(path);
 };
 
@@ -88,7 +116,9 @@ beforeEach(() => {
   __resetAuth();
   __resetNotifications();
   delete document.documentElement.dataset.theme;
-  fetchMock = vi.fn();
+  // Anonymous by default, and routed — so a test that signs in mid-case does not
+  // hand the session payload to the fleet endpoints.
+  fetchMock = routedFetch(new Response(null, { status: 401 }));
   vi.stubGlobal("fetch", fetchMock);
 });
 
@@ -305,6 +335,89 @@ describe("document title", () => {
     fetchMock.mockResolvedValue(new Response(null, { status: 401 }));
     await mountApp();
     expect(document.title).toBe("智能车队监控平台");
+  });
+});
+
+describe("the realtime indicator", () => {
+  const indicator = (wrapper: Awaited<ReturnType<typeof mountApp>>) =>
+    wrapper.find("header [role='status']");
+
+  it("names the state in words, not only in colour", async () => {
+    // A dot that only changes hue says nothing to a colourblind operator and
+    // nothing at all to a screen reader. `role="status"` is what makes losing the
+    // link announced rather than merely recoloured.
+    const wrapper = await signedIn();
+    await flushPromises();
+
+    expect(indicator(wrapper).exists()).toBe(true);
+    // A socket on its way up is not a socket coming back — this said 重连中 on
+    // every cold start until the store learned the difference.
+    expect(indicator(wrapper).text()).toBe("连接中");
+
+    acceptLastSocket();
+    await flushPromises();
+    expect(indicator(wrapper).text()).toBe("实时");
+  });
+
+  it("reports a dropped link as a retry once it has been live", async () => {
+    const wrapper = await signedIn();
+    await flushPromises();
+    acceptLastSocket();
+    await flushPromises();
+
+    openedSockets.at(-1)?.drop();
+    await flushPromises();
+
+    expect(indicator(wrapper).text()).toBe("重连中");
+  });
+
+  it("says the backend is down rather than showing an idle dot", async () => {
+    fetchMock = routedFetch(
+      jsonResponse({ user: ADMIN }),
+      new Response(null, { status: 503 }),
+    );
+    vi.stubGlobal("fetch", fetchMock);
+    const wrapper = await mountApp();
+    await flushPromises();
+
+    expect(indicator(wrapper).text()).toBe("后端离线");
+  });
+
+  it("shows the fleet's own name, and not a second copy of the product name", async () => {
+    const wrapper = await signedIn();
+    await flushPromises();
+    expect(wrapper.find("header").text()).toContain("北区仓储车队");
+
+    // A deployment that never named its fleet is called 智能车队, and
+    // "智能车队监控平台 · 智能车队" spends the top bar restating the title.
+    fetchMock = routedFetch(
+      jsonResponse({ user: ADMIN }),
+      jsonResponse({ ...FLEET, fleetName: "智能车队" }),
+    );
+    vi.stubGlobal("fetch", fetchMock);
+    __resetAuth();
+    const plain = await mountApp();
+    await flushPromises();
+
+    expect(plain.find("header").text()).not.toContain("· 智能车队");
+    expect(plain.find("header h1").text()).toBe("智能车队监控平台");
+  });
+
+  it("drops the socket on sign-out", async () => {
+    // An authenticated socket left open behind the login screen is both a live
+    // subscription nobody is watching and a claim the session no longer supports.
+    const wrapper = await signedIn();
+    await flushPromises();
+    expect(openedSockets.at(-1)?.closed).toBe(false);
+
+    await openSessionMenu(wrapper);
+    fetchMock.mockResolvedValueOnce(new Response(null, { status: 204 }));
+    menuItems("menuitem")
+      .find((item) => item.textContent?.includes("退出"))
+      ?.click();
+    await flushPromises();
+
+    expect(openedSockets.at(-1)?.closed).toBe(true);
   });
 });
 

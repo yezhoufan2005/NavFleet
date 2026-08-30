@@ -56,6 +56,16 @@
   --color-chart-8: #e34948;
   --color-chart-grid: var(--color-slate-200);
   --color-chart-axis: var(--color-slate-400);
+
+  /* 地图：ros-* 为原值搬迁的字面值，网格/比例尺取自 ramp。 */
+  --color-ros-canvas: #e9eef4;
+  --color-ros-free: #c4cfdc;
+  --color-ros-lanelet-bg: #dbe3ec;
+  --color-ros-lanelet-line: rgba(37, 99, 235, 0.55);
+  --color-ros-lanelet-center: rgba(30, 41, 59, 0.32);
+  --color-ros-link: rgba(30, 41, 59, 0.5);
+  --color-map-grid: var(--color-slate-300);
+  --color-map-scale: var(--color-slate-600);
 }
 
 /* 跟随系统：未标记 data-theme 的默认态。 */
@@ -104,6 +114,16 @@
     --color-chart-8: #e66767;
     --color-chart-grid: var(--color-slate-700);
     --color-chart-axis: var(--color-slate-500);
+
+    /* 地图：ros-* 为原值搬迁的字面值，网格/比例尺取自 ramp。 */
+    --color-ros-canvas: #071119;
+    --color-ros-free: #8c9498;
+    --color-ros-lanelet-bg: #09131b;
+    --color-ros-lanelet-line: rgba(133, 214, 255, 0.5);
+    --color-ros-lanelet-center: rgba(255, 255, 255, 0.28);
+    --color-ros-link: rgba(255, 255, 255, 0.72);
+    --color-map-grid: var(--color-slate-800);
+    --color-map-scale: var(--color-slate-300);
   }
 }
 
@@ -152,4 +172,14 @@
   --color-chart-8: #e66767;
   --color-chart-grid: var(--color-slate-700);
   --color-chart-axis: var(--color-slate-500);
+
+  /* 地图：ros-* 为原值搬迁的字面值，网格/比例尺取自 ramp。 */
+  --color-ros-canvas: #071119;
+  --color-ros-free: #8c9498;
+  --color-ros-lanelet-bg: #09131b;
+  --color-ros-lanelet-line: rgba(133, 214, 255, 0.5);
+  --color-ros-lanelet-center: rgba(255, 255, 255, 0.28);
+  --color-ros-link: rgba(255, 255, 255, 0.72);
+  --color-map-grid: var(--color-slate-800);
+  --color-map-scale: var(--color-slate-300);
 }

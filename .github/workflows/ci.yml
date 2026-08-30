@@ -111,6 +111,11 @@ jobs:
       - run: npm run lint -w navfleet-console
       - run: npm run format:check -w navfleet-console
       - run: npm run typecheck -w navfleet-console
+      # The map's grid and scale bar are drawn on `ros-canvas`, which is not a
+      # semantic surface token — so they are outside the preview page's 4.5:1 text
+      # audit and need their own gate. A check nobody runs is not a gate: this one
+      # already caught both a wrong estimate and a light/dark inconsistency.
+      - run: npm run check:map-contrast
       - run: npm run test:coverage -w navfleet-console
       - run: npm run build -w navfleet-console
       - if: matrix.node == 20

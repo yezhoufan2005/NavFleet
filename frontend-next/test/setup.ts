@@ -96,16 +96,106 @@ export const setPrefersDark = (value: boolean): void => {
   }
 };
 
+/**
+ * Sockets opened during a test, newest last.
+ *
+ * jsdom's own `WebSocket` really tries to connect, so leaving it in place would
+ * have every test that signs in reach for `ws://localhost/ws` and report the
+ * failure as an unhandled error from whichever test happened to be running.
+ *
+ * Driveable rather than merely inert: whether the top bar says 连接中 or 实时 is
+ * decided by the socket reaching OPEN, and a stub that can never open would let the
+ * indicator's two most common states go untested. `realtime.test.ts` has its own
+ * richer fake — that one is injected into the link directly and drives timers; this
+ * one only has to stand in for the global.
+ */
+export interface StubSocket {
+  url: string;
+  closed: boolean;
+  /** Fire `open`, as a server accepting the connection would. */
+  accept: () => void;
+  /** Fire `close`, as a server going away would. */
+  drop: () => void;
+  /** Push one frame, JSON-encoded like the backend's. */
+  deliver: (payload: unknown) => void;
+}
+
+export const openedSockets: StubSocket[] = [];
+
+class DriveableWebSocket {
+  static readonly CONNECTING = 0;
+  static readonly OPEN = 1;
+  readyState = DriveableWebSocket.CONNECTING;
+
+  private readonly listeners = new Map<
+    string,
+    ((event: { data?: unknown }) => void)[]
+  >();
+
+  constructor(readonly url: string) {
+    openedSockets.push({
+      url,
+      closed: false,
+      accept: () => {
+        this.readyState = DriveableWebSocket.OPEN;
+        this.emit("open");
+      },
+      drop: () => {
+        this.readyState = 3;
+        this.emit("close");
+      },
+      deliver: (payload: unknown) => {
+        this.emit("message", { data: JSON.stringify(payload) });
+      },
+    });
+  }
+
+  addEventListener(
+    type: string,
+    listener: (event: { data?: unknown }) => void,
+  ): void {
+    const existing = this.listeners.get(type) ?? [];
+    existing.push(listener);
+    this.listeners.set(type, existing);
+  }
+
+  removeEventListener(): void {}
+  send(): void {}
+
+  close(): void {
+    this.readyState = 3;
+    const record = openedSockets.find((entry) => entry.url === this.url);
+    if (record) record.closed = true;
+  }
+
+  private emit(type: string, event: { data?: unknown } = {}): void {
+    for (const listener of this.listeners.get(type) ?? []) listener(event);
+  }
+}
+
+/** Accept the most recently opened socket, so the link reports `open`. */
+export const acceptLastSocket = (): StubSocket => {
+  const socket = openedSockets.at(-1);
+  if (!socket) throw new Error("no socket was opened");
+  socket.accept();
+  return socket;
+};
+
 beforeEach(() => {
   viewportWidth = 1440;
   prefersDark = false;
   listeners.clear();
+  openedSockets.length = 0;
   // `tokens.test.ts` runs in the node environment on purpose — it reads CSS off
   // disk and never touches a document — so none of the browser globals exist
   // there. The stubs are for the jsdom files only.
   if (typeof window === "undefined") return;
   localStorage.clear();
   install();
+  vi.stubGlobal("WebSocket", DriveableWebSocket);
 });
 
-if (typeof window !== "undefined") install();
+if (typeof window !== "undefined") {
+  install();
+  vi.stubGlobal("WebSocket", DriveableWebSocket);
+}

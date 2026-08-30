@@ -371,15 +371,18 @@
           </h2>
         </div>
         <p style="color: var(--color-ink-muted); max-width: 66ch">
-          <strong>刻意不从上面那 6 条 ramp 里取。</strong>分类色靠色相彼此可分，而这套
-          ramp 只有 4 条有彩色相，凑 8 个系列必然出现"同色相两档"的配对 ——
+          <strong>刻意不从上面那 6 条 ramp 里取。</strong
+          >分类色靠色相彼此可分，而这套 ramp 只有 4 条有彩色相，凑 8
+          个系列必然出现"同色相两档"的配对 ——
           而那恰好是分类编码最不该有的东西：第 1 与第 5 条曲线看起来像同一条。
-          槽位<strong>顺序本身就是 CVD 安全机制</strong>，不要重排。取值已按 NavFleet
-          自己的表面（浅色 <code>#ffffff</code> / 深色 <code>slate-800</code>，图表画在
+          槽位<strong>顺序本身就是 CVD 安全机制</strong>，不要重排。取值已按
+          NavFleet 自己的表面（浅色 <code>#ffffff</code> / 深色
+          <code>slate-800</code>，图表画在
           <code>surface-raised</code> 上）跑过校验器：明度带与彩度下限 PASS，CVD
           最差相邻 ΔE 9.1 / 8.4，正常视觉最差相邻 ΔE 19.6 / 19.3。两套都是
-          <strong>对比度 WARN</strong>，按救济规则组件必须同时给可见标签或数据表视图 ——
-          所以 TimeSeriesChart 内置表格视图，那不是附加功能。
+          <strong>对比度 WARN</strong
+          >，按救济规则组件必须同时给可见标签或数据表视图 —— 所以
+          TimeSeriesChart 内置表格视图，那不是附加功能。
         </p>
         <div class="card">
           <div class="ramp">
@@ -387,6 +390,44 @@
               <b>chart</b><span>系列 1 → 8，按顺序分配，不循环</span>
             </div>
             <div class="ramp-strip">__CHART_CHIPS__</div>
+          </div>
+        </div>
+      </section>
+
+      <section>
+        <h2>地图表面</h2>
+        <p>
+          6 个
+          <code>ros-*</code>
+          是<strong>原值搬迁</strong>而非重新取色：它们是对着点云栅格 与 lanelet
+          叠加层手调出来的，<code>canvas</code> 与
+          <code>free</code> 之间那点明度差
+          决定的是"可通行区域看不看得出来"。重取一遍属于改地图外观，而地图要到
+          13A-2 才在 屏幕上 —— 看不见渲染结果就不该定。<code>map-grid</code> /
+          <code>map-scale</code> 取自 ramp，是 11D §2.2 承诺要补的两个。
+        </p>
+        <p>
+          这两个画在
+          <code>ros-canvas</code>
+          上而不是在语义表面上，所以<strong>不在下面那张审计表的覆盖范围内</strong>，改用
+          <code>docs/tools/check-map-contrast.mjs</code>
+          单独机检，且<strong>两者标准不同</strong>：比例尺是"读出距离"的全部依据，属于内容图形，按
+          WCAG 1.4.11 的 3:1 判（浅 4.12:1 / 深
+          10.26:1）；网格整条消失也不丢任何信息，是装饰参考线，只设 1.3:1
+          的可见性下限（浅 1.59:1 / 深 1.84:1）—— 给网格套 3:1
+          只会得到一张吵到盖住小 标记的底图，而车辆必须是最跳的那一层。
+        </p>
+        <p>
+          深色网格原取 <code>slate-700</code>，实测 2.70:1，比浅色显眼近一倍 ——
+          同一元素在两套主题里轻重不一致。<strong>这是机检抓出来的，不是看出来的</strong>，改
+          <code>slate-800</code> 后两边齐平。
+        </p>
+        <div class="card">
+          <div class="ramp">
+            <div class="ramp-label">
+              <b>map</b><span>场景底图与叠加层，随主题成对定义</span>
+            </div>
+            <div class="ramp-strip">__MAP_CHIPS__</div>
           </div>
         </div>
       </section>

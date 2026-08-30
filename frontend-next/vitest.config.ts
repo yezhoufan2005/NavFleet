@@ -27,11 +27,16 @@ export default defineConfig({
       // same way the fleet-core thresholds were set. 12B deliberately left these
       // empty: with one button and one page, any number would have been measuring
       // the scaffold rather than the code.
+      //
+      // 13A-1 raised statements/lines 92 → 93 to hold the data layer's own coverage
+      // (93.99 measured). Branches and functions are left where they are on purpose:
+      // at 85.26 and 89.28 they have too little headroom to ratchet without making
+      // an unrelated PR go red for a single uncovered `else`.
       thresholds: {
-        statements: 92,
+        statements: 93,
         branches: 85,
         functions: 86,
-        lines: 92,
+        lines: 93,
       },
     },
   },

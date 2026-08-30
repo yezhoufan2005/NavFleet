@@ -16,19 +16,26 @@
  * `NotificationHost` sits outside the three-way switch on purpose. A failed login
  * and a backend that cannot be reached both need to say so, and both happen while
  * the shell does not exist.
+ *
+ * The fleet data layer starts here rather than inside a view, because the top bar
+ * reports the realtime link on *every* page — including `/wall`, which renders
+ * without the shell. Tying the socket to one page's lifecycle would mean the
+ * indicator lies wherever that page is not mounted.
  */
-import { computed, onMounted, watchEffect } from "vue";
+import { computed, onMounted, watch, watchEffect } from "vue";
 import { RouterView, useRoute } from "vue-router";
 import AppShell from "@/components/shell/AppShell.vue";
 import LoginForm from "@/components/LoginForm.vue";
 import NotificationHost from "@/components/NotificationHost.vue";
 import { useAuth } from "@/composables/useAuth";
+import { useFleetStore } from "@/stores/fleet";
 
 const PRODUCT_NAME = "智能车队监控平台";
 
 const route = useRoute();
 const auth = useAuth();
 const authState = auth.state;
+const fleet = useFleetStore();
 
 /** `/wall` renders without the shell — see `WallView.vue` for why. */
 const bare = computed(() => route.meta.bare === true);
@@ -36,6 +43,22 @@ const bare = computed(() => route.meta.bare === true);
 onMounted(() => {
   void auth.fetchMe();
 });
+
+/**
+ * Follow the session: connect when it becomes known, and drop the socket on the way
+ * out. Signing out without disconnecting would leave an authenticated socket open
+ * behind the login screen, which is both a live subscription nobody is watching and
+ * a claim about access that the session no longer supports.
+ */
+watch(
+  () => authState.status,
+  (status, previous) => {
+    if (status === "authenticated" && previous !== "authenticated") {
+      void fleet.bootstrap();
+    }
+    if (status === "anonymous") fleet.disconnectRealtime();
+  },
+);
 
 const handleLogin = async (credentials: {
   username: string;
