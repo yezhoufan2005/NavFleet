@@ -41,7 +41,14 @@ describe("route table", () => {
       { path: "/devices/:deviceId", name: "device-detail", title: "设备详情" },
       { path: "/alerts", name: "alerts", title: "告警" },
       { path: "/reports", name: "reports", title: "报表" },
-      { path: "/admin", name: "admin", title: "管理" },
+      // 管理 is nested for the same reason 设备 is: `router-link-active` follows
+      // matched records, so a child page has to keep the section lit. Its landing
+      // page is a real page rather than a redirect into the first child (C2), which
+      // is why the parent carries no component and the `""` child does.
+      { path: "/admin", name: undefined, title: "管理" },
+      { path: "/admin", name: "admin", title: undefined },
+      { path: "/admin/system", name: "admin-system", title: "系统状态" },
+      { path: "/admin/scenes", name: "admin-scenes", title: "场景" },
       { path: "/wall", name: "wall", title: "大屏值班" },
       // Present here because vitest runs with `import.meta.env.DEV` true. It is a
       // development tool, not a page: the production build drops it, and

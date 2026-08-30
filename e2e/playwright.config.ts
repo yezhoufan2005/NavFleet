@@ -123,6 +123,7 @@ export default defineConfig({
         /console-overview\.spec\.ts$/,
         /console-alerts\.spec\.ts$/,
         /console-playback\.spec\.ts$/,
+        /console-admin\.spec\.ts$/,
       ],
       use: {
         ...devices["Desktop Chrome"],

@@ -77,13 +77,30 @@ const routes: RouteRecordRaw[] = [
   },
   {
     // An aggregate section, so it gets a real landing page rather than a redirect
-    // into its first child (constraint C2). Its children arrive with the pages
-    // themselves in Phase 15–17; registering empty ones now would put dead
-    // entries in the navigation.
+    // into its first child (constraint C2). The two children that exist arrive with
+    // 13F; the rest (用户 / 用户组 / 审计 / 设备接入 / 报码字典) come with Phase 15–17,
+    // and registering empty ones now would put dead entries in the navigation.
     path: "/admin",
-    name: "admin",
-    component: () => import("@/views/AdminView.vue"),
     meta: { title: "管理" },
+    children: [
+      {
+        path: "",
+        name: "admin",
+        component: () => import("@/views/AdminView.vue"),
+      },
+      {
+        path: "system",
+        name: "admin-system",
+        component: () => import("@/views/admin/SystemStatusView.vue"),
+        meta: { title: "系统状态" },
+      },
+      {
+        path: "scenes",
+        name: "admin-scenes",
+        component: () => import("@/views/admin/ScenesView.vue"),
+        meta: { title: "场景" },
+      },
+    ],
   },
   {
     path: "/wall",
