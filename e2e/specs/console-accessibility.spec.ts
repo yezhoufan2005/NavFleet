@@ -44,6 +44,11 @@ const ROUTES: readonly { path: string; heading: string | RegExp }[] = [
   { path: "/alerts", heading: "告警" },
   { path: "/reports", heading: "报表" },
   { path: "/admin", heading: "管理" },
+  // The two built children. 系统状态 carries a data table and a row of state badges;
+  // 场景 carries a badge per map resource. Auditing only the landing page would check
+  // a list of cards and nothing else.
+  { path: "/admin/system", heading: "系统状态" },
+  { path: "/admin/scenes", heading: "场景" },
   { path: "/no-such-page", heading: "页面不存在" },
   { path: "/wall", heading: "大屏值班模式" },
 ];

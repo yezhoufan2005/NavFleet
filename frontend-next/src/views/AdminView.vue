@@ -11,22 +11,48 @@
  * deployment, there is no user-management API of any kind, and adding a second
  * person means writing to the database by hand. Phase 15 is where that changes;
  * until then, listing the areas is more useful than pretending.
+ *
+ * Two of them are now real, and the difference has to be visible without reading:
+ * a built area is a link with a solid border, an unbuilt one is dashed and inert.
+ * A card that looks clickable and is not would make this page worse than a list.
  */
+import { RouterLink } from "vue-router";
 import PageHeader from "@/components/PageHeader.vue";
 
-const AREAS: readonly { label: string; plan: string; intent: string }[] = [
+interface Area {
+  label: string;
+  plan: string;
+  intent: string;
+  /** Present once the area exists. Absent means "not built", and it renders inert. */
+  to?: string;
+}
+
+const AREAS: readonly Area[] = [
   { label: "用户", plan: "15B", intent: "增删改、改密码、启停用" },
   { label: "用户组", plan: "15C", intent: "组与权限矩阵" },
   { label: "审计", plan: "15D", intent: "谁在什么时候做了什么" },
   { label: "设备接入", plan: "16C", intent: "接入凭据与主题" },
-  { label: "场景", plan: "13F", intent: "场景与地图资源" },
+  {
+    label: "场景",
+    plan: "13F",
+    intent: "场景与地图资源，并检查资源是否真的取得到",
+    to: "/admin/scenes",
+  },
   {
     label: "报码字典",
     plan: "16C",
     intent: "报码到文案的映射，目前根本不存在",
   },
-  { label: "系统状态", plan: "13F", intent: "连接诊断，从旧设置页搬来" },
+  {
+    label: "系统状态",
+    plan: "13F",
+    intent: "链路诊断与本浏览器留存的数据",
+    to: "/admin/system",
+  },
 ];
+
+const CARD_BASE =
+  "flex h-full flex-col gap-1 rounded-md bg-surface-raised p-4 transition-colors duration-150 ease-standard";
 </script>
 
 <template>
@@ -34,19 +60,39 @@ const AREAS: readonly { label: string; plan: string; intent: string }[] = [
     title="管理"
     lede="用户、接入、字典与系统状态。这一区大部分尚未实现。"
   >
-    <ul class="grid gap-3 md:grid-cols-2 3xl:grid-cols-3">
-      <li
-        v-for="area in AREAS"
-        :key="area.label"
-        class="flex flex-col gap-1 rounded-md border border-dashed border-border-strong bg-surface-raised p-4"
-      >
-        <span class="flex items-baseline gap-2">
-          <span class="text-md font-semibold text-ink">{{ area.label }}</span>
-          <span class="font-mono text-2xs text-ink-subtle"
-            >PR {{ area.plan }}</span
-          >
-        </span>
-        <span class="text-sm text-ink-muted">{{ area.intent }}</span>
+    <ul class="grid list-none gap-3 p-0 md:grid-cols-2 3xl:grid-cols-3">
+      <li v-for="area in AREAS" :key="area.label">
+        <!-- A link, because it is navigation — so ⌘-click and "copy link address"
+             keep working. -->
+        <RouterLink
+          v-if="area.to"
+          :to="area.to"
+          :class="[
+            CARD_BASE,
+            'border border-border hover:border-border-strong hover:bg-surface-sunken',
+          ]"
+        >
+          <span class="flex items-baseline gap-2">
+            <span class="text-md font-semibold text-ink">{{ area.label }}</span>
+            <span class="ml-auto font-mono text-2xs text-brand-ink"
+              >已就绪</span
+            >
+          </span>
+          <span class="text-sm text-ink-muted">{{ area.intent }}</span>
+        </RouterLink>
+
+        <div
+          v-else
+          :class="[CARD_BASE, 'border border-dashed border-border-strong']"
+        >
+          <span class="flex items-baseline gap-2">
+            <span class="text-md font-semibold text-ink">{{ area.label }}</span>
+            <span class="ml-auto font-mono text-2xs text-ink-subtle"
+              >PR {{ area.plan }}</span
+            >
+          </span>
+          <span class="text-sm text-ink-muted">{{ area.intent }}</span>
+        </div>
       </li>
     </ul>
   </PageHeader>
