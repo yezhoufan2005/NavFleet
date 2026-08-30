@@ -3,6 +3,7 @@ import { LineChart } from "echarts/charts";
 import {
   GridComponent,
   LegendComponent,
+  MarkLineComponent,
   TooltipComponent,
 } from "echarts/components";
 import { CanvasRenderer } from "echarts/renderers";
@@ -22,11 +23,16 @@ import type { ChartPalette } from "@/composables/useChartTheme";
  * canvas path, and at a few thousand points canvas is the one that holds up. jsdom
  * has no canvas, which is why the unit tests assert on the option we build rather
  * than on rendered output — the option *is* the contract between us and ECharts.
+ *
+ * `MarkLineComponent` is here for exactly one thing: the history playback cursor
+ * (`buildCursorPatch`). Without it registered, `markLine` is silently ignored — the
+ * option is accepted and nothing draws.
  */
 echarts.use([
   LineChart,
   GridComponent,
   LegendComponent,
+  MarkLineComponent,
   TooltipComponent,
   CanvasRenderer,
 ]);
@@ -168,3 +174,52 @@ export const buildTimeSeriesOption = ({
 
 export const TIME_SERIES_SAMPLING_THRESHOLD = SAMPLING_THRESHOLD;
 export const TIME_SERIES_DIRECT_LABEL_LIMIT = DIRECT_LABEL_LIMIT;
+
+export interface CursorPatchInput {
+  /** How many series the chart currently has — the patch merges by index. */
+  seriesCount: number;
+  /** Where the cursor sits, in epoch milliseconds, or `null` for no cursor. */
+  at: number | null;
+  palette: ChartPalette;
+}
+
+/**
+ * A patch that moves the playback cursor, and nothing else.
+ *
+ * Deliberately *not* a parameter of `buildTimeSeriesOption`. During playback the
+ * cursor moves up to twelve times a second, and folding it into the option would
+ * re-derive every series' point array on every frame — which is the same shape of
+ * mistake `useHistoryPlayback` exists to undo, only with the allocation moved from the
+ * trail to the chart. Here the data half of the option is built once and the cursor is
+ * merged over it by series index, so a frame costs one `markLine`.
+ *
+ * The line is `inkMuted` rather than a series colour: it marks *where you are*, which
+ * is a reading aid, and a coloured one would read as another measurement. It carries no
+ * label — the timestamp is already in the playback bar, and a label on a line that
+ * moves every 150 ms is unreadable by construction.
+ */
+export const buildCursorPatch = ({
+  seriesCount,
+  at,
+  palette,
+}: CursorPatchInput): EChartsOption => ({
+  // One entry per series so ECharts' index merge lines up; only the first carries the
+  // cursor, because one vertical line per series would draw the same line N times.
+  series: Array.from({ length: Math.max(1, seriesCount) }, (_unused, index) =>
+    index === 0
+      ? {
+          type: "line" as const,
+          markLine: {
+            silent: true,
+            symbol: "none",
+            animation: false,
+            label: { show: false },
+            lineStyle: { color: palette.inkMuted, width: 1, type: "solid" },
+            // An empty array clears a cursor that was there — merge replaces arrays
+            // wholesale, which is what makes "no cursor" expressible at all.
+            data: at === null ? [] : [{ xAxis: at }],
+          },
+        }
+      : { type: "line" as const },
+  ),
+});
