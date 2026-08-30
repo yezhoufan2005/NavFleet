@@ -6,10 +6,10 @@
   "description": "NavFleet console — the v3 frontend. Runs alongside navfleet-frontend until it reaches parity (see docs/frontend-parity.md).",
   "scripts": {
     "dev": "vite --host 127.0.0.1 --port 5273",
-    "build": "vue-tsc --noEmit -p tsconfig.json && vite build",
+    "build": "vue-tsc --noEmit -p tsconfig.json && vite build && node scripts/assert-no-dev-only-chunks.mjs",
     "preview": "vite preview --port 4273",
     "lint": "eslint . --max-warnings 0",
-    "format:check": "prettier --check \"src/**/*.{ts,vue,css}\" \"test/**/*.ts\"",
+    "format:check": "prettier --check \"src/**/*.{ts,vue,css}\" \"test/**/*.ts\" \"scripts/**/*.mjs\"",
     "typecheck": "vue-tsc --noEmit -p tsconfig.json",
     "test": "vitest run",
     "test:coverage": "vitest run --coverage"
@@ -17,6 +17,7 @@
   "dependencies": {
     "@navfleet/fleet-core": "*",
     "@navfleet/shared": "*",
+    "echarts": "^6.0.0",
     "pinia": "^4.0.3",
     "reka-ui": "^2.10.4",
     "vue": "^3.5.13",

@@ -91,6 +91,25 @@ const routes: RouteRecordRaw[] = [
     component: () => import("@/views/WallView.vue"),
     meta: { title: "大屏值班", bare: true },
   },
+  /**
+   * The chart performance harness — a development tool, not a page.
+   *
+   * Registered only in dev, or in a build with `VITE_CHART_PERF` set. Both the view
+   * and (until Phase 13C uses a chart for real) ECharts itself are therefore absent
+   * from a normal production bundle — `scripts/assert-no-dev-only-chunks.mjs` runs
+   * as part of `npm run build` and fails if the harness chunk ever appears. Setting
+   * the flag is also how the chart bundle cost gets measured reproducibly.
+   */
+  ...(import.meta.env.DEV || import.meta.env.VITE_CHART_PERF
+    ? [
+        {
+          path: "/__charts-perf",
+          name: "charts-perf",
+          component: () => import("@/views/ChartPerfView.vue"),
+          meta: { title: "图表性能基线", bare: true },
+        } satisfies RouteRecordRaw,
+      ]
+    : []),
   {
     // A mistyped deep link says so rather than being redirected to the landing
     // page, which reads as "the address was ignored".

@@ -126,5 +126,13 @@ export const useTheme = () => {
   };
 };
 
+/** Test-only reset for the module singleton, including the stamped attribute. */
+export const __resetTheme = (): void => {
+  preference.value = "system";
+  systemPrefersDark.value = false;
+  if (typeof document !== "undefined")
+    delete document.documentElement.dataset.theme;
+};
+
 export const THEME_STORAGE_KEY = STORAGE_KEY;
 export const THEME_PREFERENCES = PREFERENCES;

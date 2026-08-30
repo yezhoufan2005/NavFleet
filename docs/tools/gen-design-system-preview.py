@@ -74,6 +74,45 @@ SEMANTIC = [
     ("offline-wash", "zinc-100", "zinc-800"),
 ]
 
+# ---------------------------------------------------------------------------
+# 图表系列色（chart-1…8）
+# ---------------------------------------------------------------------------
+#
+# **刻意不从上面那 6 条 ramp 里取。** 分类色靠的是色相彼此可分，而这套 ramp 只有 4 条
+# 有彩色相（teal / blue / amber / rose），凑 8 个系列必然出现"同色相两档"的配对 ——
+# 而同色相配对恰好是分类编码最不该有的东西：第 1 与第 5 条曲线看起来像同一条。
+# 所以系列色是独立的一层，与状态色分开（11D §2.2 已经这么定了）。
+#
+# 取值来自 dataviz 技能的参考调色板（已文档化的 8 色分类板，含明暗两套），**并按
+# NavFleet 自己的表面重跑了校验器**（浅色 #ffffff、深色 slate-800 #384243，
+# 图表都画在 surface-raised 上）：
+#
+#   浅色：明度带 PASS · 彩度下限 PASS · CVD 最差相邻 ΔE 9.1 · 正常视觉最差相邻 ΔE 19.6
+#   深色：明度带 PASS · 彩度下限 PASS · CVD 最差相邻 ΔE 8.4 · 正常视觉最差相邻 ΔE 19.3
+#
+# 两套都是**对比度 WARN**（浅色 3 个槽、深色 4 个槽低于 3:1）。按该方法的"救济规则"，
+# 这不是可以忽略的警告，而是一条义务：组件必须同时提供可见标签或数据表视图。
+# TimeSeriesChart 因此内置了表格视图，不是附加功能。
+#
+# 槽位**顺序本身就是 CVD 安全机制**，不是审美选择 —— 不要重排。
+CHART = [
+    ("chart-1", "#2a78d6", "#3987e5"),  # blue
+    ("chart-2", "#eb6834", "#d95926"),  # orange
+    ("chart-3", "#1baf7a", "#199e70"),  # aqua
+    ("chart-4", "#eda100", "#c98500"),  # yellow
+    ("chart-5", "#e87ba4", "#d55181"),  # magenta
+    ("chart-6", "#008300", "#008300"),  # green
+    ("chart-7", "#4a3aa7", "#9085e9"),  # violet
+    ("chart-8", "#e34948", "#e66767"),  # red
+]
+
+# 图表的坐标轴与网格。它们是**非文本 UI**，WCAG 1.4.11 要 3:1 而不是 4.5:1，所以不进
+# 下面那张按 4.5:1 判定的审计表 —— 混进去会用错的标准误报。
+CHART_FRAME = [
+    ("chart-grid", "slate-200", "slate-700"),
+    ("chart-axis", "slate-400", "slate-500"),
+]
+
 PAIRS = [
     # 文本 × 表面的组合，穷举而非挑几组。原先只审了四组，漏掉的正是 12C 里 axe 抓到的
     # 那一组：深色下 ink-subtle 落在 surface-raised 上只有 4.06:1。漏的原因很具体 ——
@@ -84,7 +123,7 @@ PAIRS = [
     # 的原因是结构性的：浅色 ink-subtle 必须明显浅于 ink-muted(slate-700)，而 slate-600
     # 在任何比 slate-25 更暗的底上都不够 4.5。色阶里没有 650 这一档，而插一档会改变
     # chroma() 的索引距离、连带动到所有深色端的彩度 —— 代价远大于收益。
-    # 所以规则是：**凹陷区上的文字至少用 ink-muted**，见 frontend-design-system.md §2.3。
+    # 所以规则是：**凹陷区上的文字至少用 ink-muted**，见 frontend-design-system.md §2.5。
     ("ink", "surface", "正文"),
     ("ink", "surface-raised", "卡片上的正文"),
     ("ink", "surface-sunken", "凹陷区上的正文"),
@@ -144,7 +183,22 @@ def ramp_css():
 
 
 def semantic_css(index):
-    return "\n".join(f"    --color-{r[0]}: var(--color-{r[index]});" for r in SEMANTIC)
+    """语义层 + 图表层。前者引用 ramp token，后者是字面值（见 CHART 的注释）。"""
+    lines = [f"    --color-{r[0]}: var(--color-{r[index]});" for r in SEMANTIC]
+    lines.append("")
+    lines.append("    /* 图表：系列色为字面值，坐标轴/网格取自 ramp。 */")
+    lines += [f"    --color-{r[0]}: {r[index]};" for r in CHART]
+    lines += [f"    --color-{r[0]}: var(--color-{r[index]});" for r in CHART_FRAME]
+    return "\n".join(lines)
+
+
+def chart_chips():
+    """系列色的色板。值随主题切换，所以用 token 而不是写死那一列。"""
+    return "".join(
+        f'<i style="background: var(--color-{name})" title="{name}">'
+        f"<em>{index}</em></i>"
+        for index, (name, _light, _dark) in enumerate(CHART, start=1)
+    )
 
 
 def ramp_rows():
@@ -219,6 +273,7 @@ def main():
         ("__SEMANTIC_LIGHT__", semantic_css(1)),
         ("__SEMANTIC_DARK__", semantic_css(2)),
         ("__RAMP_ROWS__", ramp_rows()),
+        ("__CHART_CHIPS__", chart_chips()),
         ("__PAIR_ROWS__", pair_rows()),
         ("__TYPE_ROWS__", type_rows()),
         ("__WALL_ROWS__", wall_rows()),
@@ -229,7 +284,7 @@ def main():
         ("__SEMANTIC_COUNT__", str(len(SEMANTIC))),
     ):
         html = html.replace(placeholder, value)
-    leftover = [token for token in ("__RAMP", "__SEMANTIC", "__PAIR", "__TYPE", "__WALL", "__SPACING", "__STEP") if token in html]
+    leftover = [token for token in ("__RAMP", "__SEMANTIC", "__PAIR", "__TYPE", "__WALL", "__SPACING", "__STEP", "__CHART") if token in html]
     if leftover:
         raise SystemExit(f"模板里还有未替换的占位符: {leftover}")
     OUTPUT.write_text(html, encoding="utf-8")
@@ -243,7 +298,7 @@ def main():
     html = OUTPUT.read_text(encoding="utf-8")
     print(f"已写出 {OUTPUT.relative_to(HERE.parent.parent)}（{len(html)} 字节，已 prettier 定型）")
     print(f"  色阶 {len(RAMPS)} × {len(STEPS)} = {len(RAMPS) * len(STEPS)} 个值")
-    print(f"  语义 token {len(SEMANTIC)} 个 × 双主题成对定义")
+    print(f"  语义 token {len(SEMANTIC)} 个 + 图表 {len(CHART) + len(CHART_FRAME)} 个 × 双主题成对定义")
     print(f"  待机检的对比度配对 {len(PAIRS)} 组")
     write_styles()
 

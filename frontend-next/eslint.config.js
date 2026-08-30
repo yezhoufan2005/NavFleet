@@ -33,6 +33,13 @@ export default tseslint.config(
     },
   },
   {
+    // Build-time scripts run in Node, not the browser. Kept as a separate block
+    // rather than adding Node globals everywhere: a `process` reference inside a
+    // component is a bug, and this workspace should keep saying so.
+    files: ["scripts/**/*.mjs"],
+    languageOptions: { globals: { ...globals.node } },
+  },
+  {
     // Test files build throwaway components inline — a fixture that throws during
     // render, a stub that renders one line — and each is clearer beside the case
     // that uses it than in a file of its own.
