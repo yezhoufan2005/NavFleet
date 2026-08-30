@@ -169,8 +169,14 @@
         --color-ros-lanelet-line: rgba(37, 99, 235, 0.55);
         --color-ros-lanelet-center: rgba(30, 41, 59, 0.32);
         --color-ros-link: rgba(30, 41, 59, 0.5);
+        --color-ros-cloud-obstacle: #123a52;
+        --color-ros-cloud-floor: #5a6b7a;
         --color-map-grid: var(--color-slate-300);
         --color-map-scale: var(--color-slate-600);
+
+        /* 点云 alpha 下限：不是颜色，所以不带 --color- 前缀。 */
+        --ros-cloud-obstacle-alpha: 220;
+        --ros-cloud-floor-alpha: 82;
 
         --shadow-raised:
           0 1px 2px oklch(0.2 0.02 205 / 0.06),
@@ -235,8 +241,14 @@
           --color-ros-lanelet-line: rgba(133, 214, 255, 0.5);
           --color-ros-lanelet-center: rgba(255, 255, 255, 0.28);
           --color-ros-link: rgba(255, 255, 255, 0.72);
+          --color-ros-cloud-obstacle: #b6edff;
+          --color-ros-cloud-floor: #6c8494;
           --color-map-grid: var(--color-slate-800);
           --color-map-scale: var(--color-slate-300);
+
+          /* 点云 alpha 下限：不是颜色，所以不带 --color- 前缀。 */
+          --ros-cloud-obstacle-alpha: 164;
+          --ros-cloud-floor-alpha: 82;
 
           --shadow-raised:
             0 1px 2px oklch(0 0 0 / 0.4), 0 10px 26px oklch(0 0 0 / 0.45);
@@ -299,8 +311,14 @@
         --color-ros-lanelet-line: rgba(133, 214, 255, 0.5);
         --color-ros-lanelet-center: rgba(255, 255, 255, 0.28);
         --color-ros-link: rgba(255, 255, 255, 0.72);
+        --color-ros-cloud-obstacle: #b6edff;
+        --color-ros-cloud-floor: #6c8494;
         --color-map-grid: var(--color-slate-800);
         --color-map-scale: var(--color-slate-300);
+
+        /* 点云 alpha 下限：不是颜色，所以不带 --color- 前缀。 */
+        --ros-cloud-obstacle-alpha: 164;
+        --ros-cloud-floor-alpha: 82;
 
         --shadow-raised:
           0 1px 2px oklch(0 0 0 / 0.4), 0 10px 26px oklch(0 0 0 / 0.45);
@@ -888,6 +906,14 @@
                 ><em>lanelet-center</em></i
               ><i style="background: var(--color-ros-link)" title="ros-link"
                 ><em>link</em></i
+              ><i
+                style="background: var(--color-ros-cloud-obstacle)"
+                title="ros-cloud-obstacle"
+                ><em>cloud-obstacle</em></i
+              ><i
+                style="background: var(--color-ros-cloud-floor)"
+                title="ros-cloud-floor"
+                ><em>cloud-floor</em></i
               ><i style="background: var(--color-map-grid)" title="map-grid"
                 ><em>grid</em></i
               ><i style="background: var(--color-map-scale)" title="map-scale"

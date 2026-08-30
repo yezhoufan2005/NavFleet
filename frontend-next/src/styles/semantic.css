@@ -64,8 +64,14 @@
   --color-ros-lanelet-line: rgba(37, 99, 235, 0.55);
   --color-ros-lanelet-center: rgba(30, 41, 59, 0.32);
   --color-ros-link: rgba(30, 41, 59, 0.5);
+  --color-ros-cloud-obstacle: #123a52;
+  --color-ros-cloud-floor: #5a6b7a;
   --color-map-grid: var(--color-slate-300);
   --color-map-scale: var(--color-slate-600);
+
+  /* 点云 alpha 下限：不是颜色，所以不带 --color- 前缀。 */
+  --ros-cloud-obstacle-alpha: 220;
+  --ros-cloud-floor-alpha: 82;
 }
 
 /* 跟随系统：未标记 data-theme 的默认态。 */
@@ -122,8 +128,14 @@
     --color-ros-lanelet-line: rgba(133, 214, 255, 0.5);
     --color-ros-lanelet-center: rgba(255, 255, 255, 0.28);
     --color-ros-link: rgba(255, 255, 255, 0.72);
+    --color-ros-cloud-obstacle: #b6edff;
+    --color-ros-cloud-floor: #6c8494;
     --color-map-grid: var(--color-slate-800);
     --color-map-scale: var(--color-slate-300);
+
+    /* 点云 alpha 下限：不是颜色，所以不带 --color- 前缀。 */
+    --ros-cloud-obstacle-alpha: 164;
+    --ros-cloud-floor-alpha: 82;
   }
 }
 
@@ -180,6 +192,12 @@
   --color-ros-lanelet-line: rgba(133, 214, 255, 0.5);
   --color-ros-lanelet-center: rgba(255, 255, 255, 0.28);
   --color-ros-link: rgba(255, 255, 255, 0.72);
+  --color-ros-cloud-obstacle: #b6edff;
+  --color-ros-cloud-floor: #6c8494;
   --color-map-grid: var(--color-slate-800);
   --color-map-scale: var(--color-slate-300);
+
+  /* 点云 alpha 下限：不是颜色，所以不带 --color- 前缀。 */
+  --ros-cloud-obstacle-alpha: 164;
+  --ros-cloud-floor-alpha: 82;
 }
