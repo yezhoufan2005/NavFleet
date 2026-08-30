@@ -17,18 +17,30 @@
  * Panels render only when the vehicle actually has that data. Not a capability system
  * — that is P1-b and deliberately not built here — just the ordinary rule that a
  * panel of `--` is worse than no panel, because it reads as lost data.
+ *
+ * ## Why tabs, and why the tab is in the URL
+ *
+ * `docs/frontend-ia.md` puts 历史回放 here rather than in the nav, because a separate
+ * page made you choose the same vehicle twice. But the three views are answers to
+ * different questions asked at different times — right now / lately / that afternoon —
+ * so stacking them into one scroll would bury the first one under the other two.
+ *
+ * The active tab lives in `?tab=`, which makes it linkable: "look at c12's playback"
+ * is a URL rather than a sentence with a step in it. `replace` rather than `push`, so
+ * the back button leaves the device instead of walking back through tabs.
  */
-import { computed, onBeforeUnmount, ref, watch } from "vue";
-import { useRoute } from "vue-router";
+import { computed } from "vue";
+import { useRoute, useRouter } from "vue-router";
+import { TabsContent, TabsList, TabsRoot, TabsTrigger } from "reka-ui";
 import PageHeader from "@/components/PageHeader.vue";
-import TimeSeriesChart from "@/components/charts/TimeSeriesChart.vue";
+import DeviceChartsTab from "@/components/device/DeviceChartsTab.vue";
+import DevicePlaybackTab from "@/components/device/DevicePlaybackTab.vue";
 import { useFleetStore } from "@/stores/fleet";
 import {
   CODE_IMPACTS,
   controlModeMap,
   describeDeviceCodes,
   deviceToneLabels,
-  fleetApi,
   formatEnum,
   formatNumber,
   formatStamp,
@@ -38,10 +50,28 @@ import {
   hasPose,
   taskStatusMap,
 } from "@navfleet/fleet-core";
-import type { TimeSeries } from "@/components/charts/timeSeriesOption";
 
 const route = useRoute();
+const router = useRouter();
 const fleet = useFleetStore();
+
+const TABS = [
+  { value: "live", label: "实时" },
+  { value: "charts", label: "曲线" },
+  { value: "playback", label: "历史回放" },
+] as const;
+
+const activeTab = computed({
+  get: () => {
+    const requested = String(route.query.tab ?? "");
+    return TABS.some((tab) => tab.value === requested) ? requested : "live";
+  },
+  set: (next: string) => {
+    void router.replace({
+      query: { ...route.query, tab: next === "live" ? undefined : next },
+    });
+  },
+});
 
 const deviceId = computed(() => String(route.params.deviceId ?? ""));
 const device = computed(() => fleet.state.devicesById[deviceId.value] ?? null);
@@ -165,95 +195,6 @@ const panels = computed(() =>
     { key: "scene", title: "场景", rows: sceneRows.value },
   ].filter((panel) => panel.rows.length),
 );
-
-// ── history ────────────────────────────────────────────────────────────────────
-/**
- * Two charts, not one with two y-axes.
- *
- * Speed is m/s and charge is %, and putting them on one pair of axes would let the
- * crossing point be chosen by whoever picked the scales — which is the single most
- * common way a chart misleads. `TimeSeriesChart` takes one `unit` per chart precisely
- * so a dual axis is inexpressible.
- */
-const HISTORY_LIMIT = 240;
-
-const historyState = ref<"idle" | "loading" | "ready" | "error">("idle");
-const historyError = ref("");
-const speedSeries = ref<TimeSeries[]>([]);
-const socSeries = ref<TimeSeries[]>([]);
-
-let historyRequestId = 0;
-
-const loadHistory = async (id: string): Promise<void> => {
-  if (!id) return;
-  const requestId = historyRequestId + 1;
-  historyRequestId = requestId;
-
-  historyState.value = "loading";
-  historyError.value = "";
-  try {
-    const payload = await fleetApi.getHistory(id, { limit: HISTORY_LIMIT });
-    // A slow response for a device you have navigated away from must not land.
-    if (requestId !== historyRequestId) return;
-
-    const samples = [...(payload.items ?? [])].sort(
-      (left, right) =>
-        new Date(left.ts).getTime() - new Date(right.ts).getTime(),
-    );
-    // `[epoch ms, value]` pairs, oldest first — the shape the chart takes.
-    const pointsOf = (
-      pick: (item: (typeof samples)[number]) => unknown,
-    ): [number, number][] =>
-      samples
-        .map(
-          (item) =>
-            [new Date(item.ts).getTime(), Number(pick(item))] as [
-              number,
-              number,
-            ],
-        )
-        .filter(([ts, value]) => Number.isFinite(ts) && Number.isFinite(value));
-
-    speedSeries.value = [
-      {
-        name: "速度",
-        points: pointsOf(
-          (item) =>
-            (item.measurements?.vehicleInfo as { speed?: unknown } | undefined)
-              ?.speed,
-        ),
-      },
-    ];
-    socSeries.value = [
-      {
-        name: "电量",
-        points: pointsOf(
-          (item) =>
-            (item.measurements?.vehicleInfo as { soc?: unknown } | undefined)
-              ?.soc,
-        ),
-      },
-    ];
-    historyState.value = "ready";
-  } catch (error) {
-    if (requestId !== historyRequestId) return;
-    historyState.value = "error";
-    historyError.value =
-      error instanceof Error ? error.message : "历史数据加载失败";
-  }
-};
-
-watch(deviceId, (id) => void loadHistory(id), { immediate: true });
-
-onBeforeUnmount(() => {
-  historyRequestId += 1;
-});
-
-const hasHistory = computed(
-  () =>
-    historyState.value === "ready" &&
-    (speedSeries.value[0]?.points.length || socSeries.value[0]?.points.length),
-);
 </script>
 
 <template>
@@ -285,128 +226,124 @@ const hasHistory = computed(
     </div>
 
     <template v-else>
-      <!-- 报码解读 first: it is the reason this page exists. -->
-      <section
-        class="flex flex-col gap-3 rounded-md border border-border bg-surface-raised p-4"
-        aria-labelledby="codes-heading"
-      >
-        <h3 id="codes-heading" class="text-lg font-semibold text-ink">
-          报码解读
-        </h3>
-
-        <p v-if="!codes.length" class="text-sm text-ink-muted">
-          当前没有活跃报码。
-        </p>
-
-        <article
-          v-for="row in codes"
-          :key="row.channel"
-          class="flex flex-col gap-1 rounded-sm border border-border bg-surface p-3"
+      <TabsRoot v-model="activeTab" class="flex min-h-0 flex-col gap-3">
+        <TabsList
+          class="flex shrink-0 gap-1 border-b border-border"
+          aria-label="设备详情视图"
         >
-          <header class="flex flex-wrap items-baseline gap-2">
-            <span class="font-mono text-2xs text-ink-subtle">{{
-              CHANNEL_LABELS[row.channel]
-            }}</span>
-            <span class="font-mono text-sm tabular-nums text-ink">{{
-              row.described.code
-            }}</span>
-            <strong class="text-md text-ink">{{ row.described.label }}</strong>
-            <!-- The impact is stated as a capability, which is what a dispatcher can
-                 act on — "how bad is it" is not. -->
-            <span class="ml-auto font-mono text-2xs text-ink-muted">{{
-              CODE_IMPACTS[row.described.impact].label
-            }}</span>
-          </header>
+          <TabsTrigger
+            v-for="tab in TABS"
+            :key="tab.value"
+            :value="tab.value"
+            class="-mb-px border-b-2 border-transparent px-3 py-2 text-sm text-ink-muted transition-colors duration-150 ease-standard hover:text-ink data-[state=active]:border-brand data-[state=active]:text-ink"
+          >
+            {{ tab.label }}
+          </TabsTrigger>
+        </TabsList>
 
-          <p class="text-xs text-ink-muted">
-            {{ CODE_IMPACTS[row.described.impact].meaning }}
-          </p>
-          <p class="text-sm text-ink">{{ row.described.description }}</p>
-          <p class="text-sm text-ink-muted">
-            <span class="font-mono text-2xs text-ink-subtle">处理建议 </span>
-            {{ row.described.hint }}
-          </p>
-          <p
-            v-if="row.described.reported && !row.described.unknown"
-            class="text-xs text-ink-muted"
+        <TabsContent value="live" class="flex flex-col gap-3">
+          <!-- 报码解读 first: it is the reason this page exists. -->
+          <section
+            class="flex flex-col gap-3 rounded-md border border-border bg-surface-raised p-4"
+            aria-labelledby="codes-heading"
           >
-            <span class="font-mono text-2xs text-ink-subtle">车端上报 </span>
-            {{ row.described.reported }}
-          </p>
-          <p
-            v-if="row.described.unknown"
-            class="rounded-xs bg-warning-wash px-2 py-1 text-xs text-warning-ink"
-          >
-            该报码不在当前字典中 —— 显示的是车端原文，含义未经解释。
-          </p>
-        </article>
-      </section>
+            <h3 id="codes-heading" class="text-lg font-semibold text-ink">
+              报码解读
+            </h3>
 
-      <div class="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
-        <section
-          v-for="panel in panels"
-          :key="panel.key"
-          class="flex flex-col gap-2 rounded-md border border-border bg-surface-raised p-4"
-        >
-          <h3
-            class="font-mono text-2xs tracking-wider text-ink-subtle uppercase"
-          >
-            {{ panel.title }}
-          </h3>
-          <dl class="m-0 flex flex-col gap-1">
-            <div
-              v-for="row in panel.rows"
-              :key="row.label"
-              class="flex items-baseline justify-between gap-3"
+            <p v-if="!codes.length" class="text-sm text-ink-muted">
+              当前没有活跃报码。
+            </p>
+
+            <article
+              v-for="row in codes"
+              :key="row.channel"
+              class="flex flex-col gap-1 rounded-sm border border-border bg-surface p-3"
             >
-              <dt class="shrink-0 text-xs text-ink-muted">{{ row.label }}</dt>
-              <dd class="m-0 truncate text-right text-sm text-ink">
-                {{ row.value }}
-              </dd>
-            </div>
-          </dl>
-        </section>
-      </div>
+              <header class="flex flex-wrap items-baseline gap-2">
+                <span class="font-mono text-2xs text-ink-subtle">{{
+                  CHANNEL_LABELS[row.channel]
+                }}</span>
+                <span class="font-mono text-sm tabular-nums text-ink">{{
+                  row.described.code
+                }}</span>
+                <strong class="text-md text-ink">{{
+                  row.described.label
+                }}</strong>
+                <!-- The impact is stated as a capability, which is what a dispatcher
+                     can act on — "how bad is it" is not. -->
+                <span class="ml-auto font-mono text-2xs text-ink-muted">{{
+                  CODE_IMPACTS[row.described.impact].label
+                }}</span>
+              </header>
 
-      <section
-        class="flex flex-col gap-3 rounded-md border border-border bg-surface-raised p-4"
-        aria-labelledby="history-heading"
-      >
-        <h3 id="history-heading" class="text-lg font-semibold text-ink">
-          历史曲线
-        </h3>
+              <p class="text-xs text-ink-muted">
+                {{ CODE_IMPACTS[row.described.impact].meaning }}
+              </p>
+              <p class="text-sm text-ink">{{ row.described.description }}</p>
+              <p class="text-sm text-ink-muted">
+                <span class="font-mono text-2xs text-ink-subtle"
+                  >处理建议
+                </span>
+                {{ row.described.hint }}
+              </p>
+              <p
+                v-if="row.described.reported && !row.described.unknown"
+                class="text-xs text-ink-muted"
+              >
+                <span class="font-mono text-2xs text-ink-subtle"
+                  >车端上报
+                </span>
+                {{ row.described.reported }}
+              </p>
+              <p
+                v-if="row.described.unknown"
+                class="rounded-xs bg-warning-wash px-2 py-1 text-xs text-warning-ink"
+              >
+                该报码不在当前字典中 —— 显示的是车端原文，含义未经解释。
+              </p>
+            </article>
+          </section>
 
-        <p v-if="historyState === 'loading'" class="text-sm text-ink-muted">
-          正在加载历史数据…
-        </p>
-        <p
-          v-else-if="historyState === 'error'"
-          class="text-sm text-critical-ink"
-          role="status"
-        >
-          {{ historyError }}
-        </p>
-        <p v-else-if="!hasHistory" class="text-sm text-ink-muted">
-          这台设备还没有落库的历史遥测。持续运行后此处会出现速度与电量曲线。
-        </p>
+          <div class="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
+            <section
+              v-for="panel in panels"
+              :key="panel.key"
+              class="flex flex-col gap-2 rounded-md border border-border bg-surface-raised p-4"
+            >
+              <h3
+                class="font-mono text-2xs tracking-wider text-ink-subtle uppercase"
+              >
+                {{ panel.title }}
+              </h3>
+              <dl class="m-0 flex flex-col gap-1">
+                <div
+                  v-for="row in panel.rows"
+                  :key="row.label"
+                  class="flex items-baseline justify-between gap-3"
+                >
+                  <dt class="shrink-0 text-xs text-ink-muted">
+                    {{ row.label }}
+                  </dt>
+                  <dd class="m-0 truncate text-right text-sm text-ink">
+                    {{ row.value }}
+                  </dd>
+                </div>
+              </dl>
+            </section>
+          </div>
+        </TabsContent>
 
-        <!-- Two charts rather than one with two y-axes: m/s and % on shared axes lets
-             the crossing point be chosen by whoever picked the scales. -->
-        <template v-else>
-          <TimeSeriesChart
-            :series="speedSeries"
-            unit="m/s"
-            label="速度历史"
-            :height="200"
-          />
-          <TimeSeriesChart
-            :series="socSeries"
-            unit="%"
-            label="电量历史"
-            :height="200"
-          />
-        </template>
-      </section>
+        <!-- Both of these fetch on mount, and Reka does not mount an inactive panel —
+             so arriving at 实时 costs no history request. -->
+        <TabsContent value="charts">
+          <DeviceChartsTab :device-id="deviceId" />
+        </TabsContent>
+
+        <TabsContent value="playback">
+          <DevicePlaybackTab :device-id="deviceId" />
+        </TabsContent>
+      </TabsRoot>
     </template>
   </PageHeader>
 </template>

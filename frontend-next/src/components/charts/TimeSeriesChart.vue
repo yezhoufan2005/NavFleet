@@ -26,6 +26,7 @@ import type { ECharts } from "echarts/core";
 import UiButton from "@/components/ui/UiButton.vue";
 import { useChartTheme } from "@/composables/useChartTheme";
 import {
+  buildCursorPatch,
   buildTimeSeriesOption,
   echarts,
   type TimeSeries,
@@ -36,6 +37,7 @@ const {
   unit,
   height = 260,
   label,
+  cursorAt = null,
 } = defineProps<{
   series: readonly TimeSeries[];
   /** One unit for the chart — see `timeSeriesOption.ts` for why not per series. */
@@ -43,6 +45,12 @@ const {
   height?: number;
   /** Accessible name for the figure, and the table's caption. */
   label: string;
+  /**
+   * A vertical cursor at this instant (epoch ms), for history playback. Applied as a
+   * separate merge rather than through the option, so a moving cursor does not
+   * re-derive the series data every frame — see `buildCursorPatch`.
+   */
+  cursorAt?: number | null;
 }>();
 
 /**
@@ -72,6 +80,24 @@ const option = computed(() =>
   }),
 );
 
+/**
+ * The cursor, merged over whatever option ECharts is already holding.
+ *
+ * Called after every `setOption` of the main option as well as on its own, because a
+ * merge that replaces the series array drops the `markLine` with it — the cursor has
+ * to be re-stated, not just watched.
+ */
+const applyCursor = (): void => {
+  if (!chart) return;
+  chart.setOption(
+    buildCursorPatch({
+      seriesCount: series.length,
+      at: cursorAt,
+      palette: palette.value,
+    }),
+  );
+};
+
 const mountChart = (): void => {
   const element = surface.value;
   if (!element || chart) return;
@@ -85,6 +111,7 @@ const mountChart = (): void => {
   });
   startedAt = performance.now();
   chart.setOption(option.value);
+  applyCursor();
 
   // The chart has no intrinsic size — it fills its box, so it has to be told when
   // the box changes. A window `resize` listener would miss the sidebar collapsing.
@@ -121,9 +148,14 @@ watch(
   (next) => {
     startedAt = performance.now();
     chart?.setOption(next);
+    applyCursor();
   },
   { flush: "post" },
 );
+
+// The cursor on its own. This is the playback path — up to twelve times a second —
+// and it must not touch the series data.
+watch(() => cursorAt, applyCursor, { flush: "post" });
 
 onBeforeUnmount(disposeChart);
 

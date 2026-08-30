@@ -36,11 +36,19 @@ type ScenePart =
   SceneMapDefinition | (Partial<SceneMapDefinition> & Record<string, unknown>);
 type Pose = { x?: number | null; y?: number | null; yaw?: number | null };
 
+/**
+ * `readonly` because this component only ever reads a trail. Playback hands over the
+ * array it maintains incrementally (`useHistoryPlayback` exposes it through
+ * `readonly()`), and requiring a mutable one here would force a copy per frame — the
+ * exact cost that composable exists to avoid.
+ */
+type Trail = readonly { x: number; y: number }[];
+
 const { selectedDevice, sceneDefinition, sceneDevices, trails } = defineProps<{
   selectedDevice: DeviceSnapshot | null;
   sceneDefinition: ScenePart | null;
   sceneDevices: DeviceSnapshot[];
-  trails: Record<string, { x: number; y: number }[]>;
+  trails: Record<string, Trail>;
 }>();
 
 const hasPose = (pose: Pose | null | undefined): boolean =>
@@ -216,7 +224,7 @@ const MARKER = {
   peerCore: 7,
 } as const;
 
-const buildWorldPath = (points: { x: number; y: number }[]): string =>
+const buildWorldPath = (points: Trail): string =>
   (Array.isArray(points) ? points : [])
     .map((point, index) =>
       Number.isFinite(point?.x) && Number.isFinite(point?.y)

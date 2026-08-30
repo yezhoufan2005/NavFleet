@@ -56,7 +56,7 @@ const device = (patch: Record<string, unknown> = {}) => ({
 let store: ReturnType<typeof useFleetStore>;
 let router: Router;
 
-const mountDetail = async (deviceId = "agv-01") => {
+const mountDetail = async (deviceId = "agv-01", tab?: string) => {
   router = createRouter({
     history: createMemoryHistory(),
     routes: [
@@ -64,7 +64,7 @@ const mountDetail = async (deviceId = "agv-01") => {
       { path: "/", component: { template: "<i />" } },
     ],
   });
-  await router.push(`/devices/${deviceId}`);
+  await router.push(`/devices/${deviceId}${tab ? `?tab=${tab}` : ""}`);
   await router.isReady();
 
   const wrapper = mount(DeviceDetailView, { global: { plugins: [router] } });
@@ -223,6 +223,85 @@ describe("找不到设备", () => {
   });
 });
 
+describe("视图切换", () => {
+  /**
+   * Three answers to three questions asked at different times — right now / lately /
+   * that afternoon. They are tabs rather than one scroll because stacking them would
+   * bury 实时 under the other two, and 历史回放 is a tab here rather than a nav section
+   * because a separate page made you choose the same vehicle twice (`frontend-ia.md`).
+   */
+  const tabLabels = (wrapper: Awaited<ReturnType<typeof mountDetail>>) =>
+    wrapper.findAll("[role='tab']").map((tab) => tab.text());
+
+  /**
+   * `mousedown`, not `click`: Reka activates a tab on pointer-down (matching the
+   * WAI-ARIA pattern), so a synthetic `click` alone selects nothing.
+   */
+  const openTab = async (
+    wrapper: Awaited<ReturnType<typeof mountDetail>>,
+    index: number,
+  ) => {
+    await wrapper.findAll("[role='tab']")[index]!.trigger("mousedown");
+    await flushPromises();
+  };
+
+  it("offers the three views, with 实时 first", async () => {
+    seed();
+    const wrapper = await mountDetail();
+
+    expect(tabLabels(wrapper)).toEqual(["实时", "曲线", "历史回放"]);
+    expect(wrapper.find("[role='tab'][aria-selected='true']").text()).toBe(
+      "实时",
+    );
+  });
+
+  it("opens the tab named in the URL, so a playback is a link", async () => {
+    // "Look at c12's playback" should be a URL rather than a sentence with a step in it.
+    seed();
+    const wrapper = await mountDetail("agv-01", "playback");
+
+    expect(wrapper.find("[role='tab'][aria-selected='true']").text()).toBe(
+      "历史回放",
+    );
+  });
+
+  it("ignores a tab name that is not one of the three", async () => {
+    seed();
+    const wrapper = await mountDetail("agv-01", "nonsense");
+
+    expect(wrapper.find("[role='tab'][aria-selected='true']").text()).toBe(
+      "实时",
+    );
+  });
+
+  it("puts the tab in the query, replacing rather than stacking history", async () => {
+    // `replace`, so the back button leaves the device instead of walking back through
+    // tabs one at a time. Asserted on the call rather than by walking history, because
+    // the latter measures vue-router's entry bookkeeping instead of this decision.
+    seed();
+    const wrapper = await mountDetail();
+    const replace = vi.spyOn(router, "replace");
+    const push = vi.spyOn(router, "push");
+
+    await openTab(wrapper, 1);
+
+    expect(router.currentRoute.value.query.tab).toBe("charts");
+    expect(router.currentRoute.value.params.deviceId).toBe("agv-01");
+    expect(replace).toHaveBeenCalled();
+    expect(push).not.toHaveBeenCalled();
+  });
+
+  it("drops the query entirely when returning to the default tab", async () => {
+    // `?tab=live` and no query mean the same thing, and only one of them should exist.
+    seed();
+    const wrapper = await mountDetail("agv-01", "charts");
+
+    await openTab(wrapper, 0);
+
+    expect(router.currentRoute.value.query.tab).toBeUndefined();
+  });
+});
+
 describe("历史曲线", () => {
   /**
    * `measurements` is a `Partial<DeviceSnapshot>`, so a fixture carrying only
@@ -236,6 +315,13 @@ describe("历史曲线", () => {
       measurements: { vehicleInfo: { speed, soc } },
     }) as unknown as HistorySample;
 
+  /**
+   * Mounted on `?tab=charts`, and that is the assertion as much as the setup: Reka does
+   * not mount an inactive panel, so a device opened on 实时 issues no history request
+   * at all. `mountCharts()` failing to find a chart would mean the tab did not open.
+   */
+  const mountCharts = () => mountDetail("agv-01", "charts");
+
   it("draws speed and charge as two charts, never one with two axes", async () => {
     // m/s and % on shared axes would let the crossing point be chosen by whoever
     // picked the scales, which is the single most common way a chart misleads.
@@ -247,7 +333,7 @@ describe("历史曲线", () => {
       ],
     });
     seed();
-    const wrapper = await mountDetail();
+    const wrapper = await mountCharts();
 
     const charts = wrapper.findAllComponents(TimeSeriesChart);
     expect(charts).toHaveLength(2);
@@ -265,7 +351,7 @@ describe("历史曲线", () => {
       ],
     });
     seed();
-    const wrapper = await mountDetail();
+    const wrapper = await mountCharts();
 
     const points = wrapper
       .findAllComponents(TimeSeriesChart)[0]
@@ -282,7 +368,7 @@ describe("历史曲线", () => {
       ],
     });
     seed();
-    const wrapper = await mountDetail();
+    const wrapper = await mountCharts();
 
     expect(
       wrapper.findAllComponents(TimeSeriesChart)[0]?.props("series")[0]?.points,
@@ -291,7 +377,7 @@ describe("历史曲线", () => {
 
   it("says the device has no history rather than drawing an empty chart", async () => {
     seed();
-    const wrapper = await mountDetail();
+    const wrapper = await mountCharts();
 
     expect(wrapper.text()).toContain("还没有落库的历史遥测");
     expect(wrapper.findAllComponents(TimeSeriesChart)).toHaveLength(0);
@@ -300,8 +386,16 @@ describe("历史曲线", () => {
   it("reports a failed request instead of looking like an empty device", async () => {
     vi.spyOn(fleetApi, "getHistory").mockRejectedValue(new Error("HTTP 503"));
     seed();
-    const wrapper = await mountDetail();
+    const wrapper = await mountCharts();
 
     expect(wrapper.text()).toContain("HTTP 503");
+  });
+
+  it("costs no request at all while the 实时 tab is the one showing", async () => {
+    const getHistory = vi.spyOn(fleetApi, "getHistory");
+    seed();
+    await mountDetail();
+
+    expect(getHistory).not.toHaveBeenCalled();
   });
 });

@@ -1,6 +1,7 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 import { flushPromises, mount } from "@vue/test-utils";
 import {
+  buildCursorPatch,
   buildTimeSeriesOption,
   TIME_SERIES_DIRECT_LABEL_LIMIT,
   TIME_SERIES_SAMPLING_THRESHOLD,
@@ -175,6 +176,64 @@ describe("buildTimeSeriesOption", () => {
   });
 });
 
+describe("buildCursorPatch", () => {
+  /** The entry that carries the cursor, typed just enough to read `markLine`. */
+  const cursorSeries = (patch: ReturnType<typeof buildCursorPatch>) =>
+    (
+      patch.series as {
+        markLine?: { data: unknown[]; lineStyle: { color: string } };
+      }[]
+    )[0]!;
+
+  it("carries only a markLine, so a moving cursor cannot touch the data", () => {
+    // The point of the whole separation: playback moves the cursor up to twelve times
+    // a second, and rebuilding the option would re-derive every series' points each
+    // time — the same mistake `useHistoryPlayback` exists to undo.
+    const patch = buildCursorPatch({ seriesCount: 2, at: 1_700_000, palette });
+
+    expect(Object.keys(patch)).toEqual(["series"]);
+    for (const entry of patch.series as Record<string, unknown>[]) {
+      expect(entry.data).toBeUndefined();
+    }
+  });
+
+  it("puts the line on the first series only, at the instant asked for", () => {
+    // One vertical line per series would draw the same line N times.
+    const patch = buildCursorPatch({ seriesCount: 3, at: 1_700_000, palette });
+    const entries = patch.series as { markLine?: unknown }[];
+
+    expect(entries).toHaveLength(3);
+    expect(cursorSeries(patch).markLine?.data).toEqual([{ xAxis: 1_700_000 }]);
+    expect(entries[1]?.markLine).toBeUndefined();
+    expect(entries[2]?.markLine).toBeUndefined();
+  });
+
+  it("clears the cursor with an empty array rather than by omission", () => {
+    // Merge replaces arrays wholesale but ignores absent keys, so `data: []` is the
+    // only way "there is no cursor now" is expressible at all.
+    expect(
+      cursorSeries(buildCursorPatch({ seriesCount: 1, at: null, palette }))
+        .markLine?.data,
+    ).toEqual([]);
+  });
+
+  it("draws the cursor in ink, never in a series colour", () => {
+    // It marks where you are, which is a reading aid; in a series colour it would
+    // read as another measurement.
+    const colour = cursorSeries(
+      buildCursorPatch({ seriesCount: 4, at: 1, palette }),
+    ).markLine?.lineStyle.color;
+
+    expect(colour).toBe(palette.inkMuted);
+    expect(palette.series).not.toContain(colour);
+  });
+
+  it("still produces one entry when there is no series to merge onto", () => {
+    const patch = buildCursorPatch({ seriesCount: 0, at: null, palette });
+    expect((patch.series as unknown[]).length).toBe(1);
+  });
+});
+
 describe("useChartTheme", () => {
   beforeEach(() => {
     __resetTheme();
@@ -274,6 +333,18 @@ describe("TimeSeriesChart", () => {
     expect(toggle.attributes("aria-pressed")).toBe("true");
 
     await toggle.trigger("click");
+    expect(wrapper.find("[data-testid='chart-surface']").exists()).toBe(true);
+  });
+
+  it("accepts a playback cursor without it becoming part of the series", async () => {
+    // The prop exists so the history tab can put a playhead on the curve; what must
+    // not happen is the cursor arriving through the data, which is the version that
+    // costs a full option rebuild per frame.
+    const wrapper = mountChart(seriesOf(1), { cursorAt: 1_000_500 });
+    await wrapper.setProps({ cursorAt: 1_002_000 });
+    await flushPromises();
+
+    expect(wrapper.props("series")[0]?.points).toHaveLength(10);
     expect(wrapper.find("[data-testid='chart-surface']").exists()).toBe(true);
   });
 });
