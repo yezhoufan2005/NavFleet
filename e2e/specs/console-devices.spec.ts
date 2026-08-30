@@ -153,4 +153,44 @@ test.describe("console devices", () => {
     await expect(codes).toContainText("任务受阻");
     await expect(codes).toContainText("处理建议");
   });
+
+  test("告警史 reads the alerts endpoint and dates each record", async ({
+    page,
+  }) => {
+    // The fourth L3 tab, and the first consumer of `/api/v1/alerts` anywhere in the
+    // console — 13D-1 built the alert centre on the store's live alerts and left the
+    // endpoint at zero calls, so nothing before this exercised it end to end.
+    const faulted = SEEDED_DEVICES.find((item) => item.errorCode?.code);
+    test.skip(!faulted, "seed carries no faulted vehicle");
+
+    await page.goto(`/devices/${faulted!.deviceId}?tab=alerts`);
+
+    const history = page.locator("section", { hasText: "告警史" });
+    await expect(history).toContainText(String(faulted!.errorCode!.code));
+    // The three fields the alert centre never shows, because its source has no
+    // history: when it started, when it ended, whether it is still running.
+    await expect(history).toContainText("发生");
+    await expect(history).toContainText("结束");
+    await expect(history).toContainText("仍活跃");
+  });
+
+  test("opening a device on 实时 does not load the chart engine", async ({
+    page,
+  }) => {
+    // The three non-default panels are async, and the tab boundary is the split point.
+    // Measured in the bundle: this view's chunk went 564 kB → 14.5 kB. Here the claim
+    // is checked where it matters — what the browser actually requests.
+    const requested: string[] = [];
+    page.on("request", (request) => requested.push(request.url()));
+
+    await page.goto(`/devices/${SEEDED_DEVICES[0]!.deviceId}`);
+    await expect(page.getByRole("tab", { name: "实时" })).toBeVisible();
+    expect(requested.some((url) => /TimeSeriesChart/.test(url))).toBe(false);
+
+    // And it arrives when the tab that needs it is opened.
+    await page.getByRole("tab", { name: "曲线" }).click();
+    await expect
+      .poll(() => requested.some((url) => /TimeSeriesChart/.test(url)))
+      .toBe(true);
+  });
 });
