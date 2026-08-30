@@ -28,11 +28,13 @@ import { computed, reactive } from "vue";
 import { defineStore } from "pinia";
 import {
   cloneValue,
+  deviceToneRank,
   extractDeviceIdFromTopic,
   fallbackFleetPayload,
   fleetApi,
   formatDateTime,
   getDeviceTone,
+  hasGps,
   hasPose,
   mergeDevice,
   mergeSceneDefinitionParts,
@@ -81,6 +83,8 @@ interface NormalizedPayload {
   topicPattern: string;
   devices: DeviceSnapshot[];
   formations: FormationSnapshot[] | null;
+  /** The server's own timestamp, when the payload carries one. */
+  updatedAt: string | null;
 }
 
 interface RealtimeState {
@@ -107,7 +111,19 @@ interface FleetState {
   selectedDeviceId: string;
   selectedFormationId: string;
   lastSource: string;
+  /**
+   * When *this browser* last ingested something, and when the *server* last said its
+   * fleet state changed. Both, because they answer different questions and are
+   * measured on different clocks.
+   *
+   * Freshness ("how stale is what I am looking at") has to be measured on one clock or
+   * a skewed browser produces "更新于 -8 秒前"; that is `lastUpdateAt`. The absolute
+   * time worth *displaying* is the server's — an ingest timestamp looks fresh even
+   * when the backend stopped producing hours ago. v1.0.0 kept only the first and
+   * overwrote the server's value with `new Date()`, so it could not tell the two apart.
+   */
   lastUpdateAt: string | null;
+  serverUpdatedAt: string | null;
   sceneDefinitions: Record<string, SceneDefinitionRecord>;
   pendingSceneLoads: Record<string, boolean>;
   trailsByDeviceId: Record<string, TrailPoint[]>;
@@ -127,6 +143,7 @@ export const useFleetStore = defineStore("fleet", () => {
     selectedFormationId: "",
     lastSource: "bootstrap",
     lastUpdateAt: null,
+    serverUpdatedAt: null,
     sceneDefinitions: cloneValue(sceneCatalog),
     pendingSceneLoads: {},
     trailsByDeviceId: {},
@@ -196,6 +213,7 @@ export const useFleetStore = defineStore("fleet", () => {
         topicPattern: state.topicPattern,
         devices: input.map((item) => normalizeDevice(item)),
         formations: null,
+        updatedAt: null,
       };
     }
 
@@ -210,6 +228,10 @@ export const useFleetStore = defineStore("fleet", () => {
         formations: Array.isArray(record.formations)
           ? record.formations.map((item) => normalizeFormation(item))
           : null,
+        // Only a full snapshot restates it; a delta says nothing about the fleet's
+        // overall timestamp, so the last known one stands.
+        updatedAt:
+          typeof record.updatedAt === "string" ? record.updatedAt : null,
       };
     }
 
@@ -233,6 +255,7 @@ export const useFleetStore = defineStore("fleet", () => {
         formations: Array.isArray(body.formations)
           ? body.formations.map((item) => normalizeFormation(item))
           : null,
+        updatedAt: null,
       };
     }
 
@@ -248,6 +271,7 @@ export const useFleetStore = defineStore("fleet", () => {
       formations: Array.isArray(record.formations)
         ? record.formations.map((item) => normalizeFormation(item))
         : null,
+      updatedAt: typeof record.updatedAt === "string" ? record.updatedAt : null,
     };
   };
 
@@ -322,22 +346,56 @@ export const useFleetStore = defineStore("fleet", () => {
       selectedFormation.value?.sceneId || selectedDevice.value?.sceneId || "",
   );
 
+  /**
+   * Fleet counts, recomputed from the devices in hand rather than read off the
+   * server's `summary`.
+   *
+   * The backend does send one (`deviceCount` / `onlineCount` / `alertCount` /
+   * `gpsCount`), and taking it would be wrong: it is computed when a *snapshot* is
+   * built, while most of what arrives afterwards is single-device deltas. The
+   * server's numbers would then disagree with the rows on screen, which is worse
+   * than recomputing. `gpsCount` is the one it had that we did not — so it is
+   * computed here, on the same terms as the rest.
+   */
   const summary = computed(() => {
     const onlineCount = devices.value.filter((device) => device.online).length;
     const alertTotal = devices.value.reduce(
       (sum, device) => sum + device.alerts.length,
       0,
     );
+    const gpsCount = devices.value.filter(
+      (device) => device.gpsEnabled !== false && hasGps(device.gps),
+    ).length;
     return {
       totalCount: devices.value.length,
       onlineCount,
       alertTotal,
+      gpsCount,
       focusName:
         selectedFormation.value?.formationName ||
         selectedDevice.value?.deviceName ||
         "--",
     };
   });
+
+  /**
+   * The fleet ordered by who needs attention, worst tone first, id second.
+   *
+   * This is what the overview page is for — "which few need me right now" rather
+   * than "where is everyone". The ordering lives here rather than in the page so the
+   * wall display cannot invent a different answer to the same question, which is the
+   * argument that hoisted `deviceToneRank` into `fleet-core` in the first place.
+   */
+  const devicesByAttention = computed<DeviceSnapshot[]>(() =>
+    [...sortedDevices.value].sort((left, right) => {
+      const byTone =
+        deviceToneRank(getDeviceTone(left)) -
+        deviceToneRank(getDeviceTone(right));
+      return byTone !== 0
+        ? byTone
+        : String(left.deviceId).localeCompare(String(right.deviceId), "en");
+    }),
+  );
 
   const groupedAlerts = computed<GroupedAlerts>(() => {
     const grouped: GroupedAlerts = { critical: [], warning: [], notice: [] };
@@ -471,6 +529,7 @@ export const useFleetStore = defineStore("fleet", () => {
     state.topicPattern = normalized.topicPattern;
     state.lastSource = source;
     state.lastUpdateAt = new Date().toISOString();
+    if (normalized.updatedAt) state.serverUpdatedAt = normalized.updatedAt;
     primeSceneDefinitions(Object.values(state.devicesById));
     ensureSelectedDevice();
   };
@@ -674,6 +733,7 @@ export const useFleetStore = defineStore("fleet", () => {
     formations,
     sortedDevices,
     sortedFormations,
+    devicesByAttention,
     filteredDevices,
     selectedDevice,
     selectedFormation,

@@ -120,6 +120,7 @@ export default defineConfig({
         /console-accessibility\.spec\.ts$/,
         /console-charts\.spec\.ts$/,
         /console-devices\.spec\.ts$/,
+        /console-overview\.spec\.ts$/,
       ],
       use: {
         ...devices["Desktop Chrome"],

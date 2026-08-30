@@ -380,6 +380,12 @@ const stageTransform = computed(() => {
 
 const scaleLabel = computed(() => `${round(viewport.scale, 2)}x`);
 
+/** ` · 128 段` when the overlay reports a count, empty when it does not. */
+const laneletCountLabel = computed(() => {
+  const count = overlay.value?.stats?.laneletCount;
+  return Number.isFinite(count) ? ` · ${count} 段` : "";
+});
+
 /**
  * Undoes the stage scale for a marker's contents, so a vehicle stays the same size
  * on screen at every zoom — and flips y back, or the labels render mirrored.
@@ -611,8 +617,11 @@ const screenInvariantTransform = computed(() => {
     <ul
       class="pointer-events-none absolute bottom-2 left-2 m-0 flex list-none flex-wrap gap-3 p-0 text-2xs text-ink-muted"
     >
+      <!-- The count is the overlay's own `stats.laneletCount`, which v1.0.0 carried
+           in the payload and rendered nowhere. It answers a question the legend
+           otherwise cannot: whether the overlay loaded *fully*. -->
       <li v-if="laneletPaths.length" class="legend">
-        <i class="lanelet" />路网覆盖
+        <i class="lanelet" />路网覆盖{{ laneletCountLabel }}
       </li>
       <li v-if="resolvedScene.pointCloudUrl" class="legend">
         <i class="cloud" />点云背景

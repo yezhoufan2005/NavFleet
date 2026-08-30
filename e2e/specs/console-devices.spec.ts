@@ -79,12 +79,17 @@ test.describe("console devices", () => {
     expect(await markerOffsetFromCentre(page)).toBeLessThan(24);
   });
 
-  test("the scene map names the scene and its overlays", async ({ page }) => {
+  test("the scene map names the scene and counts its road network", async ({
+    page,
+  }) => {
     await page.getByRole("button", { name: "场景", exact: true }).click();
     const map = page.locator(".map-surface");
 
     await expect(map).toContainText(SEEDED_SCENE.sceneName);
-    await expect(map.getByText("路网覆盖")).toBeVisible();
+    // The count comes from the overlay's own `stats.laneletCount`, which v1.0.0
+    // carried and never rendered. It is what tells you the overlay loaded *fully*
+    // rather than merely loaded.
+    await expect(map.getByText(/路网覆盖 · \d+ 段/)).toBeVisible();
   });
 
   test("the chosen view and surface both survive a reload", async ({
