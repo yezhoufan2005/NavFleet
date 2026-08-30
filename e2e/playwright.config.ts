@@ -121,6 +121,7 @@ export default defineConfig({
         /console-charts\.spec\.ts$/,
         /console-devices\.spec\.ts$/,
         /console-overview\.spec\.ts$/,
+        /console-alerts\.spec\.ts$/,
       ],
       use: {
         ...devices["Desktop Chrome"],
