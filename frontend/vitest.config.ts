@@ -31,10 +31,19 @@ export default defineConfig({
       // rendering are exercised end-to-end (e2e/) rather than in jsdom. Raise
       // these when coverage climbs.
       thresholds: {
-        statements: 58,
+        // 58 → 57 because tone derivation moved OUT of this workspace into
+        // `@navfleet/fleet-core` (13A-0). Those lines were well covered here, so
+        // removing them lowered the ratio even though total coverage went up: the
+        // logic is now at 100% in fleet-core, whose own gate rose to absorb it.
+        //
+        // This is the Phase 10 "vacuous 100%" lesson running in the other
+        // direction, and it is the one case where lowering a ratchet is correct —
+        // the number fell because covered code left, not because coverage got
+        // worse. Any other reason to lower it should be refused.
+        statements: 57,
         branches: 84,
         functions: 81,
-        lines: 58,
+        lines: 57,
       },
     },
   },

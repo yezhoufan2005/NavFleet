@@ -499,6 +499,39 @@ tag、Release、镜像全部产生。负责人随后删除了 tag、Release 与�
 
 ### PR 13A — 设备分区：列表 ⇄ 地图两个视图
 
+> **13A 实际拆成三个 PR。** 盘点之后发现它有一个没写进原计划的前置：`frontend-next/src/stores/`
+> 是空的，而这七个文件全靠 props 拿数据（`DeviceSnapshot[]` / `selectedDevice` /
+> `sceneDefinition` / `sceneDevices` / `getDeviceTone` / `trailsByDeviceId` / `setMapMode`），
+> 旧 store 有 761 行。三刀的边界按「各自可独立验证」切：
+>
+> - **13A-0 共享判定上提** —— `getDeviceTone` / `deviceToneLabels` / 严重度排序进 fleet-core，
+>   消掉三份拷贝。**跨两个前端**，所以它同时是 Phase 12 那条"防分叉"承诺的兑现。
+> - **13A-1 数据层** —— fleet store + WS 实时层、顶栏实时状态点与车队名（12C 刻意留空的两个）、
+>   生成器补 `--ros-*` 地图 token（`frontend-next/src/styles/` 里现在一个都没有）。
+> - **13A-2 设备分区** —— 下面的清单，外加把 `dashboard.spec.ts` 接进 `SHARED_SPECS`。
+>
+> **收口条件必须包含 e2e 转绿。** 这七个文件零单元测试，`useSvgViewport` 覆盖率 1.07% ——
+> 整个回归网只有五条 e2e 断言，不接上等于无网高空作业。
+
+#### 13A-0 共享判定上提
+
+- [x] `getDeviceTone` / `deviceToneLabels` / `DEVICE_TONE_SEVERITY` / `deviceToneRank` 进
+      `packages/fleet-core/src/deviceTone.ts`，11 个测试，两个前端（含生产中的旧前端）共用
+- [x] **修掉一个 v1.0.0 缺陷**：`Number(device.errorCode?.code) !== 0` 对缺失报码判定错误 ——
+      `Number(undefined)` 是 `NaN`，`NaN !== 0` 为真，于是载荷里没有 `errorCode` 的设备被报成
+      **告警**。改为先要求 `Number.isFinite`。这个缺陷是"给它写第一个测试"这个动作找出来的
+- [x] 删掉三处拷贝：store 里的判定、`GpsMap.vue` 与 `DashboardView.vue` 里逐字复制的文案表
+- [x] **覆盖率门槛两边同时调**，这是本条目里唯一值得单独记的工程动作。把覆盖良好的代码搬出
+      `frontend` 之后它的比值反而下降（58% → 57.71%），CI 因此变红 —— 这是 Phase 10「虚假 100%」
+      那条教训的**反向版本**：数字变差不是因为覆盖变差，是因为被覆盖的代码离开了。
+      所以 `frontend` 降到 57，**同时把 fleet-core 从 85/79 提到 86/81** 把搬进来的那部分锁住。
+      只降不升就会让"把代码挪个地方"变成一条悄悄卸掉覆盖率的路
+- 自检 ✅（2026-08-30）：fleet-core 49 例（新增 11）· 后端 287 · 前端 132 · console 100 ·
+  **36 例 e2e 全绿** · lint / format:check / typecheck / build 全过 · 四个 workspace 覆盖率门槛全过
+  （fleet-core 87.30 / 82.05 / 89.36 / 87.30，门槛升到 86 / 81 / 87 / 86）
+
+#### 13A-2 设备分区（清单）
+
 - [ ] 搬 `useSvgViewport`(706) —— **原样搬，不重写**。它是 v1.0.0 里花三次尝试才定位到根因
       （bounds watcher 的 `immediate: true` 早于 `onMounted` 测量面板）的文件，重写一遍会重踩所有坑
 - [ ] 搬 `useSceneOverlay`(146) + `point-cloud`(375) + `amap`(91) + `useSceneViewportPersistence`(87)
@@ -832,3 +865,25 @@ tag、Release、镜像全部产生。负责人随后删除了 tag、Release 与�
      所以 token 值要过一次 canvas `fillStyle` 让浏览器转换 —— 直接把 `oklch(…)` 递给 ECharts 是
      静默失效。性能基线那条路由只在 dev / `VITE_CHART_PERF` 下注册，并加了构建门禁断言它不会随
      产品发出去；顺手量到图表 chunk 是 519 KB / 176 KB gzip，作为 Phase 13C 之后的成本起点。
+- 2026-08-30：**v1.0.2 已发布**（tag `v1.0.2` @ `ae1a192`，Release + 两个 GHCR 镜像齐全），
+  1.1.0 回到 Phase 14 该在的位置。发版规则、修正后的版本映射与事故机制见「发版节奏」一节。
+  核实镜像时我自己踩了一次坑，值得记：`publish-images.yml` 自己的运行列表里**只有一次**手动
+  dispatch，看起来像"镜像根本没发"。实际不是 —— **`workflow_call` 的运行归属于调用方**，所以要去
+  release-please 那次运行里找 `images / images (…)` 两个 job。已把这句写进 `publish-images.yml`
+  的注释：那份注释本来就在讲"三次发版没有镜像"，读者按它去查，只会查到错的地方。
+- 2026-08-30：**Phase 13A 开工，第一刀就挖到一个真缺陷。** 把 `getDeviceTone` 上提到 fleet-core
+  时给它写了第一个测试，立刻发现 v1.0.0 的写法 `Number(device.errorCode?.code) !== 0` 对**缺失
+  报码**判定错误：`Number(undefined)` 是 `NaN`，而 `NaN !== 0` 为真 —— 于是载荷里没有 `errorCode`
+  的设备被报成**告警**。"没上报"被当成"最坏情况"，方向正好反了。
+  这段逻辑此前在三处各有一份（store 里的判定 + `GpsMap.vue` / `DashboardView.vue` 里逐字复制的
+  文案表），**三份都没有任何直接测试** —— 正是 ROADMAP 把"两个前端各自一份拷贝"列为平行期最大
+  隐患的那种形态：改一份漏两份，不报错，只是两个控制台对同一台车说法不一致。现在一份实现、
+  11 个测试、两个前端（**含生产中的旧前端**）都从 `@navfleet/fleet-core` 取。
+- 2026-08-30：**覆盖率 ratchet 抓到了一次跨 workspace 搬迁，而正确的反应是两边一起调。**
+  13A-0 把覆盖良好的 tone 判定从 `frontend` 搬进 `fleet-core`，`frontend` 的比值随之从 58% 掉到
+  57.71%，CI 变红。这是 Phase 10「虚假 100%」教训的**反向版本**：分子分母一起少了，而剩下的代码
+  平均覆盖更低，所以数字变差**不是因为覆盖变差，是因为被覆盖的代码离开了** —— 总量其实变好了
+  （那段逻辑现在有 11 个测试、100% 覆盖）。
+  处理方式：`frontend` 降到 57，**同时把 fleet-core 从 85/79 提到 86/81**。两条都必须做 ——
+  只降不升的话，"把代码挪个 workspace"就成了一条悄悄卸掉覆盖率的合法路径。两处 vitest 配置里
+  都写了理由，并注明「除此之外的降门槛理由都应当拒绝」。

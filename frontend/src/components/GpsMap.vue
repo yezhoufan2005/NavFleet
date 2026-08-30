@@ -1,7 +1,7 @@
 <script setup>
 import { computed, onBeforeUnmount, onMounted, ref, watch } from "vue";
 import { getAmapConfigError, hasAmapConfig, loadAmap } from "../utils/amap";
-import { wgs84ToGcj02 } from "@navfleet/fleet-core";
+import { deviceToneLabels, wgs84ToGcj02 } from "@navfleet/fleet-core";
 import { useTheme } from "../composables/useTheme";
 
 const props = defineProps({
@@ -16,14 +16,6 @@ const { state: themeState } = useTheme();
 const amapStyle = computed(() =>
   themeState.resolved === "light" ? "amap://styles/whitesmoke" : "amap://styles/darkblue",
 );
-
-const toneLabelMap = {
-  normal: "正常",
-  warning: "预警",
-  critical: "告警",
-  notice: "提示",
-  offline: "离线",
-};
 
 const mapRoot = ref(null);
 const isLoading = ref(false);
@@ -88,7 +80,7 @@ function createMarkerContent(device, tone, selected) {
   title.textContent = device.deviceName || device.deviceId;
 
   const meta = document.createElement("span");
-  meta.textContent = `${toneLabelMap[tone] || "正常"} / ${device.deviceId}`;
+  meta.textContent = `${deviceToneLabels[tone] || "正常"} / ${device.deviceId}`;
 
   label.appendChild(title);
   label.appendChild(meta);

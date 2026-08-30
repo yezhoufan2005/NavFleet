@@ -10,6 +10,12 @@ name: Publish images
 # prevention) — so three releases shipped with the workflow sitting at zero runs
 # while the docs claimed images were published. A `workflow_call` from the job
 # that cuts the release is an explicit invocation, and is not suppressed.
+#
+# CHECKING WHETHER IT RAN: look at the *release-please* workflow run for that
+# release and find its `images / images (…)` jobs. A `workflow_call` run is
+# attributed to the CALLING workflow, so this file's own run list stays almost
+# empty — it shows only manual dispatches. Reading that list as "the images never
+# published" is a mistake that is very easy to make twice, given the history above.
 on:
   workflow_call:
     inputs:
