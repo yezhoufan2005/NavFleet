@@ -10,6 +10,7 @@
 import { expect, test as base } from "@playwright/test";
 import type { Page } from "@playwright/test";
 import { ADMIN } from "./harness";
+import { profileFor, type IaProfile } from "./ia";
 
 /** A non-2xx response the run is allowed to produce. */
 interface AllowedFailure {
@@ -32,7 +33,23 @@ export interface BrowserIssues {
   list(): readonly string[];
 }
 
-export const test = base.extend<{ browserIssues: BrowserIssues }>({
+export const test = base.extend<{
+  browserIssues: BrowserIssues;
+  ia: IaProfile;
+}>({
+  /**
+   * Which frontend this test is running against, and the handful of things the IA
+   * rebuild changed about it. Derived from the project name so a spec never has to
+   * know — see `support/ia.ts` for why the deltas live in one table.
+   */
+  // Playwright parses the first parameter to work out which fixtures this one
+  // depends on, and rejects anything that is not a destructuring pattern — so the
+  // empty pattern is required here rather than a placeholder name. It also says
+  // exactly the right thing: this fixture depends on nothing.
+  // eslint-disable-next-line no-empty-pattern
+  ia: async ({}, use, testInfo) => {
+    await use(profileFor(testInfo.project.name));
+  },
   browserIssues: [
     async ({ page }, use) => {
       const issues: string[] = [];

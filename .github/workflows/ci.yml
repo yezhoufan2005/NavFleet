@@ -138,8 +138,11 @@ jobs:
       # steps its lint and type errors reach main unchallenged.
       - run: npm run lint:e2e
       - run: npm run typecheck:e2e
-      # Playwright starts the backend and the vite dev server itself; the run
+      # Playwright starts the backend and both vite dev servers itself; the run
       # needs neither MongoDB nor an MQTT broker (see e2e/support/harness.ts).
+      # Two browser projects share one seeded fleet: `frontend` is the v1.0.0
+      # console, `console` is the v3 one running the shared specs as an
+      # equivalence net.
       - run: npm run e2e
       - if: failure()
         uses: actions/upload-artifact@v4

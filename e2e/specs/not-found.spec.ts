@@ -1,31 +1,42 @@
 import { expect, signIn, test } from "../support/fixtures";
 
-const BOGUS_ROUTE = "/#/no-such-page";
-
+/**
+ * An unknown address, on both frontends.
+ *
+ * The shared promise is that a mistyped or stale link *says so* rather than being
+ * redirected to the landing page — a silent redirect reads as "the application
+ * ignored what I typed" and hides the cause — and that the shell around it stays
+ * usable. How the address is written differs (hash routing on v1.0.0, real paths on
+ * the console), so both come from `support/ia.ts`.
+ */
 test.describe("unknown routes", () => {
   test("renders the not-found view inside an intact shell", async ({
     page,
+    ia,
   }) => {
     await signIn(page);
-    await page.goto(BOGUS_ROUTE);
+    await page.goto(ia.notFound.route);
 
     await expect(
       page.getByRole("heading", { name: "页面不存在" }),
     ).toBeVisible();
-    // The address is echoed back as typed, hash included.
+    // The address is echoed back as the user would read it.
     await expect(
-      page.getByText("#/no-such-page", { exact: true }),
+      page.getByText(ia.notFound.echo, { exact: true }),
     ).toBeVisible();
 
-    // Header, navigation and the session chip survive the unknown route.
+    // Header, navigation and the session control survive the unknown route.
     await expect(page.getByRole("banner")).toContainText("智能车队监控平台");
-    await expect(
-      page.getByRole("link", { name: "实时监控", exact: true }),
-    ).toBeVisible();
-    await expect(page.getByRole("link", { name: "历史回放" })).toBeVisible();
-    await expect(page.getByRole("link", { name: "告警中心" })).toBeVisible();
+    for (const link of ia.navLinks) {
+      await expect(
+        page.getByRole("link", { name: link }),
+        `nav link ${String(link)}`,
+      ).toBeVisible();
+    }
 
-    await page.getByRole("link", { name: "返回实时监控" }).click();
-    await expect(page.getByRole("heading", { name: "地图视图" })).toBeVisible();
+    await page.getByRole("link", { name: ia.notFound.backLink }).click();
+    await expect(
+      page.getByRole("heading", { name: ia.landing.heading }).first(),
+    ).toBeVisible();
   });
 });
