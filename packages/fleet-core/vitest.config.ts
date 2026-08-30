@@ -28,10 +28,15 @@ export default defineConfig({
         // imports, and both are slated to be either filled or deleted
         // (frontend-parity.md, 8.7). Excluding it would inflate the global
         // number for a file that genuinely has no coverage.
-        statements: 86,
-        branches: 81,
-        functions: 87,
-        lines: 86,
+        //
+        // Raised again in 13A-2a, for the same reason as 13A-0: the point-cloud
+        // pipeline moved in from the frontend (where it had no tests at all) and
+        // arrived at 100% statements / 90% branches, taking the measurement to
+        // 90.28 / 84.72 / 90.74 / 90.28.
+        statements: 89,
+        branches: 83,
+        functions: 89,
+        lines: 89,
       },
     },
   },

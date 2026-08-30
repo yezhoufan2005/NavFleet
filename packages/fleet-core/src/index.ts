@@ -21,6 +21,7 @@ export * from "./fleetNormalize";
 export * from "./fleetApi";
 export * from "./enums";
 export * from "./deviceTone";
+export * from "./pointCloud";
 export * from "./gps";
 export * from "./formatters";
 export * from "./dataDefaults";

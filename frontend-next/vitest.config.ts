@@ -32,11 +32,16 @@ export default defineConfig({
       // (93.99 measured). Branches and functions are left where they are on purpose:
       // at 85.26 and 89.28 they have too little headroom to ratchet without making
       // an unrelated PR go red for a single uncovered `else`.
+      //
+      // 13A-2a raised statements/lines again (93 → 94) and functions (86 → 90):
+      // measured 94.66 / 85.29 / 92.61 / 94.66 after the map stack arrived with
+      // tests, and `useSvgViewport` in particular went from 1.07% to 98.16%. Branches
+      // still stays at 85 for the reason above — 85.29 is the thinnest margin here.
       thresholds: {
-        statements: 93,
+        statements: 94,
         branches: 85,
-        functions: 86,
-        lines: 93,
+        functions: 90,
+        lines: 94,
       },
     },
   },

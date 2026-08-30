@@ -13,6 +13,13 @@ interface ImportMetaEnv {
    * `router/index.ts`.
    */
   readonly VITE_CHART_PERF?: string;
+  /**
+   * AMap (高德地图) Web credentials for the GPS map. Both are build-time values —
+   * see `.env.example`. Absent, the map renders a configuration notice instead;
+   * `lib/amap.ts` decides that, and it says which file to edit.
+   */
+  readonly VITE_AMAP_KEY?: string;
+  readonly VITE_AMAP_SECURITY_JS_CODE?: string;
 }
 
 interface ImportMeta {
