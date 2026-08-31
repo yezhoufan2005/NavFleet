@@ -198,15 +198,20 @@ tag、Release、镜像全部产生。负责人随后删除了 tag、Release 与�
       `prettier --check "e2e/**/*.{ts,json}"`，是这条待办写下之后补的，核对时才发现，已划掉
 - [ ] 覆盖率近零区补测：后端 `persistence.ts` 42.6%（3 例）/ `store.ts` 57.4%（**2 例**）
 - [ ] tsconfig 补 `noUncheckedIndexedAccess` 等严格开关（四份配置现在只开了 `strict`）
-- [ ] **eslint 9 → 10 + eslint-plugin-vue 9 → 10，必须同时。** dependabot 分开开了两个 PR，
-      **单独任何一个都红**：#110（eslint 10）在两个前端红，#108（plugin-vue 10）在 console 红 ——
-      eslint 10 需要 plugin-vue 10，而 plugin-vue 10 在 eslint 9 下不工作。两个 PR 已关闭，
-      `.github/dependabot.yml` 加了 `eslint` 分组，之后会作为**一个**可能通过的 PR 回来；
-      flat config 仍需改，正好与上面 `recommendedTypeChecked` 那条一起做
+- [ ] **eslint 9 → 10 + eslint-plugin-vue 9 → 10，必须同时，而且要手写 PR。** dependabot 分开开了两个
+      PR，**单独任何一个都红**：#110（eslint 10）在两个前端红，#108（plugin-vue 10）在 console 红 ——
+      eslint 10 需要 plugin-vue 10，而 plugin-vue 10 在 eslint 9 下不工作。
+      **⚠️ 我在这里犯过一个顺序错误，记下来是因为结论会影响下一次怎么做**：我先关掉了 #107/#108/#110，
+      然后才给 `dependabot.yml` 加分组，以为下次会作为一个能合的 PR 回来 —— 结果 #112/#114 仍然只含
+      一半（#114 正文自己写着「with **1 update**」）。**dependabot 的分组只打包它在同一次运行里提出的
+      更新**，被关闭动作压掉的那一半拉不回来。分组对将来仍然有效（对面出新版本时两半会一起来），
+      但这两个升级现在必须手写：eslint + plugin-vue 一起抬，并改 flat config，与上面
+      `recommendedTypeChecked` 那条一起做
 - [ ] **vitest 3 → 4（含 `@vitest/coverage-v8`），必须同时，且要重定覆盖率门槛。** #107 单独抬
-      coverage-v8 到 4，peer 要求 `vitest@4`，8 项 CI 红 6 项 —— 那不是要修的测试，是依赖树对不上。
-      三个 workspace 都钉 `^3.2.7`，要一起升；vitest 4 还会牵动覆盖率的计算口径，而本仓库四个门槛
-      是按实测值定的，所以这是一个需要重新测量的 PR，不是一次版本号替换
+      coverage-v8 到 4，peer 要求 `vitest@4`，8 项 CI 红 6 项；#112 反过来单独抬 vitest 到 4，
+      六个构建任务全红 —— 正好是镜像。三个 workspace 都钉 `^3.2.7`，要一起升；vitest 4 还会牵动
+      覆盖率的计算口径，而本仓库四个门槛是按实测值定的，所以这是一个需要重新测量的 PR，
+      不是一次版本号替换
 - [ ] **jsdom 26 → 30 是取舍而不是升级。** #109 只在 **node 20** 红、node 22 绿（console 与 frontend
       都是这个形状）—— 同一份代码同一份 lockfile，差别只有 Node 版本，指向 jsdom 30 抬高了 Node 最低
       要求。放弃 node 20 那一档需要单独决定（双版本矩阵是刻意的，为了不把部署锁死在单一 Node 上），
