@@ -28,7 +28,7 @@
     "@tailwindcss/vite": "^4.3.3",
     "@vitejs/plugin-vue": "^6.0.8",
     "@vitest/coverage-v8": "^3.2.7",
-    "@vue/test-utils": "*",
+    "@vue/test-utils": "^2.5.0",
     "@vue/tsconfig": "*",
     "eslint": "*",
     "eslint-config-prettier": "*",
