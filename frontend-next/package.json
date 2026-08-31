@@ -32,7 +32,7 @@
     "@vue/tsconfig": "*",
     "eslint": "*",
     "eslint-config-prettier": "*",
-    "eslint-plugin-vue": "*",
+    "eslint-plugin-vue": "^10.10.0",
     "globals": "*",
     "jsdom": "*",
     "prettier": "*",
