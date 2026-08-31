@@ -235,7 +235,6 @@ export const useAlertSound = () => {
     muted: readonly(muted),
     volume: readonly(volume),
     quietHours: readonly(quietHours),
-    canSound,
     /** Why the console is currently silent, for the control's own label. */
     silentReason: computed<"" | "locked" | "muted" | "quiet">(() => {
       if (!unlocked.value) return "locked";

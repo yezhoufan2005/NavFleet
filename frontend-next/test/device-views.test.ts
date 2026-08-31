@@ -1,4 +1,6 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
+import { readFileSync } from "node:fs";
+import { resolve } from "node:path";
 import { createPinia, setActivePinia } from "pinia";
 import { createMemoryHistory, createRouter } from "vue-router";
 import { enableAutoUnmount, flushPromises, mount } from "@vue/test-utils";
@@ -887,6 +889,168 @@ describe("what the device list has to answer at a glance", () => {
     expect(wrapper.findAll("tbody td").map((c) => c.text())).toContain(
       "北区堆场",
     );
+  });
+});
+
+describe("the visual encodings the port flattened", () => {
+  /**
+   * These are asserted at all because **nothing in the repo guarded a map colour**. The
+   * geometry contract has four separate guards (two e2e specs plus the marker-box cases in
+   * this file), which is why the port's geometry survived intact — and why two *semantic*
+   * recolours went in silently: a healthy peer painted brand, and the laser marker moved
+   * from amber to blue. A rule with no test is a rule that changes by accident.
+   */
+  const mountScene = async (props: Record<string, unknown> = {}) => {
+    const wrapper = mount(SceneMap, {
+      props: {
+        selectedDevice: {
+          deviceId: "agv-01",
+          fusionLoc: { x: 10, y: 20, yaw: 0 },
+        },
+        sceneDefinition: SCENE,
+        sceneDevices: [],
+        trails: {},
+        ...props,
+      } as never,
+      attachTo: document.body,
+    });
+    await flushPromises();
+    return wrapper;
+  };
+
+  it("keeps brand for the selected vehicle rather than for any healthy one", async () => {
+    // The port added `[data-tone="normal"] { fill: var(--color-brand) }` for peers — the
+    // same fill as the selected vehicle's own core — so on a scene of healthy vehicles
+    // colour said nothing about which one you had picked.
+    const wrapper = await mountScene({
+      sceneDevices: [
+        { deviceId: "agv-01", online: true, fusionLoc: { x: 10, y: 20 } },
+        {
+          deviceId: "agv-02",
+          deviceName: "AGV 2",
+          online: true,
+          fusionLoc: { x: 30, y: 30 },
+        },
+      ],
+    });
+
+    // The attribute the scoped rules key on.
+    expect(wrapper.get(".ros-secondary-marker").attributes("data-tone")).toBe(
+      "normal",
+    );
+
+    /*
+     * And no rule paints that tone brand. Asserted against the stylesheet text because the
+     * absence of a rule is the contract — jsdom applies no scoped CSS, so a computed style
+     * here would report nothing either way.
+     */
+    const scoped = readFileSync(
+      resolve(__dirname, "../src/components/map/SceneMap.vue"),
+      "utf8",
+    );
+    expect(scoped).not.toMatch(/\[data-tone="normal"\]\s*\.ros-secondary-core/);
+    // Offline, by contrast, does get its own rule — it is a status, not the absence of one.
+    expect(scoped).toMatch(/\[data-tone="offline"\]\s*\.ros-secondary-core/);
+  });
+
+  it("pulses the selection without touching the box the e2e suite measures", async () => {
+    // `.ros-marker-core`'s screen box is read by two specs. The pulse is a *sibling*
+    // circle, because SVG siblings do not affect each other's bounding boxes — and a
+    // `transform` animation on any ancestor group would scale the core too, which is
+    // precisely what a verbatim port of v1.0.0's keyframe would have done.
+    const wrapper = await mountScene();
+    const marker = wrapper.get(".ros-marker.fusion");
+
+    const pulse = marker.get(".ros-marker-pulse");
+    const core = marker.get(".ros-marker-core");
+    expect(pulse.element.parentElement).toBe(core.element.parentElement);
+    // Still centred on the pose, still the contracted radius.
+    expect(core.attributes("cx") ?? "0").toBe("0");
+    expect(core.attributes("r")).toBe("10");
+  });
+
+  it("reads a distance off the map, not a bare multiplier", async () => {
+    // `--color-map-scale` was defined in all three theme blocks and read by nothing, and
+    // `check-map-contrast.mjs` already contrast-checks it against the *scene* canvas —
+    // which is what says the bar belonged here rather than on the GPS map. `3.2x` is
+    // relative to a fit that depends on the panel size and the scene extent, so it answers
+    // nothing anyone asks.
+    const wrapper = await mountScene();
+
+    const bar = wrapper.find(".scale-bar");
+    expect(bar.exists()).toBe(true);
+    // A round number of metres, not whatever the panel happens to make 120px.
+    // No leading `\b`: the zoom chip ends in `x`, and `x5` has no word boundary in it.
+    expect(wrapper.text()).toMatch(/(?:1|2|5)0*\s?(?:km|m)\b/);
+    // And a real width, so the label describes something measurable.
+    expect(
+      parseFloat(
+        bar.attributes("style")?.match(/width:\s*([\d.]+)px/)?.[1] ?? "0",
+      ),
+    ).toBeGreaterThan(0);
+  });
+
+  it("gives a lanelet-only scene its own ground", async () => {
+    // `--color-ros-lanelet-bg` was a token with no consumer: v1.0.0 switched the world
+    // rect's fill when a scene had lane lines and no backdrop, and the port kept the token
+    // and dropped the switch. Lane lines over a faint tint are hard to place.
+    const plain = await mountScene();
+    expect(plain.get(".ros-world-bg").classes()).not.toContain("lanelet-mode");
+  });
+});
+
+describe("clearing a trail", () => {
+  const mountMap = async () => {
+    const router = createRouter({
+      history: createMemoryHistory(),
+      routes: [{ path: "/:rest(.*)*", component: { template: "<i />" } }],
+    });
+    await router.push("/devices");
+    await router.isReady();
+    seed(2);
+    const wrapper = mount(DevicesView, {
+      attachTo: document.body,
+      global: { plugins: [router] },
+    });
+    await flushPromises();
+    return wrapper;
+  };
+
+  const clearButton = (wrapper: ReturnType<typeof mount>) =>
+    wrapper.findAll("button").find((b) => b.text().includes("清除轨迹"));
+
+  it("offers no control until the trail is long enough to see", async () => {
+    // One point arrives with the first telemetry message and draws nothing — a bare
+    // `M x y`. Counting it would put the button on screen permanently, offering to clear
+    // something the operator cannot see.
+    const wrapper = await mountMap();
+    expect(store.trailsByDeviceId["agv-01"]).toHaveLength(1);
+    expect(clearButton(wrapper)).toBeUndefined();
+  });
+
+  it("clears the selected vehicle's trail, and only that one", async () => {
+    // `clearTrail` has been exported by the store since 12B with no caller: a trail
+    // accumulates for as long as a vehicle is watched, so after a shift it is a scribble
+    // over the whole site with no way back short of a reload.
+    const wrapper = await mountMap();
+    store.state.trailsByDeviceId = {
+      "agv-01": [
+        { x: 1, y: 1 },
+        { x: 2, y: 2 },
+      ],
+      "agv-02": [{ x: 5, y: 5 }],
+    };
+    await flushPromises();
+
+    const button = clearButton(wrapper);
+    expect(button?.text()).toContain("2 点");
+
+    await button!.trigger("click");
+    await flushPromises();
+
+    expect(store.trailsByDeviceId["agv-01"]).toBeUndefined();
+    expect(store.trailsByDeviceId["agv-02"]).toHaveLength(1);
+    expect(clearButton(wrapper)).toBeUndefined();
   });
 });
 

@@ -30,6 +30,7 @@ import type { SidebarMode } from "@/composables/useSidebar";
 import { useFleetStore } from "@/stores/fleet";
 import type { ConnectionTone } from "@/stores/fleet";
 import { useAlertSound } from "@/composables/useAlertSound";
+import { notify } from "@/composables/useNotifications";
 
 const PRODUCT_NAME = "智能车队监控平台";
 
@@ -42,6 +43,28 @@ const emit = defineEmits<{ logout: []; toggleNav: [] }>();
 
 const fleet = useFleetStore();
 const connection = computed(() => fleet.connection);
+
+/**
+ * Re-runs the snapshot fetch and re-opens the socket.
+ *
+ * Both, because they fail independently: `apiReady` false is a REST failure while the
+ * socket may be fine, and `retryBootstrap` alone would leave a link that is still down.
+ * A toast reports the outcome — a button that visibly does nothing is worse than no
+ * button, and the failure case is the one an operator most needs told.
+ */
+const retryConnection = (): void => {
+  void fleet
+    .retryBootstrap()
+    .then(() => {
+      fleet.connectRealtime();
+      if (fleet.connection.tone === "critical") {
+        notify("仍然无法连接后端，请检查服务与网络。", { type: "warning" });
+      }
+    })
+    .catch(() => {
+      notify("重试失败，请检查后端服务是否可用。", { type: "warning" });
+    });
+};
 
 /**
  * The deployment's fleet name, unless it would only repeat the product name.
@@ -194,11 +217,35 @@ const NAV_TOGGLE_LABELS: Record<SidebarMode, string> = {
       >
         <span
           class="size-2 shrink-0 rounded-full"
-          :class="TONE_DOT[connection.tone]"
+          :class="[
+            TONE_DOT[connection.tone],
+            { 'realtime-dot': connection.tone === 'ok' },
+          ]"
           aria-hidden="true"
         />
         <span class="whitespace-nowrap">{{ connection.label }}</span>
       </span>
+
+      <!--
+        Retry, next to the thing it retries.
+
+        `retryBootstrap` and `connectRealtime` have been exported by the store since 12B
+        with no callers, so when the backend came back the only way to recover was to
+        reload the page — the automatic retry does happen, but an operator watching a
+        「后端离线」 badge has no way to say "try now" and no way to tell whether anything
+        is being attempted on their behalf.
+
+        Shown only for the `critical` tone: while the tone is `pending` a retry is already
+        in flight, and a button that competes with it would just look broken.
+      -->
+      <button
+        v-if="connection.tone === 'critical'"
+        type="button"
+        class="rounded-sm border border-border-strong px-1.5 py-1 text-xs text-critical-ink transition-colors duration-150 ease-standard hover:bg-critical-wash"
+        @click="retryConnection"
+      >
+        重试
+      </button>
 
       <button
         type="button"
@@ -234,3 +281,38 @@ const NAV_TOGGLE_LABELS: Record<SidebarMode, string> = {
     </div>
   </header>
 </template>
+
+<style scoped>
+/*
+ * "This data is alive."
+ *
+ * The word beside the dot says 实时 and the colour says brand, but both are static — and
+ * for a monitoring console 「这数据是活的吗」 is close to the most important question on the
+ * screen. A repeating pulse is the one channel that answers it continuously without taking
+ * any space, and it is pre-attentive: it is seen without being read.
+ *
+ * The animation is on `box-shadow` spread only, so the dot's own 8×8 box never moves — a
+ * `transform: scale` here would nudge the label beside it once per cycle. Only while the
+ * tone is `ok`: a pulsing 后端离线 dot would say the opposite of what it means.
+ *
+ * `color-mix` rather than v1.0.0's `rgba(var(--brand-rgb), …)` — this palette has no
+ * channel-triplet tokens, deliberately, so an alpha ramp has to go through `color-mix`.
+ * No reduced-motion block: `styles/base.css:67-78` holds a global `!important` kill switch.
+ */
+.realtime-dot {
+  animation: realtime-pulse 2s ease-out infinite;
+}
+
+@keyframes realtime-pulse {
+  0% {
+    box-shadow: 0 0 0 0 color-mix(in oklch, var(--color-brand) 45%, transparent);
+  }
+  70% {
+    box-shadow: 0 0 0 6px
+      color-mix(in oklch, var(--color-brand) 0%, transparent);
+  }
+  100% {
+    box-shadow: 0 0 0 0 color-mix(in oklch, var(--color-brand) 0%, transparent);
+  }
+}
+</style>

@@ -110,5 +110,3 @@ export const useChartTheme = () => {
 
   return { palette: readonly(palette), animate: readonly(animate) };
 };
-
-export const CHART_SERIES_SLOTS = CHART_SLOTS;

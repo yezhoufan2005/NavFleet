@@ -84,6 +84,30 @@ export const readStoredState = (): StoredEntry[] =>
   );
 
 /**
+ * Removes one `navfleet:` key. Reports whether anything was actually there.
+ *
+ * The reason this exists beside `clearStoredState`: the old settings page cleared
+ * **categories**, and deliberately left theme / map mode / device layout / sound
+ * preferences alone. The port replaced that with one 全清 button, which is not the same
+ * capability with a nicer label — it is a strictly more destructive action offered in
+ * place of a narrower one. Per-key clearing is finer than v1.0.0's categories rather than
+ * a reconstruction of them, because the inventory here is *discovered*, and a category
+ * list would be exactly the hand-kept thing this file's header argues against.
+ *
+ * Like `clearStoredState` it does not reset the composable that wrote the key — the
+ * caller reloads, for the reason given below.
+ */
+export const clearStoredKey = (key: string, area: StorageArea): boolean => {
+  try {
+    if (areaOf(area).getItem(key) === null) return false;
+    areaOf(area).removeItem(key);
+    return true;
+  } catch {
+    return false;
+  }
+};
+
+/**
  * Removes every `navfleet:` key from both areas and reports how many went.
  *
  * It does **not** reset the composables that wrote them. They are module singletons

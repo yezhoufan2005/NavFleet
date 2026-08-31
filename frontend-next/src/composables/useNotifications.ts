@@ -60,7 +60,7 @@ const timers = new Map<number, ReturnType<typeof setTimeout>>();
 const activeDedupeKeys = new Set<string>();
 let nextId = 1;
 
-export const dismissNotification = (id: number): void => {
+const dismissNotification = (id: number): void => {
   const index = items.findIndex((item) => item.id === id);
   if (index === -1) return;
 
@@ -110,7 +110,7 @@ export const notify = (
  * Runs a toast's action and dismisses it. Both, together: an undo that leaves its
  * own button on screen invites a second click that undoes the undo.
  */
-export const runNotificationAction = (id: number): void => {
+const runNotificationAction = (id: number): void => {
   const item = items.find((entry) => entry.id === id);
   if (!item?.action) return;
   item.action.handler();

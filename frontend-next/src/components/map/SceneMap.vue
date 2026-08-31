@@ -218,6 +218,11 @@ const effectiveWorldBounds = computed<WorldBounds | null>(() => {
 });
 
 const sceneReady = computed(() => hasBounds(effectiveWorldBounds.value));
+
+/** Lane lines and nothing under them — see `.ros-world-bg.lanelet-mode`. */
+const laneletOnlyScene = computed(
+  () => !!overlay.value?.lanelets?.length && !backgroundLayerDefinition.value,
+);
 const worldWidth = computed(() =>
   sceneReady.value
     ? effectiveWorldBounds.value!.maxX - effectiveWorldBounds.value!.minX
@@ -419,6 +424,49 @@ const stageTransform = computed(() => {
 
 const scaleLabel = computed(() => `${round(viewport.scale, 2)}x`);
 
+/**
+ * The scale bar: a bar of a round number of metres, and its width in screen pixels.
+ *
+ * This is the reader `--color-map-scale` never had. The token was defined in all three
+ * theme blocks and consumed nowhere, and `docs/tools/check-map-contrast.mjs:39` already
+ * contrast-checks it **against `--color-ros-canvas`** — which is what says the scale bar was
+ * always meant for *this* map rather than the GPS one. v1.0.0 had no scale bar on either
+ * surface; the GPS map borrowed AMap's built-in one and this map showed a bare `3.2x`.
+ *
+ * A bare multiplier is the problem being fixed. `3.2x` is relative to a fit that depends on
+ * the panel size and the scene's extent, so it answers nothing an operator asks — whereas
+ * this map's world units *are* metres, so px-per-metre is `viewport.scale` directly and no
+ * projection is involved.
+ *
+ * The chosen length is the largest 1 / 2 / 5 × 10ⁿ metres that still fits in `MAX_PX`, so
+ * the bar stays a readable width and the number stays a number people say out loud.
+ */
+const SCALE_BAR_MAX_PX = 120;
+const SCALE_BAR_STEPS = [1, 2, 5] as const;
+
+const scaleBar = computed<{ metres: number; px: number; label: string } | null>(
+  () => {
+    const pxPerMetre = viewport.scale;
+    if (!Number.isFinite(pxPerMetre) || pxPerMetre <= 0) return null;
+
+    let best: number | null = null;
+    // 0.1 m up to 10 km covers a warehouse aisle and a container yard alike.
+    for (let power = -1; power <= 4; power += 1) {
+      for (const step of SCALE_BAR_STEPS) {
+        const metres = step * 10 ** power;
+        if (metres * pxPerMetre <= SCALE_BAR_MAX_PX) best = metres;
+      }
+    }
+    if (best === null) return null;
+
+    return {
+      metres: best,
+      px: round(best * pxPerMetre, 1),
+      label: best >= 1000 ? `${best / 1000} km` : `${best} m`,
+    };
+  },
+);
+
 /** ` · 128 段` when the overlay reports a count, empty when it does not. */
 const laneletCountLabel = computed(() => {
   const count = overlay.value?.stats?.laneletCount;
@@ -464,6 +512,7 @@ const screenInvariantTransform = computed(() => {
           :width="worldWidth"
           :height="worldHeight"
           class="ros-world-bg"
+          :class="{ 'lanelet-mode': laneletOnlyScene }"
         />
 
         <!-- Flipped back upright: the stage scales y by -1, and an image drawn under
@@ -572,6 +621,20 @@ const screenInvariantTransform = computed(() => {
         >
           <g :transform="screenInvariantTransform">
             <g :transform="`rotate(${selectedFusionAngle})`">
+              <!--
+                The pulse, as a **sibling** of the core rather than anything wrapping it.
+                `.ros-marker-core`'s screen box is an e2e contract (two specs measure its
+                centre against the panel centre), and SVG siblings do not affect each
+                other's bounding boxes — whereas a `transform` animation on any ancestor
+                `<g>` would scale the core's box too. v1.0.0 pulsed `.ros-marker-ring`
+                with a keyframe that included `transform: scale(1.12)`, so porting it
+                verbatim onto a group is exactly the mistake available here.
+              -->
+              <circle
+                class="ros-marker-pulse"
+                :r="MARKER.fusionRing"
+                vector-effect="non-scaling-stroke"
+              />
               <circle
                 class="ros-marker-ring"
                 :r="MARKER.fusionRing"
@@ -644,6 +707,15 @@ const screenInvariantTransform = computed(() => {
       </span>
       <span class="rounded-xs bg-surface-raised/85 px-2 py-1 text-ink-muted">
         缩放 <strong class="ml-1 text-ink">{{ scaleLabel }}</strong>
+      </span>
+      <!-- Beside the multiplier rather than replacing it: the multiplier is what the two
+           view buttons move, and the bar is what a distance is read off. -->
+      <span
+        v-if="scaleBar"
+        class="flex items-center gap-1.5 rounded-xs bg-surface-raised/85 px-2 py-1 text-ink-muted"
+      >
+        <span class="scale-bar" :style="{ width: `${scaleBar.px}px` }" />
+        <strong class="text-ink">{{ scaleBar.label }}</strong>
       </span>
     </div>
 
@@ -735,6 +807,20 @@ const screenInvariantTransform = computed(() => {
 .ros-canvas-bg {
   fill: var(--color-ros-canvas);
 }
+/*
+ * A scene with a road network and no backdrop gets its own ground colour.
+ *
+ * v1.0.0 switched this (`RosSceneMap.vue:386-388`) and the port kept the token and dropped
+ * the switch, leaving `--color-ros-lanelet-bg` with zero consumers. The distinction is
+ * real: over a point cloud or a site raster the world rect is a faint tint under an image,
+ * but with only lane lines on it the same faint tint is the entire ground, and lane lines
+ * on near-nothing are hard to place.
+ */
+.ros-world-bg.lanelet-mode {
+  fill: var(--color-ros-lanelet-bg);
+  opacity: 1;
+}
+
 .ros-world-bg {
   fill: var(--color-ros-free);
   opacity: 0.35;
@@ -745,16 +831,26 @@ const screenInvariantTransform = computed(() => {
   stroke-width: 1;
 }
 
+/*
+ * `round` caps and joins, which the port dropped. Not decoration: the default `butt` cap
+ * leaves every polyline segment ending square and the default `miter` join spikes at
+ * corners — and a road network is made of sharp bends, so both are visible wherever a
+ * lanelet actually turns.
+ */
 .lanelet-edge {
   fill: none;
   stroke: var(--color-ros-lanelet-line);
   stroke-width: 1.5;
+  stroke-linecap: round;
+  stroke-linejoin: round;
 }
 .lanelet-centerline {
   fill: none;
   stroke: var(--color-ros-lanelet-center);
   stroke-width: 1;
   stroke-dasharray: 6 5;
+  stroke-linecap: round;
+  stroke-linejoin: round;
 }
 
 .ros-link-line {
@@ -764,18 +860,36 @@ const screenInvariantTransform = computed(() => {
   stroke-dasharray: 3 4;
 }
 
+/*
+ * Trails, with the three things the port flattened put back.
+ *
+ * 1. **The dash pattern.** A history is not a route: a dotted track reads as "this is
+ *    where it has been", a solid line reads as "this is the path it follows". Both trails
+ *    were solid, so the only difference from a lanelet centreline was hue.
+ * 2. **Width tells selected from peer**, not only hue. Both were `stroke-width: 2`, which
+ *    left opacity as the sole separator — and opacity is the one channel a busy point-cloud
+ *    backdrop eats.
+ * 3. **The glow on the selected trail.** It is what keeps the vehicle you are following
+ *    findable when a dozen trails cross.
+ */
 .device-trail {
   fill: none;
-  stroke-width: 2;
   stroke-linecap: round;
   stroke-linejoin: round;
 }
 .device-trail.selected {
   stroke: var(--color-brand);
+  stroke-width: 2.4;
+  stroke-dasharray: 2 5;
   opacity: 0.9;
+  filter: drop-shadow(
+    0 0 6px color-mix(in oklch, var(--color-brand) 30%, transparent)
+  );
 }
 .device-trail.peer {
-  stroke: var(--color-offline);
+  stroke: var(--color-ink-subtle);
+  stroke-width: 1.6;
+  stroke-dasharray: 2 6;
   opacity: 0.55;
 }
 .device-trail.peer[data-tone="critical"] {
@@ -787,8 +901,28 @@ const screenInvariantTransform = computed(() => {
 .device-trail.peer[data-tone="notice"] {
   stroke: var(--color-notice);
 }
-.device-trail.peer[data-tone="normal"] {
-  stroke: var(--color-brand);
+.device-trail.peer[data-tone="offline"] {
+  stroke: var(--color-offline);
+}
+/*
+ * **No `[data-tone="normal"]` rule, and that is the point.** The port painted a healthy
+ * peer's trail `--color-brand` — the same colour as the selected vehicle's own trail and
+ * core — so "has a colour" stopped meaning "has a status" and brand stopped meaning
+ * "this is the one you picked". A healthy peer falls through to the neutral above, which
+ * is what v1.0.0 did by simply not writing a rule for it.
+ */
+
+/*
+ * Ticks at both ends, like a printed map's scale: the ends are what makes it a measured
+ * span rather than a coloured rule. `--color-map-scale` is contrast-checked against the
+ * canvas at 3:1 by `docs/tools/check-map-contrast.mjs`, which is why it is this token and
+ * not `--color-ink-muted`.
+ */
+.scale-bar {
+  height: 6px;
+  border-left: 1px solid var(--color-map-scale);
+  border-right: 1px solid var(--color-map-scale);
+  border-bottom: 1px solid var(--color-map-scale);
 }
 
 .ros-marker-ring {
@@ -796,6 +930,40 @@ const screenInvariantTransform = computed(() => {
   stroke: var(--color-brand);
   stroke-width: 1.5;
   opacity: 0.55;
+}
+
+/*
+ * "This is the vehicle you picked, and it is live."
+ *
+ * The ROS map is the surface that needed this most: it has no per-vehicle selected style
+ * at all beyond size and the arrow, so with the pulse gone the selection was carried by
+ * geometry alone. Animating `r` and `opacity` on a dedicated circle keeps every other
+ * shape's box untouched.
+ *
+ * No `prefers-reduced-motion` block of its own — `styles/base.css:67-78` holds a global
+ * `!important` kill switch inside `@layer base`, which outranks unlayered component
+ * declarations and covers scoped blocks too.
+ */
+.ros-marker-pulse {
+  fill: none;
+  stroke: var(--color-brand);
+  stroke-width: 2;
+  animation: ros-pulse 2.2s ease-in-out infinite;
+}
+.ros-marker.lidar .ros-marker-pulse {
+  stroke: var(--color-notice);
+}
+
+@keyframes ros-pulse {
+  0%,
+  100% {
+    opacity: 0.3;
+    r: 18px;
+  }
+  50% {
+    opacity: 0.02;
+    r: 30px;
+  }
 }
 .ros-marker-core {
   fill: var(--color-brand);
@@ -818,8 +986,18 @@ const screenInvariantTransform = computed(() => {
   fill: var(--color-notice);
 }
 
+/*
+ * Peer vehicles: neutral by default, coloured only when they have something to say.
+ *
+ * The default was `--color-offline`, which conflates "healthy" with "not reporting" —
+ * offline is a status and deserves its own rule. `normal` had an override to
+ * `--color-brand`, i.e. the same fill as the *selected* vehicle's core, so on a scene with
+ * healthy peers nothing about colour distinguished the vehicle you had picked. Both are
+ * gone: brand is reserved for the selection, status hues for statuses, neutral for
+ * "nothing to report".
+ */
 .ros-secondary-core {
-  fill: var(--color-offline);
+  fill: var(--color-ink-subtle);
   stroke: var(--color-surface-raised);
   stroke-width: 1.5;
 }
@@ -832,14 +1010,27 @@ const screenInvariantTransform = computed(() => {
 .ros-secondary-marker[data-tone="notice"] .ros-secondary-core {
   fill: var(--color-notice);
 }
-.ros-secondary-marker[data-tone="normal"] .ros-secondary-core {
-  fill: var(--color-brand);
+.ros-secondary-marker[data-tone="offline"] .ros-secondary-core {
+  fill: var(--color-offline);
 }
+/*
+ * `paint-order: stroke` draws the outline *under* the glyphs, so the label keeps a halo
+ * against whatever is beneath it. That matters here more than anywhere else on the map: a
+ * peer label sits directly on a point cloud or a raster site plan, and an 11px muted-grey
+ * string on arbitrary pixels is unreadable at exactly the moment it is needed — a crowded
+ * scene. `pointer-events: none` because the text overhangs neighbouring markers and must
+ * never intercept a click meant for one.
+ */
 .ros-secondary-label {
-  fill: var(--color-ink-muted);
+  fill: var(--color-ink);
   font-family: var(--font-mono);
   font-size: 11px;
+  font-weight: 600;
   text-anchor: middle;
+  paint-order: stroke;
+  stroke: var(--color-surface);
+  stroke-width: 2.5;
+  pointer-events: none;
 }
 
 .map-btn {

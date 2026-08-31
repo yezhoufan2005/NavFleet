@@ -5,9 +5,13 @@ import { createPinia } from "pinia";
 import { enableAutoUnmount, flushPromises, mount } from "@vue/test-utils";
 import App from "@/App.vue";
 import { createAppRouter } from "@/router";
+import { useFleetStore } from "@/stores/fleet";
 import { createAuthGuard } from "@/router/guards";
 import { useAuth, __resetAuth } from "@/composables/useAuth";
-import { __resetNotifications } from "@/composables/useNotifications";
+import {
+  __resetNotifications,
+  useNotifications,
+} from "@/composables/useNotifications";
 import {
   __resetAlertSound,
   __setAudioContextFactory,
@@ -524,6 +528,59 @@ describe("the realtime indicator", () => {
     await flushPromises();
 
     expect(openedSockets.at(-1)?.closed).toBe(true);
+  });
+});
+
+describe("recovering from a dead backend", () => {
+  /** Signed in, then the fleet snapshot fails so the tone reaches `critical`. */
+  const withDeadBackend = async () => {
+    fetchMock = routedFetch(
+      jsonResponse({ user: ADMIN }),
+      jsonResponse({ error: "unavailable" }, 503),
+    );
+    vi.stubGlobal("fetch", fetchMock);
+    return mountApp("/");
+  };
+
+  const retry = (wrapper: Awaited<ReturnType<typeof mountApp>>) =>
+    wrapper.findAll("header button").find((b) => b.text() === "重试");
+
+  it("offers a retry beside the badge that reports the problem", async () => {
+    // `retryBootstrap` and `connectRealtime` were exported with no callers, so when the
+    // backend came back the only way to recover was to reload the page.
+    const wrapper = await withDeadBackend();
+
+    expect(wrapper.text()).toContain("后端离线");
+    expect(retry(wrapper)).toBeDefined();
+  });
+
+  it("hides the retry while one is already in flight", async () => {
+    // The tone is `pending` during the bootstrap, and a second button competing with an
+    // in-flight attempt just looks broken.
+    const wrapper = await signedIn();
+    useFleetStore().state.realtime.bootstrapPending = true;
+    await flushPromises();
+
+    expect(retry(wrapper)).toBeUndefined();
+  });
+
+  it("re-fetches and re-opens the socket, then says so when it is still down", async () => {
+    // Both, because they fail independently: a REST failure leaves the socket alone, and
+    // retrying only the snapshot would leave the link still down.
+    const wrapper = await withDeadBackend();
+    fetchMock.mockClear();
+    __resetNotifications();
+
+    await retry(wrapper)!.trigger("click");
+    await flushPromises();
+
+    expect(
+      fetchMock.mock.calls.some(([url]) =>
+        String(url).includes("/fleet/snapshot"),
+      ),
+    ).toBe(true);
+    // Still 503, so the operator is told rather than left watching an unchanged badge.
+    expect(useNotifications().items.at(-1)?.message).toContain("仍然无法连接");
   });
 });
 

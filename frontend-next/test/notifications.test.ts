@@ -1,7 +1,6 @@
 import { describe, it, expect, beforeEach, vi, afterEach } from "vitest";
 import {
   notify,
-  dismissNotification,
   useNotifications,
   __resetNotifications,
 } from "@/composables/useNotifications";
@@ -47,7 +46,7 @@ describe("useNotifications", () => {
     const id = notify("会话已过期", { timeout: 0 });
     vi.advanceTimersByTime(60_000);
     expect(items).toHaveLength(1);
-    dismissNotification(id);
+    useNotifications().dismiss(id);
     expect(items).toHaveLength(0);
   });
 
@@ -65,21 +64,21 @@ describe("useNotifications", () => {
 
   it("releases a dedupe key on dismissal so the next failure still reports", () => {
     const first = notify("连接失败", { dedupeKey: "ws" });
-    dismissNotification(first);
+    useNotifications().dismiss(first);
     expect(notify("连接失败", { dedupeKey: "ws" })).toBeGreaterThan(0);
   });
 
   it("ignores a dismissal for an id that is not on screen", () => {
     const { items } = useNotifications();
     notify("在的");
-    expect(() => dismissNotification(9999)).not.toThrow();
+    expect(() => useNotifications().dismiss(9999)).not.toThrow();
     expect(items).toHaveLength(1);
   });
 
   it("clears the pending timer when dismissed early", () => {
     const { items } = useNotifications();
     const id = notify("提示");
-    dismissNotification(id);
+    useNotifications().dismiss(id);
     // Without the clearTimeout this would splice a second time and, before the
     // id check, could remove whatever had taken index 0 by then.
     notify("另一条");

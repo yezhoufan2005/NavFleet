@@ -37,6 +37,7 @@ import {
   clearStoredState,
   readStoredState,
   type StoredEntry,
+  clearStoredKey,
 } from "@/lib/localState";
 
 interface ReadyPayload {
@@ -225,6 +226,21 @@ onMounted(refreshStored);
 const clearLocal = (): void => {
   clearing.value = true;
   clearStoredState();
+  window.location.reload();
+};
+
+/**
+ * Clears one key, then reloads for the same reason 全清 does.
+ *
+ * This is the granularity the old settings page had and the port lost: it cleared
+ * categories and deliberately left theme / map mode / device layout / sound alone, so
+ * replacing it with a single 全清 button offered a strictly more destructive action in
+ * place of a narrower one. Per-key is finer than those categories, and it needs no
+ * hand-kept taxonomy — the inventory is already discovered by prefix scan.
+ */
+const clearOne = (entry: StoredEntry): void => {
+  clearing.value = true;
+  clearStoredKey(entry.key, entry.area);
   window.location.reload();
 };
 
@@ -438,6 +454,9 @@ const AREA_LABELS: Record<StoredEntry["area"], string> = {
               <th scope="col" class="px-3 py-2 font-medium">项目</th>
               <th scope="col" class="px-3 py-2 font-medium">存续</th>
               <th scope="col" class="px-3 py-2 font-medium">值</th>
+              <th scope="col" class="px-3 py-2 font-medium">
+                <span class="sr-only">操作</span>
+              </th>
             </tr>
           </thead>
           <tbody>
@@ -460,6 +479,17 @@ const AREA_LABELS: Record<StoredEntry["area"], string> = {
                 }}<span v-if="entry.truncated" class="text-ink-subtle"
                   >…（已截断）</span
                 >
+              </td>
+              <td class="px-3 py-1.5 text-right whitespace-nowrap">
+                <button
+                  type="button"
+                  class="rounded-sm border border-border-strong px-2 py-0.5 text-xs text-ink-muted transition-colors duration-150 ease-standard hover:text-ink"
+                  :disabled="clearing"
+                  :aria-label="`清除 ${entry.label}`"
+                  @click="clearOne(entry)"
+                >
+                  清除
+                </button>
               </td>
             </tr>
           </tbody>
