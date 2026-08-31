@@ -17,6 +17,7 @@
 import { computed, onBeforeUnmount, onMounted, ref } from "vue";
 import { RouterLink } from "vue-router";
 import PageHeader from "@/components/PageHeader.vue";
+import UiSkeleton from "@/components/ui/UiSkeleton.vue";
 import { useFleetStore } from "@/stores/fleet";
 import {
   deviceToneLabels,
@@ -212,7 +213,17 @@ const alertRows = computed(() =>
       </p>
     </template>
 
-    <div class="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+    <!--
+      `aria-busy` on the region, not on the placeholders: the shimmer says "loading"
+      visually and `UiSkeleton` is `aria-hidden`, so this attribute is the *only* thing
+      that carries the state to a screen reader. Losing it was the invisible half of the
+      skeleton regression — before this, `src` had `aria-busy` in exactly one place
+      (`LoginForm`'s submit), so no data-loading region announced itself at all.
+    -->
+    <div
+      class="grid gap-3 sm:grid-cols-2 xl:grid-cols-4"
+      :aria-busy="fleet.bootstrapPending"
+    >
       <article
         v-for="tile in tiles"
         :key="tile.key"
@@ -222,12 +233,27 @@ const alertRows = computed(() =>
           class="font-mono text-2xs tracking-wider text-ink-subtle uppercase"
           >{{ tile.label }}</span
         >
-        <strong
-          class="text-3xl font-semibold tabular-nums"
-          :class="TILE_VALUE_CLASS[tile.tone]"
-          >{{ tile.value }}</strong
-        >
-        <span class="text-xs text-ink-muted">{{ tile.note }}</span>
+        <!-- The `value` variant reserves this element's own line box, so the card does
+             not resize when the real number lands. -->
+        <template v-if="fleet.bootstrapPending">
+          <UiSkeleton variant="value" />
+          <!--
+            The note is a placeholder too, and that is not tidiness. Every note is
+            derived from counts that are all zero before the snapshot arrives, so a
+            loading 总览 was stating 全部在线 · 无告警级 · 全部已定位 — four confident
+            claims about data it did not have. That is the same defect as
+            `formatNumber(null)` rendering `0.00`, one layer up.
+          -->
+          <UiSkeleton />
+        </template>
+        <template v-else>
+          <strong
+            class="text-3xl font-semibold tabular-nums"
+            :class="TILE_VALUE_CLASS[tile.tone]"
+            >{{ tile.value }}</strong
+          >
+          <span class="text-xs text-ink-muted">{{ tile.note }}</span>
+        </template>
       </article>
     </div>
 
@@ -247,9 +273,16 @@ const alertRows = computed(() =>
           >
         </div>
 
-        <p v-if="fleet.bootstrapPending" class="text-sm text-ink-muted">
-          正在获取车队快照…
-        </p>
+        <div
+          v-if="fleet.bootstrapPending"
+          aria-busy="true"
+          class="flex flex-col gap-1"
+        >
+          <!-- Cards rather than lines: this list holds device rows, and a stack of thin
+               lines under a 需要处理 heading looks like a short list of real vehicles. -->
+          <UiSkeleton :rows="3" variant="card" />
+          <p class="text-sm text-ink-muted">正在获取车队快照…</p>
+        </div>
         <p v-else-if="!fleet.summary.totalCount" class="text-sm text-ink-muted">
           后端还没有上报任何设备。
         </p>

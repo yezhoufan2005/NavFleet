@@ -103,7 +103,8 @@ interface RealtimeState {
    * Without it a view cannot tell "no data has arrived yet" from "no data matches
    * the current filters", so a cold load rendered the empty-filter message for
    * however long the request took — telling the operator their filters were wrong
-   * when nothing had been filtered at all. Views render skeletons while it is set.
+   * when nothing had been filtered at all. 总览 and 设备 render `UiSkeleton` while it
+   * is set, each with `aria-busy` on the region that owns the placeholders.
    */
   bootstrapPending: boolean;
 }

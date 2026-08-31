@@ -40,6 +40,17 @@ test.describe("console shell", () => {
 
     await skip.press("Enter");
     await expect(page.locator("#main-content")).toBeFocused();
+
+    // And it says *where* focus went. `<main>` carried `focus-visible:outline-none`,
+    // which suppressed the ring `:focus-visible` had correctly decided to show — the
+    // pseudo-class only matches when the user arrived by keyboard, which is the only way
+    // to reach a skip link at all. A skip link that moves focus invisibly has done half
+    // its job, and this is the assertion no unit test can make: it needs a real Tab, a
+    // real Enter and a real computed style.
+    const outline = await page
+      .locator("#main-content")
+      .evaluate((element) => getComputedStyle(element).outlineWidth);
+    expect(parseFloat(outline)).toBeGreaterThan(0);
   });
 
   test("the sidebar remembers being collapsed across a reload", async ({
