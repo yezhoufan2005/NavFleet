@@ -46,7 +46,7 @@ jobs:
       - run: npm run test:coverage -w navfleet-backend
       - run: npm run build -w navfleet-backend
       - if: matrix.node == 20
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: backend-coverage
           path: backend/coverage/
@@ -82,7 +82,7 @@ jobs:
       - run: npm run test:coverage -w navfleet-frontend
       - run: npm run build -w navfleet-frontend
       - if: matrix.node == 20
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: frontend-coverage
           path: frontend/coverage/
@@ -119,7 +119,7 @@ jobs:
       - run: npm run test:coverage -w navfleet-console
       - run: npm run build -w navfleet-console
       - if: matrix.node == 20
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: console-coverage
           path: frontend-next/coverage/
@@ -150,7 +150,7 @@ jobs:
       # equivalence net.
       - run: npm run e2e
       - if: failure()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: playwright-report
           path: playwright-report/
