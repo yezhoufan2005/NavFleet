@@ -754,6 +754,61 @@ payload 会抛错 —— 归一化不可跳过。
 | 9.29 | **`RosSceneMap.vue:248-249` 注释失效**（说 `deviceExtentBounds` 供 `effectiveWorldBounds` 用，后者从不引用它）                                                                                                                                                             | 同上                                                         | 低（文档）                                         |
 | 9.30 | **`toneLabelMap` 五项字典在两处逐字重复**；`hasPose` 有三份独立实现；场景合并有两份                                                                                                                                                                                        | `DashboardView.vue:36-42`；`GpsMap.vue:20-26` 等             | 低（Phase 12A 一并清）                             |
 
+### 核销结果（Phase 13 收口 · 2026-08-31）
+
+上面那张表写的是 **v1.0.0 的现状**，它是盘点记录，不随新前端改动。下面这张是逐条核对
+`frontend-next` 之后的结论 —— **每行给证据位置，而不是给一个勾**。
+
+**已修 19 · 部分 3 · 仍在 7 · 不适用 1 = 30。** 7 条「仍在」每条都写明去处，没有一条是漏掉的；
+其中 5 条归入 **13S**（下一个 PR），2 条按原表的判断留 **Phase 15**（会话边界，与 9.12 是同一件事）。
+
+| #    | 结论      | 证据 / 去处                                                                                                                                                                                                                                                                                                                                           |
+| ---- | --------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 9.1  | 🔴 仍在   | `formatNumber` 只挡非有限值，而 `Number(null) === 0` **是**有限值 → `formatNumber(null)` 仍渲染 `"0.00"`（`packages/fleet-core/src/formatters.ts:12-18`）；`createDefaultDevice` 仍把 `speed/soc/x/y/yaw` 置 `null`（`fleetNormalize.ts:149-153`）。12A 刻意**按现有行为写测试而不是修它**，所以两套前端都还这么显示 → **13S**                        |
+| 9.2  | 🟢 已修   | 位姿每轨道提取一次 + 轨迹增量维护（`composables/useHistoryPlayback.ts`）。该文件头注释同时写明**没有**修掉什么：SVG path 序列化仍是每帧 O(n)，那是画折线固有的                                                                                                                                                                                        |
+| 9.3  | 🟡 部分   | `getBoundingClientRect` 降为一次、sessionStorage 写入由 `useSceneViewportPersistence` 合并；**`pointermove` 仍未按 rAF 合帧** → **13S**                                                                                                                                                                                                               |
+| 9.4  | 🔴 仍在   | 栅格底图 `<image>` 无 `@error`（`components/map/SceneMap.vue:440-453`），而同组件的点云有 `pointCloudError` 且渲染失败态 —— 不一致照抄了过来 → **13S**                                                                                                                                                                                                |
+| 9.5  | 🟡 部分   | `loadPointCloud` 有 `pointCloudRequestId` 守卫（`composables/useSceneOverlay.ts:88-105`），`loadOverlay` / `loadMetadata` 仍无（同文件 `:56` / `:72`）→ **13S**                                                                                                                                                                                       |
+| 9.6  | 🟢 已修   | 改法是**取消强制切换**：`selectFormation` 只设编队并重算选中项（`stores/fleet.ts:619-623`），地图模式归用户所有并落 `navfleet:map-mode` —— 口径不一致的根源被去掉了，不是补一次落盘                                                                                                                                                                   |
+| 9.7  | 🔴 仍在   | `!sceneReady` 覆盖层 `absolute inset-0` 无 `pointer-events-none`（`SceneMap.vue:652-660`），压在带 `@wheel`/`@pointerdown` 的 svg 上；**同组件的点云失败覆盖层与 GpsMap 都是对的** → **13S**                                                                                                                                                          |
+| 9.8  | 🟢 已修   | `data-amap-state` 让「脚本已加载完但 `window.AMap` 缺席」这一格可被回答，`settleFromWindow` 兜底（`lib/amap.ts:9-15,57-104`）                                                                                                                                                                                                                         |
+| 9.9  | 🟢 已修   | 全局 `:focus-visible`（`styles/base.css:34-41`）—— 一处规则而不是逐控件补，这也是 13F-2 键盘复核能一次过的原因                                                                                                                                                                                                                                        |
+| 9.10 | 🟢 已修   | GPS 图 `role="img"` + `aria-label` 同处（`components/map/GpsMap.vue:347-348`）。ROS 图**保留** `role="img"`：内部标记对 AT 无意义，名字由 `aria-label` 承担，这是设计决定而非漏改                                                                                                                                                                     |
+| 9.11 | 🟢 已修   | `bootstrapPending` 分支排在 `apiReady` **之前**（`stores/fleet.ts:705-712`）→ 冷启动说「连接中」而不是「后端离线」。头注释写了理由：正在建立的链路不是正在恢复的链路                                                                                                                                                                                  |
+| 9.12 | 🔴 仍在   | 登出只 `fleet.disconnectRealtime()`（`App.vue:55-63`），store 无 reset → **Phase 15**（原表就这么标的，维持）。与 9.24 是同一件事：会话边界。拆开做会把同一处逻辑写两遍                                                                                                                                                                               |
+| 9.13 | 🟢 已修   | 没有 `limit` 输入了 —— 一个约束不了任何东西的控件，正确的修法是删掉它而不是给它加 `<form>`；服务端 cap 说话，并**报出实际覆盖跨度**（`components/device/DevicePlaybackTab.vue` 头注释）                                                                                                                                                               |
+| 9.14 | 🟢 已修   | 前端不再发 `limit`，四处口径缩成一处（服务端）。这是 9.13 的同一处改动带来的结果                                                                                                                                                                                                                                                                      |
+| 9.15 | 🟢 已修   | `watch(() => deviceId)` 先清样本再取新窗口（`DevicePlaybackTab.vue:182-189`）；更根本的是设备已由路由决定，不再有下拉可切                                                                                                                                                                                                                             |
+| 9.16 | 🟢 已修   | 五个空态各自独立：加载 / 错误 / 无数据 / 缺 ROS 位姿 / 缺场景定义（`DevicePlaybackTab.vue:422-469`）                                                                                                                                                                                                                                                  |
+| 9.17 | 🟢 已修   | 桶计数与列表同源于 `filtered`（`views/AlertsView.vue:139-165,381`）                                                                                                                                                                                                                                                                                   |
+| 9.18 | 🟢 已修   | 检索串 `.filter(Boolean)` 后再 join，空字段不再变成字面 `"undefined"`（`AlertsView.vue:148-156`）                                                                                                                                                                                                                                                     |
+| 9.19 | 🔴 仍在   | 根因未动：`toTimestampMs` 对空值仍回退 `Date.now()`（`fleetNormalize.ts:69-82`），并经 store 进入排序。**显示面已收窄**：告警行改显 onset（`AlertsView.vue:337`）、采样时间显式挡住（`DevicePlaybackTab.vue:293`）→ 与 9.1 同批 **13S**，它们是同一类错误：**空值伪装成一个看起来像真的值**                                                           |
+| 9.20 | 🟢 已修   | 确认按钮 `aria-pressed` + `aria-label`（`AlertsView.vue:353-354`），批量操作有 toast（`:186`）                                                                                                                                                                                                                                                        |
+| 9.21 | 🟢 已修   | 空字段给出 `请输入用户名和密码`，并接 `aria-invalid` / `aria-describedby`（`components/LoginForm.vue:44,82-83,105-110`）                                                                                                                                                                                                                              |
+| 9.22 | 🟢 已修   | `document.title` 单点消费 `route.meta.title`（`App.vue:89-97`），面包屑复用同一个字段（`components/shell/AppBreadcrumbs.vue:24-26`）—— 定义了却没人读的元数据变成两个读者                                                                                                                                                                             |
+| 9.23 | 🟢 已修   | 定时刷新 + 401 → 匿名 + 其它原因退避 + toast（`composables/useAuth.ts:19-56,132-173`）。**原表标的「Phase 15」提前在 12C-1 做掉了**，这里更正                                                                                                                                                                                                         |
+| 9.24 | 🔴 仍在   | `fleetApi` 仍把非 2xx 统一抛 `HTTP n`（`packages/fleet-core/src/fleetApi.ts:73-74`），全站只有 `useAuth` 自己比较 401 → **Phase 15**，与 9.12 同一处会话边界                                                                                                                                                                                          |
+| 9.25 | 🟢 已修   | `matchMedia` 监听在 scope 结束时移除（`composables/useTheme.ts:76`），头注释点名这是旧实现漏的那一处                                                                                                                                                                                                                                                  |
+| 9.26 | ⚪ 不适用 | 死 CSS 属于 v1.0.0 的 partial 体系；新前端没有 CSS partial，Phase 14 旧前端下线时它随之消失。**不需要动作，但要在 Phase 14 确认它确实一起走了**                                                                                                                                                                                                       |
+| 9.27 | 🟢 已修   | extent 描边走 token：`.ros-world-frame { stroke: var(--color-map-grid) }`（`SceneMap.vue:688-692`），随主题切换                                                                                                                                                                                                                                       |
+| 9.28 | 🔴 仍在   | `buildWorldPath` 仍丢弃非有限点后直接 `join`（`SceneMap.vue:227-235`），**逐字与旧实现相同**：缺口被画成直线；`index === 0` 决定 `M`，首点被丢则整条路径以 `L` 开头 → **13S**                                                                                                                                                                         |
+| 9.29 | 🟢 已修   | 那条失效注释没有随搬迁带过来（`SceneMap.vue` 无 `deviceExtentBounds` 之说）                                                                                                                                                                                                                                                                           |
+| 9.30 | 🟡 部分   | 那张 tone 文案字典已单源为 `deviceToneLabels`（`packages/fleet-core/src/deviceTone.ts:33-39`，唯一消费点 `DeviceDetailView.vue:106`）；`hasPose` 仍有三份独立实现（`fleetNormalize.ts:97`、`composables/useSvgViewport.ts:93`、`SceneMap.vue:54`）、场景合并仍两份 → **13S** 清理。这是可清理项，不是缺陷 —— 三份实现目前**行为一致**，风险在将来分叉 |
+
+**两处对原表判断的更正**，写在这里而不是悄悄改掉上面那张表：
+
+1. **9.23 不必等 Phase 15** —— 原表标「Phase 15 一并处理」，实际在 12C-1 就做了，因为 token 刷新
+   失败必须有人告诉用户，而那时正在建的就是 toast 宿主。
+2. **9.6 的修法与原表设想的相反** —— 原表说"强制切 scene 模式但不落盘"，暗示的修法是补一次落盘；
+   实际的修法是**去掉强制切换**。用户选的模式凭什么被选编队这个动作改写？口径不一致的根源是那次
+   强制，不是那次没落盘。
+
+**「仍在」的分布不是随机的。** 5 条归 13S 的里面有 3 条（9.4 / 9.7 / 9.28）都在 `SceneMap.vue`，
+且都是 13A-2a **地图底座搬迁**时被逐字搬过来的 —— 那次 PR 的目标是"不含界面地把地图搬过来"，
+所以刻意没有夹带行为改动。这个决定本身是对的（搬迁与修缺陷混在一个 PR 里，出问题时分不清是哪一半），
+代价就是这三条要在收口时补。剩下 2 条（9.1 / 9.19）在 `fleet-core`，同样是 12A "抽取不改行为"
+的刻意结果 —— 它们的测试当时就是照着**错误行为**写的，所以修的时候要连测试一起改。
+
 ## 10. 测试与覆盖现状（新前端的起点）
 
 | 区域             | 现状                                                                                                                                                                                                                                 |
@@ -766,18 +821,18 @@ payload 会抛错 —— 归一化不可跳过。
 
 ## 11. 数字汇总
 
-| 项                              | 数量                                       |
-| ------------------------------- | ------------------------------------------ |
-| SFC                             | 12 个 / 2,537 行（**全部无 `lang="ts"`**） |
-| composable                      | 8 个 / 1,404 行                            |
-| store                           | 1 个 / 761 行 / 28 个导出键                |
-| 纯逻辑（可直接复用）            | 1,049 行                                   |
-| 依赖 DOM 但无框架耦合（可复用） | 553 行                                     |
-| Vue 耦合但可搬                  | 2,138 行                                   |
-| CSS                             | 22 个 partial / 2,580 行 / 37 个 token     |
-| 路由                            | 5 条                                       |
-| 浏览器存储 key                  | 5 个                                       |
-| toast 触发点                    | 12 处                                      |
-| 枚举字典                        | 3 张 / 13 条（**报码字典不存在**）         |
-| 本清单条目                      | 约 210 项                                  |
-| 待修缺陷                        | **30 项**                                  |
+| 项                              | 数量                                                               |
+| ------------------------------- | ------------------------------------------------------------------ |
+| SFC                             | 12 个 / 2,537 行（**全部无 `lang="ts"`**）                         |
+| composable                      | 8 个 / 1,404 行                                                    |
+| store                           | 1 个 / 761 行 / 28 个导出键                                        |
+| 纯逻辑（可直接复用）            | 1,049 行                                                           |
+| 依赖 DOM 但无框架耦合（可复用） | 553 行                                                             |
+| Vue 耦合但可搬                  | 2,138 行                                                           |
+| CSS                             | 22 个 partial / 2,580 行 / 37 个 token                             |
+| 路由                            | 5 条                                                               |
+| 浏览器存储 key                  | 5 个                                                               |
+| toast 触发点                    | 12 处                                                              |
+| 枚举字典                        | 3 张 / 13 条（**报码字典不存在**）                                 |
+| 本清单条目                      | 约 210 项                                                          |
+| 待修缺陷                        | **30 项**（核销见第 9 节末：已修 19 · 部分 3 · 仍在 7 · 不适用 1） |
