@@ -29,7 +29,7 @@
     "prettier": "*",
     "typescript": "^5.9.3",
     "typescript-eslint": "*",
-    "vitest": "^3.2.7"
+    "vitest": "^4.1.11"
   },
   "engines": {
     "node": ">=20"

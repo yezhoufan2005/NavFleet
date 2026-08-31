@@ -40,7 +40,7 @@
     "typescript": "*",
     "typescript-eslint": "*",
     "vite": "^8.2.2",
-    "vitest": "^3.2.7",
+    "vitest": "^4.1.11",
     "vue-tsc": "^3.3.11"
   },
   "engines": {
