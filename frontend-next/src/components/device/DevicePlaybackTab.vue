@@ -387,16 +387,24 @@ const onScrub = (event: Event): void => {
       aria-label="轨迹回放"
     >
       <!--
-        The map's height is tied to the viewport rather than left to grow.
-        Measured before this change, on a 641px-tall window: everything above the map
-        took 317px, the map itself reported **697px** (`min-h-80` is only a floor, and
-        `SceneMap` fills a flex column that had no height constraint), so the map's
-        bottom edge sat 421px below the fold and the playback controls 441px below it —
-        you had to scroll to reach 播放. `clamp` keeps it usable on a laptop without
-        letting it push the controls off a short screen.
+        The map takes the space that is actually left, rather than growing past the fold
+        or taking a fixed fraction of it.
+
+        Two measurements shaped this. Before any change, on a 641px window the map
+        reported **697px** (`min-h-80` is only a floor, and `SceneMap` fills a flex
+        column that had no height constraint), so its bottom edge sat 421px below the
+        fold and the playback controls 441px below it — you had to scroll to reach 播放.
+        The first fix used `42vh`, which fit at 641px and then **wasted 146px at 900px**,
+        because the content above the map is a constant 308px whatever the window height
+        is (measured at both sizes).
+
+        So the height is `100vh` minus that constant plus the control row — the map grows
+        1:1 with the window instead of by 42% of it. Clamped at both ends: a floor for
+        very short windows, and a ceiling so a 4K display does not hand over a map taller
+        than anyone scans.
       -->
       <div
-        class="map-surface relative flex h-[clamp(16rem,42vh,34rem)] flex-col overflow-hidden rounded-sm border border-border bg-surface"
+        class="map-surface relative flex h-[clamp(16rem,calc(100vh-23.5rem),44rem)] flex-col overflow-hidden rounded-sm border border-border bg-surface"
       >
         <SceneMap
           v-if="

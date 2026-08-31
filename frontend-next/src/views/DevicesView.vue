@@ -256,15 +256,24 @@ const TONE_DOT: Record<string, string> = {
           </tr>
         </thead>
         <tbody>
+          <!--
+            No selected-row highlight here, and that is the fix for a real bug rather
+            than a styling preference.
+
+            `ensureSelectedDevice` picks the first vehicle on every ingest when nothing
+            valid is selected, because the **map** needs a subject — `SceneMap` centres
+            on `selectedDevice` and would otherwise show nothing. That is right for the
+            map and wrong to render in the list: the first row came up highlighted
+            without anyone clicking it, so the highlight carried no intent and read as
+            "this row is special" when it is only "this is row one".
+
+            The map's own side panel keeps its highlight, where it does mean something:
+            the vehicle the map is currently showing, and it moves when you click.
+          -->
           <tr
             v-for="row in rows"
             :key="row.device.deviceId"
-            class="border-b border-border last:border-0"
-            :class="
-              row.device.deviceId === state.selectedDeviceId
-                ? 'bg-brand-wash'
-                : 'hover:bg-surface-sunken'
-            "
+            class="border-b border-border last:border-0 hover:bg-surface-sunken"
           >
             <td class="px-3 py-2">
               <span class="flex items-center gap-2 text-ink-muted">
