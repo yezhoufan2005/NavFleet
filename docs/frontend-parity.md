@@ -247,144 +247,186 @@ payload 会抛错 —— 归一化不可跳过。
 > 且覆盖率只有 **1.07%**。Phase 13A 的决定是**原样搬、不重写**——下面的条目因此主要是"搬过去之后
 > 要验证仍然成立"，而不是"照着重新实现"。
 
+**核销（Phase 13 收口 · 2026-08-31）：这一节最危险的失败模式没有发生。**
+3.6 的 `hasMeasuredPanel` 与 3.7 的 `rebaseOffsetsToBounds` **都在，而且时机正确** —— 不是"找到了
+同名函数"，是门禁真的在 setup 期拦住了那次 `immediate` watcher、rebase 真的排在 hydrate 判断之前，
+两者各有一条把因果注释与实测数字一起钉住的单测。3.4 的两套取景算法（含 `regionCenteredOn` 的镜像框
+与 0.82 / base×1.3 / width÷45 三个魔数）、3.5 的七个写入点与恢复优先级，都是逐字等价搬迁。
+
+**丢的是另一类东西：视觉编码。** 4 处能力损失 + 一批静默的视觉降级，逐条见表，汇总在节末。
+其中最系统性的一条：**新前端一个 CSS keyframe 都没有**（`frontend-next/src` 里 `@keyframes` 零命中），
+而 v1.0.0 有三个 —— 见节末（1）。
+
 ### 3.1 坐标系与变换
 
-|       | 项                                                                                                        | 现状 |
-| ----- | --------------------------------------------------------------------------------------------------------- | ---- |
-| `[ ]` | `viewBox="0 0 (w\|\|1000) (h\|\|620)"`，SVG CSS 尺寸 100% → 1 viewBox 单位 = 1 CSS px                     |
-| `[ ]` | `stageTransform` = `translate(offset) scale(s, -s) translate(-minX, -maxY)`，**Y 轴翻转**，锚点世界左上角 |
-| `[ ]` | 视口状态就 5 个数：`{width, height, scale, offsetX, offsetY}`，初值 `1000/620/1/0/0`                      |
-| `[ ]` | 屏→世界与世界→屏两个互逆函数，坐标 3 位小数，**越界返回 null**                                            |
-| `[ ]` | 面板尺寸来自 `getBoundingClientRect()` + `ResizeObserver`，卸载时 disconnect                              |
+|       | 项                                                                                                        | 核销                                                                       |
+| ----- | --------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------- |
+| `[x]` | `viewBox="0 0 (w\|\|1000) (h\|\|620)"`，SVG CSS 尺寸 100% → 1 viewBox 单位 = 1 CSS px                     | 🟢 `SceneMap.vue:411,413`，兜底值同                                        |
+| `[x]` | `stageTransform` = `translate(offset) scale(s, -s) translate(-minX, -maxY)`，**Y 轴翻转**，锚点世界左上角 | 🟢 `SceneMap.vue:379-387`，三段顺序逐字一致                                |
+| `[x]` | 视口状态就 5 个数：`{width, height, scale, offsetX, offsetY}`，初值 `1000/620/1/0/0`                      | 🟢 `useSvgViewport.ts:118-124`                                             |
+| `[x]` | 屏→世界与世界→屏两个互逆函数，坐标 3 位小数，**越界返回 null**                                            | 🟢 `useSvgViewport.ts:250-274,276-294`；新增可选 `rect` 入参（9.3 的一半） |
+| `[x]` | 面板尺寸来自 `getBoundingClientRect()` + `ResizeObserver`，卸载时 disconnect                              | 🟢 `useSvgViewport.ts:475-481,610-617`                                     |
 
 ### 3.2 平移
 
-|       | 项                                                                | 现状                        | 去留                      |
-| ----- | ----------------------------------------------------------------- | --------------------------- | ------------------------- |
-| `[ ]` | 5 个 pointer 事件（`pointercancel`/`pointerleave` 都路由到 up）   | `RosSceneMap.vue:368-372`   | 🟢                        |
-| `[ ]` | 仅 `button === 0` 触发（无中键/右键拖拽），用 `setPointerCapture` | `useSvgViewport.ts:545-559` | 🟢                        |
-| `[ ]` | **无任何边界约束** —— 世界可被拖到完全出屏                        | `:561-574`                  | 🟡 新前端建议加软边界     |
-| `[ ]` | `CLICK_THRESHOLD_PX = 6`，只有超过才算拖动并落盘                  | `:27,568,586-588`           | 🟢                        |
-| `[ ]` | `dragging` → `cursor: grab/grabbing`，`touch-action: none`        | `map-overlays.css:8-15`     | 🟢                        |
-| `[ ]` | 🔴 单指针：无双指缩放、无惯性                                     | —                           | 🟡 平板是真实场景，建议补 |
+|       | 项                                                                | 现状                        | 去留                                                                                       |
+| ----- | ----------------------------------------------------------------- | --------------------------- | ------------------------------------------------------------------------------------------ |
+| `[x]` | 5 个 pointer 事件（`pointercancel`/`pointerleave` 都路由到 up）   | `RosSceneMap.vue:368-372`   | 🟢 `SceneMap.vue:417-421`                                                                  |
+| `[x]` | 仅 `button === 0` 触发（无中键/右键拖拽），用 `setPointerCapture` | `useSvgViewport.ts:545-559` | 🟢 `useSvgViewport.ts:554-566`                                                             |
+| `[ ]` | **无任何边界约束** —— 世界可被拖到完全出屏                        | `:561-574`                  | 🔴 建议未采纳：`useSvgViewport.ts:576-585` 仍无 clamp                                      |
+| `[x]` | `CLICK_THRESHOLD_PX = 6`，只有超过才算拖动并落盘                  | `:27,568,586-588`           | 🟢 `useSvgViewport.ts:34,581,595`                                                          |
+| `[x]` | `dragging` → `cursor: grab/grabbing`，`touch-action: none`        | `map-overlays.css:8-15`     | 🟡 改到模板上的 `touch-none` / `cursor-grab\|grabbing`（`SceneMap.vue:411-412`），行为不变 |
+| `[ ]` | 🔴 单指针：无双指缩放、无惯性                                     | —                           | 🔴 建议未采纳：`touches`/`pinch`/`gesture` 在地图相关文件零命中。**平板是真实场景**        |
 
 ### 3.3 缩放
 
-|       | 项                                                                                                                         | 现状                    | 去留                   |
-| ----- | -------------------------------------------------------------------------------------------------------------------------- | ----------------------- | ---------------------- |
-| `[ ]` | **只有滚轮**，无缩放按钮、无双击                                                                                           | `RosSceneMap.vue:367`   | 🟡 新前端补按钮 + 键盘 |
-| `[ ]` | 固定步长 `×1.12` / `×0.88`，不随 `deltaY` 比例变化                                                                         | `useSvgViewport.ts:529` | 🟢                     |
-| `[ ]` | 缩放中心 = 光标，且**光标在世界范围外时滚轮无效**                                                                          | `:524-541`              | 🟢                     |
-| `[ ]` | min/max **相对于适应缩放**：`base = min(w/W, h/H) × 0.92`，`min = base × (minZoom ?? 0.75)`，`max = base × (maxZoom ?? 8)` | `:133-154`              | 🟢 关键：不是绝对值    |
-| `[ ]` | `minZoom/maxZoom` 来自**合并后**的场景（scenes.json ∪ metadataUrl JSON）                                                   | `RosSceneMap.vue:30-66` | 🟢                     |
-| `[ ]` | HUD 显示 `round(scale,2)+"x"`（裸 scale，不是 base 的倍数）                                                                | `RosSceneMap.vue:349`   | 🟡 显示倍数更可读      |
-| `[ ]` | ⚠️ 每个滚轮刻度一次同步 sessionStorage 读写 + 两次 `getBoundingClientRect`                                                 | `:536,542`              | ⚠️ 见 9.3              |
+|       | 项                                                                                                                         | 现状                    | 去留                                                                                                                                                                                                         |
+| ----- | -------------------------------------------------------------------------------------------------------------------------- | ----------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `[ ]` | **只有滚轮**，无缩放按钮、无双击                                                                                           | `RosSceneMap.vue:367`   | 🔴 建议未采纳：`SceneMap.vue:416`，工具栏（`:618-623`）仍只有两个按钮，无 `dblclick`/`keydown`。**这条同时是可达性缺口**                                                                                     |
+| `[x]` | 固定步长 `×1.12` / `×0.88`，不随 `deltaY` 比例变化                                                                         | `useSvgViewport.ts:529` | 🟢 `useSvgViewport.ts:539`                                                                                                                                                                                   |
+| `[x]` | 缩放中心 = 光标，且**光标在世界范围外时滚轮无效**                                                                          | `:524-541`              | 🟢 `useSvgViewport.ts:534-550`，`pointerToWorld` 返 null 即 return                                                                                                                                           |
+| `[x]` | min/max **相对于适应缩放**：`base = min(w/W, h/H) × 0.92`，`min = base × (minZoom ?? 0.75)`，`max = base × (maxZoom ?? 8)` | `:133-154`              | 🟢 仍是相对值，`useSvgViewport.ts:141-163`                                                                                                                                                                   |
+| `[x]` | `minZoom/maxZoom` 来自**合并后**的场景（scenes.json ∪ metadataUrl JSON）                                                   | `RosSceneMap.vue:30-66` | 🟢 `mergeScene()` 后交给 `resolvedScene`，`SceneMap.vue:73-105` + `useSvgViewport.ts:154-157`                                                                                                                |
+| `[ ]` | HUD 显示 `round(scale,2)+"x"`（裸 scale，不是 base 的倍数）                                                                | `RosSceneMap.vue:349`   | 🔴 建议未采纳：仍是裸 scale，`SceneMap.vue:389,613-615`                                                                                                                                                      |
+| `[x]` | ⚠️ 每个滚轮刻度一次同步 sessionStorage 读写 + 两次 `getBoundingClientRect`                                                 | `:536,542`              | ⚠️ 部分修（9.3）：rect 降为一次、写入 250ms 合并 + pagehide/visibilitychange/卸载 flush（`useSceneViewportPersistence.ts:71-111`）；`pointermove` 未合帧且注明是有意选择（`useSvgViewport.ts:568-575`）→ 13S |
 
 ### 3.4 「适应场景」与「定位车辆」—— 两个算法必须分清
 
-|       | 项                                                                                                                                                                                                 | 现状 |
-| ----- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---- |
-| `[ ]` | **适应场景** `resetView`：`scale = clamp(base × (defaultView.zoom ?? 1))`；有 `defaultView.center` 则居中它，否则 `fitWorldBounds` 居中整个 extent（留 8% 余量）                                   |
-| `[ ]` | **定位车辆** `focusSelectedDevice`：返回 `boolean`，让调用方能选择不动视口                                                                                                                         |
-| `[ ]` | 定位的位姿优先级：`fusionLoc` → `lidarLoc` → null                                                                                                                                                  |
-| `[ ]` | **无位姿 + 有僚车** → 取景整个编队 extent；**无位姿 + 无僚车** → 返回 false，视口不动                                                                                                              |
-| `[ ]` | **有位姿 + 有僚车** → `fitToRegion(regionCenteredOn(pose, extent))`                                                                                                                                |
-| `[ ]` | **`regionCenteredOn` 的意图**：直接 fit extent 会把边缘车辆推到面板边（实测 637px 面板里偏 262px）。把 extent 关于车辆位置镜像成对称框，既保证车在正中，又保证僚车全在屏内，代价是视野比紧包围盒宽 |
-| `[ ]` | `fitToRegion` 留 18% padding（`× 0.82`）                                                                                                                                                           |
-| `[ ]` | **有位姿 + 无僚车** → 固定窗口 `clamp(max(base × 1.3, viewport.width / 45))`，约 45 世界米铺满面板宽                                                                                               |
-| `[ ]` | 历史坑：`resetView` 曾在有位姿时结束于 45m 特写（1000px 面板上 ≈22.22x，只覆盖 74×88m 路网的 1/6）。**e2e 用「点适应场景后车辆偏离中心 >24px」把这个语义钉住了**                                   |
+**整节逐字等价搬迁，三个魔数与镜像框的意图注释都在。**
+
+|       | 项                                                                                                                                                                                                 | 核销                                                                                                                                                                                                         |
+| ----- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `[x]` | **适应场景** `resetView`：`scale = clamp(base × (defaultView.zoom ?? 1))`；有 `defaultView.center` 则居中它，否则 `fitWorldBounds` 居中整个 extent（留 8% 余量）                                   | 🟢 `useSvgViewport.ts:344-370`，8% 余量在 `:147`                                                                                                                                                             |
+| `[x]` | **定位车辆** `focusSelectedDevice`：返回 `boolean`，让调用方能选择不动视口                                                                                                                         | 🟢 `useSvgViewport.ts:403-439`                                                                                                                                                                               |
+| `[x]` | 定位的位姿优先级：`fusionLoc` → `lidarLoc` → null                                                                                                                                                  | 🟢 `useSvgViewport.ts:323-332`                                                                                                                                                                               |
+| `[x]` | **无位姿 + 有僚车** → 取景整个编队 extent；**无位姿 + 无僚车** → 返回 false，视口不动                                                                                                              | 🟢 `useSvgViewport.ts:409-419`                                                                                                                                                                               |
+| `[x]` | **有位姿 + 有僚车** → `fitToRegion(regionCenteredOn(pose, extent))`                                                                                                                                | 🟢 `useSvgViewport.ts:421-426`                                                                                                                                                                               |
+| `[x]` | **`regionCenteredOn` 的意图**：直接 fit extent 会把边缘车辆推到面板边（实测 637px 面板里偏 262px）。把 extent 关于车辆位置镜像成对称框，既保证车在正中，又保证僚车全在屏内，代价是视野比紧包围盒宽 | 🟢 `useSvgViewport.ts:383-395`，**262px / 637px 的实测记录原样保留在 `:372-382` 注释里**                                                                                                                     |
+| `[x]` | `fitToRegion` 留 18% padding（`× 0.82`）                                                                                                                                                           | 🟢 `useSvgViewport.ts:313`                                                                                                                                                                                   |
+| `[x]` | **有位姿 + 无僚车** → 固定窗口 `clamp(max(base × 1.3, viewport.width / 45))`，约 45 世界米铺满面板宽                                                                                               | 🟢 `useSvgViewport.ts:428-433`，常量提为 `FOCUS_WORLD_METERS = 45`                                                                                                                                           |
+| `[ ]` | 历史坑：`resetView` 曾在有位姿时结束于 45m 特写（1000px 面板上 ≈22.22x，只覆盖 74×88m 路网的 1/6）。**e2e 用「点适应场景后车辆偏离中心 >24px」把这个语义钉住了**                                   | 🟡 语义与注释都在（`useSvgViewport.ts:334-343`），但 **e2e 断言从绝对 `>24px` 改成了相对 `toBeGreaterThan(focused)`**（`console-devices.spec.ts:67-80`）。相对比较更弱：两个都很小的值也能通过 → 见节末（4） |
 
 ### 3.5 视图记忆
 
-|       | 项                                                                                                                          | 现状 |
-| ----- | --------------------------------------------------------------------------------------------------------------------------- | ---- |
-| `[ ]` | **sessionStorage**（非 local），key `navfleet:ros-scene-views:v2`，按 tab 生命周期 —— 几天前的陈旧视图比重新适应场景更困扰  |
-| `[ ]` | 形状 `{ [sceneId]: {centerX, centerY, scale, updatedAt} }`，中心 4 位、缩放 6 位小数                                        |
-| `[ ]` | `:v2` 是迁移手段：恢复路径只校验**中心越界**、不校验离谱**缩放**，所以靠升 key 淘汰历史 22.22x 条目                         |
-| `[ ]` | **7 个写入点**：滚轮 / 拖动释放（仅超阈值）/ 适应场景 ×2 / 定位车辆 ×3 / 恢复成功后回写 / resize 同步 / bounds watcher      |
-| `[ ]` | 恢复校验：条目存在 + 中心在 `effectiveWorldBounds` 内 + scale 有限，且 scale 按当前面板重新 clamp                           |
-| `[ ]` | 恢复优先级：`restore → focusSelectedDevice → resetView`                                                                     |
-| `[ ]` | 开屏落在**已定位的车辆**而非场景适应，是有意的（场景适应曾让车偏离中心 276px、距边 59px，操作员每次进来都要点一次定位车辆） |
-| `[ ]` | 跨刷新（同 tab）保留，e2e 断言刷新后车辆仍 `<24px` 偏移；新 tab 从空开始                                                    |
-| `[ ]` | 跨场景切换：`activeSceneId` watcher 清 `hydratedSceneId` 触发重新 hydrate，各场景条目互不影响                               |
-| `[ ]` | 设置页显示已保存场景数并可一键清除                                                                                          |
+|       | 项                                                                                                                          | 核销                                                                                                                                                                                                                   |
+| ----- | --------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `[x]` | **sessionStorage**（非 local），key `navfleet:ros-scene-views:v2`，按 tab 生命周期 —— 几天前的陈旧视图比重新适应场景更困扰  | 🟢 键与生命周期都没改，`useSceneViewportPersistence.ts:25,42-50`                                                                                                                                                       |
+| `[x]` | 形状 `{ [sceneId]: {centerX, centerY, scale, updatedAt} }`，中心 4 位、缩放 6 位小数                                        | 🟢 `useSvgViewport.ts:205-210` + `useSceneViewportPersistence.ts:33-38`                                                                                                                                                |
+| `[x]` | `:v2` 是迁移手段：恢复路径只校验**中心越界**、不校验离谱**缩放**，所以靠升 key 淘汰历史 22.22x 条目                         | 🟢 注释把「不校验缩放」这个前提一并保留，`useSceneViewportPersistence.ts:22-25`                                                                                                                                        |
+| `[x]` | **7 个写入点**：滚轮 / 拖动释放（仅超阈值）/ 适应场景 ×2 / 定位车辆 ×3 / 恢复成功后回写 / resize 同步 / bounds watcher      | 🟢 七类全在：`useSvgViewport.ts:551,595,364,369,414,423,435,238,495,669`                                                                                                                                               |
+| `[x]` | 恢复校验：条目存在 + 中心在 `effectiveWorldBounds` 内 + scale 有限，且 scale 按当前面板重新 clamp                           | 🟢 `useSvgViewport.ts:214-240`                                                                                                                                                                                         |
+| `[x]` | 恢复优先级：`restore → focusSelectedDevice → resetView`                                                                     | 🟢 `useSvgViewport.ts:468-470`                                                                                                                                                                                         |
+| `[x]` | 开屏落在**已定位的车辆**而非场景适应，是有意的（场景适应曾让车偏离中心 276px、距边 59px，操作员每次进来都要点一次定位车辆） | 🟢 276px / 59px 实测在 `useSvgViewport.ts:441-451` 注释里；e2e `console-devices.spec.ts:55-65`                                                                                                                         |
+| `[ ]` | 跨刷新（同 tab）保留，e2e 断言刷新后车辆仍 `<24px` 偏移；新 tab 从空开始                                                    | 🟡 存储能力在（`useSceneViewportPersistence.ts:42-69`），但 **「刷新后车辆仍 `<24px`」这条断言没搬** —— reload 后的 e2e 只断言底图/版式偏好存活（`console-devices.spec.ts:96-113`）→ 见节末（4）                       |
+| `[x]` | 跨场景切换：`activeSceneId` watcher 清 `hydratedSceneId` 触发重新 hydrate，各场景条目互不影响                               | 🟢 `useSvgViewport.ts:624-630`；分场景隔离有单测 `test/scene-viewport.test.ts:399`                                                                                                                                     |
+| `[ ]` | 设置页显示已保存场景数并可一键清除                                                                                          | 🔴 降级：无设置页，改为诊断页「本浏览器留存」清单（只列键名 + 截断值），清除是**所有** `navfleet:` 键 + reload。**没有「N 个场景」计数、没有单项清除**，`clearSavedSceneViews` 成死代码 → 与第 7 节（3）同一处，归 13T |
 
 ### 3.6 `hasMeasuredPanel` —— hydration 门禁（**最容易被重写掉的一行**）
 
-|       | 项                                                                                                                                                                                                                                                                                                                                                              | 现状 |
-| ----- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---- |
-| `[ ]` | 模块局部 `let hasMeasuredPanel = false`，只在 `updateViewportSize` 读到非零 rect 后翻真，**从不复位**                                                                                                                                                                                                                                                           |
-| `[ ]` | `applyStoredOrDefaultView` 在 `sceneId && sceneReady && hasMeasuredPanel` 三者齐备前直接 return                                                                                                                                                                                                                                                                 |
-| `[ ]` | **它修的缺陷**：bounds watcher 带 `immediate: true`，在 setup 阶段就跑，早于 `onMounted` 测量面板，于是首屏视图按 1000×620 占位尺寸算完，`updateViewportSize` 随后只改 width/height **不动 offset**，静默作废它；ResizeObserver 再从这个自相矛盾的状态推出"上一个中心点"并忠实保住那个错的点。实测：为 1000×620 居中的车辆，在真实 637×802 面板里偏离 **274px** |
-| `[ ]` | 修复后的顺序：setup watcher 跳过 → `onMounted` 测量 → hydrate → 挂 ResizeObserver                                                                                                                                                                                                                                                                               |
-| `[ ]` | 推论：0×0 的隐藏面板会一直停在占位尺寸，直到拿到真实测量                                                                                                                                                                                                                                                                                                        |
+**核销：门禁不是摆设 —— 它在新实现里真的在 setup 期拦住了那次 `immediate` watcher。**
+
+|       | 项                                                                                                                                                                                                                                                                                                                                                              | 核销                                                                                                                                                                                                      |
+| ----- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `[x]` | 模块局部 `let hasMeasuredPanel = false`，只在 `updateViewportSize` 读到非零 rect 后翻真，**从不复位**                                                                                                                                                                                                                                                           | 🟢 `useSvgViewport.ts:139`（声明 + 注释）、`:480`（**全文件唯一赋值**，无复位路径）                                                                                                                       |
+| `[x]` | `applyStoredOrDefaultView` 在 `sceneId && sceneReady && hasMeasuredPanel` 三者齐备前直接 return                                                                                                                                                                                                                                                                 | 🟢 `useSvgViewport.ts:466`，三条件逐字一致                                                                                                                                                                |
+| `[x]` | **它修的缺陷**：bounds watcher 带 `immediate: true`，在 setup 阶段就跑，早于 `onMounted` 测量面板，于是首屏视图按 1000×620 占位尺寸算完，`updateViewportSize` 随后只改 width/height **不动 offset**，静默作废它；ResizeObserver 再从这个自相矛盾的状态推出"上一个中心点"并忠实保住那个错的点。实测：为 1000×620 居中的车辆，在真实 637×802 面板里偏离 **274px** | 🟢 因果链与 637×802 的实测数字**逐条保留在注释里**，`useSvgViewport.ts:455-465`                                                                                                                           |
+| `[x]` | 修复后的顺序：setup watcher 跳过 → `onMounted` 测量 → hydrate → 挂 ResizeObserver                                                                                                                                                                                                                                                                               | 🟢 **时机正确**：`useSvgViewport.ts:602-614` 是「`updateViewportSize()` → `applyStoredOrDefaultView` → `new ResizeObserver`」；`:624-672` 的 watcher 带 `immediate: true` 仍在 setup 期跑，确实被门禁拦住 |
+| `[x]` | 推论：0×0 的隐藏面板会一直停在占位尺寸，直到拿到真实测量                                                                                                                                                                                                                                                                                                        | 🟢 `useSvgViewport.ts:476-477` + 单测 `test/scene-viewport.test.ts:144-166`：把 rect 打成 0×0，断言 viewport 停在 1000×620 **且没有写存储**                                                               |
 
 ### 3.7 `rebaseOffsetsToBounds` —— 另一个不可省的补偿
 
-|       | 项                                                                                                                                                                                                                         | 现状 |
-| ----- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---- |
-| `[ ]` | `offsetX += (minX - prevMinX) × scale`；`offsetY -= (maxY - prevMaxY) × scale`                                                                                                                                             |
-| `[ ]` | **意图**：`stageTransform` 锚在 `minX/maxY`，lanelet overlay 落地会加宽 `effectiveWorldBounds`，整个视图随之滑动，而 watcher 接着把滑走的结果**存了下来**。实测 637px 面板里漂移 **199px**，读起来就是"地图从来没定位到车" |
-| `[ ]` | bounds watcher 四个分支顺序：同场景已 hydrate → rebase；未 hydrate → hydrate 并返回；中心缺失/越界 → hydrate 并返回；否则落盘                                                                                              |
-| `[ ]` | resize 同步：**保留缩放、不重新取景**；旧中心仍在界内则重新居中它                                                                                                                                                          |
-| `[ ]` | 选中变化 watcher：同场景内换车调 `focusSelectedDevice()`，新车无位姿则回落 `resetView()`                                                                                                                                   |
-| `[ ]` | 选中车的遥测移动**不移动视图**（世界空间是静态地图 extent），地图因此不抖                                                                                                                                                  |
+**核销：公式、符号、以及最关键的「rebase 排在 hydrate 判断之前」都在。**
+
+|       | 项                                                                                                                                                                                                                         | 核销                                                                                                                                                         |
+| ----- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `[x]` | `offsetX += (minX - prevMinX) × scale`；`offsetY -= (maxY - prevMaxY) × scale`                                                                                                                                             | 🟢 `useSvgViewport.ts:520-528`，公式与**符号**一致（Y 是减，因为锚在 maxY）                                                                                  |
+| `[x]` | **意图**：`stageTransform` 锚在 `minX/maxY`，lanelet overlay 落地会加宽 `effectiveWorldBounds`，整个视图随之滑动，而 watcher 接着把滑走的结果**存了下来**。实测 637px 面板里漂移 **199px**，读起来就是"地图从来没定位到车" | 🟢 `useSvgViewport.ts:505-519`；单测 `test/scene-viewport.test.ts:320-346` 真的改 bounds 后反算屏心，断言世界中心不动                                        |
+| `[x]` | bounds watcher 四个分支顺序：同场景已 hydrate → rebase；未 hydrate → hydrate 并返回；中心缺失/越界 → hydrate 并返回；否则落盘                                                                                              | 🟢 `useSvgViewport.ts:642-670` 顺序一致，**rebase 在 hydrate 判断之前执行**；`previous?.[3]`=minX、`previous?.[6]`=maxY 与 `:633-641` 的数组下标对得上       |
+| `[x]` | resize 同步：**保留缩放、不重新取景**；旧中心仍在界内则重新居中它                                                                                                                                                          | 🟢 `useSvgViewport.ts:483-503`                                                                                                                               |
+| `[x]` | 选中变化 watcher：同场景内换车调 `focusSelectedDevice()`，新车无位姿则回落 `resetView()`                                                                                                                                   | 🟢 `useSvgViewport.ts:674-701`                                                                                                                               |
+| `[x]` | 选中车的遥测移动**不移动视图**（世界空间是静态地图 extent），地图因此不抖                                                                                                                                                  | 🟢 `SceneMap.vue:189-202`：`effectiveWorldBounds` 只由背景层 / overlay / 配置 bounds 组成；设备位姿只进 `deviceExtentBounds`（`:285-301`），而那个只喂 focus |
 
 ### 3.8 三类底图
 
-|       | 项                                                                                                                                              | 现状                                   | 去留      |
-| ----- | ----------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------- | --------- |
-| `[ ]` | 世界范围仲裁：lanelet 有 bounds 且无背景层 → **只用 lanelet bounds**（忽略配置 bounds）；否则三者取并集                                         | `RosSceneMap.vue:155-169`              | 🟢        |
-| `[ ]` | `hasBounds` 要求 4 个有限数**且** `maxX>minX && maxY>minY`，退化框视为不存在                                                                    | `:22-28`                               | 🟢        |
-| `[ ]` | **栅格 SVG**：需 `imageUrl` + 5 个有限数；`transform` 反向翻转抵消 stage 的 Y 翻转，`preserveAspectRatio="none"`，`image-rendering="pixelated"` | `:80-107,390-400`                      | 🟢        |
-| `[ ]` | ⚠️ 栅格图 HTTP 失败**完全静默**（破图，无错误 UI、无 toast）                                                                                    | `:390-400`                             | ⚠️ 见 9.4 |
-| `[ ]` | **点云**：PCD 二进制 → 离屏 canvas 栅格化 → PNG dataURL → 塞回 SVG `<image>`                                                                    | `point-cloud.ts:292-337`               | 🟢        |
-| `[ ]` | PCD 只支持 `DATA binary`（前 64KiB 内找头），否则抛「暂不支持当前 PCD 格式…」                                                                   | `:46,72-127`                           | 🟢        |
-| `[ ]` | z 分带分类：obstacle → 2、floor → 1、**两带都没配 → 全算 floor**；obstacle 每格胜过 floor                                                       | `:208-237,280-283`                     | 🟢        |
-| `[ ]` | 像素配色：obstacle `rgb(182,237,255)` alpha≥164；floor `rgb(108,132,148)` alpha 64-146；class 0 全透明。**行序翻转**以对齐 Y 翻转               | `:305-329`                             | 🟢        |
-| `[ ]` | 缓存：模块级 `Map<key, Promise>`，key 含 url+几何参数；**缓存 promise**（并发去重），失败删 key 可重试，成功**永不淘汰**                        | `:44,347-374`                          | 🟢        |
-| `[ ]` | 竞态守卫：单调 `pointCloudRequestId`，过期结果丢弃，卸载时递增以放弃在途                                                                        | `useSceneOverlay.ts:38,83-101,141-143` | 🟢        |
-| `[ ]` | 点云失败 → 常驻 `.ros-warning` 卡「点云背景加载失败」+ 原因，**与空态不互斥**                                                                   | `RosSceneMap.vue:579-582`              | 🟢        |
-| `[ ]` | 🔴 点云**无加载指示**（加载中退回栅格图或无底图）                                                                                               | —                                      | 🟡 补     |
-| `[ ]` | **Lanelet2**：前端不读 `osmUrl`，后端转成 `overlayUrl` JSON；失败 → overlay=null + toast「路网覆盖层加载失败，地图将不显示车道线。」            | `useSceneOverlay.ts:40-58`             | 🟢        |
-| `[ ]` | ⚠️ overlay/metadata **无 request-id 守卫**（点云有），慢请求可能跨场景落地                                                                      | `:40-80`                               | ⚠️ 见 9.5 |
-| `[ ]` | metadata 失败 → toast「场景元数据加载失败，地图可能无法正确定位。」                                                                             | `:61-80`                               | 🟢        |
-| `[ ]` | 🔴 overlay / metadata 均**无加载态**                                                                                                            | —                                      | 🟡 补     |
+|       | 项                                                                                                                                              | 现状                                   | 去留                                                                                                                                                                                                                                                                                                           |
+| ----- | ----------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `[x]` | 世界范围仲裁：lanelet 有 bounds 且无背景层 → **只用 lanelet bounds**（忽略配置 bounds）；否则三者取并集                                         | `RosSceneMap.vue:155-169`              | 🟢 `SceneMap.vue:194-202`                                                                                                                                                                                                                                                                                      |
+| `[x]` | `hasBounds` 要求 4 个有限数**且** `maxX>minX && maxY>minY`，退化框视为不存在                                                                    | `:22-28`                               | 🟢 `SceneMap.vue:57-63`                                                                                                                                                                                                                                                                                        |
+| `[x]` | **栅格 SVG**：需 `imageUrl` + 5 个有限数；`transform` 反向翻转抵消 stage 的 Y 翻转，`preserveAspectRatio="none"`，`image-rendering="pixelated"` | `:80-107,390-400`                      | 🟢 `SceneMap.vue:127-155,440-453`                                                                                                                                                                                                                                                                              |
+| `[ ]` | ⚠️ 栅格图 HTTP 失败**完全静默**（破图，无错误 UI、无 toast）                                                                                    | `:390-400`                             | ⚠️ **未修（9.4）**：`SceneMap.vue:440-453` 的 `<image>` 无 `@error`，全文件无 image 错误态 → 13S                                                                                                                                                                                                               |
+| `[x]` | **点云**：PCD 二进制 → 离屏 canvas 栅格化 → PNG dataURL → 塞回 SVG `<image>`                                                                    | `point-cloud.ts:292-337`               | 🟡 管线不变，拆成两半：算术进 `packages/fleet-core/src/pointCloud.ts:274-340,393-432`（因此可测），canvas/`toDataURL` 留在 `lib/pointCloudBackdrop.ts:88-116`                                                                                                                                                  |
+| `[x]` | PCD 只支持 `DATA binary`（前 64KiB 内找头），否则抛「暂不支持当前 PCD 格式…」                                                                   | `:46,72-127`                           | 🟢 文案一致，`pointCloud.ts:81,92-105`                                                                                                                                                                                                                                                                         |
+| `[x]` | z 分带分类：obstacle → 2、floor → 1、**两带都没配 → 全算 floor**；obstacle 每格胜过 floor                                                       | `:208-237,280-283`                     | 🟢 `pointCloud.ts:242-271,324-329`                                                                                                                                                                                                                                                                             |
+| `[x]` | 像素配色：obstacle `rgb(182,237,255)` alpha≥164；floor `rgb(108,132,148)` alpha 64-146；class 0 全透明。**行序翻转**以对齐 Y 翻转               | `:305-329`                             | 🟡 **改成主题参数而不是照搬**：颜色与 alpha 下限走 palette（`usePointCloudPalette.ts:88-95`、`styles/semantic.css:67-74,131-138`），v1 的值降为 `FALLBACK`/`LEGACY_ALPHA`；浅色主题把 obstacle alpha 下限提到 220（不提则在近白底上代数上无解）。floor 的 64-146 与行序翻转（`pointCloud.ts:401-404`）原样保留 |
+| `[x]` | 缓存：模块级 `Map<key, Promise>`，key 含 url+几何参数；**缓存 promise**（并发去重），失败删 key 可重试，成功**永不淘汰**                        | `:44,347-374`                          | 🟡 promise 缓存与失败删 key 保留；key **加入 palette**（否则换主题吃到旧 PNG），「永不淘汰」有意改为 LRU 上限 6，理由写在头注释（`lib/pointCloudBackdrop.ts:47-70,124-149`）                                                                                                                                   |
+| `[x]` | 竞态守卫：单调 `pointCloudRequestId`，过期结果丢弃，卸载时递增以放弃在途                                                                        | `useSceneOverlay.ts:38,83-101,141-143` | 🟢 `useSceneOverlay.ts:48,88-108,152-156`                                                                                                                                                                                                                                                                      |
+| `[x]` | 点云失败 → 常驻 `.ros-warning` 卡「点云背景加载失败」+ 原因，**与空态不互斥**                                                                   | `RosSceneMap.vue:579-582`              | 🟢 `SceneMap.vue:643-650` 是独立 `v-if`，与两个空态无 `v-else` 关系                                                                                                                                                                                                                                            |
+| `[ ]` | 🔴 点云**无加载指示**（加载中退回栅格图或无底图）                                                                                               | —                                      | 🔴 建议未采纳：`useSceneOverlay.ts:43-46` 只有 `pointCloudError`，无 loading ref                                                                                                                                                                                                                               |
+| `[x]` | **Lanelet2**：前端不读 `osmUrl`，后端转成 `overlayUrl` JSON；失败 → overlay=null + toast「路网覆盖层加载失败，地图将不显示车道线。」            | `useSceneOverlay.ts:40-58`             | 🟢 文案一致并加 `dedupeKey`，`useSceneOverlay.ts:56-70`                                                                                                                                                                                                                                                        |
+| `[ ]` | ⚠️ overlay/metadata **无 request-id 守卫**（点云有），慢请求可能跨场景落地                                                                      | `:40-80`                               | ⚠️ **部分修（9.5）**：守卫只有点云那条（`useSceneOverlay.ts:88-108`），`loadOverlay`/`loadMetadata`（`:56,72`）仍无 → 13S                                                                                                                                                                                      |
+| `[x]` | metadata 失败 → toast「场景元数据加载失败，地图可能无法正确定位。」                                                                             | `:61-80`                               | 🟢 `useSceneOverlay.ts:72-86`                                                                                                                                                                                                                                                                                  |
+| `[ ]` | 🔴 overlay / metadata 均**无加载态**                                                                                                            | —                                      | 🔴 建议未采纳：同上 `useSceneOverlay.ts:43-46`                                                                                                                                                                                                                                                                 |
 
 ### 3.9 叠加层要素（绘制顺序 = DOM 顺序）
 
-|       | 要素                                  | 编码要点                                                                                                |
-| ----- | ------------------------------------- | ------------------------------------------------------------------------------------------------------- |
-| `[ ]` | 画布底色 rect                         | `--ros-canvas`，`!sceneReady` 时也画                                                                    |
-| `[ ]` | 世界底色 rect                         | `--ros-free`；有 overlay 且无背景层时切 `--ros-lanelet-bg`                                              |
-| `[ ]` | extent 描边                           | ⚠️ 硬编码 `rgba(15,28,39,0.56)`，**未主题化**                                                           |
-| `[ ]` | lanelet 左右边界                      | `--ros-lanelet-line`，2.4 宽，round cap，`non-scaling-stroke`；左右各一趟 `v-for`                       |
-| `[ ]` | lanelet 中心线                        | `--ros-lanelet-center`，1.3 宽，虚线 `10 8`                                                             |
-| `[ ]` | 融合定位标记                          | 环 r=24（`pulse 2.2s` 动画）+ 核心圆 r=10（brand 描边 3）+ 箭头，`rotate(90 - deg(yaw))`                |
-| `[ ]` | 激光定位标记                          | 环 r=20 + **16×16 rect 旋转 45°**（菱形，warning 描边）+ 箭头 0.92 缩放                                 |
-| `[ ]` | 朝向算法                              | `angle = 90 - round(yaw × 180/π, 1)`，yaw 非有限则 0。把 ROS 的"从 +X 轴逆时针弧度"换成 SVG 旋转        |
-| `[ ]` | 屏幕不变尺寸                          | `1/max(scale, 1e-4)` 逆缩放，保持标记像素尺寸恒定**并把文字翻正**                                       |
-| `[ ]` | 僚车标记                              | 圆 r=7，默认白底深描边；`data-tone` 只覆盖 critical/warning/notice（normal/offline 保持白）             |
-| `[ ]` | 僚车标签                              | **始终显示**（与 GPS 的 hover-only 不同），9px 粗体 + `paint-order: stroke` 描边光晕                    |
-| `[ ]` | 选中态                                | 🔴 ROS 图**没有**逐车选中样式；选中车靠"哪些标记形状存在"表达 + 脉冲环                                  |
-| `[ ]` | fusion↔lidar 连线                     | `--ros-link`，2 宽，虚线 `8 6`，两点都存在时才画                                                        |
-| `[ ]` | 选中轨迹                              | `rgba(96,197,255,.85)`，2.4 宽，虚线 `2 5`，带 drop-shadow                                              |
-| `[ ]` | 僚车轨迹                              | `rgba(148,176,214,.4)`，1.6 宽，虚线 `2 6`；`data-tone` 只覆盖 critical/warning                         |
-| `[ ]` | 轨迹上游                              | 实时：`TRAIL_MIN_DISTANCE = 0.12m` 去抖 + `TRAIL_MAX_POINTS = 240` 截断；回放：窗口起点→cursor 全量重建 |
-| `[ ]` | ⚠️ 路径构建                           | 非有限点被丢弃但**其余仍拼接**，缺口被静默直连；首点被丢则路径以 `L` 开头                               |
-| `[ ]` | HUD                                   | 两卡：场景名 / `Nx` 缩放                                                                                |
-| `[ ]` | 图例                                  | 路网覆盖（有 overlay 时）/ 点云背景（**含加载中与失败后**）/ 融合定位、激光定位（**无条件**）           |
-| `[ ]` | 工具栏                                | 仅两个按钮：适应场景、定位车辆                                                                          |
-| `[ ]` | 🔴 **无坐标网格、无比例尺、无坐标轴** | 唯一空间线索是 extent 描边 + HUD 数字 → 🟡 新前端建议补比例尺                                           |
+|       | 要素                                  | 编码要点                                                                                                | 核销                                                                                                                                                                                     |
+| ----- | ------------------------------------- | ------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `[x]` | 画布底色 rect                         | `--ros-canvas`，`!sceneReady` 时也画                                                                    | 🟢 `SceneMap.vue:423-427,681-683`，在 `v-if="sceneReady"` 之外                                                                                                                           |
+| `[ ]` | 世界底色 rect                         | `--ros-free`；有 overlay 且无背景层时切 `--ros-lanelet-bg`                                              | 🔴 **切换分支没搬**：恒为 `--color-ros-free` + `opacity .35`（`SceneMap.vue:430-436`）。`--color-ros-lanelet-bg` 定义在 `semantic.css:63,128` 但**组件层零消费者** → 见节末（2）         |
+| `[x]` | extent 描边                           | ⚠️ 硬编码 `rgba(15,28,39,0.56)`，**未主题化**                                                           | ⚠️ 已修（9.27）：`var(--color-map-grid)`，`SceneMap.vue:479-486,688-692`                                                                                                                 |
+| `[ ]` | lanelet 左右边界                      | `--ros-lanelet-line`，2.4 宽，round cap，`non-scaling-stroke`；左右各一趟 `v-for`                       | 🟡 结构与两趟 `v-for` 照搬（`SceneMap.vue:456-469`），但宽 2.4→1.5 且 **`stroke-linecap: round` 未保留** → 见节末（4）                                                                   |
+| `[ ]` | lanelet 中心线                        | `--ros-lanelet-center`，1.3 宽，虚线 `10 8`                                                             | 🟡 1.3→1，`10 8`→`6 5`（`SceneMap.vue:470-476,699-704`）                                                                                                                                 |
+| `[ ]` | 融合定位标记                          | 环 r=24（`pulse 2.2s` 动画）+ 核心圆 r=10（brand 描边 3）+ 箭头，`rotate(90 - deg(yaw))`                | 🔴 几何与 `rotate` 结构逐字照搬（`SceneMap.vue:534-560`），但**`pulse 2.2s` 整体不存在**；核心圆改实心 brand + surface 描边 2 → 见节末（1）                                              |
+| `[ ]` | 激光定位标记                          | 环 r=20 + **16×16 rect 旋转 45°**（菱形，warning 描边）+ 箭头 0.92 缩放                                 | 🟡 环 / 菱形 / 0.92 全在（`SceneMap.vue:562-600`）；配色 `--warning` → `--color-notice`，rect 加 `rx/ry=3`；同样无脉冲                                                                   |
+| `[x]` | 朝向算法                              | `angle = 90 - round(yaw × 180/π, 1)`，yaw 非有限则 0。把 ROS 的"从 +X 轴逆时针弧度"换成 SVG 旋转        | 🟢 `SceneMap.vue:303-306`                                                                                                                                                                |
+| `[x]` | 屏幕不变尺寸                          | `1/max(scale, 1e-4)` 逆缩放，保持标记像素尺寸恒定**并把文字翻正**                                       | 🟢 `SceneMap.vue:401-404`                                                                                                                                                                |
+| `[ ]` | 僚车标记                              | 圆 r=7，默认白底深描边；`data-tone` 只覆盖 critical/warning/notice（normal/offline 保持白）             | 🟡 r=7 在（`SceneMap.vue:517-523,767-783`）；默认填充改 `--color-offline`（不再白底），且新增 `[data-tone="normal"]`→brand ——**normal 不再保持中性色**，「有颜色」不再等于「有状态」     |
+| `[ ]` | 僚车标签                              | **始终显示**（与 GPS 的 hover-only 不同），9px 粗体 + `paint-order: stroke` 描边光晕                    | 🟡 始终显示保留（`SceneMap.vue:524-526,784-789`）；改 11px 常规字，**`font-weight` 与 `paint-order` 描边光晕都没保留** → 见节末（4）                                                     |
+| `[ ]` | 选中态                                | 🔴 ROS 图**没有**逐车选中样式；选中车靠"哪些标记形状存在"表达 + 脉冲环                                  | 🔴 仍无 selected 类；**脉冲环没了之后表达手段只剩形状存在与否** → 见节末（1）                                                                                                            |
+| `[ ]` | fusion↔lidar 连线                     | `--ros-link`，2 宽，虚线 `8 6`，两点都存在时才画                                                        | 🟡 条件逻辑在（`SceneMap.vue:315-319`）；宽 2→1，`8 6`→`3 4`                                                                                                                             |
+| `[ ]` | 选中轨迹                              | `rgba(96,197,255,.85)`，2.4 宽，虚线 `2 5`，带 drop-shadow                                              | 🟡 颜色 token 化，宽 2.4→2；**`2 5` 虚线与 drop-shadow 都没搬，成了实线**（`SceneMap.vue:496-501,719-722`）→ 见节末（4）                                                                 |
+| `[ ]` | 僚车轨迹                              | `rgba(148,176,214,.4)`，1.6 宽，虚线 `2 6`；`data-tone` 只覆盖 critical/warning                         | 🟡 宽 1.6→2，`2 6` 未保留；`data-tone` 扩到 notice/normal（`SceneMap.vue:488-495,723-738`）                                                                                              |
+| `[x]` | 轨迹上游                              | 实时：`TRAIL_MIN_DISTANCE = 0.12m` 去抖 + `TRAIL_MAX_POINTS = 240` 截断；回放：窗口起点→cursor 全量重建 | 🟢 常量同值（`fleetNormalize.ts:619-620`、`stores/fleet.ts:545-549`）；回放改增量维护 + scrub 时 `rebuildTrail(upTo)`，结果等价（`useHistoryPlayback.ts:107-123,163`）—— 这是 9.2 的修法 |
+| `[ ]` | ⚠️ 路径构建                           | 非有限点被丢弃但**其余仍拼接**，缺口被静默直连；首点被丢则路径以 `L` 开头                               | ⚠️ **未修（9.28）**：`SceneMap.vue:227-235` 的 `index === 0` 用的是原数组下标 → 13S                                                                                                      |
+| `[x]` | HUD                                   | 两卡：场景名 / `Nx` 缩放                                                                                | 🟢 `SceneMap.vue:604-616`                                                                                                                                                                |
+| `[x]` | 图例                                  | 路网覆盖（有 overlay 时）/ 点云背景（**含加载中与失败后**）/ 融合定位、激光定位（**无条件**）           | 🟢 四项条件一致（`SceneMap.vue:631-639`）；路网覆盖多了 `· N 段`，由 e2e `console-devices.spec.ts:83-94` 断言 —— 那是 v1.0.0 载荷里带了却没渲染的 `stats.laneletCount`                   |
+| `[x]` | 工具栏                                | 仅两个按钮：适应场景、定位车辆                                                                          | 🟢 `SceneMap.vue:618-623`                                                                                                                                                                |
+| `[ ]` | 🔴 **无坐标网格、无比例尺、无坐标轴** | 唯一空间线索是 extent 描边 + HUD 数字 → 🟡 新前端建议补比例尺                                           | 🔴 建议未采纳：`--color-map-scale` **已定义（`semantic.css:70`）但组件层零消费者** —— 比例尺没做，token 先备好了                                                                         |
 
 ### 3.10 ROS 图空态
 
-|       | 分支                                                                               | 触发                     | 文案                                              |
-| ----- | ---------------------------------------------------------------------------------- | ------------------------ | ------------------------------------------------- |
-| `[ ]` | 警告（独立，可与下面并存）                                                         | `pointCloudError`        | 点云背景加载失败 + 原因                           |
-| `[ ]` | 空态 1                                                                             | `!sceneReady`            | 暂无可用地图 / 当前场景缺少有效的 ROS 地图元数据… |
-| `[ ]` | 空态 2                                                                             | 有场景但无融合也无激光点 | 暂无 ROS 位姿 / …地图仍可用于查看当前场景。       |
-| `[ ]` | ⚠️ 两个空态是 `inset:0` 且**无 `pointer-events:none`**，显示时会吞掉滚轮与指针事件 |                          | ⚠️ 见 9.7                                         |
+|       | 分支                                                                               | 触发                     | 核销                                                                                                                                                                                                              |
+| ----- | ---------------------------------------------------------------------------------- | ------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `[x]` | 警告（独立，可与下面并存）                                                         | `pointCloudError`        | 🟢 `SceneMap.vue:643-650`，仍是独立 `v-if`                                                                                                                                                                        |
+| `[x]` | 空态 1                                                                             | `!sceneReady`            | 🟢 `SceneMap.vue:652-660`，文案「有效的 ROS 地图元数据」→「有效的地图元数据」                                                                                                                                     |
+| `[x]` | 空态 2                                                                             | 有场景但无融合也无激光点 | 🟢 `SceneMap.vue:661-669`，标题「暂无 ROS 位姿」→「暂无场景位姿」                                                                                                                                                 |
+| `[ ]` | ⚠️ 两个空态是 `inset:0` 且**无 `pointer-events:none`**，显示时会吞掉滚轮与指针事件 |                          | ⚠️ **部分修（9.7）**：空态 2 已加 `pointer-events-none` 并改 `inset-x-0 top-1/2`（`SceneMap.vue:663`）；**空态 1 仍是 `absolute inset-0` + `bg-surface/80` 无 `pointer-events-none`**（`:654`），照旧吞事件 → 13S |
+
+**本节丢了的 4 项，以及一批静默的视觉降级：**
+
+1. **新前端一个 CSS keyframe 都没有 —— 这是一个决定，不是三次遗漏。**
+   `frontend-next/src` 里 `@keyframes` 零命中；v1.0.0 有三个，而且**三个都在编码「这东西是活的 / 这是
+   此刻选中的那一个」**：`realtime-pulse`（顶栏实时状态点）、`pulse`（GPS 选中 marker）、
+   `skeleton-sweep`（骨架屏）。对一个实时监控台来说「这数据是活的吗」几乎是最重要的问题，而它现在
+   完全靠文字回答。**文字这一层是净增强**（`AppTopBar.vue:20-23` 的注释说得对：只变色调的点对色盲
+   操作员什么也没说），但**前注意力通道被整个取消了** —— 值班的人得读字才知道链路还活着。
+   ROS 图受影响最深：它本来就没有逐车选中样式，脉冲环是选中态的**唯一**动态表达，现在只剩「哪些
+   标记形状存在」。`prefers-reduced-motion` 的守卫还在（`styles/base.css:67-77`），只是没有东西要它守。
+   → **13T**，且要和第 4 节的 GPS `pulse`、第 7 节的骨架屏合成**一个决定**来做，而不是三处分别补
+2. **世界底色的 `lanelet-mode` 分支没搬。** 纯 lanelet 场景（有路网、无栅格底图）不再换底色，
+   `--color-ros-lanelet-bg` 成了**定义了但组件层零消费者的 token**。→ **13T**
+3. **视图记忆的设置页入口降级**（与第 7 节（3）同一处）：「N 个场景 + 单项清除」→ 诊断页整体清除，
+   `clearSavedSceneViews` 成死代码。→ **13T**
+4. **一批视觉编码被静默简化，全部没有注释说明。** lanelet 边界的 `round` cap；选中轨迹的 `2 5`
+   虚线 + drop-shadow（**现在是实线**）；僚车轨迹的 `2 6` 虚线；僚车标签的 9px 粗体 +
+   `paint-order: stroke` 描边光晕（浅色底图上少了对比补偿）。另有两处**语义**变化值得单列：
+   僚车标记默认填充从白改为 `--color-offline` 且 `normal` 也被染成 brand，于是
+   **「有颜色」不再等于「有状态」**；激光标记配色从 `--warning` 换成 `--color-notice`。
+   两条轨迹现在只靠颜色与透明度区分 —— 在深色底图上这是最弱的一种区分。→ **13T**
+
+**另有一处回归保护变弱**（不是能力损失，但要记）：e2e 里「刷新后车辆仍 `<24px`」的断言**没有搬过来**
+—— reload 用例只断言底图与版式偏好存活（`console-devices.spec.ts:96-113`），而 3.5 的存储能力是在的。
+「适应场景」的断言也从绝对 `>24px` 改成了相对比较（`:67-80`）。**存储能力在，钉住它的那颗钉子松了。**
 
 ## 4. GPS 地图（`GpsMap.vue` 311 + `utils/amap.ts` 91）
 
