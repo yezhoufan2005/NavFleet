@@ -1,5 +1,6 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 import { createPinia, setActivePinia } from "pinia";
+import { createMemoryHistory, createRouter } from "vue-router";
 import { enableAutoUnmount, flushPromises, mount } from "@vue/test-utils";
 import { fleetApi } from "@navfleet/fleet-core";
 import DevicesView from "@/views/DevicesView.vue";
@@ -540,8 +541,22 @@ describe("the GPS map against a fake SDK", () => {
 });
 
 describe("the devices page", () => {
+  /**
+   * With a router, because the list now links to each vehicle's detail page rather than
+   * only moving the map's selection — see the note in `DevicesView.vue`. Without one,
+   * `RouterLink` throws from inside its own resolve.
+   */
   const mountPage = async () => {
-    const wrapper = mount(DevicesView, { attachTo: document.body });
+    const router = createRouter({
+      history: createMemoryHistory(),
+      routes: [{ path: "/:rest(.*)*", component: { template: "<i />" } }],
+    });
+    await router.push("/devices");
+    await router.isReady();
+    const wrapper = mount(DevicesView, {
+      attachTo: document.body,
+      global: { plugins: [router] },
+    });
     await flushPromises();
     return wrapper;
   };
@@ -566,10 +581,46 @@ describe("the devices page", () => {
     seed(3);
     const wrapper = await mountPage();
 
-    await wrapper.find("button[aria-pressed='false']").trigger("click");
+    // Scoped to the 视图 group. The old form — the first `aria-pressed="false"`
+    // button on the page — silently started hitting the 底图 toggle when that group
+    // moved ahead of this one, and then asserted nothing.
+    await wrapper
+      .get("[aria-label='视图']")
+      .findAll("button")
+      .find((button) => button.text() === "列表")!
+      .trigger("click");
     await flushPromises();
 
     expect(wrapper.text()).not.toContain("按车队规模自动选择");
+  });
+
+  it("puts the appearing group before the permanent one, so buttons stay put", async () => {
+    // `PageHeader` right-anchors the actions, so a group that appears on the *right*
+    // pushes 视图 sideways every time you switch to the map — the control moves out
+    // from under the pointer. Ordering it first is what keeps 视图 anchored.
+    seed(3);
+    const wrapper = await mountPage();
+    const groups = wrapper
+      .findAll("[role='group']")
+      .map((group) => group.attributes("aria-label"));
+
+    expect(groups).toEqual(["底图", "视图"]);
+  });
+
+  it("opens the selected vehicle from the map's own list", async () => {
+    // The map panel's rows select rather than navigate — that is their job, the map has
+    // to be told what to centre on. But detail still has to be reachable from the map
+    // (`frontend-ia.md`: from the list, the map or an alert), so the selection carries
+    // one link.
+    seed(3);
+    const wrapper = await mountPage();
+    const link = wrapper
+      .findAll("aside a")
+      .find((anchor) => anchor.text().includes("打开详情"));
+
+    expect(link?.attributes("href")).toBe(
+      `/devices/${store.state.selectedDeviceId}`,
+    );
   });
 
   it("offers the surface toggle only while a map is showing", async () => {
@@ -600,7 +651,10 @@ describe("the devices page", () => {
     expect(wrapper.findComponent(SceneMap).exists()).toBe(true);
   });
 
-  it("lists every device with its status, and selects the one clicked", async () => {
+  it("lists every device, and each row opens that vehicle", async () => {
+    // The bug the manual review found: this cell used to be a button that only moved
+    // the map's selection, so a healthy vehicle's detail page — and the four tabs on
+    // it — could not be reached by clicking anything at all.
     seed(2);
     const wrapper = await mountPage();
     const list = wrapper
@@ -613,10 +667,14 @@ describe("the devices page", () => {
     expect(wrapper.text()).toContain("AGV 2");
 
     const second = wrapper
-      .findAll("tbody button")
-      .find((button) => button.text() === "AGV 2");
-    await second?.trigger("click");
+      .findAll("tbody a")
+      .find((link) => link.text() === "AGV 2");
+    expect(second?.attributes("href")).toBe("/devices/agv-02");
 
+    await second?.trigger("click");
+    await flushPromises();
+    // Navigation is the point, and the selection still follows — so coming back to
+    // the map lands on the vehicle you just looked at.
     expect(store.state.selectedDeviceId).toBe("agv-02");
   });
 

@@ -16,6 +16,7 @@
  */
 import { computed } from "vue";
 import { storeToRefs } from "pinia";
+import { RouterLink } from "vue-router";
 import PageHeader from "@/components/PageHeader.vue";
 import GpsMap from "@/components/map/GpsMap.vue";
 import SceneMap from "@/components/map/SceneMap.vue";
@@ -81,6 +82,35 @@ const TONE_DOT: Record<string, string> = {
     lede="列表与地图是同一批设备的两种投影，可随时切换。"
   >
     <template #actions>
+      <!--
+        The conditional group comes first, so it grows leftward into empty space.
+        `PageHeader` right-anchors the actions block, so a group that appears and
+        disappears on the *right* shoves the permanent one sideways every time you
+        switch to the map — the buttons move out from under the pointer.
+      -->
+      <div
+        v-if="layout === 'map'"
+        class="flex overflow-hidden rounded-sm border border-border-strong"
+        role="group"
+        aria-label="底图"
+      >
+        <button
+          v-for="option in SURFACE_OPTIONS"
+          :key="option.value"
+          type="button"
+          class="px-2.5 py-1 text-xs transition-colors duration-150 ease-standard"
+          :class="
+            surface === option.value
+              ? 'bg-brand text-brand-contrast'
+              : 'bg-surface-raised text-ink-muted hover:text-ink'
+          "
+          :aria-pressed="surface === option.value"
+          @click="setSurface(option.value)"
+        >
+          {{ option.label }}
+        </button>
+      </div>
+
       <!-- Buttons with `aria-pressed` rather than a select: three options that are
            all worth showing, and the current one has to be visible at a glance. -->
       <div
@@ -100,29 +130,6 @@ const TONE_DOT: Record<string, string> = {
           "
           :aria-pressed="layoutPreference === option.value"
           @click="setLayout(option.value)"
-        >
-          {{ option.label }}
-        </button>
-      </div>
-
-      <div
-        v-if="layout === 'map'"
-        class="flex overflow-hidden rounded-sm border border-border-strong"
-        role="group"
-        aria-label="底图"
-      >
-        <button
-          v-for="option in SURFACE_OPTIONS"
-          :key="option.value"
-          type="button"
-          class="px-2.5 py-1 text-xs transition-colors duration-150 ease-standard"
-          :class="
-            surface === option.value
-              ? 'bg-brand text-brand-contrast'
-              : 'bg-surface-raised text-ink-muted hover:text-ink'
-          "
-          :aria-pressed="surface === option.value"
-          @click="setSurface(option.value)"
         >
           {{ option.label }}
         </button>
@@ -195,6 +202,20 @@ const TONE_DOT: Record<string, string> = {
           }}</span>
           <span class="shrink-0 font-mono text-2xs">{{ row.label }}</span>
         </button>
+
+        <!--
+          Clicking a row here *selects* — that is this panel's job, because the map has
+          to be told which vehicle to centre on. But the detail page has to be reachable
+          from the map too (`frontend-ia.md`: from the list, the map or an alert), so the
+          selected vehicle gets one link rather than every row getting a second control.
+        -->
+        <RouterLink
+          v-if="fleet.selectedDevice"
+          :to="`/devices/${fleet.selectedDevice.deviceId}`"
+          class="mt-2 shrink-0 rounded-sm border border-border-strong px-2 py-2 text-center text-xs text-brand-ink transition-colors duration-150 ease-standard hover:bg-surface-sunken"
+        >
+          打开详情 →
+        </RouterLink>
       </aside>
     </div>
 
@@ -242,7 +263,7 @@ const TONE_DOT: Record<string, string> = {
             :class="
               row.device.deviceId === state.selectedDeviceId
                 ? 'bg-brand-wash'
-                : ''
+                : 'hover:bg-surface-sunken'
             "
           >
             <td class="px-3 py-2">
@@ -256,13 +277,23 @@ const TONE_DOT: Record<string, string> = {
               </span>
             </td>
             <td class="px-3 py-2">
-              <button
-                type="button"
-                class="text-left text-ink hover:text-brand-ink"
+              <!--
+                A link to the device, not a button that only moves the map's selection.
+                Until this changed, a healthy vehicle's detail page — and therefore the
+                four tabs on it — could not be reached by clicking anything: this cell
+                only called `selectDevice`, and 总览's list links but shows at most six
+                vehicles and only abnormal ones.
+
+                It still sets the selection on the way out, so coming back to the map
+                lands on the vehicle you just looked at.
+              -->
+              <RouterLink
+                :to="`/devices/${row.device.deviceId}`"
+                class="text-ink underline-offset-2 hover:text-brand-ink hover:underline"
                 @click="fleet.selectDevice(row.device.deviceId)"
               >
                 {{ row.device.deviceName || row.device.deviceId }}
-              </button>
+              </RouterLink>
             </td>
             <td class="px-3 py-2 font-mono text-xs text-ink-muted">
               {{ row.device.deviceId }}

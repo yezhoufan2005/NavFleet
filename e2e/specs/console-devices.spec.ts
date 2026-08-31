@@ -123,12 +123,23 @@ test.describe("console devices", () => {
     }
   });
 
-  test("picking a vehicle in the list selects it for the map", async ({
+  test("a row in the list opens that vehicle, and the map remembers it", async ({
     page,
   }) => {
+    // The bug the manual review found: this cell used to be a button that only moved
+    // the map's selection, so a *healthy* vehicle's detail page — and the four tabs on
+    // it — could not be reached by clicking anything. This spec previously asserted the
+    // old behaviour, which is why nothing caught it.
     await page.getByRole("button", { name: "列表", exact: true }).click();
-    await page.getByRole("button", { name: firstDevice!.deviceName }).click();
+    await page.getByRole("link", { name: firstDevice!.deviceName }).click();
 
+    await expect(page).toHaveURL(
+      new RegExp(`/devices/${firstDevice!.deviceId}$`),
+    );
+    await expect(page.getByRole("tab", { name: "实时" })).toBeVisible();
+
+    // Selection still follows, so coming back to the map lands on that vehicle.
+    await page.goBack();
     await page.getByRole("button", { name: "地图", exact: true }).click();
     await page.getByRole("button", { name: "场景", exact: true }).click();
     await expect(page.getByRole("img", { name: "ROS 场景地图" })).toBeVisible();
