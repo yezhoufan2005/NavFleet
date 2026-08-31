@@ -1290,6 +1290,21 @@ GPS 图。线索其实一直指向**场景图**：`docs/tools/check-map-contrast
 keyframe **不需要各自写退化分支**，`UiSkeleton` 自己那条仍然保留，因为它还要把渐变换成纯色块，
 不只是停掉动画。
 
+**13T-D 与 13T-E 合成一个 PR（#123），这是流程失误。** 13T-D 的勘查连续两次被中断（第二次是电脑
+休眠时的 API 错误），所以先做了不依赖勘查的 13T-E，勘查回来后又在**同一分支上**做了 13T-D。
+`AppTopBar.vue` / `stores/fleet.ts` / `device-views.test.ts` 被两批都改过，逐 hunk 拆分的风险大于收益。
+开始 13T-D 时就该另起分支。
+
+- 自检 ✅（2026-08-31，PR #123）：`npm test` 全绿 —— fleet-core **99** · backend **287** ·
+  frontend **132** · console **473 → 509**（新增 36 例：死导出断言 3 / 重试与清除轨迹 5 /
+  视觉编码 5 / 其余为两批的控件与豁免面变更）；**e2e 75/75**；lint / format:check / typecheck /
+  build 全过。
+
+  > **e2e 这次差点没跑成，口径记在这里**：本地 Playwright 的 `chrome-headless-shell`
+  > 反复下载失败（缓存目录只拿到完整 chromium），而 **`npm run e2e` 在安装步骤失败时仍然退出 0** ——
+  > 74 个用例全部报 "Executable doesn't exist" 而退出码是 0。**所以 e2e 的判据必须是「N passed」
+  > 那一行，不是退出码。** 最后用 `E2E_BROWSER_CHANNEL=chromium` 绕过 headless shell 跑通。
+
 - [~] **13T-E（一半）/ 1.0.3（一半）`dataDefaults` 的两个永久空常量**（第 8.7 节）。`sceneCatalog = {}` 与
   `fallbackFleetPayload.devices = []` 被原样照抄，三处查表恒不命中，离线兜底灌进去的是零台设备
   —— 也就是说**「后端不可达时有可视内容」这个承诺从 v1.0.0 起就没有实现过**。
