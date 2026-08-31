@@ -10,6 +10,36 @@ updates:
       timezone: Asia/Shanghai
     open-pull-requests-limit: 10
     groups:
+      # ── Co-versioned toolchains, majors included ──────────────────────────────
+      # These come first because a package lands in the *first* group it matches,
+      # and the broad `dependency-type` groups below would otherwise scatter them.
+      #
+      # The reason they are grouped at all is that a PR bumping one of them alone
+      # cannot go green, so dependabot was opening pull requests that were red by
+      # construction and reopening them every Monday:
+      #
+      # - #107 bumped `@vitest/coverage-v8` to 4 while `vitest` stayed at 3. The
+      #   peer dependency is exact, so 6 of 8 CI jobs failed — not a test to fix,
+      #   a dependency tree that does not resolve.
+      # - #110 (eslint 10) failed on both frontends, and #108 (eslint-plugin-vue 10)
+      #   failed on the console. Neither passes alone: eslint 10 needs plugin-vue 10,
+      #   and plugin-vue 10 does not work under eslint 9.
+      #
+      # Grouped, dependabot opens one PR that at least *can* pass. It will still
+      # need flat-config work for the eslint jump — but a reviewable PR beats two
+      # permanently red ones.
+      vitest:
+        patterns:
+          - vitest
+          - "@vitest/*"
+      eslint:
+        patterns:
+          - eslint
+          - "eslint-plugin-*"
+          - "eslint-config-*"
+          - "@eslint/*"
+          - typescript-eslint
+      # ── Everything else, minor and patch only ────────────────────────────────
       dev-dependencies:
         dependency-type: development
         update-types: ["minor", "patch"]
@@ -21,6 +51,12 @@ updates:
       include: scope
 
   # GitHub Actions workflow pins.
+  #
+  # One group for all of them: five separate PRs a week for version strings is
+  # noise, and the risk profile is uniform. Worth knowing when reviewing them —
+  # a green CI run does **not** validate the `docker/*` bumps, because
+  # `publish-images.yml` is `workflow_call` / `workflow_dispatch` only and does not
+  # run on pull requests. Only `actions/*` used by `ci.yml` are actually exercised.
   - package-ecosystem: github-actions
     directory: "/"
     schedule:
@@ -28,5 +64,9 @@ updates:
       day: monday
       time: "09:07"
       timezone: Asia/Shanghai
+    groups:
+      github-actions:
+        patterns:
+          - "*"
     commit-message:
       prefix: ci
