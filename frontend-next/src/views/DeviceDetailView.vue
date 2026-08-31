@@ -38,6 +38,7 @@ import {
   CODE_IMPACTS,
   controlModeMap,
   describeDeviceCodes,
+  describeEnum,
   deviceToneLabels,
   formatEnum,
   formatNumber,
@@ -127,6 +128,15 @@ const CHANNEL_LABELS: Record<string, string> = {
 interface Row {
   label: string;
   value: string;
+  /**
+   * Hover/AT description for an enum code — `describeEnum`'s output.
+   *
+   * The three enum maps have carried a `description` beside every `label` since 12A and
+   * had tests, and the port read only the labels: `formatEnum` came over, `describeEnum`
+   * did not, so "自动驾驶" lost the sentence explaining what the mode actually does.
+   * Optional because most rows are numbers, which explain themselves.
+   */
+  title?: string;
 }
 
 /** Pose, both fixes — the gap between them is the information. */
@@ -155,11 +165,23 @@ const vehicleRows = computed<Row[]>(() => {
   return [
     // The enum maps are the ones v1.0.0 lost in its own Vue migration: before Phase 1
     // these three rendered as bare numbers.
-    { label: "控制模式", value: formatEnum(info.controlMode, controlModeMap) },
-    { label: "挡位", value: formatEnum(info.gear, gearMap) },
+    {
+      label: "控制模式",
+      value: formatEnum(info.controlMode, controlModeMap),
+      title: describeEnum(info.controlMode, controlModeMap),
+    },
+    {
+      label: "挡位",
+      value: formatEnum(info.gear, gearMap),
+      title: describeEnum(info.gear, gearMap),
+    },
     { label: "速度", value: formatNumber(info.speed, 2, " m/s") },
     { label: "角速度", value: formatNumber(info.omega, 3, " rad/s") },
-    { label: "电量", value: formatNumber(info.soc, 0, " %") },
+    // `"%"` without the leading space its neighbours have: a percent sign is not a unit
+    // symbol. 0 digits because SOC telemetry to 0.1% is false precision — and the
+    // playback tab used to say `1`, so the same vehicle read differently on two tabs of
+    // the same page.
+    { label: "电量", value: formatNumber(info.soc, 0, "%") },
   ];
 });
 
@@ -169,10 +191,12 @@ const taskRows = computed<Row[]>(() => {
     {
       label: "车端任务",
       value: formatEnum(device.value.taskStatus, taskStatusMap),
+      title: describeEnum(device.value.taskStatus, taskStatusMap),
     },
     {
       label: "平台任务",
       value: formatEnum(device.value.platformTaskStatus, taskStatusMap),
+      title: describeEnum(device.value.platformTaskStatus, taskStatusMap),
     },
   ];
 });
@@ -184,6 +208,11 @@ const speedLimitRows = computed<Row[]>(() => {
     { label: "限速值", value: formatNumber(limit.limit, 2, " m/s") },
     { label: "减速时间", value: formatNumber(limit.slowdownTime, 2, " s") },
     { label: "限速来源", value: limit.moduleName || "--" },
+    // Without this a standing limit is indistinguishable from one just issued — the
+    // normalizer even carries the stamp forward across snapshots
+    // (`fleetNormalize.ts:474-476`), so "刚下发的还是一小时前的残留" had an answer in
+    // the data the whole time and no reader.
+    { label: "更新时间", value: formatStamp(limit.stamp) },
   ];
 });
 
@@ -203,15 +232,27 @@ const gpsRows = computed<Row[]>(() => {
 
 const sceneRows = computed<Row[]>(() => {
   if (!device.value) return [];
+  const sceneId = device.value.sceneId;
+  const definition = sceneId ? fleet.getSceneDefinition(sceneId) : null;
   return [
-    { label: "当前场景", value: device.value.sceneId || "--" },
+    {
+      label: "当前场景",
+      // Three-way, matching the devices list: no id at all is 未配置场景 (v1.0.0's
+      // wording, lost in the port), an id without a definition falls back to the id
+      // itself, and `--` no longer stands in for both.
+      value: sceneId
+        ? (definition?.sceneName as string) || sceneId
+        : "未配置场景",
+    },
     { label: "最后上报", value: formatStamp(device.value.stamp) },
   ];
 });
 
 const panels = computed(() =>
   [
-    { key: "codes", title: "位姿", rows: poseRows.value },
+    // `key: "pose"` — it read `"codes"` until now, a copy-paste artefact that `:key`
+    // actually consumes, so the pose panel was keyed as if it were the code panel.
+    { key: "pose", title: "位姿", rows: poseRows.value },
     { key: "vehicle", title: "车辆状态", rows: vehicleRows.value },
     { key: "task", title: "任务", rows: taskRows.value },
     { key: "limit", title: "限速", rows: speedLimitRows.value },
@@ -301,6 +342,16 @@ const panels = computed(() =>
                 }}</span>
               </header>
 
+              <!-- When it happened. v1.0.0 showed this (`DashboardView.vue:391`) and the
+                   port lost it at the `describeCode` boundary, so the card described a
+                   code without saying whether it fired a minute or a shift ago. -->
+              <p
+                v-if="row.described.stamp"
+                class="m-0 font-mono text-2xs text-ink-subtle"
+              >
+                {{ formatStamp(row.described.stamp) }}
+              </p>
+
               <p class="text-xs text-ink-muted">
                 {{ CODE_IMPACTS[row.described.impact].meaning }}
               </p>
@@ -349,7 +400,22 @@ const panels = computed(() =>
                   <dt class="shrink-0 text-xs text-ink-muted">
                     {{ row.label }}
                   </dt>
-                  <dd class="m-0 truncate text-right text-sm text-ink">
+                  <!--
+                    `title` only where a row has one, and marked with a dotted underline
+                    so the tooltip is discoverable rather than a hover you have to guess
+                    at. `aria-description` carries the same text to AT, because `title`
+                    on a non-interactive element is not reliably announced.
+                  -->
+                  <dd
+                    class="m-0 truncate text-right text-sm text-ink"
+                    :class="
+                      row.title
+                        ? 'decoration-dotted underline-offset-4 hover:underline'
+                        : undefined
+                    "
+                    :title="row.title"
+                    :aria-description="row.title"
+                  >
                     {{ row.value }}
                   </dd>
                 </div>

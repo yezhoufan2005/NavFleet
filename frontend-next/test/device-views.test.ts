@@ -2,7 +2,7 @@ import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 import { createPinia, setActivePinia } from "pinia";
 import { createMemoryHistory, createRouter } from "vue-router";
 import { enableAutoUnmount, flushPromises, mount } from "@vue/test-utils";
-import { fleetApi } from "@navfleet/fleet-core";
+import { fleetApi, formatStamp } from "@navfleet/fleet-core";
 import DevicesView from "@/views/DevicesView.vue";
 import SceneMap from "@/components/map/SceneMap.vue";
 import GpsMap from "@/components/map/GpsMap.vue";
@@ -777,6 +777,274 @@ describe("the devices page", () => {
     store.state.realtime.bootstrapPending = true;
     await flushPromises();
     expect(wrapper.text()).toContain("正在加载车队…");
+  });
+});
+
+describe("what the device list has to answer at a glance", () => {
+  /** The list layout directly — the map is not the subject of any of these. */
+  const mountList = async (patch: Record<string, unknown>[] = []) => {
+    const router = createRouter({
+      history: createMemoryHistory(),
+      routes: [{ path: "/:rest(.*)*", component: { template: "<i />" } }],
+    });
+    await router.push("/devices");
+    await router.isReady();
+    store.ingestPayload(
+      {
+        fleetName: "示范车队",
+        topicPattern: "/fleet/{deviceId}/vehicle_info",
+        devices: patch.map((item, index) =>
+          device({
+            deviceId: `agv-${String(index + 1).padStart(2, "0")}`,
+            deviceName: `AGV ${index + 1}`,
+            ...item,
+          }),
+        ),
+      },
+      "api",
+    );
+    const wrapper = mount(DevicesView, {
+      attachTo: document.body,
+      global: { plugins: [router] },
+    });
+    await flushPromises();
+    await wrapper
+      .get("[aria-label='视图']")
+      .findAll("button")
+      .find((button) => button.text() === "列表")!
+      .trigger("click");
+    await flushPromises();
+    return wrapper;
+  };
+
+  const headers = (wrapper: Awaited<ReturnType<typeof mountList>>) =>
+    wrapper.findAll("thead th").map((cell) => cell.text());
+
+  it("carries 最近上报 and 电量, the two columns the port dropped", async () => {
+    // Without them "谁快没电了、谁的数据停了" takes one detail page per vehicle instead
+    // of one glance — the single largest hit to shift-duty efficiency in the parity pass.
+    const wrapper = await mountList([
+      { vehicle_info: { soc: 82 }, stamp: "2026-08-30T02:00:00.000Z" },
+    ]);
+
+    expect(headers(wrapper)).toEqual([
+      "状态",
+      "设备",
+      "编号",
+      "场景",
+      "最近上报",
+      "电量",
+    ]);
+    const cells = wrapper.findAll("tbody td").map((cell) => cell.text());
+    expect(cells).toContain("82%");
+    expect(cells).toContain(formatStamp("2026-08-30T02:00:00.000Z"));
+  });
+
+  it("marks the rows that need attention, and fades the ones that are gone", async () => {
+    // v1.0.0 tinted critical/warning rows and dropped offline ones to .74; the port kept
+    // only the status dot. A dot answers "what state is this row in" once you are
+    // already reading the row — the row treatment is what gets the answer to you before
+    // you read anything, which is the entire job of a list you scan.
+    const wrapper = await mountList([
+      { error_code: { code: 5102, info: "" } },
+      { warning_code: { code: 2301, info: "" } },
+      { online: false },
+      {},
+    ]);
+
+    const tones = wrapper
+      .findAll("tbody tr")
+      .map((row) => row.attributes("data-tone"));
+    expect(tones).toContain("critical");
+    expect(tones).toContain("warning");
+    expect(tones).toContain("offline");
+    expect(tones).toContain("normal");
+    // Every row carries the hook the scoped rules key on, so none of them can be
+    // silently left out of the treatment.
+    for (const row of wrapper.findAll("tbody tr")) {
+      expect(row.classes()).toContain("device-row");
+      expect(row.attributes("data-tone")).toBeTruthy();
+    }
+  });
+
+  it("says 未配置场景 instead of `--` for a device with no scene", async () => {
+    const wrapper = await mountList([{ sceneId: "" }]);
+    expect(wrapper.text()).toContain("未配置场景");
+  });
+
+  it("prefers the scene's name over its id once the definition is known", async () => {
+    const wrapper = await mountList([{ sceneId: "yard" }]);
+    expect(wrapper.findAll("tbody td").map((c) => c.text())).toContain("yard");
+
+    store.state.sceneDefinitions.yard = SCENE as never;
+    await flushPromises();
+
+    expect(wrapper.findAll("tbody td").map((c) => c.text())).toContain(
+      "北区堆场",
+    );
+  });
+});
+
+describe("the formation filter that was declared and never built", () => {
+  /**
+   * `sortedFormations` / `selectFormation` / `clearFormationSelection` were exported
+   * from the store with zero callers, so `selectedFormationId` was permanently `""` and
+   * `filteredDevices` was always the whole fleet. These pin the control that drives them.
+   */
+  const FORMATIONS = [
+    {
+      formationId: "f-north",
+      formationName: "北区编队",
+      deviceIds: ["agv-01", "agv-02"],
+    },
+    { formationId: "f-dock", formationName: "码头编队", deviceIds: ["agv-03"] },
+  ];
+
+  const mountWithFormations = async (query = "") => {
+    const router = createRouter({
+      history: createMemoryHistory(),
+      routes: [{ path: "/:rest(.*)*", component: { template: "<i />" } }],
+    });
+    await router.push(`/devices${query}`);
+    await router.isReady();
+    store.ingestPayload(
+      {
+        fleetName: "示范车队",
+        topicPattern: "/fleet/{deviceId}/vehicle_info",
+        formations: FORMATIONS,
+        devices: [1, 2, 3].map((index) =>
+          device({
+            deviceId: `agv-0${index}`,
+            deviceName: `AGV ${index}`,
+            sceneId: index === 3 ? "dock" : "yard",
+          }),
+        ),
+      } as never,
+      "api",
+    );
+    const wrapper = mount(DevicesView, {
+      attachTo: document.body,
+      global: { plugins: [router] },
+    });
+    await flushPromises();
+    return { wrapper, router };
+  };
+
+  const select = (wrapper: { find: (s: string) => unknown }) =>
+    (wrapper as ReturnType<typeof mount>).get("select");
+
+  it("offers one option per formation, plus 全部编队", async () => {
+    const { wrapper } = await mountWithFormations();
+    const options = select(wrapper)
+      .findAll("option")
+      .map((option) => option.text());
+
+    expect(options[0]).toBe("全部编队");
+    expect(options).toHaveLength(3);
+    // Order comes from `sortedFormations` (by id), so assert the set rather than
+    // restating that sort here — pinning it twice means changing it in two places.
+    expect(options.slice(1).join(" ")).toContain("北区编队");
+    expect(options.slice(1).join(" ")).toContain("码头编队");
+    // The member count rides along, because "which formation" and "how big is it" get
+    // asked together.
+    expect(options.find((text) => text.includes("北区编队"))).toContain("2");
+  });
+
+  it("stays out of the way when no formation is configured", async () => {
+    // An empty filter is worse than no filter — 总览 already says 未配置编队.
+    seed(2);
+    const router = createRouter({
+      history: createMemoryHistory(),
+      routes: [{ path: "/:rest(.*)*", component: { template: "<i />" } }],
+    });
+    await router.push("/devices");
+    await router.isReady();
+    const wrapper = mount(DevicesView, { global: { plugins: [router] } });
+    await flushPromises();
+
+    expect(wrapper.find("select").exists()).toBe(false);
+  });
+
+  it("puts the choice in the URL rather than in a local ref", async () => {
+    // 告警 already treats the query string as the source of truth for its filters, so a
+    // pasted link reproduces the view. The same has to hold here.
+    const { wrapper, router } = await mountWithFormations();
+
+    await select(wrapper).setValue("f-north");
+    await flushPromises();
+
+    expect(router.currentRoute.value.query.formation).toBe("f-north");
+    expect(store.state.selectedFormationId).toBe("f-north");
+  });
+
+  it("actually narrows the list, which is the whole point", async () => {
+    const { wrapper } = await mountWithFormations();
+    await select(wrapper).setValue("f-dock");
+    await flushPromises();
+    await wrapper
+      .get("[aria-label='视图']")
+      .findAll("button")
+      .find((button) => button.text() === "列表")!
+      .trigger("click");
+    await flushPromises();
+
+    const names = wrapper.findAll("tbody a").map((link) => link.text());
+    expect(names).toEqual(["AGV 3"]);
+  });
+
+  it("arrives filtered from a deep link, even before the fleet does", async () => {
+    // `selectFormation` ignores an id it does not know, and formations land with the
+    // first snapshot — so the watcher has to depend on the formation count too, or a
+    // pasted link is dropped on the floor in exactly the case it exists for.
+    const router = createRouter({
+      history: createMemoryHistory(),
+      routes: [{ path: "/:rest(.*)*", component: { template: "<i />" } }],
+    });
+    await router.push("/devices?formation=f-dock");
+    await router.isReady();
+    const wrapper = mount(DevicesView, { global: { plugins: [router] } });
+    await flushPromises();
+    expect(store.state.selectedFormationId).toBe("");
+
+    store.ingestPayload(
+      {
+        fleetName: "示范车队",
+        topicPattern: "/fleet/{deviceId}/vehicle_info",
+        formations: FORMATIONS,
+        devices: [device({ deviceId: "agv-03", sceneId: "dock" })],
+      } as never,
+      "api",
+    );
+    await flushPromises();
+
+    expect(store.state.selectedFormationId).toBe("f-dock");
+    wrapper.unmount();
+  });
+
+  it("clears back to the whole fleet through the store, not by blanking the id", async () => {
+    const { wrapper, router } = await mountWithFormations();
+    await select(wrapper).setValue("f-north");
+    await flushPromises();
+
+    await select(wrapper).setValue("");
+    await flushPromises();
+
+    expect(store.state.selectedFormationId).toBe("");
+    expect(router.currentRoute.value.query.formation).toBeUndefined();
+    expect(store.filteredDevices).toHaveLength(3);
+  });
+
+  it("keeps the GPS map on the whole fleet while the list narrows", async () => {
+    // The asymmetry v1.0.0 had and the port flattened: the GPS map answers "where is the
+    // fleet", so a filter must not make vehicles vanish from it — a half-empty site map
+    // reads as "those vehicles are gone". `DashboardView.vue:303` passed the unfiltered
+    // set for the same reason.
+    const { wrapper } = await mountWithFormations();
+    await select(wrapper).setValue("f-dock");
+    await flushPromises();
+
+    expect(store.filteredDevices).toHaveLength(1);
+    expect(wrapper.findComponent(GpsMap).props("devices")).toHaveLength(3);
   });
 });
 

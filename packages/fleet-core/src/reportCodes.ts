@@ -368,6 +368,18 @@ export interface DescribedCode {
   subsystem: CodeSubsystem | null;
   /** The `info` string the device sent, when it sent one. */
   reported: string;
+  /**
+   * When the device reported this code, straight off `CodeState.stamp`.
+   *
+   * Carried through because it was being dropped exactly here: `describeCode` receives
+   * a `CodeState` that has a stamp, read only `code` and `info`, and so the console
+   * could not answer "这条报码何时发生" at all. `buildCodeAlerts` uses the same field as
+   * an alert's `ts` (`fleetNormalize.ts:265`), so it was never unused — just unreadable
+   * from a described code.
+   *
+   * `null` when the device sent no stamp; the caller decides how to render that.
+   */
+  stamp: string | null;
 }
 
 /**
@@ -392,6 +404,7 @@ export const describeCode = (
   if (!Number.isFinite(numeric) || numeric === 0) return null;
 
   const reported = typeof state?.info === "string" ? state.info : "";
+  const stamp = typeof state?.stamp === "string" ? state.stamp : null;
   const entry = BY_CODE.get(numeric);
 
   if (!entry) {
@@ -404,6 +417,7 @@ export const describeCode = (
       impact: "watch",
       subsystem: null,
       reported,
+      stamp,
     };
   }
 
@@ -416,6 +430,7 @@ export const describeCode = (
     impact: entry.impact,
     subsystem: entry.subsystem,
     reported,
+    stamp,
   };
 };
 

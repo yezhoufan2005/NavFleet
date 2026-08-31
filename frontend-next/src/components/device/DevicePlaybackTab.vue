@@ -295,7 +295,9 @@ const sampleRows = computed<Row[]>(() => {
       label: "速度",
       value: formatNumber(device.vehicleInfo?.speed, 2, " m/s"),
     },
-    { label: "电量", value: formatNumber(device.vehicleInfo?.soc, 1, "%") },
+    // Same `(0, "%")` as 实时 and the device list. It said `1` here, so the same
+    // vehicle read 82% on one tab and 82.3% on the next.
+    { label: "电量", value: formatNumber(device.vehicleInfo?.soc, 0, "%") },
     { label: "任务状态", value: formatEnum(device.taskStatus, taskStatusMap) },
     { label: "融合 X", value: formatNumber(device.fusionLoc?.x, 2) },
     { label: "融合 Y", value: formatNumber(device.fusionLoc?.y, 2) },

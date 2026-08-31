@@ -123,7 +123,10 @@ const tiles = computed<Tile[]>(() => {
       key: "formations",
       label: "编队",
       value: String(fleet.formations.length),
-      note: fleet.formations.length ? "点击查看成员" : "未配置编队",
+      // Not 点击查看成员: this tile is an `<article>`, and it stayed one. The click is
+      // on the formation rows below, so the note names where the capability is instead
+      // of describing one this element does not have.
+      note: fleet.formations.length ? "可在设备页按编队筛选" : "未配置编队",
       tone: "muted",
     },
   ];
@@ -325,23 +328,39 @@ const alertRows = computed(() =>
             <li
               v-for="formation in fleet.formations"
               :key="formation.formationId"
-              class="flex flex-col gap-0.5"
             >
-              <span class="flex items-baseline justify-between gap-2">
-                <strong class="truncate text-sm text-ink">{{
-                  formation.formationName || formation.formationId
-                }}</strong>
-                <span class="shrink-0 font-mono text-2xs text-ink-muted"
-                  >{{ formation.onlineCount }} /
-                  {{ formation.deviceCount }}</span
-                >
-              </span>
-              <!-- Configured per formation and shown nowhere in v1.0.0. -->
-              <span
-                v-if="formation.description"
-                class="text-xs text-ink-muted"
-                >{{ formation.description }}</span
+              <!--
+                A link, because the tile above says 可在设备页按编队筛选 and something
+                has to honour that. Before this the note read 点击查看成员 on a plain
+                `<article>` with no handler and no formations route to reach — an
+                affordance promised in copy and absent from the DOM.
+
+                The formation id travels in the query string, which is what makes it a
+                real link: 设备 reads it there, so this survives a paste and a reload.
+              -->
+              <RouterLink
+                :to="{
+                  path: '/devices',
+                  query: { formation: formation.formationId },
+                }"
+                class="flex flex-col gap-0.5 rounded-sm px-2 py-1 -mx-2 no-underline transition-colors duration-150 ease-standard hover:bg-surface-sunken"
               >
+                <span class="flex items-baseline justify-between gap-2">
+                  <strong class="truncate text-sm text-ink">{{
+                    formation.formationName || formation.formationId
+                  }}</strong>
+                  <span class="shrink-0 font-mono text-2xs text-ink-muted"
+                    >{{ formation.onlineCount }} /
+                    {{ formation.deviceCount }}</span
+                  >
+                </span>
+                <!-- Configured per formation and shown nowhere in v1.0.0. -->
+                <span
+                  v-if="formation.description"
+                  class="text-xs text-ink-muted"
+                  >{{ formation.description }}</span
+                >
+              </RouterLink>
             </li>
           </ul>
         </section>

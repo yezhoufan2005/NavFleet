@@ -18,10 +18,14 @@ import type { CodeState } from "@navfleet/shared";
  * the number scheme, and the unknown-code path, which is the state most real
  * deployments will be in until their own 码表 is loaded.
  */
-const state = (code: number, info = ""): CodeState => ({
+const state = (
+  code: number,
+  info = "",
+  stamp: string | null = null,
+): CodeState => ({
   code,
   info,
-  stamp: null,
+  stamp,
 });
 
 const CHANNEL_DIGIT: Record<string, string> = {
@@ -151,6 +155,26 @@ describe("describing what the device reported", () => {
   it("returns nothing for a channel with no code", () => {
     expect(describeCode(state(0))).toBeNull();
     expect(describeCode(null)).toBeNull();
+  });
+
+  it("carries the stamp through, so a card can say when the code fired", () => {
+    // It was being dropped exactly here: `describeCode` takes a `CodeState` that has a
+    // stamp and used to read only `code` and `info`, so the console could not answer
+    // 这条报码何时发生 at all. `buildCodeAlerts` uses the same field as an alert's `ts`,
+    // so it was never unused — just unreachable from a described code.
+    const at = "2026-08-30T02:00:00.000Z";
+    expect(describeCode(state(5102, "", at))?.stamp).toBe(at);
+    // And on the unknown branch too, which is the one most deployments are in.
+    expect(describeCode(state(7788, "", at))?.stamp).toBe(at);
+  });
+
+  it("reports no stamp as null rather than inventing one", () => {
+    // The sibling defect (parity 9.19) is `toTimestampMs` answering "now" for an absent
+    // timestamp. Nothing here may do the same: the caller decides how to render absence.
+    expect(describeCode(state(5102))?.stamp).toBeNull();
+    expect(
+      describeCode({ code: 5102, info: "", stamp: 12345 } as never)?.stamp,
+    ).toBeNull();
   });
 });
 

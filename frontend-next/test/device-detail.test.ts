@@ -3,7 +3,12 @@ import { createPinia, setActivePinia } from "pinia";
 import { createMemoryHistory, createRouter } from "vue-router";
 import type { Router } from "vue-router";
 import { enableAutoUnmount, flushPromises, mount } from "@vue/test-utils";
-import { fleetApi } from "@navfleet/fleet-core";
+import {
+  controlModeMap,
+  describeEnum,
+  fleetApi,
+  formatStamp,
+} from "@navfleet/fleet-core";
 import type { HistorySample } from "@navfleet/fleet-core";
 import DeviceDetailView from "@/views/DeviceDetailView.vue";
 import TimeSeriesChart from "@/components/charts/TimeSeriesChart.vue";
@@ -194,7 +199,73 @@ describe("遥测面板", () => {
     expect(wrapper.text()).toMatch(/控制模式/);
     expect(wrapper.text()).not.toMatch(/控制模式\s*2\s*$/);
     expect(wrapper.text()).toContain("1.25 m/s");
-    expect(wrapper.text()).toContain("82 %");
+    // `0` digits and no space before `%`: SOC to 0.1% is false precision, and the
+    // playback tab used to print `82.3%` for the same reading — 13T-A settled on one
+    // form for all three sites.
+    expect(wrapper.text()).toContain("82%");
+  });
+
+  it("explains an enum code on hover, not just names it", async () => {
+    // `describeEnum` has lived in fleet-core with tests since 12A and had zero readers:
+    // the port took `formatEnum`'s label and left the sentence behind. The dotted
+    // underline is what makes the tooltip discoverable rather than a hover to guess at.
+    seed();
+    const wrapper = await mountDetail();
+
+    const described = wrapper
+      .findAll("dd")
+      .filter((cell) => cell.attributes("title"));
+    expect(described.length).toBeGreaterThanOrEqual(2);
+
+    const controlMode = described.find((cell) =>
+      cell.text().includes("遥控接管"),
+    );
+    expect(controlMode?.attributes("title")).toBe(
+      describeEnum(2, controlModeMap),
+    );
+    // Announced too — `title` alone on a non-interactive element is not reliable.
+    expect(controlMode?.attributes("aria-description")).toBe(
+      describeEnum(2, controlModeMap),
+    );
+    expect(controlMode?.classes()).toContain("decoration-dotted");
+
+    // A plain number gets neither, so the underline still means "there is more here".
+    const speed = wrapper.findAll("dd").find((c) => c.text() === "1.25 m/s");
+    expect(speed?.attributes("title")).toBeUndefined();
+  });
+
+  it("dates the speed limit, so a standing one is not read as a fresh one", async () => {
+    // The normalizer even carries `speedLimit.stamp` forward between snapshots; the
+    // panel had three rows and no reader for it.
+    seed({
+      speed_limit: {
+        limit: 1.5,
+        slowdown_time: 2,
+        module_name: "safety",
+        stamp: "2026-08-30T02:00:00.000Z",
+      },
+    });
+    const wrapper = await mountDetail();
+
+    expect(wrapper.text()).toContain("更新时间");
+    expect(wrapper.text()).toContain(formatStamp("2026-08-30T02:00:00.000Z"));
+  });
+
+  it("says 未配置场景 rather than `--` when no scene is configured", async () => {
+    // `--` conflated "no scene" with "scene name not loaded yet". v1.0.0 had this
+    // wording (`DashboardView.vue:87`) and the port dropped it.
+    seed({ sceneId: "" });
+    const wrapper = await mountDetail();
+
+    expect(wrapper.text()).toContain("未配置场景");
+  });
+
+  it("names the scene when its definition is known, and falls back to the id", async () => {
+    seed();
+    const wrapper = await mountDetail();
+    // No definition loaded in this harness, so the id is the honest answer — it is
+    // still *which* scene, just not a readable name.
+    expect(wrapper.text()).toContain("yard");
   });
 
   it("omits a panel the vehicle has no data for", async () => {
