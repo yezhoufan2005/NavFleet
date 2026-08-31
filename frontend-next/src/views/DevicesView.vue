@@ -18,6 +18,7 @@ import { computed, watch } from "vue";
 import { storeToRefs } from "pinia";
 import { RouterLink, useRoute, useRouter } from "vue-router";
 import PageHeader from "@/components/PageHeader.vue";
+import UiSkeleton from "@/components/ui/UiSkeleton.vue";
 import GpsMap from "@/components/map/GpsMap.vue";
 import SceneMap from "@/components/map/SceneMap.vue";
 import { useFleetStore } from "@/stores/fleet";
@@ -243,16 +244,34 @@ watch(
       台）。选择「列表」或「地图」后将一直沿用你的选择。
     </p>
 
+    <!--
+      A cold load gets rows, not a centred message. Which one you see is the difference
+      between "the fleet is empty" and "we have not been told yet", and the empty-state
+      card was answering both — the `bootstrapPending` copy told you a request was in
+      flight while its own layout said "there is nothing here".
+
+      `aria-busy` on the region, because `UiSkeleton` is `aria-hidden` and this is the
+      only thing that carries the state to a screen reader.
+    -->
     <div
-      v-if="!devices.length"
+      v-if="fleet.bootstrapPending && !devices.length"
+      class="rounded-md border border-border bg-surface-raised p-4"
+      aria-busy="true"
+    >
+      <p class="mt-0 mb-3 text-sm text-ink-muted">正在获取车队快照…</p>
+      <UiSkeleton :rows="5" variant="card" />
+    </div>
+
+    <div
+      v-else-if="!devices.length"
       class="grid place-content-center gap-2 rounded-md border border-border bg-surface-raised p-10 text-center"
     >
       <strong class="text-md text-ink">{{
-        fleet.bootstrapPending ? "正在加载车队…" : "暂无设备"
+        state.selectedFormationId ? "该编队下没有设备" : "暂无设备"
       }}</strong>
       <span class="text-sm text-ink-muted">{{
-        fleet.bootstrapPending
-          ? "正在获取车队快照。"
+        state.selectedFormationId
+          ? "这个编队目前没有匹配的设备；选择「全部编队」可以看到完整车队。"
           : "后端还没有上报任何设备；确认 MQTT 接入后此处会自动出现。"
       }}</span>
     </div>

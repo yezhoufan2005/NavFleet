@@ -776,7 +776,12 @@ describe("the devices page", () => {
 
     store.state.realtime.bootstrapPending = true;
     await flushPromises();
-    expect(wrapper.text()).toContain("正在加载车队…");
+    // Skeleton rows rather than a centred message: an empty-state card answers "the
+    // fleet is empty" with its layout while its copy says a request is in flight.
+    expect(wrapper.text()).toContain("正在获取车队快照…");
+    expect(wrapper.text()).not.toContain("暂无设备");
+    expect(wrapper.find("[aria-busy='true']").exists()).toBe(true);
+    expect(wrapper.findAll(".skeleton-card")).toHaveLength(5);
   });
 });
 

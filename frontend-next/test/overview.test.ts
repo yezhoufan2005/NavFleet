@@ -208,6 +208,58 @@ describe("who needs attention", () => {
     expect(wrapper.text()).toContain("正在获取车队快照");
   });
 
+  it("reserves the stat values rather than letting the cards resize", async () => {
+    // A placeholder of the wrong height does not remove the layout jump, it moves it to
+    // the moment the data lands — 13px per card in v1.0.0 before this existed. The
+    // `value` variant is pinned to the same line box as the number it stands in for.
+    const wrapper = await mountPage();
+    expect(wrapper.find(".skeleton").exists()).toBe(false);
+
+    store.state.realtime.bootstrapPending = true;
+    await flushPromises();
+
+    // One per tile, and the real number is not also rendered underneath it.
+    expect(wrapper.findAll(".skeleton-value")).toHaveLength(4);
+    expect(wrapper.findAll("article strong")).toHaveLength(0);
+  });
+
+  it("does not state 全部在线 about a fleet it has not heard from", async () => {
+    // Every tile note is derived from counts that are all zero before the snapshot
+    // lands, so a loading 总览 asserted 全部在线 · 无告警级 · 全部已定位 — four
+    // confident claims about absent data. Same defect class as `formatNumber(null)`
+    // rendering `0.00`, one layer up.
+    const wrapper = await mountPage();
+    store.state.realtime.bootstrapPending = true;
+    await flushPromises();
+
+    const tiles = wrapper.findAll("article");
+    expect(tiles).toHaveLength(4);
+    for (const tile of tiles) {
+      expect(tile.text()).not.toContain("全部");
+      expect(tile.text()).not.toContain("无告警级");
+    }
+    // Both the value and the note are stood in for.
+    expect(wrapper.findAll("article .skeleton")).toHaveLength(8);
+  });
+
+  it("announces the wait to a screen reader, not only to the eye", async () => {
+    // `UiSkeleton` is `aria-hidden`, so `aria-busy` on the owning region is the only
+    // thing carrying this state to AT. Before 13T-B the whole of `src` had `aria-busy`
+    // in exactly one place — `LoginForm`'s submit — so no data-loading region announced
+    // itself at all.
+    const wrapper = await mountPage();
+    store.state.realtime.bootstrapPending = true;
+    await flushPromises();
+
+    const busy = wrapper.findAll("[aria-busy='true']");
+    expect(busy.length).toBeGreaterThanOrEqual(2);
+    // Each busy region actually owns placeholders — an `aria-busy` with nothing under it
+    // announces a wait for content that is not coming.
+    for (const region of busy) {
+      expect(region.find(".skeleton").exists()).toBe(true);
+    }
+  });
+
   it("caps the list and defers to the devices page", async () => {
     store.ingestPayload(
       snapshot(

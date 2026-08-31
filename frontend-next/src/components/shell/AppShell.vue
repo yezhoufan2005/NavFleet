@@ -123,11 +123,23 @@ watch(
         </DialogPortal>
       </DialogRoot>
 
+      <!--
+        The focus ring stays. It used to be `focus-visible:outline-none`, which fought a
+        mechanism that was already correct: `:focus-visible` exists precisely so that a
+        ring appears when the user arrived by keyboard and not when they arrived by
+        mouse. Suppressing it re-created the problem the pseudo-class solves — and the
+        case it broke is the skip link, whose only reason to exist is keyboard use. A
+        skip link that moves focus without saying where it landed has done half its job.
+
+        `-outline-offset-2` rather than the global `+2px`: this element is a
+        `flex-1 overflow-y-auto` child, so an outline drawn *outside* its box is clipped
+        by the scroll container. Inset, it is actually visible.
+      -->
       <main
         id="main-content"
         ref="mainRegion"
         tabindex="-1"
-        class="min-w-0 flex-1 overflow-y-auto p-4 focus-visible:outline-none 3xl:p-6"
+        class="min-w-0 flex-1 overflow-y-auto p-4 focus-visible:-outline-offset-2 3xl:p-6"
       >
         <ErrorBoundary :reset-key="route.fullPath">
           <RouterView />
