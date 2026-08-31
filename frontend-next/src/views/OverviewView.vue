@@ -22,6 +22,7 @@ import {
   deviceToneLabels,
   formatDateTime,
   getDeviceTone,
+  hasGps,
 } from "@navfleet/fleet-core";
 import type { DeviceSnapshot } from "@navfleet/shared";
 
@@ -82,24 +83,74 @@ interface Tile {
   value: string;
   note: string;
   tone: Tone;
+  /** The number, taken apart. Empty when there is nothing to take apart. */
+  parts: { label: string; value: string }[];
 }
 
+/** At most this many vehicle names before the rest become a count. */
+const NAME_LIMIT = 3;
+
 /**
- * The four numbers a shift opens with. `tone` is only ever "not normal" when the
- * number itself says so — a permanently amber tile teaches people to ignore amber.
+ * Vehicle names, capped. A card that lists forty names is a card nobody reads, and
+ * "等 37 台" is the honest way to say the rest are on the 设备 page.
+ */
+const nameList = (list: DeviceSnapshot[]): string => {
+  if (!list.length) return "";
+  const shown = list
+    .slice(0, NAME_LIMIT)
+    .map((device) => device.deviceName || device.deviceId)
+    .join("、");
+  return list.length > NAME_LIMIT ? `${shown} 等 ${list.length} 台` : shown;
+};
+
+const offlineDevices = computed(() =>
+  fleet.devices.filter((device) => !device.online),
+);
+
+/** The same predicate the store's `gpsCount` uses, so the two cannot disagree. */
+const withoutGps = computed(() =>
+  fleet.devices.filter(
+    (device) => device.gpsEnabled !== false && !hasGps(device.gps),
+  ),
+);
+
+/** Formations with every member online — the ones that can actually run a route. */
+const intactFormations = computed(() =>
+  fleet.formations.filter(
+    (formation) => formation.onlineCount === formation.deviceCount,
+  ),
+);
+
+/**
+ * The four numbers a shift opens with, each with its own breakdown.
+ *
+ * The breakdown is the change from the first cut. Four cards holding one number each
+ * left most of their width empty, and — more to the point — a total is the least
+ * actionable form of these numbers: "8 条告警" does not say whether to walk over,
+ * "其中 2 条告警级" does. Everything here comes from data already on the client; no
+ * new endpoint.
+ *
+ * `tone` is only ever "not normal" when the number itself says so — a permanently
+ * amber tile teaches people to ignore amber.
  */
 const tiles = computed<Tile[]>(() => {
   const { totalCount, onlineCount, alertTotal, gpsCount } = fleet.summary;
-  const offline = totalCount - onlineCount;
+  const offline = offlineDevices.value;
   const critical = fleet.groupedAlerts.critical.length;
+  const warning = fleet.groupedAlerts.warning.length;
+  const notice = fleet.groupedAlerts.notice.length;
 
   return [
     {
       key: "online",
       label: "在线设备",
       value: `${onlineCount} / ${totalCount}`,
-      note: offline > 0 ? `${offline} 台离线` : "全部在线",
-      tone: offline > 0 ? "warning" : "ok",
+      note: offline.length ? `${offline.length} 台离线` : "全部在线",
+      tone: offline.length ? "warning" : "ok",
+      // Which ones — the question a count of offline vehicles immediately raises.
+      parts: offline.length
+        ? [{ label: "离线", value: nameList(offline) }]
+        : [],
     },
     {
       key: "alerts",
@@ -107,33 +158,85 @@ const tiles = computed<Tile[]>(() => {
       value: String(alertTotal),
       note: critical > 0 ? `其中 ${critical} 条告警级` : "无告警级",
       tone: critical > 0 ? "critical" : alertTotal > 0 ? "warning" : "ok",
+      // Split by severity, because a total mixes "walk over now" with "look later".
+      parts: alertTotal
+        ? [
+            { label: "告警", value: String(critical) },
+            { label: "预警", value: String(warning) },
+            { label: "提示", value: String(notice) },
+          ]
+        : [],
     },
     {
       key: "gps",
       label: "GPS 覆盖",
       // The backend has always sent this count and no frontend ever read it.
       value: `${gpsCount} / ${totalCount}`,
-      note:
-        gpsCount < totalCount
-          ? `${totalCount - gpsCount} 台无定位`
-          : "全部已定位",
+      note: withoutGps.value.length
+        ? `${withoutGps.value.length} 台无定位`
+        : "全部已定位",
       tone: "muted",
+      // Deliberately not toned: a vehicle without a fix is not by itself a fault —
+      // `gpsEnabled: false` vehicles are excluded, so what is left is "has a
+      // receiver, no fix right now", which is worth naming but not worth alarming.
+      parts: withoutGps.value.length
+        ? [{ label: "无定位", value: nameList(withoutGps.value) }]
+        : [],
     },
     {
       key: "formations",
       label: "编队",
       value: String(fleet.formations.length),
-      note: fleet.formations.length ? "点击查看成员" : "未配置编队",
-      tone: "muted",
+      note: fleet.formations.length
+        ? `${intactFormations.value.length} 个满员`
+        : "未配置编队",
+      tone:
+        fleet.formations.length && !intactFormations.value.length
+          ? "warning"
+          : "muted",
+      /**
+       * Deliberately *not* the per-formation list — the 编队 panel further down this
+       * page already prints that, with descriptions. What it does not say is how many
+       * formations are intact, and that is the actionable part: a formation missing a
+       * vehicle cannot run its route.
+       */
+      parts: fleet.formations.length
+        ? [
+            { label: "满员", value: String(intactFormations.value.length) },
+            {
+              label: "有缺员",
+              value: String(
+                fleet.formations.length - intactFormations.value.length,
+              ),
+            },
+          ]
+        : [],
     },
   ];
 });
 
-const TILE_VALUE_CLASS: Record<Tone, string> = {
-  ok: "text-ink",
-  warning: "text-warning-ink",
-  critical: "text-critical-ink",
-  muted: "text-ink",
+/**
+ * The signal dot, and why the numeral itself is no longer coloured.
+ *
+ * The first cut painted the value with `warning-ink` / `critical-ink`. Manual review
+ * called it unclear in light mode, and measuring said the opposite of what that
+ * suggests: light is the *higher*-contrast mode (`warning-ink` 10.59:1,
+ * `critical-ink` 11.05:1 on white, against 7.45 and 6.63 for the dark pair on
+ * `surface-raised`). So it was never a contrast failure. The problem is that both
+ * light-mode inks sit at L≈0.37, where the hue is hard to name — the number reads as
+ * "dark text" and the *signal* never arrives, while the dark mode's L≈0.88 pair reads
+ * as amber and rose instantly.
+ *
+ * The fix follows the rule this project's charts already keep: text wears text
+ * tokens, and a saturated mark beside it carries the colour. So the numeral is always
+ * `text-ink`, and the tone lives in a dot — which is also how the map, the device
+ * list and 系统状态 already signal state.
+ */
+const TILE_DOT: Record<Tone, string> = {
+  ok: "",
+  muted: "",
+  warning: "bg-warning",
+  critical: "bg-critical",
 };
 
 interface AttentionRow {
@@ -213,18 +316,47 @@ const alertRows = computed(() =>
       <article
         v-for="tile in tiles"
         :key="tile.key"
-        class="flex flex-col gap-1 rounded-md border border-border bg-surface-raised p-4"
+        class="flex flex-col gap-2 rounded-md border border-border bg-surface-raised p-4"
       >
         <span
           class="font-mono text-2xs tracking-wider text-ink-subtle uppercase"
           >{{ tile.label }}</span
         >
-        <strong
-          class="text-3xl font-semibold tabular-nums"
-          :class="TILE_VALUE_CLASS[tile.tone]"
-          >{{ tile.value }}</strong
+
+        <span class="flex items-baseline gap-2">
+          <!-- Always ink. The tone rides on the dot beside the note — see the
+               comment on `TONE_DOT` for the measurement behind that. -->
+          <strong class="text-3xl font-semibold tabular-nums text-ink">{{
+            tile.value
+          }}</strong>
+          <span class="flex min-w-0 items-center gap-1.5">
+            <span
+              v-if="TILE_DOT[tile.tone]"
+              class="size-2 shrink-0 rounded-full"
+              :class="TILE_DOT[tile.tone]"
+              aria-hidden="true"
+            />
+            <span class="truncate text-xs text-ink-muted">{{ tile.note }}</span>
+          </span>
+        </span>
+
+        <!-- The breakdown. A total is the least actionable form of these numbers:
+             "8 条告警" does not say whether to walk over, "其中 2 条告警级" does. -->
+        <dl
+          v-if="tile.parts.length"
+          class="m-0 flex flex-col gap-0.5 border-t border-border pt-2"
         >
-        <span class="text-xs text-ink-muted">{{ tile.note }}</span>
+          <div
+            v-for="part in tile.parts"
+            :key="part.label"
+            class="flex items-baseline justify-between gap-2"
+          >
+            <dt class="shrink-0 text-2xs text-ink-subtle">{{ part.label }}</dt>
+            <dd class="m-0 truncate text-right text-xs text-ink">
+              {{ part.value }}
+            </dd>
+          </div>
+        </dl>
       </article>
     </div>
 

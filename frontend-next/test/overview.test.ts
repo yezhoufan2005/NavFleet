@@ -128,9 +128,147 @@ describe("the counts", () => {
     const wrapper = await mountPage();
 
     expect(wrapper.findAll("article")[1]?.text()).toContain("其中 1 条告警级");
-    const summary = wrapper.find("dl").text();
-    expect(summary).toContain("告警");
-    expect(summary).toContain("预警");
+    // Scoped to the 告警摘要 panel by its heading. Unscoped, `find("dl")` now lands
+    // on whichever tile breakdown happens to render first, and would pass for the
+    // wrong reason.
+    const summary = wrapper
+      .findAll("section")
+      .find((section) => section.text().includes("告警摘要"))!;
+    expect(summary.text()).toContain("告警");
+    expect(summary.text()).toContain("预警");
+  });
+
+  /**
+   * The breakdowns, added after manual review: four cards each holding one number
+   * left most of their width empty, and a total is the least actionable form of these
+   * numbers — "8 条告警" does not say whether to walk over, "其中 2 条告警级" does.
+   */
+  it("names the offline vehicles rather than only counting them", async () => {
+    store.ingestPayload(
+      snapshot([
+        device(),
+        device({ deviceId: "agv-02", deviceName: "B02 牵引车", online: false }),
+      ]),
+      "api",
+    );
+    const wrapper = await mountPage();
+
+    expect(wrapper.findAll("article")[0]?.text()).toContain("B02 牵引车");
+  });
+
+  it("caps the names and says how many are left", async () => {
+    // A card that lists forty names is a card nobody reads.
+    store.ingestPayload(
+      snapshot(
+        Array.from({ length: 5 }, (_unused, index) =>
+          device({
+            deviceId: `agv-0${index + 1}`,
+            deviceName: `车 ${index + 1}`,
+            online: false,
+          }),
+        ),
+      ),
+      "api",
+    );
+    const wrapper = await mountPage();
+
+    expect(wrapper.findAll("article")[0]?.text()).toContain("等 5 台");
+  });
+
+  it("splits the alert total by severity inside the card", async () => {
+    store.ingestPayload(
+      snapshot([
+        device({ error_code: code(5102, "路径规划超时") }),
+        device({ deviceId: "agv-02", info_code: code(1101, "定位稳定") }),
+      ]),
+      "api",
+    );
+    const wrapper = await mountPage();
+    const alerts = wrapper.findAll("article")[1]!;
+
+    expect(alerts.findAll("dd").map((cell) => cell.text())).toEqual([
+      "1",
+      "0",
+      "1",
+    ]);
+  });
+
+  it("says how many formations are intact, which the panel below does not", async () => {
+    // Not the per-formation list — the 编队 panel already prints that. What it does
+    // not say is which formations can still run a route.
+    store.ingestPayload(
+      snapshot([device(), device({ deviceId: "agv-02", online: false })], {
+        formations: [
+          {
+            formationId: "f-1",
+            formationName: "满员编队",
+            deviceIds: ["agv-01"],
+          },
+          {
+            formationId: "f-2",
+            formationName: "缺员编队",
+            deviceIds: ["agv-01", "agv-02"],
+          },
+        ],
+      }),
+      "api",
+    );
+    const wrapper = await mountPage();
+    const formations = wrapper.findAll("article")[3]!;
+
+    expect(formations.text()).toContain("1 个满员");
+    expect(formations.text()).toContain("有缺员");
+  });
+
+  /**
+   * The item manual review raised as "the light-mode numbers are unclear". Measuring
+   * said the opposite of what that suggests: light is the *higher*-contrast mode
+   * (`warning-ink` 10.59:1 vs the dark pair's 7.45:1 on `surface-raised`). The real
+   * problem is that both light inks sit at L≈0.37, where the hue cannot be named — so
+   * the number reads as dark text and the signal never arrives.
+   *
+   * The rule this project's charts already keep: text wears text tokens, and a
+   * saturated mark beside it carries the colour.
+   */
+  it("never paints the numeral with a status colour", async () => {
+    store.ingestPayload(
+      snapshot([
+        device({ deviceId: "agv-02", online: false }),
+        device({ error_code: code(5102, "路径规划超时") }),
+      ]),
+      "api",
+    );
+    const wrapper = await mountPage();
+
+    for (const value of wrapper.findAll("article strong")) {
+      const classes = value.classes();
+      expect(classes).toContain("text-ink");
+      expect(classes).not.toContain("text-warning-ink");
+      expect(classes).not.toContain("text-critical-ink");
+    }
+  });
+
+  it("carries the tone on a saturated dot instead", async () => {
+    store.ingestPayload(
+      snapshot([
+        device({ deviceId: "agv-02", online: false }),
+        device({ error_code: code(5102, "路径规划超时") }),
+      ]),
+      "api",
+    );
+    const wrapper = await mountPage();
+
+    expect(wrapper.findAll("article")[0]!.find(".bg-warning").exists()).toBe(
+      true,
+    );
+    expect(wrapper.findAll("article")[1]!.find(".bg-critical").exists()).toBe(
+      true,
+    );
+    // And no dot where there is nothing to flag — a permanently lit dot teaches
+    // people to ignore it.
+    expect(wrapper.findAll("article")[2]!.find(".bg-warning").exists()).toBe(
+      false,
+    );
   });
 });
 
