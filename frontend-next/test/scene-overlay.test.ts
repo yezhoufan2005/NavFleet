@@ -120,6 +120,110 @@ describe("the lanelet overlay and the metadata document", () => {
     expect(api.overlay.value).toBeNull();
     expect(api.pointCloudBackdrop.value).toBeNull();
   });
+
+  it("cannot be overwritten by a slow overlay for a scene that was left", async () => {
+    // The same hazard the point cloud already guarded against, one layer up: the
+    // overlay for the scene you left arriving last and painting another yard's lane
+    // lines under these vehicles. The overlay watcher fires first, so the held call
+    // is the one being tested.
+    let releaseFirst: (value: Response) => void = () => undefined;
+    fetchMock.mockImplementationOnce(
+      () =>
+        new Promise<Response>((resolve) => {
+          releaseFirst = resolve;
+        }),
+    );
+
+    const { api, scene, wrapper } = mountOverlay();
+    scene.value = {
+      ...SCENE,
+      sceneId: "dock",
+      overlayUrl: "/scenes/dock.overlay.json",
+    };
+    await wrapper.vm.$nextTick();
+    await flushPromises();
+
+    expect(api.overlay.value).toMatchObject({
+      url: "/scenes/dock.overlay.json",
+    });
+
+    releaseFirst(
+      new Response(JSON.stringify({ url: SCENE.overlayUrl }), { status: 200 }),
+    );
+    await flushPromises();
+
+    expect(api.overlay.value).toMatchObject({
+      url: "/scenes/dock.overlay.json",
+    });
+  });
+
+  it("does not toast about an overlay for a scene no longer on screen", async () => {
+    // A stale *failure* is worse than a stale success: the toast names a problem the
+    // operator cannot see, on a map that is in fact fine.
+    let failFirst: (reason: Error) => void = () => undefined;
+    fetchMock.mockImplementationOnce(
+      () =>
+        new Promise<Response>((_resolve, reject) => {
+          failFirst = reject;
+        }),
+    );
+
+    const { scene, wrapper } = mountOverlay();
+    scene.value = {
+      ...SCENE,
+      sceneId: "dock",
+      overlayUrl: "/scenes/dock.overlay.json",
+    };
+    await wrapper.vm.$nextTick();
+    await flushPromises();
+
+    failFirst(new Error("network"));
+    await flushPromises();
+
+    expect(toastMessages()).toEqual([]);
+  });
+
+  it("cannot be overwritten by slow metadata for a scene that was left", async () => {
+    // Metadata carries the origin and resolution, so a stale document does not just
+    // look wrong — it puts every vehicle at the wrong place on the right map.
+    let releaseFirst: (value: Response) => void = () => undefined;
+    fetchMock
+      .mockImplementationOnce(() =>
+        Promise.resolve(
+          new Response(JSON.stringify({ url: SCENE.overlayUrl }), {
+            status: 200,
+          }),
+        ),
+      )
+      .mockImplementationOnce(
+        () =>
+          new Promise<Response>((resolve) => {
+            releaseFirst = resolve;
+          }),
+      );
+
+    const { api, scene, wrapper } = mountOverlay();
+    scene.value = {
+      ...SCENE,
+      sceneId: "dock",
+      metadataUrl: "/scenes/dock.meta.json",
+    };
+    await wrapper.vm.$nextTick();
+    await flushPromises();
+
+    expect(api.metadata.value).toMatchObject({
+      url: "/scenes/dock.meta.json",
+    });
+
+    releaseFirst(
+      new Response(JSON.stringify({ url: SCENE.metadataUrl }), { status: 200 }),
+    );
+    await flushPromises();
+
+    expect(api.metadata.value).toMatchObject({
+      url: "/scenes/dock.meta.json",
+    });
+  });
 });
 
 describe("the point-cloud backdrop", () => {

@@ -226,6 +226,77 @@ describe("what else the scene map draws", () => {
     expect(wrapper.find("image").attributes("href")).toBe("/scenes/yard.png");
   });
 
+  it("says so when the raster backdrop cannot be loaded", async () => {
+    // The browser fetches this one, so the only signal is an `error` event on the
+    // element — without handling it the operator gets a silently broken image while
+    // the point-cloud path beside it reports failures properly.
+    const wrapper = await mountScene({
+      sceneDefinition: { ...SCENE, imageUrl: "/scenes/missing.png" },
+    });
+    expect(wrapper.text()).not.toContain("底图加载失败");
+
+    await wrapper.find("image").trigger("error");
+
+    expect(wrapper.text()).toContain("底图加载失败");
+  });
+
+  it("clears the backdrop failure when another scene is shown", async () => {
+    // Keyed by href rather than by a boolean, so this needs no reset of its own —
+    // and a stale "failed" notice over a perfectly good map is its own defect.
+    const wrapper = await mountScene({
+      sceneDefinition: { ...SCENE, imageUrl: "/scenes/missing.png" },
+    });
+    await wrapper.find("image").trigger("error");
+    expect(wrapper.text()).toContain("底图加载失败");
+
+    await wrapper.setProps({
+      sceneDefinition: { ...SCENE, imageUrl: "/scenes/yard.png" },
+    } as never);
+    await flushPromises();
+
+    expect(wrapper.text()).not.toContain("底图加载失败");
+  });
+
+  it("breaks a trail at a bad sample instead of drawing across the gap", async () => {
+    // Dropping the point and joining the rest paints a straight line the vehicle
+    // never drove — in a monitoring map that is a fabricated route, not a cosmetic
+    // glitch. A gap has to read as a gap, so the sub-path restarts with `M`.
+    const wrapper = await mountScene({
+      sceneDevices: [{ deviceId: "agv-01", fusionLoc: { x: 10, y: 20 } }],
+      trails: {
+        "agv-01": [
+          { x: 1, y: 1 },
+          { x: 2, y: 2 },
+          { x: Number.NaN, y: 3 },
+          { x: 4, y: 4 },
+        ],
+      },
+    });
+
+    const path = wrapper.find(".device-trail.selected").attributes("d") ?? "";
+    expect(path.match(/M/g)).toHaveLength(2);
+    expect(path).toBe("M 1 1 L 2 2 M 4 4");
+  });
+
+  it("still starts the path with a moveto when the first sample is the bad one", async () => {
+    // The old implementation keyed `M` off the array index, so a dropped first point
+    // left the path starting with `L` — which is not a valid path at all.
+    const wrapper = await mountScene({
+      sceneDevices: [{ deviceId: "agv-01", fusionLoc: { x: 10, y: 20 } }],
+      trails: {
+        "agv-01": [
+          { x: Number.NaN, y: Number.NaN },
+          { x: 2, y: 2 },
+          { x: 3, y: 3 },
+        ],
+      },
+    });
+
+    expect(wrapper.find(".device-trail.selected").attributes("d")).toBe(
+      "M 2 2 L 3 3",
+    );
+  });
+
   it("responds to the two view controls", async () => {
     // The map already opens focused on the vehicle, so 适应场景 is the one that moves
     // first — and 定位车辆 has to bring it back.
