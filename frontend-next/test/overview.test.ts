@@ -296,4 +296,54 @@ describe("formations", () => {
     expect(wrapper.find("#formations-heading").exists()).toBe(false);
     expect(wrapper.findAll("article")[3]?.text()).toContain("未配置编队");
   });
+
+  it("makes each formation a link to the devices page, filtered", async () => {
+    // The tile's note used to read 点击查看成员 on a plain `<article>` with no handler,
+    // no formations route and nothing to click through to — an affordance that existed
+    // only in the copy. The click is here, and the id travels in the query string so it
+    // survives a paste and a reload.
+    store.ingestPayload(
+      snapshot([device()], {
+        formations: [
+          {
+            formationId: "f-1",
+            formationName: "北区编队",
+            deviceIds: ["agv-01"],
+          },
+        ],
+      }),
+      "api",
+    );
+    const wrapper = await mountPage();
+
+    const link = wrapper
+      .findAll("#formations-heading ~ ul a")
+      .find((anchor) => anchor.text().includes("北区编队"));
+    expect(link?.attributes("href")).toBe("/devices?formation=f-1");
+  });
+
+  it("does not claim the tile itself is clickable", async () => {
+    // It is still an `<article>`, so the note names where the capability is instead of
+    // describing one this element does not have.
+    store.ingestPayload(
+      snapshot([device()], {
+        formations: [
+          {
+            formationId: "f-1",
+            formationName: "北区编队",
+            deviceIds: ["agv-01"],
+          },
+        ],
+      }),
+      "api",
+    );
+    const wrapper = await mountPage();
+    const tile = wrapper
+      .findAll("article")
+      .find((item) => item.text().includes("编队"));
+
+    expect(tile?.text()).toContain("可在设备页按编队筛选");
+    expect(tile?.text()).not.toContain("点击");
+    expect(tile?.find("a").exists()).toBe(false);
+  });
 });

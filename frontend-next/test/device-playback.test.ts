@@ -381,7 +381,9 @@ describe("the map and the curve", () => {
 
     const text = wrapper.text();
     expect(text).toContain("1.30 m/s");
-    expect(text).toContain("77.0%");
+    // `(0, "%")` — one form across 实时 / 回放 / 设备列表. It printed `77.0%` here and
+    // `77 %` on the live tab for the same reading.
+    expect(text).toContain("77%");
     // `taskStatus: 2` — a bare `2` is what v1.0.0 printed here.
     expect(text).not.toMatch(/任务状态\s*2/);
     expect(text).toContain("北区堆场");

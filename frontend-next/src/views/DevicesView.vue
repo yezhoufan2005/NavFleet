@@ -14,9 +14,9 @@
  * 40% of the viewport; a site map that small is a picture of a map rather than a
  * usable one.
  */
-import { computed } from "vue";
+import { computed, watch } from "vue";
 import { storeToRefs } from "pinia";
-import { RouterLink } from "vue-router";
+import { RouterLink, useRoute, useRouter } from "vue-router";
 import PageHeader from "@/components/PageHeader.vue";
 import GpsMap from "@/components/map/GpsMap.vue";
 import SceneMap from "@/components/map/SceneMap.vue";
@@ -26,10 +26,17 @@ import type {
   DeviceLayoutPreference,
   MapSurface,
 } from "@/composables/useDeviceView";
-import { deviceToneLabels, getDeviceTone } from "@navfleet/fleet-core";
+import {
+  deviceToneLabels,
+  formatNumber,
+  formatStamp,
+  getDeviceTone,
+} from "@navfleet/fleet-core";
 
 const fleet = useFleetStore();
 const { state } = storeToRefs(fleet);
+const route = useRoute();
+const router = useRouter();
 
 const devices = computed(() => fleet.filteredDevices);
 const {
@@ -58,12 +65,33 @@ const SURFACE_OPTIONS: { value: MapSurface; label: string }[] = [
   { value: "scene", label: "场景" },
 ];
 
+/**
+ * Scene identity, three ways — because `--` conflated two different facts.
+ *
+ * A device with no `sceneId` is **not configured**; one whose id we hold but whose
+ * definition has not arrived yet is configured and merely unnamed. The old front end
+ * said 未配置场景 for the first case (`DashboardView.vue:87`) and that distinction was
+ * lost in the port. The raw id is kept as the middle rung rather than hidden: it is
+ * still the answer to "which scene", just not a human-readable one.
+ */
+const sceneLabelOf = (sceneId: string | null | undefined): string => {
+  if (!sceneId) return "未配置场景";
+  // `SceneDefinitionRecord` is a union with the loose merged shape, so `sceneName` is
+  // `unknown` on that arm — the same cast `DevicePlaybackTab.vue:306` makes.
+  return (fleet.getSceneDefinition(sceneId)?.sceneName as string) || sceneId;
+};
+
 /** Sorted worst-first, so the row that needs attention is the one you land on. */
 const rows = computed(() =>
   devices.value.map((device) => ({
     device,
     tone: getDeviceTone(device),
     label: deviceToneLabels[getDeviceTone(device)],
+    sceneLabel: sceneLabelOf(device.sceneId),
+    // Two columns v1.0.0 had and the port dropped. Without them "谁快没电了、谁的数据
+    // 停了" needs one detail page per vehicle instead of one glance at the list.
+    stamp: formatStamp(device.stamp),
+    soc: formatNumber(device.vehicleInfo?.soc, 0, "%"),
   })),
 );
 
@@ -74,6 +102,42 @@ const TONE_DOT: Record<string, string> = {
   critical: "bg-critical",
   offline: "bg-offline",
 };
+
+/**
+ * Empty value clears rather than selects, so 全部编队 is a real option instead of a
+ * sentinel formation id.
+ *
+ * **The URL writes, the watcher reads, and nothing does both.** 告警 already treats the
+ * query string as the source of truth for its filters (`AlertsView.vue:67-72`) so that a
+ * pasted link reproduces the view; the same has to hold here, but the *state* cannot
+ * live in the URL — `filteredDevices` and `sceneDevices` derive from
+ * `state.selectedFormationId`, so the store has to hold it. Splitting the directions is
+ * what keeps that from becoming a two-way sync: this handler only navigates, and the
+ * watcher below is the only thing that touches the store.
+ */
+const onFormationChange = (event: Event): void => {
+  const value = (event.target as HTMLSelectElement).value;
+  void router.replace({
+    query: { ...route.query, formation: value || undefined },
+  });
+};
+
+/**
+ * Also keyed on the formation count, not just the query: formations arrive with the
+ * first snapshot, and `selectFormation` silently ignores an id it does not know yet.
+ * Without that dependency a deep link that lands before the socket connects would be
+ * dropped on the floor — which is precisely the case a deep link exists for.
+ */
+watch(
+  [() => route.query.formation, () => fleet.sortedFormations.length],
+  ([raw]) => {
+    const wanted = typeof raw === "string" ? raw : "";
+    if (wanted === state.value.selectedFormationId) return;
+    if (wanted) fleet.selectFormation(wanted);
+    else fleet.clearFormationSelection();
+  },
+  { immediate: true },
+);
 </script>
 
 <template>
@@ -82,6 +146,44 @@ const TONE_DOT: Record<string, string> = {
     lede="列表与地图是同一批设备的两种投影，可随时切换。"
   >
     <template #actions>
+      <!--
+        The formation filter, which the port declared and never built: the store has
+        exported `sortedFormations` / `selectFormation` / `clearFormationSelection`
+        since 12B with **zero** callers, so `selectedFormationId` was permanently `""`
+        and `filteredDevices` was always the whole fleet. That is the clearest instance
+        of the pattern the parity pass turned up — the logic layer came over whole and
+        the control that drives it did not.
+
+        A `<select>` rather than the old chip strip: chips were sized for a dashboard
+        panel, and this header already carries two button groups. It matches the filter
+        controls on 告警 (`AlertsView.vue:244-264`), so the two pages filter the same way.
+
+        Hidden when there are no formations — an empty filter is worse than no filter,
+        and the 总览 card already says 未配置编队.
+      -->
+      <label
+        v-if="fleet.sortedFormations.length"
+        class="flex items-center gap-2"
+      >
+        <span class="font-mono text-2xs text-ink-subtle">编队</span>
+        <select
+          class="rounded-sm border border-border-strong bg-surface-raised px-2 py-1 text-xs text-ink"
+          :value="state.selectedFormationId"
+          @change="onFormationChange"
+        >
+          <option value="">全部编队</option>
+          <option
+            v-for="formation in fleet.sortedFormations"
+            :key="formation.formationId"
+            :value="formation.formationId"
+          >
+            {{ formation.formationName || formation.formationId }}（{{
+              formation.deviceCount
+            }}）
+          </option>
+        </select>
+      </label>
+
       <!--
         The conditional group comes first, so it grows leftward into empty space.
         `PageHeader` right-anchors the actions block, so a group that appears and
@@ -161,9 +263,25 @@ const TONE_DOT: Record<string, string> = {
       <div
         class="map-surface flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden rounded-md border border-border bg-surface-raised"
       >
+        <!--
+          `sortedDevices`, not `devices` — the two maps take deliberately different
+          sets, and the port had flattened that.
+
+          The GPS map answers "where is the fleet", so a formation filter must not make
+          vehicles vanish from it: geography is context, and a half-empty site map reads
+          as "those vehicles are gone" rather than "those vehicles are filtered out".
+          The scene map answers "what are *these* vehicles doing in this scene", so it
+          takes the narrowed set (`sceneDevices` also requires the device to be in the
+          formation's scene and to have the ROS map enabled).
+
+          v1.0.0 drew the same line — `DashboardView.vue:303` passed `sortedDevices`
+          here. It is currently invisible either way because no formation can be
+          selected yet, which is exactly why this belongs in the same change as the
+          formation control below rather than in a commit of its own.
+        -->
         <GpsMap
           v-if="surface === 'gps'"
-          :devices="devices"
+          :devices="fleet.sortedDevices"
           :selected-device-id="state.selectedDeviceId"
           @select="fleet.selectDevice"
         />
@@ -253,6 +371,16 @@ const TONE_DOT: Record<string, string> = {
             >
               场景
             </th>
+            <th
+              class="px-3 py-2 font-mono text-2xs font-normal text-ink-subtle"
+            >
+              最近上报
+            </th>
+            <th
+              class="px-3 py-2 text-right font-mono text-2xs font-normal text-ink-subtle"
+            >
+              电量
+            </th>
           </tr>
         </thead>
         <tbody>
@@ -273,7 +401,8 @@ const TONE_DOT: Record<string, string> = {
           <tr
             v-for="row in rows"
             :key="row.device.deviceId"
-            class="border-b border-border last:border-0 hover:bg-surface-sunken"
+            class="device-row border-b border-border last:border-0"
+            :data-tone="row.tone"
           >
             <td class="px-3 py-2">
               <span class="flex items-center gap-2 text-ink-muted">
@@ -308,7 +437,13 @@ const TONE_DOT: Record<string, string> = {
               {{ row.device.deviceId }}
             </td>
             <td class="px-3 py-2 text-ink-muted">
-              {{ row.device.sceneId || "--" }}
+              {{ row.sceneLabel }}
+            </td>
+            <td class="px-3 py-2 text-ink-muted">
+              {{ row.stamp }}
+            </td>
+            <td class="px-3 py-2 text-right font-mono text-xs text-ink">
+              {{ row.soc }}
             </td>
           </tr>
         </tbody>
@@ -316,3 +451,56 @@ const TONE_DOT: Record<string, string> = {
     </div>
   </PageHeader>
 </template>
+
+<style scoped>
+/*
+ * Scoped CSS rather than utilities, for the same reason `SceneMap.vue` uses it: the
+ * variants are keyed on a *runtime* tone, and Tailwind only sees literal strings, so
+ * five tones would mean five literal class names in the template. Every value is a
+ * token, so this follows the theme — no `dark:` here and there should not be.
+ *
+ * Hover lives here too. It used to be a `hover:bg-surface-sunken` utility, but a tone
+ * tint and a hover tint are the same property: leaving them in two systems makes which
+ * one wins depend on stylesheet order, which is not something a template should be
+ * betting on.
+ *
+ * **What these three rules restore.** v1.0.0 tinted the whole row for critical and
+ * warning (`device-list.css:35-41`, a drop shadow on a card) and faded offline ones to
+ * `.74` (`:43-45`); the port kept only the status dot. A dot answers "what is this
+ * row's state" once you are already reading the row — the row treatment is what makes
+ * the answer arrive before you read anything, which is the whole point of a list you
+ * scan. Translated to a table the shadow becomes an inset left edge: a 44px drop
+ * shadow is card furniture and would just blur into the neighbouring rows.
+ *
+ * `notice` deliberately gets nothing, matching v1.0.0 — if every non-normal state is
+ * highlighted, none of them is.
+ */
+.device-row {
+  transition: background-color 150ms var(--ease-standard);
+}
+
+.device-row:hover {
+  background: var(--color-surface-sunken);
+}
+
+.device-row[data-tone="critical"] {
+  background: color-mix(in oklab, var(--color-critical-wash) 60%, transparent);
+  box-shadow: inset 3px 0 0 var(--color-critical);
+}
+
+.device-row[data-tone="warning"] {
+  background: color-mix(in oklab, var(--color-warning-wash) 60%, transparent);
+  box-shadow: inset 3px 0 0 var(--color-warning);
+}
+
+.device-row[data-tone="critical"]:hover,
+.device-row[data-tone="warning"]:hover {
+  background: color-mix(in oklab, var(--color-surface-sunken) 70%, transparent);
+}
+
+/* Not `display: none` territory — an offline vehicle is still one you may need to
+   open. It recedes so the live ones read first. */
+.device-row[data-tone="offline"] {
+  opacity: 0.74;
+}
+</style>
