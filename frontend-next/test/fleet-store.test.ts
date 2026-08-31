@@ -223,6 +223,119 @@ describe("derived views", () => {
   });
 });
 
+describe("告警的排序基准", () => {
+  /**
+   * Manual review reported the alert list as "flickering". It was a list sorted on a
+   * key that changes every tick: for a code alert `ts` is the last report that carried
+   * the code, and a vehicle re-sends its active codes on every telemetry cycle — so
+   * every row's stamp jumped to "now" together and the order fell to millisecond
+   * noise. These pin the fix, which is to order by **onset**.
+   *
+   * Not a demo artefact: real vehicles report periodically too.
+   */
+  const code = (value: number, stamp: string) => ({
+    code: value,
+    info: `报码 ${value}`,
+    stamp,
+  });
+
+  /** The same two alerts, re-reported with a fresh stamp — one telemetry cycle. */
+  const cycle = (stamp: string) =>
+    store.ingestPayload(
+      snapshot([
+        device({ deviceId: "agv-01", error_code: code(5102, stamp) }),
+        device({ deviceId: "agv-02", error_code: code(5701, stamp) }),
+      ]),
+      "api",
+    );
+
+  it("keeps the order across cycles that refresh every stamp", () => {
+    cycle("2026-08-30T02:00:00.000Z");
+    const first = store.groupedAlerts.critical.map((alert) => alert.id);
+
+    for (const stamp of [
+      "2026-08-30T02:00:01.000Z",
+      "2026-08-30T02:00:02.000Z",
+      "2026-08-30T02:00:03.000Z",
+    ]) {
+      cycle(stamp);
+      expect(store.groupedAlerts.critical.map((alert) => alert.id)).toEqual(
+        first,
+      );
+    }
+  });
+
+  it("records the onset once and does not let a later report move it", () => {
+    cycle("2026-08-30T02:00:00.000Z");
+    const onset = store.groupedAlerts.critical[0]!.firstSeenAt;
+
+    cycle("2026-08-30T02:05:00.000Z");
+    const alert = store.groupedAlerts.critical[0]!;
+
+    expect(alert.firstSeenAt).toBe(onset);
+    // `ts` still follows the latest report — the two are different questions.
+    expect(Date.parse(alert.ts)).toBeGreaterThan(onset);
+  });
+
+  it("puts the newer incident first, whatever the stamps say afterwards", () => {
+    store.ingestPayload(
+      snapshot([
+        device({
+          deviceId: "agv-01",
+          error_code: code(5102, "2026-08-30T02:00:00.000Z"),
+        }),
+      ]),
+      "api",
+    );
+    store.ingestPayload(
+      snapshot([
+        device({
+          deviceId: "agv-01",
+          error_code: code(5102, "2026-08-30T02:00:00.000Z"),
+        }),
+        device({
+          deviceId: "agv-02",
+          error_code: code(5701, "2026-08-30T02:01:00.000Z"),
+        }),
+      ]),
+      "api",
+    );
+
+    expect(store.groupedAlerts.critical[0]!.deviceId).toBe("agv-02");
+  });
+
+  it("gives a recurrence a fresh onset instead of the one from last time", () => {
+    // The prune is what makes this true, and it is also what stops the map growing
+    // for the life of the tab — the failure mode P0-d describes on the backend.
+    cycle("2026-08-30T02:00:00.000Z");
+    const onset = store.groupedAlerts.critical[0]!.firstSeenAt;
+
+    // Cleared: the codes go away.
+    store.ingestPayload(
+      snapshot([
+        device({ deviceId: "agv-01" }),
+        device({ deviceId: "agv-02" }),
+      ]),
+      "api",
+    );
+    expect(store.groupedAlerts.critical).toHaveLength(0);
+
+    cycle("2026-08-30T03:00:00.000Z");
+    expect(store.groupedAlerts.critical[0]!.firstSeenAt).toBeGreaterThan(onset);
+  });
+
+  it("breaks a tie by id rather than leaving it to chance", () => {
+    // Two alerts that started in the same millisecond would otherwise swap on every
+    // recompute — the same defect in miniature.
+    cycle("2026-08-30T02:00:00.000Z");
+    const ids = store.groupedAlerts.critical.map((alert) => alert.id);
+
+    expect(ids).toEqual(
+      [...ids].sort((left, right) => left.localeCompare(right)),
+    );
+  });
+});
+
 describe("selection", () => {
   it("selects the first device when a snapshot arrives with none chosen", () => {
     store.ingestPayload(

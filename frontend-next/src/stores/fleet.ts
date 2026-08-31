@@ -73,6 +73,11 @@ export type TrailPoint = { x: number; y: number };
 export type GroupedAlert = DeviceAlert & {
   deviceId: string;
   deviceName: string;
+  /**
+   * When this alert was **first seen**, in epoch ms — as distinct from `ts`, which is
+   * the last report that carried it. See `alertFirstSeen`.
+   */
+  firstSeenAt: number;
 };
 export type GroupedAlerts = Record<Severity, GroupedAlert[]>;
 
@@ -397,6 +402,51 @@ export const useFleetStore = defineStore("fleet", () => {
     }),
   );
 
+  /**
+   * When each alert id was first seen, in epoch ms.
+   *
+   * The alert list has to be ordered by **onset**, and `ts` cannot do it: for a code
+   * alert `ts` is the stamp of the *last report that carried the code*, and a vehicle
+   * re-sends its active codes on every telemetry cycle. So every row's `ts` jumps to
+   * "now" together, once a second, and the order within a severity bucket is then
+   * decided by millisecond noise — the rows visibly swap places. Manual review saw it
+   * as flicker; it is a list sorted on a key that changes every tick.
+   *
+   * This is not a demo artefact: real vehicles report periodically too, so the same
+   * error code arrives again and again with a fresh stamp.
+   *
+   * A plain `Map`, not reactive state, and that is deliberate on both counts:
+   * `groupedAlerts` re-runs because `devices` changed on the same ingest, so the map
+   * does not need to be a dependency — and making one entry per alert reactive would
+   * be work with no reader.
+   */
+  const alertFirstSeen = new Map<string, number>();
+
+  /**
+   * Records an onset for every alert now present, and forgets the ones that cleared.
+   *
+   * The prune is not housekeeping. Without it this map grows for the life of the tab
+   * (the failure mode P0-d describes on the backend), and — more visibly — an alert
+   * that clears and later fires again would inherit its *first* onset and sort as
+   * though it had never gone away.
+   */
+  const recordAlertOnsets = (
+    devicesById: Record<string, DeviceSnapshot>,
+  ): void => {
+    const present = new Set<string>();
+    for (const device of Object.values(devicesById)) {
+      for (const alert of device.alerts) {
+        present.add(alert.id);
+        if (!alertFirstSeen.has(alert.id)) {
+          alertFirstSeen.set(alert.id, toTimestampMs(alert.ts));
+        }
+      }
+    }
+    for (const id of [...alertFirstSeen.keys()]) {
+      if (!present.has(id)) alertFirstSeen.delete(id);
+    }
+  };
+
   const groupedAlerts = computed<GroupedAlerts>(() => {
     const grouped: GroupedAlerts = { critical: [], warning: [], notice: [] };
     devices.value.forEach((device) => {
@@ -405,12 +455,20 @@ export const useFleetStore = defineStore("fleet", () => {
           ...alert,
           deviceId: device.deviceId,
           deviceName: device.deviceName,
+          // Falls back to `ts` only for an alert this store has not ingested yet,
+          // which is the path tests take when they read the computed directly.
+          firstSeenAt: alertFirstSeen.get(alert.id) ?? toTimestampMs(alert.ts),
         });
       });
     });
     Object.values(grouped).forEach((list) => {
+      // Newest incident first, then by id so the order is fully determined. Without
+      // the second key two alerts that started in the same millisecond would swap
+      // on every recompute — the same defect in miniature.
       list.sort(
-        (left, right) => toTimestampMs(right.ts) - toTimestampMs(left.ts),
+        (left, right) =>
+          right.firstSeenAt - left.firstSeenAt ||
+          left.id.localeCompare(right.id),
       );
     });
     return grouped;
@@ -524,6 +582,7 @@ export const useFleetStore = defineStore("fleet", () => {
     }
 
     state.devicesById = nextDevicesById;
+    recordAlertOnsets(nextDevicesById);
     recordTrails(normalized.devices, nextDevicesById, normalized.replace);
     state.fleetName = normalized.fleetName;
     state.topicPattern = normalized.topicPattern;
