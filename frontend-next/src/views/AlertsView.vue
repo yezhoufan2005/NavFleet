@@ -105,14 +105,24 @@ const setFilter = (patch: Record<string, string | null>): void => {
   setQuery({ ...patch, page: null });
 };
 
-/** Every alert in the fleet, worst severity first and newest first within it. */
+/**
+ * Every alert in the fleet, worst severity first and newest **onset** first within it.
+ *
+ * Not by `ts`. For a code alert `ts` is the last report that carried the code, and a
+ * vehicle re-sends its active codes every telemetry cycle — so sorting on it made all
+ * the rows in a bucket jump to "now" together once a second, and their order fell to
+ * millisecond noise. Manual review saw that as flicker; it was a list sorted on a key
+ * that changes every tick. `firstSeenAt` is maintained by the store and does not move
+ * while an alert stays up. The `id` tiebreak makes the order fully determined.
+ */
 const allAlerts = computed(() =>
   (["critical", "warning", "notice"] as const)
     .flatMap((bucket) => fleet.groupedAlerts[bucket])
     .sort(
       (left, right) =>
         SEVERITY_WEIGHT[left.severity] - SEVERITY_WEIGHT[right.severity] ||
-        new Date(right.ts).getTime() - new Date(left.ts).getTime(),
+        right.firstSeenAt - left.firstSeenAt ||
+        left.id.localeCompare(right.id),
     ),
 );
 
@@ -321,7 +331,11 @@ const acknowledgePage = (): void => {
               class="text-brand-ink underline-offset-2 hover:underline"
               >{{ alert.deviceName || alert.deviceId }}</RouterLink
             >
-            <span class="font-mono">{{ formatDateTime(alert.ts) }}</span>
+            <!-- The onset, not the last report. `ts` is refreshed on every telemetry
+                 cycle, so rendering it made this line rewrite itself once a second. -->
+            <span class="font-mono">{{
+              formatDateTime(alert.firstSeenAt)
+            }}</span>
             <span v-if="alert.code" class="font-mono">#{{ alert.code }}</span>
           </span>
         </div>
