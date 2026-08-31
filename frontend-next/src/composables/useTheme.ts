@@ -113,16 +113,16 @@ export const useTheme = () => {
     }
   };
 
-  const cycleTheme = (): void => {
-    const index = PREFERENCES.indexOf(preference.value);
-    setPreference(PREFERENCES[(index + 1) % PREFERENCES.length] ?? "dark");
-  };
-
+  /*
+   * No `cycleTheme`. It existed for the header's one-tap toggle, which 11C replaced with
+   * three explicit options in the session menu — a better control, because a cycling
+   * button cannot say what the next tap will select. The function outlived the button and
+   * sat here with no caller for the whole of Phase 13.
+   */
   return {
     preference: readonly(preference),
     resolved: readonly(resolved),
     setPreference,
-    cycleTheme,
   };
 };
 
@@ -135,4 +135,3 @@ export const __resetTheme = (): void => {
 };
 
 export const THEME_STORAGE_KEY = STORAGE_KEY;
-export const THEME_PREFERENCES = PREFERENCES;

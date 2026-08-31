@@ -41,7 +41,7 @@ import type { QuietHours, SoundVolume } from "@/composables/useAlertSound";
 const { user } = defineProps<{ user: AuthUser }>();
 const emit = defineEmits<{ logout: [] }>();
 
-const { preference, setPreference } = useTheme();
+const { preference, resolved, setPreference } = useTheme();
 const sound = useAlertSound();
 
 const ROLE_LABELS: Record<AuthUser["role"], string> = {
@@ -127,8 +127,17 @@ const onThemeChange = (value: unknown): void => {
         </DropdownMenuLabel>
         <DropdownMenuSeparator class="my-1 h-px bg-border" />
 
+        <!--
+          The label says which of the two is in force, not only which option is selected.
+          `resolved` has been exported by `useTheme` since 12B with no reader, and it is
+          the only thing that can answer this while 跟随系统 is chosen — the radio says
+          「跟随系统」 and the screen is dark, and nothing on the page connects the two.
+        -->
         <DropdownMenuLabel class="px-2 py-1 text-2xs text-ink-subtle">
-          主题
+          主题 ·
+          <span class="text-ink-muted"
+            >当前生效：{{ resolved === "dark" ? "深色" : "浅色" }}</span
+          >
         </DropdownMenuLabel>
         <DropdownMenuRadioGroup
           :model-value="preference"

@@ -14,7 +14,7 @@ import { onScopeDispose, readonly, ref } from "vue";
  * drawer is the one in the shell — because a media query cannot tell a focus trap
  * to switch on.
  */
-export const BREAKPOINTS = {
+const BREAKPOINTS = {
   md: 768,
   lg: 1024,
   xl: 1280,

@@ -105,6 +105,26 @@ const TONE_DOT: Record<string, string> = {
 };
 
 /**
+ * How many points the selected vehicle's trail is carrying, once it is long enough to
+ * draw.
+ *
+ * A single point is not a trail — `buildWorldPath` turns it into a bare `M x y`, which
+ * renders nothing — and one arrives with the very first telemetry message. Reporting it
+ * would put a 清除轨迹 button on screen permanently, offering to clear something the
+ * operator cannot see.
+ */
+const selectedTrailLength = computed(() => {
+  const deviceId = fleet.selectedDevice?.deviceId;
+  const length = deviceId ? (fleet.trailsByDeviceId[deviceId]?.length ?? 0) : 0;
+  return length > 1 ? length : 0;
+});
+
+const clearSelectedTrail = (): void => {
+  const deviceId = fleet.selectedDevice?.deviceId;
+  if (deviceId) fleet.clearTrail(deviceId);
+};
+
+/**
  * Empty value clears rather than selects, so 全部编队 is a real option instead of a
  * sentinel formation id.
  *
@@ -353,6 +373,24 @@ watch(
         >
           打开详情 →
         </RouterLink>
+
+        <!--
+          The control for `clearTrail`, which the store has exported since 12B with no
+          caller. A trail accumulates for as long as a vehicle is watched, so after a
+          shift the selected vehicle's path is a scribble over the whole site and there
+          was no way to start it again short of a reload.
+
+          Only shown when there is something to clear — a permanently disabled button
+          teaches people to stop reading the toolbar.
+        -->
+        <button
+          v-if="selectedTrailLength"
+          type="button"
+          class="mt-1 shrink-0 rounded-sm border border-border-strong px-2 py-2 text-center text-xs text-ink-muted transition-colors duration-150 ease-standard hover:text-ink"
+          @click="clearSelectedTrail"
+        >
+          清除轨迹（{{ selectedTrailLength }} 点）
+        </button>
       </aside>
     </div>
 

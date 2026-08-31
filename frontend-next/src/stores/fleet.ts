@@ -32,10 +32,8 @@ import {
   extractDeviceIdFromTopic,
   fallbackFleetPayload,
   fleetApi,
-  formatDateTime,
   getDeviceTone,
   hasGps,
-  hasPose,
   mergeDevice,
   mergeSceneDefinitionParts,
   normalizeDevice,
@@ -43,7 +41,6 @@ import {
   normalizePathPoint,
   pickTrailPose,
   pointsAreNear,
-  round,
   sceneCatalog,
   toTimestampMs,
   TRAIL_MAX_POINTS,
@@ -767,8 +764,28 @@ export const useFleetStore = defineStore("fleet", () => {
     return true;
   };
 
+  /**
+   * What the console holds when the backend cannot be reached: **nothing**, said plainly.
+   *
+   * `fallbackFleetPayload.devices` and `sceneCatalog` are both permanently empty in
+   * `fleet-core` — they were copied over from v1.0.0 verbatim, and three lookups in this
+   * file have never once hit them. So "the console shows demo content when the backend is
+   * down" has never been true, in either front end, and ingesting an empty payload dressed
+   * the absence up as a fleet of zero vehicles.
+   *
+   * The honest version keeps only the two fields that do carry a value (the fleet's default
+   * name and the topic pattern, which are what the shell renders) and leaves the device map
+   * untouched, so a reconnect merges into whatever was last known rather than into a fleet
+   * that was silently replaced by an empty one.
+   *
+   * The empty constants themselves live in `fleet-core`, which **v1.0.0 also imports**, so
+   * deleting them is a change to shipped code and belongs with 9.1 / 9.19 in the 1.0.3
+   * batch. This is the half that can be done without touching the released product.
+   */
   const bootstrapEmptyState = (): void => {
-    ingestPayload(cloneValue(fallbackFleetPayload), "bootstrap");
+    if (!state.fleetName) state.fleetName = fallbackFleetPayload.fleetName;
+    if (!state.topicPattern)
+      state.topicPattern = fallbackFleetPayload.topicPattern;
   };
 
   const bootstrap = async (): Promise<boolean> => {
@@ -796,7 +813,6 @@ export const useFleetStore = defineStore("fleet", () => {
     devicesByAttention,
     filteredDevices,
     selectedDevice,
-    selectedFormation,
     formationSceneId,
     sceneDevices,
     summary,
@@ -805,10 +821,12 @@ export const useFleetStore = defineStore("fleet", () => {
     bootstrapPending,
     connection,
     getSceneDefinition,
-    getDeviceTone,
-    hasPose,
-    round,
-    formatDateTime,
+    /*
+     * Not `getDeviceTone` / `hasPose` / `round` / `formatDateTime`. They were re-exported
+     * here and every consumer imports them straight from `@navfleet/fleet-core` instead,
+     * so the store was publishing four aliases nobody read — and, worse, publishing them
+     * made the store look like the place those helpers come from.
+     */
     ingestPayload,
     selectDevice,
     selectFormation,

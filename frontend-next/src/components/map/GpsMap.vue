@@ -48,6 +48,7 @@ interface AmapMap {
     maxZoom?: number,
   ) => void;
   getZoom: () => number;
+  setZoom: (zoom: number, immediately?: boolean, duration?: number) => void;
   add: (marker: AmapMarker) => void;
   remove: (marker: AmapMarker) => void;
   addControl: (control: unknown) => void;
@@ -165,6 +166,13 @@ const destroyMarkers = (): void => {
 };
 
 /** Frame the whole fleet. First load, and the toolbar button. */
+/** Steps the zoom by one level, clamped to the `zooms` range the map was created with. */
+const stepZoom = (delta: number): void => {
+  if (!map) return;
+  const next = Math.min(20, Math.max(3, (map.getZoom() || 3) + delta));
+  map.setZoom(next, false, 200);
+};
+
 const fitFleet = (): void => {
   if (!map || !markerEntries.size) return;
 
@@ -272,10 +280,18 @@ const initializeMap = async (): Promise<void> => {
     });
 
     markerCtor = AMap.Marker;
+    /*
+     * No `AMap.ToolBar`. Its zoom widget is AMap's own chrome — a bright chunk bottom-right
+     * that ignores the design tokens, so on the dark theme it is a lit rectangle sitting on
+     * a dark map. The two buttons below do the same job in the same style as 适应车队.
+     *
+     * `AMap.Scale` **stays**, and that is not the same call: it is the only distance readout
+     * this surface has, and replacing it means projecting metres per pixel at the current
+     * latitude — real work, and a capability v1.0.0 also leaned on AMap for. Removing it to
+     * satisfy a theming complaint would trade a working control for a missing one. (The
+     * scene map's scale bar is a different matter: its world units are already metres.)
+     */
     map.addControl(new AMap.Scale());
-    map.addControl(
-      new AMap.ToolBar({ position: { right: "18px", bottom: "18px" } }),
-    );
 
     syncMarkers();
   } catch (error) {
@@ -359,6 +375,24 @@ watch(markerSignature, () => {
         >
           适应车队
         </button>
+        <!-- Replacing `AMap.ToolBar`'s zoom, in this surface's own styling. `aria-label`
+             rather than a bare glyph: `+` and `−` are punctuation to a screen reader. -->
+        <button
+          type="button"
+          class="rounded-xs border border-border-strong bg-surface-raised px-2.5 py-1 text-xs text-ink-muted transition-colors duration-150 ease-standard hover:text-ink"
+          aria-label="放大"
+          @click="stepZoom(1)"
+        >
+          ＋
+        </button>
+        <button
+          type="button"
+          class="rounded-xs border border-border-strong bg-surface-raised px-2.5 py-1 text-xs text-ink-muted transition-colors duration-150 ease-standard hover:text-ink"
+          aria-label="缩小"
+          @click="stepZoom(-1)"
+        >
+          －
+        </button>
       </div>
 
       <div
@@ -412,12 +446,48 @@ watch(markerSignature, () => {
   background: var(--marker-color);
   box-shadow: 0 0 0 2px var(--color-surface-raised);
 }
+/*
+ * The selected pin: static emphasis **plus** a pulse, not one or the other.
+ *
+ * The size step and the second ring are what a still screenshot needs; the pulse is what a
+ * moving fleet needs — v1.0.0 expressed selection as motion (`pulse 2s ease-in-out
+ * infinite` on the pin itself) and the port replaced it with geometry, which reads fine
+ * next to one marker and disappears in a cluster of forty.
+ *
+ * The animation is on the *ring* spread rather than on the pin's `width`/`height`, unlike
+ * v1.0.0's `transform: scale(1.12)`: this marker is `display: grid; place-items: center`,
+ * so growing the pin moves its own box and drags the label 20px below it up and down once
+ * per cycle. `box-shadow` spread costs no layout.
+ *
+ * No reduced-motion block — `styles/base.css:67-78` holds a global `!important` kill
+ * switch, and it reaches here despite this being an unscoped block because a layered
+ * `!important` outranks an unlayered declaration.
+ */
 .amap-device-marker.is-selected .amap-device-pin {
   width: 16px;
   height: 16px;
   box-shadow:
     0 0 0 2px var(--color-surface-raised),
     0 0 0 5px color-mix(in oklch, var(--marker-color) 40%, transparent);
+  animation: amap-pin-pulse 2s ease-out infinite;
+}
+
+@keyframes amap-pin-pulse {
+  0% {
+    box-shadow:
+      0 0 0 2px var(--color-surface-raised),
+      0 0 0 5px color-mix(in oklch, var(--marker-color) 40%, transparent);
+  }
+  70% {
+    box-shadow:
+      0 0 0 2px var(--color-surface-raised),
+      0 0 0 14px color-mix(in oklch, var(--marker-color) 0%, transparent);
+  }
+  100% {
+    box-shadow:
+      0 0 0 2px var(--color-surface-raised),
+      0 0 0 5px color-mix(in oklch, var(--marker-color) 0%, transparent);
+  }
 }
 
 .amap-device-heading {
@@ -436,6 +506,21 @@ watch(markerSignature, () => {
   border-bottom: 8px solid var(--marker-color);
 }
 
+/*
+ * The label, with the two defensive rules v1.0.0 had and the port dropped. Both are the
+ * kind that show nothing on a quiet map and everything on a busy one:
+ *
+ * 1. **`pointer-events: none` + `visibility: hidden`.** At `opacity: 0` alone the card is
+ *    still hit-testable, so an invisible box sits 20px under every pin and swallows clicks
+ *    aimed at whatever marker is behind it. `opacity` was doing the *looking* hidden and
+ *    nothing was doing the *being* hidden.
+ * 2. **`z-index` on the hovered marker** (below). v1.0.0's comment on this said it plainly:
+ *    without it, a label in a dense cluster renders behind the neighbouring pins — i.e. the
+ *    hover does something and you cannot read the result.
+ *
+ * `max-width` too: `white-space: nowrap` with no clamp lets one long device name produce an
+ * unbounded card. v1.0.0 clamped 132–220px.
+ */
 .amap-device-label {
   position: absolute;
   top: 20px;
@@ -447,14 +532,28 @@ watch(markerSignature, () => {
   border: 1px solid var(--color-border);
   border-radius: var(--radius-xs);
   background: var(--color-surface-raised);
+  max-width: 220px;
+  overflow: hidden;
+  text-overflow: ellipsis;
   white-space: nowrap;
   text-align: center;
   opacity: 0;
-  transition: opacity 150ms var(--ease-standard);
+  visibility: hidden;
+  pointer-events: none;
+  transition:
+    opacity 150ms var(--ease-standard),
+    visibility 150ms var(--ease-standard);
+}
+
+/* Lifts the whole marker, not just the label — the pins are siblings, so the label can
+   only clear them if its own marker outranks them. */
+.amap-device-marker:hover {
+  z-index: 200;
 }
 .amap-device-marker.is-selected .amap-device-label,
 .amap-device-marker:hover .amap-device-label {
   opacity: 1;
+  visibility: visible;
 }
 .amap-device-label strong {
   font-size: var(--text-xs);

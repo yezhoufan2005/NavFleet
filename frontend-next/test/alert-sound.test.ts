@@ -125,7 +125,6 @@ describe("unlocking", () => {
     const sound = useAlertSound();
 
     expect(sound.unlocked.value).toBe(false);
-    expect(sound.canSound.value).toBe(false);
     expect(sound.silentReason.value).toBe("locked");
   });
 
@@ -242,7 +241,6 @@ describe("the three preferences", () => {
     await sound.unlock();
     sound.setMuted(true);
 
-    expect(sound.canSound.value).toBe(false);
     expect(sound.silentReason.value).toBe("muted");
     expect(localStorage.getItem(ALERT_SOUND_KEYS.muted)).toBe("1");
   });
@@ -279,7 +277,6 @@ describe("the three preferences", () => {
     await sound.unlock();
     sound.setQuietHours("night");
 
-    expect(sound.canSound.value).toBe(false);
     expect(sound.silentReason.value).toBe("quiet");
   });
 

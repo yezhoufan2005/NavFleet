@@ -109,6 +109,14 @@ test.describe("console devices", () => {
     // Back to the map, and it is the surface that was chosen, not the default.
     await page.getByRole("button", { name: "地图", exact: true }).click();
     await expect(page.getByRole("img", { name: "ROS 场景地图" })).toBeVisible();
+
+    // **And the vehicle is still framed.** This is the nail that came loose: the
+    // persistence exists (`useSceneViewportPersistence`), but after 13R this case only
+    // asserted that the backdrop and the layout preference survived — so a reload that
+    // restored the view while losing the *subject* would have passed. It is the same
+    // absolute `<24px` judgement the other three cases use, which is what makes a
+    // regression in the restore path fail here rather than merely look different.
+    expect(await markerOffsetFromCentre(page)).toBeLessThan(24);
   });
 
   test("the list carries every seeded vehicle and its status", async ({
