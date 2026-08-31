@@ -318,9 +318,9 @@ const onScrub = (event: Event): void => {
 </script>
 
 <template>
-  <div class="flex flex-col gap-3">
+  <div class="flex flex-col gap-2">
     <form
-      class="flex flex-col gap-3 rounded-md border border-border bg-surface-raised p-4"
+      class="flex flex-col gap-2 rounded-md border border-border bg-surface-raised p-3"
       @submit.prevent="load"
     >
       <div class="flex flex-wrap items-end gap-3">
@@ -376,24 +376,27 @@ const onScrub = (event: Event): void => {
       </p>
     </form>
 
+    <!--
+      No visible heading. It said 轨迹回放 directly under a tab labelled 历史回放 —
+      the same thing twice — and it cost 25px plus a gap out of a budget that was
+      already over. The section keeps its accessible name through `aria-label`, so the
+      landmark is still announced; only the duplicate ink is gone.
+    -->
     <section
-      class="flex min-h-0 flex-col gap-3 rounded-md border border-border bg-surface-raised p-4"
-      aria-labelledby="playback-heading"
+      class="flex min-h-0 flex-col gap-2 rounded-md border border-border bg-surface-raised p-3"
+      aria-label="轨迹回放"
     >
-      <header class="flex items-baseline justify-between gap-3">
-        <h3 id="playback-heading" class="text-lg font-semibold text-ink">
-          轨迹回放
-        </h3>
-        <span class="font-mono text-2xs tabular-nums text-ink-muted">{{
-          progressLabel
-        }}</span>
-      </header>
-
-      <!-- Five mutually exclusive states. v1.0.0 had four, with its last branch
-           covering both "nothing loaded yet" and "loaded but the scene is unknown" —
-           so a missing scene definition told you to press a button you had pressed. -->
+      <!--
+        The map's height is tied to the viewport rather than left to grow.
+        Measured before this change, on a 641px-tall window: everything above the map
+        took 317px, the map itself reported **697px** (`min-h-80` is only a floor, and
+        `SceneMap` fills a flex column that had no height constraint), so the map's
+        bottom edge sat 421px below the fold and the playback controls 441px below it —
+        you had to scroll to reach 播放. `clamp` keeps it usable on a laptop without
+        letting it push the controls off a short screen.
+      -->
       <div
-        class="map-surface relative flex min-h-80 flex-col overflow-hidden rounded-sm border border-border bg-surface"
+        class="map-surface relative flex h-[clamp(16rem,42vh,34rem)] flex-col overflow-hidden rounded-sm border border-border bg-surface"
       >
         <SceneMap
           v-if="
@@ -462,8 +465,12 @@ const onScrub = (event: Event): void => {
         A row of media controls with no icons and no visible labels, so both accessible
         names come from `aria-label`. Removing either is the axe critical Phase 10
         found: an unnamed slider and an unnamed combobox.
+
+        The progress readout moved here from the section header when that header went
+        away. This is where it belongs anyway — it describes the playhead, and it now
+        sits beside the control that moves it.
       -->
-      <div class="flex flex-wrap items-center gap-3">
+      <div class="flex flex-wrap items-center gap-2">
         <UiButton size="sm" :disabled="!samples.length" @click="togglePlay">
           {{ playing ? "暂停" : "播放" }}
         </UiButton>
@@ -475,6 +482,10 @@ const onScrub = (event: Event): void => {
         >
           重播
         </UiButton>
+
+        <span class="shrink-0 font-mono text-2xs tabular-nums text-ink-muted">{{
+          progressLabel
+        }}</span>
 
         <input
           class="min-w-40 flex-1 accent-brand"
@@ -506,7 +517,7 @@ const onScrub = (event: Event): void => {
 
     <section
       v-if="samples.length"
-      class="flex flex-col gap-3 rounded-md border border-border bg-surface-raised p-4"
+      class="flex flex-col gap-2 rounded-md border border-border bg-surface-raised p-3"
       aria-labelledby="playback-sample-heading"
     >
       <h3

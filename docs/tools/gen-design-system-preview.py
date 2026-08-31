@@ -42,8 +42,16 @@ SEMANTIC = [
     # subtle 400→300 —— 之后最差一组是 subtle on raised 5.58:1。
     ("ink-muted", "slate-700", "slate-200"),
     ("ink-subtle", "slate-600", "slate-300"),
-    ("border", "slate-200", "slate-800"),
-    ("border-strong", "slate-300", "slate-700"),
+    # 深色侧原来是 800 / 700，而 surface-raised 也是 slate-800 —— border 与它所画在的
+    # 那层表面**同色**，对比度 1.00:1。人工检查报的是「深色模式下顶栏那条竖线看不到」，
+    # 而那条线只是最明显的症状：全站每一处 `border-border` + `bg-surface-raised` 的卡片
+    # 边框在深色下都是隐形的，只不过卡片还能靠自身填充（slate-800）与页面（slate-900）
+    # 的差别勉强分辨，画在同一层表面上的分隔线就彻底消失。
+    # 整体上移一档：border 800→700（对 raised 1.47:1）、strong 700→600（2.15:1）。
+    # 判定标准取 check-map-contrast.mjs 给装饰性参考线用的那条 ≥1.3:1 —— 边框正是这一类
+    # 结构性图形，不是文本。浅色侧 border 对 white 是 1.43:1，改完两个主题基本对称。
+    ("border", "slate-200", "slate-700"),
+    ("border-strong", "slate-300", "slate-600"),
     # 遮罩。两个主题**故意取同一个值**：遮罩的作用是压暗下层，浅色主题下压暗、深色主题下
     # 压亮是把它的语义反过来了 —— 12C 里第一版抽屉就是这么做的，深色下整块内容被"洗白"。
     # 它总是带透明度使用（bg-scrim/55），所以不进按 4.5:1 判定的审计表。
