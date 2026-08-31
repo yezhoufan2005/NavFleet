@@ -26,11 +26,32 @@ import { RouterLink, useRoute, useRouter } from "vue-router";
 import PageHeader from "@/components/PageHeader.vue";
 import { useFleetStore } from "@/stores/fleet";
 import { useAlertAck } from "@/composables/useAlertAck";
+import { useDebouncedText } from "@/composables/useDebouncedText";
 import { useNotifications } from "@/composables/useNotifications";
 import { formatDateTime } from "@navfleet/fleet-core";
 import type { Severity } from "@navfleet/shared";
 
 const PAGE_SIZE = 20;
+
+/**
+ * The four `source` values the normalizer produces, in words.
+ *
+ * `source` has been computed and carried on every alert since 12A and read by nothing in
+ * this front end — v1.0.0 rendered it in the row footer
+ * (`frontend/src/views/AlertsView.vue:16-21,226`). It answers a question the title cannot:
+ * whether a row came off a vehicle's own report code or was derived by the rule engine,
+ * which decides whether the vehicle or the platform is the thing to look at.
+ *
+ * A snapshot-sourced alert can carry any string (`fleetNormalize.ts:500` defaults it to
+ * `"snapshot"`), so unknown values fall through to the raw value rather than being hidden.
+ */
+const SOURCE_LABELS: Record<string, string> = {
+  error_code: "告警报码",
+  warning_code: "预警报码",
+  info_code: "提示报码",
+  "rule-engine": "规则引擎",
+  snapshot: "快照",
+};
 
 const SEVERITIES: readonly { value: Severity | "all"; label: string }[] = [
   { value: "all", label: "全部" },
@@ -151,6 +172,12 @@ const filtered = computed(() => {
       alert.deviceName,
       alert.deviceId,
       alert.info,
+      // Both forms of the source: the operator sees 规则引擎 on the row, so that is what
+      // they will type — but a deployment reading logs may know it as `rule-engine`. The
+      // placeholder names 来源, and a placeholder that promises a field the filter does
+      // not search is its own small lie.
+      SOURCE_LABELS[alert.source],
+      alert.source,
     ]
       .filter(Boolean)
       .some((field) => String(field).toLowerCase().includes(keyword));
@@ -170,24 +197,84 @@ watch(pageCount, (count) => {
   if (page.value > count) setQuery({ page: count > 1 ? String(count) : null });
 });
 
-const unacknowledgedOnPage = computed(() =>
-  pageRows.value
+/**
+ * Every unacknowledged id in the **whole filtered set**, not just the visible page.
+ *
+ * The port had narrowed this to `pageRows`, and `docs/frontend-research.md:36` says the
+ * opposite for this control: "保持能力，补反馈与撤销". The feedback and the undo did get
+ * added; the capability quietly shrank, with no reason in the code or the commit. On a
+ * fleet with sixty active alerts "确认本页" means four rounds of clicking through
+ * pagination to do what v1.0.0 did once.
+ */
+const unacknowledgedFiltered = computed(() =>
+  filtered.value
     .filter((alert) => !ack.isAcknowledged(alert.id))
-    .map((a) => a.id),
+    .map((alert) => alert.id),
 );
 
 /**
  * Acknowledging in bulk offers an undo, because it is the one action here that is both
- * easy to trigger by accident and tedious to reverse by hand.
+ * easy to trigger by accident and tedious to reverse by hand. That matters more now that
+ * the button reaches past the page — the undo is what makes the wider scope safe rather
+ * than alarming.
  */
-const acknowledgePage = (): void => {
-  const changed = ack.acknowledgeMany(unacknowledgedOnPage.value);
+const acknowledgeFiltered = (): void => {
+  const changed = ack.acknowledgeMany(unacknowledgedFiltered.value);
   if (!changed.length) return;
   notify(`已确认 ${changed.length} 条告警`, {
     type: "success",
     action: { label: "撤销", handler: () => ack.unacknowledgeMany(changed) },
   });
 };
+
+/**
+ * How many of the alerts currently in the fleet are acknowledged.
+ *
+ * Deliberately **not** `ack.acknowledgedCount`, which counts the whole stored set: that
+ * includes ids for alerts that have since cleared, so it drifts upward forever and would
+ * report "12 acknowledged" on a page showing three rows. v1.0.0 made the same choice
+ * (`frontend/src/views/AlertsView.vue:52-54`).
+ */
+const acknowledgedPresent = computed(
+  () => allAlerts.value.filter((alert) => ack.isAcknowledged(alert.id)).length,
+);
+
+/**
+ * Clears the acknowledgement of every alert currently in the fleet.
+ *
+ * `clearAll` would also drop ids belonging to alerts that are no longer present, which
+ * is a different and larger action than the button says. The admin page's "clear local
+ * data" is not an equivalent either — it takes theme, sidebar, map mode and sound
+ * preferences with it.
+ */
+const clearAcknowledged = (): void => {
+  const cleared = ack.unacknowledgeMany(
+    allAlerts.value
+      .filter((alert) => ack.isAcknowledged(alert.id))
+      .map((a) => a.id),
+  );
+  if (!cleared.length) return;
+  notify(`已取消确认 ${cleared.length} 条告警`, {
+    type: "info",
+    action: { label: "撤销", handler: () => ack.acknowledgeMany(cleared) },
+  });
+};
+
+/**
+ * The search box commits on a timer rather than on every keystroke.
+ *
+ * `q` lives in the URL like the other filters so a pasted link reproduces the view — but
+ * that made eight characters into eight `router.replace` calls. See `useDebouncedText`
+ * for why a local draft is needed as well as a delay.
+ */
+const {
+  draft: searchDraft,
+  onInput: onSearchInput,
+  flush: flushSearch,
+} = useDebouncedText(
+  () => search.value,
+  (value) => setFilter({ q: value || null }),
+);
 </script>
 
 <template>
@@ -196,13 +283,31 @@ const acknowledgePage = (): void => {
     lede="按严重度分流，筛选状态进 URL，可以把一个视图发给同事。"
   >
     <template #actions>
+      <!--
+        「确认当前筛选」rather than 确认本页. The research note for this control says
+        「保持能力，补反馈与撤销」 —— the feedback and the undo are here; narrowing the
+        scope to one page was not part of it, and on sixty active alerts it turns one
+        action into four rounds of pagination.
+      -->
       <button
-        v-if="unacknowledgedOnPage.length"
+        v-if="unacknowledgedFiltered.length"
         type="button"
         class="rounded-sm border border-border-strong bg-surface-raised px-2.5 py-1 text-xs text-ink-muted transition-colors duration-150 ease-standard hover:text-ink"
-        @click="acknowledgePage"
+        @click="acknowledgeFiltered"
       >
-        确认本页 {{ unacknowledgedOnPage.length }} 条
+        确认当前筛选 {{ unacknowledgedFiltered.length }} 条
+      </button>
+
+      <!-- The counterpart v1.0.0 had beside it (`frontend/src/views/AlertsView.vue:195-202`)
+           and the port dropped. The admin page's 清除本地数据 is not an equivalent: it
+           takes theme, sidebar, map mode and sound preferences with it. -->
+      <button
+        v-if="acknowledgedPresent"
+        type="button"
+        class="rounded-sm border border-border-strong bg-surface-raised px-2.5 py-1 text-xs text-ink-muted transition-colors duration-150 ease-standard hover:text-ink"
+        @click="clearAcknowledged"
+      >
+        清除已确认 {{ acknowledgedPresent }} 条
       </button>
     </template>
 
@@ -265,14 +370,20 @@ const acknowledgePage = (): void => {
 
       <label class="flex flex-col gap-1">
         <span class="font-mono text-2xs text-ink-subtle">搜索</span>
+        <!--
+          Bound to the local draft, committed on a timer. Bound to `search` it would read
+          from the URL it is about to rewrite, and every keystroke was a navigation.
+          `keydown.enter` skips the wait, because pressing Enter in a search box means
+          "now" — and `search` inputs get a native clear button, whose `input` event goes
+          through the same debounce.
+        -->
         <input
           type="search"
           class="rounded-sm border border-border-strong bg-surface-raised px-2 py-1 text-xs text-ink"
-          placeholder="标题、详情、设备"
-          :value="search"
-          @input="
-            setFilter({ q: ($event.target as HTMLInputElement).value || null })
-          "
+          placeholder="标题、详情、设备、来源"
+          :value="searchDraft"
+          @input="onSearchInput(($event.target as HTMLInputElement).value)"
+          @keydown.enter.prevent="flushSearch"
         />
       </label>
 
@@ -286,7 +397,11 @@ const acknowledgePage = (): void => {
             })
           "
         />
-        显示已确认
+        <!-- The count v1.0.0 carried in this label (`AlertsView.vue:185`). Without it the
+             checkbox does not say whether ticking it would reveal anything. -->
+        显示已确认<template v-if="acknowledgedPresent"
+          >（{{ acknowledgedPresent }}）</template
+        >
       </label>
     </div>
 
@@ -305,10 +420,30 @@ const acknowledgePage = (): void => {
     </p>
 
     <ul v-else class="m-0 flex list-none flex-col gap-2 p-0">
+      <!--
+        Three visual encodings the port dropped, all restored on this element rather than
+        on the badge:
+
+        - **Severity on the whole row** (`alert-drawer.css:126-136` tinted its border).
+          A badge answers "how bad is this" once you are reading the row; the row
+          treatment is what tells you before you read anything.
+        - **The selected vehicle** (`.alert-item.focused`, `:138-141`). This page and the
+          map share one selection, so it says which rows belong to the vehicle you were
+          just looking at.
+        - **Acknowledged rows fade** (`.acknowledged { opacity: .55 }`,
+          `alert-center.css:65-67`). Without it, ticking 显示已确认 produced two kinds of
+          row that differ only in one button's colour — so after a bulk confirm you could
+          not see which ones you had just done.
+      -->
       <li
         v-for="alert in pageRows"
         :key="alert.id"
-        class="flex flex-col gap-2 rounded-md border border-border bg-surface-raised p-3 sm:flex-row sm:items-start"
+        class="alert-row flex flex-col gap-2 rounded-md border border-border bg-surface-raised p-3 sm:flex-row sm:items-start"
+        :data-severity="alert.severity"
+        :data-acknowledged="ack.isAcknowledged(alert.id) ? 'true' : undefined"
+        :data-focused="
+          alert.deviceId === fleet.state.selectedDeviceId ? 'true' : undefined
+        "
       >
         <span
           class="shrink-0 rounded-xs px-2 py-0.5 font-mono text-2xs"
@@ -337,6 +472,10 @@ const acknowledgePage = (): void => {
               formatDateTime(alert.firstSeenAt)
             }}</span>
             <span v-if="alert.code" class="font-mono">#{{ alert.code }}</span>
+            <!-- Where the row came from. Computed on every alert since 12A and read by
+                 nothing until now; it decides whether the vehicle or the platform is the
+                 thing to go look at. -->
+            <span>{{ SOURCE_LABELS[alert.source] || alert.source }}</span>
           </span>
         </div>
 
@@ -391,3 +530,46 @@ const acknowledgePage = (): void => {
     </nav>
   </PageHeader>
 </template>
+
+<style scoped>
+/*
+ * Scoped CSS for the same reason `DevicesView` and `SceneMap` use it: these variants key
+ * on a runtime severity, and Tailwind only sees literal strings. Every value is a token,
+ * so this follows the theme — no `dark:` here and there should not be.
+ *
+ * v1.0.0 tinted only the border (`alert-drawer.css:126-136`). Kept as a border tint here
+ * too rather than promoted to a background: the row already sits on `surface-raised`
+ * inside a list of siblings, and a filled row at three severities turns the page into a
+ * colour chart. The border is enough to group them at a glance.
+ */
+.alert-row[data-severity="critical"] {
+  border-color: color-mix(in oklab, var(--color-critical) 45%, transparent);
+}
+
+.alert-row[data-severity="warning"] {
+  border-color: color-mix(in oklab, var(--color-warning) 45%, transparent);
+}
+
+.alert-row[data-severity="notice"] {
+  border-color: color-mix(in oklab, var(--color-notice) 40%, transparent);
+}
+
+/*
+ * The vehicle this page and the map share a selection on. It wins over the severity tint
+ * on purpose — "this is the one you were looking at" is the more specific fact, and only
+ * ever applies to a few rows.
+ */
+.alert-row[data-focused="true"] {
+  border-color: var(--color-brand);
+  box-shadow: inset 0 0 0 1px var(--color-brand);
+}
+
+/*
+ * Acknowledged rows recede rather than disappear. They are hidden by default, so this
+ * only shows once 显示已确认 is on — which is precisely when "which of these did I
+ * already deal with" is the question being asked.
+ */
+.alert-row[data-acknowledged="true"] {
+  opacity: 0.55;
+}
+</style>

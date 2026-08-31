@@ -83,9 +83,9 @@ test.describe("console shell", () => {
 
     const drawer = page.getByRole("dialog");
     await expect(drawer).toBeVisible();
-    await expect(
-      drawer.getByRole("link", { name: "告警", exact: true }),
-    ).toBeVisible();
+    // Not `exact`: the 告警 item's accessible name carries its pending count when there is
+    // one, which is the badge doing its job rather than a naming accident.
+    await expect(drawer.getByRole("link", { name: /^告警/ })).toBeVisible();
 
     // Focus is inside the drawer, not left behind on the trigger.
     await expect(drawer.locator(":focus")).toHaveCount(1);
@@ -105,7 +105,7 @@ test.describe("console shell", () => {
 
     await page.getByRole("button", { name: "打开导航" }).click();
     const drawer = page.getByRole("dialog");
-    await drawer.getByRole("link", { name: "告警", exact: true }).click();
+    await drawer.getByRole("link", { name: /^告警/ }).click();
 
     await expect(drawer).toBeHidden();
     await expect(

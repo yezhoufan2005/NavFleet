@@ -27,10 +27,14 @@ export interface IaProfile {
   landing: { link: string; heading: string };
   /**
    * Primary-nav links that must be present in the signed-in shell, as anchored
-   * patterns rather than plain strings. Both reasons are concrete: v1.0.0's 告警中心
-   * carries a badge count in its accessible name (`告警中心 3`), so an exact string
-   * would not match; and a bare substring for 实时监控 would also match the
-   * not-found view's 返回实时监控.
+   * patterns rather than plain strings. Both reasons are concrete: the 告警 item
+   * carries a badge count in its accessible name, so an exact string would not
+   * match; and a bare substring for 实时监控 would also match the not-found view's
+   * 返回实时监控.
+   *
+   * Both front ends now leave that one entry open at the end. The console's was
+   * anchored for a while — not by choice, but because 13T-C is where it got its badge
+   * back; the anchor was a fossil of the missing feature.
    */
   navLinks: readonly RegExp[];
   /** How an unknown address is requested and echoed back, plus the way home. */
@@ -69,7 +73,7 @@ const CONSOLE: IaProfile = {
   // Candidate B: the landing page is 总览 and answers "which few need me now",
   // rather than a full-width map answering "where is everyone".
   landing: { link: "总览", heading: "总览" },
-  navLinks: [/^总览$/, /^设备$/, /^告警$/, /^报表$/, /^管理$/],
+  navLinks: [/^总览$/, /^设备$/, /^告警/, /^报表$/, /^管理$/],
   // Web history, so there is no `#` to echo — printing one would show an address
   // that does not exist.
   notFound: {
