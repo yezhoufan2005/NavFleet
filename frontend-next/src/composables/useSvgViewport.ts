@@ -28,6 +28,7 @@
 
 import { onBeforeUnmount, onMounted, reactive, ref, watch } from "vue";
 import type { ComputedRef } from "vue";
+import { hasPose } from "@navfleet/fleet-core";
 import { useSceneViewportPersistence } from "./useSceneViewportPersistence";
 
 /** Pointer travel (px) beyond which a press counts as a pan, not a click. */
@@ -89,9 +90,6 @@ export interface UseSvgViewportOptions {
   formationPeerDevices: ComputedRef<unknown[]>;
   deviceExtentBounds: ComputedRef<WorldBounds | null>;
 }
-
-const hasPose = (pose: DevicePose | null | undefined): boolean =>
-  Number.isFinite(pose?.x) && Number.isFinite(pose?.y);
 
 export function useSvgViewport(options: UseSvgViewportOptions) {
   const {
@@ -566,12 +564,17 @@ export function useSvgViewport(options: UseSvgViewportOptions) {
   }
 
   /**
-   * Not rAF-throttled, and that is a decision rather than an omission: the body is
-   * two number writes on a `reactive`, and Vue's scheduler already collapses however
-   * many of those land in one tick into a single re-render. Deferring to the next
-   * frame would add a frame of drag latency to buy nothing — the expensive things in
-   * this file were the layout reads and the storage writes, and both are dealt with
-   * elsewhere (see `handleWheel` and `useSceneViewportPersistence`).
+   * Not rAF-throttled, and that is a decision rather than an omission — but not for
+   * the reason first written here. Vue's scheduler does **not** collapse events across
+   * ticks: each `pointermove` is its own task, so each flushes its own render job.
+   * What makes throttling pointless is upstream of that — browsers already deliver
+   * `pointermove` frame-aligned (the finer samples arrive only via
+   * `getCoalescedEvents`), so there is at most one event per frame to coalesce.
+   *
+   * Deferring to the next frame would therefore add a frame of drag latency to buy
+   * nothing. The expensive things in this file were the layout reads and the storage
+   * writes, and both are dealt with elsewhere (see `handleWheel` and
+   * `useSceneViewportPersistence`).
    */
   function handlePointerMove(event: PointerEvent): void {
     if (!isDragging || event.pointerId !== activePointerId) return;

@@ -8,8 +8,9 @@
  * `pointCloudError`, because it is the visible backdrop and its absence is what the
  * operator is looking at.
  *
- * Point-cloud loads are guarded by a monotonic request id, so a slow load for a
- * scene you have already left can never overwrite the current one.
+ * **All three loads are guarded by a monotonic request id**, so a slow load for a
+ * scene you have already left can never overwrite the current one — nor raise a toast
+ * about a scene that is no longer on screen.
  *
  * **The palette is watched along with the scene**, which the v1.0.0 version had no
  * reason to do because its colours were hardcoded. Rasterizing bakes the colours
@@ -45,6 +46,8 @@ export function useSceneOverlay(
   const pointCloudBackdrop = ref<PointCloudBackdrop | null>(null);
   const pointCloudError = ref("");
 
+  let overlayRequestId = 0;
+  let metadataRequestId = 0;
   let pointCloudRequestId = 0;
 
   const loadJson = async <T>(url: string): Promise<T> => {
@@ -54,13 +57,17 @@ export function useSceneOverlay(
   };
 
   async function loadOverlay(url?: string): Promise<void> {
+    const requestId = ++overlayRequestId;
     if (!url) {
       overlay.value = null;
       return;
     }
     try {
-      overlay.value = await loadJson<LaneletOverlay>(url);
+      const result = await loadJson<LaneletOverlay>(url);
+      if (requestId !== overlayRequestId) return;
+      overlay.value = result;
     } catch {
+      if (requestId !== overlayRequestId) return;
       overlay.value = null;
       notify("路网覆盖层加载失败，地图将不显示车道线。", {
         type: "warning",
@@ -70,13 +77,17 @@ export function useSceneOverlay(
   }
 
   async function loadMetadata(url?: string): Promise<void> {
+    const requestId = ++metadataRequestId;
     if (!url) {
       metadata.value = null;
       return;
     }
     try {
-      metadata.value = await loadJson<ScenePart>(url);
+      const result = await loadJson<ScenePart>(url);
+      if (requestId !== metadataRequestId) return;
+      metadata.value = result;
     } catch {
+      if (requestId !== metadataRequestId) return;
       metadata.value = null;
       notify("场景元数据加载失败，地图可能无法正确定位。", {
         type: "warning",
@@ -86,8 +97,7 @@ export function useSceneOverlay(
   }
 
   async function loadPointCloud(scene: ScenePart): Promise<void> {
-    const requestId = pointCloudRequestId + 1;
-    pointCloudRequestId = requestId;
+    const requestId = ++pointCloudRequestId;
 
     if (!scene?.pointCloudUrl) {
       pointCloudBackdrop.value = null;
@@ -152,6 +162,8 @@ export function useSceneOverlay(
   onBeforeUnmount(() => {
     // Invalidate whatever is still in flight rather than letting it resolve into a
     // ref nobody is rendering.
+    overlayRequestId += 1;
+    metadataRequestId += 1;
     pointCloudRequestId += 1;
   });
 

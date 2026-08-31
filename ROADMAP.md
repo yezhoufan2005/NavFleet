@@ -1096,33 +1096,53 @@ frontend **132** · console **443** · e2e **73**。（PR #118 只改文档，�
 - [ ] **点击记录行在行下方展开设备信息卡**，而不是直接跳转设备详情。与上一条同属设备列表的一次
       改造，放同一个 PR 更合理
 
-### 13S — 第 9 节核销留下的 5 条缺陷（收口的产出，不是新建设）
+### 13S — 第 9 节核销留下的 5 条缺陷（收口的产出，不是新建设）· [~] 进行中（3 修 / 2 更正 / 2 押 1.0.3）
 
-第 9 节核销把 7 条「仍在」分成了两堆：2 条属会话边界，留 Phase 15；**剩下 5 条在这里修完**。
+第 9 节核销把 7 条「仍在」分成了两堆：2 条属会话边界，留 Phase 15；**剩下 5 条在这里收口**。
 放在一个 PR 里的理由是它们同源 —— 都是前两次"刻意不夹带行为改动"的搬迁留下的尾巴（12A 抽取、
 13A-2a 地图底座），不是五件互不相干的小事。
 
-- [ ] **9.1 `formatNumber(null)` → `"0.00"`**（`packages/fleet-core/src/formatters.ts:12-18`）。
+**开工第一件事改了这批的边界。** 核销时把 9.1 认成"唯一会改变已发布产品行为的一条"，查消费方发现
+**9.19 也是**：`frontend/src/views/AlertsView.vue:41` 与 `frontend/src/stores/fleet.ts:297` 都用
+`toTimestampMs` 排序告警。两条同属一类 —— **动 `fleet-core` 就等于动已发布的 v1.0.0**，只能是
+`fix:`，而 `fix:` 落 main 就注定发版。所以它们一起押到 **1.0.3**（与 P0-b…P0-e 同批），
+13S 全部落在 `frontend-next` 内，用不产生发版的 commit type。
+
+- [ ] **9.1 `formatNumber(null)` → `"0.00"`** → 押 **1.0.3**（`packages/fleet-core/src/formatters.ts:12-18`）。
       `Number(null) === 0` 是有限值，所以 `Number.isFinite` 这道门挡不住它。修成与同文件
       `formatValue` 一致的口径：`null` / `undefined` / `""` 一律 `--`，**而 `0` 必须仍然是 `0.00`**
-      —— 那是一个真实读数。
-      **这是唯一会改变已发布产品行为的一条**：v1.0.0 的 `DashboardView.vue:9` 与 `HistoryView.vue`
-      都从 `@navfleet/fleet-core` 取这个函数，所以它是 `fix:`，落 **1.0.3**（与 P0-b…P0-e 同一版）
-- [ ] **9.19 `toTimestampMs` 对空值回退 `Date.now()`**（`fleetNormalize.ts:69-82`）。与 9.1 同一类
-      错误：**空值伪装成一个看起来像真的值**。这条更麻烦，因为它进排序 —— 返回 `NaN` 会让比较
-      函数失序，所以修法要连排序端一起定（无时间戳的排最后，而不是排到"现在"）
-- [ ] **9.4 栅格底图 `<image>` 无 `@error`**（`components/map/SceneMap.vue:440-453`）。同组件的
-      点云已有 `pointCloudError` 与失败态 UI —— 照它的样子补，不新设一套
-- [ ] **9.7 `!sceneReady` 覆盖层吞事件**（`SceneMap.vue:652-660`）。缺 `pointer-events-none`，
-      压在带 `@wheel` / `@pointerdown` 的 svg 上。**同组件的点云失败覆盖层与 `GpsMap` 都是对的**，
-      所以这是一处遗漏而不是一个决定
-- [ ] **9.28 `buildWorldPath` 静默直连缺口**（`SceneMap.vue:227-235`）。非有限点被丢弃、其余仍
-      `join` → 轨迹断点被画成直线，**看起来像车辆走了一条它没走过的路**；首点被丢则整条路径以
-      `L` 开头。修成缺口处断开子路径（重新 `M`），并为此写测试 —— 断点必须看得出是断点
-- [ ] 顺带（9.3 / 9.5 / 9.30 三条「部分」的剩余部分，同一批清掉）：`pointermove` 按 rAF 合帧
-      （`useSvgViewport.ts`）；`loadOverlay` / `loadMetadata` 补 request-id 守卫，与
-      `loadPointCloud` 一致（`useSceneOverlay.ts:56,72`）；`hasPose` 三份实现收敛到
-      `fleet-core` 那一份（目前**行为一致**，风险在将来分叉，所以是清理不是修缺陷）
+      —— 那是一个真实读数。测试当时照着错误行为写（`formatters.test.ts:40-45` 自带 `DEFECT` 标注），
+      修的时候要连测试一起改
+- [ ] **9.19 `toTimestampMs` 对空值回退 `Date.now()`** → 押 **1.0.3**（`fleetNormalize.ts:69-82`）。
+      与 9.1 同一类错误：**空值伪装成一个看起来像真的值**。这条更麻烦，因为它进排序 —— 返回 `NaN`
+      会让比较函数失序，所以修法要连排序端一起定（无时间戳的排最后，而不是排到"现在"）。
+      另注：`backend/src/normalize.ts:19` 还有**第四份独立实现**，同样的回退，要一起看，否则前后端
+      对"没有时间戳"的判断会分叉
+- [x] **9.4 栅格底图 `<image>` 无 `@error`**。补 `@error` + 「底图加载失败」常驻卡，与点云那条并排
+      堆叠（两者可同时成立：点云失败会退回栅格图，而栅格图也可能失败）。失败态**按 href 记而不是
+      按布尔量记**，所以切场景自己就清干净了 —— 一条压在好地图上的旧失败提示是它自己的缺陷
+- [x] **9.7 `!sceneReady` 覆盖层吞事件** —— **原判断错了，改判为有意的区分，不修。**
+      `GpsMap` 划的是同一条线：它 `inset-0` 那个"等待接入 / 加载失败"覆盖层也**没有**
+      `pointer-events-none`（`GpsMap.vue:329`），只有压在活地图上的那个才有（`:366`）。
+      `!sceneReady` 时整个 stage group 都不渲染，底下没有可交互的东西，吞事件不损失什么，反而换来
+      两件事：说明文字可选中，且滚轮不被 svg 的 `@wheel.prevent` 吃掉（否则在一张死地图上滚动会把
+      页面卡住）。理由写进了模板注释，免得再被当成漏改
+- [x] **9.28 `buildWorldPath` 静默直连缺口**。改为按「落笔状态」发指令：非有限点抬笔，下一个有效点
+      重新 `M` 开子路径 —— 缺口读起来就是缺口，而不是一条车没走过的直线。`M` 不再由数组下标决定，
+      所以首点被丢时路径依然合法（旧实现会以 `L` 开头，那不是合法路径）。两条测试各钉一半
+- [x] 顺带（9.3 / 9.5 / 9.30 三条「部分」的剩余部分）：
+  - **9.5 修了** —— `loadOverlay` / `loadMetadata` 各自补单调 request-id，`onBeforeUnmount` 三条
+    一起失效。守卫**同时挡住 toast**：一条关于已经离开的场景的失败提示，指的是操作员看不见的问题
+  - **9.30 的 `hasPose` 收敛了** —— 删掉 `useSvgViewport.ts` 与 `SceneMap.vue` 的就地重定义，统一
+    用 `fleet-core` 那一份。场景合并仍两份 → 留 13T
+  - **9.3 剩下那一半判定为不修** —— `pointermove` 不按 rAF 合帧是对的：浏览器已把 `pointermove`
+    按帧对齐（更细的采样只经 `getCoalescedEvents` 给出），一帧内没有第二个事件可合，rAF 只会
+    **多加一帧拖拽延迟**。原注释的结论对、机制说明不准确（Vue 的调度器并不跨 tick 合并 —— 每个
+    事件是各自的 task，各自 flush 一次渲染），已一并更正
+- 自检 ⏳（2026-08-31，PR 待建）：`npm test` 全绿 —— fleet-core **97** · backend **287** ·
+  frontend **132** · console **443 → 450**（新增 7 例：底图失败态 2 / 轨迹缺口 2 / overlay 与
+  metadata 竞态 3）；**e2e 73/73**；lint / format:check / typecheck / build 全过；console 覆盖率
+  96.29 / 86.36 / 91.47 / 96.29（门槛 94 / 85 / 90 / 94，未调，四项均微升）
 
 ### 13T — parity 核销查出的能力损失（全 8 节 340 行的产出）
 

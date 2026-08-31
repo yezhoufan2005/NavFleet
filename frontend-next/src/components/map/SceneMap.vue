@@ -19,9 +19,9 @@
  *   a regression nobody notices. `.ros-marker-core` must stay a shape centred on 0,0
  *   inside the pose-translated group.
  */
-import { computed } from "vue";
+import { computed, ref } from "vue";
 import type { DeviceSnapshot, SceneMapDefinition } from "@navfleet/shared";
-import { getDeviceTone, round } from "@navfleet/fleet-core";
+import { getDeviceTone, hasPose, round } from "@navfleet/fleet-core";
 import { useSceneOverlay } from "@/composables/useSceneOverlay";
 import { useSvgViewport } from "@/composables/useSvgViewport";
 import type { WorldBounds, WorldPoint } from "@/composables/useSvgViewport";
@@ -50,9 +50,6 @@ const { selectedDevice, sceneDefinition, sceneDevices, trails } = defineProps<{
   sceneDevices: DeviceSnapshot[];
   trails: Record<string, Trail>;
 }>();
-
-const hasPose = (pose: Pose | null | undefined): boolean =>
-  Number.isFinite(pose?.x) && Number.isFinite(pose?.y);
 
 const hasBounds = (bounds: Partial<WorldBounds> | null | undefined): boolean =>
   Number.isFinite(bounds?.minX) &&
@@ -171,6 +168,25 @@ const pointCloudLayer = computed<BackgroundLayer | null>(() => {
 const backgroundLayerDefinition = computed(
   () => pointCloudLayer.value ?? imageLayer.value,
 );
+
+/**
+ * A raster backdrop is fetched by the browser, not by us, so an HTTP failure reaches
+ * the app only as an `error` event on the element — `useSceneOverlay` never sees it.
+ * Without this the operator gets a silently broken image, while the point-cloud path
+ * right beside it reports failures through `pointCloudError`.
+ *
+ * The failed **href** is stored rather than a boolean, so switching scenes clears the
+ * notice by itself: the new definition's href simply stops matching.
+ */
+const failedBackgroundHref = ref("");
+const handleBackgroundError = (): void => {
+  failedBackgroundHref.value = backgroundLayerDefinition.value?.href ?? "";
+};
+const backgroundError = computed(
+  () =>
+    !!failedBackgroundHref.value &&
+    backgroundLayerDefinition.value?.href === failedBackgroundHref.value,
+);
 const unionBounds = (...list: (WorldBounds | null)[]): WorldBounds | null => {
   const valid = list.filter((bounds): bounds is WorldBounds => !!bounds);
   const first = valid[0];
@@ -224,15 +240,30 @@ const MARKER = {
   peerCore: 7,
 } as const;
 
-const buildWorldPath = (points: Trail): string =>
-  (Array.isArray(points) ? points : [])
-    .map((point, index) =>
-      Number.isFinite(point?.x) && Number.isFinite(point?.y)
-        ? `${index === 0 ? "M" : "L"} ${round(point.x, 3)} ${round(point.y, 3)}`
-        : "",
-    )
-    .filter(Boolean)
-    .join(" ");
+/**
+ * A dropped point is a **gap** in the trail, not a shortcut across it: lifting the
+ * pen makes the next valid point start a new sub-path, so a break reads as a break
+ * instead of as a straight line the vehicle never drove. Emitting `M` from the pen
+ * state rather than from `index === 0` also keeps the path valid when the first
+ * point is the one that was dropped — an array index cannot know that.
+ */
+const buildWorldPath = (points: Trail): string => {
+  const commands: string[] = [];
+  let penDown = false;
+
+  for (const point of Array.isArray(points) ? points : []) {
+    if (!Number.isFinite(point?.x) || !Number.isFinite(point?.y)) {
+      penDown = false;
+      continue;
+    }
+    commands.push(
+      `${penDown ? "L" : "M"} ${round(point.x, 3)} ${round(point.y, 3)}`,
+    );
+    penDown = true;
+  }
+
+  return commands.join(" ");
+};
 
 const buildArrowPath = (height: number, halfWidth: number): string =>
   `M 0 ${-height} L ${halfWidth} ${-halfWidth} L ${-halfWidth} ${-halfWidth} Z`;
@@ -450,6 +481,7 @@ const screenInvariantTransform = computed(() => {
             3,
           )}) scale(1 -1)`"
           image-rendering="pixelated"
+          @error="handleBackgroundError"
         />
 
         <g v-if="laneletPaths.length" class="lanelet-overlay">
@@ -639,16 +671,38 @@ const screenInvariantTransform = computed(() => {
     </ul>
 
     <!-- The backdrop is what the operator is looking at, so its failure belongs on
-         the map rather than in a toast that scrolls away. -->
-    <p
-      v-if="pointCloudError"
-      class="absolute right-2 bottom-2 m-0 max-w-80 rounded-sm border border-critical bg-critical-wash px-3 py-2 text-xs text-critical-ink"
-      role="status"
+         the map rather than in a toast that scrolls away. Both notices can be up at
+         once — a failed point cloud falls back to the raster, which can fail too —
+         so they stack instead of sharing one corner. -->
+    <div
+      v-if="pointCloudError || backgroundError"
+      class="absolute right-2 bottom-2 grid max-w-80 gap-2"
     >
-      <strong class="block">点云背景加载失败</strong>
-      {{ pointCloudError }}
-    </p>
+      <p
+        v-if="pointCloudError"
+        class="m-0 rounded-sm border border-critical bg-critical-wash px-3 py-2 text-xs text-critical-ink"
+        role="status"
+      >
+        <strong class="block">点云背景加载失败</strong>
+        {{ pointCloudError }}
+      </p>
 
+      <p
+        v-if="backgroundError"
+        class="m-0 rounded-sm border border-critical bg-critical-wash px-3 py-2 text-xs text-critical-ink"
+        role="status"
+      >
+        <strong class="block">底图加载失败</strong>
+        地图底图资源无法加载，其余图层仍可查看。
+      </p>
+    </div>
+
+    <!-- Deliberately **not** `pointer-events-none`, unlike the pose empty state below:
+         nothing usable sits under this one (`sceneReady` false means the whole stage
+         group is absent), so swallowing events costs nothing and buys two things —
+         the explanatory text stays selectable, and the wheel is not captured by the
+         svg's `@wheel.prevent`, so the page still scrolls over a dead map. `GpsMap`
+         draws the same line between its two overlays. -->
     <div
       v-if="!sceneReady"
       class="absolute inset-0 grid place-content-center gap-1 bg-surface/80 px-6 text-center"
