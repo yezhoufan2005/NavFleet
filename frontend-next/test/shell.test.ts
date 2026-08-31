@@ -8,6 +8,10 @@ import { createAppRouter } from "@/router";
 import { createAuthGuard } from "@/router/guards";
 import { useAuth, __resetAuth } from "@/composables/useAuth";
 import { __resetNotifications } from "@/composables/useNotifications";
+import {
+  __resetAlertSound,
+  __setAudioContextFactory,
+} from "@/composables/useAlertSound";
 import { SIDEBAR_STORAGE_KEY } from "@/composables/useSidebar";
 import { THEME_STORAGE_KEY } from "@/composables/useTheme";
 import { acceptLastSocket, openedSockets, setViewportWidth } from "./setup";
@@ -114,9 +118,46 @@ const menuItems = (
   ...document.body.querySelectorAll<HTMLElement>(`[role='${role}']`),
 ];
 
+/**
+ * jsdom has no Web Audio, so the top bar's sound control needs a context to unlock
+ * against. Only the calls `useAlertSound` makes are provided — `alert-sound.test.ts`
+ * is where the tone's shape is asserted.
+ */
+const fakeAudioContext = (): AudioContext => {
+  // `state` has to actually flip: `unlock()` resolves `resume()` and then reads the
+  // state back, so a permanently "suspended" stub stays locked forever.
+  let state: AudioContextState = "suspended";
+  return {
+    get state() {
+      return state;
+    },
+    currentTime: 0,
+    destination: {},
+    resume: () => {
+      state = "running";
+      return Promise.resolve();
+    },
+    createOscillator: () => ({
+      frequency: { value: 0 },
+      connect: () => undefined,
+      start: () => undefined,
+      stop: () => undefined,
+    }),
+    createGain: () => ({
+      gain: {
+        setValueAtTime: () => undefined,
+        linearRampToValueAtTime: () => undefined,
+      },
+      connect: () => undefined,
+    }),
+  } as unknown as AudioContext;
+};
+
 beforeEach(() => {
   __resetAuth();
   __resetNotifications();
+  __resetAlertSound();
+  __setAudioContextFactory(fakeAudioContext);
   delete document.documentElement.dataset.theme;
   // Anonymous by default, and routed — so a test that signs in mid-case does not
   // hand the session payload to the fleet endpoints.
@@ -465,5 +506,55 @@ describe("the sound control", () => {
     expect(labels).toContain("静音");
     expect(labels.some((label) => label?.startsWith("音量"))).toBe(true);
     expect(labels.some((label) => label?.startsWith("免打扰"))).toBe(true);
+  });
+
+  /**
+   * After unlocking, the same control mutes and unmutes.
+   *
+   * It used to do nothing once unlocked: a control that reports a state, invites a
+   * click and then ignores it. Found by manual review, and it is the kind of dead
+   * affordance no assertion here was watching for — the old tests only checked the
+   * locked label.
+   */
+  it("becomes the mute switch once it has been unlocked", async () => {
+    const wrapper = await signedIn();
+    // Found by accessible name rather than visible text: the visible word *is* the
+    // state, so it stops containing "声音" the moment the control reports 已静音.
+    const control = () => wrapper.get("header button[aria-label^='告警声音']");
+
+    expect(control().text()).toContain("声音未启用");
+
+    // First click is the browser's required gesture.
+    await control().trigger("click");
+    await flushPromises();
+    expect(control().text()).toContain("声音已启用");
+    expect(control().attributes("aria-pressed")).toBe("true");
+
+    // Second click mutes, third unmutes — and the label follows both ways.
+    await control().trigger("click");
+    await flushPromises();
+    expect(control().text()).toContain("已静音");
+    expect(control().attributes("aria-pressed")).toBe("false");
+
+    await control().trigger("click");
+    await flushPromises();
+    expect(control().text()).toContain("声音已启用");
+  });
+
+  it("keeps the top bar and the session menu on one mute state", async () => {
+    // Two controls for the same preference, so they must not be able to disagree.
+    const wrapper = await signedIn();
+    const control = () => wrapper.get("header button[aria-label^='告警声音']");
+
+    await control().trigger("click");
+    await flushPromises();
+    await control().trigger("click");
+    await flushPromises();
+
+    await openSessionMenu(wrapper);
+    const mute = menuItems("menuitemcheckbox").find((item) =>
+      item.textContent?.includes("静音"),
+    );
+    expect(mute?.getAttribute("aria-checked")).toBe("true");
   });
 });

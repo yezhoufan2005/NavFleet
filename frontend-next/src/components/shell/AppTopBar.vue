@@ -64,7 +64,7 @@ const fleetName = computed(() => {
  * status colours describe problems, and "healthy" is the absence of one.
  */
 /**
- * The sound control, which is both the state readout and the unlock gesture.
+ * The sound control, which is both the state readout and the switch.
  *
  * Browsers refuse to start audio without a prior user gesture, so the console cannot
  * decide to be audible on its own — someone has to click something. Making the control
@@ -73,6 +73,12 @@ const fleetName = computed(() => {
  *
  * Until then it says so out loud. Silently not sounding is the one behaviour that must
  * never happen here: it is indistinguishable from "nothing is wrong".
+ *
+ * **After unlocking, the same button mutes and unmutes.** It used to do nothing once
+ * unlocked — a control that reports a state, invites a click, and then ignores it,
+ * which reads as broken. The switch it owns is mute; 免打扰 is a schedule and stays in
+ * the session menu, so during quiet hours clicking still flips mute and the title says
+ * which of the two is keeping things silent.
  */
 const sound = useAlertSound();
 
@@ -86,14 +92,27 @@ const soundLabel = computed(
   () => SILENT_LABELS[sound.silentReason.value] ?? "声音已启用",
 );
 
-const soundTitle = computed(() =>
-  sound.silentReason.value === "locked"
-    ? "点击启用告警声音。浏览器要求先有一次点击才允许播放，所以在此之前告警不会响。"
-    : `告警声音：${soundLabel.value}（仅告警级会响，可在用户菜单中调整）`,
-);
+const soundTitle = computed(() => {
+  switch (sound.silentReason.value) {
+    case "locked":
+      return "点击启用告警声音。浏览器要求先有一次点击才允许播放，所以在此之前告警不会响。";
+    case "muted":
+      return "告警声音已静音。点击取消静音。";
+    case "quiet":
+      return sound.muted.value
+        ? "已静音，且当前处于免打扰时段。点击取消静音（仍需等免打扰结束才会响）。"
+        : "当前处于免打扰时段，所以不会响。点击可静音；免打扰时段在用户菜单中调整。";
+    default:
+      return "告警声音已启用（仅告警级会响）。点击静音。";
+  }
+});
 
 const onSoundClick = (): void => {
-  if (sound.silentReason.value === "locked") void sound.unlock();
+  if (sound.silentReason.value === "locked") {
+    void sound.unlock();
+    return;
+  }
+  sound.setMuted(!sound.muted.value);
 };
 
 const TONE_DOT: Record<ConnectionTone, string> = {
@@ -190,6 +209,7 @@ const NAV_TOGGLE_LABELS: Record<SidebarMode, string> = {
             : 'text-ink-muted hover:bg-surface-sunken hover:text-ink'
         "
         :aria-pressed="!sound.silentReason.value"
+        :aria-label="`告警声音：${soundLabel}`"
         :title="soundTitle"
         @click="onSoundClick"
       >
