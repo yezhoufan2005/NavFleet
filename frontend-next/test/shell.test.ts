@@ -267,6 +267,66 @@ describe("landmarks", () => {
   });
 });
 
+describe("the alert badge in the navigation", () => {
+  /** A fleet with one alert per severity, so the tone can be checked as it drains. */
+  const withAlerts = async (
+    codes: Record<string, unknown> = { error_code: { code: 5102, info: "" } },
+  ) => {
+    fetchMock = routedFetch(
+      jsonResponse({ user: ADMIN }),
+      jsonResponse({
+        ...FLEET,
+        devices: [
+          { deviceId: "agv-01", deviceName: "AGV 01", online: true, ...codes },
+        ],
+      }),
+    );
+    vi.stubGlobal("fetch", fetchMock);
+    return mountApp("/");
+  };
+
+  const badge = (wrapper: Awaited<ReturnType<typeof mountApp>>) =>
+    wrapper
+      .findAll("nav[aria-label='主导航'] a")
+      .find((link) => link.text().includes("告警"))!;
+
+  it("tells the operator something is waiting without leaving the page", async () => {
+    // v1.0.0 had this (`frontend/src/App.vue:123-126`) and the port dropped it: on 设备 /
+    // 报表 / 管理 there was no way to know anything had arrived. What is lost is
+    // "knowing whether to switch pages without switching pages".
+    const wrapper = await withAlerts();
+
+    expect(badge(wrapper).text()).toContain("1");
+  });
+
+  it("says what the number means, rather than leaving a bare digit", async () => {
+    // The old badge announced "告警 3" and 3 could have been anything.
+    const wrapper = await withAlerts();
+
+    expect(badge(wrapper).text()).toContain("待处理 1 条");
+    // The severity is in the text, not only in the pill's colour — a colourblind operator
+    // gets nothing from the tone.
+    expect(badge(wrapper).text()).toContain("最高告警级");
+  });
+
+  it("takes its colour from the worst severity, not always red", async () => {
+    // The old one was critical-red whatever was actually there, so three 提示 rows looked
+    // like a fleet on fire.
+    const wrapper = await withAlerts({ info_code: { code: 1101, info: "" } });
+    const pill = badge(wrapper).find("[aria-hidden='true'].rounded-full");
+
+    expect(pill.classes()).toContain("bg-notice");
+    expect(pill.classes()).not.toContain("bg-critical");
+  });
+
+  it("is absent when there is nothing waiting", async () => {
+    // A permanent zero is a badge people learn to stop seeing.
+    const wrapper = await signedIn();
+
+    expect(badge(wrapper).find(".rounded-full").exists()).toBe(false);
+  });
+});
+
 describe("breadcrumbs", () => {
   it("shows one crumb for a top-level section", async () => {
     const wrapper = await signedIn("/alerts");

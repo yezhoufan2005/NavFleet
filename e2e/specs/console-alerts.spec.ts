@@ -68,4 +68,41 @@ test.describe("console alerts", () => {
   }) => {
     await expect(page.getByText("只保存在当前浏览器")).toBeVisible();
   });
+
+  test("the search box waits for the typing to stop before it navigates", async ({
+    page,
+  }) => {
+    // The debounce is unit-tested; what only a browser answers is whether the box keeps
+    // the caret and the characters while the URL stays put. Typed one key at a time
+    // because `fill` sets the value in a single event and would prove nothing.
+    test.skip(!faulted, "seed carries no faulted vehicle");
+    const box = page.getByRole("searchbox");
+
+    await box.pressSequentially(faulted!.deviceName.slice(0, 3), { delay: 30 });
+    await expect(box).toHaveValue(faulted!.deviceName.slice(0, 3));
+    await expect(page).not.toHaveURL(/[?&]q=/);
+
+    // And it does arrive, without another keystroke to push it.
+    await expect(page).toHaveURL(/[?&]q=/, { timeout: 2_000 });
+  });
+
+  test("the navigation carries the alert count on every page", async ({
+    page,
+  }) => {
+    // The capability the badge exists for: knowing whether to switch pages without
+    // switching pages. Checked from 设备, i.e. not from 告警 itself.
+    test.skip(
+      !faulted,
+      "seed carries no faulted vehicle, so no alert to count",
+    );
+    await page.goto("/devices");
+    const alerts = page
+      .getByRole("navigation", { name: "主导航" })
+      .getByRole("link", { name: /^告警/ });
+
+    // The digits are `aria-hidden`; the sentence beside them is what a screen reader
+    // gets, and it is the half v1.0.0's bare number was missing.
+    await expect(alerts).toContainText(/待处理 \d+ 条/);
+    await expect(alerts).toContainText("最高");
+  });
 });

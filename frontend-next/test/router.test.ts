@@ -1,6 +1,7 @@
 import { describe, it, expect } from "vitest";
 import { createMemoryHistory } from "vue-router";
 import { mount } from "@vue/test-utils";
+import { createPinia, setActivePinia } from "pinia";
 import { createAppRouter, NAV_SECTIONS, routes } from "@/router";
 import AppSidebarNav from "@/components/shell/AppSidebarNav.vue";
 
@@ -105,11 +106,17 @@ describe("route table", () => {
 describe("primary navigation", () => {
   const ACTIVE = "bg-brand";
 
+  /**
+   * A Pinia is needed now that the nav reads the alert count for its badge. Fresh per
+   * mount so a count set in one case cannot leak into the next.
+   */
   const mountNav = async (path: string) => {
+    const pinia = createPinia();
+    setActivePinia(pinia);
     const router = createAppRouter(createMemoryHistory());
     await router.push(path);
     await router.isReady();
-    return mount(AppSidebarNav, { global: { plugins: [router] } });
+    return mount(AppSidebarNav, { global: { plugins: [router, pinia] } });
   };
 
   const link = (wrapper: Awaited<ReturnType<typeof mountNav>>, label: string) =>

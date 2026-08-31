@@ -1,4 +1,4 @@
-import { computed, reactive } from "vue";
+import { reactive } from "vue";
 
 /**
  * Client-side alert acknowledgement.
@@ -14,6 +14,22 @@ import { computed, reactive } from "vue";
  * that — already exists and has never been called. Both are Phase 16 work; porting
  * the local behaviour first is what lets the console reach parity without pretending
  * the limitation is not there.
+ *
+ * ## Two exports were removed rather than wired up (13T-C)
+ *
+ * `acknowledgedCount` and `clearAll` were both dead here, and 13T-C was meant to give
+ * them the UI v1.0.0 had for them. Neither turned out to be the right shape:
+ *
+ * - `acknowledgedCount` counted the **whole stored set**, which keeps ids for alerts that
+ *   have since cleared. It drifts upward forever, so a page showing three rows could have
+ *   reported "12 已确认". 告警 counts the acknowledged alerts *currently in the fleet*
+ *   instead — which is also what v1.0.0's own local computed did.
+ * - `clearAll` emptied that same whole set, i.e. more than the 清除已确认 button claims.
+ *   The page clears the ids it can see, so the undo can put back exactly those.
+ *
+ * Deleting them was the honest outcome: keeping a dead export because a checklist named it
+ * is how the "declared but never consumed" pattern got into the codebase in the first
+ * place.
  */
 const STORAGE_KEY = "navfleet:acked-alerts";
 
@@ -60,24 +76,24 @@ export const useAlertAck = () => {
     return changed;
   };
 
-  const unacknowledgeMany = (ids: readonly string[]): void => {
-    ids.forEach((id) => state.ids.delete(id));
-    persist();
-  };
-
-  const clearAll = (): void => {
-    state.ids.clear();
-    persist();
+  /**
+   * Returns the ids it actually changed, symmetrically with `acknowledgeMany` — the undo
+   * on 清除已确认 needs to restore exactly those and nothing else. It also means a call
+   * with nothing to do no longer writes to storage.
+   */
+  const unacknowledgeMany = (ids: readonly string[]): string[] => {
+    const changed = ids.filter((id) => id && state.ids.has(id));
+    changed.forEach((id) => state.ids.delete(id));
+    if (changed.length) persist();
+    return changed;
   };
 
   return {
-    acknowledgedCount: computed(() => state.ids.size),
     isAcknowledged: (id: string): boolean => state.ids.has(id),
     acknowledge,
     unacknowledge,
     acknowledgeMany,
     unacknowledgeMany,
-    clearAll,
   };
 };
 

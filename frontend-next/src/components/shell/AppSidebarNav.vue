@@ -30,14 +30,62 @@
  * page is open the 设备 item is highlighted as the containing section, but the
  * current *page* is the detail page, and announcing both as current is a lie.
  */
+import { computed } from "vue";
 import { RouterLink } from "vue-router";
 import { NAV_SECTIONS } from "@/router";
+import { useFleetStore } from "@/stores/fleet";
 import NavIcon from "./NavIcon.vue";
 
 const { labelled = true } = defineProps<{
   /** `false` in collapsed mode: icons only. */
   labelled?: boolean;
 }>();
+
+const fleet = useFleetStore();
+
+/**
+ * The alert count, and the worst severity behind it.
+ *
+ * v1.0.0 had a badge here (`frontend/src/App.vue:123-126`) and the port dropped it, so an
+ * operator on 设备 / 报表 / 管理 could not see that anything was waiting — the capability
+ * lost is **"knowing whether to switch pages without switching pages"**, which is the
+ * whole reason a nav badge exists.
+ *
+ * Two things about the old one are deliberately *not* ported:
+ *
+ * 1. It was always critical-red (`navigation.css:52-63`) whatever the worst severity
+ *    actually was, so a fleet with three 提示 rows looked like a fleet on fire. The tone
+ *    follows the worst severity present.
+ * 2. It was a bare number with nothing to announce it. A screen reader read "告警 3" and
+ *    3 could have been anything; the link now carries its own accessible name.
+ */
+const alertBadge = computed(() => {
+  const { critical, warning, notice } = fleet.groupedAlerts;
+  const total = critical.length + warning.length + notice.length;
+  if (!total) return null;
+  const tone = critical.length
+    ? "critical"
+    : warning.length
+      ? "warning"
+      : "notice";
+  const worst = critical.length ? "告警" : warning.length ? "预警" : "提示";
+  return {
+    total,
+    tone,
+    // Capped for width, not for truth — the accessible name keeps the real number.
+    text: total > 99 ? "99+" : String(total),
+    /**
+     * Appended to the link's accessible name, which becomes e.g. 「告警 待处理 3 条（最高
+     * 告警级）」. Kept short on purpose: this is read out every time a keyboard user lands
+     * on the item, so it has to answer "how many, how bad" and stop.
+     *
+     * The severity is in the **text**, not only in the pill's colour — a colourblind
+     * operator gets nothing from the tone, and that is the same reason `AppTopBar`'s
+     * realtime dot carries a word.
+     */
+    label: `待处理 ${total} 条（最高${worst}级）`,
+  };
+});
 
 const BASE_CLASS = "group flex items-center rounded-sm py-2 font-medium";
 /**
@@ -53,6 +101,19 @@ const SPACING_CLASS = {
 const IDLE_CLASS =
   "text-ink-muted transition-colors duration-150 ease-standard hover:bg-surface-sunken hover:text-ink";
 const ACTIVE_CLASS = "bg-brand text-brand-contrast";
+
+/**
+ * The badge's own colours, which do **not** transition.
+ *
+ * Same reason `ACTIVE_CLASS` does not: a pill that animates between a status fill and the
+ * brand fill spends ~160ms on an intermediate pair nobody checked the contrast of, and
+ * that is exactly the intermittent axe failure documented above.
+ */
+const BADGE_TONE_CLASS: Record<string, string> = {
+  critical: "bg-critical text-critical-contrast",
+  warning: "bg-warning text-warning-contrast",
+  notice: "bg-notice text-notice-contrast",
+};
 </script>
 
 <template>
@@ -74,6 +135,9 @@ const ACTIVE_CLASS = "bg-brand text-brand-contrast";
           BASE_CLASS,
           labelled ? SPACING_CLASS.labelled : SPACING_CLASS.collapsed,
           isActive ? ACTIVE_CLASS : IDLE_CLASS,
+          section.routeName === 'alerts' && alertBadge && !labelled
+            ? 'relative'
+            : '',
         ]"
         :aria-current="isExactActive ? 'page' : undefined"
         :title="labelled ? undefined : section.label"
@@ -85,6 +149,30 @@ const ACTIVE_CLASS = "bg-brand text-brand-contrast";
         <span :class="labelled ? 'truncate text-md' : 'sr-only'">
           {{ section.label }}
         </span>
+
+        <!--
+          One badge, two placements. Labelled it is a trailing pill; collapsed there is no
+          label to trail, so it pins to the icon's corner — the rail is 44px wide and an
+          inline pill beside a centred icon would not fit.
+
+          `aria-hidden` on the digits with the real sentence on a `sr-only` span: a screen
+          reader reading "告警 3" learns nothing, and that is exactly what v1.0.0's bare
+          number did.
+        -->
+        <template v-if="section.routeName === 'alerts' && alertBadge">
+          <span
+            aria-hidden="true"
+            :class="[
+              'shrink-0 rounded-full text-center font-mono text-2xs tabular-nums',
+              BADGE_TONE_CLASS[alertBadge.tone],
+              labelled
+                ? 'ml-auto min-w-5 px-1.5 py-0.5'
+                : 'absolute top-0.5 right-0.5 min-w-4 px-1 leading-4',
+            ]"
+            >{{ alertBadge.text }}</span
+          >
+          <span class="sr-only">{{ alertBadge.label }}</span>
+        </template>
       </a>
     </RouterLink>
   </nav>
