@@ -108,6 +108,48 @@ describe("semantic token blocks", () => {
       expect(declared, `${tone}-wash`).toContain(`--color-${tone}-wash`);
     }
   });
+
+  /**
+   * A border has to differ from the surface it is drawn on, in every theme.
+   *
+   * Found by manual review as "the divider in the top bar is invisible in dark
+   * mode", and it was worse than a styling nit: dark `--color-border` resolved to
+   * `slate-800`, which is exactly `--color-surface-raised` — the same value, 1.00:1.
+   * Every card border in dark mode was invisible too; only cards drawn on the darker
+   * page surface still read, because their *fill* differed. A line painted on the
+   * same surface had nothing left to distinguish it.
+   *
+   * Comparing the ramp step each token points at is enough, and it is the check that
+   * would have caught this: no contrast maths, just "these two must not be the same
+   * variable".
+   */
+  it("never paints a border in the same value as a surface", () => {
+    const refs = (block: string): Map<string, string> =>
+      new Map(
+        [
+          ...block.matchAll(/(--color-[\w-]+)\s*:\s*var\((--color-[\w-]+)\)/g),
+        ].map((match) => [match[1]!, match[2]!] as const),
+      );
+
+    for (const marker of [
+      "@theme",
+      ':root[data-theme="dark"]',
+      ':root:not([data-theme="light"])',
+    ]) {
+      const map = refs(blockAfter(marker));
+      const surfaces = ["surface", "surface-raised", "surface-sunken"].map(
+        (name) => map.get(`--color-${name}`),
+      );
+      for (const border of ["border", "border-strong"]) {
+        const value = map.get(`--color-${border}`);
+        expect(value, `${marker} ${border}`).toBeDefined();
+        expect(
+          surfaces,
+          `${marker}: ${border} 与某个 surface 同值`,
+        ).not.toContain(value);
+      }
+    }
+  });
 });
 
 describe("component sources", () => {

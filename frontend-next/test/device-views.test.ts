@@ -623,6 +623,27 @@ describe("the devices page", () => {
     );
   });
 
+  it("does not mark the first row as chosen when nobody chose it", async () => {
+    // `ensureSelectedDevice` auto-selects the first vehicle on every ingest, because
+    // the *map* needs a subject. Painting that in the list made row one come up
+    // highlighted with nothing clicked — it read as "this row is special" when it only
+    // meant "this is row one". Manual review reported it as a bug, correctly.
+    seed(3);
+    const wrapper = await mountPage();
+    await wrapper
+      .get("[aria-label='视图']")
+      .findAll("button")
+      .find((button) => button.text() === "列表")!
+      .trigger("click");
+    await flushPromises();
+
+    // The store did select one — the list just does not claim it.
+    expect(store.state.selectedDeviceId).toBe("agv-01");
+    for (const row of wrapper.findAll("tbody tr")) {
+      expect(row.classes()).not.toContain("bg-brand-wash");
+    }
+  });
+
   it("offers the surface toggle only while a map is showing", async () => {
     seed(3);
     const wrapper = await mountPage();
