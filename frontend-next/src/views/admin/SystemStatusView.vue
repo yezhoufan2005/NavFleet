@@ -254,6 +254,7 @@ const AREA_LABELS: Record<StoredEntry["area"], string> = {
   <PageHeader
     title="系统状态"
     lede="链路诊断与本浏览器留存的数据。顶栏的状态点只报一条链路；这一页把两端都读出来。"
+    scroll-content
   >
     <template #actions>
       <UiButton

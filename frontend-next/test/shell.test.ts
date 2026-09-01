@@ -4,6 +4,7 @@ import type { Router } from "vue-router";
 import { createPinia } from "pinia";
 import { enableAutoUnmount, flushPromises, mount } from "@vue/test-utils";
 import App from "@/App.vue";
+import AppShell from "@/components/shell/AppShell.vue";
 import { createAppRouter } from "@/router";
 import { useFleetStore } from "@/stores/fleet";
 import { createAuthGuard } from "@/router/guards";
@@ -268,6 +269,49 @@ describe("landmarks", () => {
     await flushPromises();
 
     expect(document.activeElement).toBe(wrapper.find("#main-content").element);
+  });
+
+  it("does not grab focus when a reload resolves straight into a deep route", async () => {
+    // 14A acceptance: "刷新页面，当前 tab 的边框会高亮". A reload lands on its URL before
+    // anything is mounted, and the async auth guard means the first resolve completes
+    // *after* the shell exists — so `route.path` changing from `/` to `/alerts` looked
+    // exactly like a navigation. Focus went to `main`, and since the reload was itself a
+    // keypress, `:focus-visible` drew a ring around the whole page. 总览 was spared only
+    // because its path is already `/`.
+    //
+    // `AppShell` is mounted directly, over a history that **already sits on the deep
+    // URL** — so the router's very first navigation starts when the plugin is installed,
+    // which is after this component's hooks exist. That ordering is the whole bug, and
+    // `mountApp` cannot produce it: there the route has already settled by the time the
+    // session probe lets the shell render, so the old `fullPath` watcher saw nothing and
+    // this case passed against the defect.
+    const history = createMemoryHistory();
+    history.replace("/alerts");
+    const bare = createAppRouter(history);
+    const wrapper = mount(AppShell, {
+      props: { user: ADMIN },
+      global: { plugins: [createPinia(), bare] },
+      attachTo: document.body,
+    });
+    await bare.isReady();
+    await flushPromises();
+
+    expect(bare.currentRoute.value.path).toBe("/alerts");
+    expect(wrapper.find("#main-content").exists()).toBe(true);
+    expect(document.activeElement).toBe(document.body);
+  });
+
+  it("leaves focus where it is when only the query changes", async () => {
+    // Every filter on 告警 writes the URL, so a `fullPath` watcher pulled focus out of
+    // the search box the operator was still typing in each time the debounce committed.
+    const wrapper = await signedIn("/alerts");
+    const skip = wrapper.find<HTMLAnchorElement>("a[href='#main-content']");
+    skip.element.focus();
+
+    await router.push("/alerts?severity=critical");
+    await flushPromises();
+
+    expect(document.activeElement).toBe(skip.element);
   });
 });
 

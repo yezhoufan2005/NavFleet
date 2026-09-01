@@ -24,8 +24,8 @@
  * restoring focus to the trigger on dismissal, Escape, and marking the rest of the
  * page inert. Reka has all of that; a `v-if` and a scrim have none of it.
  */
-import { watch, useTemplateRef } from "vue";
-import { RouterView, useRoute } from "vue-router";
+import { onBeforeUnmount, useTemplateRef } from "vue";
+import { RouterView, START_LOCATION, useRoute, useRouter } from "vue-router";
 import {
   DialogClose,
   DialogContent,
@@ -46,18 +46,40 @@ const { user } = defineProps<{ user: AuthUser | null }>();
 const emit = defineEmits<{ logout: [] }>();
 
 const route = useRoute();
+const router = useRouter();
 const { mode, drawerOpen, isDrawer, labelled, toggle, closeDrawer } =
   useSidebar();
 
 const mainRegion = useTemplateRef<HTMLElement>("mainRegion");
 
-watch(
-  () => route.fullPath,
-  () => {
-    closeDrawer();
-    mainRegion.value?.focus();
-  },
-);
+/**
+ * Move focus to the content region **when the operator navigates**, and only then.
+ *
+ * This was a `watch` on `route.fullPath`, which fired in two cases it should not have —
+ * both found in 14A acceptance, reported as "刷新页面，当前 tab 的边框会高亮":
+ *
+ * 1. **The first resolve after a reload.** `useRoute()` starts at `START_LOCATION`
+ *    (`path: "/"`), and the auth guard is async, so on a reload of any page other than
+ *    总览 the path changed *after* this component mounted — indistinguishable from a
+ *    navigation. Focus landed on `main`, and because the reload itself was a keypress,
+ *    Chrome's `:focus-visible` heuristic drew the ring: a teal outline around the whole
+ *    page that nobody asked for. 总览 was the exception precisely because its path *is*
+ *    `/`, so nothing appeared to change. A bug that spares exactly one page is a bug
+ *    with a mechanism, and this was it.
+ * 2. **A query-only change.** Every filter on 告警 writes the URL, so committing the
+ *    debounced search box moved focus out of the input the operator was still typing in.
+ *
+ * `afterEach` rather than a watcher because it is handed both ends of the navigation:
+ * `from === START_LOCATION` identifies the initial resolve exactly, and comparing paths
+ * separates "went somewhere" from "changed a filter". Focus is for the first case only.
+ */
+const stopNavigationFocus = router.afterEach((to, from) => {
+  closeDrawer();
+  if (from === START_LOCATION || to.path === from.path) return;
+  mainRegion.value?.focus();
+});
+
+onBeforeUnmount(stopNavigationFocus);
 </script>
 
 <template>

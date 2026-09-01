@@ -107,6 +107,7 @@ const sound = useAlertSound();
 
 const SILENT_LABELS: Record<string, string> = {
   locked: "声音未启用",
+  pending: "声音待就绪",
   muted: "已静音",
   quiet: "免打扰中",
 };
@@ -119,6 +120,8 @@ const soundTitle = computed(() => {
   switch (sound.silentReason.value) {
     case "locked":
       return "点击启用告警声音。浏览器要求先有一次点击才允许播放，所以在此之前告警不会响。";
+    case "pending":
+      return "这个浏览器启用过告警声音。浏览器要求页面加载后先有一次点击或按键才允许播放 —— 在页面上点任意处即可恢复，点这里会立刻恢复并试听。";
     case "muted":
       return "告警声音已静音。点击取消静音。";
     case "quiet":
@@ -131,7 +134,10 @@ const soundTitle = computed(() => {
 });
 
 const onSoundClick = (): void => {
-  if (sound.silentReason.value === "locked") {
+  const reason = sound.silentReason.value;
+  // `pending` goes through `unlock` too: this click is a gesture, so it can do the
+  // resume the browser was waiting for — and the audible note confirms it.
+  if (reason === "locked" || reason === "pending") {
     void sound.unlock();
     return;
   }
@@ -182,11 +188,23 @@ const NAV_TOGGLE_LABELS: Record<SidebarMode, string> = {
     </button>
 
     <span class="flex shrink-0 items-center gap-2">
-      <span
-        class="grid size-7 place-items-center rounded-sm bg-brand font-mono text-xs font-semibold text-brand-contrast"
+      <!--
+        The product mark, and the tab icon is the same file (`index.html`) so the two
+        cannot drift. `alt=""` rather than a description: the `h1` beside it already
+        names the product, and a second announcement of the same name is noise.
+
+        `object-contain` because the artwork is not exactly square (564×579) — `cover`
+        would crop a slice off it, and a fixed `size-7` would stretch it.
+      -->
+      <img
+        src="/image.png"
+        alt=""
         aria-hidden="true"
-        >NF</span
-      >
+        width="28"
+        height="28"
+        decoding="async"
+        class="size-7 shrink-0 object-contain"
+      />
       <!-- The product name is a heading rather than a span: it is the accessible
            name of the whole console, and the login screen uses the same level so
            the two agree about what this application is called. -->

@@ -389,24 +389,25 @@ const onScrub = (event: Event): void => {
       aria-label="轨迹回放"
     >
       <!--
-        The map takes the space that is actually left, rather than growing past the fold
-        or taking a fixed fraction of it.
+        The map's height is **one fixed value**, and this is it: `h-[34rem]` (544px).
+        Change that number and nothing else changes with it.
 
-        Two measurements shaped this. Before any change, on a 641px window the map
-        reported **697px** (`min-h-80` is only a floor, and `SceneMap` fills a flex
-        column that had no height constraint), so its bottom edge sat 421px below the
-        fold and the playback controls 441px below it — you had to scroll to reach 播放.
-        The first fix used `42vh`, which fit at 641px and then **wasted 146px at 900px**,
-        because the content above the map is a constant 308px whatever the window height
-        is (measured at both sizes).
+        It used to be `clamp(16rem, calc(100vh - 23.5rem), 44rem)`, which grew the map
+        1:1 with the window — measured, and correct on the two window heights it was
+        measured at. 14A acceptance still found it too short, and the reason is that the
+        formula's whole output depends on the operator's window: on a 760px laptop it
+        yields 384px, half of what the same code gives on a 1100px display. So the map
+        was smallest exactly where it was reported, and nothing in the page said why.
+        A fixed height is worse on paper and better in practice — it is the same on every
+        machine, it is legible as a number, and it is tunable by whoever is looking at it
+        rather than by whoever can re-derive the constant.
 
-        So the height is `100vh` minus that constant plus the control row — the map grows
-        1:1 with the window instead of by 42% of it. Clamped at both ends: a floor for
-        very short windows, and a ceiling so a 4K display does not hand over a map taller
-        than anyone scans.
+        The cost is explicit: 34rem plus the 308px of content above it exceeds a short
+        window, so the playback controls below can sit under the fold there and need a
+        scroll. That is the trade this value takes deliberately.
       -->
       <div
-        class="map-surface relative flex h-[clamp(16rem,calc(100vh-23.5rem),44rem)] flex-col overflow-hidden rounded-sm border border-border bg-surface"
+        class="map-surface relative flex h-[34rem] flex-col overflow-hidden rounded-sm border border-border bg-surface"
       >
         <SceneMap
           v-if="

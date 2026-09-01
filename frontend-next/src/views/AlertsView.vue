@@ -421,19 +421,27 @@ const {
 
     <ul v-else class="m-0 flex list-none flex-col gap-2 p-0">
       <!--
-        Three visual encodings the port dropped, all restored on this element rather than
+        Two visual encodings the port dropped, both restored on this element rather than
         on the badge:
 
         - **Severity on the whole row** (`alert-drawer.css:126-136` tinted its border).
           A badge answers "how bad is this" once you are reading the row; the row
           treatment is what tells you before you read anything.
-        - **The selected vehicle** (`.alert-item.focused`, `:138-141`). This page and the
-          map share one selection, so it says which rows belong to the vehicle you were
-          just looking at.
         - **Acknowledged rows fade** (`.acknowledged { opacity: .55 }`,
           `alert-center.css:65-67`). Without it, ticking 显示已确认 produced two kinds of
           row that differ only in one button's colour — so after a bulk confirm you could
           not see which ones you had just done.
+
+        A third one — `.alert-item.focused` (`:138-141`), a brand ring on the rows of the
+        selected vehicle — was restored in 13T-C and **removed again in 14A acceptance**.
+        It reported a fact this page cannot explain. In v1.0.0 that rule lived in an alert
+        drawer *beside the map*, where the selection was visible and the operator had just
+        made it. Here the page is reached from the sidebar and offers no selection control
+        at all, so the ring marked whichever vehicle `ensureSelectedDevice()` had picked —
+        the alphabetically first one on a cold load, or whatever was last clicked on 设备,
+        possibly minutes ago on another page. Manual review read it as rows lighting up at
+        random, which is the correct reading: nothing on screen accounted for it. A cue
+        whose cause is off-screen is noise, however faithful it is to the original.
       -->
       <li
         v-for="alert in pageRows"
@@ -441,9 +449,6 @@ const {
         class="alert-row flex flex-col gap-2 rounded-md border border-border bg-surface-raised p-3 sm:flex-row sm:items-start"
         :data-severity="alert.severity"
         :data-acknowledged="ack.isAcknowledged(alert.id) ? 'true' : undefined"
-        :data-focused="
-          alert.deviceId === fleet.state.selectedDeviceId ? 'true' : undefined
-        "
       >
         <span
           class="shrink-0 rounded-xs px-2 py-0.5 font-mono text-2xs"
@@ -555,14 +560,10 @@ const {
 }
 
 /*
- * The vehicle this page and the map share a selection on. It wins over the severity tint
- * on purpose — "this is the one you were looking at" is the more specific fact, and only
- * ever applies to a few rows.
+ * There is deliberately no `[data-focused]` rule here. See the template comment above
+ * the row: the selection this page could key on is one the page never let the operator
+ * make, so the ring reported something nothing on screen explained.
  */
-.alert-row[data-focused="true"] {
-  border-color: var(--color-brand);
-  box-shadow: inset 0 0 0 1px var(--color-brand);
-}
 
 /*
  * Acknowledged rows recede rather than disappear. They are hidden by default, so this
