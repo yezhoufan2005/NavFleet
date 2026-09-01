@@ -25,6 +25,22 @@ import { computed, readonly, ref } from "vue";
  * Until it happens, the console says so. Silently not sounding is the one behaviour
  * that must never happen, because it is indistinguishable from "nothing is wrong".
  *
+ * **The choice survives a reload; the gesture cannot.** 14A acceptance reported that
+ * refreshing put the console back to 声音未启用, which read as the setting having been
+ * forgotten. It had not been — a fresh document has had no gesture, and no amount of
+ * stored state changes that. So two things are separated here:
+ *
+ * - *Armed* is a preference, and persists. It means "this browser has enabled alert
+ *   sound at least once, deliberately".
+ * - *Unlocked* is a property of this document, and cannot persist.
+ *
+ * When armed, the next gesture anywhere on the page resumes the context — no second
+ * trip to the control — and the readout says 声音待就绪 rather than 未启用 in between,
+ * because "you turned this off" and "the browser is waiting for a click" are different
+ * facts and only one of them is actionable. Arming is deliberately **not** the default:
+ * a console that starts beeping at an operator who never asked for sound is the failure
+ * mode that gets speakers unplugged.
+ *
  * ## 3. The first observation seeds, it does not announce
  *
  * Signing in to a fleet that already has four criticals must not play four sounds.
@@ -47,6 +63,7 @@ export type QuietHours = "off" | "night";
 const MUTED_KEY = "navfleet:alert-sound-muted";
 const VOLUME_KEY = "navfleet:alert-sound-volume";
 const QUIET_KEY = "navfleet:alert-sound-quiet";
+const ARMED_KEY = "navfleet:alert-sound-armed";
 
 /** Peak gain per setting. Deliberately well below 1 — this is a room, not headphones. */
 const VOLUME_GAIN: Record<SoundVolume, number> = {
@@ -101,6 +118,8 @@ const quietHours = ref<QuietHours>(
 
 /** Session-only: an unlock cannot outlive the page that performed the gesture. */
 const unlocked = ref(false);
+/** Persisted: whether this browser has ever deliberately enabled alert sound. */
+const armed = ref(readStored(ARMED_KEY, ["0", "1"] as const, "0") === "1");
 let audioContext: AudioContext | null = null;
 let announcedIds = new Set<string>();
 let seeded = false;
@@ -156,23 +175,77 @@ const play = (): void => {
   }
 };
 
+/**
+ * Bring the context to `running`, reporting whether it got there. No sound.
+ *
+ * Split out from `unlock` because the two callers want different things: the control
+ * plays a note so the person hears that it worked, while the automatic re-arm after a
+ * reload must be silent — a beep triggered by an unrelated click, with nothing wrong,
+ * teaches the opposite of what the sound means.
+ */
+const resume = async (): Promise<boolean> => {
+  try {
+    audioContext ??= contextFactory();
+    if (audioContext.state === "suspended") await audioContext.resume();
+    unlocked.value = audioContext.state === "running";
+  } catch {
+    // No Web Audio, or the gesture was not accepted. Reported, never silent.
+    unlocked.value = false;
+  }
+  return unlocked.value;
+};
+
+/**
+ * While armed but not yet unlocked, let the next gesture anywhere do the unlocking.
+ *
+ * `capture` and `once`: capture so that a handler which stops propagation cannot
+ * swallow the one gesture we need, and `once` so this costs nothing after it fires.
+ * Both event types, because a keyboard operator may never produce a pointer event.
+ *
+ * The detach function is kept at module scope so `__resetAlertSound` can remove a
+ * listener that never fired; otherwise it would outlive its test and unlock a later
+ * one from an unrelated click.
+ */
+let detachGesture: (() => void) | null = null;
+
+const attachGestureListener = (): void => {
+  if (detachGesture || typeof window === "undefined") return;
+
+  const onGesture = (): void => {
+    detachGesture?.();
+    if (armed.value && !unlocked.value) void resume();
+  };
+
+  detachGesture = () => {
+    window.removeEventListener("pointerdown", onGesture, true);
+    window.removeEventListener("keydown", onGesture, true);
+    detachGesture = null;
+  };
+
+  window.addEventListener("pointerdown", onGesture, {
+    capture: true,
+    once: true,
+  });
+  window.addEventListener("keydown", onGesture, { capture: true, once: true });
+};
+
 export const useAlertSound = () => {
+  if (armed.value && !unlocked.value) attachGestureListener();
+
   /**
    * Turn sound on. **Must be called from a user gesture** — that is the whole point
    * of the control that calls it. Plays once on success, so the person learns both
-   * that it worked and how loud it is.
+   * that it worked and how loud it is, and records the choice so the next load only
+   * needs a gesture rather than another visit to this control.
    */
   const unlock = async (): Promise<boolean> => {
-    try {
-      audioContext ??= contextFactory();
-      if (audioContext.state === "suspended") await audioContext.resume();
-      unlocked.value = audioContext.state === "running";
-    } catch {
-      // No Web Audio, or the gesture was not accepted. Reported, never silent.
-      unlocked.value = false;
+    const running = await resume();
+    if (running) {
+      armed.value = true;
+      write(ARMED_KEY, "1");
+      play();
     }
-    if (unlocked.value) play();
-    return unlocked.value;
+    return running;
   };
 
   const canSound = computed(
@@ -232,16 +305,26 @@ export const useAlertSound = () => {
 
   return {
     unlocked: readonly(unlocked),
+    /** Whether this browser has deliberately enabled sound before — persisted. */
+    armed: readonly(armed),
     muted: readonly(muted),
     volume: readonly(volume),
     quietHours: readonly(quietHours),
-    /** Why the console is currently silent, for the control's own label. */
-    silentReason: computed<"" | "locked" | "muted" | "quiet">(() => {
-      if (!unlocked.value) return "locked";
-      if (muted.value) return "muted";
-      if (isQuietAt(quietHours.value, new Date())) return "quiet";
-      return "";
-    }),
+    /**
+     * Why the console is currently silent, for the control's own label.
+     *
+     * `pending` is the state a reload lands in when sound was enabled earlier: the
+     * preference is intact and the browser is simply waiting for a gesture. Reporting
+     * it as `locked` was read during 14A acceptance as the setting being forgotten.
+     */
+    silentReason: computed<"" | "locked" | "pending" | "muted" | "quiet">(
+      () => {
+        if (!unlocked.value) return armed.value ? "pending" : "locked";
+        if (muted.value) return "muted";
+        if (isQuietAt(quietHours.value, new Date())) return "quiet";
+        return "";
+      },
+    ),
     unlock,
     announce,
     setMuted,
@@ -254,6 +337,7 @@ export const ALERT_SOUND_KEYS = {
   muted: MUTED_KEY,
   volume: VOLUME_KEY,
   quiet: QUIET_KEY,
+  armed: ARMED_KEY,
 } as const;
 
 /** Test-only: module state would otherwise leak between files. */
@@ -265,9 +349,13 @@ export const __resetAlertSound = (): void => {
     "medium",
   );
   quietHours.value = readStored(QUIET_KEY, ["off", "night"] as const, "off");
+  armed.value = readStored(ARMED_KEY, ["0", "1"] as const, "0") === "1";
   unlocked.value = false;
   audioContext = null;
   announcedIds = new Set();
   seeded = false;
   lastSoundAt = 0;
+  // A listener that never fired is keyed to the window a previous test mounted into;
+  // leaving it attached would unlock a later case from an unrelated click.
+  detachGesture?.();
 };

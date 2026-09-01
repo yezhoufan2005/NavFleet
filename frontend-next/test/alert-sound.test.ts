@@ -154,6 +154,69 @@ describe("unlocking", () => {
   });
 });
 
+describe("coming back after a reload", () => {
+  /** A fresh document in a browser that enabled sound at some earlier point. */
+  const reloadedWithSoundOn = async () => {
+    const first = useAlertSound();
+    await first.unlock();
+    expect(localStorage.getItem(ALERT_SOUND_KEYS.armed)).toBe("1");
+    __resetAlertSound();
+    contextState = "suspended";
+    oscillators.length = 0;
+    resumeCalls = 0;
+    return useAlertSound();
+  };
+
+  it("remembers the choice even though it cannot remember the gesture", async () => {
+    // 14A acceptance read 声音未启用 after every refresh as the setting being forgotten.
+    // Two different facts: the preference is intact, and the browser is waiting for a
+    // click. Only one of them is something the operator did.
+    const sound = await reloadedWithSoundOn();
+
+    expect(sound.armed.value).toBe(true);
+    expect(sound.unlocked.value).toBe(false);
+    expect(sound.silentReason.value).toBe("pending");
+  });
+
+  it("takes the next click anywhere as the gesture, and stays quiet about it", async () => {
+    const sound = await reloadedWithSoundOn();
+
+    window.dispatchEvent(new Event("pointerdown"));
+    await Promise.resolve();
+    await Promise.resolve();
+
+    expect(resumeCalls).toBe(1);
+    expect(sound.unlocked.value).toBe(true);
+    expect(sound.silentReason.value).toBe("");
+    // No confirmation blip: this click was aimed at something else, and a beep with
+    // nothing wrong teaches the opposite of what the sound means.
+    expect(soundsPlayed()).toBe(0);
+  });
+
+  it("takes a keypress too, since a keyboard operator may never produce a click", async () => {
+    const sound = await reloadedWithSoundOn();
+
+    window.dispatchEvent(new Event("keydown"));
+    await Promise.resolve();
+    await Promise.resolve();
+
+    expect(sound.unlocked.value).toBe(true);
+  });
+
+  it("does not arm a browser that never asked for sound", async () => {
+    // Arming on any first click would give everyone audible criticals they never opted
+    // into — the failure mode that gets speakers unplugged.
+    const sound = useAlertSound();
+    expect(sound.armed.value).toBe(false);
+
+    window.dispatchEvent(new Event("pointerdown"));
+    await Promise.resolve();
+
+    expect(resumeCalls).toBe(0);
+    expect(sound.silentReason.value).toBe("locked");
+  });
+});
+
 describe("what gets announced", () => {
   const live = async () => {
     const sound = useAlertSound();

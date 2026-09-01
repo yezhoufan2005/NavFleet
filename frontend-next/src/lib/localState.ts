@@ -5,9 +5,10 @@
  * produced by **scanning storage for that prefix** instead of from a hand-kept list.
  * That is the whole point: this feeds a diagnostics page, and a list maintained by
  * hand is precisely the thing that goes stale — `docs/frontend-parity.md` §8.8
- * documented five keys and there are nine today, because 13D-2 added three sound
- * preferences and 13A-2b added the device layout. A page that answers "what is this
- * browser holding" has to be unable to drift from the answer.
+ * documented five keys and there are ten today, because 13D-2 added three sound
+ * preferences, 13A-2b added the device layout, and 14A added the sound-armed flag.
+ * A page that answers "what is this browser holding" has to be unable to drift from
+ * the answer.
  *
  * Labels are best-effort. A key with no label is still listed, under its own name —
  * the unknown case is the interesting one, because it means something wrote a
@@ -46,6 +47,7 @@ const LABELS: Readonly<Record<string, string>> = {
   "navfleet:alert-sound-muted": "告警声音：静音",
   "navfleet:alert-sound-volume": "告警声音：音量",
   "navfleet:alert-sound-quiet": "告警声音：免打扰",
+  "navfleet:alert-sound-armed": "告警声音：已启用过（重载后自动恢复）",
   "navfleet:ros-scene-views:v2": "场景地图视图记忆",
 };
 

@@ -436,10 +436,10 @@ describe("the toast's undo button", () => {
 
 describe("what a row says without being read", () => {
   /**
-   * Three visual encodings v1.0.0 had and the port reduced to a single badge. They are
+   * Two visual encodings v1.0.0 had and the port reduced to a single badge. They are
    * asserted through `data-*` hooks rather than computed styles, because the scoped rules
    * key on exactly these attributes — an assertion on colour would pin the palette, which
-   * is not the contract.
+   * is not the contract. A third one was restored and then withdrawn; see below.
    */
   it("carries its severity on the whole row, not only in a badge", async () => {
     seedMixed();
@@ -453,18 +453,24 @@ describe("what a row says without being read", () => {
     }
   });
 
-  it("marks the rows belonging to the vehicle the map is on", async () => {
-    // 告警 and the maps share one selection, so this says which rows belong to the
-    // vehicle you were just looking at.
+  it("does not ring the rows of whatever vehicle the store happens to have selected", async () => {
+    // 13T-C restored v1.0.0's `.alert-item.focused` here; 14A acceptance took it back
+    // out. In v1.0.0 that rule lived in a drawer beside the map, where the operator had
+    // just made the selection. This page has no selection control, so the ring landed on
+    // whichever vehicle `ensureSelectedDevice()` picked — read during manual review as
+    // rows lighting up at random, which is exactly what it looked like.
+    //
+    // Asserted rather than deleted: a cue that was ported once from a v1.0.0 stylesheet
+    // is a cue that gets ported again, and the reason it is wrong is not visible from
+    // the CSS rule itself.
     seedMixed();
     store.selectDevice("agv-02");
     const wrapper = await mountAlerts();
 
-    const focused = wrapper
-      .findAll("li")
-      .filter((row) => row.attributes("data-focused") === "true");
-    expect(focused).toHaveLength(1);
-    expect(focused[0]!.text()).toContain("B07 巡检车");
+    expect(wrapper.text()).toContain("B07 巡检车");
+    expect(
+      wrapper.findAll("li").filter((row) => row.attributes("data-focused")),
+    ).toHaveLength(0);
   });
 
   it("fades an acknowledged row instead of making it identical", async () => {
