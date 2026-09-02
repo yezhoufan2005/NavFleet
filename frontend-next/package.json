@@ -6,7 +6,7 @@
   "description": "NavFleet console — the v3 frontend. Runs alongside navfleet-frontend until it reaches parity (see docs/frontend-parity.md).",
   "scripts": {
     "dev": "vite --host 127.0.0.1 --port 5273",
-    "build": "vue-tsc --noEmit -p tsconfig.json && vite build && node scripts/assert-no-dev-only-chunks.mjs",
+    "build": "vue-tsc --noEmit -p tsconfig.json && vite build && node scripts/assert-no-dev-only-chunks.mjs && node scripts/assert-first-load-budget.mjs",
     "preview": "vite preview --port 4273",
     "lint": "eslint . --max-warnings 0",
     "format:check": "prettier --check \"src/**/*.{ts,vue,css}\" \"test/**/*.ts\" \"scripts/**/*.mjs\"",
