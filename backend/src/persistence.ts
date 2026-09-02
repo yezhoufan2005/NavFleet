@@ -225,14 +225,46 @@ export class Persistence {
     if (!this.db) {
       return [];
     }
-    return (await this.db.collection<DeviceSnapshot>("device_latest").find({}).toArray()).map(
-      (item) => ({
-        ...item,
-        alerts: item.alerts || [],
-        extra: item.extra || {},
-        tags: item.tags || [],
-      }),
-    );
+    // P0-d: bounded on both axes. This used to be `find({})` — every row
+    // `device_latest` had ever accumulated came back into memory at startup, which
+    // is the same unbounded growth the eviction sweep exists to prevent, only
+    // reinstated on every restart. Restoring within the retention window also means
+    // nothing that comes back is immediately evictable, so there is no
+    // restore-then-evict churn.
+    //
+    // `stamp` is stored as an ISO-8601 UTC string, and those compare
+    // lexicographically in timestamp order, so a string bound is a time bound here.
+    const cutoff = new Date(Date.now() - config.deviceRetentionSeconds * 1000).toISOString();
+    const query = config.deviceRetentionSeconds > 0 ? { stamp: { $gte: cutoff } } : {};
+    return (
+      await this.db
+        .collection<DeviceSnapshot>("device_latest")
+        .find(query)
+        .sort({ stamp: -1 })
+        .limit(config.maxDevices)
+        .toArray()
+    ).map((item) => ({
+      ...item,
+      alerts: item.alerts || [],
+      extra: item.extra || {},
+      tags: item.tags || [],
+    }));
+  }
+
+  /**
+   * Release a device's in-memory footprint (P0-d). Called when the store evicts a
+   * device: without this, eviction would reclaim two snapshots and leave behind the
+   * much larger per-device telemetry ring (up to `MAX_HISTORY_POINTS` documents).
+   *
+   * Deliberately does **not** touch `pendingTelemetry`: those documents are real
+   * samples on their way to MongoDB, already bounded by `MONGO_BUFFER_LIMIT`, and
+   * dropping them would turn an eviction into data loss. Nothing is deleted from
+   * MongoDB either — `device_latest` keeps its row, so the device returns intact if
+   * it ever reports again.
+   */
+  forgetDevice(deviceId: string): void {
+    this.telemetryBuffer.delete(deviceId);
+    this.activeAlerts.delete(deviceId);
   }
 
   async writeLatestSnapshot(snapshot: DeviceSnapshot): Promise<void> {

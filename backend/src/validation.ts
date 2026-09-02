@@ -76,6 +76,33 @@ export const mqttStatusSchema = z.union([
  */
 export const deviceIdParamSchema = z.string().min(1).max(200);
 
+/** Same length bound as `deviceIdParamSchema`, shared so the two cannot drift. */
+const DEVICE_ID_MAX_LENGTH = 200;
+
+/**
+ * Characters a single MQTT topic segment cannot legitimately carry: the topic
+ * separator and both wildcards, plus whitespace and C0/DEL control characters. A
+ * device id containing any of them did not come from a vendor convention, it came
+ * from a malformed frame — or from an attempt to write something else into a log.
+ * Hyphens, dots, colons and the rest stay legal; `agv-a01` is a real id here.
+ */
+// eslint-disable-next-line no-control-regex -- rejecting control characters is the point
+const FORBIDDEN_DEVICE_ID_CHARS = /[\s/+#\u0000-\u001f\u007f]/;
+
+/**
+ * Whether a device id from the broker may **create** an in-memory device (P0-d).
+ *
+ * Deliberately weaker than a charset whitelist, for the reason
+ * `deviceIdParamSchema` gives: real device ids come from the customer's fleet and
+ * follow arbitrary vendor conventions. What this asserts is only what an ingest
+ * gate must — a bounded length, so one frame cannot plant a megabyte-long map key,
+ * and no characters that could not have been in the topic to begin with.
+ */
+export const isIngestableDeviceId = (deviceId: string): boolean =>
+  deviceId.length >= 1 &&
+  deviceId.length <= DEVICE_ID_MAX_LENGTH &&
+  !FORBIDDEN_DEVICE_ID_CHARS.test(deviceId);
+
 /**
  * Scene ids in the URL path. Stricter than device ids: a scene id resolves a
  * scene-map asset on disk, so it is limited to a safe id charset — and dot-only

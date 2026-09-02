@@ -142,6 +142,18 @@ const configSchema = z.object({
   ALERTS_RETENTION_SECONDS: envInt(60 * 60 * 24 * 180),
   MAX_HISTORY_POINTS: envInt(500),
   MONGO_BUFFER_LIMIT: envInt(2000),
+  // P0-b: how many mutations may wait in the store's serial ingest queue before
+  // the oldest *sheddable* (i.e. MQTT telemetry) ones are dropped. Sized so that a
+  // few seconds of a stalled MongoDB is absorbed rather than shed: at 1 Hz, 1000
+  // entries is ~2.5 minutes of a six-vehicle fleet, or ~10 s of a 100-vehicle one.
+  INGEST_QUEUE_LIMIT: envInt(1000, 1),
+  // P0-d: ceiling on devices held in memory. Devices declared in vehicles.json are
+  // exempt (the operator named them); this bounds what arrives from the broker.
+  MAX_DEVICES: envInt(1000, 1),
+  // P0-d: forget an *undeclared* device after this long without a single frame.
+  // 0 disables eviction. A day is well past any live-monitoring interest, and the
+  // device's history stays in MongoDB either way.
+  DEVICE_RETENTION_SECONDS: envInt(60 * 60 * 24, 0),
   CONFIG_WATCH_USE_POLLING: envBool(false),
   CONFIG_WATCH_DEBOUNCE_MS: envInt(1000, 100),
   AUTH_ENABLED: envBool(true),
@@ -206,6 +218,9 @@ export const parseConfig = (env: NodeJS.ProcessEnv) => {
     alertsRetentionSeconds: e.ALERTS_RETENTION_SECONDS,
     maxHistoryPoints: e.MAX_HISTORY_POINTS,
     mongoBufferLimit: e.MONGO_BUFFER_LIMIT,
+    ingestQueueLimit: e.INGEST_QUEUE_LIMIT,
+    maxDevices: e.MAX_DEVICES,
+    deviceRetentionSeconds: e.DEVICE_RETENTION_SECONDS,
     configRootPath: resolveConfigRootPath(),
     configWatchUsePolling: e.CONFIG_WATCH_USE_POLLING,
     configWatchDebounceMs: e.CONFIG_WATCH_DEBOUNCE_MS,

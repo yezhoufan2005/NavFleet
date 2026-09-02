@@ -187,6 +187,50 @@ export const createMetrics = ({
     () => state.mqttMessagesRejected,
   );
 
+  // P0-b: the store's serial ingest queue. Depth against limit is the backpressure
+  // signal; the drop counter is what the depth cannot tell you, because a queue held
+  // exactly at its limit looks calm while it sheds every frame that arrives.
+  gauge(
+    "navfleet_ingest_queue_depth",
+    "Mutations waiting in the store's ingest queue",
+    () => store.ingestQueueStats().depth,
+  );
+  gauge(
+    "navfleet_ingest_queue_limit",
+    "Configured ingest queue capacity (INGEST_QUEUE_LIMIT)",
+    () => store.ingestQueueStats().limit,
+  );
+  mirroredCounter(
+    "navfleet_ingest_queue_dropped_total",
+    "Telemetry frames dropped because the ingest queue was full",
+    () => store.ingestQueueStats().dropped,
+  );
+
+  // P0-d: the three ways a device can fail to be, or stop being, in memory. Kept
+  // apart rather than folded into one counter because each points at a different
+  // cause: a malformed publisher, a fleet larger than MAX_DEVICES, and normal
+  // reclamation of ids that went silent.
+  gauge(
+    "navfleet_devices_limit",
+    "Configured ceiling on devices in memory (MAX_DEVICES)",
+    () => store.deviceAdmissionStats().limit,
+  );
+  mirroredCounter(
+    "navfleet_devices_rejected_total",
+    "Frames refused because the device id is unusable",
+    () => store.deviceAdmissionStats().rejected,
+  );
+  mirroredCounter(
+    "navfleet_devices_capped_total",
+    "New devices refused because the fleet is at MAX_DEVICES",
+    () => store.deviceAdmissionStats().capped,
+  );
+  mirroredCounter(
+    "navfleet_devices_evicted_total",
+    "Devices evicted after DEVICE_RETENTION_SECONDS without a frame",
+    () => store.deviceAdmissionStats().evicted,
+  );
+
   // Buckets span an in-memory snapshot read (sub-millisecond) through a slow
   // Mongo history query (seconds), which is the actual latency range here.
   const httpDuration = new Histogram({

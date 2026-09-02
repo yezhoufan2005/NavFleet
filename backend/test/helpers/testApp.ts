@@ -49,6 +49,10 @@ export interface StoreStub {
   >;
   getAlerts: Mock<(filters: Record<string, string | undefined>) => Promise<unknown[]>>;
   applyPayload: Mock<(payload: unknown, source?: string) => Promise<FleetSnapshot>>;
+  ingestQueueStats: Mock<() => { depth: number; dropped: number; limit: number }>;
+  deviceAdmissionStats: Mock<
+    () => { rejected: number; capped: number; evicted: number; limit: number }
+  >;
 }
 
 // getScene/getSceneOverlay are synchronous on DashboardStore but the routes
@@ -75,6 +79,8 @@ export const createStoreStub = (): StoreStub => ({
   getHistory: vi.fn(() => Promise.resolve([sampleHistoryPoint()])),
   getAlerts: vi.fn(() => Promise.resolve([sampleAlert()])),
   applyPayload: vi.fn(() => Promise.resolve(sampleSnapshot())),
+  ingestQueueStats: vi.fn(() => ({ depth: 0, dropped: 0, limit: 1000 })),
+  deviceAdmissionStats: vi.fn(() => ({ rejected: 0, capped: 0, evicted: 0, limit: 1000 })),
 });
 
 export interface PersistenceStub {
