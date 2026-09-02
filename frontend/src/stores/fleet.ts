@@ -17,7 +17,7 @@ import { notify } from "../composables/useNotifications";
 import {
   cloneValue,
   round,
-  toTimestampMs,
+  parseTimestampMs,
   formatDateTime,
   extractDeviceIdFromTopic,
   getDeviceTone,
@@ -294,7 +294,11 @@ export const useFleetStore = defineStore("fleet", () => {
       });
     });
     Object.values(grouped).forEach((list) => {
-      list.sort((left, right) => toTimestampMs(right.ts) - toTimestampMs(left.ts));
+      // Absent timestamps sort last: `Date.now()` used to promote them to the top
+      // and then move them on every tick (parity 9.19).
+      list.sort(
+        (left, right) => (parseTimestampMs(right.ts) ?? 0) - (parseTimestampMs(left.ts) ?? 0),
+      );
     });
     return grouped;
   });

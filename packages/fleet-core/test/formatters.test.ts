@@ -37,11 +37,30 @@ describe("formatNumber", () => {
     expect(formatNumber("2.5", 1)).toBe("2.5");
   });
 
-  it("DEFECT (parity 9.1): renders null as zero rather than the placeholder", () => {
-    // `Number(null)` is 0, and every default telemetry field is null — so an
-    // un-reported battery shows "0.0%" and reads like a flat one.
-    expect(formatNumber(null, 1, "%")).toBe("0.0%");
-    expect(formatNumber(null, 2, " m/s")).toBe("0.00 m/s");
+  it("tells a missing reading apart from a reading of zero (parity 9.1)", () => {
+    // `Number(null)` is 0 and every default telemetry field is null, so an un-reported
+    // battery used to render "0.0%" and read like a flat one. On a monitoring console
+    // "no reading" and "a reading of zero" are different facts: one is a vehicle that
+    // is parked, the other is a vehicle that is not talking to us.
+    expect(formatNumber(null, 1, "%")).toBe("--");
+    expect(formatNumber(null, 2, " m/s")).toBe("--");
+    expect(formatNumber("", 1, "%")).toBe("--");
+    expect(formatNumber("   ", 1, "%")).toBe("--");
+
+    // A real zero still formats — that is the half of the distinction that must not
+    // be lost while fixing the other half.
+    expect(formatNumber(0, 1, "%")).toBe("0.0%");
+    expect(formatNumber("0", 2, " m/s")).toBe("0.00 m/s");
+  });
+
+  it("refuses values that are not readings at all, rather than coercing them", () => {
+    // `Number(true)` is 1 and `Number([])` is 0; both are finite, so the old guard
+    // let them through and invented a measurement out of a boolean.
+    expect(formatNumber(true)).toBe("--");
+    expect(formatNumber(false)).toBe("--");
+    expect(formatNumber([])).toBe("--");
+    expect(formatNumber([5])).toBe("--");
+    expect(formatNumber({})).toBe("--");
   });
 });
 

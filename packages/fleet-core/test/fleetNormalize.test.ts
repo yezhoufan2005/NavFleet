@@ -7,7 +7,9 @@ import {
   normalizePathPoint,
   pointsAreNear,
   pickTrailPose,
-  toTimestampMs,
+  parseTimestampMs,
+  toTimestampMsOrNow,
+  formatDateTime,
 } from "../src/fleetNormalize";
 
 describe("normalizeDevice", () => {
@@ -169,9 +171,54 @@ describe("path + trail helpers", () => {
   });
 });
 
-describe("toTimestampMs", () => {
+describe("parseTimestampMs", () => {
   it("upconverts second-precision epochs to milliseconds", () => {
-    expect(toTimestampMs(1_000_000)).toBe(1_000_000 * 1000);
-    expect(toTimestampMs(2_000_000_000_000)).toBe(2_000_000_000_000);
+    expect(parseTimestampMs(1_000_000)).toBe(1_000_000 * 1000);
+    expect(parseTimestampMs(2_000_000_000_000)).toBe(2_000_000_000_000);
+  });
+
+  it("parses ISO strings and numeric strings", () => {
+    expect(parseTimestampMs("2026-09-02T00:00:00.000Z")).toBe(
+      Date.parse("2026-09-02T00:00:00.000Z"),
+    );
+    expect(parseTimestampMs("2000000000000")).toBe(2_000_000_000_000);
+  });
+
+  it("answers null for anything that carries no time (parity 9.19)", () => {
+    // The old helper answered `Date.now()` here, which turns "we do not know when this
+    // happened" into "it happened this instant" — so an undated alert sorted above
+    // every real one, and moved again on the next tick.
+    for (const absent of [
+      null,
+      undefined,
+      "",
+      "   ",
+      "not a date",
+      Number.NaN,
+      {},
+      [],
+    ]) {
+      expect(parseTimestampMs(absent)).toBeNull();
+    }
+  });
+});
+
+describe("toTimestampMsOrNow", () => {
+  it("falls back to now, which is why the name says so", () => {
+    // For a *receiver* this is the right answer: the frame did just arrive. The name
+    // exists so that a reader cannot reach for it by accident.
+    const before = Date.now();
+    const at = toTimestampMsOrNow(null);
+    expect(at).toBeGreaterThanOrEqual(before);
+    expect(toTimestampMsOrNow(1_700_000_000_000)).toBe(1_700_000_000_000);
+  });
+});
+
+describe("formatDateTime", () => {
+  it("shows the placeholder rather than a fabricated time", () => {
+    expect(formatDateTime(null)).toBe("--");
+    expect(formatDateTime("")).toBe("--");
+    expect(formatDateTime("not a date")).toBe("--");
+    expect(formatDateTime(1_700_000_000_000)).not.toBe("--");
   });
 });

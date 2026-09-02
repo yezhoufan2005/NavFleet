@@ -16,15 +16,36 @@ const toNumeric = (value: unknown, fallback: number | null = null): number | nul
   return Number.isFinite(parsed) ? parsed : fallback;
 };
 
-const toTimestampMs = (value: unknown): number => {
-  if (typeof value === "number" && Number.isFinite(value)) {
+/**
+ * Epoch milliseconds, or `null` when the value carries no time.
+ *
+ * A local copy rather than an import: this file is the backend's own normaliser and
+ * predates `@navfleet/fleet-core`. It is kept behaviourally identical to
+ * `parseTimestampMs` there, and the pair is asserted by tests on both sides — a fourth
+ * copy of this logic drifting is exactly how parity 9.19 stayed alive in three places.
+ */
+const parseTimestampMs = (value: unknown): number | null => {
+  if (value === null || value === undefined || value === "") return null;
+  if (typeof value === "number") {
+    if (!Number.isFinite(value)) return null;
     return value < 1e12 ? value * 1000 : value;
   }
-  const parsed = Date.parse(String(value ?? ""));
-  return Number.isFinite(parsed) ? parsed : Date.now();
+  const numeric = Number(value);
+  if (Number.isFinite(numeric) && String(value).trim() !== "") {
+    return numeric < 1e12 ? numeric * 1000 : numeric;
+  }
+  const parsed = Date.parse(String(value));
+  return Number.isFinite(parsed) ? parsed : null;
 };
 
-const toIsoString = (value: unknown): string => new Date(toTimestampMs(value)).toISOString();
+/**
+ * Receive time is a legitimate answer **here** and only here: this runs as a frame
+ * arrives, so a vehicle that does not stamp its own reports still has a knowable time.
+ * The readers (both frontends) must not invent one — see `parseTimestampMs` in
+ * `@navfleet/fleet-core`.
+ */
+const toIsoString = (value: unknown): string =>
+  new Date(parseTimestampMs(value) ?? Date.now()).toISOString();
 
 const isRecord = (value: unknown): value is UnknownRecord =>
   typeof value === "object" && value !== null && !Array.isArray(value);
@@ -244,7 +265,7 @@ const dedupeAlerts = (alerts: DeviceAlert[]): DeviceAlert[] => {
     }
   });
   return [...deduplicated.values()].sort(
-    (left, right) => toTimestampMs(right.ts) - toTimestampMs(left.ts),
+    (left, right) => (parseTimestampMs(right.ts) ?? 0) - (parseTimestampMs(left.ts) ?? 0),
   );
 };
 

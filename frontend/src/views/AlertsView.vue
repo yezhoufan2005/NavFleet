@@ -3,7 +3,7 @@ import { computed, ref, watch } from "vue";
 import { storeToRefs } from "pinia";
 import { useFleetStore } from "../stores/fleet";
 import { useAlertAck } from "../composables/useAlertAck";
-import { toTimestampMs } from "@navfleet/fleet-core";
+import { parseTimestampMs } from "@navfleet/fleet-core";
 import { formatStamp } from "@navfleet/fleet-core";
 
 const store = useFleetStore();
@@ -38,7 +38,7 @@ const allAlerts = computed(() => {
   return list.sort(
     (left, right) =>
       severityWeight[left.severity] - severityWeight[right.severity] ||
-      toTimestampMs(right.ts) - toTimestampMs(left.ts),
+      (parseTimestampMs(right.ts) ?? 0) - (parseTimestampMs(left.ts) ?? 0),
   );
 });
 

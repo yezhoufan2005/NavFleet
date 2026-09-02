@@ -42,7 +42,7 @@ import {
   pickTrailPose,
   pointsAreNear,
   sceneCatalog,
-  toTimestampMs,
+  toTimestampMsOrNow,
   TRAIL_MAX_POINTS,
   TRAIL_MIN_DISTANCE,
 } from "@navfleet/fleet-core";
@@ -436,7 +436,7 @@ export const useFleetStore = defineStore("fleet", () => {
       for (const alert of device.alerts) {
         present.add(alert.id);
         if (!alertFirstSeen.has(alert.id)) {
-          alertFirstSeen.set(alert.id, toTimestampMs(alert.ts));
+          alertFirstSeen.set(alert.id, toTimestampMsOrNow(alert.ts));
         }
       }
     }
@@ -455,7 +455,8 @@ export const useFleetStore = defineStore("fleet", () => {
           deviceName: device.deviceName,
           // Falls back to `ts` only for an alert this store has not ingested yet,
           // which is the path tests take when they read the computed directly.
-          firstSeenAt: alertFirstSeen.get(alert.id) ?? toTimestampMs(alert.ts),
+          firstSeenAt:
+            alertFirstSeen.get(alert.id) ?? toTimestampMsOrNow(alert.ts),
         });
       });
     });
