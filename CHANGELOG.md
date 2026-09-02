@@ -1,5 +1,16 @@
 # Changelog
 
+## [1.0.3](https://github.com/yezhoufan2005/NavFleet/compare/v1.0.2...v1.0.3) (2026-09-02)
+
+
+### Bug Fixes
+
+* **backend:** P0-b / P0-d —— 摄入队列封顶，设备内存加准入与淘汰 ([29da46d](https://github.com/yezhoufan2005/NavFleet/commit/29da46d5cbbec3b4e2c6bb418bc829ff964aaf6f))
+* **backend:** P0-c / P0-e / 优雅关闭 —— 三处会丢数据的路径 ([980dcd5](https://github.com/yezhoufan2005/NavFleet/commit/980dcd5e167d4f2701a5195877edb37455825113))
+* **backend:** 那条测试里的 NUL 是我写坏的，不是我想测的 ([482a47e](https://github.com/yezhoufan2005/NavFleet/commit/482a47e6a1aaa1849a929ef589bca6ce7eac8efc))
+* **fleet-core:** 两处把「缺失」当成值的回退（parity 9.1 / 9.19） ([474e130](https://github.com/yezhoufan2005/NavFleet/commit/474e130a1f3823b4f352a22ff92531784f61a4a4))
+* **fleet-core:** 删掉 dataDefaults 的两个永久空常量（parity 8.7） ([1b04514](https://github.com/yezhoufan2005/NavFleet/commit/1b0451407afaa77571af4e9e7e0472beebb4ed77))
+
 ## [1.0.2](https://github.com/yezhoufan2005/NavFleet/compare/v1.0.1...v1.0.2) (2026-08-30)
 
 

@@ -1,6 +1,6 @@
 {
   "name": "navfleet",
-  "version": "1.0.2",
+  "version": "1.0.3",
   "private": true,
   "description": "NavFleet — read-only real-time fleet monitoring platform (monorepo root).",
   "workspaces": [
