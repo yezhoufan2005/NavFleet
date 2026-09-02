@@ -387,6 +387,9 @@ scene-maps/
 | `ALERTS_RETENTION_SECONDS`    | `15552000`                                                          | 告警保留秒数，默认 180 天                             |
 | `MAX_HISTORY_POINTS`          | `500`                                                               | 单次历史查询最大返回点数                              |
 | `MONGO_BUFFER_LIMIT`          | `2000`                                                              | Mongo 写失败时内存缓冲上限                            |
+| `INGEST_QUEUE_LIMIT`          | `1000`                                                              | 摄入串行队列长度上限，满时丢最旧的可丢遥测帧          |
+| `MAX_DEVICES`                 | `1000`                                                              | 内存中设备数上限（vehicles.json 已声明的不受限）      |
+| `DEVICE_RETENTION_SECONDS`    | `86400`                                                             | 未声明设备静默多久后淘汰出内存，`0` 表示不淘汰        |
 | `CONFIG_ROOT_PATH`            | `/runtime-config`                                                   | 容器内配置根目录                                      |
 | `CONFIG_WATCH_USE_POLLING`    | `false`                                                             | 是否用轮询监听配置                                    |
 | `CONFIG_WATCH_DEBOUNCE_MS`    | `1000`                                                              | 配置热加载防抖毫秒数                                  |

@@ -11,13 +11,13 @@
 
 import { computed, reactive, toRaw } from "vue";
 import { defineStore } from "pinia";
-import { fallbackFleetPayload, sceneCatalog } from "@navfleet/fleet-core";
+import { fallbackFleetPayload } from "@navfleet/fleet-core";
 import { fleetApi } from "@navfleet/fleet-core";
 import { notify } from "../composables/useNotifications";
 import {
   cloneValue,
   round,
-  toTimestampMs,
+  parseTimestampMs,
   formatDateTime,
   extractDeviceIdFromTopic,
   getDeviceTone,
@@ -128,7 +128,7 @@ export const useFleetStore = defineStore("fleet", () => {
     selectedMapMode: readStoredMapMode(),
     lastSource: "bootstrap",
     lastUpdateAt: null,
-    sceneDefinitions: cloneValue(sceneCatalog),
+    sceneDefinitions: {},
     pendingSceneLoads: {},
     trailsByDeviceId: {},
     realtime: {
@@ -144,17 +144,20 @@ export const useFleetStore = defineStore("fleet", () => {
     if (!sceneId) {
       return null;
     }
-    return state.sceneDefinitions[sceneId] || sceneCatalog[sceneId] || null;
+    return state.sceneDefinitions[sceneId] || null;
   };
 
   const mergeSceneDefinition = (definition: SceneDefinition) => {
     if (!definition?.sceneId) {
       return;
     }
-    // `SceneMapDefinition` has no index signature, so bridge it to the loose,
-    // dynamically-merged shape `mergeSceneDefinitionParts` consumes.
-    const fallback = (sceneCatalog[definition.sceneId] || {}) as unknown as Record<string, unknown>;
-    state.sceneDefinitions[definition.sceneId] = mergeSceneDefinitionParts(fallback, definition);
+    // There is no built-in catalogue to merge over any more (see `dataDefaults.ts`):
+    // every scene comes from the backend, so the base is whatever we already hold.
+    const existing = (state.sceneDefinitions[definition.sceneId] || {}) as unknown as Record<
+      string,
+      unknown
+    >;
+    state.sceneDefinitions[definition.sceneId] = mergeSceneDefinitionParts(existing, definition);
   };
 
   const normalizePayload = (input: unknown): NormalizedPayload => {
@@ -294,7 +297,11 @@ export const useFleetStore = defineStore("fleet", () => {
       });
     });
     Object.values(grouped).forEach((list) => {
-      list.sort((left, right) => toTimestampMs(right.ts) - toTimestampMs(left.ts));
+      // Absent timestamps sort last: `Date.now()` used to promote them to the top
+      // and then move them on every tick (parity 9.19).
+      list.sort(
+        (left, right) => (parseTimestampMs(right.ts) ?? 0) - (parseTimestampMs(left.ts) ?? 0),
+      );
     });
     return grouped;
   });
@@ -659,9 +666,18 @@ export const useFleetStore = defineStore("fleet", () => {
     }
   };
 
+  /**
+   * What the dashboard holds when the backend cannot be reached: **nothing**, said plainly.
+   *
+   * This used to ingest `fallbackFleetPayload`, whose `devices` array was permanently
+   * empty — so an unreachable backend rendered a fleet of zero vehicles, which reads as
+   * "every vehicle is gone" rather than as "we cannot reach the backend". Now only the two
+   * label fields are seeded, and the device map is left untouched so a reconnect merges
+   * into what was last known instead of into a fleet that was silently emptied.
+   */
   const bootstrapEmptyState = async () => {
-    const payload = cloneValue(fallbackFleetPayload);
-    ingestPayload(payload, "bootstrap");
+    if (!state.fleetName) state.fleetName = fallbackFleetPayload.fleetName;
+    if (!state.topicPattern) state.topicPattern = fallbackFleetPayload.topicPattern;
   };
 
   const retryBootstrap = async () => {

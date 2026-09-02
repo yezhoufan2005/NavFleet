@@ -16,15 +16,36 @@ const toNumeric = (value: unknown, fallback: number | null = null): number | nul
   return Number.isFinite(parsed) ? parsed : fallback;
 };
 
-const toTimestampMs = (value: unknown): number => {
-  if (typeof value === "number" && Number.isFinite(value)) {
+/**
+ * Epoch milliseconds, or `null` when the value carries no time.
+ *
+ * A local copy rather than an import: this file is the backend's own normaliser and
+ * predates `@navfleet/fleet-core`. It is kept behaviourally identical to
+ * `parseTimestampMs` there, and the pair is asserted by tests on both sides — a fourth
+ * copy of this logic drifting is exactly how parity 9.19 stayed alive in three places.
+ */
+const parseTimestampMs = (value: unknown): number | null => {
+  if (value === null || value === undefined || value === "") return null;
+  if (typeof value === "number") {
+    if (!Number.isFinite(value)) return null;
     return value < 1e12 ? value * 1000 : value;
   }
-  const parsed = Date.parse(String(value ?? ""));
-  return Number.isFinite(parsed) ? parsed : Date.now();
+  const numeric = Number(value);
+  if (Number.isFinite(numeric) && String(value).trim() !== "") {
+    return numeric < 1e12 ? numeric * 1000 : numeric;
+  }
+  const parsed = Date.parse(String(value));
+  return Number.isFinite(parsed) ? parsed : null;
 };
 
-const toIsoString = (value: unknown): string => new Date(toTimestampMs(value)).toISOString();
+/**
+ * Receive time is a legitimate answer **here** and only here: this runs as a frame
+ * arrives, so a vehicle that does not stamp its own reports still has a knowable time.
+ * The readers (both frontends) must not invent one — see `parseTimestampMs` in
+ * `@navfleet/fleet-core`.
+ */
+const toIsoString = (value: unknown): string =>
+  new Date(parseTimestampMs(value) ?? Date.now()).toISOString();
 
 const isRecord = (value: unknown): value is UnknownRecord =>
   typeof value === "object" && value !== null && !Array.isArray(value);
@@ -244,7 +265,7 @@ const dedupeAlerts = (alerts: DeviceAlert[]): DeviceAlert[] => {
     }
   });
   return [...deduplicated.values()].sort(
-    (left, right) => toTimestampMs(right.ts) - toTimestampMs(left.ts),
+    (left, right) => (parseTimestampMs(right.ts) ?? 0) - (parseTimestampMs(left.ts) ?? 0),
   );
 };
 
@@ -459,17 +480,41 @@ export const mergeDevice = (
   };
 };
 
+export interface NormalizePayloadOptions {
+  /**
+   * Whether this source is allowed to submit a **whole-fleet** payload, i.e. one that
+   * replaces the in-memory fleet instead of merging into it.
+   *
+   * Off by default, and that default is the fix for P0-e. `replace` used to be decided
+   * by the *shape of the payload* rather than by who sent it, so a fleet-shaped frame
+   * arriving on a telemetry topic emptied both device maps before repopulating them from
+   * that one frame. No vehicle publishes that shape — it only ever comes from the seed
+   * file or the debug ingest endpoint — so the capability now travels with the caller.
+   */
+  allowReplace?: boolean;
+}
+
 export const normalizePayload = (
   input: unknown,
   existingDevices: Map<string, DeviceSnapshot>,
   fleetName: string,
   topicPattern: string,
+  options: NormalizePayloadOptions = {},
 ): { replace: boolean; fleetName: string; topicPattern: string; devices: DeviceSnapshot[] } => {
   if (!isRecord(input) && !Array.isArray(input)) {
     throw new Error("payload must be a JSON object");
   }
 
+  const rejectReplace = (shape: string): never => {
+    throw new Error(
+      `whole-fleet payload (${shape}) is not accepted from this source; ` +
+        "only the seed file and the debug ingest endpoint may replace the fleet",
+    );
+  };
+  const allowReplace = options.allowReplace === true;
+
   if (Array.isArray(input)) {
+    if (!allowReplace) rejectReplace("bare array");
     return {
       replace: true,
       fleetName,
@@ -479,6 +524,7 @@ export const normalizePayload = (
   }
 
   if (Array.isArray(input.devices)) {
+    if (!allowReplace) rejectReplace("object with a devices array");
     return {
       replace: true,
       fleetName,
@@ -493,6 +539,7 @@ export const normalizePayload = (
         ? (JSON.parse(String(input.payload)) as UnknownRecord)
         : (input.payload as UnknownRecord);
     if (Array.isArray(payloadBody.devices)) {
+      if (!allowReplace) rejectReplace("wrapped payload with a devices array");
       return {
         replace: true,
         fleetName,

@@ -31,6 +31,8 @@ class SlowPersistence {
   }
 
   async upsertAlerts(): Promise<void> {}
+
+  forgetDevice(): void {}
 }
 
 const FLEET_CONFIG: FleetConfig = {
@@ -46,6 +48,7 @@ const configRegistryStub = {
   async load(): Promise<void> {},
   getFleetConfig: (): FleetConfig => ({ ...FLEET_CONFIG }),
   applyDeviceConfig: (snapshot: DeviceSnapshot): DeviceSnapshot => snapshot,
+  hasDeviceConfig: (): boolean => false,
   listScenes: () => [],
   buildFormationSnapshots: () => [],
 };

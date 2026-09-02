@@ -94,7 +94,11 @@ export const connectMqtt = ({ store, topicScheme, config, state }: MqttDeps): mq
         return;
       }
 
-      await store.applyPayload({ topic, payload }, "mqtt");
+      // `sheddable`: this is the only firehose in the system, and its frames are
+      // level-triggered — each one carries the device's complete current state, so
+      // under overload the newest is worth strictly more than an older one still
+      // queued. Status frames above are edge-triggered and are never shed.
+      await store.applyPayload({ topic, payload }, "mqtt", { sheddable: true });
     } catch (error) {
       logger.error(
         { err: error, topic, payloadPreview: previewPayload(payloadText) },

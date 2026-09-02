@@ -67,9 +67,17 @@ describe("metric exposition", () => {
       "navfleet_ws_connections",
       "navfleet_mongo_connected",
       "navfleet_mongo_buffer_pending",
+      "navfleet_mongo_buffer_dropped_total",
       "navfleet_mqtt_connected",
       "navfleet_mqtt_messages_total",
       "navfleet_mqtt_messages_rejected_total",
+      "navfleet_ingest_queue_depth",
+      "navfleet_ingest_queue_limit",
+      "navfleet_ingest_queue_dropped_total",
+      "navfleet_devices_limit",
+      "navfleet_devices_rejected_total",
+      "navfleet_devices_capped_total",
+      "navfleet_devices_evicted_total",
     ]) {
       expect(body).toContain(`# HELP ${name} `);
     }
@@ -77,6 +85,9 @@ describe("metric exposition", () => {
     // rate() over the ingest counters only works if they are exposed as counters.
     expect(body).toContain("# TYPE navfleet_mqtt_messages_total counter");
     expect(body).toContain("# TYPE navfleet_mqtt_messages_rejected_total counter");
+    expect(body).toContain("# TYPE navfleet_ingest_queue_dropped_total counter");
+    expect(body).toContain("# TYPE navfleet_devices_evicted_total counter");
+    expect(body).toContain("# TYPE navfleet_ingest_queue_depth gauge");
     expect(body).toContain("# TYPE navfleet_ws_connections gauge");
 
     expect(samplesFor(body, "navfleet_up")).toEqual(["navfleet_up 1"]);

@@ -24,8 +24,10 @@ export const buildDebugRouter = (store: DashboardStore, config: AppConfig): expr
         respondValidationError(response, parsed.error);
         return;
       }
-      const snapshot = await store.applyPayload(parsed.data, "debug-api");
-      response.json(snapshot);
+      // The one caller allowed to replace the whole fleet, and the one that wants a
+      // snapshot back — see `applyPayload`, which no longer builds one for everybody.
+      await store.applyPayload(parsed.data, "debug-api", { allowReplace: true });
+      response.json(store.snapshot());
     } catch (error) {
       next(error);
     }

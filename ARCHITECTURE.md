@@ -214,9 +214,12 @@ PR #28 按职责拆开：
 职责：
 
 - 保存内存中的原始快照和配置后快照。
-- 初始化时从 MongoDB 恢复 `device_latest`。
+- 初始化时从 MongoDB 恢复 `device_latest`（限保留窗口内、最多 `MAX_DEVICES` 台）。
 - 在没有恢复数据且配置了 `SEED_FILE` 时加载种子数据。
-- 接收 MQTT/API 输入并更新快照。
+- 接收 MQTT/API 输入并更新快照。所有写操作串行排在一条**有界**摄入队列上；队列满时丢弃最旧的
+  可丢帧（仅 MQTT 遥测可丢），深度与丢弃数上 `/metrics`。
+- 准入与淘汰：拒绝不可用的设备 ID，对新设备施加 `MAX_DEVICES` 上限，并淘汰
+  `DEVICE_RETENTION_SECONDS` 内未上报过的未声明设备（`vehicles.json` 声明过的不受这两条约束）。
 - 写入 MongoDB。
 - 广播 WebSocket 事件。
 - 根据配置重建车辆和编队状态。
@@ -346,6 +349,8 @@ router。原先的单体 `useDashboard` 组合式函数已拆分为 store + 服�
 3. 后端把设备标记为离线。
 4. 后端生成 `offline` 告警。
 5. 后端写入 MongoDB 并推送 WebSocket。
+6. 同一次扫描顺带淘汰静默超过 `DEVICE_RETENTION_SECONDS` 的未声明设备；有淘汰发生时广播一次
+   `fleet.snapshot`，让长驻页面同步移除。
 
 ## 8. 配置体系
 

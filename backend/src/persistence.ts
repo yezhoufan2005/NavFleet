@@ -72,6 +72,13 @@ interface StoredAlert {
 export class Persistence {
   private db: Db | null = null;
   private pendingTelemetry: TelemetryDocument[] = [];
+  /**
+   * How many buffered telemetry documents have been dropped because the buffer was
+   * full. P0-c: the overflow used to `splice` the oldest away silently, so a monitoring
+   * platform lost data with **no counter anywhere** — the one loss a monitoring platform
+   * must never take quietly. Exposed on `/metrics` and in the buffer's own warn line.
+   */
+  private droppedTelemetry = 0;
   // Bounded in-memory telemetry ring buffer, kept per device so history playback
   // and the /history endpoint work in local/dev runs where MongoDB is absent
   // (fulfils the "in-memory history fallback" the connect path already advertises).
@@ -218,14 +225,46 @@ export class Persistence {
     if (!this.db) {
       return [];
     }
-    return (await this.db.collection<DeviceSnapshot>("device_latest").find({}).toArray()).map(
-      (item) => ({
-        ...item,
-        alerts: item.alerts || [],
-        extra: item.extra || {},
-        tags: item.tags || [],
-      }),
-    );
+    // P0-d: bounded on both axes. This used to be `find({})` — every row
+    // `device_latest` had ever accumulated came back into memory at startup, which
+    // is the same unbounded growth the eviction sweep exists to prevent, only
+    // reinstated on every restart. Restoring within the retention window also means
+    // nothing that comes back is immediately evictable, so there is no
+    // restore-then-evict churn.
+    //
+    // `stamp` is stored as an ISO-8601 UTC string, and those compare
+    // lexicographically in timestamp order, so a string bound is a time bound here.
+    const cutoff = new Date(Date.now() - config.deviceRetentionSeconds * 1000).toISOString();
+    const query = config.deviceRetentionSeconds > 0 ? { stamp: { $gte: cutoff } } : {};
+    return (
+      await this.db
+        .collection<DeviceSnapshot>("device_latest")
+        .find(query)
+        .sort({ stamp: -1 })
+        .limit(config.maxDevices)
+        .toArray()
+    ).map((item) => ({
+      ...item,
+      alerts: item.alerts || [],
+      extra: item.extra || {},
+      tags: item.tags || [],
+    }));
+  }
+
+  /**
+   * Release a device's in-memory footprint (P0-d). Called when the store evicts a
+   * device: without this, eviction would reclaim two snapshots and leave behind the
+   * much larger per-device telemetry ring (up to `MAX_HISTORY_POINTS` documents).
+   *
+   * Deliberately does **not** touch `pendingTelemetry`: those documents are real
+   * samples on their way to MongoDB, already bounded by `MONGO_BUFFER_LIMIT`, and
+   * dropping them would turn an eviction into data loss. Nothing is deleted from
+   * MongoDB either — `device_latest` keeps its row, so the device returns intact if
+   * it ever reports again.
+   */
+  forgetDevice(deviceId: string): void {
+    this.telemetryBuffer.delete(deviceId);
+    this.activeAlerts.delete(deviceId);
   }
 
   async writeLatestSnapshot(snapshot: DeviceSnapshot): Promise<void> {
@@ -273,7 +312,12 @@ export class Persistence {
 
     this.appendMemoryTelemetry(document);
 
+    // P0-c: a disconnected database **buffers** rather than returning. This used to be a
+    // bare `return`, so every frame that arrived while MongoDB was down was gone — and
+    // the reconnect path only ever flushed what a *failed write* had buffered, which is a
+    // set that stays empty while there is no connection to fail against.
     if (!this.db) {
+      this.bufferTelemetry(document);
       return;
     }
 
@@ -287,11 +331,41 @@ export class Persistence {
         { err: error, deviceId: snapshot.deviceId },
         "Failed to write telemetry to MongoDB; buffering",
       );
-      this.pendingTelemetry.push(document);
-      if (this.pendingTelemetry.length > config.mongoBufferLimit) {
-        this.pendingTelemetry.splice(0, this.pendingTelemetry.length - config.mongoBufferLimit);
-      }
+      this.bufferTelemetry(document);
     }
+  }
+
+  /** Appends to the write-behind buffer, counting what the cap forces out. */
+  private bufferTelemetry(document: TelemetryDocument): void {
+    this.pendingTelemetry.push(document);
+    const overflow = this.pendingTelemetry.length - config.mongoBufferLimit;
+    if (overflow > 0) {
+      this.pendingTelemetry.splice(0, overflow);
+      this.droppedTelemetry += overflow;
+      logger.warn(
+        { dropped: overflow, droppedTotal: this.droppedTelemetry, limit: config.mongoBufferLimit },
+        "Telemetry buffer full; dropped the oldest documents",
+      );
+    }
+  }
+
+  /** Buffer depth and cumulative drops, for `/metrics` and the readiness probe. */
+  telemetryBufferStats(): { pending: number; dropped: number; limit: number } {
+    return {
+      pending: this.pendingTelemetry.length,
+      dropped: this.droppedTelemetry,
+      limit: config.mongoBufferLimit,
+    };
+  }
+
+  /**
+   * Push whatever is buffered at MongoDB now. Public so the shutdown path can drain
+   * before closing the connection, and so a timer can retry while a reconnect is
+   * pending — the write path only flushed *after a successful write*, which never comes
+   * while the database is down.
+   */
+  async flushTelemetry(): Promise<void> {
+    await this.flushPendingTelemetry();
   }
 
   private async flushPendingTelemetry(): Promise<void> {

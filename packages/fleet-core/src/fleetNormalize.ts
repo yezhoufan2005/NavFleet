@@ -66,28 +66,57 @@ export const toNumeric = (
   return Number.isFinite(numeric) ? numeric : fallback;
 };
 
-export const toTimestampMs = (value: unknown): number => {
-  if (value === null || value === undefined || value === "") {
-    return Date.now();
-  }
+/**
+ * A timestamp in epoch milliseconds, or `null` when the value carries no time.
+ *
+ * The primitive, so that every caller has to say what "no timestamp" means *there* —
+ * which is the fix for parity 9.19. The old single helper answered `Date.now()`, and
+ * that answer is right at exactly one kind of call site and wrong at the others:
+ *
+ * - **A receiver** (the backend normalising an arriving MQTT frame) legitimately uses
+ *   its own clock: the message *did* just arrive, and a vehicle that does not stamp its
+ *   own reports still has a knowable receive time.
+ * - **A reader** (either frontend sorting stored alerts) must not. There, `Date.now()`
+ *   turns "we do not know when this happened" into "it happened this instant", which
+ *   sorts an undated alert above every real one — and the row then re-sorts on every
+ *   tick, because the fabricated stamp moves.
+ *
+ * Seconds are accepted as well as milliseconds: `< 1e12` is treated as seconds, which
+ * is the convention the vehicles publish and predates this function.
+ */
+export const parseTimestampMs = (value: unknown): number | null => {
+  if (value === null || value === undefined || value === "") return null;
   if (typeof value === "number") {
+    if (!Number.isFinite(value)) return null;
     return value < 1e12 ? value * 1000 : value;
   }
   const numeric = Number(value);
-  if (Number.isFinite(numeric)) {
+  if (Number.isFinite(numeric) && String(value).trim() !== "") {
     return numeric < 1e12 ? numeric * 1000 : numeric;
   }
   const parsed = Date.parse(String(value));
-  return Number.isFinite(parsed) ? parsed : Date.now();
+  return Number.isFinite(parsed) ? parsed : null;
 };
 
-export const toIsoString = (value: unknown): string =>
-  new Date(toTimestampMs(value)).toISOString();
+/**
+ * Epoch milliseconds, falling back to **now**. Only for receivers — see
+ * `parseTimestampMs`. The name says the fallback out loud precisely because the
+ * previous name did not, and the ambiguity is what caused 9.19.
+ */
+export const toTimestampMsOrNow = (value: unknown): number =>
+  parseTimestampMs(value) ?? Date.now();
 
-export const formatDateTime = (value: unknown): string =>
-  new Date(toTimestampMs(value)).toLocaleString("zh-CN", {
+export const toIsoString = (value: unknown): string =>
+  new Date(toTimestampMsOrNow(value)).toISOString();
+
+/** Localised timestamp, or the placeholder when there is no time to show. */
+export const formatDateTime = (value: unknown): string => {
+  const at = parseTimestampMs(value);
+  if (at === null) return "--";
+  return new Date(at).toLocaleString("zh-CN", {
     hour12: false,
   });
+};
 
 export const extractDeviceIdFromTopic = (topic: unknown): string => {
   const match = String(topic || "").match(/^\/fleet\/([^/]+)\//);
@@ -220,8 +249,13 @@ export const dedupeAlerts = <T extends AlertLike>(alerts: T[]): T[] => {
       deduped.set(key, alert);
     }
   });
+  // Newest first, and an alert with no timestamp sorts **last** rather than first.
+  // `?? 0` is the whole point: the old `Date.now()` fallback promoted every undated
+  // alert to the top of the list and then re-sorted it on each tick, because the
+  // fabricated stamp kept moving (parity 9.19).
   return [...deduped.values()].sort(
-    (left, right) => toTimestampMs(right.ts) - toTimestampMs(left.ts),
+    (left, right) =>
+      (parseTimestampMs(right.ts) ?? 0) - (parseTimestampMs(left.ts) ?? 0),
   );
 };
 

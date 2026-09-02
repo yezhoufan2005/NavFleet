@@ -4,7 +4,7 @@
   "tags": ["navfleet"],
   "timezone": "browser",
   "schemaVersion": 39,
-  "version": 1,
+  "version": 2,
   "editable": true,
   "refresh": "15s",
   "time": {
@@ -838,6 +838,180 @@
         }
       ],
       "description": "摄入串行化队列在单个事件循环上跑；滞后升高说明它开始成为瓶颈。"
+    },
+    {
+      "type": "timeseries",
+      "title": "摄入队列深度 / 上限",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "navfleet-prometheus"
+      },
+      "gridPos": {
+        "x": 0,
+        "y": 32,
+        "w": 12,
+        "h": 8
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "custom": {
+            "drawStyle": "line",
+            "lineWidth": 2,
+            "fillOpacity": 12,
+            "showPoints": "never",
+            "spanNulls": true,
+            "stacking": {
+              "mode": "none",
+              "group": "A"
+            }
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "navfleet-prometheus"
+          },
+          "editorMode": "code",
+          "expr": "navfleet_ingest_queue_depth",
+          "range": true,
+          "refId": "A",
+          "format": "time_series",
+          "legendFormat": "队列深度"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "navfleet-prometheus"
+          },
+          "editorMode": "code",
+          "expr": "navfleet_ingest_queue_limit",
+          "range": true,
+          "refId": "A",
+          "format": "time_series",
+          "legendFormat": "INGEST_QUEUE_LIMIT"
+        }
+      ],
+      "description": "串行摄入队列。深度贴住上限时看起来是「平稳」的 —— 判断是否在丢帧要看下一张图，深度本身分不出「刚好排满」和「排满且每来一帧就丢一帧」。"
+    },
+    {
+      "type": "timeseries",
+      "title": "丢弃与淘汰速率",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "navfleet-prometheus"
+      },
+      "gridPos": {
+        "x": 12,
+        "y": 32,
+        "w": 12,
+        "h": 8
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "cps",
+          "custom": {
+            "drawStyle": "line",
+            "lineWidth": 2,
+            "fillOpacity": 12,
+            "showPoints": "never",
+            "spanNulls": true,
+            "stacking": {
+              "mode": "none",
+              "group": "A"
+            }
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "navfleet-prometheus"
+          },
+          "editorMode": "code",
+          "expr": "rate(navfleet_ingest_queue_dropped_total[5m])",
+          "range": true,
+          "refId": "A",
+          "format": "time_series",
+          "legendFormat": "摄入队列丢帧 /s"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "navfleet-prometheus"
+          },
+          "editorMode": "code",
+          "expr": "rate(navfleet_mongo_buffer_dropped_total[5m])",
+          "range": true,
+          "refId": "A",
+          "format": "time_series",
+          "legendFormat": "写缓冲丢帧 /s"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "navfleet-prometheus"
+          },
+          "editorMode": "code",
+          "expr": "rate(navfleet_devices_capped_total[15m])",
+          "range": true,
+          "refId": "A",
+          "format": "time_series",
+          "legendFormat": "设备被上限拒绝 /s"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "navfleet-prometheus"
+          },
+          "editorMode": "code",
+          "expr": "rate(navfleet_devices_rejected_total[15m])",
+          "range": true,
+          "refId": "A",
+          "format": "time_series",
+          "legendFormat": "设备 ID 不可用 /s"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "navfleet-prometheus"
+          },
+          "editorMode": "code",
+          "expr": "rate(navfleet_devices_evicted_total[15m])",
+          "range": true,
+          "refId": "A",
+          "format": "time_series",
+          "legendFormat": "静默淘汰 /s"
+        }
+      ],
+      "description": "前两条是数据丢失（历史会出现空洞），后三条是内存上界在起作用：淘汰属正常回收，被上限拒绝说明该调高 MAX_DEVICES 或在 vehicles.json 里声明该车。"
     }
   ]
 }

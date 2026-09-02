@@ -114,3 +114,44 @@ describe("Persistence in-memory alerts fallback", () => {
     expect(await persistence.queryAlerts({})).toHaveLength(0);
   });
 });
+
+describe("the write-behind buffer while MongoDB is unavailable (P0-c)", () => {
+  it("buffers telemetry instead of dropping it on the floor", async () => {
+    // `db` stays null, which is exactly the "database is down" case. This used to be a
+    // bare `return` after the in-memory append: every frame that arrived while MongoDB
+    // was unreachable was gone, and the reconnect path only flushed what a *failed write*
+    // had buffered — a set that stays empty while there is no connection to fail against.
+    const persistence = new Persistence();
+    await persistence.writeTelemetry(sample("agv-buf", "2026-01-01T00:00:00Z", 1));
+    await persistence.writeTelemetry(sample("agv-buf", "2026-01-01T00:00:01Z", 2));
+
+    expect(persistence.pendingTelemetryCount()).toBe(2);
+    expect(persistence.telemetryBufferStats()).toMatchObject({ pending: 2, dropped: 0 });
+  });
+
+  it("counts what the cap forces out, rather than dropping it silently", async () => {
+    // The overflow used to `splice` the oldest away with no counter anywhere, so a
+    // monitoring platform lost data and nothing on any dashboard said so.
+    const persistence = new Persistence();
+    const limit = persistence.telemetryBufferStats().limit;
+    for (let index = 0; index < limit + 5; index += 1) {
+      await persistence.writeTelemetry(
+        sample("agv-full", new Date(1_760_000_000_000 + index * 1000).toISOString(), index),
+      );
+    }
+
+    const stats = persistence.telemetryBufferStats();
+    expect(stats.pending).toBe(limit);
+    expect(stats.dropped).toBe(5);
+  });
+
+  it("flushing without a database is a no-op that keeps the buffer intact", async () => {
+    // The shutdown path calls this unconditionally; it must not lose the buffer just
+    // because there is nowhere to put it yet.
+    const persistence = new Persistence();
+    await persistence.writeTelemetry(sample("agv-keep", "2026-01-01T00:00:00Z", 1));
+    await persistence.flushTelemetry();
+
+    expect(persistence.pendingTelemetryCount()).toBe(1);
+  });
+});

@@ -427,6 +427,16 @@ export class ConfigRegistry {
     return configEntry ? { ...configEntry, tags: [...(configEntry.tags || [])] } : null;
   }
 
+  /**
+   * Whether `vehicles.json` declares this device. Separate from
+   * `getDeviceConfig` because the ingest admission gate asks this per message and
+   * has no use for the copy that one allocates.
+   */
+  hasDeviceConfig(deviceId: string): boolean {
+    this.ensureLoaded();
+    return deviceId ? this.deviceConfigs.has(deviceId) : false;
+  }
+
   listFormations(): FormationConfig[] {
     this.ensureLoaded();
     return [...this.formationConfigs.values()].map((formation) => ({

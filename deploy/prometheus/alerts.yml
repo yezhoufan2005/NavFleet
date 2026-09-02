@@ -58,6 +58,47 @@ groups:
             buffer is capped by MONGO_BUFFER_LIMIT; past that, samples are
             dropped and history gains a hole.
 
+      - alert: NavFleetTelemetryDropping
+        expr: rate(navfleet_mongo_buffer_dropped_total[5m]) > 0
+        for: 5m
+        labels:
+          severity: critical
+        annotations:
+          summary: Telemetry is being dropped, not just delayed
+          description: >-
+            The write buffer is past MONGO_BUFFER_LIMIT and the oldest documents
+            are being discarded. Unlike a backlog this is not recoverable: those
+            samples are gone from history. Fix MongoDB or raise the limit.
+
+      - alert: NavFleetIngestQueueBacklog
+        expr: >-
+          navfleet_ingest_queue_depth
+          / clamp_min(navfleet_ingest_queue_limit, 1)
+          > 0.5
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: The ingest queue is over half full
+          description: >-
+            Mutations are arriving faster than the store can apply them, which in
+            practice means MongoDB writes are slow: every ingest awaits them on the
+            same serial queue. Past INGEST_QUEUE_LIMIT the oldest telemetry frames
+            are shed.
+
+      - alert: NavFleetIngestShedding
+        expr: rate(navfleet_ingest_queue_dropped_total[5m]) > 0
+        for: 5m
+        labels:
+          severity: critical
+        annotations:
+          summary: Ingest queue is shedding telemetry frames
+          description: >-
+            The queue is full and dropping its oldest frames. The console still
+            shows current state — shedding the oldest is what keeps it current —
+            but history has holes for as long as this lasts. A queue sitting at its
+            limit looks calm on the depth panel, so this is the signal to trust.
+
       - alert: NavFleetIngestRejecting
         expr: rate(navfleet_mqtt_messages_rejected_total[5m]) > 0
         for: 10m
@@ -68,6 +109,21 @@ groups:
           description: >-
             Sustained rejections usually mean a publisher changed its payload
             shape, not a transient glitch. Those messages never reach the store.
+
+      - alert: NavFleetDeviceCapReached
+        expr: >-
+          rate(navfleet_devices_capped_total[15m]) > 0
+          or rate(navfleet_devices_rejected_total[15m]) > 0
+        for: 15m
+        labels:
+          severity: warning
+        annotations:
+          summary: Devices are being refused admission to memory
+          description: >-
+            Either the fleet is at MAX_DEVICES and new device ids are being turned
+            away, or ids are arriving that cannot be device ids at all. The first
+            needs a higher limit; the second needs the publisher looked at.
+            Declaring a vehicle in vehicles.json exempts it from the cap.
 
       - alert: NavFleetNoTelemetry
         expr: rate(navfleet_mqtt_messages_total[10m]) == 0 and navfleet_mqtt_connected == 1
