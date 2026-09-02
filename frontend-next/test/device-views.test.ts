@@ -835,7 +835,12 @@ describe("what the device list has to answer at a glance", () => {
     ]);
 
     expect(headers(wrapper)).toEqual([
-      "状态",
+      // The expand column's header is `sr-only` text, not an empty cell — a blank
+      // header announces nothing, leaving its buttons without context.
+      "展开",
+      // 状态 carries the arrow because it is the default sort, and the arrow is drawn
+      // only on the active column — see the sorting cases below.
+      "状态 ↑",
       "设备",
       "编号",
       "场景",
@@ -888,6 +893,290 @@ describe("what the device list has to answer at a glance", () => {
 
     expect(wrapper.findAll("tbody td").map((c) => c.text())).toContain(
       "北区堆场",
+    );
+  });
+});
+
+describe("sorting the device list", () => {
+  /**
+   * Same shape as `mountList`, but the router is kept so a case can read the query
+   * string — the sort lives there rather than in the store, so that a sorted view can
+   * be pasted to a colleague (the argument 告警 already makes for its filters).
+   */
+  const mountSortable = async (patch: Record<string, unknown>[]) => {
+    const router = createRouter({
+      history: createMemoryHistory(),
+      routes: [{ path: "/:rest(.*)*", component: { template: "<i />" } }],
+    });
+    await router.push("/devices");
+    await router.isReady();
+    store.ingestPayload(
+      {
+        fleetName: "示范车队",
+        topicPattern: "/fleet/{deviceId}/vehicle_info",
+        devices: patch.map((item, index) =>
+          device({
+            deviceId: `agv-${String(index + 1).padStart(2, "0")}`,
+            deviceName: `AGV ${index + 1}`,
+            ...item,
+          }),
+        ),
+      },
+      "api",
+    );
+    const wrapper = mount(DevicesView, {
+      attachTo: document.body,
+      global: { plugins: [router] },
+    });
+    await flushPromises();
+    await wrapper
+      .get("[aria-label='视图']")
+      .findAll("button")
+      .find((button) => button.text() === "列表")!
+      .trigger("click");
+    await flushPromises();
+    return { wrapper, router };
+  };
+
+  /** Row order by device id, which is the column nothing else here sorts on. */
+  const orderOf = (wrapper: {
+    findAll: (s: string) => { text: () => string }[];
+  }) =>
+    wrapper
+      .findAll("tbody tr.device-row td:nth-child(4)")
+      .map((cell) => cell.text());
+
+  const headerButton = (
+    wrapper: Awaited<ReturnType<typeof mountSortable>>["wrapper"],
+    label: string,
+  ) =>
+    wrapper
+      .findAll("thead button")
+      .find((button) => button.text().startsWith(label))!;
+
+  const MIXED = [
+    { error_code: { code: 5102, info: "" }, vehicle_info: { soc: 90 } },
+    { vehicle_info: { soc: 20 } },
+    { warning_code: { code: 2301, info: "" }, vehicle_info: { soc: 55 } },
+  ];
+
+  it("lands on the vehicles in trouble, not on whoever is alphabetically first", async () => {
+    // The list used to be sorted by device id under a comment claiming it was sorted
+    // worst-first — the worst-first ordering was a different computed that only 总览
+    // used. Now the default does what the comment always said.
+    const { wrapper } = await mountSortable(MIXED);
+
+    expect(orderOf(wrapper)).toEqual(["agv-01", "agv-03", "agv-02"]);
+    expect(wrapper.get("thead th:nth-child(2)").attributes("aria-sort")).toBe(
+      "ascending",
+    );
+  });
+
+  it("sorts by the column that was clicked, and reverses on a second click", async () => {
+    const { wrapper, router } = await mountSortable(MIXED);
+
+    await headerButton(wrapper, "电量").trigger("click");
+    await flushPromises();
+    // Emptiest first: the question someone clicks 电量 to ask.
+    expect(orderOf(wrapper)).toEqual(["agv-02", "agv-03", "agv-01"]);
+    expect(router.currentRoute.value.query).toMatchObject({ sort: "soc" });
+
+    await headerButton(wrapper, "电量").trigger("click");
+    await flushPromises();
+    expect(orderOf(wrapper)).toEqual(["agv-01", "agv-03", "agv-02"]);
+    expect(router.currentRoute.value.query).toMatchObject({
+      sort: "soc",
+      dir: "desc",
+    });
+  });
+
+  it("keeps the default out of the URL, so /devices means the default", async () => {
+    const { wrapper, router } = await mountSortable(MIXED);
+
+    await headerButton(wrapper, "电量").trigger("click");
+    await flushPromises();
+    await headerButton(wrapper, "状态").trigger("click");
+    await flushPromises();
+
+    expect(router.currentRoute.value.query.sort).toBeUndefined();
+    expect(router.currentRoute.value.query.dir).toBeUndefined();
+    expect(orderOf(wrapper)).toEqual(["agv-01", "agv-03", "agv-02"]);
+  });
+
+  it("reads the sort out of the URL a link arrived with", async () => {
+    const router = createRouter({
+      history: createMemoryHistory(),
+      routes: [{ path: "/:rest(.*)*", component: { template: "<i />" } }],
+    });
+    await router.push("/devices?sort=id&dir=desc");
+    await router.isReady();
+    store.ingestPayload(
+      {
+        fleetName: "示范车队",
+        topicPattern: "/fleet/{deviceId}/vehicle_info",
+        devices: MIXED.map((item, index) =>
+          device({
+            deviceId: `agv-${String(index + 1).padStart(2, "0")}`,
+            ...item,
+          }),
+        ),
+      },
+      "api",
+    );
+    const wrapper = mount(DevicesView, {
+      attachTo: document.body,
+      global: { plugins: [router] },
+    });
+    await flushPromises();
+    await wrapper
+      .get("[aria-label='视图']")
+      .findAll("button")
+      .find((button) => button.text() === "列表")!
+      .trigger("click");
+    await flushPromises();
+
+    expect(orderOf(wrapper)).toEqual(["agv-03", "agv-02", "agv-01"]);
+  });
+
+  it("puts a vehicle with no reading last in both directions, not at zero", async () => {
+    // The 1.0.3 lesson, applied to ordering: a missing battery reading is not 0%, and
+    // sorting it as though it were would park it at whichever end reads as "extreme".
+    const { wrapper } = await mountSortable([
+      { vehicle_info: { soc: 40 } },
+      { vehicle_info: {} },
+      { vehicle_info: { soc: 10 } },
+    ]);
+
+    await headerButton(wrapper, "电量").trigger("click");
+    await flushPromises();
+    expect(orderOf(wrapper)).toEqual(["agv-03", "agv-01", "agv-02"]);
+
+    await headerButton(wrapper, "电量").trigger("click");
+    await flushPromises();
+    expect(orderOf(wrapper)).toEqual(["agv-01", "agv-03", "agv-02"]);
+  });
+});
+
+describe("expanding a device row", () => {
+  const mountList = async (patch: Record<string, unknown>[]) => {
+    const router = createRouter({
+      history: createMemoryHistory(),
+      routes: [{ path: "/:rest(.*)*", component: { template: "<i />" } }],
+    });
+    await router.push("/devices");
+    await router.isReady();
+    store.ingestPayload(
+      {
+        fleetName: "示范车队",
+        topicPattern: "/fleet/{deviceId}/vehicle_info",
+        devices: patch.map((item, index) =>
+          device({
+            deviceId: `agv-${String(index + 1).padStart(2, "0")}`,
+            deviceName: `AGV ${index + 1}`,
+            ...item,
+          }),
+        ),
+      },
+      "api",
+    );
+    const wrapper = mount(DevicesView, {
+      attachTo: document.body,
+      global: { plugins: [router] },
+    });
+    await flushPromises();
+    await wrapper
+      .get("[aria-label='视图']")
+      .findAll("button")
+      .find((button) => button.text() === "列表")!
+      .trigger("click");
+    await flushPromises();
+    return wrapper;
+  };
+
+  it("turns the status dot into a sentence without leaving the list", async () => {
+    const wrapper = await mountList([
+      { vehicle_info: { control_mode: 1, gear: 1, speed: 1.25, soc: 60 } },
+    ]);
+
+    expect(wrapper.text()).not.toContain("控制模式");
+
+    await wrapper.get("tbody tr.device-row").trigger("click");
+    await flushPromises();
+
+    // The enum label with its raw code, which is `formatEnum`'s contract.
+    expect(wrapper.text()).toContain("自动驾驶 (1)");
+    expect(wrapper.text()).toContain("1.25 m/s");
+    // And the way out, for everything the card deliberately does not carry.
+    expect(
+      wrapper.findAll("tbody a").some((a) => a.text().includes("打开详情")),
+    ).toBe(true);
+  });
+
+  it("says so in aria-expanded, and points at the card it opens", async () => {
+    const wrapper = await mountList([{}]);
+    const toggle = wrapper.get("tbody button[aria-controls]");
+
+    expect(toggle.attributes("aria-expanded")).toBe("false");
+    await toggle.trigger("click");
+    await flushPromises();
+
+    expect(toggle.attributes("aria-expanded")).toBe("true");
+    const id = toggle.attributes("aria-controls")!;
+    expect(document.getElementById(id)).not.toBeNull();
+  });
+
+  it("opens two rows at once, because comparing two vehicles is the point", async () => {
+    const wrapper = await mountList([{}, {}]);
+    const rows = wrapper.findAll("tbody tr.device-row");
+
+    await rows[0]!.trigger("click");
+    await rows[1]!.trigger("click");
+    await flushPromises();
+
+    expect(wrapper.findAll("tbody button[aria-expanded='true']")).toHaveLength(
+      2,
+    );
+  });
+
+  it("lets the device link navigate instead of expanding the row", async () => {
+    // A click target inside a click target: without `@click.stop` on the link, opening
+    // a vehicle would also toggle the card it is leaving.
+    const wrapper = await mountList([{}]);
+    const link = wrapper
+      .findAll("tbody a")
+      .find((anchor) => anchor.text() === "AGV 1")!;
+
+    await link.trigger("click");
+    await flushPromises();
+
+    expect(
+      wrapper.get("tbody button[aria-controls]").attributes("aria-expanded"),
+    ).toBe("false");
+    expect(store.state.selectedDeviceId).toBe("agv-01");
+  });
+
+  it("forgets a row that left the fleet, so the open set cannot grow forever", async () => {
+    const wrapper = await mountList([{}, {}]);
+    await wrapper.findAll("tbody tr.device-row")[1]!.trigger("click");
+    await flushPromises();
+    expect(wrapper.findAll("tbody button[aria-expanded='true']")).toHaveLength(
+      1,
+    );
+
+    // The device is evicted from the fleet — which the backend now really does, after
+    // DEVICE_RETENTION_SECONDS of silence.
+    store.ingestPayload(
+      {
+        fleetName: "示范车队",
+        topicPattern: "/fleet/{deviceId}/vehicle_info",
+        devices: [device({ deviceId: "agv-01", deviceName: "AGV 1" })],
+      },
+      "api",
+    );
+    await flushPromises();
+
+    expect(wrapper.findAll("tbody button[aria-expanded='true']")).toHaveLength(
+      0,
     );
   });
 });

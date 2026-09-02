@@ -200,10 +200,7 @@ const alertRows = computed(() =>
 </script>
 
 <template>
-  <PageHeader
-    title="总览"
-    lede="值班第一眼要看的四五个信号，加上此刻需要处理的车辆。"
-  >
+  <PageHeader title="总览">
     <template #actions>
       <!-- Freshness belongs beside the numbers it qualifies. The relative age is on
            the browser's clock; the absolute time is the server's own. -->

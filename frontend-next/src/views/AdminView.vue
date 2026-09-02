@@ -56,10 +56,7 @@ const CARD_BASE =
 </script>
 
 <template>
-  <PageHeader
-    title="管理"
-    lede="用户、接入、字典与系统状态。这一区大部分尚未实现。"
-  >
+  <PageHeader title="管理">
     <ul class="grid list-none gap-3 p-0 md:grid-cols-2 3xl:grid-cols-3">
       <li v-for="area in AREAS" :key="area.label">
         <!-- A link, because it is navigation — so ⌘-click and "copy link address"

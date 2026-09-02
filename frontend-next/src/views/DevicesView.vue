@@ -14,15 +14,18 @@
  * 40% of the viewport; a site map that small is a picture of a map rather than a
  * usable one.
  */
-import { computed, watch } from "vue";
+import { computed, ref, watch } from "vue";
 import { storeToRefs } from "pinia";
 import { RouterLink, useRoute, useRouter } from "vue-router";
 import PageHeader from "@/components/PageHeader.vue";
 import UiSkeleton from "@/components/ui/UiSkeleton.vue";
 import GpsMap from "@/components/map/GpsMap.vue";
 import SceneMap from "@/components/map/SceneMap.vue";
+import DeviceRowCard from "@/components/device/DeviceRowCard.vue";
 import { useFleetStore } from "@/stores/fleet";
 import { useDeviceView } from "@/composables/useDeviceView";
+import { useDeviceSort } from "@/composables/useDeviceSort";
+import type { DeviceSortKey } from "@/composables/useDeviceSort";
 import type {
   DeviceLayoutPreference,
   MapSurface,
@@ -48,6 +51,9 @@ const {
   surface,
   setSurface,
 } = useDeviceView(() => fleet.sortedDevices.length);
+
+const { sortKey, sortDirection, toggleSort, ariaSortFor, sortRows } =
+  useDeviceSort();
 
 const sceneDefinition = computed(() =>
   fleet.formationSceneId
@@ -82,19 +88,71 @@ const sceneLabelOf = (sceneId: string | null | undefined): string => {
   return (fleet.getSceneDefinition(sceneId)?.sceneName as string) || sceneId;
 };
 
-/** Sorted worst-first, so the row that needs attention is the one you land on. */
+/**
+ * One row per device, in the order the column headers say.
+ *
+ * The comment that used to sit here read «Sorted worst-first, so the row that needs
+ * attention is the one you land on» — over a list sorted by device id. See
+ * `useDeviceSort` for why that was wrong and why 状态 is now the default in fact and
+ * not only in a comment.
+ */
 const rows = computed(() =>
-  devices.value.map((device) => ({
-    device,
-    tone: getDeviceTone(device),
-    label: deviceToneLabels[getDeviceTone(device)],
-    sceneLabel: sceneLabelOf(device.sceneId),
-    // Two columns v1.0.0 had and the port dropped. Without them "谁快没电了、谁的数据
-    // 停了" needs one detail page per vehicle instead of one glance at the list.
-    stamp: formatStamp(device.stamp),
-    soc: formatNumber(device.vehicleInfo?.soc, 0, "%"),
-  })),
+  sortRows(
+    devices.value.map((device) => ({
+      device,
+      tone: getDeviceTone(device),
+      label: deviceToneLabels[getDeviceTone(device)],
+      sceneLabel: sceneLabelOf(device.sceneId),
+      // Two columns v1.0.0 had and the port dropped. Without them "谁快没电了、谁的数据
+      // 停了" needs one detail page per vehicle instead of one glance at the list.
+      stamp: formatStamp(device.stamp),
+      soc: formatNumber(device.vehicleInfo?.soc, 0, "%"),
+      formationNames: (device.formationIds ?? []).map(
+        (formationId) =>
+          state.value.formationsById[formationId]?.formationName || formationId,
+      ),
+    })),
+  ),
 );
+
+/**
+ * Which rows are expanded. A Set rather than a single id, because comparing two
+ * vehicles side by side is a real thing to want and closing one to open another would
+ * make it impossible.
+ *
+ * Not in the URL, unlike the sort: an expanded row is a glance, not a view worth
+ * sending to someone. Ids that leave the fleet are dropped so the set cannot grow for
+ * the lifetime of the tab — the same pruning-on-clear rule the trail map follows.
+ */
+const expandedIds = ref(new Set<string>());
+
+const toggleExpanded = (deviceId: string): void => {
+  const next = new Set(expandedIds.value);
+  if (!next.delete(deviceId)) next.add(deviceId);
+  expandedIds.value = next;
+};
+
+watch(
+  () => rows.value.map((row) => row.device.deviceId).join(","),
+  () => {
+    if (!expandedIds.value.size) return;
+    const present = new Set(rows.value.map((row) => row.device.deviceId));
+    const kept = [...expandedIds.value].filter((id) => present.has(id));
+    if (kept.length !== expandedIds.value.size) {
+      expandedIds.value = new Set(kept);
+    }
+  },
+);
+
+/** Header cells, in render order. Every one of them sorts — see `useDeviceSort`. */
+const COLUMNS: { key: DeviceSortKey; label: string; numeric?: boolean }[] = [
+  { key: "tone", label: "状态" },
+  { key: "name", label: "设备" },
+  { key: "id", label: "编号" },
+  { key: "scene", label: "场景" },
+  { key: "stamp", label: "最近上报" },
+  { key: "soc", label: "电量", numeric: true },
+];
 
 const TONE_DOT: Record<string, string> = {
   normal: "bg-brand",
@@ -162,10 +220,7 @@ watch(
 </script>
 
 <template>
-  <PageHeader
-    title="设备"
-    lede="列表与地图是同一批设备的两种投影，可随时切换。"
-  >
+  <PageHeader title="设备">
     <template #actions>
       <!--
         The formation filter, which the port declared and never built: the store has
@@ -408,35 +463,45 @@ watch(
         </caption>
         <thead>
           <tr class="border-b border-border text-left">
-            <th
-              class="px-3 py-2 font-mono text-2xs font-normal text-ink-subtle"
-            >
-              状态
+            <!--
+              The expand column has no label, and `sr-only` text rather than an empty
+              `th`: a blank header cell is announced as nothing at all, so the column's
+              buttons arrive with no context.
+            -->
+            <th class="w-8 px-1 py-2">
+              <span class="sr-only">展开</span>
             </th>
+            <!--
+              Every header is a button inside a `th` carrying `aria-sort`. That pairing is
+              the pattern rather than a clickable `th`, because a `th` is not focusable
+              and a sort that only a mouse can reach is not a sort everyone has.
+            -->
             <th
+              v-for="column in COLUMNS"
+              :key="column.key"
               class="px-3 py-2 font-mono text-2xs font-normal text-ink-subtle"
+              :class="column.numeric ? 'text-right' : 'text-left'"
+              :aria-sort="ariaSortFor(column.key)"
             >
-              设备
-            </th>
-            <th
-              class="px-3 py-2 font-mono text-2xs font-normal text-ink-subtle"
-            >
-              编号
-            </th>
-            <th
-              class="px-3 py-2 font-mono text-2xs font-normal text-ink-subtle"
-            >
-              场景
-            </th>
-            <th
-              class="px-3 py-2 font-mono text-2xs font-normal text-ink-subtle"
-            >
-              最近上报
-            </th>
-            <th
-              class="px-3 py-2 text-right font-mono text-2xs font-normal text-ink-subtle"
-            >
-              电量
+              <button
+                type="button"
+                class="inline-flex items-center gap-1 font-mono text-2xs text-ink-subtle transition-colors duration-150 ease-standard hover:text-ink"
+                :class="[
+                  column.numeric ? 'flex-row-reverse' : '',
+                  sortKey === column.key ? 'text-ink' : '',
+                ]"
+                @click="toggleSort(column.key)"
+              >
+                {{ column.label }}
+                <!--
+                  The arrow is only on the active column. A permanent up/down glyph on
+                  all six says "sortable" and then says nothing about which one is in
+                  effect, which is the half that matters once you have clicked one.
+                -->
+                <span v-if="sortKey === column.key" aria-hidden="true">
+                  {{ sortDirection === "asc" ? "↑" : "↓" }}
+                </span>
+              </button>
             </th>
           </tr>
         </thead>
@@ -455,54 +520,90 @@ watch(
             The map's own side panel keeps its highlight, where it does mean something:
             the vehicle the map is currently showing, and it moves when you click.
           -->
-          <tr
-            v-for="row in rows"
-            :key="row.device.deviceId"
-            class="device-row border-b border-border last:border-0"
-            :data-tone="row.tone"
-          >
-            <td class="px-3 py-2">
-              <span class="flex items-center gap-2 text-ink-muted">
-                <span
-                  class="size-2 shrink-0 rounded-full"
-                  :class="TONE_DOT[row.tone]"
-                  aria-hidden="true"
-                />
-                {{ row.label }}
-              </span>
-            </td>
-            <td class="px-3 py-2">
-              <!--
-                A link to the device, not a button that only moves the map's selection.
-                Until this changed, a healthy vehicle's detail page — and therefore the
-                four tabs on it — could not be reached by clicking anything: this cell
-                only called `selectDevice`, and 总览's list links but shows at most six
-                vehicles and only abnormal ones.
+          <template v-for="row in rows" :key="row.device.deviceId">
+            <!--
+              Clicking anywhere on the row toggles its card. The chevron is the real
+              control — a `<tr>` handler is mouse-only — and the device link stops
+              propagation, because a click target inside a click target is how you get
+              "I clicked the row and it navigated instead".
+            -->
+            <tr
+              class="device-row border-b border-border last:border-0"
+              :data-tone="row.tone"
+              :data-expanded="expandedIds.has(row.device.deviceId) || undefined"
+              @click="toggleExpanded(row.device.deviceId)"
+            >
+              <td class="px-1 py-2">
+                <button
+                  type="button"
+                  class="grid size-6 place-content-center rounded-sm text-ink-subtle transition-colors duration-150 ease-standard hover:text-ink"
+                  :aria-expanded="expandedIds.has(row.device.deviceId)"
+                  :aria-controls="`device-card-${row.device.deviceId}`"
+                  :aria-label="`${row.device.deviceName || row.device.deviceId} 详情`"
+                  @click.stop="toggleExpanded(row.device.deviceId)"
+                >
+                  <span aria-hidden="true" class="text-2xs">
+                    {{ expandedIds.has(row.device.deviceId) ? "▾" : "▸" }}
+                  </span>
+                </button>
+              </td>
+              <td class="px-3 py-2">
+                <span class="flex items-center gap-2 text-ink-muted">
+                  <span
+                    class="size-2 shrink-0 rounded-full"
+                    :class="TONE_DOT[row.tone]"
+                    aria-hidden="true"
+                  />
+                  {{ row.label }}
+                </span>
+              </td>
+              <td class="px-3 py-2">
+                <!--
+                  A link to the device, not a button that only moves the map's selection.
+                  Until this changed, a healthy vehicle's detail page — and therefore the
+                  four tabs on it — could not be reached by clicking anything: this cell
+                  only called `selectDevice`, and 总览's list links but shows at most six
+                  vehicles and only abnormal ones.
 
-                It still sets the selection on the way out, so coming back to the map
-                lands on the vehicle you just looked at.
-              -->
-              <RouterLink
-                :to="`/devices/${row.device.deviceId}`"
-                class="text-ink underline-offset-2 hover:text-brand-ink hover:underline"
-                @click="fleet.selectDevice(row.device.deviceId)"
-              >
-                {{ row.device.deviceName || row.device.deviceId }}
-              </RouterLink>
-            </td>
-            <td class="px-3 py-2 font-mono text-xs text-ink-muted">
-              {{ row.device.deviceId }}
-            </td>
-            <td class="px-3 py-2 text-ink-muted">
-              {{ row.sceneLabel }}
-            </td>
-            <td class="px-3 py-2 text-ink-muted">
-              {{ row.stamp }}
-            </td>
-            <td class="px-3 py-2 text-right font-mono text-xs text-ink">
-              {{ row.soc }}
-            </td>
-          </tr>
+                  It still sets the selection on the way out, so coming back to the map
+                  lands on the vehicle you just looked at.
+                -->
+                <RouterLink
+                  :to="`/devices/${row.device.deviceId}`"
+                  class="text-ink underline-offset-2 hover:text-brand-ink hover:underline"
+                  @click.stop="fleet.selectDevice(row.device.deviceId)"
+                >
+                  {{ row.device.deviceName || row.device.deviceId }}
+                </RouterLink>
+              </td>
+              <td class="px-3 py-2 font-mono text-xs text-ink-muted">
+                {{ row.device.deviceId }}
+              </td>
+              <td class="px-3 py-2 text-ink-muted">
+                {{ row.sceneLabel }}
+              </td>
+              <td class="px-3 py-2 text-ink-muted">
+                {{ row.stamp }}
+              </td>
+              <td class="px-3 py-2 text-right font-mono text-xs text-ink">
+                {{ row.soc }}
+              </td>
+            </tr>
+            <tr
+              v-if="expandedIds.has(row.device.deviceId)"
+              :id="`device-card-${row.device.deviceId}`"
+              class="border-b border-border last:border-0"
+            >
+              <td :colspan="COLUMNS.length + 1" class="p-0">
+                <DeviceRowCard
+                  :device="row.device"
+                  :scene-label="row.sceneLabel"
+                  :formation-names="row.formationNames"
+                  @focus-on-map="fleet.selectDevice"
+                />
+              </td>
+            </tr>
+          </template>
         </tbody>
       </table>
     </div>
@@ -534,9 +635,16 @@ watch(
  */
 .device-row {
   transition: background-color 150ms var(--ease-standard);
+  cursor: pointer;
 }
 
 .device-row:hover {
+  background: var(--color-surface-sunken);
+}
+
+/* The open row and its card read as one block. Without this the card looks like a
+   separate panel that happens to be underneath, rather than this row's own detail. */
+.device-row[data-expanded] {
   background: var(--color-surface-sunken);
 }
 

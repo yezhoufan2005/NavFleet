@@ -278,10 +278,7 @@ const {
 </script>
 
 <template>
-  <PageHeader
-    title="告警"
-    lede="按严重度分流，筛选状态进 URL，可以把一个视图发给同事。"
-  >
+  <PageHeader title="告警">
     <template #actions>
       <!--
         「确认当前筛选」rather than 确认本页. The research note for this control says
