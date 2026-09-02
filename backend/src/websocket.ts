@@ -167,7 +167,11 @@ export const createWebSocketBridge = (
     close: () => {
       wsServer.clients.forEach((client) => {
         try {
-          client.close();
+          // 1001 "going away" rather than a bare close: the browser client treats an
+          // unexplained drop as a fault and starts its reconnect backoff, while 1001 says
+          // "the server is shutting down", which is a different thing to report to whoever
+          // is on shift.
+          client.close(1001, "server shutting down");
         } catch {
           // Ignore client close errors during shutdown.
         }

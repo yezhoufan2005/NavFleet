@@ -480,17 +480,41 @@ export const mergeDevice = (
   };
 };
 
+export interface NormalizePayloadOptions {
+  /**
+   * Whether this source is allowed to submit a **whole-fleet** payload, i.e. one that
+   * replaces the in-memory fleet instead of merging into it.
+   *
+   * Off by default, and that default is the fix for P0-e. `replace` used to be decided
+   * by the *shape of the payload* rather than by who sent it, so a fleet-shaped frame
+   * arriving on a telemetry topic emptied both device maps before repopulating them from
+   * that one frame. No vehicle publishes that shape — it only ever comes from the seed
+   * file or the debug ingest endpoint — so the capability now travels with the caller.
+   */
+  allowReplace?: boolean;
+}
+
 export const normalizePayload = (
   input: unknown,
   existingDevices: Map<string, DeviceSnapshot>,
   fleetName: string,
   topicPattern: string,
+  options: NormalizePayloadOptions = {},
 ): { replace: boolean; fleetName: string; topicPattern: string; devices: DeviceSnapshot[] } => {
   if (!isRecord(input) && !Array.isArray(input)) {
     throw new Error("payload must be a JSON object");
   }
 
+  const rejectReplace = (shape: string): never => {
+    throw new Error(
+      `whole-fleet payload (${shape}) is not accepted from this source; ` +
+        "only the seed file and the debug ingest endpoint may replace the fleet",
+    );
+  };
+  const allowReplace = options.allowReplace === true;
+
   if (Array.isArray(input)) {
+    if (!allowReplace) rejectReplace("bare array");
     return {
       replace: true,
       fleetName,
@@ -500,6 +524,7 @@ export const normalizePayload = (
   }
 
   if (Array.isArray(input.devices)) {
+    if (!allowReplace) rejectReplace("object with a devices array");
     return {
       replace: true,
       fleetName,
@@ -514,6 +539,7 @@ export const normalizePayload = (
         ? (JSON.parse(String(input.payload)) as UnknownRecord)
         : (input.payload as UnknownRecord);
     if (Array.isArray(payloadBody.devices)) {
+      if (!allowReplace) rejectReplace("wrapped payload with a devices array");
       return {
         replace: true,
         fleetName,

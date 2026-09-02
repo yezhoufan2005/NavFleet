@@ -166,6 +166,13 @@ export const createMetrics = ({
   gauge("navfleet_mongo_buffer_pending", "Telemetry docs buffered awaiting MongoDB flush", () =>
     persistence.pendingTelemetryCount(),
   );
+  // P0-c: the buffer's depth was already visible; what it *lost* was not. A silent drop
+  // on a monitoring platform is the one failure that cannot be allowed to be invisible.
+  mirroredCounter(
+    "navfleet_mongo_buffer_dropped_total",
+    "Telemetry docs dropped because the write-behind buffer was full",
+    () => persistence.telemetryBufferStats().dropped,
+  );
   gauge("navfleet_mqtt_connected", "1 if the MQTT broker is connected", () =>
     state.mqttConnected ? 1 : 0,
   );

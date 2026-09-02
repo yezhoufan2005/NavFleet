@@ -67,6 +67,7 @@ describe("metric exposition", () => {
       "navfleet_ws_connections",
       "navfleet_mongo_connected",
       "navfleet_mongo_buffer_pending",
+      "navfleet_mongo_buffer_dropped_total",
       "navfleet_mqtt_connected",
       "navfleet_mqtt_messages_total",
       "navfleet_mqtt_messages_rejected_total",

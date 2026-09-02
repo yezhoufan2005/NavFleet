@@ -64,6 +64,11 @@ services:
     build:
       context: ..
       dockerfile: backend/Dockerfile
+    # Docker's default is 10s, and the backend's own force-exit timer is 5s — but the
+    # sequence it has to get through on SIGTERM ends the MQTT client, drains in-flight
+    # ingests and flushes the write-behind buffer to MongoDB. 20s leaves room for a slow
+    # database without ever being reached in a healthy stop.
+    stop_grace_period: 20s
     environment:
       PORT: ${PORT:-3000}
       NODE_ENV: ${NODE_ENV:-production}

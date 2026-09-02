@@ -10,6 +10,7 @@ import {
   normalizeDevice,
   normalizePayload,
 } from "./normalize";
+import type { NormalizePayloadOptions } from "./normalize";
 import { Persistence } from "./persistence";
 import { moduleLogger } from "./logger";
 import {
@@ -58,8 +59,21 @@ export class DashboardStore extends EventEmitter {
     return this.enqueue(() => this.initializeInternal());
   }
 
-  async applyPayload(payload: unknown, source = "mqtt"): Promise<FleetSnapshot> {
-    return this.enqueue(() => this.applyPayloadInternal(payload, source));
+  /**
+   * Ingest a payload. Returns nothing on purpose.
+   *
+   * It used to return a freshly built `FleetSnapshot`, and the MQTT path — which is every
+   * message from every vehicle — **discarded it**. Building one copies the device map and
+   * sorts the whole fleet, so at 1 Hz × N vehicles that was a full snapshot rebuild per
+   * message thrown straight away (P0-b, the "pure waste" half). The one caller that wants
+   * a snapshot asks for it: `store.snapshot()`.
+   */
+  async applyPayload(
+    payload: unknown,
+    source = "mqtt",
+    options: NormalizePayloadOptions = {},
+  ): Promise<void> {
+    return this.enqueue(() => this.applyPayloadInternal(payload, source, options));
   }
 
   async applyStatus(deviceId: string, statusPayload: unknown): Promise<void> {
@@ -72,6 +86,17 @@ export class DashboardStore extends EventEmitter {
 
   async evaluateOfflineDevices(): Promise<void> {
     return this.enqueue(() => this.evaluateOfflineDevicesInternal());
+  }
+
+  /**
+   * Resolves once every mutation queued before this call has finished.
+   *
+   * The shutdown path needs it: closing MongoDB while ingests were still in flight threw
+   * away whatever they were about to persist. A no-op at the end of the same serial chain
+   * is the whole implementation — there is no separate bookkeeping to get wrong.
+   */
+  async drain(): Promise<void> {
+    return this.enqueue(async () => undefined);
   }
 
   private async initializeInternal(): Promise<void> {
@@ -94,7 +119,7 @@ export class DashboardStore extends EventEmitter {
 
     const seeded = await this.loadSeedPayload();
     if (seeded) {
-      await this.applyPayloadInternal(seeded, "seed");
+      await this.applyPayloadInternal(seeded, "seed", { allowReplace: true });
     }
   }
 
@@ -145,12 +170,17 @@ export class DashboardStore extends EventEmitter {
     }
   }
 
-  private async applyPayloadInternal(payload: unknown, source: string): Promise<FleetSnapshot> {
+  private async applyPayloadInternal(
+    payload: unknown,
+    source: string,
+    options: NormalizePayloadOptions = {},
+  ): Promise<void> {
     const normalized = normalizePayload(
       payload,
       this.rawDevices,
       this.fleetName,
       this.topicPattern,
+      options,
     );
     const nextRawMap = normalized.replace
       ? new Map<string, DeviceSnapshot>()
@@ -174,7 +204,6 @@ export class DashboardStore extends EventEmitter {
     this.rawDevices = nextRawMap;
     this.devices = nextDeviceMap;
     this.updatedAt = new Date().toISOString();
-    return this.snapshot();
   }
 
   private async applyStatusInternal(deviceId: string, statusPayload: unknown): Promise<void> {

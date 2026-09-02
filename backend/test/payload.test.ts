@@ -35,19 +35,55 @@ describe("mergeDevice", () => {
 describe("normalizePayload", () => {
   const empty = new Map<string, DeviceSnapshot>();
 
-  it("marks array payloads as a full replace", () => {
+  it("marks array payloads as a full replace — only for a source allowed to replace", () => {
     const result = normalizePayload(
       [{ deviceId: "a" }, { deviceId: "b" }],
       empty,
       "fleet",
       "topic",
+      {
+        allowReplace: true,
+      },
     );
     expect(result.replace).toBe(true);
     expect(result.devices.map((d) => d.deviceId)).toEqual(["a", "b"]);
   });
 
-  it("marks { devices: [] } payloads as a full replace", () => {
-    const result = normalizePayload({ devices: [{ deviceId: "c" }] }, empty, "f", "t");
+  it("refuses a whole-fleet payload from a source that may not replace (P0-e)", () => {
+    // `replace` used to be decided by the shape of the payload rather than by who sent
+    // it, and the MQTT path passes broker frames straight in — so a fleet-shaped frame on
+    // a telemetry topic emptied both device maps. No vehicle publishes that shape.
+    expect(() => normalizePayload([{ deviceId: "a" }], empty, "fleet", "topic")).toThrow(
+      /whole-fleet payload/,
+    );
+    expect(() => normalizePayload({ devices: [{ deviceId: "c" }] }, empty, "f", "t")).toThrow(
+      /whole-fleet payload/,
+    );
+    expect(() =>
+      normalizePayload(
+        { topic: "/fleet/a/vehicle_info", payload: { devices: [{ deviceId: "c" }] } },
+        empty,
+        "f",
+        "t",
+      ),
+    ).toThrow(/whole-fleet payload/);
+  });
+
+  it("still merges a single-device frame, which is what vehicles actually publish", () => {
+    const result = normalizePayload(
+      { topic: "/fleet/agv-1/vehicle_info", payload: { vehicle_info: { soc: 40 } } },
+      empty,
+      "f",
+      "/fleet/{deviceId}/vehicle_info",
+    );
+    expect(result.replace).toBe(false);
+    expect(result.devices[0]?.deviceId).toBe("agv-1");
+  });
+
+  it("marks { devices: [] } payloads as a full replace — allowed source only", () => {
+    const result = normalizePayload({ devices: [{ deviceId: "c" }] }, empty, "f", "t", {
+      allowReplace: true,
+    });
     expect(result.replace).toBe(true);
     expect(result.devices).toHaveLength(1);
   });

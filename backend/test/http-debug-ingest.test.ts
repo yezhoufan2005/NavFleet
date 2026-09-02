@@ -48,7 +48,9 @@ describe("POST /api/debug/ingest", () => {
     const response = await ingest(context, "admin").send(payload);
 
     expect(response.status).toBe(200);
-    expect(context.store.applyPayload).toHaveBeenCalledWith(payload, "debug-api");
+    expect(context.store.applyPayload).toHaveBeenCalledWith(payload, "debug-api", {
+      allowReplace: true,
+    });
     // The route answers with the resulting fleet snapshot.
     expect((response.body as { devices: unknown[] }).devices).toHaveLength(1);
   });
@@ -58,7 +60,13 @@ describe("POST /api/debug/ingest", () => {
     const response = await ingest(context, "admin").send([{ deviceId: DEVICE_ID }]);
 
     expect(response.status).toBe(200);
-    expect(context.store.applyPayload).toHaveBeenCalledWith([{ deviceId: DEVICE_ID }], "debug-api");
+    expect(context.store.applyPayload).toHaveBeenCalledWith(
+      [{ deviceId: DEVICE_ID }],
+      "debug-api",
+      {
+        allowReplace: true,
+      },
+    );
   });
 
   it("rejects a missing body with a 400 validation error", async () => {
