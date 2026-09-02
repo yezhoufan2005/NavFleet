@@ -11,6 +11,18 @@
  * existing Playwright `getByRole("heading", …)` queries working (they match on
  * name, not level, but the reading order they imply should still be right).
  *
+ * ## `lede` is for information, not for describing the page
+ *
+ * Seven of the nine pages used to carry a sentence explaining what the page was
+ * («列表与地图是同一批设备的两种投影»), and manual review asked for all of them gone.
+ * Rightly: an operator who opens 设备 twice a shift reads that line zero times, and
+ * it costs a permanent band of vertical space on every page above the content they
+ * came for. The pages that keep a lede are the two where the line *is* content —
+ * 404's explanation, and the device id on 设备详情.
+ *
+ * If a page genuinely has something to state (场景's read-only red line), it goes in
+ * the body, where it sits with the rest of the page's content and can react to state.
+ *
  * ## `scrollContent`
  *
  * Two page shapes exist in this console, and until 14A one of them was accidental.

@@ -12,10 +12,7 @@ import PagePlaceholder from "@/components/PagePlaceholder.vue";
 </script>
 
 <template>
-  <PageHeader
-    title="报表"
-    lede="利用率、告警趋势、班次汇总 —— 数据早已入库，只是还没有读取方。"
-  >
+  <PageHeader title="报表">
     <PagePlaceholder
       plan="17B"
       intent="聚合报表与导出。这一页在 Phase 13 只有骨架，内容依赖 Phase 17A 的聚合层。"

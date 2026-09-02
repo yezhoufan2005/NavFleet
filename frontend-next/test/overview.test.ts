@@ -1,4 +1,6 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
+import { readFileSync } from "node:fs";
+import { resolve } from "node:path";
 import { createPinia, setActivePinia } from "pinia";
 import {
   createMemoryHistory,
@@ -131,6 +133,77 @@ describe("the counts", () => {
     const summary = wrapper.find("dl").text();
     expect(summary).toContain("告警");
     expect(summary).toContain("预警");
+  });
+});
+
+describe("where a tile's tone lives", () => {
+  /**
+   * The rule 13R-B measured its way to, asserted so it cannot drift back.
+   *
+   * The number used to wear `text-warning-ink` / `text-critical-ink`. Manual review said
+   * «浅色模式数字颜色不清晰», and measuring found light mode had the *higher* contrast
+   * (10.59:1 and 11.05:1 against white). The defect was never contrast: `amber-800` and
+   * `rose-800` sit at L=0.37, where the hue is not identifiable, so the number read as
+   * "dark text" and the one thing the colour was there to say never arrived.
+   *
+   * So: text wears text colours, and a saturated mark beside it carries the state — the
+   * rule this project already follows on its charts.
+   */
+  const seedWarningAndCritical = () =>
+    store.ingestPayload(
+      snapshot([
+        device({ deviceId: "agv-01", online: false }),
+        device({ deviceId: "agv-02", error_code: code(5102, "路径规划超时") }),
+      ]),
+      "api",
+    );
+
+  it("keeps the number in text colour and puts the tone on the card", async () => {
+    seedWarningAndCritical();
+    const wrapper = await mountPage();
+    const tiles = wrapper.findAll("article");
+
+    expect(tiles[0]?.attributes("data-tone")).toBe("warning");
+    expect(tiles[1]?.attributes("data-tone")).toBe("critical");
+
+    for (const tile of tiles) {
+      const value = tile.find("strong");
+      expect(value.classes()).toContain("text-ink");
+      expect(value.classes()).not.toContain("text-warning-ink");
+      expect(value.classes()).not.toContain("text-critical-ink");
+    }
+  });
+
+  it("gives a toned tile a saturated mark, and an untoned one none", async () => {
+    seedWarningAndCritical();
+    const wrapper = await mountPage();
+    const tiles = wrapper.findAll("article");
+
+    expect(tiles[0]?.find(".tile-mark").exists()).toBe(true);
+    expect(tiles[1]?.find(".tile-mark").exists()).toBe(true);
+    // GPS 覆盖 and 编队 are `muted`: a card that is always marked stops being read.
+    expect(tiles[2]?.find(".tile-mark").exists()).toBe(false);
+    expect(tiles[3]?.find(".tile-mark").exists()).toBe(false);
+  });
+
+  it("drops the wash in dark rather than reusing one mix for both themes", async () => {
+    /*
+     * Asserted against the stylesheet text, because jsdom applies no scoped CSS and the
+     * point is the *asymmetry* rather than a computed value. The two themes' wash tokens
+     * sit at opposite ends of the lightness scale (`amber-50` L≈0.97 against `amber-900`
+     * L≈0.28), so one percentage cannot serve both: the first attempt reused the device
+     * row's 60% and the dark amber card came out olive — the same "the hue does not read"
+     * failure this change exists to remove, reintroduced in the other theme.
+     */
+    const source = readFileSync(
+      resolve(__dirname, "../src/views/OverviewView.vue"),
+      "utf8",
+    );
+    expect(source).toMatch(/\.stat-tile\s*\{\s*--tile-wash:\s*2\d%/);
+    expect(source).toMatch(
+      /:root\[data-theme="dark"\]\s\.stat-tile\s*\{\s*--tile-wash:\s*0%/,
+    );
+    expect(source).toMatch(/prefers-color-scheme:\s*dark/);
   });
 });
 
