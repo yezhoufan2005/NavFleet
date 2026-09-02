@@ -27,7 +27,6 @@
 import { computed, reactive } from "vue";
 import { defineStore } from "pinia";
 import {
-  cloneValue,
   deviceToneRank,
   extractDeviceIdFromTopic,
   fallbackFleetPayload,
@@ -41,7 +40,6 @@ import {
   normalizePathPoint,
   pickTrailPose,
   pointsAreNear,
-  sceneCatalog,
   toTimestampMsOrNow,
   TRAIL_MAX_POINTS,
   TRAIL_MIN_DISTANCE,
@@ -147,7 +145,7 @@ export const useFleetStore = defineStore("fleet", () => {
     lastSource: "bootstrap",
     lastUpdateAt: null,
     serverUpdatedAt: null,
-    sceneDefinitions: cloneValue(sceneCatalog),
+    sceneDefinitions: {},
     pendingSceneLoads: {},
     trailsByDeviceId: {},
     realtime: {
@@ -162,17 +160,19 @@ export const useFleetStore = defineStore("fleet", () => {
     sceneId: string,
   ): SceneDefinitionRecord | null => {
     if (!sceneId) return null;
-    return state.sceneDefinitions[sceneId] || sceneCatalog[sceneId] || null;
+    return state.sceneDefinitions[sceneId] || null;
   };
 
   const mergeSceneDefinition = (definition: SceneDefinition): void => {
     if (!definition?.sceneId) return;
+    // There is no built-in catalogue to merge over any more (see `dataDefaults.ts`):
+    // every scene comes from the backend, so the base is whatever we already hold.
     // `SceneMapDefinition` has no index signature, so bridge it to the loose,
     // dynamically-merged shape `mergeSceneDefinitionParts` consumes.
-    const fallback = (sceneCatalog[definition.sceneId] ||
+    const existing = (state.sceneDefinitions[definition.sceneId] ||
       {}) as unknown as Record<string, unknown>;
     state.sceneDefinitions[definition.sceneId] = mergeSceneDefinitionParts(
-      fallback,
+      existing,
       definition,
     );
   };
@@ -768,20 +768,16 @@ export const useFleetStore = defineStore("fleet", () => {
   /**
    * What the console holds when the backend cannot be reached: **nothing**, said plainly.
    *
-   * `fallbackFleetPayload.devices` and `sceneCatalog` are both permanently empty in
-   * `fleet-core` — they were copied over from v1.0.0 verbatim, and three lookups in this
-   * file have never once hit them. So "the console shows demo content when the backend is
-   * down" has never been true, in either front end, and ingesting an empty payload dressed
-   * the absence up as a fleet of zero vehicles.
+   * `fallbackFleetPayload.devices` and `sceneCatalog` used to be permanently empty
+   * constants in `fleet-core`, copied over from v1.0.0 verbatim, and five lookups across
+   * the two front ends never once hit them. So "the console shows demo content when the
+   * backend is down" had never been true in any release — and ingesting that empty payload
+   * dressed the absence up as a fleet of zero vehicles, which is a different and much more
+   * alarming statement than "we cannot reach the backend".
    *
-   * The honest version keeps only the two fields that do carry a value (the fleet's default
-   * name and the topic pattern, which are what the shell renders) and leaves the device map
-   * untouched, so a reconnect merges into whatever was last known rather than into a fleet
-   * that was silently replaced by an empty one.
-   *
-   * The empty constants themselves live in `fleet-core`, which **v1.0.0 also imports**, so
-   * deleting them is a change to shipped code and belongs with 9.1 / 9.19 in the 1.0.3
-   * batch. This is the half that can be done without touching the released product.
+   * 13T-E did this half (seed only the two label fields; leave the device map untouched so
+   * a reconnect merges into what was last known); 1.0.3 deleted the constants themselves,
+   * which had to wait because `fleet-core` is imported by the shipped v1.0.0 too.
    */
   const bootstrapEmptyState = (): void => {
     if (!state.fleetName) state.fleetName = fallbackFleetPayload.fleetName;
