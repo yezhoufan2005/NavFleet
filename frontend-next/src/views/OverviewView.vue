@@ -133,12 +133,24 @@ const tiles = computed<Tile[]>(() => {
   ];
 });
 
-const TILE_VALUE_CLASS: Record<Tone, string> = {
-  ok: "text-ink",
-  warning: "text-warning-ink",
-  critical: "text-critical-ink",
-  muted: "text-ink",
-};
+/**
+ * Deliberately **not** a per-tone text colour on the number — that was the defect.
+ *
+ * Manual review reported «浅色模式数字颜色不清晰», and measuring it said the opposite of
+ * what it sounded like: light mode had the *higher* contrast (`warning-ink` 10.59:1 and
+ * `critical-ink` 11.05:1 against white, versus 7.45 / 6.63 in dark against slate-800).
+ * So the problem was never contrast. `amber-800` / `rose-800` sit at **L=0.37**, and at
+ * that lightness the hue is not identifiable: the number reads as "dark text", and the
+ * one thing the colour was there to say — "this is a warning" — never arrives. Dark mode
+ * uses L=0.88 (`amber-200` / `rose-200`), which reads as amber at a glance.
+ *
+ * The fix is the rule this project already follows on its charts: **text wears text
+ * colours, and a saturated mark beside it carries the state.** So the number is
+ * `text-ink` in both themes, and the tone goes on the card as an inset edge plus a
+ * faint wash — the same treatment `DevicesView` gives a critical or warning row, which
+ * makes it one visual language rather than two.
+ */
+const TILE_VALUE_CLASS = "text-3xl font-semibold tabular-nums text-ink";
 
 interface AttentionRow {
   device: DeviceSnapshot;
@@ -224,12 +236,27 @@ const alertRows = computed(() =>
       <article
         v-for="tile in tiles"
         :key="tile.key"
-        class="flex flex-col gap-1 rounded-md border border-border bg-surface-raised p-4"
+        class="stat-tile flex flex-col gap-1 rounded-md border border-border bg-surface-raised p-4"
+        :data-tone="tile.tone"
       >
         <span
-          class="font-mono text-2xs tracking-wider text-ink-subtle uppercase"
-          >{{ tile.label }}</span
+          class="flex items-center gap-2 font-mono text-2xs tracking-wider text-ink-subtle uppercase"
         >
+          {{ tile.label }}
+          <!--
+            The saturated mark that carries the state, which is the half of this the
+            coloured number was doing badly. Positioned at the end of the row rather than
+            before the label so that a card gaining or losing a tone does not shift its
+            own label sideways; `aria-hidden` because the note underneath already says
+            the same thing in words ("6 台离线"), which is what a screen reader and a
+            colourblind operator read.
+          -->
+          <span
+            v-if="tile.tone === 'warning' || tile.tone === 'critical'"
+            class="tile-mark ml-auto size-2.5 shrink-0 rounded-full"
+            aria-hidden="true"
+          />
+        </span>
         <!-- The `value` variant reserves this element's own line box, so the card does
              not resize when the real number lands. -->
         <template v-if="fleet.bootstrapPending">
@@ -244,11 +271,7 @@ const alertRows = computed(() =>
           <UiSkeleton />
         </template>
         <template v-else>
-          <strong
-            class="text-3xl font-semibold tabular-nums"
-            :class="TILE_VALUE_CLASS[tile.tone]"
-            >{{ tile.value }}</strong
-          >
+          <strong :class="TILE_VALUE_CLASS">{{ tile.value }}</strong>
           <span class="text-xs text-ink-muted">{{ tile.note }}</span>
         </template>
       </article>
@@ -398,3 +421,73 @@ const alertRows = computed(() =>
     </div>
   </PageHeader>
 </template>
+
+<style scoped>
+/*
+ * The tone treatment for a stat tile, keyed on a runtime value — so scoped CSS rather
+ * than utilities, for the same reason `DevicesView` gives: Tailwind only sees literal
+ * class names, and four tones would mean four literals in the template.
+ *
+ * This is where the state lives now that the number is `text-ink` in both themes. See
+ * `TILE_VALUE_CLASS` for the measurement that moved it here. `ok` and `muted` get
+ * nothing on purpose: a card that is always tinted teaches people to stop reading the
+ * tint, which is the same argument `notice` loses its row treatment on the device list.
+ *
+ * `--tile-wash` is deliberately low. The first attempt reused the device row's 60% mix,
+ * and on a card that covers twenty times the area it stops being a tint: in dark mode
+ * `warning-wash` is `amber-900` (L≈0.28), and 60% of it over `surface-raised` came out a
+ * muddy brown — the *same* failure this change exists to fix, "the hue does not read",
+ * reintroduced in the other theme. The saturated edge and dot are at full strength
+ * instead, which is what 13R-B asked for: a small block with enough saturation, not a
+ * wash over everything.
+ */
+.stat-tile {
+  --tile-wash: 22%;
+}
+
+/*
+ * Dark drops the wash entirely, and the asymmetry is the honest answer rather than a
+ * missing abstraction: the two themes' wash tokens sit at opposite ends of the lightness
+ * scale (`amber-50` at L≈0.97 in light, `amber-900` at L≈0.28 in dark), so one mix
+ * percentage cannot serve both. Blending a near-white tint into a white card is gentle;
+ * blending a dark saturated one into a dark card is how the amber card came out olive.
+ * The edge and the dot are at full saturation in both themes, and in dark that is enough
+ * on its own — measured by looking at it, which is the only instrument that answers
+ * "does this read as amber".
+ */
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) .stat-tile {
+    --tile-wash: 0%;
+  }
+}
+
+:root[data-theme="dark"] .stat-tile {
+  --tile-wash: 0%;
+}
+
+.stat-tile[data-tone="warning"] {
+  background: color-mix(
+    in oklab,
+    var(--color-warning-wash) var(--tile-wash),
+    var(--color-surface-raised)
+  );
+  box-shadow: inset 4px 0 0 var(--color-warning);
+}
+
+.stat-tile[data-tone="warning"] .tile-mark {
+  background: var(--color-warning);
+}
+
+.stat-tile[data-tone="critical"] {
+  background: color-mix(
+    in oklab,
+    var(--color-critical-wash) var(--tile-wash),
+    var(--color-surface-raised)
+  );
+  box-shadow: inset 4px 0 0 var(--color-critical);
+}
+
+.stat-tile[data-tone="critical"] .tile-mark {
+  background: var(--color-critical);
+}
+</style>
