@@ -1055,6 +1055,43 @@ describe("sorting the device list", () => {
     await flushPromises();
     expect(orderOf(wrapper)).toEqual(["agv-01", "agv-03", "agv-02"]);
   });
+
+  it("puts the silent vehicle on top when 最近上报 is clicked", async () => {
+    // Oldest first, which is the only reason to sort by this column: newest-first on a
+    // healthy 1 Hz fleet reorders on millisecond noise every tick.
+    const { wrapper } = await mountSortable([
+      { stamp: "2026-08-30T02:00:00.000Z" },
+      { stamp: "2026-08-30T00:30:00.000Z" },
+      { stamp: "2026-08-30T01:00:00.000Z" },
+    ]);
+
+    await headerButton(wrapper, "最近上报").trigger("click");
+    await flushPromises();
+    expect(orderOf(wrapper)).toEqual(["agv-02", "agv-03", "agv-01"]);
+
+    await headerButton(wrapper, "最近上报").trigger("click");
+    await flushPromises();
+    expect(orderOf(wrapper)).toEqual(["agv-01", "agv-03", "agv-02"]);
+  });
+
+  it("collates the text columns, so 设备 and 场景 find a vehicle by name", async () => {
+    store.state.sceneDefinitions.yard = SCENE as never;
+    const { wrapper } = await mountSortable([
+      { deviceName: "丙车", sceneId: "yard" },
+      { deviceName: "甲车", sceneId: "" },
+      { deviceName: "乙车", sceneId: "yard" },
+    ]);
+
+    await headerButton(wrapper, "设备").trigger("click");
+    await flushPromises();
+    // zh-Hans-CN collation, i.e. pinyin: 丙 bǐng, 甲 jiǎ, 乙 yǐ.
+    expect(orderOf(wrapper)).toEqual(["agv-01", "agv-02", "agv-03"]);
+
+    await headerButton(wrapper, "场景").trigger("click");
+    await flushPromises();
+    // Two share 北区堆场 and fall back to the device id; 未配置场景 sorts after both.
+    expect(orderOf(wrapper)).toEqual(["agv-01", "agv-03", "agv-02"]);
+  });
 });
 
 describe("expanding a device row", () => {
