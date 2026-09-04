@@ -150,6 +150,28 @@ tag、Release、镜像全部产生。负责人随后删除了 tag、Release 与�
       消失）；WS 关闭不带 1001 码、不等握手完成。另 compose 未设 `stop_grace_period`（Docker 默认
       10s）。**影响：数据完整性，中。**
 
+#### 1.0.3 的活体核对（2026-09-02，真进程，非单测）
+
+单测答不了三件事：真进程里那条 15s 巡检**到底会不会**触发淘汰、淘汰后长驻标签页**真的**收不收到
+权威快照、新计数器**真的**出不出现在 `/metrics`。所以起了一个 `DEVICE_RETENTION_SECONDS=5`、
+`OFFLINE_AFTER_SECONDS=2`、`MAX_DEVICES=3`、`INGEST_QUEUE_LIMIT=4` 的后端，挂一个真 WS 客户端跑了一遍：
+
+| 动作                     | 结果                                                           |
+| ------------------------ | -------------------------------------------------------------- |
+| 摄入 probe-1..3          | 全部在场，`navfleet_devices_total 3`、`_limit 3`               |
+| 摄入 probe-4（超上限）   | 拒绝，`navfleet_devices_capped_total 1`                        |
+| 摄入 `probe 5`（含空格） | 拒绝，`navfleet_devices_rejected_total 1`                      |
+| 静默 35s（跨两次巡检）   | 三台被淘汰，`_evicted_total 3`、`_total 0`、快照 `devices: []` |
+| WS 客户端                | 收到 `fleet.snapshot`（连接时 1 帧 + 淘汰后 1 帧）             |
+| 淘汰后重新上报 probe-1   | 原样回来 —— `device_latest` 的行没被删，正是设计               |
+
+日志侧也如设计：拒绝各一行（节流生效，没有每帧一行），淘汰各一行。
+
+**顺带记一条不修的观察**：`POST /api/debug/ingest` 对被准入门禁拒绝的帧仍返回 **200**。不算谎报到
+必须修的程度 —— 它的返回体就是 `store.snapshot()`，里面确实没有那台设备，拒绝也都上了计数器；
+而这个端点生产环境默认关闭（`DEBUG_INGEST_ENABLED=false`）。记在这里是因为「对没发生的事回 200」
+与本批次一直在删的那类错误同源，将来若给这个端点做正经的错误语义，这是入口。
+
 #### 1.0.3 已落地的五项（2026-09-02）
 
 - **P0-e**：`replace` 原来由**载荷形状**决定而不是由谁发的决定，而 MQTT 路径把 broker 帧直接传进
