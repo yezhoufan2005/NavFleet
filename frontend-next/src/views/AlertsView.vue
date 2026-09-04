@@ -278,7 +278,7 @@ const {
 </script>
 
 <template>
-  <PageHeader title="告警">
+  <PageHeader title="消息">
     <template #actions>
       <!--
         「确认当前筛选」rather than 确认本页. The research note for this control says
@@ -308,12 +308,16 @@ const {
       </button>
     </template>
 
-    <!-- The limitation, on the page rather than in a comment: a known limitation and a
-         silent one look identical to whoever is on shift. -->
+    <!--
+      Trimmed rather than deleted (14E). Acceptance asked whether this could go, and the
+      answer is half: the *fact* has to stay, because an operator who acknowledges twenty
+      rows and then hears a colleague say they see none of them acknowledged has been
+      misled by a silence. What went is the half that was written for us — "不入库、不记录
+      操作人与时间" restates the same thing in implementation terms, and "落库与历史留到
+      Phase 16" is a roadmap note on a page an operator opens every shift.
+    -->
     <p class="text-xs text-ink-muted">
-      确认状态只保存在当前浏览器 ——
-      不入库、不记录操作人与时间，换台机器或换个人都看不到。 落库与历史留到
-      Phase 16。
+      确认状态只保存在本浏览器，换台机器或换个人都看不到。
     </p>
 
     <div class="flex flex-wrap items-end gap-3">
@@ -377,7 +381,7 @@ const {
         <input
           type="search"
           class="rounded-sm border border-border-strong bg-surface-raised px-2 py-1 text-xs text-ink"
-          placeholder="标题、详情、设备、来源"
+          placeholder="标题/详情/设备/来源"
           :value="searchDraft"
           @input="onSearchInput(($event.target as HTMLInputElement).value)"
           @keydown.enter.prevent="flushSearch"
@@ -482,14 +486,20 @@ const {
         </div>
 
         <!-- A toggle that says it is one, rather than a button whose meaning is
-             carried by its colour. -->
+             carried by its colour.
+
+             The idle hover moves the border and the surface, not only the ink: acceptance
+             reported the hover as barely visible, and it was — a muted-to-ink text change
+             on a 12px label is a few percent of the control's area. The confirmed state
+             darkens its wash instead, because that one already carries a brand fill and a
+             second fill on top would read as a different state rather than a hover. -->
         <button
           type="button"
           class="shrink-0 rounded-sm border px-2.5 py-1 text-xs transition-colors duration-150 ease-standard"
           :class="
             ack.isAcknowledged(alert.id)
-              ? 'border-brand bg-brand-wash text-brand-ink'
-              : 'border-border-strong bg-surface text-ink-muted hover:text-ink'
+              ? 'border-brand bg-brand-wash text-brand-ink hover:bg-surface-sunken'
+              : 'border-border-strong bg-surface text-ink-muted hover:border-brand hover:bg-brand-wash hover:text-brand-ink'
           "
           :aria-pressed="ack.isAcknowledged(alert.id)"
           :aria-label="`确认告警：${alert.title}`"

@@ -132,7 +132,7 @@ describe("the list", () => {
     // A known limitation and a silent one look identical to whoever is on shift.
     seedMixed();
     const wrapper = await mountAlerts();
-    expect(wrapper.text()).toContain("只保存在当前浏览器");
+    expect(wrapper.text()).toContain("只保存在本浏览器");
   });
 });
 

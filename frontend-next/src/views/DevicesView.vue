@@ -67,9 +67,14 @@ const LAYOUT_OPTIONS: { value: DeviceLayoutPreference; label: string }[] = [
   { value: "map", label: "地图" },
 ];
 
+/**
+ * `ROS` rather than 场景 for the second surface. Both maps show a scene; what tells them
+ * apart is the frame the positions are in — GPS is lat/lng, the other is the vehicle's
+ * own ROS map frame, which is also the word the vehicles and their operators already use.
+ */
 const SURFACE_OPTIONS: { value: MapSurface; label: string }[] = [
   { value: "gps", label: "GPS" },
-  { value: "scene", label: "场景" },
+  { value: "scene", label: "ROS" },
 ];
 
 /**
@@ -89,12 +94,9 @@ const sceneLabelOf = (sceneId: string | null | undefined): string => {
 };
 
 /**
- * One row per device, in the order the column headers say.
- *
- * The comment that used to sit here read «Sorted worst-first, so the row that needs
- * attention is the one you land on» — over a list sorted by device id. See
- * `useDeviceSort` for why that was wrong and why 状态 is now the default in fact and
- * not only in a comment.
+ * One row per device, in the order the column headers say — 编号 ascending until someone
+ * clicks a header. See `useDeviceSort` for why the register keeps a stable order and
+ * 总览 is the page that sorts by trouble.
  */
 const rows = computed(() =>
   sortRows(
@@ -220,7 +222,7 @@ watch(
 </script>
 
 <template>
-  <PageHeader title="设备">
+  <PageHeader title="设备" fill-height>
     <template #actions>
       <!--
         The formation filter, which the port declared and never built: the store has
@@ -315,8 +317,8 @@ watch(
     </template>
 
     <p v-if="layoutIsAutomatic" class="text-xs text-ink-muted">
-      当前视图按车队规模自动选择（{{ fleet.sortedDevices.length }}
-      台）。选择「列表」或「地图」后将一直沿用你的选择。
+      自动按车队规模选择视图（{{ fleet.sortedDevices.length }}
+      台），选择「列表」或「地图」后将沿用您的选择。
     </p>
 
     <!--

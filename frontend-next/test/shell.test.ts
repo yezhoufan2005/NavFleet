@@ -336,7 +336,7 @@ describe("the alert badge in the navigation", () => {
   const badge = (wrapper: Awaited<ReturnType<typeof mountApp>>) =>
     wrapper
       .findAll("nav[aria-label='主导航'] a")
-      .find((link) => link.text().includes("告警"))!;
+      .find((link) => link.text().includes("消息"))!;
 
   it("tells the operator something is waiting without leaving the page", async () => {
     // v1.0.0 had this (`frontend/src/App.vue:123-126`) and the port dropped it: on 设备 /
@@ -378,7 +378,7 @@ describe("the alert badge in the navigation", () => {
 describe("breadcrumbs", () => {
   it("shows one crumb for a top-level section", async () => {
     const wrapper = await signedIn("/alerts");
-    expect(wrapper.find("nav[aria-label='面包屑']").text()).toContain("告警");
+    expect(wrapper.find("nav[aria-label='面包屑']").text()).toContain("消息");
   });
 
   it("builds the trail from the nesting, not from a hand-kept list", async () => {
@@ -482,7 +482,7 @@ describe("session menu", () => {
 describe("document title", () => {
   it("names the current section once someone is signed in", async () => {
     await signedIn("/alerts");
-    expect(document.title).toBe("告警 · 智能车队监控平台");
+    expect(document.title).toBe("消息 · 智能车队监控平台");
   });
 
   it("does not claim to be showing a section while nobody is signed in", async () => {
@@ -647,13 +647,11 @@ describe("the sound control", () => {
    */
   it("says sound is not enabled until someone enables it", async () => {
     const wrapper = await signedIn();
-    const control = wrapper
-      .findAll("header button")
-      .find((button) => button.text().includes("声音"));
+    const control = wrapper.get("header button[aria-label^='告警声音']");
 
-    expect(control?.text()).toContain("声音未启用");
-    expect(control?.attributes("aria-pressed")).toBe("false");
-    expect(control?.attributes("title")).toContain("浏览器要求先有一次点击");
+    expect(control.text()).toContain("告警未启用");
+    expect(control.attributes("aria-pressed")).toBe("false");
+    expect(control.attributes("title")).toContain("浏览器要求先有一次点击");
   });
 
   it("carries the three sound preferences in the session menu", async () => {
@@ -666,7 +664,10 @@ describe("the sound control", () => {
 
     expect(labels).toContain("静音");
     expect(labels.some((label) => label?.startsWith("音量"))).toBe(true);
-    expect(labels.some((label) => label?.startsWith("免打扰"))).toBe(true);
+    // 免打扰 moved into its own section, so its rows are the bare labels rather than
+    // 免打扰 X — the section heading carries the word now.
+    expect(labels).toContain("全天");
+    expect(labels.some((label) => label?.startsWith("夜间"))).toBe(true);
   });
 
   /**
@@ -680,26 +681,26 @@ describe("the sound control", () => {
   it("becomes the mute switch once it has been unlocked", async () => {
     const wrapper = await signedIn();
     // Found by accessible name rather than visible text: the visible word *is* the
-    // state, so it stops containing "声音" the moment the control reports 已静音.
+    // state, so it changes with every one of these clicks.
     const control = () => wrapper.get("header button[aria-label^='告警声音']");
 
-    expect(control().text()).toContain("声音未启用");
+    expect(control().text()).toContain("告警未启用");
 
     // First click is the browser's required gesture.
     await control().trigger("click");
     await flushPromises();
-    expect(control().text()).toContain("声音已启用");
+    expect(control().text()).toContain("告警响应");
     expect(control().attributes("aria-pressed")).toBe("true");
 
     // Second click mutes, third unmutes — and the label follows both ways.
     await control().trigger("click");
     await flushPromises();
-    expect(control().text()).toContain("已静音");
+    expect(control().text()).toContain("告警静音");
     expect(control().attributes("aria-pressed")).toBe("false");
 
     await control().trigger("click");
     await flushPromises();
-    expect(control().text()).toContain("声音已启用");
+    expect(control().text()).toContain("告警响应");
   });
 
   it("keeps the top bar and the session menu on one mute state", async () => {

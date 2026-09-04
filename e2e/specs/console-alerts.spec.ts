@@ -66,7 +66,7 @@ test.describe("console alerts", () => {
   test("says the acknowledgement is browser-local rather than leaving it implied", async ({
     page,
   }) => {
-    await expect(page.getByText("只保存在当前浏览器")).toBeVisible();
+    await expect(page.getByText("只保存在本浏览器")).toBeVisible();
   });
 
   test("the search box waits for the typing to stop before it navigates", async ({
@@ -98,7 +98,7 @@ test.describe("console alerts", () => {
     await page.goto("/devices");
     const alerts = page
       .getByRole("navigation", { name: "主导航" })
-      .getByRole("link", { name: /^告警/ });
+      .getByRole("link", { name: /^消息/ });
 
     // The digits are `aria-hidden`; the sentence beside them is what a screen reader
     // gets, and it is the half v1.0.0's bare number was missing.

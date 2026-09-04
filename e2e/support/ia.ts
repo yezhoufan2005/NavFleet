@@ -73,7 +73,7 @@ const CONSOLE: IaProfile = {
   // Candidate B: the landing page is 总览 and answers "which few need me now",
   // rather than a full-width map answering "where is everyone".
   landing: { link: "总览", heading: "总览" },
-  navLinks: [/^总览$/, /^设备$/, /^告警/, /^报表$/, /^管理$/],
+  navLinks: [/^总览$/, /^设备$/, /^消息/, /^报表$/, /^管理$/],
   // Web history, so there is no `#` to echo — printing one would show an address
   // that does not exist.
   notFound: {
