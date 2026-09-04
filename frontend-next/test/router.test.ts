@@ -40,7 +40,7 @@ describe("route table", () => {
       { path: "/devices", name: undefined, title: "设备" },
       { path: "/devices", name: "devices", title: undefined },
       { path: "/devices/:deviceId", name: "device-detail", title: "设备详情" },
-      { path: "/alerts", name: "alerts", title: "告警" },
+      { path: "/alerts", name: "alerts", title: "消息" },
       { path: "/reports", name: "reports", title: "报表" },
       // 管理 is nested for the same reason 设备 is: `router-link-active` follows
       // matched records, so a child page has to keep the section lit. Its landing
@@ -125,9 +125,9 @@ describe("primary navigation", () => {
   it("marks the current section and only that one", async () => {
     const wrapper = await mountNav("/alerts");
 
-    expect(link(wrapper, "告警")?.classes().join(" ")).toContain(ACTIVE);
+    expect(link(wrapper, "消息")?.classes().join(" ")).toContain(ACTIVE);
     expect(link(wrapper, "设备")?.classes().join(" ")).not.toContain(ACTIVE);
-    expect(link(wrapper, "告警")?.attributes("aria-current")).toBe("page");
+    expect(link(wrapper, "消息")?.attributes("aria-current")).toBe("page");
   });
 
   it("keeps 设备 lit while a device detail page is open", async () => {

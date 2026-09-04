@@ -106,14 +106,27 @@ const fleetName = computed(() => {
 const sound = useAlertSound();
 
 const SILENT_LABELS: Record<string, string> = {
-  locked: "声音未启用",
-  pending: "声音待就绪",
-  muted: "已静音",
+  locked: "告警未启用",
+  pending: "告警待就绪",
+  muted: "告警静音",
   quiet: "免打扰中",
 };
 
 const soundLabel = computed(
-  () => SILENT_LABELS[sound.silentReason.value] ?? "声音已启用",
+  () => SILENT_LABELS[sound.silentReason.value] ?? "告警响应",
+);
+
+/**
+ * Which of the silent states is worth a warning colour.
+ *
+ * Both of these mean "a critical condition would arrive without a sound", which is the
+ * one thing this control exists to make impossible to miss. 静音 and 免打扰中 are
+ * deliberate choices someone made and stay in the muted ink — colouring a setting people
+ * chose is how a console teaches its operators to ignore amber.
+ */
+const SOUND_WARNS = new Set(["locked", "pending"]);
+const soundIsWarning = computed(() =>
+  SOUND_WARNS.has(sound.silentReason.value),
 );
 
 const soundTitle = computed(() => {
@@ -127,9 +140,9 @@ const soundTitle = computed(() => {
     case "quiet":
       return sound.muted.value
         ? "已静音，且当前处于免打扰时段。点击取消静音（仍需等免打扰结束才会响）。"
-        : "当前处于免打扰时段，所以不会响。点击可静音；免打扰时段在用户菜单中调整。";
+        : "当前处于免打扰时段，所以不会响。点击可静音；免打扰在用户菜单中调整。";
     default:
-      return "告警声音已启用（仅告警级会响）。点击静音。";
+      return "告警声音已启用，告警级会响。点击静音。";
   }
 });
 
@@ -269,7 +282,7 @@ const NAV_TOGGLE_LABELS: Record<SidebarMode, string> = {
         type="button"
         class="flex items-center gap-1.5 rounded-sm px-1.5 py-1 text-xs transition-colors duration-150 ease-standard"
         :class="
-          sound.silentReason.value === 'locked'
+          soundIsWarning
             ? 'text-warning-ink hover:bg-warning-wash'
             : 'text-ink-muted hover:bg-surface-sunken hover:text-ink'
         "

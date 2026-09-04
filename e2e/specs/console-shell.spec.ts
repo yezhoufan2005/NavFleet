@@ -70,6 +70,36 @@ test.describe("console shell", () => {
     await expect(page.getByRole("button", { name: "展开侧栏" })).toBeVisible();
   });
 
+  test("collapsing the rail does not move the icons up", async ({ page }) => {
+    /*
+     * Measured in a real layout engine, because that is the only place the defect
+     * existed. The nav row is a flex box, so its height used to come from whichever child
+     * was visible: the label's 24px line box when labelled, the 20px icon when not. With
+     * `py-2` that is 40px against 36px, and since the rows stack, every icon slid up by a
+     * further 4px than the one above — reported during acceptance as
+     * «不流畅的上移视觉». jsdom computes no layout, so a unit test cannot see this.
+     */
+    await signIn(page);
+    const items = page
+      .getByRole("navigation", { name: "主导航" })
+      .getByRole("link");
+    const heightsOf = async () =>
+      Promise.all(
+        (await items.all()).map(
+          async (item) => (await item.boundingBox())?.height,
+        ),
+      );
+
+    const labelled = await heightsOf();
+    await page.getByRole("button", { name: "收起侧栏" }).click();
+    await expect(page.getByRole("button", { name: "展开侧栏" })).toBeVisible();
+    const collapsed = await heightsOf();
+
+    expect(collapsed).toEqual(labelled);
+    // And the value itself, so a change to the type scale has to be a deliberate one.
+    expect(labelled.every((height) => height === 40)).toBe(true);
+  });
+
   test("below lg the sidebar becomes a drawer that traps focus and closes on Escape", async ({
     page,
   }) => {
@@ -85,7 +115,7 @@ test.describe("console shell", () => {
     await expect(drawer).toBeVisible();
     // Not `exact`: the 告警 item's accessible name carries its pending count when there is
     // one, which is the badge doing its job rather than a naming accident.
-    await expect(drawer.getByRole("link", { name: /^告警/ })).toBeVisible();
+    await expect(drawer.getByRole("link", { name: /^消息/ })).toBeVisible();
 
     // Focus is inside the drawer, not left behind on the trigger.
     await expect(drawer.locator(":focus")).toHaveCount(1);
@@ -105,11 +135,11 @@ test.describe("console shell", () => {
 
     await page.getByRole("button", { name: "打开导航" }).click();
     const drawer = page.getByRole("dialog");
-    await drawer.getByRole("link", { name: /^告警/ }).click();
+    await drawer.getByRole("link", { name: /^消息/ }).click();
 
     await expect(drawer).toBeHidden();
     await expect(
-      page.getByRole("heading", { name: "告警" }).first(),
+      page.getByRole("heading", { name: "消息" }).first(),
     ).toBeVisible();
   });
 

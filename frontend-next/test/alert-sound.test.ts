@@ -155,8 +155,16 @@ describe("unlocking", () => {
 });
 
 describe("coming back after a reload", () => {
-  /** A fresh document in a browser that enabled sound at some earlier point. */
-  const reloadedWithSoundOn = async () => {
+  /**
+   * A fresh document in a browser that enabled sound at some earlier point.
+   *
+   * `browserAllows` is the whole variable here. Chrome will start an `AudioContext`
+   * unprompted on a site someone uses regularly, and a document that still has sticky
+   * activation will too — so the composable *asks* on mount rather than assuming a click
+   * is required. Set it false to model a browser that insists on a gesture, in which case
+   * the refusal is followed by allowing the one that a real gesture triggers.
+   */
+  const reloadedWithSoundOn = async ({ browserAllows = true } = {}) => {
     const first = useAlertSound();
     await first.unlock();
     expect(localStorage.getItem(ALERT_SOUND_KEYS.armed)).toBe("1");
@@ -164,14 +172,42 @@ describe("coming back after a reload", () => {
     contextState = "suspended";
     oscillators.length = 0;
     resumeCalls = 0;
-    return useAlertSound();
+    resumeRejects = !browserAllows;
+
+    const sound = useAlertSound();
+    // Let the unprompted attempt settle before anything is asserted about it.
+    await Promise.resolve();
+    await Promise.resolve();
+    await Promise.resolve();
+
+    if (!browserAllows) {
+      resumeRejects = false;
+      contextState = "suspended";
+      resumeCalls = 0;
+    }
+    return sound;
   };
 
-  it("remembers the choice even though it cannot remember the gesture", async () => {
-    // 14A acceptance read 声音未启用 after every refresh as the setting being forgotten.
-    // Two different facts: the preference is intact, and the browser is waiting for a
-    // click. Only one of them is something the operator did.
+  it("resumes on its own where the browser allows it, without a sound", async () => {
+    // The 14C acceptance report: 待就绪 on every refresh. The cause was not the browser —
+    // this code never *attempted* the resume, it only waited for a gesture. Reporting
+    // "waiting for a click" without having asked is the same error as reporting a value
+    // nobody measured.
     const sound = await reloadedWithSoundOn();
+
+    expect(sound.armed.value).toBe(true);
+    expect(resumeCalls).toBe(1);
+    expect(sound.unlocked.value).toBe(true);
+    expect(sound.silentReason.value).toBe("");
+    // Silent: nothing is wrong, and a blip on page load teaches the opposite of what the
+    // sound means.
+    expect(soundsPlayed()).toBe(0);
+  });
+
+  it("says 待就绪 only when the browser really did refuse", async () => {
+    // Then it is the truth, and it cannot be engineered away — which is why the top bar
+    // gives this state the warning colour rather than the muted one.
+    const sound = await reloadedWithSoundOn({ browserAllows: false });
 
     expect(sound.armed.value).toBe(true);
     expect(sound.unlocked.value).toBe(false);
@@ -179,7 +215,7 @@ describe("coming back after a reload", () => {
   });
 
   it("takes the next click anywhere as the gesture, and stays quiet about it", async () => {
-    const sound = await reloadedWithSoundOn();
+    const sound = await reloadedWithSoundOn({ browserAllows: false });
 
     window.dispatchEvent(new Event("pointerdown"));
     await Promise.resolve();
@@ -194,7 +230,7 @@ describe("coming back after a reload", () => {
   });
 
   it("takes a keypress too, since a keyboard operator may never produce a click", async () => {
-    const sound = await reloadedWithSoundOn();
+    const sound = await reloadedWithSoundOn({ browserAllows: false });
 
     window.dispatchEvent(new Event("keydown"));
     await Promise.resolve();

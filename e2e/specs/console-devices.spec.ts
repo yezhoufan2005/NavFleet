@@ -47,9 +47,31 @@ test.describe("console devices", () => {
   });
 
   test("opens on the map for a fleet a map can show", async ({ page }) => {
-    // Six seeded vehicles is well under the 40-unit threshold, so `auto` picks the map.
+    // Six seeded vehicles is under the ten-unit threshold, so `auto` picks the map.
     await expect(page.locator(".map-surface")).toBeVisible();
-    await expect(page.getByText("按车队规模自动选择")).toBeVisible();
+    await expect(page.getByText("自动按车队规模选择视图")).toBeVisible();
+  });
+
+  test("the map is the body of the page, not a panel in the top third of it", async ({
+    page,
+  }) => {
+    /*
+     * Measured, because this page's whole argument is that a site map has to be big: the
+     * ROADMAP criticises v1.0.0 for showing one at «roughly 40% of the viewport». The map
+     * claimed `flex-1` of a parent that had no height, so it fell back to its intrinsic
+     * size — 279px inside an 852px `main`, i.e. 33%, with 570px of empty page beneath.
+     * jsdom computes no layout, so only a real browser can hold this line.
+     */
+    const heightOf = (selector: string) =>
+      page
+        .locator(selector)
+        .first()
+        .evaluate((element) => element.getBoundingClientRect().height);
+
+    const main = await heightOf("#main-content");
+    const map = await heightOf(".map-surface");
+
+    expect(map / main).toBeGreaterThan(0.8);
   });
 
   test("the scene map opens centred on the selected vehicle", async ({
@@ -58,7 +80,7 @@ test.describe("console devices", () => {
     // The defect this guards: opening on the whole scene left the vehicle wherever it
     // happened to be, so the first thing an operator did on every visit was hunt for
     // it and click 定位车辆.
-    await page.getByRole("button", { name: "场景", exact: true }).click();
+    await page.getByRole("button", { name: "ROS", exact: true }).click();
     await expect(page.getByRole("img", { name: "ROS 场景地图" })).toBeVisible();
 
     expect(await markerOffsetFromCentre(page)).toBeLessThan(24);
@@ -67,7 +89,7 @@ test.describe("console devices", () => {
   test("适应场景 frames the scene rather than the vehicle", async ({
     page,
   }) => {
-    await page.getByRole("button", { name: "场景", exact: true }).click();
+    await page.getByRole("button", { name: "ROS", exact: true }).click();
     await expect(page.getByRole("img", { name: "ROS 场景地图" })).toBeVisible();
     const focused = await markerOffsetFromCentre(page);
 
@@ -82,7 +104,7 @@ test.describe("console devices", () => {
   test("the scene map names the scene and counts its road network", async ({
     page,
   }) => {
-    await page.getByRole("button", { name: "场景", exact: true }).click();
+    await page.getByRole("button", { name: "ROS", exact: true }).click();
     const map = page.locator(".map-surface");
 
     await expect(map).toContainText(SEEDED_SCENE.sceneName);
@@ -96,7 +118,7 @@ test.describe("console devices", () => {
     page,
   }) => {
     // Two independent preferences, which 13A-1's note had conflated into one.
-    await page.getByRole("button", { name: "场景", exact: true }).click();
+    await page.getByRole("button", { name: "ROS", exact: true }).click();
     await expect(page.getByRole("img", { name: "ROS 场景地图" })).toBeVisible();
 
     await page.getByRole("button", { name: "列表", exact: true }).click();
@@ -149,7 +171,7 @@ test.describe("console devices", () => {
     // Selection still follows, so coming back to the map lands on that vehicle.
     await page.goBack();
     await page.getByRole("button", { name: "地图", exact: true }).click();
-    await page.getByRole("button", { name: "场景", exact: true }).click();
+    await page.getByRole("button", { name: "ROS", exact: true }).click();
     await expect(page.getByRole("img", { name: "ROS 场景地图" })).toBeVisible();
 
     expect(await markerOffsetFromCentre(page)).toBeLessThan(24);

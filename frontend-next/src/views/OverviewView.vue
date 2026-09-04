@@ -29,7 +29,7 @@ import type { DeviceSnapshot } from "@navfleet/shared";
 /** How often the "x ago" line re-renders. Coarse on purpose: it is not a stopwatch. */
 const AGE_TICK_MS = 10_000;
 /** Rows in the attention list before it defers to 设备. */
-const ATTENTION_LIMIT = 6;
+const ATTENTION_LIMIT = 5;
 
 const fleet = useFleetStore();
 
@@ -284,7 +284,7 @@ const alertRows = computed(() =>
       >
         <div class="flex items-baseline justify-between gap-3">
           <h3 id="attention-heading" class="text-lg font-semibold text-ink">
-            需要处理
+            待处理项
           </h3>
           <RouterLink
             to="/devices"
@@ -299,7 +299,7 @@ const alertRows = computed(() =>
           class="flex flex-col gap-1"
         >
           <!-- Cards rather than lines: this list holds device rows, and a stack of thin
-               lines under a 需要处理 heading looks like a short list of real vehicles. -->
+               lines under a 待处理项 heading looks like a short list of real vehicles. -->
           <UiSkeleton :rows="3" variant="card" />
           <p class="text-sm text-ink-muted">正在获取车队快照…</p>
         </div>
@@ -345,12 +345,12 @@ const alertRows = computed(() =>
         >
           <div class="flex items-baseline justify-between gap-3">
             <h3 id="alerts-heading" class="text-lg font-semibold text-ink">
-              告警摘要
+              消息摘要
             </h3>
             <RouterLink
               to="/alerts"
               class="text-xs text-brand-ink underline-offset-2 hover:underline"
-              >告警中心</RouterLink
+              >查看全部消息</RouterLink
             >
           </div>
           <dl class="m-0 grid grid-cols-3 gap-2">
@@ -375,7 +375,7 @@ const alertRows = computed(() =>
           aria-labelledby="formations-heading"
         >
           <h3 id="formations-heading" class="text-lg font-semibold text-ink">
-            编队
+            编队情况
           </h3>
           <ul class="m-0 flex list-none flex-col gap-2 p-0">
             <li

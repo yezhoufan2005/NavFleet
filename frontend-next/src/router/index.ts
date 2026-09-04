@@ -67,7 +67,7 @@ const routes: RouteRecordRaw[] = [
     path: "/alerts",
     name: "alerts",
     component: () => import("@/views/AlertsView.vue"),
-    meta: { title: "告警" },
+    meta: { title: "消息" },
   },
   {
     path: "/reports",
@@ -157,7 +157,7 @@ export type NavIconName =
 export const NAV_SECTIONS: readonly NavSection[] = [
   { routeName: "overview", label: "总览", icon: "overview" },
   { routeName: "devices", label: "设备", icon: "devices" },
-  { routeName: "alerts", label: "告警", icon: "alerts" },
+  { routeName: "alerts", label: "消息", icon: "alerts" },
   { routeName: "reports", label: "报表", icon: "reports" },
   { routeName: "admin", label: "管理", icon: "admin" },
 ];

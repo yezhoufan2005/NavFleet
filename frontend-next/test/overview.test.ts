@@ -351,7 +351,7 @@ describe("who needs attention", () => {
       wrapper
         .find("section[aria-labelledby='attention-heading']")
         .findAll("li"),
-    ).toHaveLength(6);
+    ).toHaveLength(5);
     expect(wrapper.find("a[href='/devices']").exists()).toBe(true);
   });
 });

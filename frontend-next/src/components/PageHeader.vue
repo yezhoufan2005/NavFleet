@@ -37,17 +37,39 @@
  * scroller. It is a prop rather than the default because a page whose content fits has
  * nothing to gain from an extra scroll container, and one that lays out its own
  * viewport-filling panels (设备) must not get a second one wrapped around them.
+ *
+ * ## `fillHeight`, and the third of a screen 设备 was throwing away
+ *
+ * That last clause was doing double duty and hiding a defect. 设备 laid out its map with
+ * `flex min-h-0 flex-1`, which claims the free space of a parent that **has** a height —
+ * and this root had none, because `h-full` was tied to `scrollContent` and 设备 must not
+ * have the scroller. So the map resolved to its own intrinsic height: measured at **279px
+ * inside an 852px `main`**, with 570px of empty page under it. The devices page exists to
+ * make the map the body of the page rather than one cell of a dashboard — the ROADMAP
+ * criticises v1.0.0 for showing a site map at «roughly 40% of the viewport», and this was
+ * 33%. Found while investigating why the GPS surface rendered nothing at all (a missing
+ * `frontend-next/.env`); the height was the defect underneath that one.
+ *
+ * `fillHeight` is the height half without the scroller half. `scrollContent` implies it.
  */
 defineProps<{
   title: string;
   lede?: string;
   /** Fill the viewport and scroll the content, instead of scrolling the whole page. */
   scrollContent?: boolean;
+  /**
+   * Fill the viewport **without** adding a scroll container — for a page that lays out
+   * its own viewport-filling panels and scrolls inside them. See the note below.
+   */
+  fillHeight?: boolean;
 }>();
 </script>
 
 <template>
-  <div class="flex min-h-0 flex-col gap-4" :class="{ 'h-full': scrollContent }">
+  <div
+    class="flex min-h-0 flex-col gap-4"
+    :class="{ 'h-full': scrollContent || fillHeight }"
+  >
     <div class="flex flex-wrap items-start justify-between gap-3">
       <div class="flex min-w-0 flex-col gap-1">
         <h2 class="text-xl font-semibold text-ink">{{ title }}</h2>

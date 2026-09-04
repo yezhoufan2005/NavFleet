@@ -20,9 +20,14 @@ import type { MaybeRefOrGetter } from "vue";
  *
  * `auto` exists because the right answer depends on how many vehicles there are: a
  * map of six is the best view of a site, and a map of two hundred is a cloud of
- * overlapping markers. The threshold is **40**, which is the one measured figure the
- * Phase 11 research produced. What decides it is the map's readability, not list
- * performance — mounting 200 rows measured at 34.5 ms, which constrains nothing.
+ * overlapping markers. What decides it is the map's readability, not list performance —
+ * mounting 200 rows measured at 34.5 ms, which constrains nothing.
+ *
+ * **The threshold is 10, and that is an owner decision rather than the research figure.**
+ * Phase 11 produced 40, and 14E replaced it after the owner looked at a real fleet on a
+ * real screen: past ten markers the map stops being the faster way to find one vehicle.
+ * Recorded as a decision, not quietly overwritten, because the 40 was measured and
+ * someone will otherwise wonder which of the two numbers is the mistake.
  *
  * An explicit choice outranks the threshold permanently, so `auto` is only ever
  * consulted until someone disagrees with it once. That is the whole reason the
@@ -45,8 +50,8 @@ export type MapSurface = "gps" | "scene";
 const LAYOUT_STORAGE_KEY = "navfleet:device-layout";
 const SURFACE_STORAGE_KEY = "navfleet:map-mode";
 
-/** See the header: the one measured number Phase 11 produced. */
-export const MAP_READABLE_LIMIT = 40;
+/** See the header: an owner decision (14E), replacing the measured 40. */
+export const MAP_READABLE_LIMIT = 10;
 
 const LAYOUT_VALUES: readonly DeviceLayoutPreference[] = [
   "auto",

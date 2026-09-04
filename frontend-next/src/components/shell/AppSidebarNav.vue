@@ -87,7 +87,23 @@ const alertBadge = computed(() => {
   };
 });
 
-const BASE_CLASS = "group flex items-center rounded-sm py-2 font-medium";
+/**
+ * `min-h-10` is the fix for a jump nobody would describe as a bug and everybody sees.
+ *
+ * The row is a flex box, so its height came from whichever child was tallest: labelled
+ * that is the label's line box (`--text-md` 15px × 1.6 = 24px), collapsed it is the icon
+ * (20px). With `py-2` that is 40px against 36px — so collapsing the sidebar shortened
+ * every row by 4px and, because the rows stack, each icon slid up by a further 4px than
+ * the one above it. Manual review called it «不流畅的上移视觉», which is exactly what a
+ * cumulative offset looks like.
+ *
+ * 40px = `py-2` + a 24px line box, i.e. the labelled height, pinned so the collapsed rail
+ * cannot be shorter. Fixing the *row* rather than nudging the icon down is what makes the
+ * two modes agree by construction instead of by a compensating offset that a later change
+ * to the icon size would silently undo. `console-shell.spec.ts` measures both.
+ */
+const BASE_CLASS =
+  "group flex min-h-10 items-center rounded-sm py-2 font-medium";
 /**
  * Collapsed, the rail is 44px wide (11C §3.1) and the nav's own padding takes 12 of
  * them, so a labelled item's `px-2` plus a 20px icon does not fit and the pill

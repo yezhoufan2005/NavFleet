@@ -53,17 +53,22 @@ const ROLE_LABELS: Record<AuthUser["role"], string> = {
 const VOLUME_OPTIONS: readonly { value: SoundVolume; label: string }[] = [
   { value: "low", label: "轻" },
   { value: "medium", label: "中" },
-  { value: "high", label: "响" },
+  { value: "high", label: "重" },
 ];
 
 /**
- * One preset window rather than a time picker. A free-form range needs a form, and a
- * form belongs on a settings page this IA deliberately does not have — see 13D-2 for
- * why that is a deferral rather than a claim that presets are the same thing.
+ * Two presets and an always-on, rather than a time picker. A free-form range needs a
+ * form, and a form belongs on a settings page this IA deliberately does not have — see
+ * 13D-2 for why that is a deferral rather than a claim that presets are the same thing.
+ *
+ * 全天 is here rather than being left to 静音 because the two are different promises:
+ * 静音 is a switch someone flips for the next few minutes, 免打扰 全天 is a standing rule
+ * that survives a reload and does not get forgotten about.
  */
 const QUIET_OPTIONS: readonly { value: QuietHours; label: string }[] = [
   { value: "off", label: "关闭" },
-  { value: "night", label: "夜间 22:00–07:00" },
+  { value: "all", label: "全天" },
+  { value: "night", label: "夜间 22:00–08:00" },
 ];
 
 const onVolumeChange = (value: unknown): void => {
@@ -162,7 +167,7 @@ const onThemeChange = (value: unknown): void => {
         <DropdownMenuSeparator class="my-1 h-px bg-border" />
 
         <DropdownMenuLabel class="px-2 py-1 text-2xs text-ink-subtle">
-          告警声音（仅告警级）
+          告警声音
         </DropdownMenuLabel>
         <!-- `@select.prevent` so toggling does not close the menu: someone adjusting
              sound usually adjusts more than one of these. -->
@@ -200,6 +205,18 @@ const onThemeChange = (value: unknown): void => {
             >
           </DropdownMenuRadioItem>
         </DropdownMenuRadioGroup>
+        <DropdownMenuSeparator class="my-1 h-px bg-border" />
+
+        <!--
+          免打扰 is its own section, not a third row of 告警声音, because it answers a
+          different question: 声音 is "how loud, and is it on right now", 免打扰 is "when
+          should this console never make a sound". Merged into one list they read as five
+          equal settings, and the two 关闭 / 静音 rows next to each other look like the
+          same switch written twice.
+        -->
+        <DropdownMenuLabel class="px-2 py-1 text-2xs text-ink-subtle">
+          免打扰
+        </DropdownMenuLabel>
         <DropdownMenuRadioGroup
           :model-value="sound.quietHours.value"
           @update:model-value="onQuietChange"
@@ -211,7 +228,7 @@ const onThemeChange = (value: unknown): void => {
             class="flex cursor-default items-center justify-between rounded-sm px-2 py-1.5 text-sm text-ink-muted select-none data-[highlighted]:bg-surface-sunken data-[highlighted]:text-ink data-[state=checked]:text-ink"
             @select.prevent
           >
-            免打扰 {{ option.label }}
+            {{ option.label }}
             <span
               v-if="sound.quietHours.value === option.value"
               class="text-brand-ink"

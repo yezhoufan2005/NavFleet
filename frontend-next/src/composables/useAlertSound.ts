@@ -58,7 +58,7 @@ import { computed, readonly, ref } from "vue";
  */
 
 export type SoundVolume = "low" | "medium" | "high";
-export type QuietHours = "off" | "night";
+export type QuietHours = "off" | "all" | "night";
 
 const MUTED_KEY = "navfleet:alert-sound-muted";
 const VOLUME_KEY = "navfleet:alert-sound-volume";
@@ -73,7 +73,7 @@ const VOLUME_GAIN: Record<SoundVolume, number> = {
 };
 
 /** The one preset window. A free-form range needs a form; see the note in 13D-2. */
-export const NIGHT_WINDOW = { fromHour: 22, toHour: 7 } as const;
+export const NIGHT_WINDOW = { fromHour: 22, toHour: 8 } as const;
 
 /** Two notes, rising — recognisable without being an alarm. */
 const NOTES: readonly { hz: number; at: number; for: number }[] = [
@@ -113,7 +113,7 @@ const volume = ref<SoundVolume>(
   readStored(VOLUME_KEY, ["low", "medium", "high"] as const, "medium"),
 );
 const quietHours = ref<QuietHours>(
-  readStored(QUIET_KEY, ["off", "night"] as const, "off"),
+  readStored(QUIET_KEY, ["off", "all", "night"] as const, "off"),
 );
 
 /** Session-only: an unlock cannot outlive the page that performed the gesture. */
@@ -131,9 +131,16 @@ let lastSoundAt = 0;
  * Exported because the wrap across midnight is exactly the kind of comparison that
  * looks right and is wrong: `from <= hour && hour < to` silently disables the window
  * whenever it starts later than it ends, which is every night window there is.
+ *
+ * `all` is not a window at all — it is "never make a sound" expressed in the same
+ * control, which is what someone means by 免打扰 全天. Kept here rather than folded into
+ * `muted` because the two answer different questions: mute is a switch someone flips for
+ * the next few minutes, 免打扰 is a standing rule, and the top bar says which of the two
+ * is keeping the room quiet.
  */
 export const isQuietAt = (setting: QuietHours, at: Date): boolean => {
   if (setting === "off") return false;
+  if (setting === "all") return true;
   const hour = at.getHours();
   const { fromHour, toHour } = NIGHT_WINDOW;
   return fromHour <= toHour
@@ -207,6 +214,8 @@ const resume = async (): Promise<boolean> => {
  * one from an unrelated click.
  */
 let detachGesture: (() => void) | null = null;
+/** One automatic attempt per document; see `attemptAutoResume`. */
+let autoResumeAttempted = false;
 
 const attachGestureListener = (): void => {
   if (detachGesture || typeof window === "undefined") return;
@@ -229,8 +238,32 @@ const attachGestureListener = (): void => {
   window.addEventListener("keydown", onGesture, { capture: true, once: true });
 };
 
+/**
+ * On a reload of an armed browser, **try to resume before reporting anything**.
+ *
+ * 14A introduced the armed/unlocked split and, with it, the 待就绪 readout. Acceptance
+ * came back saying 待就绪 still shows on every refresh — and the reason it did was not
+ * the browser: this code never *attempted* the resume, it only waited for a gesture. But
+ * a gesture is not always required. Chrome will start an `AudioContext` on a site the
+ * person uses regularly (media engagement), and any browser will on a document that
+ * still has sticky activation. Reporting "waiting for a click" without having asked is
+ * the same error as reporting a value nobody measured.
+ *
+ * So: ask once, and fall back to the gesture listener only when the answer is no. Where
+ * the browser does insist, 待就绪 is the truth and cannot be engineered away — that is
+ * why it wears the warning colour rather than the muted one, and why any click anywhere
+ * still resolves it.
+ */
+const attemptAutoResume = (): void => {
+  if (autoResumeAttempted || unlocked.value || !armed.value) return;
+  autoResumeAttempted = true;
+  void resume().then((running) => {
+    if (!running) attachGestureListener();
+  });
+};
+
 export const useAlertSound = () => {
-  if (armed.value && !unlocked.value) attachGestureListener();
+  if (armed.value && !unlocked.value) attemptAutoResume();
 
   /**
    * Turn sound on. **Must be called from a user gesture** — that is the whole point
@@ -348,13 +381,18 @@ export const __resetAlertSound = (): void => {
     ["low", "medium", "high"] as const,
     "medium",
   );
-  quietHours.value = readStored(QUIET_KEY, ["off", "night"] as const, "off");
+  quietHours.value = readStored(
+    QUIET_KEY,
+    ["off", "all", "night"] as const,
+    "off",
+  );
   armed.value = readStored(ARMED_KEY, ["0", "1"] as const, "0") === "1";
   unlocked.value = false;
   audioContext = null;
   announcedIds = new Set();
   seeded = false;
   lastSoundAt = 0;
+  autoResumeAttempted = false;
   // A listener that never fired is keyed to the window a previous test mounted into;
   // leaving it attached would unlock a later case from an unrelated click.
   detachGesture?.();

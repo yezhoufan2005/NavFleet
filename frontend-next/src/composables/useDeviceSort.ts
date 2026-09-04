@@ -10,15 +10,21 @@ import type { DeviceSnapshot } from "@navfleet/shared";
 /**
  * Sorting for the devices list: which column, which direction, and where that lives.
  *
- * ## The default is 状态, and that is a fix
+ * ## The default is 编号
  *
- * `DevicesView` carried the comment «Sorted worst-first, so the row that needs
- * attention is the one you land on» over a list that was sorted by **device id**:
- * `filteredDevices` derives from `sortedDevices`, which is `localeCompare` on the id.
- * Worst-first was a different computed (`devicesByAttention`) that only 总览 and the
- * wall display ever used. So the intent was written down, and the list did not do it.
- * Now that the column is a control, the default is the deliberate answer to «what
- * should the first screen of a monitoring list show» — the vehicles in trouble.
+ * 14C briefly made it 状态 — on the argument that a monitoring list should open on the
+ * vehicles in trouble — and acceptance asked for the id order back. That is the right
+ * call for *this* list, and the reason is that the page it belongs to is not the one
+ * that answers «who needs me now»: 总览 does, with 待处理项, sorted by attention and
+ * capped at five. The devices list is the register, and a register whose order changes
+ * as vehicles develop faults is one you cannot keep your place in. 状态 is one click
+ * away, and the click is remembered in the URL.
+ *
+ * ## Three states per column, not two
+ *
+ * Ascending → descending → **off**, where off means back to the default (编号 ascending,
+ * no query params at all). A two-state toggle has no way to say "stop sorting by this",
+ * so a column clicked once becomes a decision that can only be replaced, never undone.
  *
  * ## Ascending first, every column
  *
@@ -69,7 +75,7 @@ export interface SortableDeviceRow {
 
 /** Not exported: `dead-exports.test.ts` requires a non-test consumer, and the only
  * consumers of these are in this file. The view learns the default by not passing one. */
-const DEFAULT_SORT_KEY: DeviceSortKey = "tone";
+const DEFAULT_SORT_KEY: DeviceSortKey = "id";
 const DEFAULT_SORT_DIRECTION: SortDirection = "asc";
 
 const SORT_KEYS: readonly DeviceSortKey[] = [
@@ -162,22 +168,29 @@ export const useDeviceSort = () => {
   );
 
   /**
-   * Click a header: sort by it ascending, or flip the direction if it is already the
-   * one being sorted by. `replace` rather than `push` — a sort is not a place you
-   * navigated to, and stacking six of them would make Back a way to un-sort a table
-   * one click at a time.
+   * Click a header: ascending, then descending, then off.
+   *
+   * "Off" writes no query params at all, so it lands in exactly the state a fresh
+   * `/devices` is in — the default lives in one place rather than two. `replace` rather
+   * than `push`: a sort is not a place you navigated to, and stacking six of them would
+   * make Back a way to un-sort a table one click at a time.
    */
   const toggleSort = (key: DeviceSortKey): void => {
-    const nextDirection: SortDirection =
-      sortKey.value === key && sortDirection.value === "asc" ? "desc" : "asc";
+    const cycled: SortDirection | null =
+      sortKey.value !== key
+        ? "asc"
+        : sortDirection.value === "asc"
+          ? "desc"
+          : null;
     const isDefault =
-      key === DEFAULT_SORT_KEY && nextDirection === DEFAULT_SORT_DIRECTION;
+      cycled === null ||
+      (key === DEFAULT_SORT_KEY && cycled === DEFAULT_SORT_DIRECTION);
     void router.replace({
       query: {
         ...route.query,
         sort: isDefault ? undefined : key,
         dir:
-          nextDirection === DEFAULT_SORT_DIRECTION ? undefined : nextDirection,
+          isDefault || cycled === DEFAULT_SORT_DIRECTION ? undefined : cycled,
       },
     });
   };

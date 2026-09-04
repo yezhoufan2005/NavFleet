@@ -391,9 +391,20 @@ describe("what else the scene map draws", () => {
 });
 
 describe("the GPS map without credentials", () => {
-  it("explains what to configure instead of showing an empty map", () => {
-    // The common state on a fresh checkout: no `.env`. A blank grey map here is worse
-    // than a sentence, and v1.0.0's sentence named the wrong project's file.
+  it("explains what to configure instead of showing an empty map", async () => {
+    const amap = await import("@/lib/amap");
+    // A blank grey map here is worse than a sentence, and v1.0.0's sentence named the
+    // wrong project's file.
+    //
+    // The absent state is **stubbed**, not inherited from the ambient environment. This
+    // case used to rely on there being no `frontend-next/.env` — true on a fresh
+    // checkout, and false the moment anyone configures AMap locally, at which point the
+    // test failed for a reason that had nothing to do with the code. A test whose result
+    // depends on a gitignored file is a test that reports the developer's machine.
+    vi.spyOn(amap, "hasAmapConfig").mockReturnValue(false);
+    vi.spyOn(amap, "getAmapConfigError").mockReturnValue(
+      "未配置高德地图 Key，请在 frontend-next/.env 中填写 VITE_AMAP_KEY（见 .env.example）。",
+    );
     const wrapper = mount(GpsMap, {
       props: { devices: [], selectedDeviceId: "" },
     });
@@ -639,7 +650,7 @@ describe("the devices page", () => {
     const wrapper = await mountPage();
 
     expect(wrapper.find(".map-surface").exists()).toBe(true);
-    expect(wrapper.text()).toContain("按车队规模自动选择");
+    expect(wrapper.text()).toContain("自动按车队规模选择视图");
   });
 
   it("opens on the list once the fleet outgrows the map", async () => {
@@ -664,7 +675,7 @@ describe("the devices page", () => {
       .trigger("click");
     await flushPromises();
 
-    expect(wrapper.text()).not.toContain("按车队规模自动选择");
+    expect(wrapper.text()).not.toContain("自动按车队规模选择视图");
   });
 
   it("puts the appearing group before the permanent one, so buttons stay put", async () => {
@@ -738,7 +749,7 @@ describe("the devices page", () => {
 
     const scene = wrapper
       .findAll("button")
-      .find((button) => button.text() === "场景");
+      .find((button) => button.text() === "ROS");
     await scene?.trigger("click");
     await flushPromises();
 
@@ -838,11 +849,11 @@ describe("what the device list has to answer at a glance", () => {
       // The expand column's header is `sr-only` text, not an empty cell — a blank
       // header announces nothing, leaving its buttons without context.
       "展开",
-      // 状态 carries the arrow because it is the default sort, and the arrow is drawn
-      // only on the active column — see the sorting cases below.
-      "状态 ↑",
+      "状态",
       "设备",
-      "编号",
+      // 编号 carries the arrow because it is the default sort, and the arrow is drawn
+      // only on the active column — see the sorting cases below.
+      "编号 ↑",
       "场景",
       "最近上报",
       "电量",
@@ -960,16 +971,28 @@ describe("sorting the device list", () => {
     { warning_code: { code: 2301, info: "" }, vehicle_info: { soc: 55 } },
   ];
 
-  it("lands on the vehicles in trouble, not on whoever is alphabetically first", async () => {
-    // The list used to be sorted by device id under a comment claiming it was sorted
-    // worst-first — the worst-first ordering was a different computed that only 总览
-    // used. Now the default does what the comment always said.
+  it("opens in 编号 order, so the register keeps its place while faults come and go", async () => {
+    // 14C briefly defaulted to 状态; acceptance asked for the id order back. 总览's
+    // 待处理项 is the list that answers "who needs me now" — this one is the register,
+    // and a register that reorders itself as vehicles develop faults cannot be scanned.
     const { wrapper } = await mountSortable(MIXED);
 
-    expect(orderOf(wrapper)).toEqual(["agv-01", "agv-03", "agv-02"]);
-    expect(wrapper.get("thead th:nth-child(2)").attributes("aria-sort")).toBe(
+    expect(orderOf(wrapper)).toEqual(["agv-01", "agv-02", "agv-03"]);
+    // 编号 is the fourth column, after the expand cell, 状态 and 设备.
+    expect(wrapper.get("thead th:nth-child(4)").attributes("aria-sort")).toBe(
       "ascending",
     );
+    expect(wrapper.get("thead th:nth-child(2)").attributes("aria-sort")).toBe(
+      "none",
+    );
+  });
+
+  it("puts the vehicles in trouble first when 状态 is clicked", async () => {
+    const { wrapper } = await mountSortable(MIXED);
+
+    await headerButton(wrapper, "状态").trigger("click");
+    await flushPromises();
+    expect(orderOf(wrapper)).toEqual(["agv-01", "agv-03", "agv-02"]);
   });
 
   it("sorts by the column that was clicked, and reverses on a second click", async () => {
@@ -990,17 +1013,28 @@ describe("sorting the device list", () => {
     });
   });
 
-  it("keeps the default out of the URL, so /devices means the default", async () => {
+  it("cycles a column off on the third click, back to the default", async () => {
+    // Two states cannot express "stop sorting by this": a column clicked once could only
+    // ever be replaced by another, never undone. The third click writes no query params
+    // at all, so it lands in the same state a fresh /devices is in.
     const { wrapper, router } = await mountSortable(MIXED);
 
     await headerButton(wrapper, "电量").trigger("click");
     await flushPromises();
-    await headerButton(wrapper, "状态").trigger("click");
-    await flushPromises();
+    expect(router.currentRoute.value.query).toMatchObject({ sort: "soc" });
 
+    await headerButton(wrapper, "电量").trigger("click");
+    await flushPromises();
+    expect(router.currentRoute.value.query).toMatchObject({ dir: "desc" });
+
+    await headerButton(wrapper, "电量").trigger("click");
+    await flushPromises();
     expect(router.currentRoute.value.query.sort).toBeUndefined();
     expect(router.currentRoute.value.query.dir).toBeUndefined();
-    expect(orderOf(wrapper)).toEqual(["agv-01", "agv-03", "agv-02"]);
+    expect(orderOf(wrapper)).toEqual(["agv-01", "agv-02", "agv-03"]);
+    expect(wrapper.get("thead th:nth-child(7)").attributes("aria-sort")).toBe(
+      "none",
+    );
   });
 
   it("reads the sort out of the URL a link arrived with", async () => {

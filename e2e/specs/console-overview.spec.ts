@@ -63,8 +63,10 @@ test.describe("console overview", () => {
     await expect(freshness).not.toContainText("-");
   });
 
-  test("reaches the alert centre from the summary", async ({ page }) => {
-    await page.getByRole("link", { name: "告警中心" }).click();
+  test("reaches the message centre from the summary", async ({ page }) => {
+    await page.getByRole("link", { name: "查看全部消息" }).click();
+    // The path stays `/alerts`: a URL is something people paste to each other, and
+    // renaming the section is not a reason to break the links already in circulation.
     await expect(page).toHaveURL(/\/alerts$/);
   });
 });
