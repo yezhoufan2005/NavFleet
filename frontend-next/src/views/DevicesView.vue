@@ -182,18 +182,26 @@ watch(
 );
 
 /**
- * A right-aligned cell reserves the header's arrow slot, so that 电量's label and its
- * numbers stay flush with each other.
+ * A right-aligned **value** cell reserves the header's arrow slot, so that 电量's label and
+ * its numbers stay flush with each other.
  *
- * The arrow is always on the label's right (14G), and on the one right-aligned column
- * that put it between the label and the cell edge: selecting 电量 pushed its own label
- * 14px to the left, which is the shift acceptance reported. The slot is now reserved on
- * every header whether or not the arrow is showing, so nothing moves — and the numbers
- * take the same reserve so the column still reads as one edge.
+ * The arrow is always on the label's right (14G), and on the one right-aligned column that
+ * put it between the label and the cell edge: selecting 电量 pushed its own label 14px to
+ * the left, which is the shift acceptance reported. So the slot is now reserved on every
+ * header whether or not the arrow is showing — and the reserve has to be **mirrored onto
+ * the values**, because the slot sits inside the header's own box and would otherwise leave
+ * the label 14px left of the column it heads. That was the 14I report: the label moved and
+ * the numbers did not.
+ *
+ * Only the `td` carries it. Putting it on the `th` as well (the first attempt) reserved the
+ * space *twice* there — `pr` plus the slot inside the button — which is the same defect one
+ * step further out.
  *
  * `px-3` (0.75rem) + the slot (`gap-1` 0.25rem + `w-2.5` 0.625rem) = 1.625rem.
  */
-const NUMERIC_CELL_CLASS = "pl-3 pr-[1.625rem] py-2 text-right";
+const NUMERIC_VALUE_CLASS = "pl-3 pr-[1.625rem] py-2 text-right";
+/** The header keeps the plain padding: its reserve is the slot inside the button. */
+const NUMERIC_HEAD_CLASS = "px-3 py-2 text-right";
 
 /** Header cells, in render order. Every one of them sorts — see `useDeviceSort`. */
 const COLUMNS: { key: DeviceSortKey; label: string; numeric?: boolean }[] = [
@@ -558,7 +566,7 @@ watch(
               :key="column.key"
               class="font-mono text-2xs font-normal text-ink-subtle"
               :class="
-                column.numeric ? NUMERIC_CELL_CLASS : 'px-3 py-2 text-left'
+                column.numeric ? NUMERIC_HEAD_CLASS : 'px-3 py-2 text-left'
               "
               :aria-sort="ariaSortFor(column.key)"
             >
@@ -574,13 +582,16 @@ watch(
                 :class="sortKey === column.key ? 'text-ink' : ''"
                 @click="toggleSort(column.key)"
               >
-                {{ column.label }}
+                <!-- Wrapped so the label's own edge is measurable: `console-devices.spec.ts`
+                     asserts it lines up with the numbers below it, which is the thing that
+                     was wrong and the thing no class assertion can see. -->
+                <span class="sort-label">{{ column.label }}</span>
                 <!--
                   The glyph is only on the active column — a permanent up/down on all six
                   says "sortable" and then says nothing about which one is in effect. The
                   *slot* is always there, which is a different thing: without it, the
                   column that gained the arrow moved its own label by the arrow's width,
-                  visibly so on the right-aligned 电量. See `NUMERIC_CELL_CLASS`.
+                  visibly so on the right-aligned 电量. See `NUMERIC_VALUE_CLASS`.
                 -->
                 <span class="w-2.5 text-center" aria-hidden="true">{{
                   sortKey === column.key
@@ -675,9 +686,9 @@ watch(
               </td>
               <td
                 class="font-mono text-xs text-ink"
-                :class="NUMERIC_CELL_CLASS"
+                :class="NUMERIC_VALUE_CLASS"
               >
-                {{ row.soc }}
+                <span class="soc-value">{{ row.soc }}</span>
               </td>
             </tr>
             <tr

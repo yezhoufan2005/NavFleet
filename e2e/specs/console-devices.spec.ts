@@ -182,6 +182,49 @@ test.describe("console devices", () => {
     expect(after.width).toBe(before.width);
   });
 
+  test("keeps the 电量 label and its numbers on one right edge", async ({
+    page,
+  }) => {
+    /*
+     * The 14I report: the header moved left and the values did not.
+     *
+     * Reserving the arrow's slot fixed the *shift*, but the slot lives inside the header's
+     * own box — so the label ended up 14px left of the column it heads, and the first fix
+     * made it worse by reserving the space on the `th` as well (padding **plus** slot).
+     * Only a real layout engine can answer "is this one edge", which is why the assertion
+     * is here and compares the two boxes directly rather than their classes.
+     */
+    await page.getByRole("button", { name: "列表", exact: true }).click();
+
+    const label = page
+      .getByRole("columnheader")
+      .filter({ hasText: "电量" })
+      .locator(".sort-label");
+    const value = page.locator("tbody tr.device-row .soc-value").first();
+
+    const rightEdgeOf = async (locator: typeof label) => {
+      const box = (await locator.boundingBox())!;
+      return box.x + box.width;
+    };
+
+    // Sub-pixel tolerance: the label is a proportional face and the value is tabular, so
+    // their boxes are laid out independently even though the padding is shared.
+    expect(await rightEdgeOf(label)).toBeCloseTo(await rightEdgeOf(value), 0);
+
+    // And it survives the column becoming the sorted one, which is when the arrow appears
+    // inside that reserved slot.
+    await page
+      .getByRole("columnheader")
+      .filter({ hasText: "电量" })
+      .getByRole("button")
+      .click();
+    await expect(
+      page.getByRole("columnheader").filter({ hasText: "电量" }),
+    ).toHaveAttribute("aria-sort", "ascending");
+
+    expect(await rightEdgeOf(label)).toBeCloseTo(await rightEdgeOf(value), 0);
+  });
+
   test("a row in the list opens that vehicle, and the map remembers it", async ({
     page,
   }) => {

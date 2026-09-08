@@ -853,8 +853,10 @@ describe("what the device list has to answer at a glance", () => {
       "状态",
       "设备",
       // 编号 carries the arrow because it is the default sort, and the arrow is drawn
-      // only on the active column — see the sorting cases below.
-      "编号 ↑",
+      // only on the active column — see the sorting cases below. No space between the
+      // two: the label is its own element now (so its edge can be measured against the
+      // column's numbers) and the gap is `gap-1` rather than a text node.
+      "编号↑",
       "场景",
       "最近上报",
       "电量",
@@ -1044,9 +1046,13 @@ describe("sorting the device list", () => {
      *
      * 电量 is right-aligned, so an arrow rendered only when active appeared *between* the
      * label and the cell edge: clicking 电量 moved its own label left by the arrow's width.
-     * The slot is now always in the DOM and only the glyph inside it is conditional, and
-     * the numbers below carry the same reserve — otherwise the header would sit 14px left
-     * of the column it heads.
+     * The slot is now always in the DOM and only the glyph inside it is conditional.
+     *
+     * The reserve is mirrored onto the **values only**. The first attempt put it on the
+     * `th` as well, which reserved the space twice there (the padding plus the slot inside
+     * the button) and left the header 14px left of its own numbers — the 14I report. Which
+     * edge actually lines up is measured in `console-devices.spec.ts`; what is checkable
+     * here is that the two cells carry different padding on purpose.
      */
     const { wrapper } = await mountSortable(MIXED);
     const slotOf = (label: string) =>
@@ -1061,12 +1067,15 @@ describe("sorting the device list", () => {
     await flushPromises();
     expect(slotOf("电量").text()).toBe("↑");
 
-    // The header cell and its values share one class, so they cannot drift apart.
+    // Only the value cell reserves the slot; the header's reserve is the slot itself.
     const reserve = "pr-[1.625rem]";
-    expect(wrapper.get("thead th:nth-child(7)").classes()).toContain(reserve);
     expect(
       wrapper.get("tbody tr.device-row td:nth-child(7)").classes(),
     ).toContain(reserve);
+    expect(wrapper.get("thead th:nth-child(7)").classes()).not.toContain(
+      reserve,
+    );
+    expect(wrapper.get("thead th:nth-child(7)").classes()).toContain("px-3");
   });
 
   it("reads the sort out of the URL a link arrived with", async () => {
