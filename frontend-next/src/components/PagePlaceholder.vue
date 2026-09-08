@@ -29,9 +29,9 @@ defineProps<{
     </span>
     <p class="max-w-prose text-ink-muted">{{ intent }}</p>
     <p class="max-w-prose text-sm text-ink-subtle">
-      当前这一版只搭好了外壳（导航、鉴权、主题、错误边界）。这一页的内容会在
+      当前这一版只搭好了外壳（导航、鉴权、主题、错误边界），这一页的内容会在
       Phase 13 按 <code class="font-mono">docs/frontend-parity.md</code>
-      的清单逐项补齐，届时本占位块会被删除。
+      的清单逐项补齐，届时本占位块会被删除
     </p>
   </section>
 </template>

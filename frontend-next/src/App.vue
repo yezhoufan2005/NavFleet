@@ -29,7 +29,7 @@ import LoginForm from "@/components/LoginForm.vue";
 import NotificationHost from "@/components/NotificationHost.vue";
 import { useAuth } from "@/composables/useAuth";
 import { useFleetStore } from "@/stores/fleet";
-import { useAlertSound } from "@/composables/useAlertSound";
+import { useAlertSound, disarmAlertSound } from "@/composables/useAlertSound";
 import { notify } from "@/composables/useNotifications";
 
 const PRODUCT_NAME = "智能车队监控平台";
@@ -52,6 +52,11 @@ onMounted(() => {
  * out. Signing out without disconnecting would leave an authenticated socket open
  * behind the login screen, which is both a live subscription nobody is watching and
  * a claim about access that the session no longer supports.
+ *
+ * The sound goes with it. Arming is per login rather than per browser (14H), so leaving
+ * `authenticated` puts the control back to 告警待就绪 — otherwise the next person to sign
+ * in at a shared terminal inherits an armed console they never asked for, and never gets
+ * asked for the click that makes it audible.
  */
 watch(
   () => authState.status,
@@ -59,7 +64,10 @@ watch(
     if (status === "authenticated" && previous !== "authenticated") {
       void fleet.bootstrap();
     }
-    if (status === "anonymous") fleet.disconnectRealtime();
+    if (status === "anonymous") {
+      fleet.disconnectRealtime();
+      disarmAlertSound();
+    }
   },
 );
 

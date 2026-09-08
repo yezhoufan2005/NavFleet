@@ -181,6 +181,20 @@ watch(
   },
 );
 
+/**
+ * A right-aligned cell reserves the header's arrow slot, so that 电量's label and its
+ * numbers stay flush with each other.
+ *
+ * The arrow is always on the label's right (14G), and on the one right-aligned column
+ * that put it between the label and the cell edge: selecting 电量 pushed its own label
+ * 14px to the left, which is the shift acceptance reported. The slot is now reserved on
+ * every header whether or not the arrow is showing, so nothing moves — and the numbers
+ * take the same reserve so the column still reads as one edge.
+ *
+ * `px-3` (0.75rem) + the slot (`gap-1` 0.25rem + `w-2.5` 0.625rem) = 1.625rem.
+ */
+const NUMERIC_CELL_CLASS = "pl-3 pr-[1.625rem] py-2 text-right";
+
 /** Header cells, in render order. Every one of them sorts — see `useDeviceSort`. */
 const COLUMNS: { key: DeviceSortKey; label: string; numeric?: boolean }[] = [
   { key: "tone", label: "状态" },
@@ -405,8 +419,8 @@ watch(
       }}</strong>
       <span class="text-sm text-ink-muted">{{
         state.selectedFormationId
-          ? "这个编队目前没有匹配的设备；选择「全部编队」可以看到完整车队。"
-          : "后端还没有上报任何设备；确认 MQTT 接入后此处会自动出现。"
+          ? "这个编队目前没有匹配的设备；选择「全部编队」可以看到完整车队"
+          : "后端还没有上报任何设备；确认 MQTT 接入后此处会自动出现"
       }}</span>
     </div>
 
@@ -542,8 +556,10 @@ watch(
             <th
               v-for="column in COLUMNS"
               :key="column.key"
-              class="px-3 py-2 font-mono text-2xs font-normal text-ink-subtle"
-              :class="column.numeric ? 'text-right' : 'text-left'"
+              class="font-mono text-2xs font-normal text-ink-subtle"
+              :class="
+                column.numeric ? NUMERIC_CELL_CLASS : 'px-3 py-2 text-left'
+              "
               :aria-sort="ariaSortFor(column.key)"
             >
               <!--
@@ -560,13 +576,19 @@ watch(
               >
                 {{ column.label }}
                 <!--
-                  The arrow is only on the active column. A permanent up/down glyph on
-                  all six says "sortable" and then says nothing about which one is in
-                  effect, which is the half that matters once you have clicked one.
+                  The glyph is only on the active column — a permanent up/down on all six
+                  says "sortable" and then says nothing about which one is in effect. The
+                  *slot* is always there, which is a different thing: without it, the
+                  column that gained the arrow moved its own label by the arrow's width,
+                  visibly so on the right-aligned 电量. See `NUMERIC_CELL_CLASS`.
                 -->
-                <span v-if="sortKey === column.key" aria-hidden="true">
-                  {{ sortDirection === "asc" ? "↑" : "↓" }}
-                </span>
+                <span class="w-2.5 text-center" aria-hidden="true">{{
+                  sortKey === column.key
+                    ? sortDirection === "asc"
+                      ? "↑"
+                      : "↓"
+                    : ""
+                }}</span>
               </button>
             </th>
           </tr>
@@ -651,7 +673,10 @@ watch(
               <td class="px-3 py-2 text-ink-muted">
                 {{ row.stamp }}
               </td>
-              <td class="px-3 py-2 text-right font-mono text-xs text-ink">
+              <td
+                class="font-mono text-xs text-ink"
+                :class="NUMERIC_CELL_CLASS"
+              >
                 {{ row.soc }}
               </td>
             </tr>

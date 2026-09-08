@@ -59,11 +59,11 @@ const retryConnection = (): void => {
     .then(() => {
       fleet.connectRealtime();
       if (fleet.connection.tone === "critical") {
-        notify("仍然无法连接后端，请检查服务与网络。", { type: "warning" });
+        notify("仍然无法连接后端，请检查服务与网络", { type: "warning" });
       }
     })
     .catch(() => {
-      notify("重试失败，请检查后端服务是否可用。", { type: "warning" });
+      notify("重试失败，请检查后端服务是否可用", { type: "warning" });
     });
 };
 
@@ -106,8 +106,18 @@ const fleetName = computed(() => {
  */
 const sound = useAlertSound();
 
+/**
+ * What the control says, keyed on why it is currently silent.
+ *
+ * `locked` and `pending` read the same on purpose. Both mean "one click and this console
+ * is audible", which is the only part an operator can act on, and 14H asked for exactly
+ * that shape: 待就绪 after signing in, 响应 after the click, and 待就绪 again if a critical
+ * ever proves the optimistic 响应 wrong. They stay two reasons rather than one because the
+ * tooltips differ — one has never been armed in this session, the other was armed and then
+ * let an alert through.
+ */
 const SILENT_LABELS: Record<string, string> = {
-  locked: "告警未启用",
+  locked: "告警待就绪",
   pending: "告警待就绪",
   muted: "告警静音",
   quiet: "免打扰中",
@@ -133,17 +143,17 @@ const soundIsWarning = computed(() =>
 const soundTitle = computed(() => {
   switch (sound.silentReason.value) {
     case "locked":
-      return "点击启用告警声音。浏览器要求先有一次点击才允许播放，所以在此之前告警不会响。";
+      return "点击启用告警声音 —— 浏览器要求先有一次点击才允许播放，在此之前告警不会响；每次登录都需要这一次点击";
     case "pending":
-      return "这个浏览器启用过告警声音。浏览器要求页面加载后先有一次点击或按键才允许播放 —— 在页面上点任意处即可恢复，点这里会立刻恢复并试听。";
+      return "这次登录启用过告警声音，但浏览器要求页面加载后先有一次点击或按键才允许播放 —— 在页面上点任意处即可恢复，点这里会立刻恢复并试听";
     case "muted":
-      return "告警声音已静音。点击取消静音。";
+      return "告警声音已静音，点击取消静音";
     case "quiet":
       return sound.muted.value
-        ? "已静音，且当前处于免打扰时段。点击取消静音（仍需等免打扰结束才会响）。"
-        : "当前处于免打扰时段，所以不会响。点击可静音；免打扰在用户菜单中调整。";
+        ? "已静音，且当前处于免打扰时段；点击取消静音（仍需等免打扰结束才会响）"
+        : "当前处于免打扰时段，所以不会响；点击可静音，免打扰在用户菜单中调整";
     default:
-      return "告警声音已启用，告警级会响。点击静音。";
+      return "告警声音已启用，告警级会响；点击静音";
   }
 });
 

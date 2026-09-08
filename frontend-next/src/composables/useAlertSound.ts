@@ -30,16 +30,23 @@ import { computed, readonly, ref } from "vue";
  * forgotten. It had not been — a fresh document has had no gesture, and no amount of
  * stored state changes that. So two things are separated here:
  *
- * - *Armed* is a preference, and persists. It means "this browser has enabled alert
- *   sound at least once, deliberately".
+ * - *Armed* means "this login session has enabled alert sound, deliberately". It is kept
+ *   in `sessionStorage`, so it survives a reload and dies with the tab, and it is cleared
+ *   when the session ends — see `disarmAlertSound`.
  * - *Unlocked* is a property of this document, and cannot persist.
  *
+ * Arming is **per login**, not per browser, and that is 14H's correction. It used to live
+ * in `localStorage`, which made "已启用过" a permanent property of the machine: a shared
+ * dispatch terminal stayed armed for whoever sat down next, and the readout could never
+ * ask a new operator for the one click it needs. The shape acceptance asked for is
+ * 待就绪 → one click → 响应, holding across refreshes, and 待就绪 again after a logout.
+ *
  * When armed, the next gesture anywhere on the page resumes the context — no second
- * trip to the control — and the readout says 声音待就绪 rather than 未启用 in between,
- * because "you turned this off" and "the browser is waiting for a click" are different
- * facts and only one of them is actionable. Arming is deliberately **not** the default:
- * a console that starts beeping at an operator who never asked for sound is the failure
- * mode that gets speakers unplugged.
+ * trip to the control — and the readout stays 告警响应 in between rather than nagging,
+ * because that window almost never contains an alert and the claim is withdrawn the
+ * instant one proves it wrong. Arming is deliberately **not** the default: a console that
+ * starts beeping at an operator who never asked for sound is the failure mode that gets
+ * speakers unplugged.
  *
  * ## 3. The first observation seeds, it does not announce
  *
@@ -84,13 +91,27 @@ const NOTES: readonly { hz: number; at: number; for: number }[] = [
 /** No more than one sound per this window, however many conditions arrive at once. */
 export const SOUND_THROTTLE_MS = 4_000;
 
+/**
+ * Which storage area a value belongs to, which is a decision rather than a detail.
+ *
+ * 静音 / 音量 / 免打扰 describe how this browser should behave and outlive everything, so
+ * they are `local`. Arming is not that kind of setting: it belongs to **the login
+ * session**, so it is `session` — it survives a reload, dies with the tab, and is cleared
+ * by `disarmAlertSound` when the session ends.
+ */
+type StorageArea = "local" | "session";
+
+const areaOf = (area: StorageArea): Storage =>
+  area === "session" ? sessionStorage : localStorage;
+
 const readStored = <T extends string>(
   key: string,
   allowed: readonly T[],
   fallback: T,
+  area: StorageArea = "local",
 ): T => {
   try {
-    const stored = localStorage.getItem(key);
+    const stored = areaOf(area).getItem(key);
     return (allowed as readonly string[]).includes(stored ?? "")
       ? (stored as T)
       : fallback;
@@ -99,9 +120,13 @@ const readStored = <T extends string>(
   }
 };
 
-const write = (key: string, value: string): void => {
+const write = (
+  key: string,
+  value: string,
+  area: StorageArea = "local",
+): void => {
   try {
-    localStorage.setItem(key, value);
+    areaOf(area).setItem(key, value);
   } catch {
     // Storage blocked; the choice still holds for this session.
   }
@@ -118,8 +143,10 @@ const quietHours = ref<QuietHours>(
 
 /** Session-only: an unlock cannot outlive the page that performed the gesture. */
 const unlocked = ref(false);
-/** Persisted: whether this browser has ever deliberately enabled alert sound. */
-const armed = ref(readStored(ARMED_KEY, ["0", "1"] as const, "0") === "1");
+/** Session-scoped: whether **this login** has deliberately enabled alert sound. */
+const armed = ref(
+  readStored(ARMED_KEY, ["0", "1"] as const, "0", "session") === "1",
+);
 /**
  * Set the first time a critical condition arrives that we could **not** sound because the
  * browser was still waiting for a gesture. See `silentReason` for why this exists at all.
@@ -297,7 +324,7 @@ export const useAlertSound = () => {
     const running = await resume();
     if (running) {
       armed.value = true;
-      write(ARMED_KEY, "1");
+      write(ARMED_KEY, "1", "session");
       play();
     }
     return running;
@@ -385,7 +412,7 @@ export const useAlertSound = () => {
 
   return {
     unlocked: readonly(unlocked),
-    /** Whether this browser has deliberately enabled sound before — persisted. */
+    /** Whether this login session has deliberately enabled sound — see `areaOf`. */
     armed: readonly(armed),
     muted: readonly(muted),
     volume: readonly(volume),
@@ -445,6 +472,43 @@ export const ALERT_SOUND_KEYS = {
   armed: ARMED_KEY,
 } as const;
 
+/**
+ * The login session has ended: put the sound back to "not enabled yet".
+ *
+ * Called from `App.vue` when the auth state leaves `authenticated`, which covers both a
+ * deliberate 退出登录 and a session that expired underneath the operator. Without this,
+ * arming was a property of the *browser* — the next person to sign in at a shared terminal
+ * inherited an armed console they never asked for, and the readout had no way to ask them
+ * for the one click it needs.
+ *
+ * Three things are reset beyond the flag itself:
+ *
+ * - **The gesture listener**, or a click meant for the login form would silently re-arm.
+ * - **The seen set**, so the next session's first observation seeds instead of announcing.
+ *   Signing back in to a fleet that is already in trouble must be as quiet as signing in
+ *   for the first time; those conditions are on screen, not new.
+ * - **The audio context**, closed rather than merely dropped, so `unlocked === false` is
+ *   literally true and a signed-out console is not holding an audio device open.
+ */
+export const disarmAlertSound = (): void => {
+  armed.value = false;
+  unlocked.value = false;
+  missedForGesture.value = false;
+  autoResumeAttempted = false;
+  detachGesture?.();
+  try {
+    areaOf("session").removeItem(ARMED_KEY);
+  } catch {
+    // Storage blocked; the in-memory flag is what the readout reads.
+  }
+  announcedIds = new Set();
+  seeded = false;
+  const closing = audioContext;
+  audioContext = null;
+  // Rejects on a context that is already closed, which is not a failure here.
+  closing?.close().catch(() => undefined);
+};
+
 /** Test-only: module state would otherwise leak between files. */
 export const __resetAlertSound = (): void => {
   muted.value = readStored(MUTED_KEY, ["0", "1"] as const, "0") === "1";
@@ -458,7 +522,8 @@ export const __resetAlertSound = (): void => {
     ["off", "all", "night"] as const,
     "off",
   );
-  armed.value = readStored(ARMED_KEY, ["0", "1"] as const, "0") === "1";
+  armed.value =
+    readStored(ARMED_KEY, ["0", "1"] as const, "0", "session") === "1";
   missedForGesture.value = false;
   unlocked.value = false;
   audioContext = null;

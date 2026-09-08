@@ -96,9 +96,7 @@ describe("the lanelet overlay and the metadata document", () => {
     await flushPromises();
 
     expect(api.overlay.value).toBeNull();
-    expect(toastMessages()).toContain(
-      "路网覆盖层加载失败，地图将不显示车道线。",
-    );
+    expect(toastMessages()).toContain("路网覆盖层加载失败，地图将不显示车道线");
   });
 
   it("says so when the metadata cannot be read, because positioning depends on it", async () => {
@@ -108,7 +106,7 @@ describe("the lanelet overlay and the metadata document", () => {
 
     expect(api.metadata.value).toBeNull();
     expect(toastMessages()).toContain(
-      "场景元数据加载失败，地图可能无法正确定位。",
+      "场景元数据加载失败，地图可能无法正确定位",
     );
   });
 

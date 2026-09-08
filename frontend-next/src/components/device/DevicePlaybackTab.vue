@@ -130,7 +130,7 @@ const END_OF_MINUTE_MS = 60_000 - 1;
 const rangeError = computed(() => {
   if (!fromInput.value || !toInput.value) return "";
   return new Date(fromInput.value) > new Date(toInput.value)
-    ? "起始时间晚于结束时间，请调整后重新加载。"
+    ? "起始时间晚于结束时间，请调整后重新加载"
     : "";
 });
 
@@ -171,7 +171,7 @@ const load = async (): Promise<void> => {
     setSamples([]);
     status.value = "error";
     errorMessage.value =
-      error instanceof Error ? error.message : "加载历史数据失败，请稍后重试。";
+      error instanceof Error ? error.message : "加载历史数据失败，请稍后重试";
   }
 };
 
@@ -451,8 +451,8 @@ const onScrub = (event: Event): void => {
         >
           <strong class="text-md text-ink">没有历史轨迹数据</strong>
           <span class="max-w-prose text-sm text-ink-muted">
-            历史回放依赖 MongoDB 持久化的遥测数据。请确认后端已连接 MongoDB，
-            且该设备在所选时间范围内有上报记录。
+            历史回放依赖 MongoDB 持久化的遥测数据；请确认后端已连接 MongoDB，
+            且该设备在所选时间范围内有上报记录
           </span>
         </div>
 
@@ -462,7 +462,7 @@ const onScrub = (event: Event): void => {
         >
           <strong class="text-md text-ink">该轨迹缺少 ROS 位姿</strong>
           <span class="max-w-prose text-sm text-ink-muted">
-            这段历史里没有融合定位或激光定位坐标，无法在场景地图上回放。下方的采样详情与速度曲线仍然可用。
+            这段历史里没有融合定位或激光定位坐标，无法在场景地图上回放；下方的采样详情与速度曲线仍然可用
           </span>
         </div>
 
@@ -474,7 +474,7 @@ const onScrub = (event: Event): void => {
           <span class="max-w-prose text-sm text-ink-muted">
             这段历史属于场景
             <code class="font-mono">{{ activeSceneId || "（未标注）" }}</code
-            >，但车队配置里没有它的地图。补齐场景配置后即可回放。
+            >，但车队配置里没有它的地图；补齐场景配置后即可回放
           </span>
         </div>
       </div>

@@ -118,7 +118,7 @@ onBeforeUnmount(stopNavigationFocus);
             <VisuallyHidden>
               <DialogTitle>导航</DialogTitle>
               <DialogDescription>
-                选择要打开的分区。按 Esc 关闭。
+                选择要打开的分区，按 Esc 关闭
               </DialogDescription>
             </VisuallyHidden>
             <div class="flex justify-end border-b border-border p-2">

@@ -113,7 +113,7 @@ const hasConfig = computed(() => hasAmapConfig());
 const emptyStateMessage = computed(() => {
   if (!hasConfig.value) return getAmapConfigError();
   if (!gpsDevices.value.length) {
-    return "当前 MQTT 数据还没有可用的 GPS 经纬度字段。";
+    return "当前 MQTT 数据还没有可用的 GPS 经纬度字段";
   }
   return "";
 });
@@ -296,7 +296,7 @@ const initializeMap = async (): Promise<void> => {
     syncMarkers();
   } catch (error) {
     mapError.value =
-      error instanceof Error ? error.message : "高德地图加载失败。";
+      error instanceof Error ? error.message : "高德地图加载失败";
   } finally {
     isLoading.value = false;
   }
@@ -404,7 +404,7 @@ watch(markerSignature, () => {
           isLoading ? "正在加载高德地图" : "暂无设备 GPS 数据"
         }}</strong>
         <span class="text-sm text-ink-muted">{{
-          isLoading ? "地图底图和设备点位初始化中，请稍候。" : emptyStateMessage
+          isLoading ? "地图底图和设备点位初始化中，请稍候" : emptyStateMessage
         }}</span>
       </div>
     </template>

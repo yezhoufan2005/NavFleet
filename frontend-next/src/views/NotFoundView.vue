@@ -21,7 +21,7 @@ const route = useRoute();
 <template>
   <PageHeader
     title="页面不存在"
-    lede="这个地址没有对应的页面，其余功能不受影响。"
+    lede="这个地址没有对应的页面，其余功能不受影响"
   >
     <div class="flex flex-col items-start gap-4">
       <p

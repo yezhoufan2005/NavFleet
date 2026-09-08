@@ -69,7 +69,7 @@ export function useSceneOverlay(
     } catch {
       if (requestId !== overlayRequestId) return;
       overlay.value = null;
-      notify("路网覆盖层加载失败，地图将不显示车道线。", {
+      notify("路网覆盖层加载失败，地图将不显示车道线", {
         type: "warning",
         dedupeKey: "ros-overlay-failed",
       });
@@ -89,7 +89,7 @@ export function useSceneOverlay(
     } catch {
       if (requestId !== metadataRequestId) return;
       metadata.value = null;
-      notify("场景元数据加载失败，地图可能无法正确定位。", {
+      notify("场景元数据加载失败，地图可能无法正确定位", {
         type: "warning",
         dedupeKey: "ros-metadata-failed",
       });

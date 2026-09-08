@@ -285,8 +285,8 @@ const panels = computed(() =>
       }}</strong>
       <span class="text-sm text-ink-muted">{{
         fleet.bootstrapPending
-          ? "正在获取车队快照。"
-          : `车队快照里没有编号为 ${deviceId} 的设备，它可能已被移除或从未上报。`
+          ? "正在获取车队快照"
+          : `车队快照里没有编号为 ${deviceId} 的设备，它可能已被移除或从未上报`
       }}</span>
     </div>
 
@@ -317,7 +317,7 @@ const panels = computed(() =>
             </h3>
 
             <p v-if="!codes.length" class="text-sm text-ink-muted">
-              当前没有活跃报码。
+              当前没有活跃报码
             </p>
 
             <article
@@ -375,7 +375,7 @@ const panels = computed(() =>
                 v-if="row.described.unknown"
                 class="rounded-xs bg-warning-wash px-2 py-1 text-xs text-warning-ink"
               >
-                该报码不在当前字典中 —— 显示的是车端原文，含义未经解释。
+                该报码不在当前字典中 —— 显示的是车端原文，含义未经解释
               </p>
             </article>
           </section>

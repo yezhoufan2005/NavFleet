@@ -146,7 +146,7 @@ const runRefresh = async (): Promise<void> => {
   if (response.status === 401) {
     // The refresh token is gone or rejected. Retrying cannot help.
     setAnonymous();
-    notify("会话已过期，请重新登录。", {
+    notify("会话已过期，请重新登录", {
       type: "warning",
       timeout: 0,
       dedupeKey: "session-expired",
@@ -167,7 +167,7 @@ const giveUpOrRetry = (reason: string): void => {
   }
 
   setAnonymous();
-  notify(`会话续期连续失败（${reason}），请重新登录。`, {
+  notify(`会话续期连续失败（${reason}），请重新登录`, {
     type: "error",
     timeout: 0,
     dedupeKey: "session-refresh-failed",
@@ -194,7 +194,7 @@ export const useAuth = () => {
       }
     } catch {
       setAnonymous();
-      notify("无法连接服务器，请检查网络后重试。", {
+      notify("无法连接服务器，请检查网络后重试", {
         type: "error",
         dedupeKey: "session-probe-offline",
       });

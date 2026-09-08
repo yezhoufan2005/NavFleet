@@ -424,6 +424,57 @@ describe("formations", () => {
     expect(wrapper.findAll("article")[3]?.text()).toContain("未配置编队");
   });
 
+  it("keeps every formation on the list and scrolls, rather than capping the count", async () => {
+    /*
+     * The distinction 14H drew, in the owner's words: 待处理项 caps at five *because* it has
+     * a 查看全部设备 link to defer to, and this panel has none — a formation that did not fit
+     * would simply be unreachable. So the cap is on the panel's height, not on the list.
+     *
+     * The height itself is asserted against the stylesheet below, because jsdom computes
+     * no layout; what is behavioural, and therefore checked here, is that nothing is
+     * dropped.
+     */
+    store.ingestPayload(
+      snapshot([device()], {
+        formations: Array.from({ length: 7 }, (_unused, index) => ({
+          formationId: `f-${index + 1}`,
+          formationName: `编队 ${index + 1}`,
+          deviceIds: ["agv-01"],
+        })),
+      }),
+      "api",
+    );
+    const wrapper = await mountPage();
+
+    expect(wrapper.findAll("#formations-heading ~ ul li")).toHaveLength(7);
+    expect(wrapper.find("#formations-heading ~ ul").classes()).toContain(
+      "overflow-y-auto",
+    );
+  });
+
+  it("sizes the panel to three rows rather than to a round number of pixels", async () => {
+    /*
+     * Asserted against the stylesheet text for the same reason the tile wash is: jsdom
+     * applies no scoped CSS and lays nothing out. The defect this replaces was arithmetic
+     * rather than appearance — `max-h-52` is 208px, which is not three of anything, and
+     * because the description is optional a row is 46px or 28px, so one round cap held a
+     * different number of formations per deployment. Pinning the row is what makes "three"
+     * true, and it is why the rule and the `min-height` have to agree on one variable.
+     */
+    const source = readFileSync(
+      resolve(__dirname, "../src/views/OverviewView.vue"),
+      "utf8",
+    );
+    expect(source).toMatch(/max-height:\s*calc\(3 \* var\(--formation-row\)/);
+    expect(source).toMatch(
+      /\.formation-list > li \{\s*min-height:\s*var\(--formation-row\)/,
+    );
+    // Not `not.toContain("max-h-52")`: the comment above the list names the class it
+    // replaced, and an assertion that cannot tell a utility from prose about it would fail
+    // on the explanation rather than on the code.
+    expect(source).not.toMatch(/class="[^"]*max-h-\d/);
+  });
+
   it("makes each formation a link to the devices page, filtered", async () => {
     // The tile's note used to read 点击查看成员 on a plain `<article>` with no handler,
     // no formations route and nothing to click through to — an affordance that existed
