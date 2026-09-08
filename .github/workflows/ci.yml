@@ -23,6 +23,14 @@ concurrency:
 
 # Monorepo (npm workspaces): a single root lockfile drives one install per job,
 # then each job runs its workspace's gates via `-w`, across a Node version matrix.
+#
+# The matrix is **22 and 24**, and dropping 20 was overdue rather than a concession to a
+# dependency that demanded it: Node 20 reached end-of-life on 2026-04-30, so from that day
+# the lower half of this matrix was proving compatibility with a runtime that no longer
+# receives security patches — and `engines: >=20` was inviting people to run one. 22 is the
+# floor (what `engines` now says) and 24 is the current active LTS, so the pair brackets
+# what is actually supported. Artifacts come off the **floor** of the matrix, which is why
+# the `if:` conditions below name 22 rather than the lowest number that used to be here.
 jobs:
   backend:
     name: Backend + shared (node ${{ matrix.node }})
@@ -30,7 +38,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        node: [20, 22]
+        node: [22, 24]
     steps:
       - uses: actions/checkout@v7
       - uses: actions/setup-node@v7
@@ -45,7 +53,7 @@ jobs:
       - run: npm run typecheck -w navfleet-backend
       - run: npm run test:coverage -w navfleet-backend
       - run: npm run build -w navfleet-backend
-      - if: matrix.node == 20
+      - if: matrix.node == 22
         uses: actions/upload-artifact@v7
         with:
           name: backend-coverage
@@ -59,7 +67,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        node: [20, 22]
+        node: [22, 24]
     steps:
       - uses: actions/checkout@v7
       - uses: actions/setup-node@v7
@@ -81,7 +89,7 @@ jobs:
       - run: npm run typecheck -w navfleet-frontend
       - run: npm run test:coverage -w navfleet-frontend
       - run: npm run build -w navfleet-frontend
-      - if: matrix.node == 20
+      - if: matrix.node == 22
         uses: actions/upload-artifact@v7
         with:
           name: frontend-coverage
@@ -95,7 +103,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        node: [20, 22]
+        node: [22, 24]
     steps:
       - uses: actions/checkout@v7
       - uses: actions/setup-node@v7
@@ -118,7 +126,7 @@ jobs:
       - run: npm run check:map-contrast
       - run: npm run test:coverage -w navfleet-console
       - run: npm run build -w navfleet-console
-      - if: matrix.node == 20
+      - if: matrix.node == 22
         uses: actions/upload-artifact@v7
         with:
           name: console-coverage
@@ -127,13 +135,13 @@ jobs:
           retention-days: 14
 
   e2e:
-    name: E2E (playwright, node 20)
+    name: E2E (playwright, node 22)
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
       - uses: actions/setup-node@v7
         with:
-          node-version: 20
+          node-version: 22
           cache: npm
           cache-dependency-path: package-lock.json
       - run: npm ci

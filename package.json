@@ -10,7 +10,7 @@
     "frontend-next"
   ],
   "engines": {
-    "node": ">=20"
+    "node": ">=22"
   },
   "license": "MIT",
   "scripts": {
