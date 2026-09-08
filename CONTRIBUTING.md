@@ -17,9 +17,30 @@ navfleet/
 
 单一根 lockfile（`package-lock.json`）。**不要**在子目录单独 `npm install`；一律在仓库根安装。
 
+**提交 lockfile 前请在 Linux 容器里生成。** 在 macOS（或 Windows）上跑 `npm install` 会把
+本机平台的可选依赖写进 lockfile、并漏掉 Linux 的那些（npm#4828），CI 随后在 `npm ci` 阶段就红，
+错误信息还指不到原因。所以：
+
+```bash
+# 依赖有增删时，在容器里重算 lockfile
+docker run --rm -v "$PWD":/w -w /w -u "$(id -u):$(id -g)" \
+    -e HOME=/tmp -e npm_config_cache=/tmp/.npm node:22-alpine \
+    npm install --package-lock-only --ignore-scripts
+
+# 只改了 engines 之类的镜像字段时，直接手改 lockfile 里对应的 workspace 条目，
+# 再用同一个容器验一次即可 —— 让 npm 重算会顺带挪动一批无关的 dev 标记
+docker run --rm -v "$PWD":/w -w /w -u "$(id -u):$(id -g)" \
+    -e HOME=/tmp -e npm_config_cache=/tmp/.npm node:22-alpine \
+    npm ci --ignore-scripts --dry-run
+```
+
+dependabot 的 PR 天然满足这一条（它在 Linux 上生成），所以那些 lockfile 直接合入就好，
+不要在本机重算。
+
 ## 环境要求
 
-- Node.js ≥ 20，npm ≥ 10
+- Node.js ≥ 22，npm ≥ 10 —— **Node 20 于 2026-04-30 EOL**，矩阵与 `engines` 已在
+  2026-09-08 上调到 22（CI 跑 22 与 24，后者是当前 active LTS）
 - 本地全链路还需要一个 MQTT broker（`deploy/` 的 mosquitto 或本机 broker）
 
 ## 安装与常用命令（全部在仓库根执行）

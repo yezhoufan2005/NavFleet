@@ -151,7 +151,7 @@ npm run mock:mqtt -- --count 4 --interval 1000
 
 ```text
 NavFleet/
-├─ backend/              # Node 20 + TypeScript + Express 5
+├─ backend/              # Node 22 + TypeScript + Express 5
 │  ├─ src/
 │  │  ├─ app.ts          # Express 组装：中间件顺序、鉴权闸门、双前缀挂载
 │  │  ├─ index.ts        # 只负责组装运行时并启动
@@ -308,7 +308,7 @@ npm run build         # shared → backend → frontend
 | E2E      | **17**  | Playwright：登录、仪表盘、地图、告警、历史回放、404，含 axe-core 无障碍审计 |
 | 覆盖率   | ratchet | 前后端各有阈值，只许上调，不许为了让红变绿而下调                            |
 
-CI 在 Node 20 / 22 上跑全部门禁，E2E 单独一个 job。提交前 husky + lint-staged 会对暂存
+CI 在 Node 22 / 24 上跑全部门禁，E2E 单独一个 job。提交前 husky + lint-staged 会对暂存
 文件跑 prettier；完整门禁仍在 CI。约定式提交 + release-please 自动出 CHANGELOG 与 GHCR
 镜像。贡献流程见 [CONTRIBUTING.md](CONTRIBUTING.md)。
 
