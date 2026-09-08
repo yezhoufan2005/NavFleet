@@ -47,7 +47,7 @@ const LABELS: Readonly<Record<string, string>> = {
   "navfleet:alert-sound-muted": "告警声音：静音",
   "navfleet:alert-sound-volume": "告警声音：音量",
   "navfleet:alert-sound-quiet": "告警声音：免打扰",
-  "navfleet:alert-sound-armed": "告警声音：已启用过（重载后自动恢复）",
+  "navfleet:alert-sound-armed": "告警声音：本次登录已启用（退出登录后清除）",
   "navfleet:ros-scene-views:v2": "场景地图视图记忆",
 };
 

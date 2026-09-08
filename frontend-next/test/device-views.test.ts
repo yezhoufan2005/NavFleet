@@ -404,7 +404,7 @@ describe("the GPS map without credentials", () => {
     // depends on a gitignored file is a test that reports the developer's machine.
     vi.spyOn(amap, "hasAmapConfig").mockReturnValue(false);
     vi.spyOn(amap, "getAmapConfigError").mockReturnValue(
-      "未配置高德地图 Key，请在 frontend-next/.env 中填写 VITE_AMAP_KEY（见 .env.example）。",
+      "未配置高德地图 Key，请在 frontend-next/.env 中填写 VITE_AMAP_KEY（见 .env.example）",
     );
     const wrapper = mount(GpsMap, {
       props: { devices: [], selectedDeviceId: "" },
@@ -1036,6 +1036,37 @@ describe("sorting the device list", () => {
     expect(wrapper.get("thead th:nth-child(7)").attributes("aria-sort")).toBe(
       "none",
     );
+  });
+
+  it("reserves the arrow's slot on every header, so 电量 does not shift when selected", async () => {
+    /*
+     * The 14H shift, and the one column it could happen on.
+     *
+     * 电量 is right-aligned, so an arrow rendered only when active appeared *between* the
+     * label and the cell edge: clicking 电量 moved its own label left by the arrow's width.
+     * The slot is now always in the DOM and only the glyph inside it is conditional, and
+     * the numbers below carry the same reserve — otherwise the header would sit 14px left
+     * of the column it heads.
+     */
+    const { wrapper } = await mountSortable(MIXED);
+    const slotOf = (label: string) =>
+      headerButton(wrapper, label).find("span.w-2\\.5");
+
+    // Present on the inactive column, and empty — the glyph says which column is in
+    // effect, so putting one on all six would say nothing.
+    expect(slotOf("电量").exists()).toBe(true);
+    expect(slotOf("电量").text()).toBe("");
+
+    await headerButton(wrapper, "电量").trigger("click");
+    await flushPromises();
+    expect(slotOf("电量").text()).toBe("↑");
+
+    // The header cell and its values share one class, so they cannot drift apart.
+    const reserve = "pr-[1.625rem]";
+    expect(wrapper.get("thead th:nth-child(7)").classes()).toContain(reserve);
+    expect(
+      wrapper.get("tbody tr.device-row td:nth-child(7)").classes(),
+    ).toContain(reserve);
   });
 
   it("reads the sort out of the URL a link arrived with", async () => {

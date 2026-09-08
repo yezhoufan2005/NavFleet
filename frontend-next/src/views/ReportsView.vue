@@ -15,7 +15,7 @@ import PagePlaceholder from "@/components/PagePlaceholder.vue";
   <PageHeader title="报表">
     <PagePlaceholder
       plan="17B"
-      intent="聚合报表与导出。这一页在 Phase 13 只有骨架，内容依赖 Phase 17A 的聚合层。"
+      intent="聚合报表与导出；这一页在 Phase 13 只有骨架，内容依赖 Phase 17A 的聚合层"
     />
   </PageHeader>
 </template>

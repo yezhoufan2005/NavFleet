@@ -323,7 +323,7 @@ const {
       Phase 16" is a roadmap note on a page an operator opens every shift.
     -->
     <p class="text-xs text-ink-muted">
-      确认状态只保存在本浏览器，换台机器或换个人都看不到。
+      确认状态只保存在本浏览器，换台机器或换个人都看不到
     </p>
 
     <div class="flex flex-wrap items-end gap-3">
@@ -415,9 +415,7 @@ const {
       role="status"
     >
       {{
-        allAlerts.length
-          ? "没有符合当前筛选条件的消息。"
-          : "当前车队没有活跃告警。"
+        allAlerts.length ? "没有符合当前筛选条件的消息" : "当前车队没有活跃告警"
       }}
     </p>
 

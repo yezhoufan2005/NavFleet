@@ -191,6 +191,11 @@ beforeEach(() => {
   // there. The stubs are for the jsdom files only.
   if (typeof window === "undefined") return;
   localStorage.clear();
+  // Both areas, because a preference that lands in the wrong one is exactly the kind of
+  // leak this clears for: 14H moved the sound-armed flag to `sessionStorage` (it belongs to
+  // the login session, not the machine), and one test's unlock then carried into the next
+  // file's first render — where the control started out already unlocked.
+  sessionStorage.clear();
   install();
   vi.stubGlobal("WebSocket", DriveableWebSocket);
 });

@@ -175,13 +175,13 @@ const activeCount = computed(
       faulted — and the page that can tell you which is which is linked from here.
     -->
     <p v-else-if="!rows.length" class="m-0 max-w-prose text-sm text-ink-muted">
-      这台设备没有可显示的告警。已清除的告警需要后端连接 MongoDB 才会留存 ——
+      这台设备没有可显示的告警；已清除的告警需要后端连接 MongoDB 才会留存 ——
       <RouterLink
         to="/admin/system"
         class="text-brand-ink underline-offset-2 hover:underline"
         >管理 / 系统状态</RouterLink
       >
-      会说明它此刻连上了没有。
+      会说明它此刻连上了没有
     </p>
 
     <ul v-else class="m-0 flex list-none flex-col gap-2 p-0">

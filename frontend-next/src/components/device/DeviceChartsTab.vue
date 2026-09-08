@@ -129,7 +129,7 @@ const hasHistory = computed(
       {{ errorMessage }}
     </p>
     <p v-else-if="!hasHistory" class="text-sm text-ink-muted">
-      这台设备还没有落库的历史遥测。持续运行后此处会出现速度与电量曲线。
+      这台设备还没有落库的历史遥测；持续运行后此处会出现速度与电量曲线
     </p>
 
     <template v-else>

@@ -309,7 +309,7 @@ export const buildRuleAlerts = (device: DeviceSnapshot): DeviceAlert[] => {
       severity: "warning",
       source: "rule-engine",
       title: "低电量预警",
-      detail: `当前电量 ${soc.toFixed(1)}%，建议尽快安排回充。`,
+      detail: `当前电量 ${soc.toFixed(1)}%，建议尽快安排回充`,
       ts: device.stamp,
     });
   }

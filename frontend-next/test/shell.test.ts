@@ -645,11 +645,14 @@ describe("the sound control", () => {
    * that it *reports* being unable to sound rather than being quietly silent — that
    * state is indistinguishable from "nothing is wrong".
    */
-  it("says sound is not enabled until someone enables it", async () => {
+  it("asks for the one click it needs, on every login", async () => {
+    // 待就绪 rather than 未启用: the operator has not turned anything off, and the only
+    // thing they can act on is the click. Arming is per login (14H), so this is the state
+    // every session opens in.
     const wrapper = await signedIn();
     const control = wrapper.get("header button[aria-label^='告警声音']");
 
-    expect(control.text()).toContain("告警未启用");
+    expect(control.text()).toContain("告警待就绪");
     expect(control.attributes("aria-pressed")).toBe("false");
     expect(control.attributes("title")).toContain("浏览器要求先有一次点击");
   });
@@ -684,7 +687,7 @@ describe("the sound control", () => {
     // state, so it changes with every one of these clicks.
     const control = () => wrapper.get("header button[aria-label^='告警声音']");
 
-    expect(control().text()).toContain("告警未启用");
+    expect(control().text()).toContain("告警待就绪");
 
     // First click is the browser's required gesture.
     await control().trigger("click");

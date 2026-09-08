@@ -63,6 +63,38 @@ test.describe("console overview", () => {
     await expect(freshness).not.toContainText("-");
   });
 
+  test("sizes the formation panel to exactly three rows", async ({ page }) => {
+    /*
+     * Measured in a real layout engine, because the defect was arithmetic rather than
+     * appearance. The cap used to be a round `max-h-52` — 208px, which is not three of
+     * anything — and because a formation's description is optional a row is one of two
+     * heights, so one round number held a different number of rows per deployment. Pinning the
+     * row is what makes "three" mean three, and this is the assertion that fails if the type
+     * scale ever moves underneath the constant.
+     *
+     * Nothing is dropped past the third: unlike 待处理项, this panel has no 查看全部 link to
+     * defer to, so the rest are reachable by scrolling.
+     */
+    const list = page.locator(".formation-list");
+    const rows = list.locator("li");
+    await expect(rows).toHaveCount(3);
+
+    const heights = await Promise.all(
+      (await rows.all()).map(async (row) => (await row.boundingBox())?.height),
+    );
+    expect(heights.every((height) => height === 50)).toBe(true);
+
+    // 3 × 50px of row plus 2 × 8px of `gap-2`.
+    await expect(list).toHaveCSS("max-height", "166px");
+
+    // Three fit exactly, so there is nothing to scroll yet — the bar arrives with a fourth.
+    expect(
+      await list.evaluate(
+        (element) => element.scrollHeight - element.clientHeight,
+      ),
+    ).toBe(0);
+  });
+
   test("reaches the message centre from the summary", async ({ page }) => {
     await page.getByRole("link", { name: "查看全部消息" }).click();
     // The path stays `/alerts`: a URL is something people paste to each other, and

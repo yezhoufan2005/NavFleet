@@ -765,7 +765,7 @@ const screenInvariantTransform = computed(() => {
         role="status"
       >
         <strong class="block">底图加载失败</strong>
-        地图底图资源无法加载，其余图层仍可查看。
+        地图底图资源无法加载，其余图层仍可查看
       </p>
     </div>
 
@@ -781,7 +781,7 @@ const screenInvariantTransform = computed(() => {
     >
       <strong class="text-md text-ink">暂无可用地图</strong>
       <span class="text-sm text-ink-muted"
-        >当前场景缺少有效的地图元数据，请先补齐场景配置或地图资源。</span
+        >当前场景缺少有效的地图元数据，请先补齐场景配置或地图资源</span
       >
     </div>
     <div
@@ -790,7 +790,7 @@ const screenInvariantTransform = computed(() => {
     >
       <strong class="text-md text-ink">暂无场景位姿</strong>
       <span class="text-sm text-ink-muted"
-        >当前设备还没有融合定位或激光定位数据，地图仍可用于查看当前场景。</span
+        >当前设备还没有融合定位或激光定位数据，地图仍可用于查看当前场景</span
       >
     </div>
   </div>

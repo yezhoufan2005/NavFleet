@@ -72,7 +72,7 @@ window.__chartPerf = { load };
     <p class="max-w-prose text-sm text-ink-muted">
       这一页只在 dev 或
       <code class="font-mono">VITE_CHART_PERF</code>
-      构建里注册，用于给「继续用 ECharts 还是换 uPlot」提供实测依据。
+      构建里注册，用于给「继续用 ECharts 还是换 uPlot」提供实测依据
     </p>
 
     <div class="flex flex-wrap gap-2">
@@ -109,7 +109,7 @@ window.__chartPerf = { load };
         unit="%"
         @rendered="onRendered"
       />
-      <p v-else class="text-sm text-ink-muted">选一个预设开始。</p>
+      <p v-else class="text-sm text-ink-muted">选一个预设开始</p>
     </div>
   </main>
 </template>

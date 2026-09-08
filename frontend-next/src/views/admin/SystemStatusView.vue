@@ -108,7 +108,7 @@ const backendChecks = computed<Check[]>(() => {
         label: "后端可达性",
         value: "无法访问",
         tone: "critical",
-        detail: `浏览器连不上 /health/ready（${probeError.value}）。这一条不通时，下面三项无从判断 —— 它们是后端对自己的报告。`,
+        detail: `浏览器连不上 /health/ready（${probeError.value}）；这一条不通时，下面三项无从判断 —— 它们是后端对自己的报告`,
       },
     ];
   }
@@ -118,31 +118,31 @@ const backendChecks = computed<Check[]>(() => {
       label: "后端可达性",
       value: "可访问",
       tone: "ok",
-      detail: "浏览器能取到 /health/ready，所以下面三项是后端此刻的自述。",
+      detail: "浏览器能取到 /health/ready，所以下面三项是后端此刻的自述",
     },
     {
       label: "快照就绪",
       value: checks.store ? "就绪" : "初始化中",
       tone: checks.store ? "ok" : "warning",
       detail: checks.store
-        ? "内存快照已建立，REST 与 WebSocket 都能给出完整车队。"
-        : "后端仍在初始化快照，此时 /health/ready 返回 503 —— 这是答案而不是错误。",
+        ? "内存快照已建立，REST 与 WebSocket 都能给出完整车队"
+        : "后端仍在初始化快照，此时 /health/ready 返回 503 —— 这是答案而不是错误",
     },
     {
       label: "MongoDB",
       value: checks.mongo ? "已连接" : "未连接",
       tone: checks.mongo ? "ok" : "warning",
       detail: checks.mongo
-        ? "遥测与告警在落库，历史回放有数据可读。"
-        : "实时监控不受影响，但历史回放与曲线会是空的 —— 那两处的空态说的就是这件事。",
+        ? "遥测与告警在落库，历史回放有数据可读"
+        : "实时监控不受影响，但历史回放与曲线会是空的 —— 那两处的空态说的就是这件事",
     },
     {
       label: "MQTT broker",
       value: checks.mqtt ? "已连接" : "未连接",
       tone: checks.mqtt ? "ok" : "critical",
       detail: checks.mqtt
-        ? "车辆上报的链路是通的。"
-        : "后端收不到车辆上报，所以画面会随离线阈值逐台变灰。这一条不通时，界面看起来像「车都停了」。",
+        ? "车辆上报的链路是通的"
+        : "后端收不到车辆上报，所以画面会随离线阈值逐台变灰；这一条不通时，界面看起来像「车都停了」",
     },
   ];
 });
@@ -164,16 +164,16 @@ const linkChecks = computed<Check[]>(() => {
       tone: realtime.reconnectAttempts > 0 ? "warning" : "ok",
       detail:
         realtime.reconnectAttempts > 0
-          ? "这一栏不为零说明链路曾经断过，即使现在显示实时。"
-          : "本次会话未发生重连。",
+          ? "这一栏不为零说明链路曾经断过，即使现在显示实时"
+          : "本次会话未发生重连",
     },
     {
       label: "首次快照",
       value: realtime.apiReady ? "已取得" : "未取得",
       tone: realtime.apiReady ? "ok" : "critical",
       detail: realtime.apiReady
-        ? "REST 引导成功，界面上的车队来自后端而不是本地兜底。"
-        : "REST 引导没成功，界面显示的是本地兜底内容。",
+        ? "REST 引导成功，界面上的车队来自后端而不是本地兜底"
+        : "REST 引导没成功，界面显示的是本地兜底内容",
     },
   ];
 });
@@ -274,8 +274,8 @@ const AREA_LABELS: Record<StoredEntry["area"], string> = {
         <p class="m-0 max-w-prose text-sm text-ink-muted">
           来自
           <code class="font-mono text-xs">/health/ready</code
-          >，也就是后端对自己的报告。它与下一节合起来才能分清"我连不上后端"和"后端连不上
-          broker"。
+          >，也就是后端对自己的报告；它与下一节合起来才能分清"我连不上后端"和"后端连不上
+          broker"
         </p>
       </div>
 
@@ -318,7 +318,7 @@ const AREA_LABELS: Record<StoredEntry["area"], string> = {
           这个标签页的链路
         </h3>
         <p class="m-0 max-w-prose text-sm text-ink-muted">
-          本页面自己持有的 WebSocket 与引导结果。
+          本页面自己持有的 WebSocket 与引导结果
         </p>
       </div>
 
@@ -394,7 +394,7 @@ const AREA_LABELS: Record<StoredEntry["area"], string> = {
         <!-- Both clocks are shown because a skewed browser otherwise reads as a
              stale fleet — the mistake the top bar's relative time used to make. -->
         <p class="m-0 text-xs text-ink-muted">
-          两者持续拉大说明本机时钟偏了，而不是车队不再上报。
+          两者持续拉大说明本机时钟偏了，而不是车队不再上报
         </p>
       </section>
     </div>
@@ -411,7 +411,7 @@ const AREA_LABELS: Record<StoredEntry["area"], string> = {
           <p class="m-0 max-w-prose text-sm text-ink-muted">
             按 <code class="font-mono text-xs">navfleet:</code>
             前缀扫描得出，不是写死的清单 ——
-            这一页要说的是实情，而写死的清单会过期。
+            这一页要说的是实情，而写死的清单会过期
           </p>
         </div>
         <UiButton
@@ -425,7 +425,7 @@ const AREA_LABELS: Record<StoredEntry["area"], string> = {
       </div>
 
       <p v-if="!stored.length" class="m-0 text-sm text-ink-muted" role="status">
-        这个浏览器没有留存任何 NavFleet 数据。
+        这个浏览器没有留存任何 NavFleet 数据
       </p>
 
       <!-- Focusable for the same reason as the chart's table: it scrolls sideways on a
@@ -494,7 +494,7 @@ const AREA_LABELS: Record<StoredEntry["area"], string> = {
       </div>
 
       <p class="m-0 text-xs text-ink-muted">
-        清除后页面会重新加载：写入这些键的模块只在加载时读一次，不重载的话旧偏好会继续生效。
+        清除后页面会重新加载：写入这些键的模块只在加载时读一次，不重载的话旧偏好会继续生效
       </p>
     </section>
   </PageHeader>

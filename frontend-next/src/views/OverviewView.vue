@@ -342,11 +342,11 @@ const alertRows = computed(() =>
           <p class="text-sm text-ink-muted">正在获取车队快照…</p>
         </div>
         <p v-else-if="!fleet.summary.totalCount" class="text-sm text-ink-muted">
-          后端还没有上报任何设备。
+          后端还没有上报任何设备
         </p>
         <p v-else-if="!attention.length" class="text-sm text-ink-muted">
           全部
-          {{ fleet.summary.totalCount }} 台设备状态正常，没有需要处理的车辆。
+          {{ fleet.summary.totalCount }} 台设备状态正常，没有需要处理的车辆
         </p>
 
         <ul v-else class="m-0 flex list-none flex-col gap-1 p-0">
@@ -416,19 +416,22 @@ const alertRows = computed(() =>
             编队情况
           </h3>
           <!--
-            Three rows, then scroll. The panel used to grow with the fleet's formation
-            count and push the rest of the column around; capping it makes the page's
-            shape a property of the page rather than of how many formations a customer
-            declared. The cap is on the *list*, not the section, so the heading stays put —
-            and the scroller lives where the rows are, which is the only place a scrollbar
-            means anything.
+            Exactly three rows, then scroll — and "three rows" is measured rather than
+            approximated. The first attempt capped the list at a round `max-h-52` (208px),
+            which is not three of anything: a fleet with four formations still grew the
+            panel by most of a row before the scrollbar appeared, and how much it grew
+            depended on whether those formations happened to carry a description. The cap
+            is on the *list*, not the section, so the heading stays put and the scrollbar
+            lives where the rows are — and no formation is dropped, because unlike 待处理项
+            this panel has no 查看全部 link to defer to.
           -->
           <ul
-            class="m-0 flex max-h-52 list-none flex-col gap-2 overflow-y-auto p-0"
+            class="formation-list m-0 -mx-2 flex list-none flex-col gap-2 overflow-y-auto px-2"
           >
             <li
               v-for="formation in orderedFormations"
               :key="formation.formationId"
+              class="shrink-0"
             >
               <!--
                 A link, because the tile above says 可在设备页按编队筛选 and something
@@ -444,7 +447,7 @@ const alertRows = computed(() =>
                   path: '/devices',
                   query: { formation: formation.formationId },
                 }"
-                class="flex flex-col gap-0.5 rounded-sm px-2 py-1 -mx-2 no-underline transition-colors duration-150 ease-standard hover:bg-surface-sunken"
+                class="flex h-full flex-col justify-center gap-0.5 rounded-sm px-2 py-1 no-underline transition-colors duration-150 ease-standard hover:bg-surface-sunken"
               >
                 <span class="flex items-baseline justify-between gap-2">
                   <strong class="truncate text-sm text-ink">{{
@@ -455,10 +458,12 @@ const alertRows = computed(() =>
                     {{ formation.deviceCount }}</span
                   >
                 </span>
-                <!-- Configured per formation and shown nowhere in v1.0.0. -->
+                <!-- Configured per formation and shown nowhere in v1.0.0. Truncated on
+                     purpose: a description that wraps to two lines would make one row
+                     taller than the three the panel is sized for. -->
                 <span
                   v-if="formation.description"
-                  class="text-xs text-ink-muted"
+                  class="truncate text-xs text-ink-muted"
                   >{{ formation.description }}</span
                 >
               </RouterLink>
@@ -537,5 +542,35 @@ const alertRows = computed(() =>
 
 .stat-tile[data-tone="critical"] .tile-mark {
   background: var(--color-critical);
+}
+
+/*
+ * The formation panel shows three rows and scrolls for the rest.
+ *
+ * A row is pinned to one height rather than measured from its content, and that is what
+ * makes the cap mean "three formations": with an optional description, rows come in two
+ * sizes, so a `max-height` in round pixels caps a different number of them per customer.
+ * Pinned, the panel's height is a property of this page — and 编队 4 onwards is reachable
+ * by scrolling rather than dropped, because this panel has no 查看全部 link to defer to
+ * the way 待处理项 does.
+ *
+ * `gap-2` is 0.5rem, and there are two gaps between three rows.
+ */
+.formation-list {
+  /*
+   * 50px, against a natural row of about 48.1 — the name line, `gap-0.5`, the description
+   * line and `py-1`, but the exact figure comes out fractional because the name row
+   * baseline-aligns a 14px title against a 10px mono count. Rounding *up* to an integer is
+   * deliberate: every row lands on the same whole pixel whether or not it carries a
+   * description, so the cap below is exactly three of them and nothing is ever clipped by a
+   * fraction. `console-overview.spec.ts` measures both numbers in a real layout engine,
+   * which is what fails if the type scale ever grows past the pin.
+   */
+  --formation-row: 3.125rem;
+  max-height: calc(3 * var(--formation-row) + 2 * 0.5rem);
+}
+
+.formation-list > li {
+  min-height: var(--formation-row);
 }
 </style>

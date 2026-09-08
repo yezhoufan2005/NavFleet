@@ -3,6 +3,7 @@ import {
   ALERT_SOUND_KEYS,
   NIGHT_WINDOW,
   SOUND_THROTTLE_MS,
+  disarmAlertSound,
   isQuietAt,
   useAlertSound,
   __resetAlertSound,
@@ -43,6 +44,10 @@ const fakeContext = (): AudioContext => {
       resumeCalls += 1;
       if (resumeRejects) return Promise.reject(new Error("blocked"));
       contextState = "running";
+      return Promise.resolve();
+    },
+    close: () => {
+      contextState = "closed";
       return Promise.resolve();
     },
     createOscillator: () => {
@@ -87,6 +92,7 @@ const soundsPlayed = () => oscillators.length / 2;
 
 beforeEach(() => {
   localStorage.clear();
+  sessionStorage.clear();
   oscillators.length = 0;
   gains.length = 0;
   contextState = "suspended";
@@ -167,7 +173,7 @@ describe("coming back after a reload", () => {
   const reloadedWithSoundOn = async ({ browserAllows = true } = {}) => {
     const first = useAlertSound();
     await first.unlock();
-    expect(localStorage.getItem(ALERT_SOUND_KEYS.armed)).toBe("1");
+    expect(sessionStorage.getItem(ALERT_SOUND_KEYS.armed)).toBe("1");
     __resetAlertSound();
     contextState = "suspended";
     oscillators.length = 0;
@@ -288,6 +294,84 @@ describe("coming back after a reload", () => {
 
     expect(resumeCalls).toBe(0);
     expect(sound.silentReason.value).toBe("locked");
+  });
+});
+
+describe("arming belongs to the login session", () => {
+  /**
+   * 14H: 待就绪 after a login, 响应 after one click, and 待就绪 again after a logout.
+   *
+   * The flag used to live in `localStorage`, which made "已启用过" a property of the
+   * machine — a shared dispatch terminal stayed armed for whoever sat down next, and the
+   * readout had no way to ask a new operator for the one click it needs. Session-scoped, it
+   * still survives a reload (the 14A requirement, and the bug that took three passes), and
+   * ends when the session does.
+   */
+  it("keeps the flag out of localStorage, so the machine does not stay armed", async () => {
+    const sound = useAlertSound();
+    await sound.unlock();
+
+    expect(sessionStorage.getItem(ALERT_SOUND_KEYS.armed)).toBe("1");
+    expect(localStorage.getItem(ALERT_SOUND_KEYS.armed)).toBeNull();
+  });
+
+  it("goes back to needing a click when the session ends", async () => {
+    const sound = useAlertSound();
+    await sound.unlock();
+    expect(sound.silentReason.value).toBe("");
+
+    disarmAlertSound();
+
+    expect(sound.armed.value).toBe(false);
+    expect(sound.unlocked.value).toBe(false);
+    expect(sessionStorage.getItem(ALERT_SOUND_KEYS.armed)).toBeNull();
+    expect(sound.silentReason.value).toBe("locked");
+  });
+
+  it("detaches the gesture listener, so typing a password cannot re-arm it", async () => {
+    // The armed-but-not-unlocked state a reload lands in leaves a listener on the window
+    // waiting for any gesture at all. A logout that left it attached would re-arm the
+    // console from the click someone makes to reach the login form.
+    const first = useAlertSound();
+    await first.unlock();
+    __resetAlertSound();
+    contextState = "suspended";
+    resumeRejects = true;
+    const sound = useAlertSound();
+    await Promise.resolve();
+    await Promise.resolve();
+    await Promise.resolve();
+    expect(sound.unlocked.value).toBe(false);
+
+    disarmAlertSound();
+    resumeRejects = false;
+    contextState = "suspended";
+    resumeCalls = 0;
+
+    window.dispatchEvent(new Event("pointerdown"));
+    await Promise.resolve();
+    await Promise.resolve();
+
+    expect(resumeCalls).toBe(0);
+    expect(sound.unlocked.value).toBe(false);
+    expect(sound.silentReason.value).toBe("locked");
+  });
+
+  it("seeds again on the way back in, so an existing pile of criticals is quiet", async () => {
+    // Signing back in is a first sighting like any other: those conditions were on screen
+    // before this operator arrived, and sounding for them would be the "four beeps at
+    // sign-in" failure that decision 3 exists to prevent.
+    const sound = useAlertSound();
+    await sound.unlock();
+    sound.announce(["agv-01-error"]);
+
+    disarmAlertSound();
+    contextState = "suspended";
+    await sound.unlock();
+    oscillators.length = 0; // the new session's own confirmation blip
+
+    expect(sound.announce(["agv-01-error"])).toBe(false);
+    expect(soundsPlayed()).toBe(0);
   });
 });
 

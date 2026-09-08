@@ -153,6 +153,35 @@ test.describe("console devices", () => {
     }
   });
 
+  test("selecting 电量 does not move its own header label", async ({
+    page,
+  }) => {
+    /*
+     * 14H acceptance reported 电量 shifting left the moment it became the sorted column.
+     * It is the only right-aligned header, so an arrow rendered only when active appeared
+     * *between* the label and the cell edge and pushed the word left by its own width. The
+     * slot is reserved on every header now, so the button's box is the same either way —
+     * which is measurable only here, since jsdom lays nothing out.
+     */
+    await page.getByRole("button", { name: "列表", exact: true }).click();
+
+    const header = page
+      .getByRole("columnheader")
+      .filter({ hasText: "电量" })
+      .getByRole("button");
+    const before = (await header.boundingBox())!;
+
+    await header.click();
+    await expect(
+      page.getByRole("columnheader").filter({ hasText: "电量" }),
+    ).toHaveAttribute("aria-sort", "ascending");
+
+    const after = (await header.boundingBox())!;
+    // Right-aligned, so a button that grew would have taken its label leftwards with it.
+    expect(after.x).toBe(before.x);
+    expect(after.width).toBe(before.width);
+  });
+
   test("a row in the list opens that vehicle, and the map remembers it", async ({
     page,
   }) => {

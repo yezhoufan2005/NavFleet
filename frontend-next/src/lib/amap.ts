@@ -50,15 +50,15 @@ export const getAmapConfigError = (): string => {
   // Naming the file that actually needs editing, and `.env.example` beside it —
   // v1.0.0 pointed at `frontend/.env`, which is the wrong project for this console.
   if (!AMAP_KEY) {
-    return "未配置高德地图 Key，请在 frontend-next/.env 中填写 VITE_AMAP_KEY（见 .env.example）。";
+    return "未配置高德地图 Key，请在 frontend-next/.env 中填写 VITE_AMAP_KEY（见 .env.example）";
   }
   if (!AMAP_SECURITY_JS_CODE) {
-    return "未配置高德安全密钥，请在 frontend-next/.env 中填写 VITE_AMAP_SECURITY_JS_CODE（见 .env.example）。";
+    return "未配置高德安全密钥，请在 frontend-next/.env 中填写 VITE_AMAP_SECURITY_JS_CODE（见 .env.example）";
   }
   return "";
 };
 
-const NO_AMAP_OBJECT = "高德地图脚本已加载，但 AMap 对象不可用。";
+const NO_AMAP_OBJECT = "高德地图脚本已加载，但 AMap 对象不可用";
 
 const settleFromWindow = (
   resolve: (value: unknown) => void,
@@ -83,19 +83,19 @@ const awaitExistingScript = (script: Element): Promise<unknown> =>
       return;
     }
     if (state === "error") {
-      reject(new Error("高德地图脚本加载失败。"));
+      reject(new Error("高德地图脚本加载失败"));
       return;
     }
 
     script.addEventListener("load", () => settleFromWindow(resolve, reject));
     script.addEventListener("error", () =>
-      reject(new Error("高德地图脚本加载失败。")),
+      reject(new Error("高德地图脚本加载失败")),
     );
   });
 
 export const loadAmap = (): Promise<unknown> => {
   if (typeof window === "undefined") {
-    return Promise.reject(new Error("当前环境不支持浏览器地图加载。"));
+    return Promise.reject(new Error("当前环境不支持浏览器地图加载"));
   }
 
   if (window.AMap) return Promise.resolve(window.AMap);
@@ -124,7 +124,7 @@ export const loadAmap = (): Promise<unknown> => {
         };
         script.onerror = () => {
           script.dataset.amapState = "error";
-          reject(new Error("高德地图脚本加载失败，请检查网络或 Key 配置。"));
+          reject(new Error("高德地图脚本加载失败，请检查网络或 Key 配置"));
         };
 
         document.head.appendChild(script);

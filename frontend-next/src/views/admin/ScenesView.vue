@@ -54,32 +54,32 @@ const RESOURCE_KINDS: readonly ResourceKind[] = [
   {
     field: "imageUrl",
     label: "栅格底图",
-    consequence: "地图没有底图，只剩边框与车辆标记。",
+    consequence: "地图没有底图，只剩边框与车辆标记",
   },
   {
     field: "metadataUrl",
     label: "底图元数据",
-    consequence: "缺它时用场景自身的 origin / resolution，通常仍可显示。",
+    consequence: "缺它时用场景自身的 origin / resolution，通常仍可显示",
   },
   {
     field: "pointCloudUrl",
     label: "点云",
-    consequence: "点云背景不出现，地图会退回栅格底图或空白。",
+    consequence: "点云背景不出现，地图会退回栅格底图或空白",
   },
   {
     field: "pointCloudMetaUrl",
     label: "点云元数据",
-    consequence: "点云无法定位到世界坐标，背景会被跳过。",
+    consequence: "点云无法定位到世界坐标，背景会被跳过",
   },
   {
     field: "overlayUrl",
     label: "路网叠加（Lanelet2）",
-    consequence: "地图上没有车道线，只有底图与车辆。",
+    consequence: "地图上没有车道线，只有底图与车辆",
   },
   {
     field: "osmUrl",
     label: "OSM 源文件",
-    consequence: "后端据它生成路网叠加；缺它时叠加也不会有。",
+    consequence: "后端据它生成路网叠加；缺它时叠加也不会有",
   },
 ];
 
@@ -205,7 +205,7 @@ const missingCount = computed(
       fleet has no scenes at all.
     -->
     <p class="m-0 text-sm text-ink-muted">
-      只读页：场景是车辆定位的依据，不由监控台改写。
+      只读页：场景是车辆定位的依据，不由监控台改写
     </p>
 
     <p v-if="status === 'loading'" class="text-sm text-ink-muted" role="status">
@@ -221,7 +221,7 @@ const missingCount = computed(
     </p>
 
     <p v-else-if="!scenes.length" class="text-sm text-ink-muted">
-      车队没有配置任何场景。设备仍会以 GPS 显示，但场景地图不可用。
+      车队没有配置任何场景；设备仍会以 GPS 显示，但场景地图不可用
     </p>
 
     <template v-else>
@@ -232,7 +232,7 @@ const missingCount = computed(
         role="status"
       >
         {{ missingCount }}
-        个场景有取不到的资源，下面逐条标出。这类缺失在地图上看起来只是"没有底图"。
+        个场景有取不到的资源，下面逐条标出；这类缺失在地图上看起来只是"没有底图"
       </p>
 
       <section
@@ -326,7 +326,7 @@ const missingCount = computed(
         </div>
 
         <p v-else class="m-0 text-sm text-ink-muted">
-          这个场景没有配置任何地图资源，所以它只提供坐标范围，地图区会显示"暂无可用地图"。
+          这个场景没有配置任何地图资源，所以它只提供坐标范围，地图区会显示"暂无可用地图"
         </p>
       </section>
     </template>

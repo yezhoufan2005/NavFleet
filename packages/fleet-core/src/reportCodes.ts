@@ -71,22 +71,22 @@ export interface CodeImpactMeta {
 }
 
 export const CODE_IMPACTS: Record<CodeImpact, CodeImpactMeta> = {
-  none: { label: "无影响", meaning: "仅供了解，不影响任务执行。" },
+  none: { label: "无影响", meaning: "仅供了解，不影响任务执行" },
   watch: {
     label: "留意",
-    meaning: "无需立即处理，车辆可继续当前任务并接受新任务，可能自行恢复。",
+    meaning: "无需立即处理，车辆可继续当前任务并接受新任务，可能自行恢复",
   },
   urgent: {
     label: "尽快处理",
-    meaning: "需要立即关注，车辆仍可继续当前任务并接受新任务。",
+    meaning: "需要立即关注，车辆仍可继续当前任务并接受新任务",
   },
   blocked: {
     label: "任务受阻",
-    meaning: "需要立即处理，车辆无法继续当前任务，但仍可接受新任务。",
+    meaning: "需要立即处理，车辆无法继续当前任务，但仍可接受新任务",
   },
   intervention: {
     label: "需人工介入",
-    meaning: "必须人工到场，车辆既不能继续当前任务，也无法接受新任务。",
+    meaning: "必须人工到场，车辆既不能继续当前任务，也无法接受新任务",
   },
 };
 
@@ -138,8 +138,8 @@ const ENTRIES: ReportCodeEntry[] = [
     channel: "info",
     subsystem: "navigation",
     label: "定位稳定",
-    description: "融合定位与激光定位一致，位姿置信度处于正常区间。",
-    hint: "无需处理。这条通常用于确认车辆刚完成重定位。",
+    description: "融合定位与激光定位一致，位姿置信度处于正常区间",
+    hint: "无需处理；这条通常用于确认车辆刚完成重定位",
     impact: "none",
   },
   {
@@ -148,8 +148,8 @@ const ENTRIES: ReportCodeEntry[] = [
     subsystem: "navigation",
     label: "已完成重定位",
     description:
-      "车辆在当前场景内重新建立了位姿，通常发生在开机或短暂丢失定位之后。",
-    hint: "无需处理。若频繁出现，检查场景反光板或点云地图是否与现场一致。",
+      "车辆在当前场景内重新建立了位姿，通常发生在开机或短暂丢失定位之后",
+    hint: "无需处理；若频繁出现，检查场景反光板或点云地图是否与现场一致",
     impact: "none",
   },
   {
@@ -157,8 +157,8 @@ const ENTRIES: ReportCodeEntry[] = [
     channel: "info",
     subsystem: "power",
     label: "正在充电",
-    description: "车辆已连接充电桩并进入充电流程。",
-    hint: "无需处理。充电完成后车辆会自行退出并回到待命状态。",
+    description: "车辆已连接充电桩并进入充电流程",
+    hint: "无需处理；充电完成后车辆会自行退出并回到待命状态",
     impact: "none",
   },
   {
@@ -166,8 +166,8 @@ const ENTRIES: ReportCodeEntry[] = [
     channel: "info",
     subsystem: "task",
     label: "任务已完成",
-    description: "当前任务的全部节点与动作均已执行完毕。",
-    hint: "无需处理。若车辆完成任务后长时间未接新单，检查调度侧的派发队列而不是车辆。",
+    description: "当前任务的全部节点与动作均已执行完毕",
+    hint: "无需处理；若车辆完成任务后长时间未接新单，检查调度侧的派发队列而不是车辆",
     impact: "none",
   },
   {
@@ -175,8 +175,8 @@ const ENTRIES: ReportCodeEntry[] = [
     channel: "info",
     subsystem: "network",
     label: "远程接管中",
-    description: "操作员已接入并接管该车，自动驾驶暂停。",
-    hint: "无需处理。接管期间调度指令不会下发到该车。",
+    description: "操作员已接入并接管该车，自动驾驶暂停",
+    hint: "无需处理；接管期间调度指令不会下发到该车",
     impact: "none",
   },
 
@@ -187,8 +187,8 @@ const ENTRIES: ReportCodeEntry[] = [
     subsystem: "navigation",
     label: "定位置信度偏低",
     description:
-      "融合定位与激光定位出现偏差，或环境特征不足（长直走廊、大面积空旷区域、反光板被遮挡）。",
-    hint: "可继续观察；若持续偏低，安排车辆经过特征丰富的区域重定位，并检查反光板是否被货物挡住。",
+      "融合定位与激光定位出现偏差，或环境特征不足（长直走廊、大面积空旷区域、反光板被遮挡）",
+    hint: "可继续观察；若持续偏低，安排车辆经过特征丰富的区域重定位，并检查反光板是否被货物挡住",
     impact: "watch",
   },
   {
@@ -196,8 +196,8 @@ const ENTRIES: ReportCodeEntry[] = [
     channel: "warning",
     subsystem: "motion",
     label: "限速区降速",
-    description: "车辆进入配置的限速区域，已按区域速度上限降速通行。",
-    hint: "无需处理。若该路段不应限速，检查场景配置里的限速区范围。",
+    description: "车辆进入配置的限速区域，已按区域速度上限降速通行",
+    hint: "无需处理；若该路段不应限速，检查场景配置里的限速区范围",
     impact: "watch",
   },
   {
@@ -206,8 +206,8 @@ const ENTRIES: ReportCodeEntry[] = [
     subsystem: "motion",
     label: "轨迹跟踪偏差偏大",
     description:
-      "实际轨迹与规划路径的横向偏差超过告警阈值，常见于地面湿滑、载荷偏心或轮径标定漂移。",
-    hint: "尽快安排检查：轮径标定、载荷摆放、路面状况。偏差继续增大会升级为任务受阻。",
+      "实际轨迹与规划路径的横向偏差超过告警阈值，常见于地面湿滑、载荷偏心或轮径标定漂移",
+    hint: "尽快安排检查：轮径标定、载荷摆放、路面状况；偏差继续增大会升级为任务受阻",
     impact: "urgent",
   },
   {
@@ -215,8 +215,8 @@ const ENTRIES: ReportCodeEntry[] = [
     channel: "warning",
     subsystem: "power",
     label: "电量偏低",
-    description: "剩余电量低于调度阈值，尚可完成当前任务但不宜接受长距离任务。",
-    hint: "尽快安排返充。调度侧应停止向该车派发新的长距离任务。",
+    description: "剩余电量低于调度阈值，尚可完成当前任务但不宜接受长距离任务",
+    hint: "尽快安排返充；调度侧应停止向该车派发新的长距离任务",
     impact: "urgent",
   },
   {
@@ -224,8 +224,8 @@ const ENTRIES: ReportCodeEntry[] = [
     channel: "warning",
     subsystem: "power",
     label: "电池温度偏高",
-    description: "电池组温度接近上限，可能由连续大电流放电或环境温度过高引起。",
-    hint: "尽快让车辆停在通风处降温；持续升高会触发保护性停车。",
+    description: "电池组温度接近上限，可能由连续大电流放电或环境温度过高引起",
+    hint: "尽快让车辆停在通风处降温；持续升高会触发保护性停车",
     impact: "urgent",
   },
   {
@@ -233,8 +233,8 @@ const ENTRIES: ReportCodeEntry[] = [
     channel: "warning",
     subsystem: "perception",
     label: "激光雷达受污",
-    description: "激光雷达回波强度整体下降，通常是镜面积灰、结露或被薄膜遮挡。",
-    hint: "擦拭雷达视窗即可，多数情况下自行恢复。这类问题不影响当前任务。",
+    description: "激光雷达回波强度整体下降，通常是镜面积灰、结露或被薄膜遮挡",
+    hint: "擦拭雷达视窗即可，多数情况下自行恢复；这类问题不影响当前任务",
     impact: "watch",
   },
   {
@@ -242,8 +242,8 @@ const ENTRIES: ReportCodeEntry[] = [
     channel: "warning",
     subsystem: "network",
     label: "通信质量下降",
-    description: "无线链路丢包率或时延升高，车辆仍在线但状态上报可能出现间隔。",
-    hint: "留意该区域的 AP 覆盖；若集中在固定路段，属于覆盖盲区而非车辆问题。",
+    description: "无线链路丢包率或时延升高，车辆仍在线但状态上报可能出现间隔",
+    hint: "留意该区域的 AP 覆盖；若集中在固定路段，属于覆盖盲区而非车辆问题",
     impact: "watch",
   },
   {
@@ -251,8 +251,8 @@ const ENTRIES: ReportCodeEntry[] = [
     channel: "warning",
     subsystem: "payload",
     label: "载荷偏心",
-    description: "载荷重心偏离托盘中心超过阈值，会加剧轨迹偏差与轮系磨损。",
-    hint: "尽快在下一个停靠点重新摆放载荷。",
+    description: "载荷重心偏离托盘中心超过阈值，会加剧轨迹偏差与轮系磨损",
+    hint: "尽快在下一个停靠点重新摆放载荷",
     impact: "urgent",
   },
 
@@ -263,8 +263,8 @@ const ENTRIES: ReportCodeEntry[] = [
     subsystem: "navigation",
     label: "定位丢失",
     description:
-      "车辆无法在当前地图内确定位姿，位置数据不可信。多由环境剧变（货物摆放大幅改动）、地图与现场不一致或雷达故障引起。",
-    hint: "必须人工介入：确认车辆实际位置后手动重定位，并核对场景地图是否为最新。定位丢失期间车辆不会自行恢复行驶。",
+      "车辆无法在当前地图内确定位姿，位置数据不可信；多由环境剧变（货物摆放大幅改动）、地图与现场不一致或雷达故障引起",
+    hint: "必须人工介入：确认车辆实际位置后手动重定位，并核对场景地图是否为最新；定位丢失期间车辆不会自行恢复行驶",
     impact: "intervention",
   },
   {
@@ -273,8 +273,8 @@ const ENTRIES: ReportCodeEntry[] = [
     subsystem: "navigation",
     label: "路径规划超时",
     description:
-      "在规定时间内未能规划出可行路径，通常是目标点被占据、通道被临时堵塞，或可通行区域被地图标记为不可通行。",
-    hint: "检查目标点与沿途通道是否被占；清障后车辆可接受新任务。当前任务需重新派发。",
+      "在规定时间内未能规划出可行路径，通常是目标点被占据、通道被临时堵塞，或可通行区域被地图标记为不可通行",
+    hint: "检查目标点与沿途通道是否被占；清障后车辆可接受新任务，当前任务需重新派发",
     impact: "blocked",
   },
   {
@@ -282,8 +282,8 @@ const ENTRIES: ReportCodeEntry[] = [
     channel: "error",
     subsystem: "motion",
     label: "驱动器报错",
-    description: "驱动器上报故障并切断输出，可能是过流、过温或编码器信号异常。",
-    hint: "必须人工介入：读取驱动器故障码后复位；不要在未查明原因前反复上电。",
+    description: "驱动器上报故障并切断输出，可能是过流、过温或编码器信号异常",
+    hint: "必须人工介入：读取驱动器故障码后复位；不要在未查明原因前反复上电",
     impact: "intervention",
   },
   {
@@ -291,8 +291,8 @@ const ENTRIES: ReportCodeEntry[] = [
     channel: "error",
     subsystem: "power",
     label: "电量耗尽保护",
-    description: "剩余电量低于保护阈值，车辆已停车以保护电池。",
-    hint: "必须人工介入：现场牵引或人工引导至充电桩。",
+    description: "剩余电量低于保护阈值，车辆已停车以保护电池",
+    hint: "必须人工介入：现场牵引或人工引导至充电桩",
     impact: "intervention",
   },
   {
@@ -300,8 +300,8 @@ const ENTRIES: ReportCodeEntry[] = [
     channel: "error",
     subsystem: "perception",
     label: "激光雷达无数据",
-    description: "在超时时间内未收到雷达点云，通常是供电、网口或雷达自身故障。",
-    hint: "必须人工介入：检查雷达供电与网线；无点云时车辆不具备避障能力，不应恢复自动行驶。",
+    description: "在超时时间内未收到雷达点云，通常是供电、网口或雷达自身故障",
+    hint: "必须人工介入：检查雷达供电与网线；无点云时车辆不具备避障能力，不应恢复自动行驶",
     impact: "intervention",
   },
   {
@@ -310,8 +310,8 @@ const ENTRIES: ReportCodeEntry[] = [
     subsystem: "task",
     label: "任务执行失败",
     description:
-      "动作未能完成（例如取货位没有货物、放货位已被占用），任务无法继续。",
-    hint: "确认现场后重新派发任务。车辆本身可用，仍可接受新任务。",
+      "动作未能完成（例如取货位没有货物、放货位已被占用），任务无法继续",
+    hint: "确认现场后重新派发任务；车辆本身可用，仍可接受新任务",
     impact: "blocked",
   },
   {
@@ -320,8 +320,8 @@ const ENTRIES: ReportCodeEntry[] = [
     subsystem: "safety",
     label: "急停触发",
     description:
-      "安全回路被触发：可能是急停按钮被按下、安全触边受压，或安全雷达检测到近距离障碍。",
-    hint: "必须人工介入：排除触发原因后在车上手动复位安全回路。",
+      "安全回路被触发：可能是急停按钮被按下、安全触边受压，或安全雷达检测到近距离障碍",
+    hint: "必须人工介入：排除触发原因后在车上手动复位安全回路",
     impact: "intervention",
   },
   {
@@ -329,8 +329,8 @@ const ENTRIES: ReportCodeEntry[] = [
     channel: "error",
     subsystem: "safety",
     label: "防撞保护停车",
-    description: "安全雷达在保护区内持续检测到障碍物，车辆已减速至停止并保持。",
-    hint: "移走障碍物后车辆可自行恢复；若无可见障碍，检查安全雷达是否受污或标定漂移。",
+    description: "安全雷达在保护区内持续检测到障碍物，车辆已减速至停止并保持",
+    hint: "移走障碍物后车辆可自行恢复；若无可见障碍，检查安全雷达是否受污或标定漂移",
     impact: "blocked",
   },
 ];
@@ -412,8 +412,8 @@ export const describeCode = (
       code: numeric,
       unknown: true,
       label: reported || `未知报码 ${numeric}`,
-      description: "该报码不在当前字典中，含义需查阅车辆固件文档。",
-      hint: "把这条报码补进部署侧码表后，此处会显示它的含义与处理建议。",
+      description: "该报码不在当前字典中，含义需查阅车辆固件文档",
+      hint: "把这条报码补进部署侧码表后，此处会显示它的含义与处理建议",
       impact: "watch",
       subsystem: null,
       reported,
