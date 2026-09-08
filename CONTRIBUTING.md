@@ -17,6 +17,13 @@ navfleet/
 
 单一根 lockfile（`package-lock.json`）。**不要**在子目录单独 `npm install`；一律在仓库根安装。
 
+**`"*"` 只用于「根 `package.json` 已经钉住版本」的依赖。** workspace 里写 `"*"` 的意思是
+「跟着根走」，前提是根真的钉了它 —— 否则 `"*"` 就是字面意思：装最新的那个。
+`frontend-next` 曾有三个依赖踩中这一点（`@vue/tsconfig` / `eslint-plugin-vue` / `jsdom`），
+它们只被即将退役的 `frontend` 钉着，一旦那个 workspace 下线就会在下次刷 lockfile 时
+静默跳大版本 —— 其中 `jsdom` 恰好是我们刻意推迟的那个升级（#109）。加依赖时按这条自查：
+**根没钉的，就在用它的 workspace 里写真实范围。**
+
 **提交 lockfile 前请在 Linux 容器里生成。** 在 macOS（或 Windows）上跑 `npm install` 会把
 本机平台的可选依赖写进 lockfile、并漏掉 Linux 的那些（npm#4828），CI 随后在 `npm ci` 阶段就红，
 错误信息还指不到原因。所以：
