@@ -25,6 +25,7 @@
 import { computed } from "vue";
 import AppBreadcrumbs from "./AppBreadcrumbs.vue";
 import AppSessionMenu from "./AppSessionMenu.vue";
+import UiSoundIcon from "@/components/ui/UiSoundIcon.vue";
 import type { AuthUser } from "@/composables/useAuth";
 import type { SidebarMode } from "@/composables/useSidebar";
 import { useFleetStore } from "@/stores/fleet";
@@ -146,16 +147,28 @@ const soundTitle = computed(() => {
   }
 });
 
+/**
+ * One control, and what the click means depends on `unlocked` rather than on the label.
+ *
+ * That distinction is the whole point since the readout became optimistic: while armed but
+ * not yet unlocked the button *says* 告警响应, and a click there has to spend itself on the
+ * gesture the browser is waiting for — not on muting something that is not yet audible.
+ * Keying off the label would have muted instead, and the person would have got silence
+ * from a control that already claimed to be on.
+ */
 const onSoundClick = (): void => {
-  const reason = sound.silentReason.value;
-  // `pending` goes through `unlock` too: this click is a gesture, so it can do the
-  // resume the browser was waiting for — and the audible note confirms it.
-  if (reason === "locked" || reason === "pending") {
+  if (!sound.unlocked.value) {
     void sound.unlock();
     return;
   }
   sound.setMuted(!sound.muted.value);
 };
+
+/** 轻 / 中 / 重 as one, two, three waves — the same glyph the session menu draws. */
+const VOLUME_ARCS: Record<string, number> = { low: 1, medium: 2, high: 3 };
+const soundArcs = computed(() => VOLUME_ARCS[sound.volume.value] ?? 2);
+/** Crossed for every state in which a critical would not be heard. */
+const soundCrossed = computed(() => Boolean(sound.silentReason.value));
 
 const TONE_DOT: Record<ConnectionTone, string> = {
   ok: "bg-brand",
@@ -220,8 +233,15 @@ const NAV_TOGGLE_LABELS: Record<SidebarMode, string> = {
       />
       <!-- The product name is a heading rather than a span: it is the accessible
            name of the whole console, and the login screen uses the same level so
-           the two agree about what this application is called. -->
-      <h1 class="text-md font-semibold whitespace-nowrap text-ink">
+           the two agree about what this application is called.
+
+           `sr-only` below `sm` rather than `hidden`: at 390px the bar's children summed
+           to 477px and every page scrolled sideways, and this heading was 120 of the
+           excess. It has to stay in the accessibility tree either way — it is the
+           document's `h1` — so it goes visually-hidden, not away. -->
+      <h1
+        class="sr-only text-md font-semibold whitespace-nowrap text-ink sm:not-sr-only"
+      >
         智能车队监控平台
       </h1>
       <span
@@ -291,20 +311,7 @@ const NAV_TOGGLE_LABELS: Record<SidebarMode, string> = {
         :title="soundTitle"
         @click="onSoundClick"
       >
-        <svg
-          class="size-4 shrink-0"
-          viewBox="0 0 24 24"
-          fill="none"
-          stroke="currentColor"
-          stroke-width="1.8"
-          stroke-linecap="round"
-          aria-hidden="true"
-          focusable="false"
-        >
-          <path d="M5 9v6h3l5 4V5L8 9H5Z" />
-          <path v-if="!sound.silentReason.value" d="M17 8a5 5 0 0 1 0 8" />
-          <path v-else d="M17 9l4 6M21 9l-4 6" />
-        </svg>
+        <UiSoundIcon :arcs="soundArcs" :crossed="soundCrossed" />
         <span class="hidden whitespace-nowrap lg:inline">{{ soundLabel }}</span>
       </button>
 

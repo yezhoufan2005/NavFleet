@@ -25,7 +25,7 @@ test.describe("console shell", () => {
       .filter({ hasText: /实时|连接中/ });
     await expect(indicator).toHaveText("实时");
     // The fleet's configured name, not the product name again.
-    await expect(page.getByRole("banner")).toContainText("综合示范车队");
+    await expect(page.getByRole("banner")).toContainText("NavFleet");
   });
 
   test("the skip link jumps straight to the content", async ({ page }) => {

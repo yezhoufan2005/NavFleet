@@ -24,6 +24,7 @@
 import { computed, watch } from "vue";
 import { RouterLink, useRoute, useRouter } from "vue-router";
 import PageHeader from "@/components/PageHeader.vue";
+import UiSelect from "@/components/ui/UiSelect.vue";
 import { useFleetStore } from "@/stores/fleet";
 import { useAlertAck } from "@/composables/useAlertAck";
 import { useDebouncedText } from "@/composables/useDebouncedText";
@@ -154,7 +155,12 @@ const deviceOptions = computed(() => {
       seen.set(alert.deviceId, alert.deviceName || alert.deviceId);
     }
   }
-  return [...seen].map(([value, label]) => ({ value, label }));
+  // By name, not by first appearance. The set is built by walking the alert list, so
+  // without this the menu's order is "whichever vehicle happened to fault first" — an
+  // order that changes under the reader and cannot be scanned for a known name.
+  return [...seen]
+    .map(([value, label]) => ({ value, label }))
+    .sort((left, right) => left.label.localeCompare(right.label, "zh-Hans-CN"));
 });
 
 const filtered = computed(() => {
@@ -349,24 +355,12 @@ const {
 
       <label class="flex flex-col gap-1">
         <span class="font-mono text-2xs text-ink-subtle">设备</span>
-        <select
-          class="rounded-sm border border-border-strong bg-surface-raised px-2 py-1 text-xs text-ink"
-          :value="deviceFilter"
-          @change="
-            setFilter({
-              device: ($event.target as HTMLSelectElement).value || null,
-            })
-          "
-        >
-          <option value="">全部设备</option>
-          <option
-            v-for="option in deviceOptions"
-            :key="option.value"
-            :value="option.value"
-          >
-            {{ option.label }}
-          </option>
-        </select>
+        <UiSelect
+          :model-value="deviceFilter"
+          :options="[{ value: '', label: '全部设备' }, ...deviceOptions]"
+          aria-label="设备筛选"
+          @update:model-value="setFilter({ device: $event || null })"
+        />
       </label>
 
       <label class="flex flex-col gap-1">
@@ -388,9 +382,16 @@ const {
         />
       </label>
 
-      <label class="flex items-center gap-2 text-xs text-ink-muted">
+      <!--
+        `min-h-6` on the label and a 16px box: the audit at 390px found this input at
+        13×13, and WCAG 2.5.8 asks for a 24px target. The *label* is the target — clicking
+        the words toggles it — so the height goes there rather than on the box, which would
+        just make an oversized checkbox.
+      -->
+      <label class="flex min-h-6 items-center gap-2 text-xs text-ink-muted">
         <input
           type="checkbox"
+          class="size-4"
           :checked="showAcknowledged"
           @change="
             setFilter({
@@ -415,7 +416,7 @@ const {
     >
       {{
         allAlerts.length
-          ? "没有符合当前筛选条件的告警。"
+          ? "没有符合当前筛选条件的消息。"
           : "当前车队没有活跃告警。"
       }}
     </p>

@@ -26,8 +26,19 @@ import {
 } from "@navfleet/fleet-core";
 import type { DeviceSnapshot } from "@navfleet/shared";
 
-/** How often the "x ago" line re-renders. Coarse on purpose: it is not a stopwatch. */
-const AGE_TICK_MS = 10_000;
+/**
+ * How often the "x ago" line re-renders.
+ *
+ * It was 10s, "coarse on purpose: it is not a stopwatch" — and that reasoning was wrong
+ * for what this line is *for*. Paired with a 刚刚 band below 15 seconds, a healthy fleet
+ * reporting at 1 Hz produced a corner that read 数据 刚刚 and never changed a character.
+ * Acceptance read it as frozen, which is the correct reading of a freshness indicator
+ * that does not move: the question it answers is "is what I am looking at current", and
+ * a still number answers no.
+ *
+ * One second, and no 刚刚 band. The cost is one text node per second.
+ */
+const AGE_TICK_MS = 1_000;
 /** Rows in the attention list before it defers to 设备. */
 const ATTENTION_LIMIT = 5;
 
@@ -57,16 +68,21 @@ onBeforeUnmount(() => {
  */
 const ageLabel = computed(() => {
   const ingested = fleet.state.lastUpdateAt;
+  // The whole phrase, not a fragment the template wraps: 数据 + 尚无数据 + 更新 is how a
+  // template that assumes every value is a duration reads when one of them is not.
   if (!ingested) return "尚无数据";
 
   const seconds = Math.max(
     0,
     Math.round((now.value - new Date(ingested).getTime()) / 1000),
   );
-  if (seconds < 15) return "刚刚";
-  if (seconds < 60) return `${seconds} 秒前`;
-  if (seconds < 3600) return `${Math.floor(seconds / 60)} 分钟前`;
-  return `${Math.floor(seconds / 3600)} 小时前`;
+  const ago =
+    seconds < 60
+      ? `${seconds} 秒前`
+      : seconds < 3600
+        ? `${Math.floor(seconds / 60)} 分钟前`
+        : `${Math.floor(seconds / 3600)} 小时前`;
+  return `数据 ${ago}更新`;
 });
 
 const serverTimeLabel = computed(() =>
@@ -104,14 +120,14 @@ const tiles = computed<Tile[]>(() => {
     },
     {
       key: "alerts",
-      label: "活跃告警",
+      label: "活跃消息",
       value: String(alertTotal),
-      note: critical > 0 ? `其中 ${critical} 条告警级` : "无告警级",
+      note: critical > 0 ? `${critical} 条告警级` : "无告警级",
       tone: critical > 0 ? "critical" : alertTotal > 0 ? "warning" : "ok",
     },
     {
       key: "gps",
-      label: "GPS 覆盖",
+      label: "GPS覆盖",
       // The backend has always sent this count and no frontend ever read it.
       value: `${gpsCount} / ${totalCount}`,
       note:
@@ -122,7 +138,7 @@ const tiles = computed<Tile[]>(() => {
     },
     {
       key: "formations",
-      label: "编队",
+      label: "设备编队",
       value: String(fleet.formations.length),
       // Not 点击查看成员: this tile is an `<article>`, and it stayed one. The click is
       // on the formation rows below, so the note names where the capability is instead
@@ -196,6 +212,28 @@ const TONE_DOT: Record<string, string> = {
   offline: "bg-offline",
 };
 
+/**
+ * Formations, ordered by how much of each is actually running.
+ *
+ * Most-online first, then largest, then by name. The store's own order is by
+ * `formationId`, which is an identifier and therefore arbitrary as a ranking — «which
+ * formations are working» is the question this panel is on the page to answer, and the
+ * three keys go from the most to the least informative answer to it. The name breaks the
+ * final tie so the order is total: without it two identical formations could swap places
+ * on any ingest, which is the flicker `alertOnsetAt` exists to prevent on the alert list.
+ */
+const orderedFormations = computed(() =>
+  [...fleet.formations].sort(
+    (left, right) =>
+      (right.onlineCount ?? 0) - (left.onlineCount ?? 0) ||
+      (right.deviceCount ?? 0) - (left.deviceCount ?? 0) ||
+      (left.formationName || left.formationId).localeCompare(
+        right.formationName || right.formationId,
+        "zh-Hans-CN",
+      ),
+  ),
+);
+
 /** Severity rows for the alert summary, in the order they should be acted on. */
 const alertRows = computed(() =>
   (
@@ -217,7 +255,7 @@ const alertRows = computed(() =>
       <!-- Freshness belongs beside the numbers it qualifies. The relative age is on
            the browser's clock; the absolute time is the server's own. -->
       <p class="text-right text-2xs text-ink-muted" role="status">
-        <span class="block">数据 {{ ageLabel }}</span>
+        <span class="block">{{ ageLabel }}</span>
         <span class="block font-mono">服务端 {{ serverTimeLabel }}</span>
       </p>
     </template>
@@ -371,15 +409,25 @@ const alertRows = computed(() =>
 
         <section
           v-if="fleet.formations.length"
-          class="flex min-h-0 flex-col gap-2 overflow-y-auto rounded-md border border-border bg-surface-raised p-4"
+          class="flex min-h-0 flex-col gap-2 rounded-md border border-border bg-surface-raised p-4"
           aria-labelledby="formations-heading"
         >
           <h3 id="formations-heading" class="text-lg font-semibold text-ink">
             编队情况
           </h3>
-          <ul class="m-0 flex list-none flex-col gap-2 p-0">
+          <!--
+            Three rows, then scroll. The panel used to grow with the fleet's formation
+            count and push the rest of the column around; capping it makes the page's
+            shape a property of the page rather than of how many formations a customer
+            declared. The cap is on the *list*, not the section, so the heading stays put —
+            and the scroller lives where the rows are, which is the only place a scrollbar
+            means anything.
+          -->
+          <ul
+            class="m-0 flex max-h-52 list-none flex-col gap-2 overflow-y-auto p-0"
+          >
             <li
-              v-for="formation in fleet.formations"
+              v-for="formation in orderedFormations"
               :key="formation.formationId"
             >
               <!--

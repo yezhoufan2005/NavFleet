@@ -320,7 +320,7 @@ export const buildRuleAlerts = (device: DeviceSnapshot): DeviceAlert[] => {
       severity: "critical",
       source: "rule-engine",
       title: "设备离线",
-      detail: "设备超过离线阈值未上报，系统已自动标记为离线。",
+      detail: "设备超过离线阈值未上报，系统已自动标记为离线",
       ts: device.stamp,
     });
   }

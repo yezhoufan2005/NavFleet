@@ -61,7 +61,7 @@ config-runtime/
 
 ```json
 {
-  "fleetName": "综合示范车队",
+  "fleetName": "NavFleet",
   "topicPattern": "/fleet/{deviceId}/vehicle_info",
   "defaultSceneId": "kangcheng-airy",
   "defaultMapProfile": "lanelet",

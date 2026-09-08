@@ -5,6 +5,7 @@ import { enableAutoUnmount, flushPromises, mount } from "@vue/test-utils";
 import { fleetApi } from "@navfleet/fleet-core";
 import type { HistorySample } from "@navfleet/fleet-core";
 import DevicePlaybackTab from "@/components/device/DevicePlaybackTab.vue";
+import UiSelect from "@/components/ui/UiSelect.vue";
 import SceneMap from "@/components/map/SceneMap.vue";
 import TimeSeriesChart from "@/components/charts/TimeSeriesChart.vue";
 import { delayFor } from "@/composables/useHistoryPlayback";
@@ -184,7 +185,8 @@ describe("the window", () => {
     const wrapper = await mountPlayback();
 
     expect(wrapper.text()).toContain("已载入 9 条采样");
-    expect(wrapper.text()).toMatch(/覆盖 .+ – .+。/);
+    // No trailing 。 — a single-sentence UI string does not take one (14F).
+    expect(wrapper.text()).toMatch(/覆盖 \S+ \S+ – \S+ \S+/);
   });
 
   it("submits on Enter, because it is a form", async () => {
@@ -266,7 +268,9 @@ describe("the playback bar", () => {
     const wrapper = await mountPlayback();
 
     expect(control(wrapper, "回放进度").attributes("type")).toBe("range");
-    expect(control(wrapper, "回放速度").element.tagName).toBe("SELECT");
+    // The speed control is a `UiSelect` now (its list opens below the control rather
+    // than the native popup's over it), so the name lives on the trigger's role.
+    expect(control(wrapper, "回放速度").attributes("role")).toBe("combobox");
   });
 
   it("counts from one while the cursor counts from zero", async () => {
@@ -316,9 +320,12 @@ describe("the playback bar", () => {
 
   it("offers the four speeds and no others", async () => {
     const wrapper = await mountPlayback();
-    const options = control(wrapper, "回放速度")
-      .findAll("option")
-      .map((option) => option.text());
+    // Read off the component's `options` prop: the list is portalled and jsdom cannot
+    // open it meaningfully. `ui-select.test.ts` covers the mapping back to a number.
+    const options = wrapper
+      .findComponent(UiSelect)
+      .props("options")
+      .map((option: { label: string }) => option.label);
 
     expect(options).toEqual(["0.5×", "1×", "2×", "4×"]);
   });

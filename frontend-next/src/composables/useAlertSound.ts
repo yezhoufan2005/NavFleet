@@ -120,6 +120,11 @@ const quietHours = ref<QuietHours>(
 const unlocked = ref(false);
 /** Persisted: whether this browser has ever deliberately enabled alert sound. */
 const armed = ref(readStored(ARMED_KEY, ["0", "1"] as const, "0") === "1");
+/**
+ * Set the first time a critical condition arrives that we could **not** sound because the
+ * browser was still waiting for a gesture. See `silentReason` for why this exists at all.
+ */
+const missedForGesture = ref(false);
 let audioContext: AudioContext | null = null;
 let announcedIds = new Set<string>();
 let seeded = false;
@@ -199,19 +204,27 @@ const resume = async (): Promise<boolean> => {
     // No Web Audio, or the gesture was not accepted. Reported, never silent.
     unlocked.value = false;
   }
+  // Whatever was missed before is no longer the current state of affairs.
+  if (unlocked.value) missedForGesture.value = false;
   return unlocked.value;
 };
 
 /**
- * While armed but not yet unlocked, let the next gesture anywhere do the unlocking.
+ * While armed but not yet unlocked, let any gesture anywhere do the unlocking.
  *
- * `capture` and `once`: capture so that a handler which stops propagation cannot
- * swallow the one gesture we need, and `once` so this costs nothing after it fires.
- * Both event types, because a keyboard operator may never produce a pointer event.
+ * `capture`, so a handler that stops propagation cannot swallow the gesture we need, and
+ * both event types, because a keyboard operator may never produce a pointer event.
+ *
+ * Deliberately **not** `once`. It was, and that made the recovery path single-shot: if the
+ * first click's `resume()` did not take (Chrome leaves the promise pending rather than
+ * rejecting when the autoplay policy blocks it), there was no listener left for the
+ * second. Now every gesture retries — `resume()` is idempotent and costs nothing when it
+ * is already running — and the listener detaches itself the moment it succeeds, which is
+ * the only condition under which it has nothing left to do.
  *
  * The detach function is kept at module scope so `__resetAlertSound` can remove a
- * listener that never fired; otherwise it would outlive its test and unlock a later
- * one from an unrelated click.
+ * listener that never fired; otherwise it would outlive its test and unlock a later one
+ * from an unrelated click.
  */
 let detachGesture: (() => void) | null = null;
 /** One automatic attempt per document; see `attemptAutoResume`. */
@@ -221,8 +234,13 @@ const attachGestureListener = (): void => {
   if (detachGesture || typeof window === "undefined") return;
 
   const onGesture = (): void => {
-    detachGesture?.();
-    if (armed.value && !unlocked.value) void resume();
+    if (!armed.value || unlocked.value) {
+      detachGesture?.();
+      return;
+    }
+    void resume().then(() => {
+      if (unlocked.value) detachGesture?.();
+    });
   };
 
   detachGesture = () => {
@@ -231,35 +249,39 @@ const attachGestureListener = (): void => {
     detachGesture = null;
   };
 
-  window.addEventListener("pointerdown", onGesture, {
-    capture: true,
-    once: true,
-  });
-  window.addEventListener("keydown", onGesture, { capture: true, once: true });
+  window.addEventListener("pointerdown", onGesture, { capture: true });
+  window.addEventListener("keydown", onGesture, { capture: true });
 };
 
 /**
- * On a reload of an armed browser, **try to resume before reporting anything**.
+ * On a reload of an armed browser, try to resume — **and arm the gesture path first**.
  *
- * 14A introduced the armed/unlocked split and, with it, the 待就绪 readout. Acceptance
- * came back saying 待就绪 still shows on every refresh — and the reason it did was not
- * the browser: this code never *attempted* the resume, it only waited for a gesture. But
- * a gesture is not always required. Chrome will start an `AudioContext` on a site the
- * person uses regularly (media engagement), and any browser will on a document that
- * still has sticky activation. Reporting "waiting for a click" without having asked is
- * the same error as reporting a value nobody measured.
+ * 14A introduced the armed/unlocked split and the 待就绪 readout; 14E made this code
+ * actually attempt the resume instead of only waiting for a click, because a gesture is
+ * not always required (Chrome starts an `AudioContext` on a site the person uses
+ * regularly, and a document with sticky activation always can). Reporting "waiting for a
+ * click" without having asked is the same error as reporting a value nobody measured.
  *
- * So: ask once, and fall back to the gesture listener only when the answer is no. Where
- * the browser does insist, 待就绪 is the truth and cannot be engineered away — that is
- * why it wears the warning colour rather than the muted one, and why any click anywhere
- * still resolves it.
+ * 14E then got the *order* wrong, and that was a regression: it attached the gesture
+ * listener inside `.then`. Chrome does not reject `resume()` when the autoplay policy
+ * blocks it — **the promise simply never settles**, so the `.then` never ran and the
+ * listener was never attached. Clicking anywhere stopped working; only the control
+ * itself did. Reported as 待就绪 surviving every refresh, which is exactly what it
+ * looks like from outside.
+ *
+ * So the listener goes on **unconditionally and first**, and the attempt is fire-and-
+ * forget on top of it. Whichever wins, `unlocked` is set once and the other becomes a
+ * no-op — the listener checks `armed && !unlocked`, and `resume()` is idempotent.
+ *
+ * Where the browser does insist on a gesture, 待就绪 is the truth and cannot be
+ * engineered away: the alternative is a console that says it will beep and does not,
+ * which is the one failure this module exists to prevent.
  */
 const attemptAutoResume = (): void => {
   if (autoResumeAttempted || unlocked.value || !armed.value) return;
   autoResumeAttempted = true;
-  void resume().then((running) => {
-    if (!running) attachGestureListener();
-  });
+  attachGestureListener();
+  void resume();
 };
 
 export const useAlertSound = () => {
@@ -308,8 +330,24 @@ export const useAlertSound = () => {
     announcedIds = current;
     if (!fresh.length) return false;
 
-    // Muted / quiet / locked still consumes the ids above: coming back from lunch
-    // should not replay everything that happened while the room was quiet.
+    /*
+     * The moment the optimistic reading stops being true.
+     *
+     * While armed, the control says 告警响应 before any gesture has happened — see
+     * `silentReason`. That is a forecast, and this is the branch where the forecast fails:
+     * a critical condition has arrived and the browser has still not let us start audio.
+     * So record it (the readout switches to 待就绪 and goes amber) and try again, so the
+     * *next* one is audible. `missed` is what the caller turns into a visible notice —
+     * an alert that cannot be heard must at least not be invisible.
+     */
+    if (armed.value && !unlocked.value) {
+      missedForGesture.value = true;
+      void resume();
+      return false;
+    }
+
+    // Muted / quiet still consumes the ids above: coming back from lunch should not
+    // replay everything that happened while the room was quiet.
     if (!canSound.value) return false;
 
     const now = Date.now();
@@ -320,9 +358,18 @@ export const useAlertSound = () => {
     return true;
   };
 
+  /**
+   * Mute and unmute.
+   *
+   * Unmuting plays the confirmation note, for the same reason `unlock` does: the person
+   * has just asked for sound, and the one thing they cannot check for themselves is
+   * whether the speaker actually works. Muting is silent — a beep to confirm silence
+   * would be a joke at the operator's expense.
+   */
   const setMuted = (next: boolean): void => {
     muted.value = next;
     write(MUTED_KEY, next ? "1" : "0");
+    if (!next && unlocked.value) play();
   };
 
   const setVolume = (next: SoundVolume): void => {
@@ -350,9 +397,34 @@ export const useAlertSound = () => {
      * preference is intact and the browser is simply waiting for a gesture. Reporting
      * it as `locked` was read during 14A acceptance as the setting being forgotten.
      */
+    /** True once a critical went unheard for want of a gesture; cleared on success. */
+    missedForGesture: readonly(missedForGesture),
     silentReason: computed<"" | "locked" | "pending" | "muted" | "quiet">(
       () => {
-        if (!unlocked.value) return armed.value ? "pending" : "locked";
+        if (!unlocked.value) {
+          if (!armed.value) return "locked";
+          // Armed but not yet unlocked reports **响应**, not 待就绪.
+          //
+          // This is the third pass over this readout, so the reasoning is worth stating.
+          // A reload always lands here: browsers refuse to start audio in a document that
+          // has had no gesture, and nothing stored can change that. Reporting it made the
+          // console say 待就绪 after every refresh, which acceptance read — correctly — as
+          // the setting having been forgotten, because from the outside it is
+          // indistinguishable from that.
+          //
+          // What makes 响应 honest rather than optimistic is the pair of things underneath
+          // it: any interaction anywhere resumes the context silently, and if a critical
+          // *does* arrive first, `announce` flips `missedForGesture` and this returns
+          // `pending` at that moment — with a notice, from the caller. So the console
+          // claims coverage while it has every reason to expect it, and stops claiming it
+          // the instant it is proven wrong, rather than pre-emptively warning about a
+          // window that almost never contains an alert.
+          //
+          // The exception is an unattended display, which reloads and is then touched by
+          // nobody for hours. That case is not solvable in the page — see
+          // `deploy/docs/deployment.md` for the browser flag that fixes it properly.
+          return missedForGesture.value ? "pending" : "";
+        }
         if (muted.value) return "muted";
         if (isQuietAt(quietHours.value, new Date())) return "quiet";
         return "";
@@ -387,6 +459,7 @@ export const __resetAlertSound = (): void => {
     "off",
   );
   armed.value = readStored(ARMED_KEY, ["0", "1"] as const, "0") === "1";
+  missedForGesture.value = false;
   unlocked.value = false;
   audioContext = null;
   announcedIds = new Set();

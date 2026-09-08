@@ -33,6 +33,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "reka-ui";
+import UiSoundIcon from "@/components/ui/UiSoundIcon.vue";
 import type { AuthUser } from "@/composables/useAuth";
 import { useTheme, type ThemePreference } from "@/composables/useTheme";
 import { useAlertSound } from "@/composables/useAlertSound";
@@ -50,10 +51,19 @@ const ROLE_LABELS: Record<AuthUser["role"], string> = {
   viewer: "只读",
 };
 
-const VOLUME_OPTIONS: readonly { value: SoundVolume; label: string }[] = [
-  { value: "low", label: "轻" },
-  { value: "medium", label: "中" },
-  { value: "high", label: "重" },
+/**
+ * `arcs` is the count of sound waves drawn beside the speaker — one, two, three. The
+ * word stays: an icon alone would make three rows differ by a detail a few pixels
+ * across, and the accessible name has to be a word in any case.
+ */
+const VOLUME_OPTIONS: readonly {
+  value: SoundVolume;
+  label: string;
+  arcs: number;
+}[] = [
+  { value: "low", label: "轻", arcs: 1 },
+  { value: "medium", label: "中", arcs: 2 },
+  { value: "high", label: "重", arcs: 3 },
 ];
 
 /**
@@ -117,8 +127,18 @@ const onThemeChange = (value: unknown): void => {
       >
         {{ user.username.slice(0, 2).toUpperCase() }}
       </span>
-      <span class="max-w-32 truncate">{{ user.username }}</span>
-      <span class="text-2xs text-ink-muted">{{ ROLE_LABELS[user.role] }}</span>
+      <!--
+        Name and role are hidden below `sm`, not removed: the menu's own first row already
+        reads 已登录：xxx · 角色, so nothing is lost by letting the avatar stand alone on a
+        phone — and these two were 130 of the 477px the bar summed to at 390px. The
+        trigger keeps an accessible name through the avatar's own text.
+      -->
+      <span class="hidden max-w-32 truncate sm:inline">{{
+        user.username
+      }}</span>
+      <span class="hidden text-2xs text-ink-muted sm:inline">{{
+        ROLE_LABELS[user.role]
+      }}</span>
     </DropdownMenuTrigger>
 
     <DropdownMenuPortal>
@@ -177,7 +197,10 @@ const onThemeChange = (value: unknown): void => {
           @select.prevent
           @update:model-value="sound.setMuted(!sound.muted.value)"
         >
-          静音
+          <span class="flex items-center gap-2">
+            <UiSoundIcon crossed />
+            静音
+          </span>
           <span
             v-if="sound.muted.value"
             class="text-brand-ink"
@@ -196,7 +219,10 @@ const onThemeChange = (value: unknown): void => {
             class="flex cursor-default items-center justify-between rounded-sm px-2 py-1.5 text-sm text-ink-muted select-none data-[highlighted]:bg-surface-sunken data-[highlighted]:text-ink data-[state=checked]:text-ink"
             @select.prevent
           >
-            音量 {{ option.label }}
+            <span class="flex items-center gap-2">
+              <UiSoundIcon :arcs="option.arcs" />
+              音量 {{ option.label }}
+            </span>
             <span
               v-if="sound.volume.value === option.value"
               class="text-brand-ink"
