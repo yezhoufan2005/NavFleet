@@ -129,7 +129,7 @@ describe("the counts", () => {
     );
     const wrapper = await mountPage();
 
-    expect(wrapper.findAll("article")[1]?.text()).toContain("其中 1 条告警级");
+    expect(wrapper.findAll("article")[1]?.text()).toContain("1 条告警级");
     const summary = wrapper.find("dl").text();
     expect(summary).toContain("告警");
     expect(summary).toContain("预警");
@@ -367,7 +367,7 @@ describe("freshness", () => {
     );
     const wrapper = await mountPage();
 
-    expect(wrapper.find("[role='status']").text()).toContain("刚刚");
+    expect(wrapper.find("[role='status']").text()).toMatch(/\d+ 秒前/);
     expect(store.state.serverUpdatedAt).toBe("2026-08-30T02:00:00.000Z");
     expect(wrapper.find("[role='status']").text()).toContain("服务端");
   });
@@ -382,7 +382,9 @@ describe("freshness", () => {
     try {
       store.ingestPayload(snapshot([device()]), "api");
       const wrapper = await mountPage();
-      expect(wrapper.find("[role='status']").text()).toContain("刚刚");
+      // No 刚刚 band any more: a corner that reads the same for the first fifteen
+      // seconds of every visit is what made this line look frozen.
+      expect(wrapper.find("[role='status']").text()).toMatch(/0 秒前/);
 
       vi.advanceTimersByTime(90_000);
       await flushPromises();

@@ -643,8 +643,16 @@ export const useFleetStore = defineStore("fleet", () => {
         return;
       }
       if (envelope.type === "fleet.delta") {
-        const payload = envelope.payload as { device?: unknown } | undefined;
+        const payload = envelope.payload as
+          { device?: unknown; updatedAt?: unknown } | undefined;
         ingestPayload(payload?.device ?? envelope.payload, "mqtt");
+        // The envelope's own server time, which `ingestPayload` cannot see: it is handed
+        // the device, not the frame around it. Without this the freshness line only moved
+        // when a whole snapshot arrived — every second or so of live telemetry left it
+        // frozen at the time the socket opened.
+        if (typeof payload?.updatedAt === "string") {
+          state.serverUpdatedAt = payload.updatedAt;
+        }
       }
     } catch {
       // A frame we cannot normalize must not take the socket down with it: the

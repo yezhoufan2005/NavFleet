@@ -5,6 +5,7 @@ import type { Router } from "vue-router";
 import { enableAutoUnmount, flushPromises, mount } from "@vue/test-utils";
 import { fleetApi } from "@navfleet/fleet-core";
 import AlertsView from "@/views/AlertsView.vue";
+import UiSelect from "@/components/ui/UiSelect.vue";
 import NotificationHost from "@/components/NotificationHost.vue";
 import { useFleetStore } from "@/stores/fleet";
 import {
@@ -202,7 +203,13 @@ describe("the controls the template wires up", () => {
     seedMixed();
     const wrapper = await mountAlerts();
 
-    await wrapper.find("select").setValue("agv-02");
+    // Driven through the component's own contract rather than a DOM `<select>`: the
+    // filter is a `UiSelect` now, and its list lives in a portal that jsdom cannot open
+    // meaningfully. What this case owns is the *wiring* — that the view turns a chosen
+    // value into a query param — and `UiSelect`'s own mapping is covered in ui-select.
+    await wrapper
+      .findComponent(UiSelect)
+      .vm.$emit("update:modelValue", "agv-02");
     await flushPromises();
 
     expect(router.currentRoute.value.query.device).toBe("agv-02");
@@ -314,7 +321,9 @@ describe("the controls the template wires up", () => {
     const wrapper = await mountAlerts("?page=2");
     expect(wrapper.findAll("li")).toHaveLength(5);
 
-    await wrapper.find("select").setValue("agv-01");
+    await wrapper
+      .findComponent(UiSelect)
+      .vm.$emit("update:modelValue", "agv-01");
     await flushPromises();
 
     expect(router.currentRoute.value.query.page).toBeUndefined();

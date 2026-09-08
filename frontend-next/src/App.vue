@@ -30,6 +30,7 @@ import NotificationHost from "@/components/NotificationHost.vue";
 import { useAuth } from "@/composables/useAuth";
 import { useFleetStore } from "@/stores/fleet";
 import { useAlertSound } from "@/composables/useAlertSound";
+import { notify } from "@/composables/useNotifications";
 
 const PRODUCT_NAME = "智能车队监控平台";
 
@@ -81,7 +82,20 @@ const handleLogin = async (credentials: {
 watch(
   () => fleet.groupedAlerts.critical.map((alert) => alert.id).join(","),
   (joined) => {
+    const before = sound.missedForGesture.value;
     sound.announce(joined ? joined.split(",") : []);
+    // The one case where a critical was neither heard nor shown: armed, but the browser
+    // had still not allowed audio in this document. `announce` records it; making it
+    // *visible* is this caller's job, because an alert that cannot be heard must not also
+    // be invisible. Once per transition, not once per alert.
+    if (!before && sound.missedForGesture.value) {
+      notify(
+        "有新的告警级消息，但浏览器尚未允许播放提示音，请点击页面任意处启用",
+        {
+          type: "warning",
+        },
+      );
+    }
   },
 );
 

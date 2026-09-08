@@ -6,6 +6,7 @@ import { createMemoryHistory, createRouter } from "vue-router";
 import { enableAutoUnmount, flushPromises, mount } from "@vue/test-utils";
 import { fleetApi, formatStamp } from "@navfleet/fleet-core";
 import DevicesView from "@/views/DevicesView.vue";
+import UiSelect from "@/components/ui/UiSelect.vue";
 import SceneMap from "@/components/map/SceneMap.vue";
 import GpsMap from "@/components/map/GpsMap.vue";
 import { useFleetStore } from "@/stores/fleet";
@@ -1459,14 +1460,30 @@ describe("the formation filter that was declared and never built", () => {
     return { wrapper, router };
   };
 
-  const select = (wrapper: { find: (s: string) => unknown }) =>
-    (wrapper as ReturnType<typeof mount>).get("select");
+  /**
+   * The filter is a `UiSelect`, whose list lives in a portal that jsdom cannot open
+   * meaningfully — so these cases read its `options` prop and drive its emission. That is
+   * the boundary this view owns; the primitive's own value mapping is covered in
+   * `ui-select.test.ts`, and the popup's placement in `console-shell.spec.ts`.
+   */
+  const filter = (wrapper: ReturnType<typeof mount>) =>
+    wrapper
+      .findAllComponents(UiSelect)
+      .find((component) => component.props("ariaLabel") === "编队筛选")!;
+
+  const choose = async (
+    wrapper: ReturnType<typeof mount>,
+    value: string,
+  ): Promise<void> => {
+    filter(wrapper).vm.$emit("update:modelValue", value);
+    await flushPromises();
+  };
 
   it("offers one option per formation, plus 全部编队", async () => {
     const { wrapper } = await mountWithFormations();
-    const options = select(wrapper)
-      .findAll("option")
-      .map((option) => option.text());
+    const options = filter(wrapper)
+      .props("options")
+      .map((option) => option.label);
 
     expect(options[0]).toBe("全部编队");
     expect(options).toHaveLength(3);
@@ -1476,7 +1493,9 @@ describe("the formation filter that was declared and never built", () => {
     expect(options.slice(1).join(" ")).toContain("码头编队");
     // The member count rides along, because "which formation" and "how big is it" get
     // asked together.
-    expect(options.find((text) => text.includes("北区编队"))).toContain("2");
+    expect(options.find((text: string) => text.includes("北区编队"))).toContain(
+      "2",
+    );
   });
 
   it("stays out of the way when no formation is configured", async () => {
@@ -1491,7 +1510,7 @@ describe("the formation filter that was declared and never built", () => {
     const wrapper = mount(DevicesView, { global: { plugins: [router] } });
     await flushPromises();
 
-    expect(wrapper.find("select").exists()).toBe(false);
+    expect(wrapper.findComponent(UiSelect).exists()).toBe(false);
   });
 
   it("puts the choice in the URL rather than in a local ref", async () => {
@@ -1499,8 +1518,7 @@ describe("the formation filter that was declared and never built", () => {
     // pasted link reproduces the view. The same has to hold here.
     const { wrapper, router } = await mountWithFormations();
 
-    await select(wrapper).setValue("f-north");
-    await flushPromises();
+    await choose(wrapper, "f-north");
 
     expect(router.currentRoute.value.query.formation).toBe("f-north");
     expect(store.state.selectedFormationId).toBe("f-north");
@@ -1508,8 +1526,7 @@ describe("the formation filter that was declared and never built", () => {
 
   it("actually narrows the list, which is the whole point", async () => {
     const { wrapper } = await mountWithFormations();
-    await select(wrapper).setValue("f-dock");
-    await flushPromises();
+    await choose(wrapper, "f-dock");
     await wrapper
       .get("[aria-label='视图']")
       .findAll("button")
@@ -1552,11 +1569,9 @@ describe("the formation filter that was declared and never built", () => {
 
   it("clears back to the whole fleet through the store, not by blanking the id", async () => {
     const { wrapper, router } = await mountWithFormations();
-    await select(wrapper).setValue("f-north");
-    await flushPromises();
+    await choose(wrapper, "f-north");
 
-    await select(wrapper).setValue("");
-    await flushPromises();
+    await choose(wrapper, "");
 
     expect(store.state.selectedFormationId).toBe("");
     expect(router.currentRoute.value.query.formation).toBeUndefined();
@@ -1569,8 +1584,7 @@ describe("the formation filter that was declared and never built", () => {
     // reads as "those vehicles are gone". `DashboardView.vue:303` passed the unfiltered
     // set for the same reason.
     const { wrapper } = await mountWithFormations();
-    await select(wrapper).setValue("f-dock");
-    await flushPromises();
+    await choose(wrapper, "f-dock");
 
     expect(store.filteredDevices).toHaveLength(1);
     expect(wrapper.findComponent(GpsMap).props("devices")).toHaveLength(3);

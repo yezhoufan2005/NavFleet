@@ -22,6 +22,7 @@ import UiSkeleton from "@/components/ui/UiSkeleton.vue";
 import GpsMap from "@/components/map/GpsMap.vue";
 import SceneMap from "@/components/map/SceneMap.vue";
 import DeviceRowCard from "@/components/device/DeviceRowCard.vue";
+import UiSelect from "@/components/ui/UiSelect.vue";
 import { useFleetStore } from "@/stores/fleet";
 import { useDeviceView } from "@/composables/useDeviceView";
 import { useDeviceSort } from "@/composables/useDeviceSort";
@@ -118,6 +119,40 @@ const rows = computed(() =>
 );
 
 /**
+ * Pagination, same shape as 告警's: page size, page in the URL, and a clamp.
+ *
+ * The list did not have it, and «scroll a 200-row table» is not the same capability —
+ * pagination is what makes "the vehicle I want is on page 3" a thing you can say to a
+ * colleague, because the page number travels in the link like the sort does. `PAGE_SIZE`
+ * matches 告警 so the two lists page identically.
+ *
+ * The clamp matters more than it looks: filtering down to one page while sitting on page
+ * four would otherwise render an empty table under a populated header, which reads as
+ * "no devices" rather than "wrong page".
+ */
+const PAGE_SIZE = 20;
+
+const page = computed(() => {
+  const value = Number(route.query.page);
+  return Number.isFinite(value) && value >= 1 ? Math.floor(value) : 1;
+});
+
+const pageCount = computed(() =>
+  Math.max(1, Math.ceil(rows.value.length / PAGE_SIZE)),
+);
+
+const pageRows = computed(() => {
+  const start = (Math.min(page.value, pageCount.value) - 1) * PAGE_SIZE;
+  return rows.value.slice(start, start + PAGE_SIZE);
+});
+
+const setPage = (next: number): void => {
+  void router.replace({
+    query: { ...route.query, page: next > 1 ? String(next) : undefined },
+  });
+};
+
+/**
  * Which rows are expanded. A Set rather than a single id, because comparing two
  * vehicles side by side is a real thing to want and closing one to open another would
  * make it impossible.
@@ -196,12 +231,36 @@ const clearSelectedTrail = (): void => {
  * what keeps that from becoming a two-way sync: this handler only navigates, and the
  * watcher below is the only thing that touches the store.
  */
-const onFormationChange = (event: Event): void => {
-  const value = (event.target as HTMLSelectElement).value;
+const onFormationChange = (value: string): void => {
   void router.replace({
     query: { ...route.query, formation: value || undefined },
   });
 };
+
+/**
+ * 全部编队 pinned first, the rest by name.
+ *
+ * The "all" row is the empty value — a real option rather than a sentinel id — and it is
+ * pinned because it is not a peer of the others: it is the way back out of the filter, and
+ * a way out that moves depending on how the list happens to collate is one people stop
+ * trusting. Everything below it collates by *name*, not by `formationId`, which is what
+ * the store sorts by: an id is an identifier, and ordering a menu someone reads by it
+ * produces an order only the database understands.
+ */
+const formationOptions = computed(() => [
+  { value: "", label: "全部编队" },
+  ...fleet.sortedFormations
+    .map((formation) => ({
+      value: formation.formationId,
+      name: formation.formationName || formation.formationId,
+      count: formation.deviceCount,
+    }))
+    .sort((left, right) => left.name.localeCompare(right.name, "zh-Hans-CN"))
+    .map((formation) => ({
+      value: formation.value,
+      label: `${formation.name}（${formation.count}）`,
+    })),
+]);
 
 /**
  * Also keyed on the formation count, not just the query: formations arrive with the
@@ -222,7 +281,14 @@ watch(
 </script>
 
 <template>
-  <PageHeader title="设备" fill-height>
+  <!--
+    `fillHeight` only for the map. 14E turned it on for the whole page, which was right for
+    the map (it had been getting 279px of an 852px `main`) and wrong for the list:
+    acceptance reported the list as fixed-length, and it was — a six-row table stretched
+    into a 775px panel with its own scroller and a lot of ruled emptiness under the last
+    row. A list should be as tall as its rows; a map should be as tall as the page.
+  -->
+  <PageHeader title="设备" :fill-height="layout === 'map'">
     <template #actions>
       <!--
         The formation filter, which the port declared and never built: the store has
@@ -232,9 +298,10 @@ watch(
         of the pattern the parity pass turned up — the logic layer came over whole and
         the control that drives it did not.
 
-        A `<select>` rather than the old chip strip: chips were sized for a dashboard
-        panel, and this header already carries two button groups. It matches the filter
-        controls on 告警 (`AlertsView.vue:244-264`), so the two pages filter the same way.
+        A select rather than the old chip strip: chips were sized for a dashboard panel,
+        and this header already carries two button groups. It matches the filter controls
+        on 消息, so the two pages filter the same way — and both now use `UiSelect`, whose
+        list opens below the control instead of the native popup's over it.
 
         Hidden when there are no formations — an empty filter is worse than no filter,
         and the 总览 card already says 未配置编队.
@@ -244,22 +311,12 @@ watch(
         class="flex items-center gap-2"
       >
         <span class="font-mono text-2xs text-ink-subtle">编队</span>
-        <select
-          class="rounded-sm border border-border-strong bg-surface-raised px-2 py-1 text-xs text-ink"
-          :value="state.selectedFormationId"
-          @change="onFormationChange"
-        >
-          <option value="">全部编队</option>
-          <option
-            v-for="formation in fleet.sortedFormations"
-            :key="formation.formationId"
-            :value="formation.formationId"
-          >
-            {{ formation.formationName || formation.formationId }}（{{
-              formation.deviceCount
-            }}）
-          </option>
-        </select>
+        <UiSelect
+          :model-value="state.selectedFormationId"
+          :options="formationOptions"
+          aria-label="编队筛选"
+          @update:model-value="onFormationChange"
+        />
       </label>
 
       <!--
@@ -318,7 +375,7 @@ watch(
 
     <p v-if="layoutIsAutomatic" class="text-xs text-ink-muted">
       自动按车队规模选择视图（{{ fleet.sortedDevices.length }}
-      台），选择「列表」或「地图」后将沿用您的选择。
+      台），选择「列表」或「地图」后将沿用您的选择
     </p>
 
     <!--
@@ -453,7 +510,7 @@ watch(
 
     <div
       v-else
-      class="min-h-0 flex-1 overflow-y-auto rounded-md border border-border bg-surface-raised"
+      class="overflow-hidden rounded-md border border-border bg-surface-raised"
     >
       <table class="w-full border-collapse text-sm">
         <caption class="sr-only">
@@ -461,7 +518,11 @@ watch(
           {{
             rows.length
           }}
-          台
+          台，当前第
+          {{
+            Math.min(page, pageCount)
+          }}
+          页
         </caption>
         <thead>
           <tr class="border-b border-border text-left">
@@ -485,13 +546,16 @@ watch(
               :class="column.numeric ? 'text-right' : 'text-left'"
               :aria-sort="ariaSortFor(column.key)"
             >
+              <!--
+                The arrow is always on the label's right, including on 电量. It used to be
+                flipped there (`flex-row-reverse`) so it would sit against the numbers it
+                describes — which put one of six arrows on the other side of its word and
+                made the row of headers read as two different controls.
+              -->
               <button
                 type="button"
                 class="inline-flex items-center gap-1 font-mono text-2xs text-ink-subtle transition-colors duration-150 ease-standard hover:text-ink"
-                :class="[
-                  column.numeric ? 'flex-row-reverse' : '',
-                  sortKey === column.key ? 'text-ink' : '',
-                ]"
+                :class="sortKey === column.key ? 'text-ink' : ''"
                 @click="toggleSort(column.key)"
               >
                 {{ column.label }}
@@ -522,7 +586,7 @@ watch(
             The map's own side panel keeps its highlight, where it does mean something:
             the vehicle the map is currently showing, and it moves when you click.
           -->
-          <template v-for="row in rows" :key="row.device.deviceId">
+          <template v-for="row in pageRows" :key="row.device.deviceId">
             <!--
               Clicking anywhere on the row toggles its card. The chevron is the real
               control — a `<tr>` handler is mouse-only — and the device link stops
@@ -609,6 +673,34 @@ watch(
         </tbody>
       </table>
     </div>
+
+    <!-- Hidden at one page: a pager that can only say 第 1 / 1 页 is furniture. -->
+    <nav
+      v-if="layout === 'list' && pageCount > 1"
+      class="flex items-center justify-between gap-3"
+      aria-label="分页"
+    >
+      <button
+        type="button"
+        class="rounded-sm border border-border-strong bg-surface-raised px-2.5 py-1 text-xs text-ink-muted transition-colors duration-150 ease-standard hover:text-ink disabled:opacity-50"
+        :disabled="page <= 1"
+        @click="setPage(page - 1)"
+      >
+        上一页
+      </button>
+      <span class="font-mono text-2xs text-ink-muted">
+        第 {{ Math.min(page, pageCount) }} / {{ pageCount }} 页 · 共
+        {{ rows.length }} 台
+      </span>
+      <button
+        type="button"
+        class="rounded-sm border border-border-strong bg-surface-raised px-2.5 py-1 text-xs text-ink-muted transition-colors duration-150 ease-standard hover:text-ink disabled:opacity-50"
+        :disabled="page >= pageCount"
+        @click="setPage(page + 1)"
+      >
+        下一页
+      </button>
+    </nav>
   </PageHeader>
 </template>
 

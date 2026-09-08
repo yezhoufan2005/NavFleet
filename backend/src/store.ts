@@ -555,6 +555,17 @@ export class DashboardStore extends EventEmitter {
       payload: {
         source,
         device: current,
+        /**
+         * Server time for this delta.
+         *
+         * The snapshot has always carried `updatedAt` and a delta never did, so the
+         * console's freshness line — which reads it — only moved when a *snapshot*
+         * arrived: on connect, on a config reload, and now on an eviction. Between those
+         * it sat frozen at whatever time the socket opened, on a page that was in fact
+         * being updated once a second per vehicle. A freshness indicator that does not
+         * move is worse than none: it answers "is this live" with a confident no.
+         */
+        updatedAt: new Date().toISOString(),
       },
     });
 
@@ -662,7 +673,7 @@ export class DashboardStore extends EventEmitter {
         {
           id: `${device.deviceId}-offline`,
           title: "设备离线",
-          detail: "设备超过离线阈值未上报，系统已自动标记为离线。",
+          detail: "设备超过离线阈值未上报，系统已自动标记为离线",
           severity: "critical",
           source: "rule-engine",
           ts: new Date().toISOString(),

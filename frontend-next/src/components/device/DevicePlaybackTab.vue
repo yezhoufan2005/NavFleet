@@ -50,7 +50,14 @@ import {
   taskStatusMap,
 } from "@navfleet/fleet-core";
 import type { DeviceSnapshot } from "@navfleet/shared";
+import UiSelect from "@/components/ui/UiSelect.vue";
 import type { TimeSeries } from "@/components/charts/timeSeriesOption";
+
+/** `0.5×` … `4×`, built once so the template stays a single element per option. */
+const speedOptions = PLAYBACK_SPEEDS.map((value) => ({
+  value: String(value),
+  label: `${value}×`,
+}));
 
 const { deviceId } = defineProps<{ deviceId: string }>();
 
@@ -374,7 +381,7 @@ const onScrub = (event: Event): void => {
         v-else-if="status === 'ready' && samples.length"
         class="m-0 text-xs text-ink-muted"
       >
-        已载入 {{ samples.length }} 条采样，覆盖 {{ coveredLabel }}。
+        已载入 {{ samples.length }} 条采样，覆盖 {{ coveredLabel }}
       </p>
     </form>
 
@@ -509,20 +516,15 @@ const onScrub = (event: Event): void => {
           @input="onScrub"
         />
 
-        <select
-          v-model.number="speed"
-          class="h-8 rounded-sm border border-border-strong bg-surface px-2 text-sm text-ink"
+        <!-- `Number($event)`: `UiSelect` speaks strings, and this is the one control
+             whose value is numeric. See the note in that component. -->
+        <UiSelect
+          :model-value="String(speed)"
+          :options="speedOptions"
           aria-label="回放速度"
           :disabled="!samples.length"
-        >
-          <option
-            v-for="option in PLAYBACK_SPEEDS"
-            :key="option"
-            :value="option"
-          >
-            {{ option }}×
-          </option>
-        </select>
+          @update:model-value="speed = Number($event)"
+        />
       </div>
     </section>
 

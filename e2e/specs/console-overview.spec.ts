@@ -29,7 +29,7 @@ test.describe("console overview", () => {
   test("reports GPS coverage, which the backend has always sent and nobody read", async ({
     page,
   }) => {
-    const gps = page.getByRole("article").filter({ hasText: "GPS 覆盖" });
+    const gps = page.getByRole("article").filter({ hasText: "GPS覆盖" });
     await expect(gps).toContainText(`/ ${SEEDED_DEVICES.length}`);
   });
 

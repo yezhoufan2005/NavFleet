@@ -245,7 +245,7 @@ const buildRuleAlerts = (snapshot: DeviceSnapshot): DeviceAlert[] => {
     alerts.push({
       id: `${snapshot.deviceId}-offline`,
       title: "设备离线",
-      detail: "设备超过离线阈值未上报，系统已自动标记为离线。",
+      detail: "设备超过离线阈值未上报，系统已自动标记为离线",
       severity: "critical",
       source: "rule-engine",
       ts: snapshot.stamp,

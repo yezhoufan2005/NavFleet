@@ -103,12 +103,44 @@ afterEach(() => {
 });
 
 describe("large fleet rendering", () => {
-  it("renders every device in the list at 500 devices", async () => {
+  it("renders one page at a time, however large the fleet gets", async () => {
+    // Until 14F this asserted 500 rows, because the list had no pagination and mounting
+    // all of them was the thing being measured. Pagination changes the premise rather
+    // than the conclusion: the reason not to virtualize was that this platform watches
+    // six vehicles, and now the row count is bounded by the page size regardless of
+    // fleet size — so the case for virtualization is weaker still, not stronger.
     ingest(500);
 
     const wrapper = await mountList();
 
-    expect(wrapper.findAll("tbody tr.device-row")).toHaveLength(500);
+    expect(wrapper.findAll("tbody tr.device-row")).toHaveLength(20);
+    // And the pager says what the page is a page *of* — 500 rows behind 25 pages.
+    const pager = wrapper.get("nav[aria-label='分页']");
+    expect(pager.text()).toContain("第 1 / 25 页");
+    expect(pager.text()).toContain("共 500 台");
+  });
+
+  it("walks to the next page and lands on the next twenty vehicles", async () => {
+    ingest(45);
+    const wrapper = await mountList();
+    const idsOf = () =>
+      wrapper
+        .findAll("tbody tr.device-row td:nth-child(4)")
+        .map((cell) => cell.text());
+
+    expect(idsOf()[0]).toBe("agv-0001");
+    await wrapper
+      .get("nav[aria-label='分页']")
+      .findAll("button")
+      .find((button) => button.text() === "下一页")!
+      .trigger("click");
+    await flushPromises();
+
+    expect(idsOf()).toHaveLength(20);
+    expect(idsOf()[0]).toBe("agv-0021");
+    // The page travels in the URL, for the same reason the sort does: "it is on page 3"
+    // has to be something you can send to a colleague.
+    expect(wrapper.vm.$route.query.page).toBe("2");
   });
 
   it("keeps the per-device node count bounded", async () => {

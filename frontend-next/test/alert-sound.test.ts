@@ -204,14 +204,52 @@ describe("coming back after a reload", () => {
     expect(soundsPlayed()).toBe(0);
   });
 
-  it("says 待就绪 only when the browser really did refuse", async () => {
-    // Then it is the truth, and it cannot be engineered away — which is why the top bar
-    // gives this state the warning colour rather than the muted one.
+  it("still says 告警响应 when the browser refuses, until an alert proves otherwise", async () => {
+    /*
+     * The third pass over this readout, and the reasoning is the point.
+     *
+     * A reload always lands here — no document has had a gesture yet — so reporting it
+     * made the console say 待就绪 after *every* refresh, which acceptance read as the
+     * setting having been forgotten. From the outside those are indistinguishable.
+     *
+     * So the state is reported as a forecast: any interaction resumes silently, and the
+     * forecast is withdrawn the moment it is falsified — see the case below.
+     */
     const sound = await reloadedWithSoundOn({ browserAllows: false });
 
     expect(sound.armed.value).toBe(true);
     expect(sound.unlocked.value).toBe(false);
+    expect(sound.silentReason.value).toBe("");
+    expect(sound.missedForGesture.value).toBe(false);
+  });
+
+  it("withdraws the claim the moment a critical actually goes unheard", async () => {
+    // This is what makes the optimistic reading honest rather than a hopeful one: the
+    // console stops saying 响应 at the first alert it could not sound, and `App.vue`
+    // turns the same transition into a visible notice.
+    const sound = await reloadedWithSoundOn({ browserAllows: false });
+    // Seed, so the next call is a genuinely new condition rather than the first sighting.
+    sound.announce([]);
+
+    expect(sound.announce(["agv-01-error"])).toBe(false);
+    expect(sound.missedForGesture.value).toBe(true);
     expect(sound.silentReason.value).toBe("pending");
+    expect(soundsPlayed()).toBe(0);
+  });
+
+  it("takes the claim back up once a gesture finally lands", async () => {
+    const sound = await reloadedWithSoundOn({ browserAllows: false });
+    sound.announce([]);
+    sound.announce(["agv-01-error"]);
+    expect(sound.silentReason.value).toBe("pending");
+
+    window.dispatchEvent(new Event("pointerdown"));
+    await Promise.resolve();
+    await Promise.resolve();
+
+    expect(sound.unlocked.value).toBe(true);
+    expect(sound.missedForGesture.value).toBe(false);
+    expect(sound.silentReason.value).toBe("");
   });
 
   it("takes the next click anywhere as the gesture, and stays quiet about it", async () => {
