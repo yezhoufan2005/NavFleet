@@ -8,6 +8,20 @@ export default tseslint.config(
   { ignores: ["dist/**", "node_modules/**", "coverage/**"] },
   js.configs.recommended,
   ...tseslint.configs.recommended,
+  {
+    files: ["**/*.ts"],
+    extends: [...tseslint.configs.recommendedTypeChecked],
+    languageOptions: {
+      parserOptions: {
+        // Neither config file is in the app tsconfig (`include` is src + test), and neither
+        // should be — they are build inputs, not app sources.
+        projectService: {
+          allowDefaultProject: ["vite.config.ts", "vitest.config.ts"],
+        },
+        tsconfigRootDir: import.meta.dirname,
+      },
+    },
+  },
   ...pluginVue.configs["flat/recommended"],
   {
     languageOptions: {
@@ -38,6 +52,34 @@ export default tseslint.config(
     // component is a bug, and this workspace should keep saying so.
     files: ["scripts/**/*.mjs"],
     languageOptions: { globals: { ...globals.node } },
+  },
+  {
+    /**
+     * The four `no-unsafe-*` rules are off in `test/**`, and the reason is a limit of the
+     * tooling rather than a concession about test quality.
+     *
+     * Type-aware lint runs on typescript-eslint's project service, which does **not** load
+     * Vue's TS language plugin. So an `import Foo from "@/components/Foo.vue"` — which
+     * `vue-tsc` resolves fine, and which `npm run typecheck` checks — is an unresolvable
+     * module here. Every `wrapper.findComponent(Foo).props().points` in these files then
+     * reports as「unsafe member access on a type that cannot be resolved」: 45 of the
+     * console's 60 findings, none of them about the code.
+     *
+     * The rules stay **on** in `src/**`, where they caught a real one (`stores/fleet.ts`).
+     * And the value of the batch is not in these four: `no-unnecessary-type-assertion`,
+     * `await-thenable`, `no-base-to-string` and `require-await` all still run here, and
+     * between them found 12 dead assertions and two awaits on non-promises.
+     *
+     * **A gate that needs 45 exemptions on its first run is not a gate**, and the honest
+     * response is to say which of its questions this toolchain cannot answer.
+     */
+    files: ["test/**/*.ts"],
+    rules: {
+      "@typescript-eslint/no-unsafe-member-access": "off",
+      "@typescript-eslint/no-unsafe-assignment": "off",
+      "@typescript-eslint/no-unsafe-call": "off",
+      "@typescript-eslint/no-unsafe-return": "off",
+    },
   },
   {
     // Test files build throwaway components inline — a fixture that throws during

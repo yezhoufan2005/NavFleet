@@ -186,7 +186,7 @@ describe("where a tile's tone lives", () => {
     expect(tiles[3]?.find(".tile-mark").exists()).toBe(false);
   });
 
-  it("drops the wash in dark rather than reusing one mix for both themes", async () => {
+  it("drops the wash in dark rather than reusing one mix for both themes", () => {
     /*
      * Asserted against the stylesheet text, because jsdom applies no scoped CSS and the
      * point is the *asymmetry* rather than a computed value. The two themes' wash tokens
@@ -452,7 +452,7 @@ describe("formations", () => {
     );
   });
 
-  it("sizes the panel to three rows rather than to a round number of pixels", async () => {
+  it("sizes the panel to three rows rather than to a round number of pixels", () => {
     /*
      * Asserted against the stylesheet text for the same reason the tile wash is: jsdom
      * applies no scoped CSS and lays nothing out. The defect this replaces was arithmetic

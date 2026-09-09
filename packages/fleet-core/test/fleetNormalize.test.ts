@@ -51,11 +51,13 @@ describe("normalizeDevice", () => {
       deviceId: "agv-3",
       error_code: { code: 42, info: "急停触发" },
     });
+    // The callback used to need `(alert: { severity: string })`: `alerts` was inferred
+    // `any[]`, so without it the parameter was an implicit any. It is `DeviceAlert[]` now.
     const critical = device.alerts.find(
-      (alert: { severity: string }) => alert.severity === "critical",
+      (alert) => alert.severity === "critical",
     );
     expect(critical).toBeTruthy();
-    expect(critical.code).toBe(42);
+    expect(critical?.code).toBe(42);
   });
 
   it("derives a low-battery warning when soc drops below the threshold", () => {
@@ -63,20 +65,16 @@ describe("normalizeDevice", () => {
       deviceId: "agv-4",
       vehicle_info: { soc: 12 },
     });
-    const lowSoc = device.alerts.find((alert: { id: string }) =>
-      alert.id.endsWith("low-soc"),
-    );
+    const lowSoc = device.alerts.find((alert) => alert.id.endsWith("low-soc"));
     expect(lowSoc).toBeTruthy();
-    expect(lowSoc.severity).toBe("warning");
+    expect(lowSoc?.severity).toBe("warning");
   });
 
   it("derives an offline alert when the device is marked offline", () => {
     const device = normalizeDevice({ deviceId: "agv-5", online: false });
-    const offline = device.alerts.find((alert: { id: string }) =>
-      alert.id.endsWith("offline"),
-    );
+    const offline = device.alerts.find((alert) => alert.id.endsWith("offline"));
     expect(offline).toBeTruthy();
-    expect(offline.severity).toBe("critical");
+    expect(offline?.severity).toBe("critical");
   });
 });
 

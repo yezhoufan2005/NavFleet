@@ -1,4 +1,4 @@
-import { formatDateTime } from "./fleetNormalize";
+import { asText, formatDateTime } from "./fleetNormalize";
 
 /**
  * Display formatters shared by the views.
@@ -41,12 +41,15 @@ export function formatNumber(value: unknown, digits = 2, unit = ""): string {
   return `${numeric.toFixed(digits)}${unit}`;
 }
 
-/** Raw value as text; "--" for null / undefined / empty string. */
+/** Raw value as text; "--" for null / undefined / empty string, and for anything non-scalar. */
 export function formatValue(value: unknown): string {
   if (value === null || value === undefined || value === "") {
     return "--";
   }
-  return String(value);
+  // `String(value)` here rendered an object as `"[object Object]"` **on the page**. `"--"`
+  // is this function's own word for "nothing to show", and a field that should hold a
+  // scalar but holds an object has nothing to show.
+  return asText(value, "--");
 }
 
 /** Localised timestamp; "--" when absent. */

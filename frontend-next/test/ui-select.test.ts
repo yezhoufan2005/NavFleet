@@ -31,7 +31,7 @@ describe("UiSelect", () => {
     expect(wrapper.find("[aria-label='设备筛选']").exists()).toBe(true);
   });
 
-  it("emits the option's own value rather than the internal key", async () => {
+  it("emits the option's own value rather than the internal key", () => {
     const wrapper = mount(UiSelect, {
       props: { modelValue: "", options: [...OPTIONS] },
       attachTo: document.body,

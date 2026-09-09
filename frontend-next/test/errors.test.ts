@@ -146,6 +146,7 @@ describe("ErrorBoundary", () => {
     const StringThrow = defineComponent({
       setup() {
         return () => {
+          // eslint-disable-next-line @typescript-eslint/only-throw-error -- 这正是被测的情况
           throw "只是一个字符串";
         };
       },

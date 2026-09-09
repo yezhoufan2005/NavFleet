@@ -457,7 +457,7 @@ describe("历史曲线", () => {
     const points = wrapper
       .findAllComponents(TimeSeriesChart)[0]
       ?.props("series")[0]?.points as readonly (readonly [number, number])[];
-    expect(points[0]![0]).toBeLessThan(points[1]![0]!);
+    expect(points[0]![0]).toBeLessThan(points[1]![0]);
   });
 
   it("drops a sample whose value is not a number rather than plotting NaN", async () => {
@@ -465,7 +465,7 @@ describe("历史曲线", () => {
       deviceId: "agv-01",
       items: [
         sample("2026-08-30T02:00:00.000Z", 1.1, 80),
-        { ts: "2026-08-30T02:00:10.000Z", measurements: {} } as HistorySample,
+        { ts: "2026-08-30T02:00:10.000Z", measurements: {} },
       ],
     });
     seed();

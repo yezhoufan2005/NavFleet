@@ -97,7 +97,7 @@ const seedFleet = (): void => {
   );
   // Written straight into state: merging a scene definition is the bootstrap's job and
   // is not part of the store's public surface.
-  store.state.sceneDefinitions.yard = SCENE as never;
+  store.state.sceneDefinitions.yard = SCENE;
 };
 
 const mountPlayback = async (deviceId = "agv-01") => {

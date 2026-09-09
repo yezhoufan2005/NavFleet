@@ -7,6 +7,7 @@ import {
   useNotifications,
   __resetNotifications,
 } from "@/composables/useNotifications";
+import { requestUrl } from "./helpers/requestUrl";
 
 /**
  * The three optional scene assets, and two things that are easy to get wrong:
@@ -69,7 +70,7 @@ beforeEach(() => {
   backdropMock.mockResolvedValue(backdropFor("stub"));
   fetchMock = vi.fn((input: RequestInfo | URL) =>
     Promise.resolve(
-      new Response(JSON.stringify({ url: String(input) }), { status: 200 }),
+      new Response(JSON.stringify({ url: requestUrl(input) }), { status: 200 }),
     ),
   );
   vi.stubGlobal("fetch", fetchMock);

@@ -6,6 +6,7 @@ import {
   __clearBackdropCache,
 } from "@/lib/pointCloudBackdrop";
 import type { PointCloudPalette } from "@/lib/pointCloudBackdrop";
+import { requestUrl } from "./helpers/requestUrl";
 
 /**
  * The cache, which is where this module's own two fixes are. The rasterization it
@@ -107,7 +108,7 @@ describe("loading", () => {
     // single canned response would have the JSON parse eat the PCD header.
     fetchMock.mockImplementation((input: RequestInfo | URL) =>
       Promise.resolve(
-        String(input).endsWith(".json")
+        requestUrl(input).endsWith(".json")
           ? new Response(JSON.stringify({ grid_size: 1 }), { status: 200 })
           : new Response(pcdBuffer(), { status: 200 }),
       ),

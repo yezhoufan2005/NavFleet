@@ -470,7 +470,7 @@ describe("the GPS map against a fake SDK", () => {
         constructor(options: { position: [number, number]; zIndex: number }) {
           this.position = options.position;
           this.zIndex = options.zIndex;
-          markers.push(this as unknown as FakeMarker);
+          markers.push(this);
         }
         setPosition = (position: [number, number]): void => {
           this.position = position;
@@ -902,7 +902,7 @@ describe("what the device list has to answer at a glance", () => {
     const wrapper = await mountList([{ sceneId: "yard" }]);
     expect(wrapper.findAll("tbody td").map((c) => c.text())).toContain("yard");
 
-    store.state.sceneDefinitions.yard = SCENE as never;
+    store.state.sceneDefinitions.yard = SCENE;
     await flushPromises();
 
     expect(wrapper.findAll("tbody td").map((c) => c.text())).toContain(
@@ -1150,7 +1150,7 @@ describe("sorting the device list", () => {
   });
 
   it("collates the text columns, so 设备 and 场景 find a vehicle by name", async () => {
-    store.state.sceneDefinitions.yard = SCENE as never;
+    store.state.sceneDefinitions.yard = SCENE;
     const { wrapper } = await mountSortable([
       { deviceName: "丙车", sceneId: "yard" },
       { deviceName: "甲车", sceneId: "" },
@@ -1489,7 +1489,7 @@ describe("the formation filter that was declared and never built", () => {
             sceneId: index === 3 ? "dock" : "yard",
           }),
         ),
-      } as never,
+      },
       "api",
     );
     const wrapper = mount(DevicesView, {
@@ -1598,7 +1598,7 @@ describe("the formation filter that was declared and never built", () => {
         topicPattern: "/fleet/{deviceId}/vehicle_info",
         formations: FORMATIONS,
         devices: [device({ deviceId: "agv-03", sceneId: "dock" })],
-      } as never,
+      },
       "api",
     );
     await flushPromises();

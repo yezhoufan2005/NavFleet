@@ -207,9 +207,9 @@ describe("the controls the template wires up", () => {
     // filter is a `UiSelect` now, and its list lives in a portal that jsdom cannot open
     // meaningfully. What this case owns is the *wiring* — that the view turns a chosen
     // value into a query param — and `UiSelect`'s own mapping is covered in ui-select.
-    await wrapper
-      .findComponent(UiSelect)
-      .vm.$emit("update:modelValue", "agv-02");
+    // Not awaited: `$emit` returns the component instance, not a promise. The
+    // `flushPromises()` below is what actually lets the view react.
+    wrapper.findComponent(UiSelect).vm.$emit("update:modelValue", "agv-02");
     await flushPromises();
 
     expect(router.currentRoute.value.query.device).toBe("agv-02");
@@ -358,9 +358,7 @@ describe("the controls the template wires up", () => {
     const wrapper = await mountAlerts("?page=2");
     expect(wrapper.findAll("li")).toHaveLength(5);
 
-    await wrapper
-      .findComponent(UiSelect)
-      .vm.$emit("update:modelValue", "agv-01");
+    wrapper.findComponent(UiSelect).vm.$emit("update:modelValue", "agv-01");
     await flushPromises();
 
     expect(router.currentRoute.value.query.page).toBeUndefined();
@@ -581,7 +579,7 @@ describe("what a row says without being read", () => {
             ],
           },
         ],
-      } as never,
+      },
       "api",
     );
     const wrapper = await mountAlerts();

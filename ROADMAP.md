@@ -79,14 +79,14 @@ CI 全绿 → `--no-ff` 合并 → 回写本文件并记录自检结果。
 
 七件事收口于 1.1.0 发版。之后的顺序**由负责人 2026-09-09 定，不要跳**：
 
-| 顺序 | 内容                                    | 状态                          |
-| ---- | --------------------------------------- | ----------------------------- |
-| 1    | **P0-f 工程门禁批次**（剩 4 批，见下）  | 1–2 已做（14X/14Y），3–6 待办 |
-| 2    | **Phase 15** 用户体系与真 RBAC（1.2.0） | 15A schema 迁移机制必须先做   |
-| 3    | **Phase 16** 告警体系深化（1.3.0）      | 待办                          |
-| 4    | **Phase 17** 报表与数据价值（1.4.0）    | 待办                          |
-| 5    | **Phase 18** 交付成熟度收尾（2.0.0）    | 待办                          |
-| 6    | **最后三项**（见下一节）                | 负责人明确后置到所有任务之后  |
+| 顺序 | 内容                                    | 状态                              |
+| ---- | --------------------------------------- | --------------------------------- |
+| 1    | **P0-f 工程门禁批次**（剩 3 批，见下）  | 1–3 已做（14X/14Y/14Z），4–6 待办 |
+| 2    | **Phase 15** 用户体系与真 RBAC（1.2.0） | 15A schema 迁移机制必须先做       |
+| 3    | **Phase 16** 告警体系深化（1.3.0）      | 待办                              |
+| 4    | **Phase 17** 报表与数据价值（1.4.0）    | 待办                              |
+| 5    | **Phase 18** 交付成熟度收尾（2.0.0）    | 待办                              |
+| 6    | **最后三项**（见下一节）                | 负责人明确后置到所有任务之后      |
 
 ### P0-f 拆成六批，因为量出来差得很远
 
@@ -472,6 +472,7 @@ Phase 14 里，是为了它既不阻塞发版、也不被当成「以后自然�
 > | 14W  | **1.1.0 发布** —— Phase 14 收口          |
 > | 14X  | P0-f 第 1 批：四道零风险门禁             |
 > | 14Y  | P0-f 第 2 批：五个严格开关               |
+> | 14Z  | P0-f 第 3 批：type-aware lint            |
 
 - [x] **等价性验收**：parity 清单 + E2E 75 例 + axe 零违规 + **负责人人工验收**（第 5 条决策明确
       要"检查前端是否符合预期且调整后"才进下一步）。负责人 2026-09-02 确认验收通过；其间的调整迭代见
@@ -1107,7 +1108,8 @@ coverage-v8 5，后者还要重定四个覆盖率门槛）。这批的性质是*
 - [x] `amtool check-config` 用 compose 实际钉的 `v0.28.1` 复验通过
 - [x] README 的门禁清单补 `check:map-contrast` 与 `check:deploy` 两条 —— 此前它们存在但没写进文档
 - [x] **P0-f 八项刻意排在 1.1.0 之后** —— 已执行：1.1.0 发布后逐项实测并拆成六批，
-      第 1 批（四项零风险）见 14X、第 2 批（五个严格开关）见 14Y，3–6 批的规模见开头「工作序列」
+      第 1 批（四项零风险）见 14X、第 2 批（五个严格开关）见 14Y、第 3 批（type-aware lint）见 14Z，
+      4–6 批的规模见开头「工作序列」
 
 #### 14W — 1.1.0 发布（2026-09-09）
 
@@ -1175,7 +1177,7 @@ coverage-v8 5，后者还要重定四个覆盖率门槛）。这批的性质是*
       不在其内：加这五个开关正好会逼着改冻结代码，而冻结口径是「门禁只去掉会逼着我们改它的那一个」
 - [x] **e2e 的 19 处是同一件事，用一处类型收掉。** 六个 spec 都在**按位置**从 `SEEDED_DEVICES`
       解构（`const [noticeDevice, warningDevice, criticalDevice] = …`、`const [firstDevice, ,
-  faultedDevice] = …`），所以**长度与顺序本来就是那个模块的契约**，和字段值一样。此前标成
+faultedDevice] = …`），所以**长度与顺序本来就是那个模块的契约**，和字段值一样。此前标成
       `SeededDevice[]` 是在说另一回事，而这个开关正好把不一致翻出来。改成
       `readonly [SeededDevice, SeededDevice, SeededDevice]` 后 19 处全消，一行 spec 没动。
       代价写进注释了：往种子里加第四台车会在那个字面量上编译不过 —— 那正是要的效果
@@ -1197,6 +1199,62 @@ coverage-v8 5，后者还要重定四个覆盖率门槛）。这批的性质是*
       `paths[…]?.get?.security` 之后，这条路径**整个从文档里消失**也读作 `undefined`、断言照绿，
       而它本来要证明的是「这个端点继承全局 cookieAuth」。改为先取局部变量并断言路径存在。
       同一个 `it` 里另外两句是安全的 —— 路径消失读作 `undefined`，而它们期望 `[]`
+
+#### 14Z — P0-f 第 3 批：type-aware lint，164 处报错里挑出 8 个真缺陷（2026-09-10）
+
+它和第 2 批的性质不同：严格开关问「这个下标一定在吗」，type-aware lint 问「在这个类型上做这件事
+有意义吗」，所以**真缺陷的比例高得多** —— 第 2 批 131 处里几乎全是机械修复，这批 164 处里有 8 处
+是真的。
+
+规模：backend **61** · fleet-core **40** · console **60** · e2e **3** · shared **0**。冻结的
+`frontend/` 不在其内，理由同第 2 批。
+
+**八个真缺陷**（细节见对应 PR）：
+
+- [x] `websocket.ts`：`raw.toString("utf8")` 在 `RawData` 的 `Buffer[]` 分支上走
+      `Array.prototype.toString` —— 忽略编码参数、按逗号连接，于是一个本来合法的 JSON 帧解析失败。
+      **当前配置不可达**（需要 `binaryType: "fragments"`，默认 `"nodebuffer"`），这正是它一直没被
+      发现的原因：缺陷离现实只差一个选项
+- [x] `routes/scenes.ts`：两个路由 `await` 一个同步方法，而这把测试替身也带歪了 ——
+      `testApp.ts` 把 `getScene` 标成返回 Promise，注释自己承认了不一致。**替身建模了一份被替身
+      对象并不具有的契约**，而那个多余的 `await` 是让两边看起来兼容的东西。同步化之后暴露出一处
+      真的假绿：`mockResolvedValue(null)` 让桩返回一个真值，路由对不存在的场景回了 200
+- [x] `store.ts`：`reject(error)` 把 catch 里的 `unknown` 原样抛出，调用方 `.catch(e => e.message)`
+      会拿到第二次、更难定位的失败
+- [x] 四处 `async` 而体内无 await，且调用点都在 `await` 它：`emitChangeEvents`（三个调用点，读起来
+      像「广播要等一等」，而广播就是 `this.emit`）、`reloadConfigInternal`、
+      `configRegistry.startWatching`（`index.ts` 在等「监听建立好」，而那个 await 什么都没等）、`drain`
+- [x] `normalize.ts` 25 处 + `fleetNormalize.ts` 16 处 `String(unknown)`：一辆车发
+      `"deviceName": {}`，名字就变成字面量 `"[object Object]"`，一路进到 console 的设备列表。
+      两侧各加一个 `asText`（与 `String` 有两处刻意差别：`null`/`undefined` 与非有限数渲染成兜底值，
+      于是没有 topic 的 ingest 输入不再被拿去和字面量 `"undefined"` 匹配）
+- [x] `formatters.formatValue`：`String(value)` 会把对象渲染成 `"[object Object]"` **显示在页面上**。
+      `"--"` 是这个函数自己表示「没有可显示的值」的写法
+- [x] `fleetNormalize.ts` 的 `alerts: Array.isArray(raw.alerts) ? raw.alerts : []`：**那条活分支是
+      死的**（下面三个分支覆盖了全部输入，一定会覆写它）。代价不是死代码 —— `Array.isArray` 在
+      `unknown` 上收窄成 `any[]`，于是这一个表达式让 `alerts` 对**所有**读者都是 `any[]`，测试因此
+      要手写 `(alert: { severity: string })` 这样的形参注解，还是拿回一个 `any`
+- [x] 四个 console 测试里的 `String(input)`：`RequestInfo` 的 `Request` 分支没有有意义的
+      `toString`，会记成 `"[object Request]"`，于是 stub 里所有 `includes` / `endsWith` 静默失配
+
+**两处规则本身不适用，按目录关掉而不是改掉：**
+
+- [x] backend `test/**` 关 `require-await`：18 处里 14 处是**测试替身**，桩要实现
+      `open(): Promise<void>`，`async open() { … }` 就是满足它的写法，不是遗漏。另外 4 处是真的、
+      在 `src/` 改掉了
+- [x] console `test/**` 关四条 `no-unsafe-*`：**这是工具链的限制，不是对测试质量的让步。**
+      type-aware lint 跑在 typescript-eslint 的 project service 上，而它**不加载 Vue 的 TS 语言
+      插件**，所以 `import Foo from "@/components/Foo.vue"`（`vue-tsc` 解析得了，`npm run typecheck`
+      也在查）在这里是一个无法解析的模块，于是每一个
+      `wrapper.findComponent(Foo).props().points` 都报「unsafe member access on a type that cannot
+      be resolved」—— console 60 处里的 45 处，没有一处是关于代码的。规则在 `src/**` 保持开启，
+      并且在那里抓到了一处真的（`stores/fleet.ts` 的 `JSON.parse` → `any`）
+
+两条都遵循第 1 批立下的判据：**一个首次运行就需要几十处豁免的规则，在那个目录里就不是门禁。**
+
+`vitest.config.ts` / `vite.config.ts` 不在各自的 TS program 里（backend 那份 `tsc` 会因为它 import
+一个 ESM 包而报 TS1479），所以走 `projectService: { allowDefaultProject: [...] }`，而不是塞进
+tsconfig 的 include；fleet-core 那份可以进 include，就进了。
 
 ## Phase 15 — 用户体系与真 RBAC（发版 1.2.0）
 
