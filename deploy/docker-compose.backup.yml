@@ -10,7 +10,7 @@
 # archives are actually restorable.
 services:
   mongo-backup:
-    image: mongo:8.0
+    image: mongo:7.0
     depends_on:
       mongo:
         condition: service_healthy
