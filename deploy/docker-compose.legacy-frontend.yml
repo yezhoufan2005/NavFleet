@@ -1,0 +1,30 @@
+# Rollback overlay: serve the v1.0.0 frontend instead of the v3 console.
+#
+#   docker compose --env-file deploy/.env -f deploy/docker-compose.yml \
+#     -f deploy/docker-compose.legacy-frontend.yml up -d --build web
+#
+# This is the escape hatch for the Phase 14 switch, and the reason the old
+# `frontend/` workspace is still in the repo. It exists so that a problem found
+# in production is a two-minute rollback rather than a revert-and-rebuild — not
+# as a supported long-term configuration.
+#
+# Only `dockerfile` is overridden; `context`, the AMap build args, the network,
+# healthcheck and resource limits are all inherited from the base file, and the
+# service keeps the name `web`, so nothing in nginx or `depends_on` changes.
+# That is the whole point of naming the service for its role: an overlay cannot
+# *remove* a `depends_on` entry, so a rollback that introduced a second service
+# would have started both images.
+#
+# Two things to expect after a rollback, both pre-existing properties of the old
+# console rather than faults:
+#   - URLs go back to hash routing (`/#/`), so a deep link copied out of the v3
+#     console will not resolve.
+#   - The four localStorage keys the two consoles share (`navfleet:theme`,
+#     `:map-mode`, `:acked-alerts`, `:ros-scene-views`) carry over, which is
+#     deliberate — same origin, same operator, same choices. The v3-only keys
+#     (sidebar, device layout, the four alert-sound ones) are simply not read,
+#     and are still there if you switch forward again.
+services:
+  web:
+    build:
+      dockerfile: frontend/Dockerfile

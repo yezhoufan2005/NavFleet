@@ -165,7 +165,8 @@ NavFleet/
 │  │  ├─ laneletOsm.ts   # Lanelet2 .osm 解析
 │  │  └─ metrics.ts      # prom-client 注册表
 │  └─ test/              # Vitest + supertest
-├─ frontend/             # Vue 3 + Vite + Pinia + vue-router
+├─ frontend/             # v1.0.0 控制台（Vue 3 + Vite + Pinia + vue-router）——
+│  │                     #   1.1.0 起不再是被部署的那一套，保留作回滚
 │  ├─ src/
 │  │  ├─ views/          # Dashboard / History / Alerts / Settings / NotFound
 │  │  ├─ components/     # GpsMap / RosSceneMap / LoginForm 等
@@ -173,7 +174,11 @@ NavFleet/
 │  │  ├─ stores/fleet.ts # 状态与实时链路（单例）
 │  │  └─ lib/            # 纯归一化函数，无 Vue 依赖
 │  └─ test/              # Vitest + jsdom + @vue/test-utils
+├─ frontend-next/        # v3 控制台（navfleet-console）—— **默认部署的这一套**
+│  ├─ src/               # 8 条路由、web history、Tailwind v4 双主题、Reka UI
+│  └─ test/              # Vitest + jsdom + @vue/test-utils
 ├─ packages/shared/      # @navfleet/shared —— 领域类型单一来源
+├─ packages/fleet-core/  # @navfleet/fleet-core —— 两个前端共用的归一化与派生逻辑
 ├─ e2e/                  # Playwright + axe-core
 ├─ config-runtime/       # 运行期配置与地图资源（热加载，不进镜像）
 ├─ deploy/               # compose 编排、nginx、mosquitto、prometheus、grafana、文档、脚本
@@ -258,12 +263,13 @@ broker 侧强制账号与双向 ACL：发布账号只能写车辆主题，后端
 compose 会在应用 profile **之前**插值整个文件 —— profiled 服务上一个必填的 `${VAR:?}`
 会让所有没启用该 profile 的部署 `up` 失败。
 
-| 叠加                            | 作用                                                             |
-| ------------------------------- | ---------------------------------------------------------------- |
-| `docker-compose.yml`            | 基础：nginx / frontend / backend / mongo / mosquitto，三网段隔离 |
-| `docker-compose.tls.yml`        | TLS 终止、HSTS、HTTP 308 跳转、`COOKIE_SECURE` 强制 true         |
-| `docker-compose.monitoring.yml` | Prometheus + Grafana，预置数据源、14 个面板、9 条告警规则        |
-| `docker-compose.backup.yml`     | 定时 mongodump，含恢复演练脚本                                   |
+| 叠加                                 | 作用                                                          |
+| ------------------------------------ | ------------------------------------------------------------- |
+| `docker-compose.yml`                 | 基础：nginx / web / backend / mongo / mosquitto，三网段隔离   |
+| `docker-compose.tls.yml`             | TLS 终止、HSTS、HTTP 308 跳转、`COOKIE_SECURE` 强制 true      |
+| `docker-compose.monitoring.yml`      | Prometheus + Grafana，预置数据源、14 个面板、9 条告警规则     |
+| `docker-compose.backup.yml`          | 定时 mongodump，含恢复演练脚本                                |
+| `docker-compose.legacy-frontend.yml` | 回滚：`web` 换回 v1.0.0 控制台（默认是 `frontend-next` 那套） |
 
 ```bash
 # 基础 + TLS + 监控
@@ -273,7 +279,7 @@ docker compose --env-file deploy/.env \
   -f deploy/docker-compose.monitoring.yml up -d
 ```
 
-网络分三段，让 web 层被拿下不等于数据库和 broker 也被拿下：`edge`（nginx ↔ frontend ↔
+网络分三段，让 web 层被拿下不等于数据库和 broker 也被拿下：`edge`（nginx ↔ web ↔
 backend，唯一有主机端口的段）、`data`（backend ↔ mongo，`internal: true`）、`bus`
 （backend ↔ mosquitto）。后端是唯一同时在三段上的服务；`edge` 上的东西根本寻址不到 mongo。
 

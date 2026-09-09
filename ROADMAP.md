@@ -1963,20 +1963,8 @@ keyframe **不需要各自写退化分支**，`UiSkeleton` 自己那条仍然保
       `index.html` 引用到的那一组（懒加载的路由 chunk 天然不在其中），超 160 KiB gzip / 420 KiB raw 即失败。
       **门禁双向验过**：把那张 246 KiB 的图放回去，构建确实红；换回来确实绿。
 - [x] **大列表**：按 Phase 10 口径新写 `frontend-next/test/large-fleet.test.ts`，并把旧前端那份在同一台机器上
-      重跑一次（原记录来自另一天、可能另一台机器，跨机比较没有意义）：
-
-      | 设备数 | 旧挂载 | v3 挂载 | 旧全量更新 | v3 全量更新 |
-                                                                                                      | ------ | ------ | ------- | ---------- | ----------- |
-                                                                                                      | 6      | 2.8ms  | 2.8ms   | 2.0ms      | 2.0ms       |
-                                                                                                      | 50     | 8.9ms  | 9.6ms   | 5.7ms      | 5.5ms       |
-                                                                                                      | 200    | 39.7ms | 39.6ms  | 17.7ms     | 18.6ms      |
-                                                                                                      | 500    | 84.8ms | 103.4ms | 43.1ms     | 54.6ms      |
-
-                                                                                                      **结论不变：仍然不做虚拟化。** 本平台监控 6 台车，500 台那一档也就多 20ms，而虚拟化要付 Ctrl-F 失效、
-                                                                                                      焦点管理、多一层滚动容器。断言仍只钉**每行节点数**（v1.0.0 的按钮列表是 8，v3 的表格是 10，上限 16）——
-                                                                                                      那才是让长列表变成渲染问题的原因；且只钉上限不钉 10，因为「列表可排序」会合法地再加一两个节点，
-                                                                                                      一个会被那种改动打红的测试已经不在测它该测的东西了。
-
+      重跑一次（原记录来自另一天、可能另一台机器，跨机比较没有意义）。数字见下面单独一节 ——
+      表格从这个列表项里搬了出来，因为 prettier 对「列表项内的表格」不收敛，每跑一次就把它往右推一截
 - [x] **首屏**（真浏览器、真 dist、同一后端、每次全新 context，7 次取中位数）：
       FCP **40 → 32ms**、DCL 19 → 21ms、**首个车辆名可见 72 → 73ms**、请求数 10 → 15。
       **v3 反而先画出来**：它先渲染外壳，而 v1.0.0 的 `index.html` 在 JS 跑完前是空的。
@@ -1988,12 +1976,66 @@ keyframe **不需要各自写退化分支**，`UiSkeleton` 自己那条仍然保
       **32ms**。两侧**不是同一个动作**（v1.0.0 是同页换面板，v3 是换路由页），所以只说得上「路由页比换面板
       贵约 15ms」；唯一的三位数是 ECharts 首次加载，且一个会话只发生一次。
 - [x] **地图帧率**（10 Hz 遥测持续 3 秒，场景地图）：v3 **60.1 fps**（等于 vsync 上限，无掉帧）、旧 **56.1 fps**。
-- [ ] compose overlay 原子切换 → 观察期 → 旧 `frontend` workspace 下线、`frontend-next` 改名
-- [ ] 同步收尾：`frontend/Dockerfile` manifest 清单、CI job、根 `build`、`publish-images.yml` matrix、
-      `playwright.config.ts` 的 workspace 名、`CONTRIBUTING.md` / `deploy/docs/deployment.md` 的引用
-- [ ] 文档：README 的技术栈与截图、ARCHITECTURE 的前端章节
+- [x] **切换本身**（2026-09-09）—— 负责人的口径是「切换新前端，但保留旧前端代码」，所以这一步只做
+      切换，不做下线与改名。见下面的 14J
+- [ ] 观察期 → 旧 `frontend` workspace 下线、`frontend-next` 改名
+- [ ] 同步收尾：`frontend/Dockerfile` manifest 清单、CI job、根 `build`、
+      `playwright.config.ts` 的 workspace 名、`CONTRIBUTING.md` 的引用
+      （`publish-images.yml` matrix 与 `deploy/docs/deployment.md` 已随 14J 落地）
+- [ ] 文档：README 的技术栈与截图、ARCHITECTURE 的前端章节（14J 只改了仓库树与 compose 表格里
+      **确实已经不对**的部分，技术栈叙述与截图仍是 v1.0.0 的）
 - [ ] **P0-f 工程门禁批次**在此之后执行（见前文，旧前端下线后 type-aware lint 只需修一遍）
 - [ ] 发版 **1.1.0**（先发镜像、再建 Release —— v1.0.0 那次顺序反了，说明文档一度先于产物存在）
+
+##### 14B 的大列表数字（同机同次会话，两侧各自真实 `dist`）
+
+| 设备数 | 旧挂载 | v3 挂载 | 旧全量更新 | v3 全量更新 |
+| ------ | ------ | ------- | ---------- | ----------- |
+| 6      | 2.8ms  | 2.8ms   | 2.0ms      | 2.0ms       |
+| 50     | 8.9ms  | 9.6ms   | 5.7ms      | 5.5ms       |
+| 200    | 39.7ms | 39.6ms  | 17.7ms     | 18.6ms      |
+| 500    | 84.8ms | 103.4ms | 43.1ms     | 54.6ms      |
+
+**结论不变：仍然不做虚拟化。** 本平台监控 6 台车，500 台那一档也就多 20ms，而虚拟化要付 Ctrl-F 失效、
+焦点管理、多一层滚动容器。断言仍只钉**每行节点数**（v1.0.0 的按钮列表是 8，v3 的表格是 10，上限 16）——
+那才是让长列表变成渲染问题的原因；且只钉上限不钉 10，因为「列表可排序」会合法地再加一两个节点，
+一个会被那种改动打红的测试已经不在测它该测的东西了。
+
+#### 14J — compose 切换到 v3 控制台（2026-09-09）
+
+> 第一次跑通**完整** compose 闭环（五个服务全 healthy），也是第一次在真部署形态下看 v3。
+> 11B 定的「换 image 一行、切换原子、回滚一条命令」保住了，但**方向反过来了**：overlay 不再是
+> 「切过去」的开关，而是「切回来」的逃生门 —— 默认文件必须说实话，否则真实部署要靠记得多带一个 `-f`。
+
+- [x] **`frontend` 服务改名 `web`，`dockerfile` 指向 `frontend-next/`**。名字取角色而不是取实现，
+      这不是洁癖：overlay **只能新增、不能删掉 `depends_on` 里的条目**，所以「回滚时另起一个服务」
+      会把两套镜像一起拉起来、还要在 nginx 里再挑一次。共用一个服务名之后，回滚 overlay 就只有
+      一行 `dockerfile:`，其余（上下文、高德 ARG、三个网络、健康检查、资源上限）全部继承
+- [x] **`deploy/docker-compose.legacy-frontend.yml`** —— 回滚到 v1.0.0 那套。**两个方向都实测过**：
+      切到 v3 时 `/` 出 Reka UI 的 chunk 且 `/devices/agv-a01` 是 200，回滚后出旧产物且同一路径 404
+      （旧的是 hash 路由，本来就没有兜底）。一个没验过的逃生门比没有逃生门更坏
+- [x] **补上 12B 挂着的那处安全响应头缺口**。12B 记过「换镜像时必须同时核对每个 location 的头」，
+      核对的结果是一处**新出现**的重复：v3 镜像自己也发 `X-Frame-Options` / `X-Content-Type-Options` /
+      `Referrer-Policy`（这样它不挂在边缘后面时依然正确），而边缘的 `location /` 也发同样三个 ——
+      客户端各收到两遍，于是**两处都不再是唯一权威**，以后改其中一处会看起来生效、实际没有。
+      边缘加 `proxy_hide_header` 摘掉上游那三个。`Cache-Control` 故意不摘：镜像对 `/assets/` 发
+      `immutable`、对入口文档发 `no-store`，比边缘能表达的更细，而 `/assets/` 也落在同一个 location 里
+- [x] **`publish-images.yml`：`frontend` → `console`**。部署的既然是 v3，继续把旧那套推成
+      `navfleet-frontend:1.1.0`（连带 `latest`）就是在 registry 里放一句谎话 —— 标签承诺这一版的界面、
+      内容是上一版的。`navfleet-frontend` 停在 1.0.x（它装的正是那个），回滚不依赖 registry
+- [x] **浏览器实测（真 dist、真 compose、8 个页面）**：登录 → 总览 → 设备（GPS 与 ROS 两种底图）→
+      设备详情 → 曲线（ECharts 懒加载 chunk）→ 消息 → 报表 → 管理，**CSP 零违规、控制台零报错**
+      （唯一的 warning 是高德 SDK 自己的 Canvas2D 性能提示）。深链接直接硬跳转 200 —— web history
+      的边缘兜底成立。实时指示灯全程绿，说明 `/ws` 经 nginx 的升级也通
+- [x] **顺手更正一条已经不成立的文档口径**：`deployment.md` 原先写「升级后 `主机:8080/metrics`
+      返回 404」。v3 用 web history，任何未知路径都由 `try_files` 兜给 index.html，所以现在返回
+      **200 + HTML**。这比 404 难查 —— 抓取端看到的是解析失败而不是干净的 404。已实测确认返回的
+      确实是 index.html 而**不是**指标内容（后端 `/metrics` 仍只在 compose 网内可达），并写明
+      判断办法是看响应体
+- [ ] **两件本机环境的事，都不是这次改动引入的**：mongo:8.0 在这台机器（内核 7.0.12-linuxkit）上
+      仍起不来，闭环是用一份 `/tmp` 里的 `mongo:7` + 独立卷 + 一次性口令的 override 跑的，不进仓库；
+      上一轮我留下的 `deploy-mosquitto-1` 处于「跑着但没接任何网络」的状态（后端一直
+      `ENOTFOUND mosquitto`），`--force-recreate` 后恢复正常
 
 ## Phase 15 — 用户体系与真 RBAC（发版 1.2.0）
 

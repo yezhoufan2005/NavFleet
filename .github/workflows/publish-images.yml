@@ -1,6 +1,6 @@
 name: Publish images
 
-# Builds and pushes the backend + frontend images to GHCR for a released tag.
+# Builds and pushes the backend + console images to GHCR for a released tag.
 # Both images build from the repo root context (npm workspaces monorepo).
 #
 # Called by release-please.yml when a release is created, and available manually.
@@ -42,8 +42,15 @@ jobs:
         include:
           - name: backend
             dockerfile: backend/Dockerfile
-          - name: frontend
-            dockerfile: frontend/Dockerfile
+          # The console, not `frontend/Dockerfile`: since the Phase 14 switch
+          # this is the image compose deploys. Publishing the retiring one as
+          # `navfleet-frontend:1.1.0` (and `:latest`) would put a lie in the
+          # registry — the tag would claim to be that release's UI and contain
+          # the previous one. `navfleet-frontend` therefore stops at 1.0.x,
+          # which is exactly what it holds. The rollback overlay builds the old
+          # image locally from source and never pulls it.
+          - name: console
+            dockerfile: frontend-next/Dockerfile
     steps:
       # The tag, not the default branch: this workflow now runs from the release
       # job on main, so without an explicit ref it would build main's tip and
@@ -83,8 +90,9 @@ jobs:
           push: true
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
-          # AMap key is a build-time (Vite) value; the frontend image works without
-          # it (map shows a config notice). Provide repo secrets to bake one in.
+          # AMap key is a build-time (Vite) value; the console image works
+          # without it (the GPS panel shows a config notice instead of a map).
+          # Provide repo secrets to bake one in.
           build-args: |
             VITE_AMAP_KEY=${{ secrets.VITE_AMAP_KEY }}
             VITE_AMAP_SECURITY_JS_CODE=${{ secrets.VITE_AMAP_SECURITY_JS_CODE }}

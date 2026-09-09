@@ -12,7 +12,7 @@ services:
     # container, so nothing in the request path is root.
     image: nginxinc/nginx-unprivileged:1.27-alpine
     depends_on:
-      - frontend
+      - web
       - backend
     ports:
       - "${HTTP_HOST_PORT:-8080}:8080"
@@ -38,10 +38,24 @@ services:
           memory: 128M
     restart: unless-stopped
 
-  frontend:
+  # The served SPA. Named for the role rather than for either implementation, so
+  # that switching which console is deployed is one `dockerfile:` line and not a
+  # rename that ripples through nginx, depends_on, docs and container names.
+  #
+  # As of Phase 14 this is the v3 console (`frontend-next`). The v1.0.0 frontend
+  # is still in the repo and one command away:
+  #
+  #   docker compose --env-file deploy/.env -f deploy/docker-compose.yml \
+  #     -f deploy/docker-compose.legacy-frontend.yml up -d --build web
+  #
+  # The two images are not interchangeable in one respect: this one uses web
+  # history and therefore carries its own nginx conf for the index.html
+  # fallback, while the v1.0.0 one uses hash routing and needs none. Both listen
+  # on 8080 as uid 101, so the edge sees the same upstream either way.
+  web:
     build:
       context: ..
-      dockerfile: frontend/Dockerfile
+      dockerfile: frontend-next/Dockerfile
       args:
         VITE_AMAP_KEY: ${VITE_AMAP_KEY:-}
         VITE_AMAP_SECURITY_JS_CODE: ${VITE_AMAP_SECURITY_JS_CODE:-}
@@ -221,7 +235,7 @@ volumes:
 
 # Three segments instead of one flat default network, so a compromise of the web
 # tier does not hand over the database and the broker:
-#   edge — nginx <-> frontend <-> backend (the only segment with a host port)
+#   edge — nginx <-> web <-> backend (the only segment with a host port)
 #   data — backend <-> mongo
 #   bus  — backend <-> mosquitto
 # The backend is the only service on all three; nothing on `edge` can address
