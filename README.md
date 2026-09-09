@@ -192,7 +192,7 @@ NavFleet/
 ├─ e2e/                  # Playwright + axe-core
 ├─ config-runtime/       # 运行期配置与地图资源（热加载，不进镜像）
 ├─ deploy/               # compose 编排、nginx、mosquitto、prometheus、grafana、文档、脚本
-└─ scripts/              # dev.sh / smoke.sh
+└─ scripts/              # dev.sh（开发）/ smoke.sh（API 契约）/ verify-stack.sh（整栈验收）
 ```
 
 ## 配置
@@ -320,6 +320,30 @@ npm test              # 单元 + 集成
 npm run e2e           # Playwright（自带后端与前端，不需要 Mongo/MQTT/docker）
 npm run build         # shared → backend → frontend
 ```
+
+### 三个脚本，各管一层
+
+它们是递进的，**不重复**：
+
+| 脚本                      | 需要 Docker | 覆盖的那一层                                                  | 用时 |
+| ------------------------- | ----------- | ------------------------------------------------------------- | ---- |
+| `scripts/dev.sh`          | 否          | 开发：vite + tsx 热重载，可选演示发布器                       | 持续 |
+| `scripts/smoke.sh`        | 否          | 单个后端进程的 API 契约（鉴权边界、24 条断言）                | 秒级 |
+| `scripts/verify-stack.sh` | **是**      | **整栈**：五个服务的 healthcheck、边缘 nginx 路由、跨容器 DNS | 分钟 |
+
+只有第三个能回答这类问题：`/docs` 有没有真被边缘路由（它曾经**只写在文档里**）、
+`/metrics` 在边缘是不是 SPA 兜底、broker 凭据对不对、Mongo 落库到查询是否通。
+
+```bash
+scripts/verify-stack.sh              # 起栈 + 演示数据 + 56 条断言，跑完把栈留着给你看
+scripts/verify-stack.sh --check-only # 不碰 compose，只对已在跑的栈跑断言
+scripts/verify-stack.sh --fresh      # 从空库重来
+scripts/verify-stack.sh --down       # 跑完自动停栈并删掉它自己建的卷
+```
+
+断言全过才返回 0，所以可以直接当验收门禁或 cron 用。**它自带一个内核检查**：宿主内核落在
+6.19–7.0.13 时（MongoDB SERVER-121912）会自动把 mongo 降到 7 并在开头和结尾都说明这次跑的
+不是仓库钉的版本 —— 见 [deploy/docs/deployment.md 3.1](deploy/docs/deployment.md)。
 
 | 门禁     | 数量    | 说明                                                                        |
 | -------- | ------- | --------------------------------------------------------------------------- |
