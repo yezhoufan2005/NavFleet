@@ -7,7 +7,8 @@
 默认 Docker Compose 会启动完整闭环：
 
 - `nginx`：统一 Web 入口。
-- `frontend`：前端静态页面。
+- `web`：前端静态页面，由 `frontend-next/`（v3 控制台）构建。服务名取的是**角色**而不是
+  某一版实现，所以换用哪一套控制台只是一行 `dockerfile:`，见 [9.6 前端切换与回滚](#96-前端切换与回滚)。
 - `backend`：后端 API、WebSocket、MQTT 客户端和配置热加载。
 - `mongo`：历史遥测、最新快照、告警存储。
 - `mosquitto`：MQTT Broker。
@@ -26,7 +27,9 @@ MQTT: mqtt://127.0.0.1:1883   # 仅宿主机本机可达，且需要凭据
 ```text
 /opt/navfleet/
 ├─ backend/
-├─ frontend/
+├─ frontend/              # v1.0.0 控制台，回滚用
+├─ frontend-next/         # v3 控制台，默认部署的这一套
+├─ packages/              # shared / fleet-core，两个前端和后端都要用
 ├─ config-runtime/
 │  ├─ fleet.json
 │  ├─ vehicles.json
@@ -40,6 +43,10 @@ MQTT: mqtt://127.0.0.1:1883   # 仅宿主机本机可达，且需要凭据
 │  └─ mosquitto/mosquitto.conf
 └─ README.md
 ```
+
+三个镜像都以**仓库根**为构建上下文（npm workspaces 单一 lockfile），所以 `packages/`
+与根 `package.json` / `package-lock.json` 必须一起上传，缺一个 `npm ci` 就会判定
+lockfile 不同步而失败。
 
 `config-runtime/` 是运行期配置目录。后端容器会把它挂载为 `/runtime-config`。
 
@@ -90,7 +97,8 @@ docker info --format '{{.KernelVersion}}'
 至少需要包含：
 
 - `backend/`
-- `frontend/`
+- `frontend/`（回滚用）与 `frontend-next/`（默认部署）
+- `packages/`、根 `package.json` 与 `package-lock.json`
 - `config-runtime/`
 - `deploy/`
 - 根目录 `README.md`、`ARCHITECTURE.md`
@@ -321,14 +329,14 @@ VITE_AMAP_SECURITY_JS_CODE=你的安全密钥
 前端构建时会把这两个值写入静态资源，所以修改后需要重新构建：
 
 ```bash
-docker compose --env-file deploy/.env -f deploy/docker-compose.yml up -d --build frontend nginx
+docker compose --env-file deploy/.env -f deploy/docker-compose.yml up -d --build web nginx
 ```
 
 ## 9. Nginx 路由
 
 `deploy/nginx/default.conf` 负责：
 
-- `/` 代理到前端容器（并注入 SPA 安全响应头与高德地图作用域的 CSP）。
+- `/` 代理到 `web` 容器（并注入 SPA 安全响应头与高德地图作用域的 CSP）。
 - `/api/` 代理到后端（边缘限流 ~30r/s）。
 - `/health` 代理到后端存活探针。
 - `/openapi.json` 代理到后端 OpenAPI 文档（后端侧已要求登录会话）。
@@ -336,24 +344,37 @@ docker compose --env-file deploy/.env -f deploy/docker-compose.yml up -d --build
 - `/ws` 代理到后端 WebSocket。
 - `/scene-maps/` 代理到后端静态资源。
 
-两个 nginx 容器（边缘与前端）都用 `nginxinc/nginx-unprivileged` 镜像，以 uid 101
+两个 nginx 容器（边缘与 `web`）都用 `nginxinc/nginx-unprivileged` 镜像，以 uid 101
 运行、容器内监听 8080；宿主机端口仍由 `HTTP_HOST_PORT` 决定，对外不变。
+
+四个安全响应头（`X-Frame-Options` / `X-Content-Type-Options` / `Referrer-Policy` / CSP）
+只挂在 `location /` 内部，因为 nginx 的 `add_header` **不跨 location 继承** —— 加新路由时
+要连头一起加，不能指望从 server 段继承下来。`web` 镜像自己也设前三个（这样它不挂在边缘
+后面时依然正确），边缘用 `proxy_hide_header` 把上游那三个摘掉：否则客户端会各收到两遍，
+而两处都不再是唯一权威，之后改其中一处会**看起来生效、实际没有**。`Cache-Control`
+故意不摘 —— 镜像对 `/assets/` 发 `immutable`、对入口文档发 `no-store`，这个区分比边缘能
+表达的更细。
 
 > **`/metrics` 不再由边缘代理。** 该端点未鉴权，而「只放行内网 IP」在内网部署里是
 > 自欺欺人 —— 所有客户端本来就都是内网地址。抓取方应在 compose 网络内直接访问
-> `backend:3000/metrics`。若原先在用 `http://主机:8080/metrics`，升级后会返回 404。
+> `backend:3000/metrics`。
+>
+> **口径更正（v3 控制台切换后）**：`http://主机:8080/metrics` 现在返回的是 **200 + SPA 的
+> index.html**，不再是 404 —— v3 用 web history，任何未知路径都由 `try_files` 兜给
+> index.html。抓取端看到的是「解析失败」而不是干净的 404，排查时容易看错方向。判断
+> 是否指错的办法是看响应体：是 HTML 就说明请求根本没到后端。
 
 ### 9.1 网络分段
 
 compose 不再使用单一默认网络，而是三段：
 
-| 网络   | 成员                     | 说明                                   |
-| ------ | ------------------------ | -------------------------------------- |
-| `edge` | nginx、frontend、backend | 唯一有宿主机端口映射的一段             |
-| `data` | backend、mongo           | `internal: true`，mongo 无任何出网能力 |
-| `bus`  | backend、mosquitto       | broker 段                              |
+| 网络   | 成员                | 说明                                   |
+| ------ | ------------------- | -------------------------------------- |
+| `edge` | nginx、web、backend | 唯一有宿主机端口映射的一段             |
+| `data` | backend、mongo      | `internal: true`，mongo 无任何出网能力 |
+| `bus`  | backend、mosquitto  | broker 段                              |
 
-backend 是唯一同时在三段上的服务。实测：nginx 与 frontend **连 `mongo` /
+backend 是唯一同时在三段上的服务。实测：nginx 与 web **连 `mongo` /
 `mosquitto` 的域名都解析不了**，backend 两者都能连通。
 
 `bus` 没有设 `internal: true`：docker 会静默丢弃 internal 网络上的端口映射，而文档
@@ -456,8 +477,12 @@ DRILL PASSED: 4 collection(s) restored, none empty.
 ### 9.5 GHCR 镜像发布
 
 合并 release-please 的 release PR 后，`Release` workflow 会在打完 tag 之后直接调用
-`publish-images.yml`，把 `navfleet-backend` 与 `navfleet-frontend` 推到
+`publish-images.yml`，把 `navfleet-backend` 与 `navfleet-console` 推到
 `ghcr.io/<owner>/`，标签为 `<x.y.z>`、`<x.y>`、`latest` 与短 sha。
+
+**`navfleet-frontend` 不再发布，停在 1.0.x。** 它装的是 v1.0.0 那套控制台，而 1.1.0 起
+部署的是 v3；继续用同一个名字推 1.1.0 会让 registry 里的标签说谎 —— 名字承诺的是这一版
+的界面，内容是上一版的。回滚不依赖 registry：回滚 overlay 从源码本地构建（见 9.6）。
 
 **发布前需要在仓库 Settings → Secrets and variables → Actions 配好两个 secret**：
 
@@ -480,6 +505,32 @@ gh workflow run publish-images.yml -f tag=v1.0.0
 > `GITHUB_TOKEN` 创建 Release 的 —— GitHub 的防循环规则不允许 `GITHUB_TOKEN` 产生的事件
 > 触发其他 workflow，所以 v0.2.0 / v0.3.0 / v1.0.0 三个版本都没有自动产出镜像。现在改为
 > 由 release job 直接 `workflow_call` 调用，不再依赖那条永远不会触发的链路。
+
+### 9.6 前端切换与回滚
+
+`web` 服务的名字取的是**角色**（被服务的那套 SPA），不是某一版实现。默认构建
+`frontend-next/Dockerfile`，也就是 v3 控制台。回滚到 v1.0.0 那套是加一个 overlay：
+
+```bash
+docker compose --env-file deploy/.env -f deploy/docker-compose.yml \
+  -f deploy/docker-compose.legacy-frontend.yml up -d --build web
+```
+
+切回去把 `-f deploy/docker-compose.legacy-frontend.yml` 去掉再跑一遍即可。overlay 只覆盖
+`dockerfile` 一行，构建上下文、高德 ARG、网络、健康检查、资源上限全部从基础文件继承，
+**服务名不变**，所以 nginx 与 `depends_on` 都不用动 —— 这也是它必须共用一个服务名的原因：
+overlay 只能新增、不能删掉 `depends_on` 里的条目，另起一个服务会把两套镜像一起拉起来。
+
+回滚后有两件事会变，都是旧控制台本来的性质，不是故障：
+
+- **URL 回到 hash 路由**（`/#/`），从 v3 复制出去的深链接解析不了。边缘对未知路径的兜底
+  也随之消失：`/devices/agv-a01` 这类路径在 v3 下是 200，回滚后是 404。
+- **两套共用的四个 localStorage 键会带过去**（`navfleet:theme`、`:map-mode`、
+  `:acked-alerts`、`:ros-scene-views`）—— 同一个 origin、同一个操作员、同一套选择，这是
+  刻意的。v3 独有的那几个（侧栏、设备页版式、四个告警声音键）只是不被读，切回去还在。
+
+两个方向都在本机实测过：切到 v3 时 `/` 出 Reka UI 的 chunk、深链接 200；回滚后 `/` 出旧
+产物、深链接 404；两个方向的四个安全响应头都各只出现一次。
 
 ## 10. MQTT 部署策略
 
