@@ -37,7 +37,6 @@ export interface MetricsDeps {
 }
 
 export interface Metrics {
-  registry: Registry;
   /** Prometheus text exposition for the current process state. */
   render: () => Promise<string>;
   contentType: string;
@@ -163,8 +162,14 @@ export const createMetrics = ({
   gauge("navfleet_mongo_connected", "1 if MongoDB is connected", () =>
     persistence.isMongoConnected() ? 1 : 0,
   );
-  gauge("navfleet_mongo_buffer_pending", "Telemetry docs buffered awaiting MongoDB flush", () =>
-    persistence.pendingTelemetryCount(),
+  gauge(
+    "navfleet_mongo_buffer_pending",
+    "Telemetry docs buffered awaiting MongoDB flush",
+    () =>
+      // Same accessor as the drop counter below. The buffer used to be read through two
+      // different methods — `pendingTelemetryCount()` for the depth and
+      // `telemetryBufferStats()` for everything else — which is two names for one number.
+      persistence.telemetryBufferStats().pending,
   );
   // P0-c: the buffer's depth was already visible; what it *lost* was not. A silent drop
   // on a monitoring platform is the one failure that cannot be allowed to be invisible.
@@ -242,7 +247,6 @@ export const createMetrics = ({
   });
 
   return {
-    registry,
     render: () => registry.metrics(),
     contentType: registry.contentType,
     observeHttpRequest: (request, response, durationSeconds) => {

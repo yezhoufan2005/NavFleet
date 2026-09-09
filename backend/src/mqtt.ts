@@ -2,12 +2,10 @@ import mqtt from "mqtt";
 import type { ZodError } from "zod";
 import type { AppConfig } from "./config";
 import type { DashboardStore } from "./store";
-import type { buildTopicScheme } from "./topics";
+import type { TopicScheme } from "./topics";
 import type { RuntimeState } from "./runtimeState";
 import { mqttStatusSchema, mqttTelemetrySchema } from "./validation";
 import { logger } from "./logger";
-
-type TopicScheme = ReturnType<typeof buildTopicScheme>;
 
 const safeJsonParse = (value: string): unknown => {
   try {

@@ -5,10 +5,12 @@ import { config } from "./config";
 import { ConfigRegistry } from "./configRegistry";
 import {
   buildFleetSnapshot,
+  buildOfflineAlert,
   hasGps,
   mergeDevice,
   normalizeDevice,
   normalizePayload,
+  offlineAlertId,
 } from "./normalize";
 import type { NormalizePayloadOptions } from "./normalize";
 import { Persistence } from "./persistence";
@@ -728,17 +730,11 @@ export class DashboardStore extends EventEmitter {
         continue;
       }
 
+      // Replace rather than append: a device that is already marked offline keeps its
+      // alert from the previous sweep, and the id is the same either way.
       const nextAlerts: DeviceAlert[] = [
-        ...device.alerts.filter((alert) => alert.id !== `${device.deviceId}-offline`),
-        {
-          id: `${device.deviceId}-offline`,
-          title: "设备离线",
-          detail: "设备超过离线阈值未上报，系统已自动标记为离线",
-          severity: "critical",
-          source: "rule-engine",
-          ts: new Date().toISOString(),
-          active: true,
-        },
+        ...device.alerts.filter((alert) => alert.id !== offlineAlertId(device.deviceId)),
+        buildOfflineAlert(device.deviceId, new Date().toISOString()),
       ];
 
       const updatedRaw = {

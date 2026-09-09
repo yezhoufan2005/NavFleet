@@ -129,12 +129,7 @@ export const sceneIdParamSchema = z
   .regex(/^[A-Za-z0-9._-]+$/, "must contain only letters, digits, '-', '_' or '.'")
   .refine((value) => !/^\.+$/.test(value), "must not be a dot-only path segment");
 
-export type HistoryQueryInput = z.infer<typeof historyQuerySchema>;
-export type AlertsQueryInput = z.infer<typeof alertsQuerySchema>;
-
 export const loginSchema = z.object({
   username: z.string().min(1).max(200),
   password: z.string().min(1).max(200),
 });
-
-export type LoginInput = z.infer<typeof loginSchema>;
