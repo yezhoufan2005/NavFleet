@@ -17,7 +17,10 @@ const { getSceneDefinition, getDeviceTone } = store;
 const deviceId = ref("");
 const fromInput = ref("");
 const toInput = ref("");
-const limit = ref(1000);
+// 500, matching the backend's MAX_HISTORY_POINTS. It used to be 1000 and relied on
+// being silently clamped; since the validator stopped over-promising, anything above
+// the cap is a 400 — see backend/src/validation.ts.
+const limit = ref(500);
 
 const loading = ref(false);
 const loaded = ref(false);
@@ -136,7 +139,7 @@ async function loadHistory() {
   stopPlayback();
   loading.value = true;
   try {
-    const params = { limit: Number(limit.value) || 1000 };
+    const params = { limit: Number(limit.value) || 500 };
     if (fromInput.value) {
       params.from = new Date(fromInput.value).toISOString();
     }
@@ -186,7 +189,7 @@ async function loadHistory() {
         </label>
         <label class="history-field narrow">
           <span>最大点数</span>
-          <input v-model="limit" type="number" min="1" max="5000" />
+          <input v-model="limit" type="number" min="1" max="500" />
         </label>
         <button type="button" class="primary-btn" :disabled="loading" @click="loadHistory">
           {{ loading ? "加载中…" : "加载轨迹" }}
