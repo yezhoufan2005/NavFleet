@@ -369,30 +369,30 @@ scene-maps/
 
 ### 8.2 后端变量
 
-| 变量                          | 默认值                                                              | 说明                                                  |
-| ----------------------------- | ------------------------------------------------------------------- | ----------------------------------------------------- |
-| `PORT`                        | `3000`                                                              | 后端容器监听端口                                      |
-| `NODE_ENV`                    | `production`（compose）                                             | 运行环境；`production` 下缺少 `JWT_SECRET` 会启动失败 |
-| `FLEET_NAME`                  | `智能车队`                                                          | 内置兜底车队名，通常会被 `fleet.json` 覆盖            |
-| `MQTT_URL`                    | `mqtt://mosquitto:1883`                                             | 后端连接的 MQTT Broker                                |
-| `MQTT_USERNAME`               | 空                                                                  | MQTT 用户名                                           |
-| `MQTT_PASSWORD`               | 空                                                                  | MQTT 密码                                             |
-| `MQTT_CLIENT_ID`              | 随机                                                                | 可选固定客户端 ID                                     |
-| `MQTT_TOPIC_PATTERN`          | `/fleet/{deviceId}/vehicle_info`                                    | 遥测主题模板，`{deviceId}` 为占位符                   |
-| `MONGO_URI`                   | `mongodb://root:example@mongo:27017/fleet_monitor?authSource=admin` | MongoDB 连接串                                        |
-| `MONGO_DB_NAME`               | `fleet_monitor`                                                     | MongoDB 数据库名                                      |
-| `SEED_FILE`                   | 空                                                                  | 可选种子数据文件                                      |
-| `OFFLINE_AFTER_SECONDS`       | `60`                                                                | 设备离线判定秒数                                      |
-| `TELEMETRY_RETENTION_SECONDS` | `2592000`                                                           | 遥测保留秒数，默认 30 天                              |
-| `ALERTS_RETENTION_SECONDS`    | `15552000`                                                          | 告警保留秒数，默认 180 天                             |
-| `MAX_HISTORY_POINTS`          | `500`                                                               | 单次历史查询最大返回点数                              |
-| `MONGO_BUFFER_LIMIT`          | `2000`                                                              | Mongo 写失败时内存缓冲上限                            |
-| `INGEST_QUEUE_LIMIT`          | `1000`                                                              | 摄入串行队列长度上限，满时丢最旧的可丢遥测帧          |
-| `MAX_DEVICES`                 | `1000`                                                              | 内存中设备数上限（vehicles.json 已声明的不受限）      |
-| `DEVICE_RETENTION_SECONDS`    | `86400`                                                             | 未声明设备静默多久后淘汰出内存，`0` 表示不淘汰        |
-| `CONFIG_ROOT_PATH`            | `/runtime-config`                                                   | 容器内配置根目录                                      |
-| `CONFIG_WATCH_USE_POLLING`    | `false`                                                             | 是否用轮询监听配置                                    |
-| `CONFIG_WATCH_DEBOUNCE_MS`    | `1000`                                                              | 配置热加载防抖毫秒数                                  |
+| 变量                          | 默认值                                                              | 说明                                                                |
+| ----------------------------- | ------------------------------------------------------------------- | ------------------------------------------------------------------- |
+| `PORT`                        | `3000`                                                              | 后端容器监听端口                                                    |
+| `NODE_ENV`                    | `production`（compose）                                             | 运行环境；`production` 下缺少 `JWT_SECRET` 会启动失败               |
+| `FLEET_NAME`                  | `智能车队`                                                          | 内置兜底车队名，通常会被 `fleet.json` 覆盖                          |
+| `MQTT_URL`                    | `mqtt://mosquitto:1883`                                             | 后端连接的 MQTT Broker                                              |
+| `MQTT_USERNAME`               | 空                                                                  | MQTT 用户名                                                         |
+| `MQTT_PASSWORD`               | 空                                                                  | MQTT 密码                                                           |
+| `MQTT_CLIENT_ID`              | 随机                                                                | 可选固定客户端 ID                                                   |
+| `MQTT_TOPIC_PATTERN`          | `/fleet/{deviceId}/vehicle_info`                                    | 遥测主题模板，`{deviceId}` 为占位符                                 |
+| `MONGO_URI`                   | `mongodb://root:example@mongo:27017/fleet_monitor?authSource=admin` | MongoDB 连接串                                                      |
+| `MONGO_DB_NAME`               | `fleet_monitor`                                                     | MongoDB 数据库名                                                    |
+| `SEED_FILE`                   | 空                                                                  | 可选种子数据文件                                                    |
+| `OFFLINE_AFTER_SECONDS`       | `60`                                                                | 设备离线判定秒数                                                    |
+| `TELEMETRY_RETENTION_SECONDS` | `2592000`                                                           | 遥测保留秒数，默认 30 天                                            |
+| `ALERTS_RETENTION_SECONDS`    | `15552000`                                                          | 告警保留秒数，默认 180 天                                           |
+| `MAX_HISTORY_POINTS`          | `500`                                                               | 单次历史查询最大返回点数；也是 `?limit=` 的**校验上界**，超过即 400 |
+| `MONGO_BUFFER_LIMIT`          | `2000`                                                              | Mongo 写失败时内存缓冲上限                                          |
+| `INGEST_QUEUE_LIMIT`          | `1000`                                                              | 摄入串行队列长度上限，满时丢最旧的可丢遥测帧                        |
+| `MAX_DEVICES`                 | `1000`                                                              | 内存中设备数上限（vehicles.json 已声明的不受限）                    |
+| `DEVICE_RETENTION_SECONDS`    | `86400`                                                             | 未声明设备静默多久后淘汰出内存，`0` 表示不淘汰                      |
+| `CONFIG_ROOT_PATH`            | `/runtime-config`                                                   | 容器内配置根目录                                                    |
+| `CONFIG_WATCH_USE_POLLING`    | `false`                                                             | 是否用轮询监听配置                                                  |
+| `CONFIG_WATCH_DEBOUNCE_MS`    | `1000`                                                              | 配置热加载防抖毫秒数                                                |
 
 ### 8.2.1 鉴权与安全变量
 

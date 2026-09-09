@@ -492,6 +492,9 @@ export class Persistence {
     });
     // Newest-first, matching the Mongo query contract.
     const sorted = [...filtered].sort((left, right) => right.ts.getTime() - left.ts.getTime());
+    // Kept even though `historyQuerySchema` now bounds `limit` by the same value:
+    // that schema only guards the HTTP path, and `HistoryQuery` is a plain type any
+    // in-process caller can build. The cap belongs where the rows are read.
     const limit = Math.min(query.limit || config.maxHistoryPoints, config.maxHistoryPoints);
     return sorted.slice(0, limit);
   }

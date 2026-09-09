@@ -1,5 +1,6 @@
 import { describe, it, expect } from "vitest";
 import { z } from "zod";
+import { config } from "../src/config";
 import { openApiDocument } from "../src/openapi";
 import { alertsQuerySchema, loginSchema } from "../src/validation";
 import { version as releaseVersion } from "../../package.json";
@@ -80,7 +81,15 @@ describe("input schemas generated from the validators", () => {
       (parameter) => parameter.name === "limit",
     );
 
-    expect(limit?.schema).toMatchObject({ type: "integer", maximum: 5000, exclusiveMinimum: 0 });
+    // Against `config.maxHistoryPoints`, not a literal — the test's own title is the
+    // claim being made, and it was false: the spec said 5000 while both query paths
+    // clamp to this value (default 500). Pinning the *relationship* is what keeps the
+    // published contract honest if the cap is ever reconfigured.
+    expect(limit?.schema).toMatchObject({
+      type: "integer",
+      maximum: config.maxHistoryPoints,
+      exclusiveMinimum: 0,
+    });
   });
 
   it("documents every alert filter the validator accepts, and no others", () => {

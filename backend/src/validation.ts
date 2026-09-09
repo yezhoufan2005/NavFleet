@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { config } from "./config";
 
 /** A timestamp expressed as an ISO-8601 string or a numeric epoch (ms or s). */
 const timestampString = z
@@ -12,7 +13,19 @@ const timestampString = z
 export const historyQuerySchema = z.object({
   from: timestampString.optional(),
   to: timestampString.optional(),
-  limit: z.coerce.number().int().positive().max(5000).optional(),
+  /**
+   * Bounded by what the server will actually return, not by a round number.
+   *
+   * This used to accept up to 5000 while both query paths clamp to
+   * `MAX_HISTORY_POINTS` (default 500) — and because `openapi.ts` generates this
+   * parameter *from this schema*, the published contract promised 5000 for a server
+   * that never returns more than 500. A client sizing its buffers off the spec was
+   * being told the wrong number by the spec's own source of truth.
+   *
+   * Reading `config` means the document each deployment serves states that
+   * deployment's real cap, which is the only version of this number that is true.
+   */
+  limit: z.coerce.number().int().positive().max(config.maxHistoryPoints).optional(),
 });
 
 export const alertsQuerySchema = z.object({
