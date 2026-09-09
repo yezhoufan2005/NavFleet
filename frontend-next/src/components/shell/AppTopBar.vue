@@ -26,7 +26,7 @@ import { computed } from "vue";
 import AppBreadcrumbs from "./AppBreadcrumbs.vue";
 import AppSessionMenu from "./AppSessionMenu.vue";
 import UiSoundIcon from "@/components/ui/UiSoundIcon.vue";
-import type { AuthUser } from "@/composables/useAuth";
+import type { PublicUser } from "@navfleet/shared";
 import type { SidebarMode } from "@/composables/useSidebar";
 import { useFleetStore } from "@/stores/fleet";
 import type { ConnectionTone } from "@/stores/fleet";
@@ -36,7 +36,7 @@ import { notify } from "@/composables/useNotifications";
 const PRODUCT_NAME = "智能车队监控平台";
 
 const { user, sidebarMode } = defineProps<{
-  user: AuthUser | null;
+  user: PublicUser | null;
   sidebarMode: SidebarMode;
 }>();
 

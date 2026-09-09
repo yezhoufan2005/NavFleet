@@ -39,10 +39,10 @@ import {
 import AppSidebarNav from "./AppSidebarNav.vue";
 import AppTopBar from "./AppTopBar.vue";
 import ErrorBoundary from "@/components/ErrorBoundary.vue";
-import type { AuthUser } from "@/composables/useAuth";
+import type { PublicUser } from "@navfleet/shared";
 import { useSidebar } from "@/composables/useSidebar";
 
-const { user } = defineProps<{ user: AuthUser | null }>();
+const { user } = defineProps<{ user: PublicUser | null }>();
 const emit = defineEmits<{ logout: [] }>();
 
 const route = useRoute();
