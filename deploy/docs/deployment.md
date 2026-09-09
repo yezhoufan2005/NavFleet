@@ -57,6 +57,26 @@ docker version
 docker compose version
 ```
 
+### 3.1 宿主内核：MongoDB 8 与 Linux 6.19–7.0.13 不兼容
+
+**这一条会直接导致 `mongo` 容器起不来，且报错不提 Docker、只提内核。** MongoDB 8.0 及以上
+自带的 TCMalloc 与 Linux 内核 6.19 到 7.0.13 冲突，`mongod` 在启动时崩溃并循环重启，日志是：
+
+```text
+MongoDB cannot start: Linux kernel versions 6.19 and newer has a known incompatibility
+with this version of MongoDB. See https://jira.mongodb.org/browse/SERVER-121912
+```
+
+先看宿主（或 Docker Desktop 虚拟机）的内核：
+
+```bash
+docker info --format '{{.KernelVersion}}'
+```
+
+落在 `6.19` ～ `7.0.13` 之间就会中招，**升到 7.0.14 或更高即可**（这是 MongoDB 官方给的解法，
+见 8.0 发行说明）。注意 compose 里 `backend` 对 `mongo` 是 `condition: service_healthy`，
+所以 mongo 起不来时后端也不会启动 —— 症状是整栈只有 nginx 与前端在跑。
+
 ## 4. 首次部署
 
 ### 4.1 上传项目
@@ -518,6 +538,18 @@ chromium --kiosk --autoplay-policy=no-user-gesture-required http://<console-host
 不加这个参数时控制台不会假装正常：一旦真有告警级消息在「尚未获得交互」期间到达，
 顶栏读数会立刻从「告警响应」变成「告警待就绪」并转为警示色，同时弹出一条可见提示 ——
 听不到的告警至少不会同时是看不到的。
+
+### mosquitto 报 `port is already allocated`
+
+compose 把 1883 发布到宿主。同一台机器上如果另有一个 broker 容器占着 1883（例如为了联调临时
+起的那种），compose 的 mosquitto 就永远起不来，而**报错只说端口被占，不说被谁占**。查占用者：
+
+```bash
+docker ps --format '{{.Names}} {{.Ports}}' | grep 1883
+```
+
+如果这台机器上的车辆都从远端连进来、不需要从宿主直连 broker，按第 10 节把 mosquitto 的
+`ports` 段删掉即可 —— 容器之间仍走 `bus` 网络互通，不需要宿主端口。
 
 ### 修改车辆名称后页面没变
 

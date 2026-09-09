@@ -2,7 +2,7 @@
 # backend build context is `..`). npm workspaces means a single root lockfile and a
 # shared types package, so the build installs from the root and builds the backend
 # workspace specifically.
-FROM node:20-alpine AS build
+FROM node:24-alpine AS build
 WORKDIR /app
 
 # Manifests + root lockfile first for a cache-friendly install layer. Every workspace
@@ -22,7 +22,7 @@ COPY backend/tsconfig.json backend/tsconfig.build.json ./backend/
 COPY backend/src ./backend/src
 RUN npm run build -w navfleet-backend
 
-FROM node:20-alpine AS runtime
+FROM node:24-alpine AS runtime
 WORKDIR /app
 ENV NODE_ENV=production
 
