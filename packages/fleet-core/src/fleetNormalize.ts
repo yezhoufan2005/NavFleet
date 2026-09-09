@@ -15,7 +15,6 @@ import type {
   DeviceAlert,
   DeviceSnapshot,
   FormationSnapshot,
-  MapProfile,
   Severity,
 } from "@navfleet/shared";
 
@@ -48,7 +47,36 @@ interface ScenePartLike {
   [key: string]: unknown;
 }
 
-export const cloneValue = <T>(value: T): T => JSON.parse(JSON.stringify(value));
+export const cloneValue = <T>(value: T): T =>
+  JSON.parse(JSON.stringify(value)) as T;
+
+/**
+ * A JSON scalar as text; anything else becomes `fallback`.
+ *
+ * The twin of `asText` in `backend/src/normalize.ts`, and for the same reason: on a payload
+ * field typed `unknown`, `String(x)` promises something it cannot deliver — a vehicle
+ * publishing `"formationName": {}` got the literal string `"[object Object]"` shown in the
+ * console. Nothing in the fleet does that; nothing rejected it either, and a normaliser is
+ * exactly the layer whose job is to stop it.
+ *
+ * `no-base-to-string` (P0-f 第 3 批) named all 16 of this package's at once.
+ */
+export const asText = (value: unknown, fallback = ""): string => {
+  if (typeof value === "string") {
+    return value;
+  }
+  if (typeof value === "number") {
+    return Number.isFinite(value) ? String(value) : fallback;
+  }
+  if (typeof value === "boolean" || typeof value === "bigint") {
+    return String(value);
+  }
+  return fallback;
+};
+
+/** A loose object as a readable record; anything else as an empty one. */
+const asRecord = (value: unknown): Record<string, unknown> =>
+  value && typeof value === "object" ? (value as Record<string, unknown>) : {};
 
 export const round = (value: unknown, digits = 2): number => {
   const numeric = Number(value);
@@ -121,10 +149,10 @@ export const parseTimestampMs = (value: unknown): number | null => {
     return value < 1e12 ? value * 1000 : value;
   }
   const numeric = Number(value);
-  if (Number.isFinite(numeric) && String(value).trim() !== "") {
+  if (Number.isFinite(numeric) && asText(value).trim() !== "") {
     return numeric < 1e12 ? numeric * 1000 : numeric;
   }
-  const parsed = Date.parse(String(value));
+  const parsed = Date.parse(asText(value));
   return Number.isFinite(parsed) ? parsed : null;
 };
 
@@ -149,7 +177,7 @@ export const formatDateTime = (value: unknown): string => {
 };
 
 export const extractDeviceIdFromTopic = (topic: unknown): string => {
-  const match = String(topic || "").match(/^\/fleet\/([^/]+)\//);
+  const match = asText(topic || "").match(/^\/fleet\/([^/]+)\//);
   return match?.[1] || "";
 };
 
@@ -227,7 +255,7 @@ export const normalizeCode = (rawCode: unknown): CodeState => {
     { code?: unknown; info?: unknown; stamp?: unknown } | null | undefined;
   return {
     code: toNumeric(raw?.code, 0) ?? 0,
-    info: (raw?.info as string) || "",
+    info: asText(raw?.info),
     stamp: raw?.stamp ? toIsoString(raw.stamp) : null,
   };
 };
@@ -238,7 +266,7 @@ export const normalizeFormation = (
   const raw = (
     rawInput && typeof rawInput === "object" ? rawInput : {}
   ) as Record<string, unknown>;
-  const formationId = String(
+  const formationId = asText(
     raw.formationId || raw.id || existingFormation?.formationId || "",
   );
   const base = createDefaultFormation(formationId);
@@ -250,11 +278,13 @@ export const normalizeFormation = (
     ...base,
     ...existingFormation,
     formationId,
-    formationName: String(
+    formationName: asText(
       raw.formationName ||
         raw.name ||
         existingFormation?.formationName ||
         formationId,
+      // Reached only when an earlier member is truthy and not a scalar; the id beats "".
+      formationId,
     ),
     deviceIds,
     deviceCount: Number.isFinite(Number(raw.deviceCount))
@@ -263,11 +293,11 @@ export const normalizeFormation = (
     onlineCount: Number.isFinite(Number(raw.onlineCount))
       ? Number(raw.onlineCount)
       : existingFormation?.onlineCount || 0,
-    sceneId: String(raw.sceneId || existingFormation?.sceneId || ""),
-    description: String(
+    sceneId: asText(raw.sceneId || existingFormation?.sceneId || ""),
+    description: asText(
       raw.description || existingFormation?.description || "",
     ),
-    color: String(raw.color || existingFormation?.color || ""),
+    color: asText(raw.color || existingFormation?.color || ""),
   };
 };
 
@@ -280,7 +310,7 @@ export const normalizeFormation = (
  * rather than a critical alert.
  */
 export const normalizeSeverity = (value: unknown): Severity => {
-  const normalized = String(value || "").toLowerCase();
+  const normalized = asText(value || "").toLowerCase();
   if (
     normalized.includes("critical") ||
     normalized.includes("fatal") ||
@@ -422,16 +452,15 @@ export const normalizeDevice = (
       : rawInput
   ) as Record<string, unknown>;
 
-  const topic = (raw.topic ||
-    topicHint ||
-    existingDevice?.topic ||
-    "") as string;
-  const deviceId = (raw.deviceId ||
-    raw.id ||
-    raw.device_id ||
-    extractDeviceIdFromTopic(topic) ||
-    existingDevice?.deviceId ||
-    `device-${Date.now()}`) as string;
+  const topic = asText(raw.topic || topicHint || existingDevice?.topic);
+  const deviceId =
+    asText(
+      raw.deviceId ||
+        raw.id ||
+        raw.device_id ||
+        extractDeviceIdFromTopic(topic) ||
+        existingDevice?.deviceId,
+    ) || `device-${Date.now()}`;
   const base = createDefaultDevice(
     deviceId,
     topic || `/fleet/${deviceId}/vehicle_info`,
@@ -454,21 +483,25 @@ export const normalizeDevice = (
     unknown
   >;
   const gps = (raw.gps || raw.location || {}) as Record<string, unknown>;
-  const runtimeSceneId = (raw.runtimeSceneId ||
-    raw.scene_id ||
-    raw.sceneId ||
-    (raw.scenePose as { sceneId?: unknown } | null | undefined)?.sceneId ||
-    existingDevice?.runtimeSceneId ||
-    "") as string;
+  const runtimeSceneId = asText(
+    raw.runtimeSceneId ||
+      raw.scene_id ||
+      raw.sceneId ||
+      (raw.scenePose as { sceneId?: unknown } | null | undefined)?.sceneId ||
+      existingDevice?.runtimeSceneId,
+  );
   const normalizedDevice = {
     ...base,
     ...existingDevice,
     deviceId,
-    deviceName: (raw.deviceName ||
-      raw.device_name ||
-      raw.name ||
-      existingDevice?.deviceName ||
-      deviceId) as string,
+    deviceName:
+      asText(
+        raw.deviceName ||
+          raw.device_name ||
+          raw.name ||
+          existingDevice?.deviceName,
+        deviceId,
+      ) || deviceId,
     topic: topic || existingDevice?.topic || base.topic,
     online:
       typeof raw.online === "boolean"
@@ -482,19 +515,19 @@ export const normalizeDevice = (
         existingDevice?.stamp ||
         Date.now(),
     ),
-    sceneId: (raw.scene_id ||
-      raw.sceneId ||
-      (raw.scenePose as { sceneId?: unknown } | null | undefined)?.sceneId ||
-      raw.runtimeSceneId ||
-      existingDevice?.sceneId ||
-      "") as string,
+    sceneId: asText(
+      raw.scene_id ||
+        raw.sceneId ||
+        (raw.scenePose as { sceneId?: unknown } | null | undefined)?.sceneId ||
+        raw.runtimeSceneId ||
+        existingDevice?.sceneId,
+    ),
     runtimeSceneId,
-    defaultSceneId: (raw.defaultSceneId ||
-      existingDevice?.defaultSceneId ||
-      "") as string,
-    mapProfile: (raw.mapProfile ||
-      existingDevice?.mapProfile ||
-      "lanelet") as MapProfile,
+    defaultSceneId: asText(
+      raw.defaultSceneId || existingDevice?.defaultSceneId,
+    ),
+    mapProfile:
+      asText(raw.mapProfile || existingDevice?.mapProfile) || "lanelet",
     gpsEnabled:
       typeof raw.gpsEnabled === "boolean"
         ? raw.gpsEnabled
@@ -583,12 +616,24 @@ export const normalizeDevice = (
       stamp: speedLimit.stamp
         ? toIsoString(speedLimit.stamp)
         : (existingDevice?.speedLimit?.stamp ?? null),
-      moduleName: (speedLimit.module_name ||
-        speedLimit.moduleName ||
-        existingDevice?.speedLimit?.moduleName ||
-        "") as string,
+      moduleName: asText(
+        speedLimit.module_name ||
+          speedLimit.moduleName ||
+          existingDevice?.speedLimit?.moduleName,
+      ),
     },
-    alerts: Array.isArray(raw.alerts) ? raw.alerts : [],
+    /**
+     * Always empty here, and that is not a placeholder being sloppy — the three branches
+     * below (`isArray && normalized`, `isArray && !normalized`, `!isArray`) cover every
+     * input, so whatever this field is set to is overwritten before the function returns.
+     *
+     * It used to read `Array.isArray(raw.alerts) ? raw.alerts : []`, whose live branch is
+     * therefore dead. The cost was not the dead code: `Array.isArray` on an `unknown`
+     * narrows to `any[]`, so this one expression made `alerts` an `any[]` for every reader
+     * of the returned snapshot — including the tests, which had to annotate each
+     * `.find()` callback by hand and still got `any` back out.
+     */
+    alerts: [] as DeviceAlert[],
     extra: {
       ...((existingDevice?.extra as Record<string, unknown>) || {}),
       ...((raw.extra as Record<string, unknown>) || {}),
@@ -602,17 +647,26 @@ export const normalizeDevice = (
   }
 
   if (Array.isArray(raw.alerts) && isNormalizedSnapshot(raw)) {
+    // `Array.isArray` on an `unknown` narrows to `any[]`, so every field below used to be
+    // read off `any` — eight `no-unsafe-member-access` in a branch whose entire purpose is
+    // to re-derive these fields. `asRecord` is the same narrowing the vendor branch below
+    // already did by hand.
     normalizedDevice.alerts = dedupeAlerts(
-      raw.alerts.map((alert, index) => ({
-        id: alert.id || `${normalizedDevice.deviceId}-alert-${index + 1}`,
-        severity: normalizeSeverity(alert.severity),
-        source: alert.source || "snapshot",
-        title: alert.title || "设备告警",
-        detail: alert.detail || "",
-        code: toNumeric(alert.code, 0) ?? 0,
-        info: alert.info || "",
-        ts: alert.ts || normalizedDevice.stamp,
-      })),
+      (raw.alerts as unknown[]).map((entry, index) => {
+        const alert = asRecord(entry);
+        return {
+          id:
+            asText(alert.id) ||
+            `${normalizedDevice.deviceId}-alert-${index + 1}`,
+          severity: normalizeSeverity(alert.severity),
+          source: asText(alert.source) || "snapshot",
+          title: asText(alert.title) || "设备告警",
+          detail: asText(alert.detail),
+          code: toNumeric(alert.code, 0) ?? 0,
+          info: asText(alert.info),
+          ts: asText(alert.ts) || normalizedDevice.stamp,
+        };
+      }),
     );
   } else if (Array.isArray(raw.alerts)) {
     // A raw vendor frame that carries its own `alerts` array. This case used to fall
@@ -623,20 +677,18 @@ export const normalizeDevice = (
     // in the union.
     normalizedDevice.alerts = dedupeAlerts(
       (raw.alerts as unknown[]).map((entry, index) => {
-        const alert = (
-          entry && typeof entry === "object" ? entry : {}
-        ) as Record<string, unknown>;
+        const alert = asRecord(entry);
         return {
-          id: String(
+          id: asText(
             alert.id || `${normalizedDevice.deviceId}-alert-${index + 1}`,
           ),
           severity: normalizeSeverity(alert.severity),
-          source: String(alert.source || "device"),
-          title: String(alert.title || "设备告警"),
-          detail: String(alert.detail || alert.info || ""),
+          source: asText(alert.source || "device"),
+          title: asText(alert.title || "设备告警"),
+          detail: asText(alert.detail || alert.info || ""),
           code: toNumeric(alert.code, 0) ?? 0,
-          info: String(alert.info || ""),
-          ts: (alert.ts as string) || normalizedDevice.stamp,
+          info: asText(alert.info || ""),
+          ts: asText(alert.ts) || normalizedDevice.stamp,
           active: true,
         };
       }),

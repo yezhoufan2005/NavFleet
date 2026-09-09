@@ -21,7 +21,7 @@ const summarize = (value: unknown): string => {
   if (value instanceof Error) return value.message || value.name;
   if (typeof value === "string") return value;
   if (value && typeof value === "object" && "message" in value) {
-    return String((value as { message: unknown }).message);
+    return String(value.message);
   }
   return "未知错误";
 };

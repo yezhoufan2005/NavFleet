@@ -13,6 +13,7 @@ import {
   VALUE_PREVIEW_LIMIT,
 } from "@/lib/localState";
 import { useFleetStore } from "@/stores/fleet";
+import { requestUrl } from "./helpers/requestUrl";
 
 /**
  * 管理 and its two built children.
@@ -278,7 +279,7 @@ describe("场景", () => {
     const fetchMock = vi.fn((input: RequestInfo | URL, _init?: RequestInit) =>
       Promise.resolve(
         new Response(null, {
-          status: missing.includes(String(input)) ? 404 : 206,
+          status: missing.includes(requestUrl(input)) ? 404 : 206,
         }),
       ),
     );

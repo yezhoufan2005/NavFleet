@@ -1,4 +1,4 @@
-import { describe, it, expect } from "vitest";
+import { describe, it, expect, type Mock } from "vitest";
 import request from "supertest";
 import { DEVICE_ID, SCENE_ID, createTestApp, sessionCookie } from "./helpers/testApp";
 
@@ -45,13 +45,34 @@ describe("error middleware", () => {
     expect(response.text).not.toContain("mongo exploded");
   });
 
+  // `getHistory` is genuinely async, so it fails by rejecting. `getScene` /
+  // `getSceneOverlay` are synchronous, so the only way they can fail is by throwing —
+  // `fail` says which per row rather than pretending all three are alike.
   it.each([
-    { path: `/api/devices/${DEVICE_ID}/history`, stub: "getHistory" as const },
-    { path: `/api/scenes/${SCENE_ID}`, stub: "getScene" as const },
-    { path: `/api/scenes/${SCENE_ID}/overlay`, stub: "getSceneOverlay" as const },
-  ])("returns a generic 500 when $stub fails", async ({ path, stub }) => {
+    {
+      path: `/api/devices/${DEVICE_ID}/history`,
+      stub: "getHistory" as const,
+      fail: (stub: Mock) => stub.mockRejectedValue(new Error("boom")),
+    },
+    {
+      path: `/api/scenes/${SCENE_ID}`,
+      stub: "getScene" as const,
+      fail: (stub: Mock) =>
+        stub.mockImplementation(() => {
+          throw new Error("boom");
+        }),
+    },
+    {
+      path: `/api/scenes/${SCENE_ID}/overlay`,
+      stub: "getSceneOverlay" as const,
+      fail: (stub: Mock) =>
+        stub.mockImplementation(() => {
+          throw new Error("boom");
+        }),
+    },
+  ])("returns a generic 500 when $stub fails", async ({ path, stub, fail }) => {
     const context = createTestApp();
-    context.store[stub].mockRejectedValue(new Error("boom"));
+    fail(context.store[stub]);
 
     const response = await request(context.app).get(path).set("Cookie", sessionCookie());
 

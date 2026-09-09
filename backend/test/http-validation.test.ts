@@ -91,7 +91,10 @@ describe("validation → 400 response wiring", () => {
 
   it("accepts the safe scene id charset", async () => {
     const context = createTestApp();
-    context.store.getScene.mockResolvedValue(null);
+    // `mockReturnValue`, not `mockResolvedValue`: `getScene` is synchronous. The resolved
+    // form handed the route a *Promise* — truthy — and the route answered 200 for a scene
+    // that does not exist. It passed before only because the route awaited it.
+    context.store.getScene.mockReturnValue(null);
     const response = await authed(context, "/api/scenes/scene.a_1-2");
 
     // Rejected by the store as unknown, not by validation.

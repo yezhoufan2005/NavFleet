@@ -11,14 +11,14 @@ export const buildScenesRouter = (store: DashboardStore): express.Router => {
     response.json({ items: store.getScenes() });
   });
 
-  router.get("/scenes/:sceneId", async (request, response, next) => {
+  router.get("/scenes/:sceneId", (request, response, next) => {
     try {
       const parsed = sceneIdParamSchema.safeParse(request.params.sceneId);
       if (!parsed.success) {
         respondValidationError(response, parsed.error);
         return;
       }
-      const definition = await store.getScene(parsed.data);
+      const definition = store.getScene(parsed.data);
       if (!definition) {
         response.status(404).json({ error: "scene_not_found" });
         return;
@@ -29,14 +29,14 @@ export const buildScenesRouter = (store: DashboardStore): express.Router => {
     }
   });
 
-  router.get("/scenes/:sceneId/overlay", async (request, response, next) => {
+  router.get("/scenes/:sceneId/overlay", (request, response, next) => {
     try {
       const parsed = sceneIdParamSchema.safeParse(request.params.sceneId);
       if (!parsed.success) {
         respondValidationError(response, parsed.error);
         return;
       }
-      const overlay = await store.getSceneOverlay(parsed.data);
+      const overlay = store.getSceneOverlay(parsed.data);
       if (!overlay) {
         response.status(404).json({ error: "scene_overlay_not_found" });
         return;

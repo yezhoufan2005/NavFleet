@@ -17,6 +17,36 @@ const toNumeric = (value: unknown, fallback: number | null = null): number | nul
 };
 
 /**
+ * A JSON scalar as text; anything else becomes `fallback`.
+ *
+ * `String(raw.deviceName || …)` was the house pattern in this file — 25 of them — and on a
+ * field typed `unknown` it is a promise the normaliser cannot keep. A vehicle publishing
+ * `"deviceName": {}` got the literal string `"[object Object]"` as its name, carried through
+ * the snapshot, the WebSocket delta, Mongo, and into the console's device list. Nothing in
+ * the fleet does that today; nothing rejected it either, and **being the place where
+ * 「到达的东西」变成「模型说的东西」is this file's entire job.**
+ *
+ * `no-base-to-string` (P0-f 第 3 批) named all 25 at once.
+ *
+ * Two deliberate differences from `String`: `null` and `undefined` render as `fallback`
+ * rather than the words `"null"` / `"undefined"` — which is why a topic-less ingest input no
+ * longer gets matched against the literal string `"undefined"` — and a non-finite number
+ * renders as `fallback` rather than `"NaN"`.
+ */
+export const asText = (value: unknown, fallback = ""): string => {
+  if (typeof value === "string") {
+    return value;
+  }
+  if (typeof value === "number") {
+    return Number.isFinite(value) ? String(value) : fallback;
+  }
+  if (typeof value === "boolean" || typeof value === "bigint") {
+    return String(value);
+  }
+  return fallback;
+};
+
+/**
  * Epoch milliseconds, or `null` when the value carries no time.
  *
  * A local copy rather than an import: this file is the backend's own normaliser and
@@ -31,10 +61,10 @@ const parseTimestampMs = (value: unknown): number | null => {
     return value < 1e12 ? value * 1000 : value;
   }
   const numeric = Number(value);
-  if (Number.isFinite(numeric) && String(value).trim() !== "") {
+  if (Number.isFinite(numeric) && asText(value).trim() !== "") {
     return numeric < 1e12 ? numeric * 1000 : numeric;
   }
-  const parsed = Date.parse(String(value));
+  const parsed = Date.parse(asText(value));
   return Number.isFinite(parsed) ? parsed : null;
 };
 
@@ -91,14 +121,14 @@ const resolveDeviceIdFromTopic = (topic: string, topicPattern: string): string =
 const isFiniteNumber = (value: unknown): value is number =>
   typeof value === "number" && Number.isFinite(value);
 
-const hasPose = (pose: DeviceSnapshot["fusionLoc"] | DeviceSnapshot["lidarLoc"]): boolean =>
+const hasPose = (pose: DeviceSnapshot["fusionLoc"]): boolean =>
   isFiniteNumber(pose?.x) && isFiniteNumber(pose?.y);
 
 export const hasGps = (gps: DeviceSnapshot["gps"]): boolean =>
   isFiniteNumber(gps?.lat) && isFiniteNumber(gps?.lng);
 
 const normalizeSeverity = (value: unknown): Severity => {
-  const normalized = String(value || "").toLowerCase();
+  const normalized = asText(value || "").toLowerCase();
   if (
     normalized.includes("critical") ||
     normalized.includes("fatal") ||
@@ -122,7 +152,7 @@ const normalizeCode = (rawCode: unknown, fallback?: CodeState): CodeState => {
   const source = isRecord(rawCode) ? rawCode : {};
   return {
     code: Number(toNumeric(source.code, fallback?.code ?? 0) ?? 0),
-    info: String(source.info || fallback?.info || ""),
+    info: asText(source.info || fallback?.info || ""),
     stamp: source.stamp ? toIsoString(source.stamp) : fallback?.stamp || null,
   };
 };
@@ -173,15 +203,15 @@ const buildRawAlerts = (raw: UnknownRecord, nowIso: string, deviceId: string): D
       ? raw.alarmList
       : [];
   return sourceValue.filter(isRecord).map((item, index) => ({
-    id: String(item.id || `${deviceId}-alert-${index + 1}`),
-    title: String(item.title || `设备告警 ${index + 1}`),
-    detail: String(item.detail || item.info || ""),
+    id: asText(item.id || `${deviceId}-alert-${index + 1}`),
+    title: asText(item.title || `设备告警 ${index + 1}`),
+    detail: asText(item.detail || item.info || ""),
     severity: normalizeSeverity(item.severity || item.level),
-    source: String(item.source || "device-alert"),
+    source: asText(item.source || "device-alert"),
     ts: toIsoString(item.ts || item.timestamp || nowIso),
     active: true,
     code: Number(toNumeric(item.code, 0) ?? 0),
-    info: item.info ? String(item.info) : "",
+    info: item.info ? asText(item.info) : "",
   }));
 };
 
@@ -305,8 +335,8 @@ export const normalizeDevice = (
     : rawInput;
   const isNormalizedSnapshot = isNormalizedSnapshotRecord(raw);
 
-  const topic = String(raw.topic || topicHint || existingDevice?.topic || "");
-  const deviceId = String(
+  const topic = asText(raw.topic || topicHint || existingDevice?.topic || "");
+  const deviceId = asText(
     raw.deviceId ||
       raw.id ||
       raw.device_id ||
@@ -340,7 +370,7 @@ export const normalizeDevice = (
   const stamp = toIsoString(
     raw.stamp || raw.lastSeen || raw.last_seen || raw.ts || raw.timestamp || Date.now(),
   );
-  const runtimeSceneId = String(
+  const runtimeSceneId = asText(
     raw.scene_id ||
       raw.sceneId ||
       (isRecord(raw.scenePose) ? raw.scenePose.sceneId : undefined) ||
@@ -353,16 +383,20 @@ export const normalizeDevice = (
     ...base,
     ...existingDevice,
     deviceId,
-    deviceName: String(
+    deviceName: asText(
       raw.deviceName || raw.device_name || raw.name || existingDevice?.deviceName || deviceId,
+      // The `||` chain already ends in `deviceId`, so this second argument is reached only
+      // when an *earlier* member is truthy and not a scalar — a vehicle publishing
+      // `"deviceName": {}`. Falling back to the id beats falling back to an empty name.
+      deviceId,
     ),
     topic: topic || existingDevice?.topic || `/fleet/${deviceId}/vehicle_info`,
     online: typeof raw.online === "boolean" ? raw.online : (existingDevice?.online ?? true),
     stamp,
     sceneId: runtimeSceneId || existingDevice?.sceneId || "",
     runtimeSceneId,
-    defaultSceneId: String(raw.defaultSceneId || existingDevice?.defaultSceneId || ""),
-    mapProfile: String(raw.mapProfile || existingDevice?.mapProfile || "lanelet"),
+    defaultSceneId: asText(raw.defaultSceneId || existingDevice?.defaultSceneId || ""),
+    mapProfile: asText(raw.mapProfile || existingDevice?.mapProfile || "lanelet"),
     gpsEnabled:
       typeof raw.gpsEnabled === "boolean" ? raw.gpsEnabled : (existingDevice?.gpsEnabled ?? true),
     rosMapEnabled:
@@ -425,7 +459,7 @@ export const normalizeDevice = (
       stamp: speedLimit.stamp
         ? toIsoString(speedLimit.stamp)
         : (existingDevice?.speedLimit.stamp ?? null),
-      moduleName: String(
+      moduleName: asText(
         speedLimit.module_name ||
           speedLimit.moduleName ||
           existingDevice?.speedLimit.moduleName ||
@@ -456,15 +490,15 @@ export const normalizeDevice = (
   if (Array.isArray(raw.alerts) && isNormalizedSnapshot) {
     snapshot.alerts = dedupeAlerts(
       raw.alerts.filter(isRecord).map((alert, index) => ({
-        id: String(alert.id || `${deviceId}-alert-${index + 1}`),
-        title: String(alert.title || "设备告警"),
-        detail: String(alert.detail || ""),
+        id: asText(alert.id || `${deviceId}-alert-${index + 1}`),
+        title: asText(alert.title || "设备告警"),
+        detail: asText(alert.detail || ""),
         severity: normalizeSeverity(alert.severity),
-        source: String(alert.source || "snapshot"),
+        source: asText(alert.source || "snapshot"),
         ts: toIsoString(alert.ts || stamp),
         active: typeof alert.active === "boolean" ? alert.active : true,
         code: Number(toNumeric(alert.code, 0) ?? 0),
-        info: alert.info ? String(alert.info) : "",
+        info: alert.info ? asText(alert.info) : "",
       })),
     );
   } else {
@@ -570,8 +604,8 @@ export const normalizePayload = (
       };
     }
 
-    const deviceId = String(
-      payloadBody.deviceId || resolveDeviceIdFromTopic(String(input.topic), topicPattern),
+    const deviceId = asText(
+      payloadBody.deviceId || resolveDeviceIdFromTopic(asText(input.topic), topicPattern),
     );
     return {
       replace: false,
@@ -581,14 +615,14 @@ export const normalizePayload = (
         normalizeDevice(
           { ...payloadBody, deviceId },
           existingDevices.get(deviceId) || null,
-          String(input.topic),
+          asText(input.topic),
         ),
       ],
     };
   }
 
-  const deviceId = String(
-    input.deviceId || resolveDeviceIdFromTopic(String(input.topic || ""), topicPattern),
+  const deviceId = asText(
+    input.deviceId || resolveDeviceIdFromTopic(asText(input.topic || ""), topicPattern),
   );
   return {
     replace: false,
@@ -598,7 +632,7 @@ export const normalizePayload = (
       normalizeDevice(
         { ...input, deviceId },
         existingDevices.get(deviceId) || null,
-        String(input.topic || ""),
+        asText(input.topic || ""),
       ),
     ],
   };

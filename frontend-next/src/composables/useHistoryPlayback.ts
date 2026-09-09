@@ -1,5 +1,4 @@
 import { computed, onBeforeUnmount, readonly, ref, watch } from "vue";
-import type { Ref } from "vue";
 
 /**
  * Timeline playback for the history tab: the sample cursor, play/pause, the speed
@@ -183,7 +182,7 @@ export const useHistoryPlayback = (options: UseHistoryPlaybackOptions) => {
 
   return {
     samples: computed(() => samples.value),
-    cursor: cursor as Ref<number>,
+    cursor: cursor,
     playing: computed(() => playing.value),
     speed,
     currentSample,

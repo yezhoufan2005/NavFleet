@@ -20,6 +20,7 @@ import {
 import { SIDEBAR_STORAGE_KEY } from "@/composables/useSidebar";
 import { THEME_STORAGE_KEY } from "@/composables/useTheme";
 import { acceptLastSocket, openedSockets, setViewportWidth } from "./setup";
+import { requestUrl } from "./helpers/requestUrl";
 
 /**
  * The shell as a whole: which of the three top-level states renders, and whether the
@@ -71,7 +72,7 @@ const routedFetch = (
   fleet: Response = jsonResponse(FLEET),
 ) =>
   vi.fn((input: RequestInfo | URL) => {
-    const url = String(input);
+    const url = requestUrl(input);
     if (url.includes("/scenes"))
       return Promise.resolve(jsonResponse({ items: [] }));
     if (url.includes("/fleet/snapshot")) return Promise.resolve(fleet);

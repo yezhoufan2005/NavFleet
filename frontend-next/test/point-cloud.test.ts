@@ -1,4 +1,12 @@
-import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
+import {
+  describe,
+  it,
+  expect,
+  beforeEach,
+  afterEach,
+  vi,
+  type Mock,
+} from "vitest";
 import {
   BACKDROP_CACHE_LIMIT,
   loadPointCloudBackdrop,
@@ -6,6 +14,7 @@ import {
   __clearBackdropCache,
 } from "@/lib/pointCloudBackdrop";
 import type { PointCloudPalette } from "@/lib/pointCloudBackdrop";
+import { requestUrl } from "./helpers/requestUrl";
 
 /**
  * The cache, which is where this module's own two fixes are. The rasterization it
@@ -45,7 +54,11 @@ const pcdBuffer = (): ArrayBuffer => {
   return buffer;
 };
 
-let fetchMock: ReturnType<typeof vi.fn>;
+// `Mock<typeof fetch>` rather than `ReturnType<typeof vi.fn>`: the latter resolves to
+// vitest's bare `Mock`, whose implementation is expected to return `void`, so every
+// `mockImplementation(() => Promise.resolve(…))` here read as a floating promise under
+// vitest 5's types. Naming the signature is also just more honest about what the stub is.
+let fetchMock: Mock<typeof fetch>;
 let toDataUrlCalls = 0;
 
 /**
@@ -107,7 +120,7 @@ describe("loading", () => {
     // single canned response would have the JSON parse eat the PCD header.
     fetchMock.mockImplementation((input: RequestInfo | URL) =>
       Promise.resolve(
-        String(input).endsWith(".json")
+        requestUrl(input).endsWith(".json")
           ? new Response(JSON.stringify({ grid_size: 1 }), { status: 200 })
           : new Response(pcdBuffer(), { status: 200 }),
       ),

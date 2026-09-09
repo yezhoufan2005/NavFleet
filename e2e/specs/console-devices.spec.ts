@@ -250,10 +250,10 @@ test.describe("console devices", () => {
     // it — could not be reached by clicking anything. This spec previously asserted the
     // old behaviour, which is why nothing caught it.
     await page.getByRole("button", { name: "列表", exact: true }).click();
-    await page.getByRole("link", { name: firstDevice!.deviceName }).click();
+    await page.getByRole("link", { name: firstDevice.deviceName }).click();
 
     await expect(page).toHaveURL(
-      new RegExp(`/devices/${firstDevice!.deviceId}$`),
+      new RegExp(`/devices/${firstDevice.deviceId}$`),
     );
     await expect(page.getByRole("tab", { name: "实时" })).toBeVisible();
 
@@ -317,7 +317,7 @@ test.describe("console devices", () => {
     const requested: string[] = [];
     page.on("request", (request) => requested.push(request.url()));
 
-    await page.goto(`/devices/${SEEDED_DEVICES[0]!.deviceId}`);
+    await page.goto(`/devices/${SEEDED_DEVICES[0].deviceId}`);
     await expect(page.getByRole("tab", { name: "实时" })).toBeVisible();
     expect(requested.some((url) => /TimeSeriesChart/.test(url))).toBe(false);
 

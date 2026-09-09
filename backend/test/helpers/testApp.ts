@@ -42,8 +42,8 @@ export interface StoreStub {
   snapshot: Mock<() => FleetSnapshot>;
   getFormations: Mock<() => FormationSnapshot[]>;
   getScenes: Mock<() => SceneMapDefinition[]>;
-  getScene: Mock<(sceneId: string) => Promise<SceneMapDefinition | null>>;
-  getSceneOverlay: Mock<(sceneId: string) => Promise<LaneletOverlay | null>>;
+  getScene: Mock<(sceneId: string) => SceneMapDefinition | null>;
+  getSceneOverlay: Mock<(sceneId: string) => LaneletOverlay | null>;
   getHistory: Mock<
     (deviceId: string, from?: string, to?: string, limit?: number) => Promise<unknown[]>
   >;
@@ -55,9 +55,19 @@ export interface StoreStub {
   >;
 }
 
-// getScene/getSceneOverlay are synchronous on DashboardStore but the routes
-// await them, so the stubs are typed as promise-returning: that keeps
-// mockRejectedValue available for the error-middleware tests.
+/**
+ * `getScene` / `getSceneOverlay` are **synchronous** on `DashboardStore`, and these stubs
+ * now say so.
+ *
+ * They used to be typed promise-returning, with a comment admitting the mismatch: the
+ * routes awaited them, and `mockRejectedValue` was convenient for the error-middleware
+ * tests. So the double modelled a contract the doubled thing does not have, and the
+ * route's pointless `await` is what made the two look compatible — `await-thenable`
+ * (P0-f 第 3 批) is what named it.
+ *
+ * The error-middleware test now provokes a **synchronous throw**, which is the only way a
+ * synchronous method can fail — i.e. it now exercises the path that actually exists.
+ */
 export const createStoreStub = (): StoreStub => ({
   buildSummary: vi.fn(() => ({
     fleetName: "测试车队",
@@ -70,12 +80,8 @@ export const createStoreStub = (): StoreStub => ({
   snapshot: vi.fn(() => sampleSnapshot()),
   getFormations: vi.fn(() => [sampleFormation()]),
   getScenes: vi.fn(() => [sampleScene()]),
-  getScene: vi.fn((sceneId: string) =>
-    Promise.resolve(sceneId === SCENE_ID ? sampleScene() : null),
-  ),
-  getSceneOverlay: vi.fn((sceneId: string) =>
-    Promise.resolve(sceneId === SCENE_ID ? sampleOverlay() : null),
-  ),
+  getScene: vi.fn((sceneId: string) => (sceneId === SCENE_ID ? sampleScene() : null)),
+  getSceneOverlay: vi.fn((sceneId: string) => (sceneId === SCENE_ID ? sampleOverlay() : null)),
   getHistory: vi.fn(() => Promise.resolve([sampleHistoryPoint()])),
   getAlerts: vi.fn(() => Promise.resolve([sampleAlert()])),
   applyPayload: vi.fn(() => Promise.resolve(sampleSnapshot())),

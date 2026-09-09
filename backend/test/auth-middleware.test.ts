@@ -8,11 +8,11 @@ const mockResponse = () => {
   res.status = vi.fn((code: number) => {
     res.statusCode = code;
     return res as Response;
-  }) as unknown as Response["status"];
+  });
   res.json = vi.fn((payload: unknown) => {
     res.body = payload;
     return res as Response;
-  }) as unknown as Response["json"];
+  });
   return res as Response & { statusCode?: number; body?: unknown };
 };
 

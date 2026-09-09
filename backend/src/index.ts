@@ -136,7 +136,7 @@ const start = async (): Promise<void> => {
   await authService.initialize();
   state.storeReady = true;
   try {
-    await configRegistry.startWatching(async () => {
+    configRegistry.startWatching(async () => {
       await store.reloadConfig();
       wsBridge.broadcast({
         type: "fleet.snapshot",

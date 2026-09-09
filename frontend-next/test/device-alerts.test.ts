@@ -20,21 +20,20 @@ enableAutoUnmount(afterEach);
 
 const BASE = Date.parse("2026-08-30T02:00:00.000Z");
 
-const record = (patch: Partial<AlertRecord> = {}): AlertRecord =>
-  ({
-    id: "agv-01-error-5102",
-    deviceId: "agv-01",
-    deviceName: "A01 巡检车",
-    severity: "critical",
-    source: "error_code",
-    title: "路径规划超时",
-    detail: "目标点被占据",
-    code: 5102,
-    active: true,
-    ts: new Date(BASE).toISOString(),
-    clearedAt: null,
-    ...patch,
-  }) as AlertRecord;
+const record = (patch: Partial<AlertRecord> = {}): AlertRecord => ({
+  id: "agv-01-error-5102",
+  deviceId: "agv-01",
+  deviceName: "A01 巡检车",
+  severity: "critical",
+  source: "error_code",
+  title: "路径规划超时",
+  detail: "目标点被占据",
+  code: 5102,
+  active: true,
+  ts: new Date(BASE).toISOString(),
+  clearedAt: null,
+  ...patch,
+});
 
 let getAlerts: MockInstance<typeof fleetApi.getAlerts>;
 

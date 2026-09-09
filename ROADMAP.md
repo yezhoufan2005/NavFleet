@@ -79,33 +79,33 @@ CI 全绿 → `--no-ff` 合并 → 回写本文件并记录自检结果。
 
 七件事收口于 1.1.0 发版。之后的顺序**由负责人 2026-09-09 定，不要跳**：
 
-| 顺序 | 内容                                    | 状态                          |
-| ---- | --------------------------------------- | ----------------------------- |
-| 1    | **P0-f 工程门禁批次**（剩 4 批，见下）  | 1–2 已做（14X/14Y），3–6 待办 |
-| 2    | **Phase 15** 用户体系与真 RBAC（1.2.0） | 15A schema 迁移机制必须先做   |
-| 3    | **Phase 16** 告警体系深化（1.3.0）      | 待办                          |
-| 4    | **Phase 17** 报表与数据价值（1.4.0）    | 待办                          |
-| 5    | **Phase 18** 交付成熟度收尾（2.0.0）    | 待办                          |
-| 6    | **最后三项**（见下一节）                | 负责人明确后置到所有任务之后  |
+| 顺序 | 内容                                      | 状态                          |
+| ---- | ----------------------------------------- | ----------------------------- |
+| 1    | **P0-f 工程门禁批次** ✅ **六批全部完成** | 14X / 14Y / 14Z / 14AA / 14AB |
+| 2    | **Phase 15** 用户体系与真 RBAC（1.2.0）   | 15A schema 迁移机制必须先做   |
+| 3    | **Phase 16** 告警体系深化（1.3.0）        | 待办                          |
+| 4    | **Phase 17** 报表与数据价值（1.4.0）      | 待办                          |
+| 5    | **Phase 18** 交付成熟度收尾（2.0.0）      | 待办                          |
+| 6    | **最后三项**（见下一节）                  | 负责人明确后置到所有任务之后  |
 
 ### P0-f 拆成六批，因为量出来差得很远
 
 原计划是「一个批次八项」。逐项实测之后必须拆开 —— 前四项零风险可以一次做完，两个严格开关合计
 **170+ 处机械修复**：
 
-| 批  | 内容                                                                                       | 实测规模                                                        |
-| --- | ------------------------------------------------------------------------------------------ | --------------------------------------------------------------- |
-| 1   | shared 纳入 lint · `no-unused-vars` → error · `--max-warnings 0` · playwright `retries: 0` | **0 fallout**，已完成（14X）                                    |
-| 2   | `noUncheckedIndexedAccess` 等五个严格开关                                                  | shared 0 · fleet-core 9 · e2e 19 · backend 103 —— 已完成（14Y） |
-| 3   | `recommendedTypeChecked`（type-aware lint）                                                | backend **65**（其余未量）                                      |
-| 4   | eslint 9 → 10 + eslint-plugin-vue 9 → 10                                                   | 必须同时，手写；dependabot 只给了一半                           |
-| 5   | vitest 3 → 5 + `@vitest/coverage-v8` 3 → 5                                                 | 必须同时，且要**重定四个覆盖率门槛**                            |
-| 6   | 覆盖率近零区补测                                                                           | `persistence.ts` 42.6% · `store.ts` 57.4%                       |
+| 批  | 内容                                                                                       | 实测规模                                                                                       |
+| --- | ------------------------------------------------------------------------------------------ | ---------------------------------------------------------------------------------------------- |
+| 1   | shared 纳入 lint · `no-unused-vars` → error · `--max-warnings 0` · playwright `retries: 0` | **0 fallout**，已完成（14X）                                                                   |
+| 2   | `noUncheckedIndexedAccess` 等五个严格开关                                                  | shared 0 · fleet-core 9 · e2e 19 · backend 103 —— 已完成（14Y）                                |
+| 3   | `recommendedTypeChecked`（type-aware lint）                                                | backend 61 · fleet-core 40 · console 60 · e2e 3 · shared 0 —— 已完成（14Z）                    |
+| 4   | eslint 9 → 10 + eslint-plugin-vue 9 → 10                                                   | 实际是四件：还要 `typescript-eslint` 8.70 与 `@eslint/js` 10 —— 已完成（14AB）                 |
+| 5   | vitest 3 → 5 + `@vitest/coverage-v8` 3 → 5                                                 | 门槛确实要重定，而且**跨这次升级数字不可比** —— 已完成（14AB）                                 |
+| 6   | 覆盖率近零区补测                                                                           | `persistence.ts` 47.4% → **84.1%** —— 已完成（14AA）。`store.ts` 那个 57.4% 是旧数，实测 88.5% |
 
 **第 1 批放在最前面有个实际理由**：`--max-warnings 0` 一旦立起来，后面每一批新开的规则就不可能
 以 warning 的形式偷偷积压 —— 要么修掉，要么显式豁免，没有第三条路。
 
-第 4、5 批被 dependabot 的「半个升级」卡着：#131 只改 `vitest`、#135 只改 `@vitest/coverage-v8`，
+第 4、5 批曾被 dependabot 的「半个升级」卡着：#131 只改 `vitest`、#135 只改 `@vitest/coverage-v8`，
 两个都不能单独合，而 dependabot 无法把两个 PR 合成一次提交。#139（eslint 10）同理缺 plugin-vue
 那一半。手写时一并关掉它们。
 
@@ -396,7 +396,11 @@ Phase 14 里，是为了它既不阻塞发版、也不被当成「以后自然�
 - [ ] `packages/shared` 纳入 lint（根 `eslint.config.mjs:23` 显式 ignore）。**「e2e 纳入
       `format:check`」这半条已经不成立** —— 根 `format:check` 里已经有
       `prettier --check "e2e/**/*.{ts,json}"`，是这条待办写下之后补的，核对时才发现，已划掉
-- [ ] 覆盖率近零区补测：后端 `persistence.ts` 42.6%（3 例）/ `store.ts` 57.4%（**2 例**）
+- [x] 覆盖率近零区补测（14AA）。**这条待办的两个数字有一个是旧的**：`store.ts` 实测 88.5%，不是
+      57.4%。真正低的是 `persistence.ts` 47.4%，而低的原因很具体 —— 这个类几乎每个方法都是
+      `if (!this.db)` 的两分支函数，而所有既有测试都只走内存兜底那一支，**在生产里跑的那一半
+      一条测试都没有**。加一个 `__setDbForTests` 缝 + 一个假 `Db`（16 例）之后 47.4% → **84.1%**，
+      backend 整体 86.05% → 89.82%，四个门槛同步上抬
 - [x] tsconfig 补 `noUncheckedIndexedAccess` 等严格开关。**这条待办的括号里原本写着「四份配置现在
       只开了 `strict`」，而那是错的**：`frontend-next/tsconfig.json` 从建起来那天就带着全部五个开关。
       所以这一批的目标不是「更严」，是**把其余三个拉到 console 已经在的水平** —— 措辞错了，工作量
@@ -472,6 +476,9 @@ Phase 14 里，是为了它既不阻塞发版、也不被当成「以后自然�
 > | 14W  | **1.1.0 发布** —— Phase 14 收口          |
 > | 14X  | P0-f 第 1 批：四道零风险门禁             |
 > | 14Y  | P0-f 第 2 批：五个严格开关               |
+> | 14Z  | P0-f 第 3 批：type-aware lint            |
+> | 14AA | P0-f 第 6 批：Mongo 那一半的覆盖率       |
+> | 14AB | P0-f 第 4+5 批：eslint 10 + vitest 5     |
 
 - [x] **等价性验收**：parity 清单 + E2E 75 例 + axe 零违规 + **负责人人工验收**（第 5 条决策明确
       要"检查前端是否符合预期且调整后"才进下一步）。负责人 2026-09-02 确认验收通过；其间的调整迭代见
@@ -1107,7 +1114,8 @@ coverage-v8 5，后者还要重定四个覆盖率门槛）。这批的性质是*
 - [x] `amtool check-config` 用 compose 实际钉的 `v0.28.1` 复验通过
 - [x] README 的门禁清单补 `check:map-contrast` 与 `check:deploy` 两条 —— 此前它们存在但没写进文档
 - [x] **P0-f 八项刻意排在 1.1.0 之后** —— 已执行：1.1.0 发布后逐项实测并拆成六批，
-      第 1 批（四项零风险）见 14X、第 2 批（五个严格开关）见 14Y，3–6 批的规模见开头「工作序列」
+      第 1 批（四项零风险）见 14X、第 2 批（五个严格开关）见 14Y、第 3 批（type-aware lint）见 14Z，
+      4–6 批的规模见开头「工作序列」
 
 #### 14W — 1.1.0 发布（2026-09-09）
 
@@ -1175,7 +1183,7 @@ coverage-v8 5，后者还要重定四个覆盖率门槛）。这批的性质是*
       不在其内：加这五个开关正好会逼着改冻结代码，而冻结口径是「门禁只去掉会逼着我们改它的那一个」
 - [x] **e2e 的 19 处是同一件事，用一处类型收掉。** 六个 spec 都在**按位置**从 `SEEDED_DEVICES`
       解构（`const [noticeDevice, warningDevice, criticalDevice] = …`、`const [firstDevice, ,
-  faultedDevice] = …`），所以**长度与顺序本来就是那个模块的契约**，和字段值一样。此前标成
+faultedDevice] = …`），所以**长度与顺序本来就是那个模块的契约**，和字段值一样。此前标成
       `SeededDevice[]` 是在说另一回事，而这个开关正好把不一致翻出来。改成
       `readonly [SeededDevice, SeededDevice, SeededDevice]` 后 19 处全消，一行 spec 没动。
       代价写进注释了：往种子里加第四台车会在那个字面量上编译不过 —— 那正是要的效果
@@ -1197,6 +1205,171 @@ coverage-v8 5，后者还要重定四个覆盖率门槛）。这批的性质是*
       `paths[…]?.get?.security` 之后，这条路径**整个从文档里消失**也读作 `undefined`、断言照绿，
       而它本来要证明的是「这个端点继承全局 cookieAuth」。改为先取局部变量并断言路径存在。
       同一个 `it` 里另外两句是安全的 —— 路径消失读作 `undefined`，而它们期望 `[]`
+
+#### 14Z — P0-f 第 3 批：type-aware lint，164 处报错里挑出 9 个真缺陷（2026-09-10）
+
+它和第 2 批的性质不同：严格开关问「这个下标一定在吗」，type-aware lint 问「在这个类型上做这件事
+有意义吗」，所以**真缺陷的比例高得多** —— 第 2 批 131 处里几乎全是机械修复，这批 164 处里有 8 处
+是真的。
+
+规模：backend **61** · fleet-core **40** · console **60** · e2e **3** · shared **0**。冻结的
+`frontend/` 不在其内，理由同第 2 批。
+
+**九个真缺陷**（细节见对应 PR）。其中第九个是**写测试时才发现的**，值得记一笔方法：修完一批
+`no-base-to-string` 之后我加了一条用例验「对象名字不再变成 `[object Object]`」，**它红了** ——
+因为那个字段走的不是 `String()` 而是 `as string`，而规则只看得见运行时调用。**给修复补测试，
+才发现修复只覆盖了缺陷的一半。**
+
+- [x] `websocket.ts`：`raw.toString("utf8")` 在 `RawData` 的 `Buffer[]` 分支上走
+      `Array.prototype.toString` —— 忽略编码参数、按逗号连接，于是一个本来合法的 JSON 帧解析失败。
+      **当前配置不可达**（需要 `binaryType: "fragments"`，默认 `"nodebuffer"`），这正是它一直没被
+      发现的原因：缺陷离现实只差一个选项
+- [x] `routes/scenes.ts`：两个路由 `await` 一个同步方法，而这把测试替身也带歪了 ——
+      `testApp.ts` 把 `getScene` 标成返回 Promise，注释自己承认了不一致。**替身建模了一份被替身
+      对象并不具有的契约**，而那个多余的 `await` 是让两边看起来兼容的东西。同步化之后暴露出一处
+      真的假绿：`mockResolvedValue(null)` 让桩返回一个真值，路由对不存在的场景回了 200
+- [x] `store.ts`：`reject(error)` 把 catch 里的 `unknown` 原样抛出，调用方 `.catch(e => e.message)`
+      会拿到第二次、更难定位的失败
+- [x] 四处 `async` 而体内无 await，且调用点都在 `await` 它：`emitChangeEvents`（三个调用点，读起来
+      像「广播要等一等」，而广播就是 `this.emit`）、`reloadConfigInternal`、
+      `configRegistry.startWatching`（`index.ts` 在等「监听建立好」，而那个 await 什么都没等）、`drain`
+- [x] `normalize.ts` 25 处 + `fleetNormalize.ts` 16 处 `String(unknown)`：一辆车发
+      `"deviceName": {}`，名字就变成字面量 `"[object Object]"`，一路进到 console 的设备列表。
+      两侧各加一个 `asText`（与 `String` 有两处刻意差别：`null`/`undefined` 与非有限数渲染成兜底值，
+      于是没有 topic 的 ingest 输入不再被拿去和字面量 `"undefined"` 匹配）
+- [x] `formatters.formatValue`：`String(value)` 会把对象渲染成 `"[object Object]"` **显示在页面上**。
+      `"--"` 是这个函数自己表示「没有可显示的值」的写法
+- [x] `fleetNormalize.ts` 的 `alerts: Array.isArray(raw.alerts) ? raw.alerts : []`：**那条活分支是
+      死的**（下面三个分支覆盖了全部输入，一定会覆写它）。代价不是死代码 —— `Array.isArray` 在
+      `unknown` 上收窄成 `any[]`，于是这一个表达式让 `alerts` 对**所有**读者都是 `any[]`，测试因此
+      要手写 `(alert: { severity: string })` 这样的形参注解，还是拿回一个 `any`
+- [x] 四个 console 测试里的 `String(input)`：`RequestInfo` 的 `Request` 分支没有有意义的
+      `toString`，会记成 `"[object Request]"`，于是 stub 里所有 `includes` / `endsWith` 静默失配
+- [x] **`fleetNormalize.ts` 里 7 处 `(… ) as string`，规则看不见它们。** 补完 `String()` 那一半
+      之后写测试验「对象名字不再变成 `[object Object]`」，**测试红了** —— 因为 `deviceName` 走的
+      不是 `String()` 而是一个断言。`no-base-to-string` 只能看到运行时调用，而 `as string` 没有
+      调用：它直接向编译器断言「这是 string」，于是下游全部照此信任。**这是同一个缺陷更危险的
+      那一半**，因为它连报都不报。`asText` 一并收掉 7 处，`as string` 归零
+
+**两处规则本身不适用，按目录关掉而不是改掉：**
+
+- [x] backend `test/**` 关 `require-await`：18 处里 14 处是**测试替身**，桩要实现
+      `open(): Promise<void>`，`async open() { … }` 就是满足它的写法，不是遗漏。另外 4 处是真的、
+      在 `src/` 改掉了
+- [x] console `test/**` 关四条 `no-unsafe-*`：**这是工具链的限制，不是对测试质量的让步。**
+      type-aware lint 跑在 typescript-eslint 的 project service 上，而它**不加载 Vue 的 TS 语言
+      插件**，所以 `import Foo from "@/components/Foo.vue"`（`vue-tsc` 解析得了，`npm run typecheck`
+      也在查）在这里是一个无法解析的模块，于是每一个
+      `wrapper.findComponent(Foo).props().points` 都报「unsafe member access on a type that cannot
+      be resolved」—— console 60 处里的 45 处，没有一处是关于代码的。规则在 `src/**` 保持开启，
+      并且在那里抓到了一处真的（`stores/fleet.ts` 的 `JSON.parse` → `any`）
+
+两条都遵循第 1 批立下的判据：**一个首次运行就需要几十处豁免的规则，在那个目录里就不是门禁。**
+
+`vitest.config.ts` / `vite.config.ts` 不在各自的 TS program 里（backend 那份 `tsc` 会因为它 import
+一个 ESM 包而报 TS1479），所以走 `projectService: { allowDefaultProject: [...] }`，而不是塞进
+tsconfig 的 include；fleet-core 那份可以进 include，就进了。
+
+#### 14AA — P0-f 第 6 批：给 `persistence.ts` 在生产里跑的那一半补测（2026-09-10）
+
+**这条待办的两个数字有一个是旧的。** `store.ts` 实测 88.5% 语句，不是 57.4%；真正低的只有
+`persistence.ts` 的 47.4%。先把数核对一遍，才知道这一批实际要做的是一件事而不是两件。
+
+低的原因很具体：这个类几乎每个方法都是 `if (!this.db)` 的两分支函数 —— 没有 MongoDB 时走内存
+兜底，有时走驱动。**而所有既有测试都只走内存那一支**，于是 47.4% 里缺的正是在生产里唯一会跑的
+那一半。
+
+- [x] `__setDbForTests(db)` 测试缝（`__` 前缀是本仓既有的测试缝标记），加一个记录调用、回放固定行
+      的假 `Db`，16 条用例走驱动那一支
+- [x] **为什么是假 `Db` 而不是在 CI 里起 mongod**：这一层会出错的是**查询的形状**，不是服务端 ——
+      清除告警的 `$nin` 有没有指对集合？flush 失败会不会把文档放回去？history 的 limit 夹住了吗？
+      真 mongod 对这些的检查不会更严，只会让 CI 更慢、并多一个会挂的服务
+- [x] 断言挑的都是「写错了但不会报错」的地方：`upsertUser` 的 `createdAt` 若落进 `$set`，每次改
+      密码都会把注册时间推到"现在"；清除条件若写成 `$in` 或漏掉 `deviceId`，会把别的车的告警一起
+      清掉；`writeLatestSnapshot` 的 catch 若不吞异常，一次 Mongo 抖动会让整帧摄取失败；
+      `queryAlerts` 的 `status` 若原样当查询字段，无法识别的值会退化成匹配不到任何行
+- [x] 结果：`persistence.ts` 47.4% → **84.1%** 语句 / 72% → **80.8%** 函数，backend 整体
+      86.05% → **89.82%**
+- [x] **四个门槛同步上抬**，这是这批工作的另一半 —— 不抬的话下一次改动可以随手把它还回去：
+      backend 80/79/82/80 → **87/83/88/87**；fleet-core 89/83/89/89 → **91/85/91/91**（14Z 那批
+      补的 4 条用例把它推到 93.4）；console statements/lines 94 → **95**（branches/functions 留在
+      原处，理由沿用配置里那段：86.5 与 90.4 只剩一个点的余量，一条无关 PR 里没覆盖到的 `else`
+      就会让它红，而那种门禁只会教人去降门禁）；冻结前端不动
+- [x] `persistence.ts` 剩下未覆盖的是 `openMongoSession` / `ensureSchema` 的建连与建索引路径 ——
+      那部分归 `mongo-connection.test.ts` 的监督者测试管，在这里重复搭一遍不会多验证什么
+
+#### 14AB — P0-f 第 4+5 批：eslint 10 与 vitest 5，两个升级里各自查出一件事（2026-09-10）
+
+**两批合一个 PR**，因为它们共享同一次 lockfile 重生成；而 lockfile 必须在 Linux 容器里生成
+（`node:22-alpine`，本机 mac 产出的单平台条目会让 CI 红，npm#4828）。
+
+**「必须同时」这个判断是对的，但件数不对。** ROADMAP 写第 4 批是两件（eslint + plugin-vue），
+实测是四件：eslint 10 的 peer 还要求 `@eslint/js` 10，而 `typescript-eslint` 要 8.70 才把 eslint 10
+写进 peer 范围。少任何一件都装不上 —— 这也正是 dependabot 的四个半截 PR（#131 / #135 / #139 /
+#110 / #108）单独任何一个都红的原因。
+
+- [x] `eslint` ^9.39.5 → **^10.10.0** · `@eslint/js` → **^10.0.1** · `eslint-plugin-vue` ^9.33 →
+      **^10.11.0** · `typescript-eslint` ^8.69 → **^8.70.0** · `vitest` ^3.2.7 → **^5.0.0** ·
+      `@vitest/coverage-v8` → **^5.0.0**（后两个的 peer 是精确同版本，必须一起动）
+- [x] `frontend-next` / `fleet-core` 里这些依赖保持 `*`，沿用「根仓钉版本、workspace 说 `*`」的
+      既有约定 —— 只有 `eslint-plugin-vue` 是各前端自己钉的，所以它在两处都改
+
+### eslint 10 查出的两件
+
+- [x] **`no-useless-assignment`（eslint 10 新增核心规则）在 `useDeviceSort.ts` 抓到一处死初值。**
+      `let primary = 0` 之后每条路径都会赋值，所以那个 `0` 不但是死的，还**掩盖了风险**：某条
+      路径若忘了赋值，比较会静默地当成「相等」，而不是编译不过。改成 `let primary: number`，
+      由 TypeScript 的确定赋值分析来保证
+- [x] **`vue/require-default-prop` 关掉，而这是一个论证不是回避。** plugin-vue 10 把这条规则扩到
+      了解构式 `defineProps<{…}>()`，于是它要求给 `unit?: string` / `ariaLabel?: string` /
+      `placeholder?: string` 加运行时默认值 —— 而唯一可给的默认值 `""` **含义不同**：空单位、空
+      可访问名、空占位符，而不是「没有」。类型已经声明了可选，`undefined` 就是承载「未提供」的
+      那个值。规则只因这个理由关闭：一个「缺席没有含义」的 prop 仍然该有默认值
+
+### vitest 5 查出的一件，以及一件更重要的事
+
+- [x] **console 的测试 import `node:fs` 而这个 workspace 从未声明 `@types/node`。** 18 个模块突然
+      解析不了。它此前能用，是因为 **vitest 3 自己的类型文件引用了 `@types/node`**，于是它偶然
+      落进了 program；vitest 5 不再引用。修法是把真相说出来：`frontend-next` 显式依赖
+      `@types/node`，`tsconfig.json` 的 `types` 数组加上 `"node"`
+- [x] 五处 `no-misused-promises`：`let fetchMock: ReturnType<typeof vi.fn>` 在 vitest 5 的类型下
+      解析成「实现应返回 `void`」，于是每个 `mockImplementation(() => Promise.resolve(…))` 都读作
+      悬空 promise。改成 `Mock<typeof fetch>` —— 顺带也更诚实地说明了这个桩是什么
+
+### **四个覆盖率门槛全部重定，而跨这次升级数字不可比**
+
+这是这一批最需要留档的一件事。同一份代码，只换 vitest 3 → 5，四个 workspace 的读数全部移动、
+方向还不一致。两条证据说明这是**计数方式变了，不是覆盖率变了**：
+
+1. **分支的分母变大。** backend `store.ts` 95.68% → 81.63%、`normalize.ts` 81.57% → 73.97%，
+   而语句几乎没动。第 2、3 批为了类型安全加进来的大量 `?.` 与 `??` 每一个都是分支，vitest 5 把
+   它们算了进去。
+2. **未被 import 的文件从「100% functions」变成 0%。** 冻结前端的 `useSceneOverlay.ts` /
+   `lib/globalErrorHandlers.ts` / `router/index.ts` / `utils/amap.ts` / `AlertsView.vue` /
+   `HistoryView.vue` 全部报 0% —— 这正是本仓记过的**「v8 的虚假 100%」**，只不过这次是从被修正
+   的那一侧看见它。
+
+| workspace  | 旧门槛（vitest 3） | 新门槛（vitest 5）    | vitest 5 实测                 |
+| ---------- | ------------------ | --------------------- | ----------------------------- |
+| backend    | 87 / 83 / 88 / 87  | **85 / 73 / 84 / 85** | 87.23 / 75.60 / 86.17 / 87.52 |
+| fleet-core | 91 / 85 / 91 / 91  | **94 / 80 / 89 / 94** | 96.96 / 82.84 / 91.02 / 96.80 |
+| console    | 95 / 85 / 90 / 95  | **90 / 80 / 88 / 92** | 92.03 / 82.77 / 90.90 / 94.29 |
+| 冻结前端   | 57 / 84 / 81 / 57  | **40 / 30 / 40 / 40** | 42.70 / 32.94 / 42.13 / 42.67 |
+
+**冻结前端的降幅最大，而它恰好是证据最清楚的那个**：`functions` 从 84.68 掉到 42.13，因为它有
+六个文件根本没有任何测试 import。也就是说旧的 `functions: 81` 从来不是关于那份代码的断言。
+
+四份配置里原有的历史注释全部保留（几次上抬各自的理由、以及「什么时候降门槛是对的」那条判据），
+新注释接在后面 —— **「只上不下」的前提是同一把尺子，而这次换了尺子**，这句话必须留在配置里，
+否则下一个人看到 84 → 30 只会以为门禁被放水了。
+
+- [x] `engines.node` 从 `>=22` 收紧到 **`^22.13.0 || ^24.0.0 || >=26.0.0`**：`>=22` 是假的 ——
+      eslint 10 要 ≥22.13，vitest 5 要 `^22.12 || ^24 || >=26`（**不含 25**）。取交集写出来，
+      而不是让人在 node 22.0 上装完再发现两个工具都拒绝运行
+
+自检：四个 workspace typecheck（console 走 vue-tsc）/ lint / format:check 全过；四个覆盖率门槛在
+**新值**下全过；123 + 344 + 132 + 558 = 1157 测试全绿；`npm run build` 四个包全过；
+`check:map-contrast` 与 `check:deploy`（32/32）通过；lockfile 在 `node:22-alpine` 里生成。
 
 ## Phase 15 — 用户体系与真 RBAC（发版 1.2.0）
 

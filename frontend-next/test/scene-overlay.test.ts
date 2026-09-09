@@ -1,4 +1,12 @@
-import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
+import {
+  describe,
+  it,
+  expect,
+  beforeEach,
+  afterEach,
+  vi,
+  type Mock,
+} from "vitest";
 import { defineComponent, h, ref } from "vue";
 import { flushPromises, mount } from "@vue/test-utils";
 import { useSceneOverlay } from "@/composables/useSceneOverlay";
@@ -7,6 +15,7 @@ import {
   useNotifications,
   __resetNotifications,
 } from "@/composables/useNotifications";
+import { requestUrl } from "./helpers/requestUrl";
 
 /**
  * The three optional scene assets, and two things that are easy to get wrong:
@@ -61,7 +70,11 @@ const mountOverlay = (
   return { wrapper, api: api!, scene, palette };
 };
 
-let fetchMock: ReturnType<typeof vi.fn>;
+// `Mock<typeof fetch>` rather than `ReturnType<typeof vi.fn>`: the latter resolves to
+// vitest's bare `Mock`, whose implementation is expected to return `void`, so every
+// `mockImplementation(() => Promise.resolve(…))` here read as a floating promise under
+// vitest 5's types. Naming the signature is also just more honest about what the stub is.
+let fetchMock: Mock<typeof fetch>;
 
 beforeEach(() => {
   __resetNotifications();
@@ -69,7 +82,7 @@ beforeEach(() => {
   backdropMock.mockResolvedValue(backdropFor("stub"));
   fetchMock = vi.fn((input: RequestInfo | URL) =>
     Promise.resolve(
-      new Response(JSON.stringify({ url: String(input) }), { status: 200 }),
+      new Response(JSON.stringify({ url: requestUrl(input) }), { status: 200 }),
     ),
   );
   vi.stubGlobal("fetch", fetchMock);

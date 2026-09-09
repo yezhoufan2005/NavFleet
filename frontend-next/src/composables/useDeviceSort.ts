@@ -126,7 +126,11 @@ const compareDeviceRows = (
 ): number => {
   const sign = direction === "desc" ? -1 : 1;
   const numeric = NUMERIC_READS[key];
-  let primary = 0;
+  // Declared without an initialiser on purpose: every path below assigns it, so a `= 0`
+  // was dead — and worse, it meant a path that *forgot* to assign would silently compare
+  // as equal instead of failing to compile. `no-useless-assignment` (new in eslint 10)
+  // named it; TypeScript's definite-assignment analysis is what now guarantees the rest.
+  let primary: number;
 
   if (numeric) {
     const leftValue = numeric(left);

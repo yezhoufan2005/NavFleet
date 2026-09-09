@@ -29,9 +29,14 @@ export default tseslint.config(
   ...tseslint.configs.recommended,
   {
     files: ["e2e/**/*.ts"],
+    extends: [...tseslint.configs.recommendedTypeChecked],
     languageOptions: {
       globals: {
         ...globals.node,
+      },
+      parserOptions: {
+        projectService: true,
+        tsconfigRootDir: import.meta.dirname,
       },
     },
     rules: {

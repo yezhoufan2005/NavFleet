@@ -239,7 +239,10 @@ export const useFleetStore = defineStore("fleet", () => {
     }
 
     if (record.topic && record.payload !== undefined) {
-      const payloadBody =
+      // Annotated `unknown` rather than left to inference: `JSON.parse` returns `any`, and
+      // an `any` here would have spread through `body` into every field read below with no
+      // rule able to see it.
+      const payloadBody: unknown =
         typeof record.payload === "string"
           ? JSON.parse(record.payload)
           : record.payload;

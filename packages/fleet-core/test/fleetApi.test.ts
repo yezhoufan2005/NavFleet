@@ -13,9 +13,18 @@ interface FetchCall {
 
 let calls: FetchCall[];
 
+/** The request target as a string. `String(input)` cannot do this: `Request` has no
+ *  meaningful `toString`, so a `Request` argument would have recorded "[object Request]". */
+const urlOf = (input: RequestInfo | URL): string =>
+  typeof input === "string"
+    ? input
+    : input instanceof URL
+      ? input.href
+      : input.url;
+
 const stubFetch = (status = 200, body: unknown = {}): void => {
   const fetchStub = vi.fn((input: RequestInfo | URL, init?: RequestInit) => {
-    calls.push({ url: String(input), init: init ?? {} });
+    calls.push({ url: urlOf(input), init: init ?? {} });
     return Promise.resolve({
       ok: status >= 200 && status < 300,
       status,
