@@ -209,10 +209,10 @@ docker compose --env-file deploy/.env -f deploy/docker-compose.yml logs -f nginx
 
 ### 5.1 HTTP 接口
 
+只有 `/health` 是公开的：
+
 ```bash
 curl http://127.0.0.1:8080/health
-curl http://127.0.0.1:8080/api/scenes
-curl http://127.0.0.1:8080/api/fleet/snapshot
 ```
 
 如果使用 80 端口：
@@ -221,21 +221,62 @@ curl http://127.0.0.1:8080/api/fleet/snapshot
 curl http://127.0.0.1/health
 ```
 
-### 5.2 MQTT 接入
-
-如果本机安装了 `mosquitto-clients`：
+**其余 `/api/*` 全在鉴权门之后**（`app.use(authenticate)` 之下挂着 fleet / scenes /
+debug 三个路由），所以直接 `curl http://127.0.0.1:8080/api/scenes` 拿到的是
+`401 {"error":"unauthorized"}` —— 这是配置正确的表现，不是故障。要真的验证接口，先登录
+换一个会话 Cookie：
 
 ```bash
-mosquitto_pub -h 127.0.0.1 -p 1883 -t /fleet/agv-a01/status -m '{"online":true}'
+COOKIES="$(mktemp)"
+read -rsp 'ADMIN_PASSWORD: ' NAVFLEET_PW; echo
+
+curl -sS -c "$COOKIES" -X POST http://127.0.0.1:8080/api/auth/login \
+  -H 'Content-Type: application/json' \
+  --data-binary "$(printf '{"username":"%s","password":"%s"}' "${ADMIN_USERNAME:-admin}" "$NAVFLEET_PW")"
+
+curl -sS -b "$COOKIES" http://127.0.0.1:8080/api/scenes
+curl -sS -b "$COOKIES" http://127.0.0.1:8080/api/fleet/snapshot
+
+unset NAVFLEET_PW; rm -f "$COOKIES"
 ```
 
-也可以运行项目自带 mock：
+用 `read -rsp` 而不是把口令写在命令里：写在命令里的那一份会进 shell 历史，且在整条
+命令执行期间对 `ps` 可见。
+
+> 只想确认「服务活着」而不想登录，`/health` 与 `/health/ready` 都不需要会话。两者分工不同：
+> `/health` 只回 `{ ok: true }`（存活），`/health/ready` 回 `store` / `mongo` / `mqtt` 三项
+> 逐项状态，并在 store 尚未初始化完成时返回 **503**。Mongo 与 MQTT 断开只算 `degraded`，
+> 不影响 ready —— 后端在两者缺席时会降级运行而不是拒绝服务。
+
+### 5.2 MQTT 接入
+
+broker 已关闭匿名访问，所以**发布必须带发布方凭据**（见 [4.2.1](#421-broker-凭据必填否则-compose-拒绝启动)）。
+不带 `-u/-P` 时 `mosquitto_pub` 会以 `Connection Refused: not authorised` 失败：
 
 ```bash
-cd /opt/navfleet/backend
+# 从 deploy/.env 取发布方凭据，不在命令行里明文写口令
+set -a; . deploy/.env; set +a
+
+mosquitto_pub -h 127.0.0.1 -p 1883 \
+  -u "$MQTT_PUBLISHER_USERNAME" -P "$MQTT_PUBLISHER_PASSWORD" \
+  -t /fleet/agv-a01/status -m '{"online":true}'
+```
+
+也可以运行项目自带 mock —— 它从环境里读 `MQTT_PUBLISHER_USERNAME` /
+`MQTT_PUBLISHER_PASSWORD`（缺失时回落到 `MQTT_USERNAME` / `MQTT_PASSWORD`），所以同样要
+先把 `deploy/.env` 导进环境：
+
+```bash
+cd /opt/navfleet
+set -a; . deploy/.env; set +a
+
+cd backend
 npm install
 npm run mock:mqtt -- --broker mqtt://127.0.0.1:1883 --device-prefix agv --count 4
 ```
+
+凭据不对时 mock 不会静默失败：它会打印一行明确指出 broker 拒绝了这组凭据、并提示要导出
+哪两个变量。
 
 然后打开：
 
@@ -243,14 +284,14 @@ npm run mock:mqtt -- --broker mqtt://127.0.0.1:1883 --device-prefix agv --count 
 http://服务器IP:8080
 ```
 
-页面应出现模拟车辆。
+页面应出现模拟车辆（需要先登录）。
 
 ### 5.3 OSM overlay
 
-当前示例场景：
+同样在鉴权门之后，沿用 5.1 里的 `$COOKIES`：
 
 ```bash
-curl http://127.0.0.1:8080/api/scenes/kangcheng-airy/overlay
+curl -sS -b "$COOKIES" http://127.0.0.1:8080/api/scenes/kangcheng-airy/overlay
 ```
 
 能返回 `lanelets` 数据说明 OSM 解析正常。
@@ -341,6 +382,9 @@ docker compose --env-file deploy/.env -f deploy/docker-compose.yml up -d --build
 - `/health` 代理到后端存活探针。
 - `/openapi.json` 代理到后端 OpenAPI 文档（后端侧已要求登录会话）。
 - `/docs` 交互式 API 文档（Swagger UI，同源自带资源、无 CDN；同样要求登录会话）。
+  这一条**以前只写在文档里、`locations.conf` 中并没有对应 location** —— 且切到 v3 之后
+  这个缺失不再像缺失：web history 兜底会让 `/docs` 返回 **200 + 控制台的 index.html**，
+  访问者看到的是控制台的「页面不存在」，而不是一个说得出问题的错误。现在真的路由了。
 - `/ws` 代理到后端 WebSocket。
 - `/scene-maps/` 代理到后端静态资源。
 
@@ -480,8 +524,15 @@ docker compose --env-file deploy/.env \
 「有备份」和「能恢复」是两件事。`deploy/tools/restore-drill.sh` 只证明后者：
 
 ```bash
-deploy/tools/restore-drill.sh            # 默认取 deploy/backups 里最新的归档
+deploy/tools/restore-drill.sh            # 默认取备份目录里最新的归档
+deploy/tools/restore-drill.sh /path/to/fleet_monitor-20260830-030000.gz
 ```
+
+备份目录取自 `BACKUP_HOST_PATH`（默认 `./backups`，相对 `deploy/` 解析），与
+`docker-compose.backup.yml` 里那一行挂载同源。`deploy/tools/mongo-backup.sh` 的默认输出
+目录也是它 —— 三者以前不同源：把 `BACKUP_HOST_PATH` 指到 NAS 的部署，容器备份进 NAS、
+手动备份进 `deploy/backups`，而演练只查 `deploy/backups`，于是**备份好着、演练报告
+「找不到归档」**。
 
 它把归档用 `--nsFrom/--nsTo` 恢复到**临时库** `fleet_monitor_restore_drill`，逐集合对比
 文档数，然后把临时库删掉 —— 全程不写生产库。只有「恢复成功且每个集合都非空」才返回 0。

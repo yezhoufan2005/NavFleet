@@ -35,15 +35,15 @@ CI 全绿 → `--no-ff` 合并 → 回写本文件并记录自检结果。
 
 **负责人 2026-09-09 定的发版前七件事**，这是当前的工作序列：
 
-| #   | 事项                       | 状态                                                 |
-| --- | -------------------------- | ---------------------------------------------------- |
-| 1   | BUG 修复                   | 进行中 —— 第一批见 14M，后续批次跟着审计走           |
-| 2   | 旧前端冻结、新前端启用     | ✅ 完成（14J + 14L）                                 |
-| 3   | 远端库整理、Docker 整理    | 待办                                                 |
-| 4   | 1.1.0 完成并交负责人验收   | 待办（发版排在七件事之后）                           |
-| 5   | 演示数据更新               | 待办                                                 |
-| 6   | 全项目扫描与一致化         | 进行中 —— 六路扫描，四路已回                         |
-| 7   | 文档整理，删冗余与错误内容 | 进行中 —— 14K 修了「被切换改成假话」的部分，其余待办 |
+| #   | 事项                       | 状态                                                                                              |
+| --- | -------------------------- | ------------------------------------------------------------------------------------------------- |
+| 1   | BUG 修复                   | 进行中 —— 第一批见 14M，死代码与重复定义见 14O                                                    |
+| 2   | 旧前端冻结、新前端启用     | ✅ 完成（14J + 14L）                                                                              |
+| 3   | 远端库整理、Docker 整理    | 进行中 —— 七个审计分支已清、`deploy/backups/` 44 个归档已删                                       |
+| 4   | 1.1.0 完成并交负责人验收   | 待办。**release PR #156（`chore(main): release 1.1.0`）已在**，号是对的，等七件事做完再由负责人合 |
+| 5   | 演示数据更新               | 待办                                                                                              |
+| 6   | 全项目扫描与一致化         | 进行中 —— 六路扫描全部回收，修复批次 14M / 14O / 14P                                              |
+| 7   | 文档整理，删冗余与错误内容 | 进行中 —— 14K 改回「被切换改成假话」的部分，14P 修跑不通的命令                                    |
 
 **明确搁置、不要自行开工**：总览四张统计卡的内容与版面、前端主题样式（P2）、
 `frontend-next` 改名。前两项负责人的口径是「后续会整理」，第三项要动 CI / compose /
@@ -793,9 +793,9 @@ Phase 14 里，是为了它既不阻塞发版、也不被当成「以后自然�
       判定且被记住。12 个测试。另外补了 v1.0.0 的 `gps|scene` 底图偏好 —— **13A-1 的说明把两件事
       混成了一件**：三态那个是"列表还是地图"，`gps|scene` 是"哪张底图"，两者都需要。底图沿用旧
       key（`navfleet:map-mode`），这样 Phase 14 接管旧前端的 origin 时操作员的选择不会被重置
-- [x] e2e 契约保住了，并且**由单测显式钉住**：`.map-surface svg .ros-marker.fusion
-.ros-marker-core` 是跨 workspace 的契约（组件在这边，断言在 `e2e/`），此前没有任何东西
-      说明这件事
+- [x] e2e 契约保住了，并且**由单测显式钉住**：
+      `.map-surface svg .ros-marker.fusion .ros-marker-core` 是跨 workspace 的契约（组件在这边，
+      断言在 `e2e/`），此前没有任何东西说明这件事
 - [x] 新增 `e2e/specs/console-devices.spec.ts`（7 例，真浏览器 + 真后端）：地图确实开在选中车辆
       上（同样用测量法）、适应场景反之、两个偏好各自过 reload
 - [~] **`dashboard.spec.ts` 不接进 `SHARED_SPECS`，这条计划要改。** 盘完发现它做不到也不该做：
@@ -1966,6 +1966,9 @@ keyframe **不需要各自写退化分支**，`UiSkeleton` 自己那条仍然保
 > | 14K  | 把被切换改成假话的文档改回真话          | 本节之后 |
 > | 14L  | 旧前端冻结（身份让给 v3，门禁只去一个） | 本节之后 |
 > | 14M  | 全仓审计第一批：五个真 bug              | 本节之后 |
+> | 14N  | 补 Alertmanager，13 条规则终于有接收端  | 本节之后 |
+> | 14O  | 死代码与重复定义：后端六处 + auth 类型  | 本节之后 |
+> | 14P  | 部署文档里跑不通的那几条命令            | 本节之后 |
 
 - [x] **等价性验收**：parity 清单 + E2E 75 例 + axe 零违规 + **负责人人工验收**（第 5 条决策明确
       要"检查前端是否符合预期且调整后"才进下一步）。负责人 2026-09-02 确认验收通过；其间的调整迭代见
@@ -2253,11 +2256,84 @@ keyframe **不需要各自写退化分支**，`UiSkeleton` 自己那条仍然保
       当前告警在同一个界面就能看到，不必知道「还有另一个 UI 在另一个端口上」
 - [x] **顺带更正三处审计查出的数字**：告警规则 9 → **13** 条（19 处指标引用 / 15 个指标名，实测），
       Grafana 面板 14 → **16** 个，README 与 deployment.md 两处都改
-- [ ] **`amtool check-config` 没能跑** —— Docker Hub 在这台机器上四次重试都超时，拉不到
-      `prom/alertmanager` 镜像。已做的是：`docker compose config` 通过（两个 compose 文件都能解析并
-      插值、服务在 `monitoring` 网段上）、接收器名与路由引用零悬挂、Prometheus 的 target 与 compose
-      服务名一致、Grafana 的 `alertmanagerUid` 与声明的数据源 uid 一致。**但配置没有被 Alertmanager
-      本体校验过**，网络恢复后要补这一步
+- [x] **`amtool check-config` 已补跑（2026-09-09，14P 批次内）**：输出 `SUCCESS`，并列出
+      global config / route / 1 inhibit rules / 2 receivers / 0 templates。同一次把 Prometheus 侧
+      也过了本体校验 —— `promtool check config` 通过（1 rule file），`promtool check rules` 报
+      **13 rules found**，与上一条更正后的数字一致。此前拉不到镜像是 Docker Hub 超时，与配置无关
+
+#### 14O — 死代码与重复定义（2026-09-09，PR #157）
+
+> 审计的「死代码 / 冗余」那一批，全落在后端与共享包。**零行为变化**，所有门禁数字与批次前
+> 逐一相同。价值不在修了什么，在于让下一次改动不必同时改两处。
+
+- [x] **离线告警被逐字写了两遍，id 模板写了三遍**。`normalize.ts` 的规则引擎与 `store.ts` 的离线
+      扫描各有一份完整定义（五个字段完全相同，只有 `ts` 不同），第三处是扫描里那句按同一模板
+      比对的 `filter`。**这个 id 正是前端确认所依据的键** —— 任何一份抄写漂了，filter 就不再匹配
+      它随后 push 的那条，设备上挂着两条离线告警，操作员确认掉的不是下一轮会回来的那条，
+      **而没有任何门禁会红**。收成 `buildOfflineAlert` 与 `offlineAlertId` 两个函数。
+      fleet-core 那第三份不动 —— 那是前端自己的归一化器，两侧行为一致由各自的测试断言，
+      代码里已写明是刻意的分离
+- [x] `mqtt.ts` 的 `type TopicScheme = ReturnType<typeof buildTopicScheme>` —— `topics.ts` 本来就
+      export 了这个接口，四个成员都带注释。别名让使用处看不到注释，也让一个类型有了两个名字
+- [x] `Metrics.registry` 全库零读者，而**暴露它恰好否掉了它上面那段注释在论证的隔离**：那段说刻意
+      不用 prom-client 全局 registry（gauge 闭包捕获了协作者），然后把整个 registry 作为公开字段
+      递出去，任何消费者都能往里注册
+- [x] `pendingTelemetryCount()` 与 `telemetryBufferStats().pending` 是同一个数。`metrics.ts` 里更
+      直白：相邻两行，depth 走前者、dropped 走后者
+- [x] 告警上限 `500` 在 Mongo 路径与内存回退路径各写一次 → `MAX_ALERTS_PER_QUERY`。两条路径发布的
+      是同一个契约，之前靠巧合一致
+- [x] 三个从未被引用的 `z.infer` 导出（`HistoryQueryInput` / `AlertsQueryInput` / `LoginInput`）
+- [x] **三个 auth 类型各归其位。** `@navfleet/shared` 自述是「后端与前端**共享**的模型」，而
+      `UserRecord`（带 `passwordHash`）/ `UserRole` / `PublicUser` **一个都没有前端消费者**；同时
+      console 在 `useAuth.ts` 里把后两个又声明了一遍（`AuthRole` 与 `UserRole` 逐字相同）。
+      `UserRecord` 搬到 `backend/src/types.ts`（没有泄漏发生过 —— shared 是纯类型消费；但一个
+      `passwordHash` 待在两个前端都 import 的包里，作用是邀请下一个人把存储态接到组件上）；
+      `UserRole` / `PublicUser` 留在 shared，console 改为直接 import。角色守卫顺势改成
+      `Record<UserRole, true>` —— 之前那版在契约加第四个角色时会**静默拒绝**每一个携带新角色的
+      会话（登录成功、`readUser` 返回 null、表现为「登录了但没登上」），现在编译不过
+- [ ] **后端缺一个 dead-export 门禁。** console 有 `test/dead-exports.test.ts`（「每个导出都必须有
+      非测试消费者」，Phase 13 parity 的产物），后端没有对应物 —— 上面第 3、4、6 条能活到今天就是
+      这个原因。它也不是简单复制：console 那份**刻意豁免纯类型导出**，而后端这三条恰好都是类型或
+      接口成员。留作独立批次
+
+#### 14P — 部署文档里跑不通的那几条命令（2026-09-09）
+
+> 这一批的判定标准只有一个：**把文档里的命令逐条粘到终端里跑**。跑不通的就是缺陷，无论文字读起来
+> 多合理。查出的四条全部属于「写的时候是对的，后来被别的正确改动作废了」—— 鉴权上线、broker 关匿名、
+> 备份目录可配、前端换成 web history，每一次都让某几行文档从真话变成假话。
+
+- [x] **`deployment.md` 5.1 的三条 `curl` 有两条返回 401。** `/api/scenes` 与 `/api/fleet/snapshot`
+      都挂在 `app.use(authenticate)` 之下。文档把它们列为「验证」步骤，而照做只会拿到
+      `{"error":"unauthorized"}`。改成先登录换会话 Cookie 的完整配方，并用 `read -rsp` 读口令 ——
+      写在命令行里的那一份会进 shell 历史，执行期间还对 `ps` 可见
+- [x] **5.2 的 `mosquitto_pub` 不带凭据**，而 broker 已关匿名。实测报
+      `Connection Refused: not authorised.`（exit 5）；带 `-u/-P` 后 exit 0。
+      `npm run mock:mqtt` 同理 —— 它会读
+      `MQTT_PUBLISHER_*`，但文档没说要先把 `deploy/.env` 导进环境
+- [x] **`/docs` 被写进文档、却从没被路由过。** `locations.conf` 里只有 `/api/`、`/health`、
+      `= /openapi.json`、`/ws`、`/scene-maps/`、`/`。**切到 v3 之后这个缺失不再像缺失**：web history
+      兜底让 `/docs` 返回 200 + 控制台的 index.html（实测未知路径确实返回
+      `<title>智能车队监控平台</title>`），访问者看到控制台的「页面不存在」而不是一个说得出问题的
+      错误。补上 location；实测匿名 401 JSON、带会话 200 且 Swagger UI 的 css/js/openapi.json 都是
+      200，两个指向 petstore 的文件仍正确 404
+- [x] **备份目录三处不同源。** compose 挂 `${BACKUP_HOST_PATH:-./backups}`，而
+      `restore-drill.sh` 硬编码 `$DEPLOY_DIR/backups`（且赋值在 `source .env` **之前**），
+      `mongo-backup.sh` 默认也是硬编码那一个。于是把 `BACKUP_HOST_PATH` 指到 NAS 的部署：容器备份进
+      NAS、手动备份进 `deploy/backups`、演练只查 `deploy/backups` —— **备份好着，演练报告「找不到
+      归档」**。三处统一到同一个变量，相对路径按 `deploy/` 解析（与 compose 一致）
+- [x] **`config-reference.md` 少 15 个变量**，其中 `MQTT_SUBSCRIBER_PASSWORD` /
+      `MQTT_PUBLISHER_PASSWORD` / `GRAFANA_ADMIN_PASSWORD` 是 `${VAR:?}` 形式，**留空则 compose 拒绝
+      启动**。补三节（broker 凭据 / 备份叠加 / 监控叠加）；`MQTT_USERNAME` / `MQTT_PASSWORD` 的默认值
+      也改对（compose 由 `MQTT_SUBSCRIBER_*` 映射过来，不是「空」）。
+      顺带：**`deploy/.env.example` 一直是对的** —— 59 个键与 compose 双向零差异，真相一直在隔壁那个
+      文件里
+- [x] **`backup-and-restore.md` 从没提过备份叠加文件与恢复演练脚本**，两者都存在。于是那份文档教人
+      用 cron 手搓，而「校验恢复可用性」一节建议「在测试环境用最新归档跑 `mongo-restore.sh`」——
+      比现成的 `restore-drill.sh` 差一档：后者对着生产栈跑却不写生产库，且只在「每个集合都非空」时
+      返回 0，可以直接当断言挂进定时任务
+- [x] 修掉 `config-reference.md` 6.2 表格里的 `negate` 行：`` `0 | 1` `` 里那个竖线被 Markdown 当成
+      列分隔符，这一行比表头多一列，渲染出来是错位的
+- [x] 两个 nginx 入口（明文与 TLS，共用同一份 `locations.conf`）都过了 `nginx -t`
 
 ## Phase 15 — 用户体系与真 RBAC（发版 1.2.0）
 
