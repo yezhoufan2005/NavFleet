@@ -9,11 +9,19 @@ REST/WebSocket → Vue）。范围严格锁定**只读监控**：不做控制下
 navfleet/
 ├── package.json          # workspace 根：统一脚本 + 预提交钩子
 ├── packages/shared/      # @navfleet/shared —— 领域类型单一来源（前后端共用）
+├── packages/fleet-core/  # @navfleet/fleet-core —— 两套前端共用的归一化与派生逻辑
 ├── backend/              # navfleet-backend —— Node + TS，Express/ws/mqtt/mongodb
-├── frontend/             # navfleet-frontend —— Vue 3 + Vite + Pinia
+├── frontend/             # navfleet-frontend —— v1.0.0 控制台，保留作回滚
+├── frontend-next/        # navfleet-console —— v3 控制台，**默认部署的这一套**
+├── e2e/                  # Playwright + axe-core（唯一不在 workspaces 里的源码树）
 ├── config-runtime/       # 运行时配置（车辆/编队/场景/地图资源）
 └── deploy/               # Docker Compose + nginx + mosquitto + 运维文档
 ```
+
+**五个 workspace，两套前端。** 1.1.0 起 compose 部署的是 `frontend-next`（compose 里的
+服务名是 `web`）；`frontend` 留着是为了一条命令能回滚，见
+[deploy/docs/deployment.md](deploy/docs/deployment.md) 第 9.6 节。改前端时先确认改的是哪一套 ——
+两者共用 `@navfleet/fleet-core`，所以动那个包会同时影响两边。
 
 单一根 lockfile（`package-lock.json`）。**不要**在子目录单独 `npm install`；一律在仓库根安装。
 
@@ -57,24 +65,31 @@ npm install                     # 安装所有 workspace 依赖
 
 npm run lint                    # 所有 workspace + e2e 的 ESLint
 npm run format:check            # Prettier 校验
-npm run typecheck               # shared / backend / frontend / e2e 类型检查
+npm run typecheck               # 所有 workspace + e2e 类型检查
 npm test                        # 所有 workspace 单测
-npm run build                   # shared → backend(tsc) → frontend(vite)
+npm run build                   # shared → backend(tsc) → frontend(vite) → console(vite)
+npm run check:map-contrast      # 地图栅格/比例尺的对比度门禁（画在 canvas 上，逃出无障碍审计）
 
-npm run e2e                     # Playwright 端到端（自动拉起 backend + vite，
+npm run e2e                     # Playwright 端到端（自动拉起 backend + 两个 vite，
                                 # 无需 MongoDB / MQTT；首次先 npx playwright install chromium）
 
 npm run dev:backend             # 后端 dev（tsx watch）
-npm run dev:frontend            # 前端 dev（vite）
+npm run dev:frontend            # 旧前端 dev（vite，:5173）
+npm run dev:console             # 新前端 dev（vite，:5273）
 npm run mock:mqtt               # 发布确定性演示遥测
 ```
+
+**`npm test` 不等于 CI。** CI 跑的是各 workspace 的 `test:coverage`（带覆盖率阈值）外加
+`check:map-contrast`，而根 `npm test` 两样都不含 —— 只跑 `npm test` 就交 PR，会在 CI 上
+撞见本地从没见过的红。提 PR 前的完整口径见下面「提 PR 前自检」。
 
 `npm run e2e` 使用独立端口 3199（后端）与 5299（vite dev），并且**始终自己拉起服务**、
 不复用已有进程 —— 因为每次运行的登录口令是临时生成的，只有它自己启动的后端才认。
 所以可以和本地 `npm run dev`（3000/5173）同时跑。若这两个端口被占，用
 `E2E_BACKEND_PORT` / `E2E_FRONTEND_PORT` 覆盖。
 
-针对单个 workspace：`npm run <script> -w navfleet-backend`（或 `navfleet-frontend` / `@navfleet/shared`）。
+针对单个 workspace：`npm run <script> -w <name>`，名字是 `navfleet-backend` /
+`navfleet-frontend` / `navfleet-console` / `@navfleet/shared` / `@navfleet/fleet-core`。
 
 ## 分支与提交
 
@@ -89,7 +104,18 @@ npm run mock:mqtt               # 发布确定性演示遥测
 
 ## 提 PR 前自检
 
-`npm run lint && npm run format:check && npm run typecheck && npm test && npm run build` 全绿；
+跑这一串 —— **和 CI 的命令集对齐**，注意其中的 `test:coverage` 与 `check:map-contrast`
+都不在根 `npm test` 里：
+
+```bash
+npm run lint && npm run format:check && npm run typecheck && npm run build
+npm run check:map-contrast
+for w in navfleet-backend @navfleet/fleet-core navfleet-frontend navfleet-console; do
+    npm run test:coverage -w "$w" || break
+done
+npm run e2e
+```
+
 涉及运行时/部署行为的改动请本地或容器验证，并在必要时更新 `ROADMAP.md` 与相关文档。
 
 ## 共享类型
@@ -109,6 +135,9 @@ npm run mock:mqtt               # 发布确定性演示遥测
 Release-As: 1.0.0
 ```
 
-release-please 只管理**根** `package.json` 的版本。三个 workspace（`backend` /
-`frontend` / `packages/shared`）都是 `private: true` 且从不发布到 npm，它们的 `version`
-仅为可读性与根版本保持一致，**需要手动跟随**大版本更新。
+release-please 只管理**根** `package.json` 的版本。五个 workspace（`backend` / `frontend` /
+`frontend-next` / `packages/shared` / `packages/fleet-core`）都是 `private: true` 且从不发布
+到 npm，它们的 `version` 仅为可读性与根版本保持一致，**需要手动跟随**大版本更新。
+
+发布出去的镜像是 `navfleet-backend` 与 `navfleet-console` 两个。`navfleet-frontend` 自 1.1.0
+起不再发布、停在 1.0.x —— 部署的既然是 v3，用同一个名字推新版本会让 registry 里的标签说谎。
