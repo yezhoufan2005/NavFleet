@@ -41,7 +41,9 @@ while [[ $# -gt 0 ]]; do
     --no-mock) DO_MOCK=0; shift ;;
     --fresh) DO_FRESH=1; shift ;;
     --check-only) CHECK_ONLY=1; shift ;;
-    -h|--help) sed -n '2,25p' "$0"; exit 0 ;;
+    # 2,19 是上面那段注释的确切范围 —— 注释止于第 19 行，第 20 行是 `set -uo pipefail`。
+    # dev.sh 里踩过同一个off-by-one（--help 末尾多印一行代码），所以这里写死并核对过。
+    -h|--help) sed -n '2,19p' "$0"; exit 0 ;;
     *) echo "未知参数: $1"; exit 1 ;;
   esac
 done
