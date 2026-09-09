@@ -89,7 +89,7 @@ describe("normalizePayload device-id extraction", () => {
       "/org/site/{deviceId}/vehicle_info",
     );
     expect(result.devices).toHaveLength(1);
-    expect(result.devices[0].deviceId).toBe("agv-z9");
+    expect(result.devices[0]?.deviceId).toBe("agv-z9");
   });
 
   it("still handles the default /fleet/ scheme", () => {
@@ -99,6 +99,6 @@ describe("normalizePayload device-id extraction", () => {
       "fleet",
       "/fleet/{deviceId}/vehicle_info",
     );
-    expect(result.devices[0].deviceId).toBe("agv-a01");
+    expect(result.devices[0]?.deviceId).toBe("agv-a01");
   });
 });

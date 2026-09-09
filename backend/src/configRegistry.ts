@@ -531,7 +531,8 @@ export class ConfigRegistry {
         formation.sceneId ||
         (uniqueScenes.length === 1
           ? uniqueScenes[0]
-          : memberDevices[0]?.sceneId || memberDevices[0]?.defaultSceneId || "");
+          : memberDevices[0]?.sceneId || memberDevices[0]?.defaultSceneId) ||
+        "";
 
       return {
         formationId: formation.formationId,

@@ -47,7 +47,7 @@ describe("subsystem log output", () => {
     const lines = probeOutput("warn");
 
     expect(lines.map((line) => line.msg)).toEqual(["warn line"]);
-    expect(lines[0].name).toBe("probe-subsystem");
+    expect(lines[0]?.name).toBe("probe-subsystem");
   });
 
   it("redacts credential-shaped fields, including nested ones", () => {

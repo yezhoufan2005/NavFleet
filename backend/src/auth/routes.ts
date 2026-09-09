@@ -19,7 +19,11 @@ const durationToMs = (value: string): number => {
   if (!match) {
     return 0;
   }
-  return Number(match[1]) * DURATION_UNITS[match[2]];
+  const [, amount = "0", unit = ""] = match;
+  // The `undefined` arm is reachable only if the pattern and the table above ever
+  // disagree on the unit vocabulary — which is a bug worth a branch, not a cast.
+  const scale = DURATION_UNITS[unit];
+  return scale === undefined ? 0 : Number(amount) * scale;
 };
 
 const baseCookie = (): CookieOptions => ({

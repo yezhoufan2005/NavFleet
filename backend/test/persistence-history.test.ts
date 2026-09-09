@@ -45,7 +45,7 @@ describe("Persistence in-memory history fallback", () => {
     }>;
     expect(all).toHaveLength(2);
     // Newest-first, matching the Mongo query contract.
-    expect(all[0].measurements.fusionLoc.x).toBe(2);
+    expect(all[0]?.measurements.fusionLoc.x).toBe(2);
 
     // Per-device isolation.
     expect(await persistence.queryHistory({ deviceId: "agv-y" })).toHaveLength(1);
@@ -56,7 +56,7 @@ describe("Persistence in-memory history fallback", () => {
       from: "2026-01-01T00:00:05Z",
     })) as Array<{ measurements: { fusionLoc: { x: number } } }>;
     expect(windowed).toHaveLength(1);
-    expect(windowed[0].measurements.fusionLoc.x).toBe(2);
+    expect(windowed[0]?.measurements.fusionLoc.x).toBe(2);
 
     // Limit is honoured.
     expect(await persistence.queryHistory({ deviceId: "agv-x", limit: 1 })).toHaveLength(1);
@@ -102,8 +102,8 @@ describe("Persistence in-memory alerts fallback", () => {
       severity: string;
     }>;
     expect(all).toHaveLength(1);
-    expect(all[0].deviceId).toBe("agv-a");
-    expect(all[0].alertId).toBe("agv-a-low-soc");
+    expect(all[0]?.deviceId).toBe("agv-a");
+    expect(all[0]?.alertId).toBe("agv-a-low-soc");
 
     // Severity filter and the cleared-status filter both narrow the set.
     expect(await persistence.queryAlerts({ severity: "critical" })).toHaveLength(0);

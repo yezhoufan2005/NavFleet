@@ -65,7 +65,7 @@ function parseArgs(argv: string[]): Options {
 function percentile(sorted: number[], p: number): number {
   if (!sorted.length) return 0;
   const index = Math.min(sorted.length - 1, Math.floor((p / 100) * sorted.length));
-  return sorted[index];
+  return sorted[index] ?? 0;
 }
 
 async function login(options: Options): Promise<string> {
@@ -121,6 +121,10 @@ async function main(): Promise<void> {
     while (next < tasks.length) {
       const task = tasks[next];
       next += 1;
+      // `next < tasks.length` was checked with nothing awaiting in between, so this index
+      // is in range. The `break` is how that is said without an assertion: no task at this
+      // index means the shared queue is exhausted, which is also when this worker is done.
+      if (!task) break;
       const t0 = Date.now();
       try {
         const response = await fetch(`${options.url}/api/debug/ingest`, {

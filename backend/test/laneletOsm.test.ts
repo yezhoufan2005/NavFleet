@@ -30,8 +30,8 @@ describe("parseLaneletOsmText", () => {
     expect(overlay.stats.nodeCount).toBe(4);
     expect(overlay.stats.wayCount).toBe(2);
     expect(overlay.stats.laneletCount).toBe(1);
-    expect(overlay.lanelets[0].left).toHaveLength(2);
-    expect(overlay.lanelets[0].right).toHaveLength(2);
+    expect(overlay.lanelets[0]?.left).toHaveLength(2);
+    expect(overlay.lanelets[0]?.right).toHaveLength(2);
     expect(overlay.projection.type).toBe("local-tangent-plane");
   });
 
@@ -41,9 +41,9 @@ describe("parseLaneletOsmText", () => {
       lng: 121.47,
     });
     // node 1 sits exactly at the projection origin
-    const originPoint = overlay.lanelets[0].left[0];
-    expect(originPoint.x).toBeCloseTo(0, 3);
-    expect(originPoint.y).toBeCloseTo(0, 3);
+    const originPoint = overlay.lanelets[0]?.left[0];
+    expect(originPoint?.x).toBeCloseTo(0, 3);
+    expect(originPoint?.y).toBeCloseTo(0, 3);
   });
 
   it("throws when the OSM text contains no nodes", () => {

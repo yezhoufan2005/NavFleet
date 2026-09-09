@@ -96,7 +96,7 @@ describe("normalizePayload", () => {
       "t",
     );
     expect(result.replace).toBe(false);
-    expect(result.devices[0].deviceId).toBe("agv-x");
+    expect(result.devices[0]?.deviceId).toBe("agv-x");
   });
 
   it("parses a stringified JSON payload body", () => {
@@ -109,8 +109,8 @@ describe("normalizePayload", () => {
       "f",
       "t",
     );
-    expect(result.devices[0].deviceId).toBe("agv-y");
-    expect(result.devices[0].vehicleInfo.soc).toBe(55);
+    expect(result.devices[0]?.deviceId).toBe("agv-y");
+    expect(result.devices[0]?.vehicleInfo.soc).toBe(55);
   });
 
   it("throws on non-object, non-array payloads", () => {
@@ -123,7 +123,7 @@ describe("buildFleetSnapshot", () => {
     const older = normalizeDevice({ deviceId: "old", stamp: 1000 });
     const newer = normalizeDevice({ deviceId: "new", stamp: 2000 });
     const snapshot = buildFleetSnapshot([older, newer], "fleet", "topic");
-    expect(snapshot.devices[0].deviceId).toBe("new");
+    expect(snapshot.devices[0]?.deviceId).toBe("new");
     expect(snapshot.fleetName).toBe("fleet");
   });
 });

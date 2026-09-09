@@ -280,7 +280,7 @@ export const redactMongoUri = (uri: string): string => {
   if (!match) {
     return "<redacted>";
   }
-  const [, scheme, hostPart, rest] = match;
+  const [, scheme = "", hostPart = "", rest = ""] = match;
   const path = rest.split("?")[0] ?? "";
   return `${scheme}${hostPart}${path}`;
 };
