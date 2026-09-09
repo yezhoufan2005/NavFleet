@@ -259,7 +259,7 @@ const AREA_LABELS: Record<StoredEntry["area"], string> = {
         :disabled="probeState === 'loading'"
         @click="probe"
       >
-        {{ probeState === "loading" ? "检查中…" : "再次检查" }}
+        {{ probeState === "loading" ? "检查中…" : "重新检查" }}
       </UiButton>
     </template>
 
