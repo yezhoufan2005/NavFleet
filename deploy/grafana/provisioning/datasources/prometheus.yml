@@ -12,3 +12,21 @@ datasources:
     isDefault: true
     jsonData:
       timeInterval: 15s
+      # Ties the two together, so Grafana's alerting view can show what
+      # Alertmanager currently holds instead of only what Prometheus is
+      # evaluating. Without it an operator has to know that a second UI exists on
+      # a different port.
+      manageAlerts: false
+      alertmanagerUid: navfleet-alertmanager
+
+  - name: Alertmanager
+    uid: navfleet-alertmanager
+    type: alertmanager
+    access: proxy
+    url: http://alertmanager:9093
+    jsonData:
+      # Prometheus's own Alertmanager, not Grafana's built-in ruler: the rules
+      # live in `deploy/prometheus/alerts.yml` and are version-controlled, which
+      # is the point — rules clicked into Grafana exist only in its volume.
+      implementation: prometheus
+      handleGrafanaManagedAlerts: false

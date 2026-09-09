@@ -1,0 +1,77 @@
+# Alertmanager configuration for the NavFleet stack.
+#
+# Why this file exists: `deploy/prometheus/alerts.yml` has always held 13 rules,
+# and until it was added they evaluated into nothing — Prometheus had no
+# `alerting:` block and no Alertmanager was deployed, so every rule fired into
+# the void while the deployment docs described them as if someone was told. A
+# rule with no receiver is a rule nobody acts on.
+#
+# ── WHAT THIS DEFAULT DOES AND DOES NOT DO ─────────────────────────────────────
+# The default receiver has **no notifier attached**, on purpose: this repo cannot
+# know your email relay or chat webhook, and inventing one would either fail
+# loudly on every alert or, worse, look configured while going nowhere.
+#
+# So out of the box you get grouping, deduplication, inhibition and silencing,
+# and a UI at http://127.0.0.1:9093 that answers "what is firing right now".
+# You do NOT get email, chat or paging until you fill in one of the two blocks
+# marked ↓ TO ENABLE ↓ below. The deployment docs say the same thing; if you read
+# only one of the two, read this file — it is the one that decides.
+route:
+  # Group by rule and severity rather than by instance: this is a single-instance
+  # intranet deployment, so "which alert" and "how bad" are the useful axes and
+  # "which host" is always the same answer.
+  group_by: ["alertname", "severity"]
+  # Wait this long for other alerts in the same group before sending the first
+  # notification — a broker outage trips several rules within seconds, and one
+  # notification listing them beats five arriving separately.
+  group_wait: 30s
+  # Then at most one update per group per this interval while it keeps firing.
+  group_interval: 5m
+  # Re-send an alert that is still firing this often. Four hours, not the usual
+  # 12: a fleet-monitoring stack that has been broken for four hours is worth
+  # mentioning again, and this deployment has no on-call rotation to annoy.
+  repeat_interval: 4h
+  receiver: navfleet-default
+
+  routes:
+    # Critical alerts skip most of the batching. Everything else can wait for the
+    # group window; a backend that is down cannot.
+    - matchers:
+        - severity = "critical"
+      receiver: navfleet-critical
+      group_wait: 10s
+      repeat_interval: 1h
+
+inhibit_rules:
+  # While a critical alert is firing for the same rule target, do not also send
+  # the warning-level ones about it. Without this, a degraded pipeline reports
+  # itself twice at two severities and the second copy adds nothing.
+  - source_matchers:
+      - severity = "critical"
+    target_matchers:
+      - severity = "warning"
+    equal: ["alertname"]
+
+receivers:
+  # Deliberately empty — see the header. Alerts routed here are grouped, stored
+  # and visible in the UI and API; nothing is sent outward.
+  - name: navfleet-default
+
+  - name: navfleet-critical
+    # ↓ TO ENABLE EMAIL ↓ — uncomment and fill in. `smtp_*` settings can also be
+    # hoisted into a `global:` block if both receivers should share them.
+    # email_configs:
+    #   - to: ops@example.internal
+    #     from: navfleet@example.internal
+    #     smarthost: smtp.example.internal:587
+    #     auth_username: navfleet@example.internal
+    #     # Read from a file rather than inlined, so the password is not in the
+    #     # repo or in `docker inspect` output. Mount it into the container.
+    #     auth_password_file: /etc/alertmanager/smtp-password
+    #     require_tls: true
+    #
+    # ↓ TO ENABLE A CHAT WEBHOOK ↓ — most internal chat systems accept this shape
+    # directly; for the ones that do not, point it at a small adapter.
+    # webhook_configs:
+    #   - url: http://your-webhook-host/navfleet-alerts
+    #     send_resolved: true
