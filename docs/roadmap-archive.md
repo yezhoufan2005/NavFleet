@@ -1393,6 +1393,12 @@ barrel，vitest 3 记它 0% statements / 100% branches，vitest 5 不再计它�
 
 ### 13S — 第 9 节核销留下的 5 条缺陷（收口的产出，不是新建设）· [~] 进行中（3 修 / 2 更正 / 2 押 1.0.3）
 
+> **2026-09-09 复核（前端焕新阶段收口时）**：押在 1.0.3 的两条**都已修**，已勾上。核实到代码：
+> `formatters.ts:25-42` 的 `formatNumber` 现在守的是**类型**而不只是 `Number.isFinite`，`null` /
+> `undefined` / 非数字非字符串 / 空串一律返回 `"--"`，而真实的 0 仍格式化为 `"0.00"`；
+> `fleetNormalize.ts:117-118` 的 `parseTimestampMs` 对 `null` / `undefined` / `""` 返回 `null`，
+> 不再回退 `Date.now()`。
+
 第 9 节核销把 7 条「仍在」分成了两堆：2 条属会话边界，留 Phase 15；**剩下 5 条在这里收口**。
 放在一个 PR 里的理由是它们同源 —— 都是前两次"刻意不夹带行为改动"的搬迁留下的尾巴（12A 抽取、
 13A-2a 地图底座），不是五件互不相干的小事。
@@ -1403,12 +1409,12 @@ barrel，vitest 3 记它 0% statements / 100% branches，vitest 5 不再计它�
 `fix:`，而 `fix:` 落 main 就注定发版。所以它们一起押到 **1.0.3**（与 P0-b…P0-e 同批），
 13S 全部落在 `frontend-next` 内，用不产生发版的 commit type。
 
-- [ ] **9.1 `formatNumber(null)` → `"0.00"`** → 押 **1.0.3**（`packages/fleet-core/src/formatters.ts:12-18`）。
+- [x] **9.1 `formatNumber(null)` → `"0.00"`** → 押 **1.0.3**（`packages/fleet-core/src/formatters.ts:12-18`）。
       `Number(null) === 0` 是有限值，所以 `Number.isFinite` 这道门挡不住它。修成与同文件
       `formatValue` 一致的口径：`null` / `undefined` / `""` 一律 `--`，**而 `0` 必须仍然是 `0.00`**
       —— 那是一个真实读数。测试当时照着错误行为写（`formatters.test.ts:40-45` 自带 `DEFECT` 标注），
       修的时候要连测试一起改
-- [ ] **9.19 `toTimestampMs` 对空值回退 `Date.now()`** → 押 **1.0.3**（`fleetNormalize.ts:69-82`）。
+- [x] **9.19 `toTimestampMs` 对空值回退 `Date.now()`** → 押 **1.0.3**（`fleetNormalize.ts:69-82`）。
       与 9.1 同一类错误：**空值伪装成一个看起来像真的值**。这条更麻烦，因为它进排序 —— 返回 `NaN`
       会让比较函数失序，所以修法要连排序端一起定（无时间戳的排最后，而不是排到"现在"）。
       另注：`backend/src/normalize.ts:19` 还有**第四份独立实现**，同样的回退，要一起看，否则前后端
