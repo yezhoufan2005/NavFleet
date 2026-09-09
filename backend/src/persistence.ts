@@ -69,6 +69,21 @@ interface StoredAlert {
   lastSeenAt: string;
 }
 
+/**
+ * Most alerts `GET /api/alerts` will return in one response.
+ *
+ * One constant because there are two query paths — the MongoDB one and the in-memory
+ * fallback — and the contract they publish has to be the same number. It was written as a
+ * bare `500` in each, so the fallback's page size was coupled to the primary path's by
+ * nothing but coincidence, and the OpenAPI description of the endpoint could only ever
+ * quote one of them.
+ *
+ * Not an env var, unlike `MAX_HISTORY_POINTS`: history is what a deployment tunes for its
+ * retention window, whereas this is a response-size guard on an endpoint the console reads
+ * in fixed pages of 20.
+ */
+const MAX_ALERTS_PER_QUERY = 500;
+
 export class Persistence {
   private db: Db | null = null;
   private pendingTelemetry: TelemetryDocument[] = [];
@@ -508,10 +523,6 @@ export class Persistence {
     return this.mongo.isConnected();
   }
 
-  pendingTelemetryCount(): number {
-    return this.pendingTelemetry.length;
-  }
-
   async queryHistory(query: HistoryQuery): Promise<unknown[]> {
     if (!this.db) {
       return this.queryMemoryHistory(query);
@@ -567,7 +578,7 @@ export class Persistence {
       .collection("alerts")
       .find(query, { projection: { _id: 0 } })
       .sort({ ts: -1 })
-      .limit(500)
+      .limit(MAX_ALERTS_PER_QUERY)
       .toArray();
   }
 
@@ -587,6 +598,8 @@ export class Persistence {
     if (filters.deviceId) {
       items = items.filter((alert) => alert.deviceId === filters.deviceId);
     }
-    return items.sort((left, right) => Date.parse(right.ts) - Date.parse(left.ts)).slice(0, 500);
+    return items
+      .sort((left, right) => Date.parse(right.ts) - Date.parse(left.ts))
+      .slice(0, MAX_ALERTS_PER_QUERY);
   }
 }

@@ -85,13 +85,11 @@ export const createStoreStub = (): StoreStub => ({
 
 export interface PersistenceStub {
   isMongoConnected: Mock<() => boolean>;
-  pendingTelemetryCount: Mock<() => number>;
   telemetryBufferStats: Mock<() => { pending: number; dropped: number; limit: number }>;
 }
 
 export const createPersistenceStub = (): PersistenceStub => ({
   isMongoConnected: vi.fn(() => false),
-  pendingTelemetryCount: vi.fn(() => 0),
   telemetryBufferStats: vi.fn(() => ({ pending: 0, dropped: 0, limit: 2000 })),
 });
 

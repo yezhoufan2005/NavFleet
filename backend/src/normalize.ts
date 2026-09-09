@@ -225,6 +225,36 @@ const buildCodeAlerts = (snapshot: DeviceSnapshot): DeviceAlert[] => {
     }));
 };
 
+/**
+ * The id every offline alert carries.
+ *
+ * Exported because otherwise it is written out three times — once below, and twice in the
+ * store's offline sweep (the filter that removes the stale copy, and the fresh one it
+ * appends) — and because this id is what acknowledgement keys on. Drift between the copies
+ * fails nothing loudly: the sweep's filter stops matching what the sweep then appends, so
+ * the device accumulates two offline alerts and the one an operator acknowledges is not the
+ * one that comes back on the next sweep.
+ */
+export const offlineAlertId = (deviceId: string): string => `${deviceId}-offline`;
+
+/**
+ * The "device is offline" alert, in one place.
+ *
+ * Two callers raise it for the same reason at different moments: the normaliser, for a
+ * snapshot that arrives already marked offline, and the store's sweep, for a device that
+ * has stopped reporting. Only the timestamp differs between them — hence the parameter —
+ * and the other five fields used to be written out verbatim on both sides.
+ */
+export const buildOfflineAlert = (deviceId: string, ts: string): DeviceAlert => ({
+  id: offlineAlertId(deviceId),
+  title: "设备离线",
+  detail: "设备超过离线阈值未上报，系统已自动标记为离线",
+  severity: "critical",
+  source: "rule-engine",
+  ts,
+  active: true,
+});
+
 const buildRuleAlerts = (snapshot: DeviceSnapshot): DeviceAlert[] => {
   const alerts: DeviceAlert[] = [];
   const soc = snapshot.vehicleInfo.soc ?? 0;
@@ -242,15 +272,7 @@ const buildRuleAlerts = (snapshot: DeviceSnapshot): DeviceAlert[] => {
   }
 
   if (!snapshot.online) {
-    alerts.push({
-      id: `${snapshot.deviceId}-offline`,
-      title: "设备离线",
-      detail: "设备超过离线阈值未上报，系统已自动标记为离线",
-      severity: "critical",
-      source: "rule-engine",
-      ts: snapshot.stamp,
-      active: true,
-    });
+    alerts.push(buildOfflineAlert(snapshot.deviceId, snapshot.stamp));
   }
 
   return alerts;

@@ -34,18 +34,18 @@ import {
   DropdownMenuTrigger,
 } from "reka-ui";
 import UiSoundIcon from "@/components/ui/UiSoundIcon.vue";
-import type { AuthUser } from "@/composables/useAuth";
+import type { PublicUser, UserRole } from "@navfleet/shared";
 import { useTheme, type ThemePreference } from "@/composables/useTheme";
 import { useAlertSound } from "@/composables/useAlertSound";
 import type { QuietHours, SoundVolume } from "@/composables/useAlertSound";
 
-const { user } = defineProps<{ user: AuthUser }>();
+const { user } = defineProps<{ user: PublicUser }>();
 const emit = defineEmits<{ logout: [] }>();
 
 const { preference, resolved, setPreference } = useTheme();
 const sound = useAlertSound();
 
-const ROLE_LABELS: Record<AuthUser["role"], string> = {
+const ROLE_LABELS: Record<UserRole, string> = {
   admin: "管理员",
   operator: "操作员",
   viewer: "只读",

@@ -125,7 +125,6 @@ describe("the write-behind buffer while MongoDB is unavailable (P0-c)", () => {
     await persistence.writeTelemetry(sample("agv-buf", "2026-01-01T00:00:00Z", 1));
     await persistence.writeTelemetry(sample("agv-buf", "2026-01-01T00:00:01Z", 2));
 
-    expect(persistence.pendingTelemetryCount()).toBe(2);
     expect(persistence.telemetryBufferStats()).toMatchObject({ pending: 2, dropped: 0 });
   });
 
@@ -152,6 +151,6 @@ describe("the write-behind buffer while MongoDB is unavailable (P0-c)", () => {
     await persistence.writeTelemetry(sample("agv-keep", "2026-01-01T00:00:00Z", 1));
     await persistence.flushTelemetry();
 
-    expect(persistence.pendingTelemetryCount()).toBe(1);
+    expect(persistence.telemetryBufferStats().pending).toBe(1);
   });
 });

@@ -253,15 +253,16 @@ export interface HistoryQuery {
 
 export type UserRole = "admin" | "operator" | "viewer";
 
-export interface UserRecord {
-  username: string;
-  passwordHash: string;
-  role: UserRole;
-  createdAt: string;
-  updatedAt: string;
-}
-
-/** User shape safe to return to clients (no password hash). */
+/**
+ * The user shape the API hands to a client: `/api/auth/login`, `/refresh` and `/me` all
+ * answer with `{ user: PublicUser }`, and the console stores exactly this.
+ *
+ * Its **stored** counterpart is deliberately not here. `UserRecord` — the `users`
+ * document, `passwordHash` and all — used to sit between these two declarations with no
+ * reader outside the backend. A password hash's type has no business in the package both
+ * frontends import from even when nothing is emitted, because being here is what invites a
+ * frontend to reach for it; it now lives in `backend/src/types.ts`.
+ */
 export interface PublicUser {
   username: string;
   role: UserRole;

@@ -1,4 +1,5 @@
 import { reactive } from "vue";
+import type { PublicUser, UserRole } from "@navfleet/shared";
 import { notify } from "@/composables/useNotifications";
 
 /**
@@ -32,16 +33,10 @@ import { notify } from "@/composables/useNotifications";
  *   anonymous, with a sticky toast) after the whole ladder fails.
  */
 export type AuthStatus = "unknown" | "authenticated" | "anonymous";
-export type AuthRole = "admin" | "operator" | "viewer";
-
-export interface AuthUser {
-  username: string;
-  role: AuthRole;
-}
 
 interface AuthState {
   status: AuthStatus;
-  user: AuthUser | null;
+  user: PublicUser | null;
   error: string;
   pending: boolean;
 }
@@ -73,23 +68,38 @@ const request = (path: string, options: RequestInit = {}): Promise<Response> =>
     ...options,
   });
 
-const isAuthUser = (value: unknown): value is AuthUser => {
+/**
+ * The role vocabulary at runtime, typed by the contract so the two cannot drift.
+ *
+ * `@navfleet/shared` is type-only by design — it emits nothing into either bundle — so a
+ * guard that has to test a value at runtime cannot import a list from it and has to
+ * enumerate the union here. `Record<UserRole, true>` is what makes that safe: adding a
+ * fourth role to the contract fails to compile in this file instead of silently rejecting
+ * every session that carries it, and a typo fails here too. The union used to be
+ * re-declared outright as a local `AuthRole`, which had neither property.
+ */
+const KNOWN_ROLES: Record<UserRole, true> = {
+  admin: true,
+  operator: true,
+  viewer: true,
+};
+
+const isPublicUser = (value: unknown): value is PublicUser => {
   if (!value || typeof value !== "object") return false;
   const candidate = value as { username?: unknown; role?: unknown };
   return (
     typeof candidate.username === "string" &&
-    (candidate.role === "admin" ||
-      candidate.role === "operator" ||
-      candidate.role === "viewer")
+    typeof candidate.role === "string" &&
+    Object.prototype.hasOwnProperty.call(KNOWN_ROLES, candidate.role)
   );
 };
 
 /** `{ user }` or nothing — a malformed body must not read as a valid session. */
-const readUser = async (response: Response): Promise<AuthUser | null> => {
+const readUser = async (response: Response): Promise<PublicUser | null> => {
   try {
     const body: unknown = await response.json();
     const user = (body as { user?: unknown } | null)?.user;
-    return isAuthUser(user) ? user : null;
+    return isPublicUser(user) ? user : null;
   } catch {
     return null;
   }
@@ -118,7 +128,7 @@ const setAnonymous = (): void => {
   // through to here, and clearing it would wipe the message the person needs.
 };
 
-const setAuthenticated = (user: AuthUser): void => {
+const setAuthenticated = (user: PublicUser): void => {
   state.user = user;
   state.status = "authenticated";
   state.error = "";
