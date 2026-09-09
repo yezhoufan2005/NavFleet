@@ -53,10 +53,15 @@ export default defineConfig({
       // tests, and `useSvgViewport` in particular went from 1.07% to 98.16%. Branches
       // still stays at 85 for the reason above — 85.29 is the thinnest margin here.
       thresholds: {
-        statements: 94,
+        //
+        // P0-f 第 6 批 raised statements/lines 94 → 95 against 96.24 measured. Branches
+        // and functions stay put for the reason above: at 86.47 and 90.44 they still have
+        // barely a point of headroom, and a gate that goes red for one uncovered `else`
+        // in an unrelated PR teaches people to lower gates.
+        statements: 95,
         branches: 85,
         functions: 90,
-        lines: 94,
+        lines: 95,
       },
     },
   },

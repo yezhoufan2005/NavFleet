@@ -119,6 +119,26 @@ export class Persistence {
   }
 
   /**
+   * Attach a MongoDB handle directly. **Tests only** — production publishes `this.db`
+   * from `openMongoSession()`.
+   *
+   * Why a seam and not a real MongoDB in CI: nearly every method here is a two-branch
+   * function — `if (!this.db)` takes the in-memory fallback, otherwise the driver — and
+   * only the fallback branch was ever executed by a test. That is what left this file at
+   * **47% statements / 72% functions**, and the untested half is the half that runs in
+   * production. A fake `Db` reaches it without adding a service to CI, and the questions
+   * worth asking are about the *queries* (does the alert-clearing `$nin` name the right
+   * set? does a failed flush put the documents back?), which a fake answers exactly as
+   * well as a server would.
+   *
+   * The `__` prefix is the house marker for a test seam (see the console's
+   * `dead-exports` gate, which recognises it by that prefix).
+   */
+  __setDbForTests(db: Db | null): void {
+    this.db = db;
+  }
+
+  /**
    * Release MongoDB and stop the reconnect loop. Safe to call without a prior
    * connect() and safe to call twice; used by the process shutdown path.
    */
