@@ -4,6 +4,7 @@
 # 用法:
 #   deploy/tools/mongo-backup.sh [输出目录]
 # 环境变量（可写在 deploy/.env）：
+#   BACKUP_HOST_PATH           (默认 ./backups，相对 deploy/ 解析)
 #   MONGO_INITDB_ROOT_USERNAME (默认 root)
 #   MONGO_INITDB_ROOT_PASSWORD (默认 example)
 #   MONGO_DB_NAME              (默认 fleet_monitor)
@@ -13,7 +14,6 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 DEPLOY_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
 COMPOSE_FILE="$DEPLOY_DIR/docker-compose.yml"
-OUT_DIR="${1:-$DEPLOY_DIR/backups}"
 
 # 载入 deploy/.env（如存在）以取得凭据，但不回显具体值。
 if [[ -f "$DEPLOY_DIR/.env" ]]; then
@@ -21,6 +21,17 @@ if [[ -f "$DEPLOY_DIR/.env" ]]; then
   # shellcheck disable=SC1091
   source "$DEPLOY_DIR/.env"
   set +a
+fi
+
+# 输出目录：显式参数 > BACKUP_HOST_PATH > ./backups。
+#
+# 之前这里只有 `${1:-$DEPLOY_DIR/backups}`，与 docker-compose.backup.yml 的
+# `${BACKUP_HOST_PATH:-./backups}` 对不上：把 BACKUP_HOST_PATH 指到 NAS 的部署里，
+# 容器备份进 NAS、手动备份进 deploy/backups，而恢复演练只看一个地方 —— 手动那份
+# 从此对演练不可见。三者现在同一个来源。
+OUT_DIR="${1:-${BACKUP_HOST_PATH:-./backups}}"
+if [[ "$OUT_DIR" != /* ]]; then
+  OUT_DIR="$DEPLOY_DIR/${OUT_DIR#./}"
 fi
 
 MONGO_USER="${MONGO_INITDB_ROOT_USERNAME:-root}"

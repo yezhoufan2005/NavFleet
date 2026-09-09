@@ -200,22 +200,22 @@ config-runtime/
 
 ### 6.2 通用字段
 
-| 字段             | 类型     | 必填 | 说明                             |
-| ---------------- | -------- | ---- | -------------------------------- |
-| `sceneId`        | `string` | 是   | 场景唯一 ID                      |
-| `sceneName`      | `string` | 是   | 页面显示名称                     |
-| `mapFrame`       | `string` | 是   | 坐标系名称，通常为 `map`         |
-| `resolution`     | `number` | 是   | 地图分辨率                       |
-| `origin`         | `object` | 是   | 世界坐标原点，含 `x`、`y`、`yaw` |
-| `occupiedThresh` | `number` | 否   | ROS 栅格占用阈值                 |
-| `freeThresh`     | `number` | 否   | ROS 栅格空闲阈值                 |
-| `negate`         | `0       | 1`   | 否                               | ROS 地图是否反色 |
-| `width`          | `number` | 是   | 地图画布宽度                     |
-| `height`         | `number` | 是   | 地图画布高度                     |
-| `bounds`         | `object` | 否   | 世界坐标边界                     |
-| `defaultView`    | `object` | 否   | 默认视角                         |
-| `minZoom`        | `number` | 否   | 最小缩放                         |
-| `maxZoom`        | `number` | 否   | 最大缩放                         |
+| 字段             | 类型       | 必填 | 说明                             |
+| ---------------- | ---------- | ---- | -------------------------------- |
+| `sceneId`        | `string`   | 是   | 场景唯一 ID                      |
+| `sceneName`      | `string`   | 是   | 页面显示名称                     |
+| `mapFrame`       | `string`   | 是   | 坐标系名称，通常为 `map`         |
+| `resolution`     | `number`   | 是   | 地图分辨率                       |
+| `origin`         | `object`   | 是   | 世界坐标原点，含 `x`、`y`、`yaw` |
+| `occupiedThresh` | `number`   | 否   | ROS 栅格占用阈值                 |
+| `freeThresh`     | `number`   | 否   | ROS 栅格空闲阈值                 |
+| `negate`         | `0` 或 `1` | 否   | ROS 地图是否反色                 |
+| `width`          | `number`   | 是   | 地图画布宽度                     |
+| `height`         | `number`   | 是   | 地图画布高度                     |
+| `bounds`         | `object`   | 否   | 世界坐标边界                     |
+| `defaultView`    | `object`   | 否   | 默认视角                         |
+| `minZoom`        | `number`   | 否   | 最小缩放                         |
+| `maxZoom`        | `number`   | 否   | 最大缩放                         |
 
 `origin`：
 
@@ -365,6 +365,9 @@ scene-maps/
 /scene-maps/**
 ```
 
+**这个前缀也在鉴权门之后**（`app.use(authenticate)` 之下的 `express.static`），所以它是给
+已登录的控制台用的，不是一个公开的静态资源目录 —— 用 `curl` 直接取会拿到 401。
+
 ## 8. 环境变量
 
 ### 8.1 部署入口变量
@@ -372,8 +375,23 @@ scene-maps/
 | 变量                       | 默认值              | 说明                               |
 | -------------------------- | ------------------- | ---------------------------------- |
 | `HTTP_HOST_PORT`           | `8080`              | Nginx 映射到宿主机的 HTTP 端口     |
+| `HTTPS_HOST_PORT`          | `443`               | TLS 叠加文件下的 HTTPS 宿主机端口  |
 | `MQTT_HOST_PORT`           | `1883`              | Mosquitto 映射到宿主机的 MQTT 端口 |
 | `CONFIG_RUNTIME_HOST_PATH` | `../config-runtime` | 宿主机运行期配置目录               |
+
+### 8.1.1 Broker 凭据（**留空则 compose 拒绝启动**）
+
+broker 已关闭匿名访问，所以这一组是**唯一没有安全默认值可用**的变量：`docker compose up`
+在缺少两个口令时直接报错退出，而不是起一个谁都能连的 broker。用法与轮换见
+[deployment.md 4.2.1](./deployment.md#421-broker-凭据必填否则-compose-拒绝启动)。
+
+| 变量                       | 默认值               | 说明                                                     |
+| -------------------------- | -------------------- | -------------------------------------------------------- |
+| `MQTT_SUBSCRIBER_USERNAME` | `navfleet-backend`   | 订阅方（后端）账号；compose 映射为后端的 `MQTT_USERNAME` |
+| `MQTT_SUBSCRIBER_PASSWORD` | **无，必填**         | 订阅方口令；compose 映射为后端的 `MQTT_PASSWORD`         |
+| `MQTT_PUBLISHER_USERNAME`  | `navfleet-publisher` | 发布方（车辆 / mock 脚本）账号                           |
+| `MQTT_PUBLISHER_PASSWORD`  | **无，必填**         | 发布方口令                                               |
+| `MQTT_ACL_TOPIC_PATTERN`   | `/fleet/#`           | ACL 覆盖的主题范围：订阅方对它只读，发布方只写           |
 
 ### 8.2 后端变量
 
@@ -383,8 +401,8 @@ scene-maps/
 | `NODE_ENV`                    | `production`（compose）                                             | 运行环境；`production` 下缺少 `JWT_SECRET` 会启动失败               |
 | `FLEET_NAME`                  | `智能车队`                                                          | 内置兜底车队名，通常会被 `fleet.json` 覆盖                          |
 | `MQTT_URL`                    | `mqtt://mosquitto:1883`                                             | 后端连接的 MQTT Broker                                              |
-| `MQTT_USERNAME`               | 空                                                                  | MQTT 用户名                                                         |
-| `MQTT_PASSWORD`               | 空                                                                  | MQTT 密码                                                           |
+| `MQTT_USERNAME`               | 空（compose 下取 `MQTT_SUBSCRIBER_USERNAME`）                       | MQTT 用户名。后端读的是这个名字；compose 由 8.1.1 那组映射过来      |
+| `MQTT_PASSWORD`               | 空（compose 下取 `MQTT_SUBSCRIBER_PASSWORD`）                       | MQTT 密码，同上                                                     |
 | `MQTT_CLIENT_ID`              | 随机                                                                | 可选固定客户端 ID                                                   |
 | `MQTT_TOPIC_PATTERN`          | `/fleet/{deviceId}/vehicle_info`                                    | 遥测主题模板，`{deviceId}` 为占位符                                 |
 | `MONGO_URI`                   | `mongodb://root:example@mongo:27017/fleet_monitor?authSource=admin` | MongoDB 连接串                                                      |
@@ -444,6 +462,34 @@ scene-maps/
 | `VITE_AMAP_SECURITY_JS_CODE` | 高德地图安全密钥   |
 
 这两个变量是前端构建时变量，修改后必须重新构建前端镜像。
+
+### 8.5 备份叠加文件变量
+
+仅 `docker-compose.backup.yml` 读取。启用方式见
+[deployment.md 9.4](./deployment.md#94-备份自动化与恢复演练)。
+
+| 变量                      | 默认值      | 说明                                                                     |
+| ------------------------- | ----------- | ------------------------------------------------------------------------ |
+| `BACKUP_HOST_PATH`        | `./backups` | 归档落盘的宿主机目录，相对路径按 `deploy/` 解析                          |
+| `BACKUP_INTERVAL_SECONDS` | `86400`     | `mongodump` 循环间隔，默认一天一次                                       |
+| `BACKUP_RETENTION_DAYS`   | `14`        | 保留天数；只清理符合自身命名规则的文件（该目录是宿主机挂载，可能有别的） |
+
+`BACKUP_HOST_PATH` 同时是 `deploy/tools/mongo-backup.sh` 的默认输出目录与
+`deploy/tools/restore-drill.sh` 的默认查找目录 —— 三处同源，改一个地方即可。
+
+### 8.6 监控叠加文件变量
+
+仅 `docker-compose.monitoring.yml` 读取。启用方式见
+[deployment.md 9.3](./deployment.md#93-监控栈prometheus--grafana)。
+
+| 变量                     | 默认值       | 说明                                                        |
+| ------------------------ | ------------ | ----------------------------------------------------------- |
+| `PROMETHEUS_HOST_PORT`   | `9090`       | Prometheus 宿主机端口，**仅绑 127.0.0.1**（查询接口未鉴权） |
+| `PROMETHEUS_RETENTION`   | `15d`        | TSDB 保留时长                                               |
+| `ALERTMANAGER_HOST_PORT` | `9093`       | Alertmanager 宿主机端口，**仅绑 127.0.0.1**（API 未鉴权）   |
+| `GRAFANA_HOST_PORT`      | `3001`       | Grafana 宿主机端口                                          |
+| `GRAFANA_ADMIN_USER`     | `admin`      | Grafana 管理员用户名                                        |
+| `GRAFANA_ADMIN_PASSWORD` | **无，必填** | 留空时监控叠加文件**拒绝启动**                              |
 
 ## 9. MQTT payload
 
@@ -606,11 +652,21 @@ config-runtime/scene-maps/kangcheng-airy/kangcheng_airy.osm
 
 ## 11. 校验建议
 
-修改配置后检查：
+修改配置后检查。`/api/*` 在鉴权门之后，所以先登录换一个会话 Cookie —— 直接 `curl` 只会
+得到 `401 {"error":"unauthorized"}`（完整说明与为什么用 `read -rsp` 见
+[deployment.md 5.1](./deployment.md#51-http-接口)）：
 
 ```bash
-curl http://127.0.0.1:8080/api/scenes
-curl http://127.0.0.1:8080/api/fleet/snapshot
+COOKIES="$(mktemp)"
+read -rsp 'ADMIN_PASSWORD: ' NAVFLEET_PW; echo
+curl -sS -c "$COOKIES" -X POST http://127.0.0.1:8080/api/auth/login \
+  -H 'Content-Type: application/json' \
+  --data-binary "$(printf '{"username":"%s","password":"%s"}' "${ADMIN_USERNAME:-admin}" "$NAVFLEET_PW")"
+
+curl -sS -b "$COOKIES" http://127.0.0.1:8080/api/scenes
+curl -sS -b "$COOKIES" http://127.0.0.1:8080/api/fleet/snapshot
+
+unset NAVFLEET_PW; rm -f "$COOKIES"
 ```
 
 查看后端日志：

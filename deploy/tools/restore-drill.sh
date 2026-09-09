@@ -7,7 +7,8 @@
 # compared against the live database, and the scratch database is dropped again.
 #
 # Usage:
-#   deploy/tools/restore-drill.sh [archive]     # default: newest in deploy/backups
+#   deploy/tools/restore-drill.sh [archive]     # default: newest archive the
+#                                               # backup overlay writes to
 #
 # Exit status is 0 only if the restore succeeded and every collection in the
 # archive came back with at least one document.
@@ -16,13 +17,26 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 DEPLOY_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
 COMPOSE_FILE="$DEPLOY_DIR/docker-compose.yml"
-BACKUP_DIR="$DEPLOY_DIR/backups"
 
 if [[ -f "$DEPLOY_DIR/.env" ]]; then
   set -a
   # shellcheck disable=SC1091
   source "$DEPLOY_DIR/.env"
   set +a
+fi
+
+# Where the archives actually are.
+#
+# This used to be a hardcoded `$DEPLOY_DIR/backups`, assigned *before* .env was
+# sourced — so a deployment that pointed BACKUP_HOST_PATH at a NAS or a separate
+# volume (the reason that variable exists) had a drill that searched an empty
+# directory and reported "no backup archive found" while the backups were fine.
+# The default matches docker-compose.backup.yml's own `${BACKUP_HOST_PATH:-./backups}`,
+# and a relative value is resolved against deploy/ for the same reason compose
+# resolves it against the compose file's directory.
+BACKUP_DIR="${BACKUP_HOST_PATH:-./backups}"
+if [[ "$BACKUP_DIR" != /* ]]; then
+  BACKUP_DIR="$DEPLOY_DIR/${BACKUP_DIR#./}"
 fi
 
 MONGO_USER="${MONGO_INITDB_ROOT_USERNAME:-root}"
