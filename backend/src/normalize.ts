@@ -233,7 +233,7 @@ const buildRuleAlerts = (snapshot: DeviceSnapshot): DeviceAlert[] => {
     alerts.push({
       id: `${snapshot.deviceId}-low-soc`,
       title: "低电量预警",
-      detail: `当前电量 ${round(soc, 1)}%，建议尽快安排回充。`,
+      detail: `当前电量 ${round(soc, 1)}%，建议尽快安排回充`,
       severity: "warning",
       source: "rule-engine",
       ts: snapshot.stamp,

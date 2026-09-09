@@ -60,8 +60,8 @@ const plainTextStatusSchema = z
  * Ingest gate for MQTT status frames. Usually an object (`{ online: true }` or
  * `{ status: "offline" }`); a bare `true`/`false` and the plain-text encodings
  * understood by the store are accepted too. Validation never rewrites the value —
- * mqtt.ts forwards the original parsed payload, so the store still does the
- * trim/lowercase interpretation itself.
+ * mqtt.ts forwards the original parsed payload, and `DashboardStore.parseOnline`
+ * does the interpretation for all three shapes.
  */
 export const mqttStatusSchema = z.union([
   z.record(z.string(), z.unknown()),
