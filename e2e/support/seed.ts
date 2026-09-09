@@ -12,6 +12,10 @@
  * geometry rather than just a placeholder.
  */
 
+import { readFileSync } from "node:fs";
+import { join } from "node:path";
+import { REPO_ROOT } from "./harness";
+
 /** Report code as carried in a telemetry frame. */
 interface SeedCode {
   code: number;
@@ -67,6 +71,72 @@ export const SEEDED_DEVICES: SeededDevice[] = [
     errorCode: { code: 5102, info: "路径规划超时，已触发急停" },
   },
 ];
+
+/**
+ * The seeded vehicle carrying a report code, and the one carrying a non-normal status.
+ *
+ * Exported — and asserted here rather than guarded at each call site — because five
+ * specs used to open with `test.skip(!faulted, "seed carries no faulted vehicle")`.
+ * That guard can never fire against this seed, so it looked like defensive care and
+ * was in fact a **silent hole**: edit the seed to drop `errorCode` and those tests
+ * stop running instead of failing, taking the report-code explanation, the alert
+ * centre's severity filter and 告警史 with them, with nothing red to say so.
+ *
+ * Throwing at import time is the opposite trade: the seed cannot lose these
+ * properties without every spec that depends on them failing immediately.
+ */
+const findFaulted = (): SeededDevice => {
+  const faulted = SEEDED_DEVICES.find((device) => device.errorCode?.code);
+  if (!faulted) {
+    throw new Error(
+      "SEEDED_DEVICES must contain a device with a non-zero errorCode: the report-code and 告警史 specs assert against it",
+    );
+  }
+  return faulted;
+};
+
+const findAlerting = (): SeededDevice => {
+  const alerting = SEEDED_DEVICES.find(
+    (device) => device.statusLabel !== "正常",
+  );
+  if (!alerting) {
+    throw new Error(
+      "SEEDED_DEVICES must contain a device whose statusLabel is not 正常: the alert-centre specs assert against it",
+    );
+  }
+  return alerting;
+};
+
+/** The faulted vehicle (`agv-c12`, code 5102). */
+export const SEEDED_FAULTED: SeededDevice = findFaulted();
+
+/** A vehicle with something to report, for the alert-centre specs. */
+export const SEEDED_ALERTING: SeededDevice = findAlerting();
+
+/**
+ * How many formations the deployment config declares.
+ *
+ * Read from the file rather than written as `3`, because the overview's formation
+ * panel is asserted against it in a browser (row count, pinned row height, the
+ * `max-height` that makes "three rows" mean three, and the absence of a scrollbar).
+ * Those were bare literals coupled to `config-runtime/formations.json` with nothing
+ * pointing at the coupling — so adding a fourth formation to the *deployment* config
+ * broke a spec whose failure message said nothing about why.
+ *
+ * If this ever exceeds 3, the panel's own rule changes rather than the number: three
+ * rows stay visible and the rest become scrollable. That is a deliberate assertion to
+ * revisit, not a constant to bump.
+ */
+export const CONFIGURED_FORMATION_COUNT: number = (
+  JSON.parse(
+    readFileSync(
+      // Relative to the repo root, which is where playwright runs from — the e2e
+      // tsconfig targets CommonJS, so `import.meta.url` is not available here.
+      join(REPO_ROOT, "config-runtime", "formations.json"),
+      "utf8",
+    ),
+  ) as unknown[]
+).length;
 
 const GPS_ORIGIN = { lat: 31.2304, lng: 121.4737 };
 

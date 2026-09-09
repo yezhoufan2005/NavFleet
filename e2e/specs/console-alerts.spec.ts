@@ -1,5 +1,5 @@
 import { expect, signIn, test } from "../support/fixtures";
-import { SEEDED_DEVICES } from "../support/seed";
+import { SEEDED_ALERTING } from "../support/seed";
 
 /**
  * The alert centre in a real browser. Two of these can only be checked here: a URL
@@ -9,7 +9,13 @@ import { SEEDED_DEVICES } from "../support/seed";
  * `alerts.spec.ts` staying green on the old frontend plus the console's own unit
  * tests; what a browser adds is the state that lives outside the app.
  */
-const faulted = SEEDED_DEVICES.find((device) => device.statusLabel !== "正常");
+/**
+ * The seeded vehicle with something to report. Resolved and asserted in
+ * `support/seed.ts`, so this spec no longer opens each test with a
+ * `test.skip(!faulted, …)` that could never fire — a guard that turned "the seed lost
+ * its alerting vehicle" from a red test into a silently skipped one.
+ */
+const faulted = SEEDED_ALERTING;
 
 test.describe("console alerts", () => {
   test.beforeEach(async ({ page }) => {
@@ -30,9 +36,7 @@ test.describe("console alerts", () => {
   });
 
   test("an acknowledgement survives a reload", async ({ page }) => {
-    test.skip(!faulted, "seed carries no faulted vehicle");
-
-    const row = page.locator("li").filter({ hasText: faulted!.deviceName });
+    const row = page.locator("li").filter({ hasText: faulted.deviceName });
     await row.getByRole("button", { name: /确认告警/ }).click();
 
     // Acknowledged alerts are hidden by default, which is itself the assertion.
@@ -40,27 +44,25 @@ test.describe("console alerts", () => {
 
     await page.reload();
     await expect(
-      page.locator("li").filter({ hasText: faulted!.deviceName }),
+      page.locator("li").filter({ hasText: faulted.deviceName }),
     ).toBeHidden();
 
     await page.getByRole("checkbox").check();
     await expect(
       page
         .locator("li")
-        .filter({ hasText: faulted!.deviceName })
+        .filter({ hasText: faulted.deviceName })
         .getByRole("button", { name: /确认告警/ }),
     ).toHaveAttribute("aria-pressed", "true");
   });
 
   test("a row reaches the vehicle it came from", async ({ page }) => {
-    test.skip(!faulted, "seed carries no faulted vehicle");
-
     await page
       .locator("li")
-      .filter({ hasText: faulted!.deviceName })
+      .filter({ hasText: faulted.deviceName })
       .getByRole("link")
       .click();
-    await expect(page).toHaveURL(new RegExp(`/devices/${faulted!.deviceId}$`));
+    await expect(page).toHaveURL(new RegExp(`/devices/${faulted.deviceId}$`));
   });
 
   test("says the acknowledgement is browser-local rather than leaving it implied", async ({
@@ -75,11 +77,10 @@ test.describe("console alerts", () => {
     // The debounce is unit-tested; what only a browser answers is whether the box keeps
     // the caret and the characters while the URL stays put. Typed one key at a time
     // because `fill` sets the value in a single event and would prove nothing.
-    test.skip(!faulted, "seed carries no faulted vehicle");
     const box = page.getByRole("searchbox");
 
-    await box.pressSequentially(faulted!.deviceName.slice(0, 3), { delay: 30 });
-    await expect(box).toHaveValue(faulted!.deviceName.slice(0, 3));
+    await box.pressSequentially(faulted.deviceName.slice(0, 3), { delay: 30 });
+    await expect(box).toHaveValue(faulted.deviceName.slice(0, 3));
     await expect(page).not.toHaveURL(/[?&]q=/);
 
     // And it does arrive, without another keystroke to push it.
@@ -91,10 +92,6 @@ test.describe("console alerts", () => {
   }) => {
     // The capability the badge exists for: knowing whether to switch pages without
     // switching pages. Checked from 设备, i.e. not from 告警 itself.
-    test.skip(
-      !faulted,
-      "seed carries no faulted vehicle, so no alert to count",
-    );
     await page.goto("/devices");
     const alerts = page
       .getByRole("navigation", { name: "主导航" })
