@@ -9,7 +9,7 @@
     "build": "vite build",
     "preview": "vite preview --host 127.0.0.1 --port 4173",
     "typecheck": "vue-tsc --noEmit -p tsconfig.json",
-    "lint": "eslint .",
+    "lint": "eslint . --max-warnings 0",
     "lint:fix": "eslint . --fix",
     "format": "prettier --write \"src/**/*.{ts,js,vue}\" \"test/**/*.{ts,js}\"",
     "format:check": "prettier --check \"src/**/*.{ts,js,vue}\" \"test/**/*.{ts,js}\"",

@@ -11,6 +11,8 @@
     }
   },
   "scripts": {
+    "lint": "eslint . --max-warnings 0",
+    "format:check": "prettier --check \"src/**/*.ts\"",
     "typecheck": "tsc --noEmit"
   },
   "devDependencies": {
