@@ -32,6 +32,22 @@ concurrency:
 # what is actually supported. Artifacts come off the **floor** of the matrix, which is why
 # the `if:` conditions below name 22 rather than the lowest number that used to be here.
 jobs:
+  # 部署接线：CI 此前完全不看 `deploy/`，而 14J 引入了几条**跨文件**约束 —— nginx 的上游必须是
+  # compose 里存在的服务、回滚 overlay 必须复用同一个服务名（否则回滚会同时拉起两套）、
+  # publish-images 的 dockerfile 必须存在。每个文件单看都合法，只有放在一起才知道对不对。
+  #
+  # 纯静态、不需要 Docker，所以是最快的那个 job（约 10 秒）。需要真起栈的那一层在
+  # scripts/verify-stack.sh，不进 CI —— 它要 5 个容器。
+  deploy-wiring:
+    name: Deploy wiring (static)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 22
+      - run: node scripts/check-deploy-wiring.mjs
+
   backend:
     name: Backend + shared (node ${{ matrix.node }})
     runs-on: ubuntu-latest

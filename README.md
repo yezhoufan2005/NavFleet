@@ -313,13 +313,19 @@ backend，唯一有主机端口的段）、`data`（backend ↔ mongo，`interna
 ## 开发与质量门禁
 
 ```bash
-npm run lint          # eslint（含 e2e/）
-npm run format:check  # prettier
-npm run typecheck     # tsc / vue-tsc，三个 workspace + e2e
-npm test              # 单元 + 集成
-npm run e2e           # Playwright（自带后端与前端，不需要 Mongo/MQTT/docker）
-npm run build         # shared → backend → frontend
+npm run lint               # eslint（含 e2e/）
+npm run format:check       # prettier
+npm run typecheck          # tsc / vue-tsc，三个 workspace + e2e
+npm test                   # 单元 + 集成
+npm run e2e                # Playwright（自带后端与前端，不需要 Mongo/MQTT/docker）
+npm run build              # shared → backend → frontend
+npm run check:map-contrast # 地图配色的对比度门槛
+npm run check:deploy       # 部署接线：nginx 上游 / 叠加文件 / 镜像钉版 / .env.example 齐全
 ```
+
+`check:deploy` 是纯静态的（不需要 Docker），因为 14J 引入的几条约束**跨文件**：nginx 的
+`proxy_pass` 上游必须是 compose 里存在的服务、回滚 overlay 必须复用同一个服务名（否则回滚会
+同时拉起两套镜像）、`publish-images.yml` 的 dockerfile 必须存在。每个文件单看都合法。
 
 ### 三个脚本，各管一层
 
