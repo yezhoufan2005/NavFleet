@@ -556,6 +556,132 @@ export const useFleetStore = defineStore("fleet", () => {
     state.trailsByDeviceId = nextTrails;
   };
 
+  /**
+   * Devices this tab has announced as offline.
+   *
+   * `device.online` is emitted for a device's **first** ingest too (the backend's
+   * `emitChangeEvents` treats "no previous snapshot" as a transition), so a backend
+   * restart would otherwise pop one "back online" toast per vehicle for devices
+   * nobody had been told were gone. Announcing the recovery only for a device whose
+   * departure we announced keeps the pair symmetric.
+   */
+  const announcedOffline = new Set<string>();
+
+  /** Alert ids this tab has announced, so a clear is only reported if its onset was. */
+  const announcedAlerts = new Set<string>();
+
+  /**
+   * Burst guard for the transition events.
+   *
+   * A backend restart re-ingests the whole fleet in one go, and every device's first
+   * frame is a transition — six vehicles with two alerts each is 18 toasts arriving
+   * together, which is not information, it is a wall. Past the threshold the window
+   * collapses into one summary line and individual toasts are suppressed until it
+   * closes.
+   */
+  const BURST_WINDOW_MS = 3_000;
+  const BURST_THRESHOLD = 4;
+  let burstWindowStartedAt = 0;
+  let burstCount = 0;
+  let burstSummarised = false;
+
+  /** Whether this event may raise its own toast, or belongs to a collapsed burst. */
+  const admitTransitionToast = (): boolean => {
+    const now = Date.now();
+    if (now - burstWindowStartedAt > BURST_WINDOW_MS) {
+      burstWindowStartedAt = now;
+      burstCount = 0;
+      burstSummarised = false;
+    }
+    burstCount += 1;
+    if (burstCount <= BURST_THRESHOLD) return true;
+    if (!burstSummarised) {
+      burstSummarised = true;
+      notify(`车队状态密集变化（${burstCount} 条），详情见消息页`, {
+        type: "warning",
+        dedupeKey: "transition-burst",
+      });
+    }
+    return false;
+  };
+
+  const displayNameOf = (deviceId: string): string =>
+    state.devicesById[deviceId]?.deviceName || deviceId;
+
+  /**
+   * The four transition events the backend has always broadcast and nothing consumed:
+   * `device.online` / `device.offline` / `alert.created` / `alert.cleared`.
+   *
+   * They deliberately do **not** touch state. `fleet.delta` carries the whole device
+   * and is broadcast *before* these for the same change, so the online flag and the
+   * alerts array are already current by the time one of these arrives — mutating here
+   * would be a second, divergent path to the same fields. What these add is the thing
+   * a snapshot cannot express: that a transition *happened*, at a moment someone may
+   * not have been looking at the tile it happened on.
+   *
+   * The alert sound is not driven from here either: `useAlertSound` watches the store's
+   * grouped alerts and keeps its own `announcedIds`, so wiring it up a second time
+   * would double-announce every critical.
+   */
+  const handleTransitionEvent = (type: string, payload: unknown): void => {
+    const frame = (payload ?? {}) as {
+      deviceId?: unknown;
+      alert?: { severity?: unknown; title?: unknown; id?: unknown } | null;
+    };
+    const deviceId =
+      typeof frame.deviceId === "string" ? frame.deviceId : undefined;
+    if (!deviceId) return;
+
+    if (type === "device.offline") {
+      announcedOffline.add(deviceId);
+      if (!admitTransitionToast()) return;
+      notify(`${displayNameOf(deviceId)} 已离线`, {
+        type: "warning",
+        dedupeKey: `offline-${deviceId}`,
+      });
+      return;
+    }
+
+    if (type === "device.online") {
+      if (!announcedOffline.delete(deviceId)) return;
+      if (!admitTransitionToast()) return;
+      notify(`${displayNameOf(deviceId)} 已恢复在线`, {
+        type: "success",
+        dedupeKey: `online-${deviceId}`,
+      });
+      return;
+    }
+
+    const alert = frame.alert;
+    if (!alert || typeof alert.id !== "string") return;
+    // 提示级不弹。报码里的提示位在正常运行中就会亮，一台车一条就足以让提示流变成
+    // 背景噪声 —— 而背景噪声会让人连告警一起忽略。它们仍然进消息页与徽标。
+    const severity = alert.severity;
+    if (severity !== "critical" && severity !== "warning") return;
+    const title = typeof alert.title === "string" ? alert.title : "设备告警";
+
+    if (type === "alert.created") {
+      announcedAlerts.add(alert.id);
+      if (!admitTransitionToast()) return;
+      notify(`${displayNameOf(deviceId)}：${title}`, {
+        type: severity === "critical" ? "error" : "warning",
+        dedupeKey: `alert-new-${alert.id}`,
+      });
+      return;
+    }
+
+    if (type === "alert.cleared") {
+      // Only if its onset was announced: otherwise a tab that opened mid-incident
+      // reports the recovery of something it never reported.
+      if (!announcedAlerts.delete(alert.id)) return;
+      if (!admitTransitionToast()) return;
+      notify(`${displayNameOf(deviceId)}：${title}已解除`, {
+        type: "success",
+        dedupeKey: `alert-clear-${alert.id}`,
+      });
+    }
+  };
+
   const ingestPayload = (rawPayload: unknown, source: string): void => {
     const normalized = normalizePayload(rawPayload);
     const nextDevicesById: Record<string, DeviceSnapshot> = normalized.replace
@@ -653,7 +779,9 @@ export const useFleetStore = defineStore("fleet", () => {
         if (typeof payload?.updatedAt === "string") {
           state.serverUpdatedAt = payload.updatedAt;
         }
+        return;
       }
+      handleTransitionEvent(envelope.type, envelope.payload);
     } catch {
       // A frame we cannot normalize must not take the socket down with it: the
       // next telemetry message is a second later and is usually fine.
