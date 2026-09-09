@@ -20,6 +20,22 @@ export interface FleetSnapshotResponse {
   [key: string]: unknown;
 }
 
+/**
+ * A scene as the **API returns it** — deliberately loose, and deliberately not
+ * `SceneMapDefinition`.
+ *
+ * The two are easy to confuse (a store can hold both, and one used to import both in
+ * the same file), so the distinction is worth stating: `SceneMapDefinition` in
+ * `@navfleet/shared` is the *configured* shape, every field known and typed;
+ * this is the *wire* shape, where the backend merges in dynamically-derived parts
+ * (bounds from the OSM parse, an `overlayUrl` it mints itself) and a consumer has to
+ * narrow before trusting anything beyond `sceneId`.
+ *
+ * There used to be a third name for this idea — `SceneConfig`, an empty
+ * `extends SceneMapDefinition {}` in `@navfleet/shared` — which was a second name for
+ * one type rather than a second type. It is gone; the backend uses
+ * `SceneMapDefinition` directly.
+ */
 export interface SceneDefinition {
   sceneId: string;
   [key: string]: unknown;

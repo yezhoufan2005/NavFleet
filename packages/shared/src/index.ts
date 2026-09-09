@@ -11,7 +11,35 @@
  */
 
 export type Severity = "critical" | "warning" | "notice";
-export type MapProfile = "lanelet" | "pointCloud" | "rosRaster+lanelet" | string;
+
+/**
+ * A device's declared map profile.
+ *
+ * The vocabulary is what `config-runtime/vehicles.json` actually carries. It used to
+ * read `"lanelet" | "pointCloud" | "rosRaster+lanelet" | string`, which was wrong in
+ * three ways at once: `"rosRaster+lanelet"` exists nowhere in the system, `"rosRaster"`
+ * — which the shipped config does set, on two vehicles — was missing, and the trailing
+ * `| string` collapses the whole union to `string`, so the compiler could never have
+ * pointed either mistake out.
+ *
+ * Still open-ended, but via `(string & {})` rather than `| string`: a customer's fleet
+ * config may name a vendor profile we have never seen, and the registry passes any
+ * string through. The difference is that the known values stay visible to a reader and
+ * to autocomplete instead of being erased.
+ *
+ * **Nothing branches on this today** — what a scene renders as is decided by which of
+ * `imageUrl` / `osmUrl` / `pointCloudUrl` it carries. Whether to consume this field or
+ * drop it is a Phase 17 decision (see ROADMAP); making the type honest in the meantime
+ * is not that decision, it just stops it misdescribing the data in transit.
+ */
+export type MapProfile =
+  | "lanelet"
+  | "rosRaster"
+  | "pointCloud"
+  // eslint-disable-next-line @typescript-eslint/ban-types -- keeps the union's known
+  // members visible while still admitting an arbitrary vendor profile; a bare `string`
+  // would absorb them and check nothing.
+  | (string & {});
 
 export interface GpsPoint {
   lat: number | null;
@@ -155,8 +183,6 @@ export interface SceneMapDefinition {
   minZoom?: number;
   maxZoom?: number;
 }
-
-export interface SceneConfig extends SceneMapDefinition {}
 
 export interface LaneletOverlayProjection {
   type: "local-tangent-plane";

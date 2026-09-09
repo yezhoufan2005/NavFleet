@@ -11,7 +11,6 @@ import {
   FormationConfig,
   FormationSnapshot,
   LaneletOverlay,
-  SceneConfig,
   SceneMapDefinition,
 } from "./types";
 
@@ -37,7 +36,7 @@ interface LoadedConfigSnapshot {
   deviceConfigs: Map<string, DeviceConfig>;
   formationConfigs: Map<string, FormationConfig>;
   deviceFormationIds: Map<string, string[]>;
-  sceneConfigs: Map<string, SceneConfig>;
+  sceneConfigs: Map<string, SceneMapDefinition>;
   sceneOverlays: Map<string, LaneletOverlay>;
 }
 
@@ -107,7 +106,7 @@ export class ConfigRegistry {
   private deviceConfigs = new Map<string, DeviceConfig>();
   private formationConfigs = new Map<string, FormationConfig>();
   private deviceFormationIds = new Map<string, string[]>();
-  private sceneConfigs = new Map<string, SceneConfig>();
+  private sceneConfigs = new Map<string, SceneMapDefinition>();
   private sceneOverlays = new Map<string, LaneletOverlay>();
   private loaded = false;
   private watcher: FSWatcher | null = null;
@@ -133,7 +132,7 @@ export class ConfigRegistry {
       "formations.json",
     ) as Array<Partial<FormationConfig>>;
     const sceneRecords = ensureArray(scenesRaw, SCENES_FILE, "scenes.json") as Array<
-      Partial<SceneConfig>
+      Partial<SceneMapDefinition>
     >;
 
     const nextFleetConfig: FleetConfig = {
@@ -201,7 +200,7 @@ export class ConfigRegistry {
       });
     }
 
-    const nextSceneConfigs = new Map<string, SceneConfig>();
+    const nextSceneConfigs = new Map<string, SceneMapDefinition>();
     const nextSceneOverlays = new Map<string, LaneletOverlay>();
     for (const value of sceneRecords) {
       const sceneId = String(value.sceneId || "").trim();
@@ -224,7 +223,7 @@ export class ConfigRegistry {
         );
       }
 
-      const normalizedScene: SceneConfig = {
+      const normalizedScene: SceneMapDefinition = {
         ...value,
         sceneId,
         sceneName: String(value.sceneName || sceneId),

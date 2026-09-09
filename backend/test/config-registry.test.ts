@@ -2,7 +2,7 @@ import { describe, it, expect, beforeAll, afterAll, beforeEach } from "vitest";
 import fs from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
-import type { DeviceSnapshot, FleetConfig, SceneConfig } from "../src/types";
+import type { DeviceSnapshot, FleetConfig, SceneMapDefinition } from "../src/types";
 import { SAMPLE_OSM, sampleDevice } from "./helpers/fixtures";
 
 /**
@@ -18,6 +18,10 @@ const DEFAULT_FLEET: FleetConfig = {
   fleetName: "临时车队",
   topicPattern: "/tmp/{deviceId}/vehicle_info",
   defaultSceneId: "scene-a",
+  // Deliberately **not** one of `MapProfile`'s named values: the registry passes any
+  // string through, and this asserts that. If it ever gets "corrected" to `rosRaster`,
+  // the open-endedness stops being covered — which is how the value ended up in the
+  // union itself, where it did not belong.
   defaultMapProfile: "rosRaster+lanelet",
   defaultGpsEnabled: false,
   defaultRosMapEnabled: true,
@@ -38,7 +42,7 @@ const DEFAULT_FORMATIONS = [
   { formationId: "formation-a", formationName: "编队 A", deviceIds: ["agv-1", "agv-2"] },
 ];
 
-const DEFAULT_SCENES: Array<Partial<SceneConfig>> = [
+const DEFAULT_SCENES: Array<Partial<SceneMapDefinition>> = [
   {
     sceneId: "scene-a",
     sceneName: "场景 A",
@@ -244,7 +248,7 @@ describe("ConfigRegistry validation", () => {
 });
 
 describe("ConfigRegistry scene-map path resolution", () => {
-  const sceneWithOsm = (osmUrl: string): Array<Partial<SceneConfig>> => [
+  const sceneWithOsm = (osmUrl: string): Array<Partial<SceneMapDefinition>> => [
     { ...DEFAULT_SCENES[0], osmUrl },
   ];
 
