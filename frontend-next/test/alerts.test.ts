@@ -216,6 +216,43 @@ describe("the controls the template wires up", () => {
     expect(wrapper.findAll("li")).toHaveLength(1);
   });
 
+  /**
+   * The filtered device stays in the list after its fault clears.
+   *
+   * This is the normal life of an alert filter, not an edge case: narrow to one vehicle,
+   * the fault clears, and the device leaves `deviceOptions` (which is built by walking
+   * the current alerts) while the filter itself lives in the URL and stays. The page was
+   * then an empty list beside a dropdown showing **nothing** — no indication that a
+   * filter was still narrowing it, and no way out except knowing to re-pick 全部设备
+   * from a control that looked unset.
+   */
+  it("keeps the filtered vehicle selectable after its alert clears", async () => {
+    seedMixed();
+    const wrapper = await mountAlerts("?device=agv-02");
+    expect(wrapper.findAll("li")).toHaveLength(1);
+
+    // Same device, no warning any more — so it contributes no alert to the option list.
+    store.ingestPayload(
+      {
+        fleetName: "示范车队",
+        topicPattern: "/fleet/{deviceId}/vehicle_info",
+        devices: [
+          device({ error_code: code(5102, "路径规划超时") }),
+          device({ deviceId: "agv-02", deviceName: "B07 巡检车" }),
+        ],
+      },
+      "api",
+    );
+    await flushPromises();
+
+    const select = wrapper.findComponent(UiSelect);
+    const options = select.props("options");
+    expect(options.map((option) => option.value)).toContain("agv-02");
+    // Named, not merely present: the label comes from the fleet, so it reads as the
+    // vehicle rather than as an id.
+    expect(select.text()).toContain("B07 巡检车");
+  });
+
   it("filters by the search box, committing on Enter", async () => {
     // Enter skips the debounce, because pressing it in a search box means "now".
     seedMixed();

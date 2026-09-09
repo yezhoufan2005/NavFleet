@@ -74,11 +74,28 @@ const EMPTY_KEY = "\u0000ui-select-empty";
 
 const asKey = (value: string): string => (value === "" ? EMPTY_KEY : value);
 
+/**
+ * What the trigger reads.
+ *
+ * The last resort used to be `""`, i.e. **a blank control**, and that is reachable in
+ * ordinary use rather than only in theory: 告警 keeps its device filter in the URL while
+ * building the option list from the devices that *currently have alerts*. Clear the fault
+ * and the selected device leaves the list while the filter stays — the operator is then
+ * looking at an empty alert list next to a dropdown that looks unset, with nothing saying
+ * a filter is in force. (The same shape reaches 编队筛选 when a formation is dropped from
+ * `formations.json`, which hot-reloads.)
+ *
+ * Falling back to the raw `modelValue` is the component's honest answer: it knows the
+ * value is not in `options`, and showing it says so. Callers who can phrase it better pass
+ * `placeholder` — and `AlertsView` now avoids the case entirely by keeping the filtered
+ * device in its own list. `placeholder` had been declared here since 12D with **no caller
+ * at all**, which is what left the blank state unfixed.
+ */
 const selectedLabel = computed(
   () =>
     options.find((option) => option.value === modelValue)?.label ??
     placeholder ??
-    "",
+    modelValue,
 );
 
 const onUpdate = (next: unknown): void => {

@@ -155,6 +155,28 @@ const deviceOptions = computed(() => {
       seen.set(alert.deviceId, alert.deviceName || alert.deviceId);
     }
   }
+  /*
+   * Keep the **currently filtered** device in the list even when it no longer has an
+   * alert to contribute one.
+   *
+   * The list is built by walking the alerts, so a device leaves it the moment its fault
+   * clears — while the filter naming that device lives in the URL and stays. That is the
+   * normal life of an alert filter, not an edge case: narrow to 某台车, the fault clears,
+   * and the page becomes an empty list beside a dropdown showing nothing, with no
+   * indication that a filter is still narrowing it. The only way out was to know to
+   * re-pick 全部设备 from a control that looked unset.
+   *
+   * The name is resolved from the fleet when the device is still known, so the option
+   * reads 「B07 巡检车」 rather than `agv-b07`; one that has left the fleet as well falls
+   * back to its id, which is still the truth about what the URL is asking for.
+   */
+  const filteredDevice = deviceFilter.value;
+  if (filteredDevice && !seen.has(filteredDevice)) {
+    const known = fleet.devices.find(
+      (device) => device.deviceId === filteredDevice,
+    );
+    seen.set(filteredDevice, known?.deviceName || filteredDevice);
+  }
   // By name, not by first appearance. The set is built by walking the alert list, so
   // without this the menu's order is "whichever vehicle happened to fault first" — an
   // order that changes under the reader and cannot be scanned for a known name.

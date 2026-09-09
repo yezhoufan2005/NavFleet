@@ -14,7 +14,12 @@
  * the unknown case is the interesting one, because it means something wrote a
  * preference nobody has documented.
  */
-export const STORAGE_PREFIX = "navfleet:";
+/**
+ * Not exported. Both readers are in this file, and an exported constant nobody imports
+ * reads as "part of the module's contract" — which is how the next person ends up
+ * comparing a copy of the string somewhere else instead of asking this module.
+ */
+const STORAGE_PREFIX = "navfleet:";
 
 export type StorageArea = "local" | "session";
 
