@@ -1,5 +1,5 @@
-# Monitoring overlay: Prometheus + Grafana with provisioned datasource,
-# dashboard and alert rules. Use alongside the base file:
+# Monitoring overlay: Prometheus + Alertmanager + Grafana with provisioned
+# datasources, dashboard and alert rules. Use alongside the base file:
 #
 #   docker compose --env-file deploy/.env \
 #     -f deploy/docker-compose.yml -f deploy/docker-compose.monitoring.yml up -d
@@ -52,6 +52,48 @@ services:
           memory: 512M
     restart: unless-stopped
 
+  # Where the 13 rules in prometheus/alerts.yml go. Before this service existed
+  # they went nowhere: Prometheus had no `alerting:` block, so every rule
+  # evaluated, fired, and was seen by no one while the docs described them as
+  # notifications. The shipped receiver is deliberately empty — see
+  # alertmanager/alertmanager.yml for what that means and how to attach email or
+  # a webhook.
+  alertmanager:
+    image: prom/alertmanager:v0.28.1
+    command:
+      - --config.file=/etc/alertmanager/alertmanager.yml
+      - --storage.path=/alertmanager
+      # Needed for silences and the UI to build correct links to itself.
+      - --web.external-url=http://127.0.0.1:${ALERTMANAGER_HOST_PORT:-9093}
+    networks:
+      - monitoring
+    ports:
+      # Loopback only, like Prometheus: the API is unauthenticated and it can
+      # create silences, i.e. it can switch alerting off.
+      - "127.0.0.1:${ALERTMANAGER_HOST_PORT:-9093}:9093"
+    volumes:
+      - ./alertmanager/alertmanager.yml:/etc/alertmanager/alertmanager.yml:ro
+      # Silences and the notification log live here. Without a volume, every
+      # restart resurrects the alerts an operator had deliberately silenced.
+      - alertmanager-data:/alertmanager
+    healthcheck:
+      test:
+        ["CMD", "wget", "-qO", "/dev/null", "http://127.0.0.1:9093/-/healthy"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+    deploy:
+      resources:
+        limits:
+          cpus: "0.25"
+          memory: 128M
+    restart: unless-stopped
+
   grafana:
     image: grafana/grafana:11.5.1
     depends_on:
@@ -97,6 +139,7 @@ services:
 volumes:
   prometheus-data:
   grafana-data:
+  alertmanager-data:
 
 networks:
   # Prometheus + Grafana + backend, and nothing else. Not `internal: true`:

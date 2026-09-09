@@ -425,21 +425,46 @@ docker compose --env-file deploy/.env \
   -f deploy/docker-compose.yml -f deploy/docker-compose.monitoring.yml up -d
 ```
 
-| 组件       | 地址               | 说明                                                 |
-| ---------- | ------------------ | ---------------------------------------------------- |
-| Grafana    | `http://主机:3001` | 已预置数据源与「NavFleet 车队监控」面板（14 个面板） |
-| Prometheus | `127.0.0.1:9090`   | **仅本机**：查询接口未鉴权                           |
+| 组件         | 地址               | 说明                                                 |
+| ------------ | ------------------ | ---------------------------------------------------- |
+| Grafana      | `http://主机:3001` | 已预置数据源与「NavFleet 车队监控」面板（16 个面板） |
+| Prometheus   | `127.0.0.1:9090`   | **仅本机**：查询接口未鉴权                           |
+| Alertmanager | `127.0.0.1:9093`   | **仅本机**：API 未鉴权，且能创建静默（= 能关掉告警） |
 
-两者与 backend 同处一个 `monitoring` 网段，**够不到 mongo 和 mosquitto**。Prometheus
-在网络内抓 `backend:3000/metrics` —— 这正是 9C 里边缘 nginx 不再代理 `/metrics` 的原因。
+三者与 backend 同处一个 `monitoring` 网段，**够不到 mongo 和 mosquitto**。Prometheus
+在网络内抓 `backend:3000/metrics` —— 这正是 Phase 9C 里边缘 nginx 不再代理 `/metrics` 的原因。
 
-告警规则在 `deploy/prometheus/alerts.yml`，9 条，全部写在本项目**真实暴露**的指标上：
-后端失联、Mongo/MQTT 断开、遥测写入积压、摄入校验持续拒绝、「连着 broker 但十分钟
-没消息」、过半车辆离线、5xx 比例 >5%、p95 延迟 >1s。`for:` 都不为零 —— MQTT 与 Mongo
-本身带有界退避重连，几秒钟的断开是正常运行而不是该叫人起床的事。
+告警规则在 `deploy/prometheus/alerts.yml`，**13 条**，全部写在本项目**真实暴露**的指标上：
+后端失联、Mongo/MQTT 断开、遥测写入积压、摄入队列积压、摄入削峰、设备数触顶、摄入校验持续
+拒绝、「连着 broker 但十分钟没消息」、过半车辆离线、5xx 比例 >5%、p95 延迟 >1s。`for:` 都不
+为零 —— MQTT 与 Mongo 本身带有界退避重连，几秒钟的断开是正常运行而不是该叫人起床的事。
+
+#### 告警去哪：出厂接收器是空的
+
+**这一点必须先说清，因为它决定你会不会收到通知。** Alertmanager 出厂配置里的接收器
+**没有挂任何通知渠道**，于是：
+
+- ✅ 你得到分组、去重、抑制、静默，以及 `127.0.0.1:9093` 上一个回答「现在什么在烧」的界面；
+- ❌ 在你动手配置之前，**邮件 / 群消息 / 呼叫一个都不会发出去**。
+
+这是刻意的：仓库无法知道你的邮件中继或群机器人地址，而**编一个**只会有两种结果 —— 要么每条
+告警都报错，要么看起来配好了、实际发进虚空。后者正是这一版之前的状态：13 条规则一直在评估、
+一直在 fire，而 Prometheus 根本没有 `alerting:` 段，没有任何接收端，文档却把它们写得像会通知人。
+
+要真的收到通知，编辑 `deploy/alertmanager/alertmanager.yml`，取消其中标了 `↓ TO ENABLE ↓`
+的两段之一（邮件或 webhook），然后 `docker compose … restart alertmanager`。口令用
+`auth_password_file` 挂进去，不要内联 —— 内联会同时出现在仓库和 `docker inspect` 里。
+
+路由口径：`severity=critical` 走单独一条路由（10s 成组、1h 重发），其余走默认（30s 成组、
+4h 重发）；同一条规则同时有 critical 与 warning 在烧时，warning 被抑制 —— 一个降级的管线用
+两个严重度各报一次，第二遍不增加任何信息。
+
+Grafana 里也接了 Alertmanager 作为数据源，所以在同一个界面就能看到当前告警，不必知道
+「还有另一个 UI 在另一个端口上」。
 
 面板与数据源都是 **provisioned**：UI 里改了不会存活（`allowUiUpdates: false`），仓库里的
-JSON 是唯一来源，否则新部署拿到的会是一个坏掉的面板。
+JSON 是唯一来源，否则新部署拿到的会是一个坏掉的面板。同理，告警规则**只在
+`deploy/prometheus/alerts.yml` 里**：在 Grafana 里点出来的规则只存在于它自己的卷中。
 
 ### 9.4 备份自动化与恢复演练
 

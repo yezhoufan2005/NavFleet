@@ -12,6 +12,16 @@ global:
 rule_files:
   - /etc/prometheus/alerts.yml
 
+# Where the rules in `alerts.yml` actually go. Without this block Prometheus
+# evaluates all 13 of them and then has nowhere to send the ones that fire — which
+# is precisely how this stack shipped until the Alertmanager service was added to
+# `docker-compose.monitoring.yml`. The rules were visible on Prometheus's own
+# /alerts page and reached no one.
+alerting:
+  alertmanagers:
+    - static_configs:
+        - targets: ["alertmanager:9093"]
+
 scrape_configs:
   - job_name: navfleet-backend
     metrics_path: /metrics

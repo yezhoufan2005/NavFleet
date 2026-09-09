@@ -268,13 +268,13 @@ broker 侧强制账号与双向 ACL：发布账号只能写车辆主题，后端
 compose 会在应用 profile **之前**插值整个文件 —— profiled 服务上一个必填的 `${VAR:?}`
 会让所有没启用该 profile 的部署 `up` 失败。
 
-| 叠加                                 | 作用                                                          |
-| ------------------------------------ | ------------------------------------------------------------- |
-| `docker-compose.yml`                 | 基础：nginx / web / backend / mongo / mosquitto，三网段隔离   |
-| `docker-compose.tls.yml`             | TLS 终止、HSTS、HTTP 308 跳转、`COOKIE_SECURE` 强制 true      |
-| `docker-compose.monitoring.yml`      | Prometheus + Grafana，预置数据源、14 个面板、9 条告警规则     |
-| `docker-compose.backup.yml`          | 定时 mongodump，含恢复演练脚本                                |
-| `docker-compose.legacy-frontend.yml` | 回滚：`web` 换回 v1.0.0 控制台（默认是 `frontend-next` 那套） |
+| 叠加                                 | 作用                                                                      |
+| ------------------------------------ | ------------------------------------------------------------------------- |
+| `docker-compose.yml`                 | 基础：nginx / web / backend / mongo / mosquitto，三网段隔离               |
+| `docker-compose.tls.yml`             | TLS 终止、HSTS、HTTP 308 跳转、`COOKIE_SECURE` 强制 true                  |
+| `docker-compose.monitoring.yml`      | Prometheus + Alertmanager + Grafana，预置数据源、16 个面板、13 条告警规则 |
+| `docker-compose.backup.yml`          | 定时 mongodump，含恢复演练脚本                                            |
+| `docker-compose.legacy-frontend.yml` | 回滚：`web` 换回 v1.0.0 控制台（默认是 `frontend-next` 那套）             |
 
 ```bash
 # 基础 + TLS + 监控
@@ -297,7 +297,10 @@ backend，唯一有主机端口的段）、`data`（backend ↔ mongo，`interna
 - **指标**：在线设备数、消息吞吐、被拒消息、告警数、WS 连接数、Mongo 写入延迟与缓冲长度、
   per-route 请求直方图（标签用路由模板，避免维度爆炸）
 - **日志**：pino 结构化输出，request-id 贯穿日志与 500 响应体，口令 / token / URI 全部脱敏
-- **告警规则**：9 条，全部写在真实暴露的指标上（25 处引用经机检零缺失）
+- **告警规则**：13 条，19 处指标引用、15 个指标名，全部写在真实暴露的指标上
+- **告警投递**：Alertmanager（分组 / 去重 / 抑制 / 静默）。**出厂接收器是空的** —— 告警在它的
+  界面里可见，但在你配置邮件或 webhook 之前不外发，理由见
+  [deploy/alertmanager/alertmanager.yml](deploy/alertmanager/alertmanager.yml)
 - **备份**：`deploy/tools/mongo-backup.sh` / `mongo-restore.sh`，以及 `restore-drill.sh`
   真实恢复演练。见 [deploy/docs/backup-and-restore.md](deploy/docs/backup-and-restore.md)
 
