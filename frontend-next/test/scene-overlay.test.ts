@@ -1,4 +1,12 @@
-import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
+import {
+  describe,
+  it,
+  expect,
+  beforeEach,
+  afterEach,
+  vi,
+  type Mock,
+} from "vitest";
 import { defineComponent, h, ref } from "vue";
 import { flushPromises, mount } from "@vue/test-utils";
 import { useSceneOverlay } from "@/composables/useSceneOverlay";
@@ -62,7 +70,11 @@ const mountOverlay = (
   return { wrapper, api: api!, scene, palette };
 };
 
-let fetchMock: ReturnType<typeof vi.fn>;
+// `Mock<typeof fetch>` rather than `ReturnType<typeof vi.fn>`: the latter resolves to
+// vitest's bare `Mock`, whose implementation is expected to return `void`, so every
+// `mockImplementation(() => Promise.resolve(…))` here read as a floating promise under
+// vitest 5's types. Naming the signature is also just more honest about what the stub is.
+let fetchMock: Mock<typeof fetch>;
 
 beforeEach(() => {
   __resetNotifications();

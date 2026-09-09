@@ -10,7 +10,7 @@
     "frontend-next"
   ],
   "engines": {
-    "node": ">=22"
+    "node": "^22.13.0 || ^24.0.0 || >=26.0.0"
   },
   "license": "MIT",
   "scripts": {
@@ -36,17 +36,17 @@
   },
   "devDependencies": {
     "@axe-core/playwright": "4.13.0",
-    "@eslint/js": "^9.39.5",
+    "@eslint/js": "^10.0.1",
     "@playwright/test": "1.63.0",
     "@types/node": "^26.4.1",
-    "eslint": "^9.39.5",
+    "eslint": "^10.10.0",
     "eslint-config-prettier": "^10.1.8",
     "globals": "^17.12.0",
     "husky": "^9.1.7",
     "lint-staged": "^17.5.0",
     "prettier": "^3.9.6",
     "typescript": "^5.9.3",
-    "typescript-eslint": "^8.69.0"
+    "typescript-eslint": "^8.70.0"
   },
   "lint-staged": {
     "*.{ts,js,vue,json,md,yml,yaml,css}": "prettier --write"

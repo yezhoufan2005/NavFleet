@@ -44,6 +44,21 @@ export default tseslint.config(
       // there is no reason to leave the door open: every SFC declares lang="ts"
       // or lint fails.
       "vue/block-lang": ["error", { script: { lang: "ts" } }],
+      /**
+       * Off, and this is an argument rather than a dodge.
+       *
+       * eslint-plugin-vue 10 extended this rule to destructured `defineProps<{…}>()`, which
+       * is how every SFC here declares props. It then asks for a runtime default on
+       * `unit?: string` / `ariaLabel?: string` / `placeholder?: string` — and the only
+       * default available is `""`, which **means something different**: an empty unit, an
+       * empty accessible name, an empty placeholder, rather than the absence of one. The
+       * type already says the prop is optional and `undefined` is the value that carries
+       * "not provided".
+       *
+       * It stays off only for that reason. A prop whose absence has no meaning should still
+       * carry a default, and the destructure is where you can see whether it does.
+       */
+      "vue/require-default-prop": "off",
     },
   },
   {

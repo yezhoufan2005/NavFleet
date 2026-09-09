@@ -2,7 +2,12 @@
   "extends": "@vue/tsconfig/tsconfig.dom.json",
   "compilerOptions": {
     "noEmit": true,
-    "types": ["vite/client", "vitest/globals"],
+    // `node` is explicit: several specs read the repo off disk (`node:fs`, `node:path`,
+    // `__dirname`) to assert against source text. It used to resolve without being named
+    // here — vitest 3's own type files referenced `@types/node`, so it landed in the program
+    // by accident. vitest 5 does not, and 18 modules stopped resolving. A workspace that
+    // imports `node:fs` depends on these types; saying so is the fix.
+    "types": ["node", "vite/client", "vitest/globals"],
     "paths": {
       "@/*": ["./src/*"]
     },
