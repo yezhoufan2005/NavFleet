@@ -1980,10 +1980,18 @@ keyframe **不需要各自写退化分支**，`UiSkeleton` 自己那条仍然保
       切换，不做下线与改名。见下面的 14J
 - [ ] 观察期 → 旧 `frontend` workspace 下线、`frontend-next` 改名
 - [ ] 同步收尾：`frontend/Dockerfile` manifest 清单、CI job、根 `build`、
-      `playwright.config.ts` 的 workspace 名、`CONTRIBUTING.md` 的引用
-      （`publish-images.yml` matrix 与 `deploy/docs/deployment.md` 已随 14J 落地）
-- [ ] 文档：README 的技术栈与截图、ARCHITECTURE 的前端章节（14J 只改了仓库树与 compose 表格里
-      **确实已经不对**的部分，技术栈叙述与截图仍是 v1.0.0 的）
+      `playwright.config.ts` 的 workspace 名
+      （`publish-images.yml` matrix、`deploy/docs/deployment.md`、`CONTRIBUTING.md` 已落地）
+- [x] **文档里被切换改成假话的部分**（2026-09-09，14K）：ARCHITECTURE 的技术栈 / 仓库树 /
+      第 6 节前言 / 第 12 节服务表，CONTRIBUTING 的仓库结构 / 命令表 / 自检口径 / 发布章节
+- [ ] 文档剩下的部分：README 的技术栈叙述与截图、ARCHITECTURE 第 6 节的模块走查
+      （现在明确标注了「写的仍是 v1.0.0 那一套」，等旧前端真的下线再合并，提前重写会让这一章
+      描述一个还没退役的东西）
+- [ ] **候选门禁：compose 与 nginx 的接线一致性**。现在 CI 完全不看 `deploy/`，而 14J 引入了
+      三条跨文件约束 —— `locations.conf` 的上游名必须是 compose 里存在的服务、回滚 overlay 必须
+      复用同一个服务名（否则回滚会静默拉起两个容器）、`publish-images.yml` 的 dockerfile 必须存在。
+      **刻意不在 14J 里做**：这三条 14J 都靠真实起停双向验过了，而下线那批要再动同一批文件，
+      门禁放在那时才有复利。放在这里免得忘
 - [ ] **P0-f 工程门禁批次**在此之后执行（见前文，旧前端下线后 type-aware lint 只需修一遍）
 - [ ] 发版 **1.1.0**（先发镜像、再建 Release —— v1.0.0 那次顺序反了，说明文档一度先于产物存在）
 
@@ -2036,6 +2044,26 @@ keyframe **不需要各自写退化分支**，`UiSkeleton` 自己那条仍然保
       仍起不来，闭环是用一份 `/tmp` 里的 `mongo:7` + 独立卷 + 一次性口令的 override 跑的，不进仓库；
       上一轮我留下的 `deploy-mosquitto-1` 处于「跑着但没接任何网络」的状态（后端一直
       `ENOTFOUND mosquitto`），`--force-recreate` 后恢复正常
+
+#### 14K — 把切换改成假话的文档改回真话（2026-09-09）
+
+> 只改**已经不成立的陈述**，不做那次计划在下线批次里的叙述重写与截图更新。区别在于：前者现在
+> 会误导人，后者只是过时。两处最典型的假话都不是「不够新」，而是**读者会照着做错事**。
+
+- [x] **`ARCHITECTURE.md:573` 写着 `Nginx 到 Frontend：http://frontend:80`** —— 两个字段都错，
+      而且**端口那一半在这次切换之前就错了**：两个前端镜像都用 `nginx-unprivileged`，以 uid 101
+      运行、容器内监听 **8080**，非 root 绑不上 80。照这一行去配反代会连不上，而错误信息只会说
+      连接被拒
+- [x] **`ARCHITECTURE.md` 第 6 节开头「前端为多页 SPA（vue-router hash 路由）」** —— 部署的那套
+      现在是 web history。补了一张两套控制台的对照表，并把路由模式的**部署含义**写清：web history
+      要求未知路径回 `index.html`，所以 v3 镜像自带 nginx conf，而这也正是 `/metrics` 从 404 变成
+      200 + HTML 的原因。第 6 节后面的模块走查明确标注仍是 v1.0.0 的，没有提前重写
+- [x] **`CONTRIBUTING.md` 的仓库结构缺 `frontend-next/`、`packages/fleet-core/`、`e2e/`**，
+      「针对单个 workspace」只列三个名字，发布章节说「三个 workspace」（实际五个）。新贡献者照
+      结构图找不到默认部署的那套代码
+- [x] **`CONTRIBUTING.md` 的自检命令与 CI 不是一套** —— 这正是我自己踩过并记进记忆的那条：根
+      `npm test` 不含 `test:coverage`（90% functions 阈值）也不含 `check:map-contrast`，照文档
+      跑完全绿、CI 照样红。改成可直接粘的一段，并写明为什么不能只跑 `npm test`
 
 ## Phase 15 — 用户体系与真 RBAC（发版 1.2.0）
 

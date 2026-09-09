@@ -18,13 +18,19 @@ NavFleet（智能车队监控平台）是一个面向 AGV、巡检车、无人�
 
 ### 前端
 
-- Vue 3（`<script setup>`，渐进式 TypeScript 迁移）
+两套控制台并存，见第 6 节。默认部署的是 v3（`frontend-next/`）：
+
+- Vue 3（`<script setup lang="ts">`，全量 TypeScript）
 - Vite
-- vue-router（hash 路由）+ Pinia（状态库）
-- 原生 CSS（明暗双主题，CSS 变量令牌 + `data-theme`）
+- vue-router（**web history**）+ Pinia（状态库）
+- Tailwind v4（明暗双主题，CSS 变量令牌 + `data-theme`）+ Reka UI（无样式可访问组件）
+- ECharts（懒加载，只有「曲线 / 历史回放」两个 tab 会取）
 - 高德地图 JS API，需要配置浏览器 Key
 - 自定义点云、场景地图和路网渲染逻辑
 - Vitest 单元测试
+
+保留作回滚的 v1.0.0（`frontend/`）差别在：vue-router **hash 路由**、原生 CSS、渐进式
+TypeScript 迁移、无 ECharts。
 
 ### 后端
 
@@ -96,7 +102,7 @@ NavFleet/
 │  ├─ test/                  # Vitest 单测
 │  ├─ package.json
 │  └─ Dockerfile
-├─ frontend/
+├─ frontend/                 # v1.0.0 控制台，保留作回滚
 │  ├─ src/
 │  │  ├─ components/         # GpsMap / RosSceneMap / LoginForm / SkeletonBlock 等
 │  │  ├─ composables/        # useAuth / useTheme / useNotifications / useAlertAck
@@ -112,8 +118,16 @@ NavFleet/
 │  ├─ test/                  # Vitest 单测
 │  ├─ package.json
 │  └─ Dockerfile
+├─ frontend-next/            # v3 控制台（navfleet-console）—— 默认部署的这一套
+│  ├─ src/                   # 8 条路由、web history、Tailwind v4 双主题、Reka UI
+│  ├─ scripts/               # 构建期门禁：dev-only chunk / 首屏体积
+│  ├─ nginx.conf             # SPA fallback（web history 必需）
+│  ├─ test/                  # Vitest 单测
+│  ├─ package.json
+│  └─ Dockerfile
 ├─ packages/
-│  └─ shared/                # @navfleet/shared —— 领域类型单一来源，前后端共同引用
+│  ├─ shared/                # @navfleet/shared —— 领域类型单一来源，前后端共同引用
+│  └─ fleet-core/            # @navfleet/fleet-core —— 两套前端共用的归一化与派生逻辑
 ├─ e2e/                      # Playwright 端到端 + axe-core 无障碍审计
 ├─ config-runtime/
 │  ├─ fleet.json
@@ -252,6 +266,22 @@ PR #28 按职责拆开：
 - 输出前端可直接渲染的 `LaneletOverlay`。
 
 ## 6. 前端模块
+
+仓库里有两套控制台，共用同一个后端与 `@navfleet/fleet-core`：
+
+| 目录             | 版本                     | 路由模式    | 状态                                 |
+| ---------------- | ------------------------ | ----------- | ------------------------------------ |
+| `frontend-next/` | v3（`navfleet-console`） | web history | **默认部署的这一套**（1.1.0 起）     |
+| `frontend/`      | v1.0.0                   | hash        | 保留作一条命令的回滚，不再是交付产物 |
+
+路由模式的差异有部署含义，不只是 URL 好看：web history 要求任何未知路径都回 `index.html`，
+所以 v3 镜像自带一份 nginx conf（`frontend-next/nginx.conf`）做兜底，而 v1.0.0 用 hash
+路由、基础镜像的默认站点就够。**副作用**：边缘上任何没被显式代理的路径（例如 `/metrics`）
+现在返回 200 + HTML 而不是 404，见 `deploy/docs/deployment.md` 第 9 节。
+
+> 下面的模块走查写的仍是 **v1.0.0 那一套**。v3 的对应说明分散在 `docs/frontend-parity.md`
+> 与 ROADMAP 的 Phase 12–14，等旧前端正式下线时再合并到这里 —— 提前重写会让这一章描述一个
+> 还没退役的东西。
 
 前端为多页 SPA（vue-router hash 路由 + Pinia），入口 `src/main.ts` 装载 Pinia 与
 router。原先的单体 `useDashboard` 组合式函数已拆分为 store + 服务层 + 纯归一化模块。
@@ -555,7 +585,8 @@ MongoDB time series collection，用于保存遥测历史。默认保留时间�
 Compose 服务：
 
 - `nginx`
-- `frontend`
+- `web` —— 被服务的那套 SPA，默认由 `frontend-next/`（v3 控制台）构建。服务名取角色而不是
+  取实现，换用哪一套只是一行 `dockerfile:`，回滚见 `deploy/docker-compose.legacy-frontend.yml`
 - `backend`
 - `mongo`
 - `mosquitto`
@@ -570,7 +601,8 @@ Compose 服务：
 - Backend 到 Mosquitto：`mqtt://mosquitto:1883`
 - Backend 到 Mongo：`mongodb://root:example@mongo:27017/fleet_monitor?authSource=admin`
 - Nginx 到 Backend：`http://backend:3000`
-- Nginx 到 Frontend：`http://frontend:80`
+- Nginx 到 Web：`http://web:8080` —— 两个前端镜像都用 `nginx-unprivileged`，以 uid 101
+  运行、容器内监听 **8080**（不是 80，非 root 绑不上特权端口）
 
 ## 13. 注意事项
 
