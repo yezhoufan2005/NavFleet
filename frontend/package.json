@@ -3,6 +3,7 @@
   "private": true,
   "license": "MIT",
   "type": "module",
+  "description": "NavFleet console v1.0.0 — retired at the Phase 14 switch, kept as the one-command rollback (deploy/docker-compose.legacy-frontend.yml). Still gated in CI so the rollback cannot rot.",
   "scripts": {
     "dev": "vite --host 127.0.0.1 --port 5173",
     "build": "vite build",

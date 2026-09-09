@@ -1978,10 +1978,15 @@ keyframe **不需要各自写退化分支**，`UiSkeleton` 自己那条仍然保
 - [x] **地图帧率**（10 Hz 遥测持续 3 秒，场景地图）：v3 **60.1 fps**（等于 vsync 上限，无掉帧）、旧 **56.1 fps**。
 - [x] **切换本身**（2026-09-09）—— 负责人的口径是「切换新前端，但保留旧前端代码」，所以这一步只做
       切换，不做下线与改名。见下面的 14J
-- [ ] 观察期 → 旧 `frontend` workspace 下线、`frontend-next` 改名
-- [ ] 同步收尾：`frontend/Dockerfile` manifest 清单、CI job、根 `build`、
-      `playwright.config.ts` 的 workspace 名
-      （`publish-images.yml` matrix、`deploy/docs/deployment.md`、`CONTRIBUTING.md` 已落地）
+- [x] **旧前端下线**（2026-09-09，14L）—— 负责人第二次澄清：「下线旧前端，启用新前端，我的意思是
+      不要移除旧前端保留旧前端的代码」。所以 `frontend/` 的**代码与门禁全部留着**，下线的是它
+      「默认那一套」的身份：dev 脚本、e2e 默认 baseURL、CI job 名、两个 Dockerfile 与两个
+      package.json 的自述
+- [ ] `frontend-next` 改名 —— **没做**，负责人这一轮没提，且它要动 CI / compose / playwright /
+      lockfile，属于「跳跃」。等整理完再说
+- [ ] 同步收尾里剩下的：根 `build` 与 `playwright.config.ts` 的 workspace 名 —— 两处都要等改名
+      （`publish-images.yml` matrix、`deploy/docs/deployment.md`、`CONTRIBUTING.md`、CI job 名、
+      `frontend/Dockerfile` 的自述已落地）
 - [x] **文档里被切换改成假话的部分**（2026-09-09，14K）：ARCHITECTURE 的技术栈 / 仓库树 /
       第 6 节前言 / 第 12 节服务表，CONTRIBUTING 的仓库结构 / 命令表 / 自检口径 / 发布章节
 - [ ] 文档剩下的部分：README 的技术栈叙述与截图、ARCHITECTURE 第 6 节的模块走查
@@ -1993,7 +1998,10 @@ keyframe **不需要各自写退化分支**，`UiSkeleton` 自己那条仍然保
       **刻意不在 14J 里做**：这三条 14J 都靠真实起停双向验过了，而下线那批要再动同一批文件，
       门禁放在那时才有复利。放在这里免得忘
 - [ ] **P0-f 工程门禁批次**在此之后执行（见前文，旧前端下线后 type-aware lint 只需修一遍）
-- [ ] 发版 **1.1.0**（先发镜像、再建 Release —— v1.0.0 那次顺序反了，说明文档一度先于产物存在）
+- [ ] 发版 **1.1.0** —— **负责人 2026-09-09 明确暂缓**：「先别急着发版，大量工作在我们的多轮对话中
+      混乱，我们需要整理」。所以切换与下线两批都用了不触发发版的提交类型（`chore` / `docs`），
+      1.1.0 的 release PR 至今没有被开出来。发的时候记得：先发镜像、再建 Release —— v1.0.0 那次
+      顺序反了，说明文档一度先于产物存在
 
 ##### 14B 的大列表数字（同机同次会话，两侧各自真实 `dist`）
 
@@ -2064,6 +2072,38 @@ keyframe **不需要各自写退化分支**，`UiSkeleton` 自己那条仍然保
 - [x] **`CONTRIBUTING.md` 的自检命令与 CI 不是一套** —— 这正是我自己踩过并记进记忆的那条：根
       `npm test` 不含 `test:coverage`（90% functions 阈值）也不含 `check:map-contrast`，照文档
       跑完全绿、CI 照样红。改成可直接粘的一段，并写明为什么不能只跑 `npm test`
+
+#### 14L — 旧前端下线（2026-09-09）
+
+> 负责人的原话：「下线旧前端，启用新前端，我的意思是**不要移除旧前端保留旧前端的代码**」。
+> 所以下线的不是代码，是它「默认那一套」的身份。**一条贯穿这一批的判断：保留代码作为回滚，
+> 就必须保留它的门禁** —— 一个没人构建的逃生门不是逃生门，而 `@navfleet/fleet-core` 是共享的，
+> 一次改动能让旧前端坏掉而 `frontend/` 下一个文件都没动。所以 CI 的 frontend job、覆盖率阈值、
+> e2e 的 frontend project **一个都没删**，只改了它们的名字与注释说清现在为什么还在。
+
+- [x] **`scripts/dev.sh` 默认改起 v3 控制台（:5273），旧那套退到 `--legacy`（:5173）**。这是这批里
+      唯一会被每天碰到的一处：切换之后再默认起旧前端，等于让每个照文档跑 dev 的人**开发在一个
+      已经退役的界面上**
+- [x] **顺带修掉 `dev.sh` 一个早就存在的 off-by-one**：`--help` 用 `sed -n '2,10p'` 印用法，而注释
+      只到第 9 行 —— 每次 `--help` 末尾都多印一行 `set -uo pipefail`。加了 `--legacy` 之后范围正好是 2,10
+- [x] **`dev.sh` 在 `$WORKSPACE/.env` 缺失时提示一句**。高德 Key 是 Vite 构建期变量、**按 workspace
+      各自一份**，而默认起的 workspace 变了 —— 只在 `frontend/.env` 配过 Key 的机器会第一次看到
+      「未配置 Key」。这个提示曾被当成前端缺陷报上来一次，与其等第二次不如脚本自己说清
+- [x] **e2e 的默认 `baseURL` 从旧前端翻到 console**。一个没写清自己测哪一套的 spec，应该拿到**在役**
+      的那一套；此前的默认会让新 spec 静默指向已退役的一半。`frontend` project 显式覆盖回
+      `FRONTEND_URL`，所以它的行为没变
+- [x] **`seed` project 显式钉住 baseURL**。`fleet.setup.ts` 发的是相对 `/api/...`，此前隐式继承文件级
+      默认值 —— 也就是说改那个默认值会静默搬动播种走的代理。钉住之后 80 例 e2e 本机全过（改动前后
+      各跑一次）
+- [x] **CI job 名从「Frontend / Console v3」改成「Frontend v1.0.0, retired / Console v3, deployed」**。
+      job 名是 PR 页面上唯一看得见的那行字，两个中立的名字读不出哪个是在役的
+- [x] **两个 Dockerfile 与两个 `package.json` 的自述改成实话**：`frontend-next/Dockerfile` 原先写
+      「Runs alongside navfleet-frontend rather than replacing it」、`frontend-next/package.json` 写
+      「until it reaches parity」，两句都已经不成立；`frontend/` 两处则明确写上「retired but kept，
+      门禁照跑，因为回滚不能烂掉」
+- [x] **确认 `description` 不进 lockfile**：加/改这个字段后在 `node:22-alpine` 里
+      `npm ci --ignore-scripts --dry-run` 通过且 lockfile 零改动（lockfile 的 workspace 镜像条目只有
+      name/license/dependencies/devDependencies/engines）
 
 ## Phase 15 — 用户体系与真 RBAC（发版 1.2.0）
 

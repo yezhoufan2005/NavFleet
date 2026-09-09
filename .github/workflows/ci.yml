@@ -62,7 +62,7 @@ jobs:
           retention-days: 14
 
   frontend:
-    name: Frontend (node ${{ matrix.node }})
+    name: Frontend v1.0.0, retired (node ${{ matrix.node }})
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
@@ -76,10 +76,16 @@ jobs:
           cache: npm
           cache-dependency-path: package-lock.json
       - run: npm ci
-      # `@navfleet/fleet-core` is the frontends' shared logic layer, so its gates
-      # run here for the same reason `@navfleet/shared`'s run in the backend job:
-      # whoever breaks it breaks this job's dependency, and finding out in the
+      # `@navfleet/fleet-core` is the two consoles' shared logic layer, so its
+      # gates run here for the same reason `@navfleet/shared`'s run in the backend
+      # job: whoever breaks it breaks this job's dependency, and finding out in the
       # same run is cheaper than a second one.
+      #
+      # This job survives the Phase 14 switch on purpose. `navfleet-frontend` is no
+      # longer deployed — it is the one-command rollback
+      # (deploy/docker-compose.legacy-frontend.yml) — and a rollback nobody builds
+      # stops being one. fleet-core above is exactly how it would break without a
+      # single file under `frontend/` changing.
       - run: npm run lint -w @navfleet/fleet-core
       - run: npm run format:check -w @navfleet/fleet-core
       - run: npm run typecheck -w @navfleet/fleet-core
@@ -98,7 +104,7 @@ jobs:
           retention-days: 14
 
   console:
-    name: Console v3 (node ${{ matrix.node }})
+    name: Console v3, deployed (node ${{ matrix.node }})
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
@@ -112,10 +118,10 @@ jobs:
           cache: npm
           cache-dependency-path: package-lock.json
       - run: npm ci
-      # A separate job from `frontend` rather than extra steps in it: the two
-      # consoles are independent deliverables for the whole of Phase 12-13, and a
-      # red v3 build should not hide behind — or block — the v1.0.0 one that is
-      # actually in production.
+      # A separate job from `frontend` rather than extra steps in it. The original
+      # reason was that the two consoles were independent deliverables through
+      # Phase 12-13; after the switch the reason inverts but still holds — this is
+      # now the deployed half, and it should not go red because the retired one did.
       - run: npm run lint -w navfleet-console
       - run: npm run format:check -w navfleet-console
       - run: npm run typecheck -w navfleet-console
@@ -153,9 +159,9 @@ jobs:
       - run: npm run typecheck:e2e
       # Playwright starts the backend and both vite dev servers itself; the run
       # needs neither MongoDB nor an MQTT broker (see e2e/support/harness.ts).
-      # Two browser projects share one seeded fleet: `frontend` is the v1.0.0
-      # console, `console` is the v3 one running the shared specs as an
-      # equivalence net.
+      # Two browser projects share one seeded fleet: `console` is the deployed v3
+      # one, `frontend` is the retired v1.0.0 one kept as the rollback — its suite
+      # runs so that the rollback stays proven, not as a parity net any more.
       - run: npm run e2e
       - if: failure()
         uses: actions/upload-artifact@v7

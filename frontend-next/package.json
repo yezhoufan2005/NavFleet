@@ -3,7 +3,7 @@
   "private": true,
   "license": "MIT",
   "type": "module",
-  "description": "NavFleet console — the v3 frontend. Runs alongside navfleet-frontend until it reaches parity (see docs/frontend-parity.md).",
+  "description": "NavFleet console — the v3 frontend, and the one compose deploys since the Phase 14 switch.",
   "scripts": {
     "dev": "vite --host 127.0.0.1 --port 5273",
     "build": "vue-tsc --noEmit -p tsconfig.json && vite build && node scripts/assert-no-dev-only-chunks.mjs && node scripts/assert-first-load-budget.mjs",

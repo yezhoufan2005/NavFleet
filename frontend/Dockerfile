@@ -1,6 +1,13 @@
-# Frontend image — built from the monorepo root context (see deploy/docker-compose.yml:
-# frontend build context is `..`). Needs the root lockfile and the shared types
-# package, so it installs from the root and builds the frontend workspace.
+# Frontend image (the v1.0.0 console) — built from the monorepo root context (the
+# compose build context is `..`). It needs the root lockfile and the shared
+# packages, so it installs from the root and builds only this workspace.
+#
+# **Retired but kept.** Since the Phase 14 switch, compose deploys the v3 console
+# (frontend-next/Dockerfile) instead; this file is what
+# deploy/docker-compose.legacy-frontend.yml swaps back in for a rollback. It is
+# still built and tested in CI on purpose — an escape hatch that stopped building
+# is not an escape hatch, and `@navfleet/fleet-core` is shared, so a change there
+# can break this image without touching a file under `frontend/`.
 FROM node:24-alpine AS build
 WORKDIR /app
 

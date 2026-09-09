@@ -1,9 +1,10 @@
 #!/usr/bin/env bash
 # NavFleet 本地一键启动脚本
-# 启动后端 (:3000) 与前端 (:5173) 开发服务。演示数据不写死在脚本里：如本机有
+# 启动后端 (:3000) 与控制台 (:5273) 开发服务。演示数据不写死在脚本里：如本机有
 # MQTT broker，则用 config-runtime 定义的车队跑 mock 发布器（真实链路，仅数据为演示）。
 # 用法:
-#   scripts/dev.sh            启动前后端；检测到 127.0.0.1:1883 时自动跑演示发布器
+#   scripts/dev.sh            启动后端 + v3 控制台；检测到 127.0.0.1:1883 时自动跑演示发布器
+#   scripts/dev.sh --legacy   起 v1.0.0 那套旧控制台 (:5173) 而不是 v3 —— 只在验证回滚时需要
 #   scripts/dev.sh --mock     强制跑演示发布器（需本机 1883 broker）
 #   scripts/dev.sh --no-mock  只启动前后端，不发布演示数据
 #   Ctrl+C 停止所有子进程
@@ -11,16 +12,28 @@ set -uo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 BACKEND_PORT=3000
-FRONTEND_URL="http://127.0.0.1:5173"
 HEALTH_URL="http://127.0.0.1:${BACKEND_PORT}/health"
 ADMIN_USER="admin"
 ADMIN_PASS="admin123"
+
+# 默认起的是 compose 实际部署的那一套（v3 控制台）。此前这里是旧前端 —— 切换之后
+# 再默认起它，等于让每个照文档跑 dev 的人开发在一个已经退役的界面上。
+FRONTEND_WORKSPACE="frontend-next"
+FRONTEND_LABEL="v3 控制台"
+FRONTEND_URL="http://127.0.0.1:5273"
 
 MOCK_MODE="auto" # auto | force | off
 while [[ $# -gt 0 ]]; do
   case "$1" in
     --mock) MOCK_MODE="force"; shift ;;
     --no-mock) MOCK_MODE="off"; shift ;;
+    --legacy)
+      FRONTEND_WORKSPACE="frontend"
+      FRONTEND_LABEL="v1.0.0 旧控制台（已退役，仅回滚用）"
+      FRONTEND_URL="http://127.0.0.1:5173"
+      shift ;;
+    # 2,10 是上面那段注释的确切范围。原来写的是 2,10 而注释只到第 9 行，于是 --help
+    # 末尾会多印一行 `set -uo pipefail`；加了 --legacy 之后范围正好是 2,10。
     -h|--help) sed -n '2,10p' "$0"; exit 0 ;;
     *) echo "未知参数: $1"; exit 1 ;;
   esac
@@ -59,7 +72,15 @@ MQTT_PUBLISHER_USER="${MQTT_PUBLISHER_USERNAME:-$(deploy_var MQTT_PUBLISHER_USER
 MQTT_PUBLISHER_PASS="${MQTT_PUBLISHER_PASSWORD:-$(deploy_var MQTT_PUBLISHER_PASSWORD)}"
 
 ensure_deps backend
-ensure_deps frontend
+ensure_deps "$FRONTEND_WORKSPACE"
+
+# 高德 Key 是 Vite 的构建期变量，且**按 workspace 各自一份**。少了它 GPS 面板会显示
+# 「未配置 Key」而其余功能正常 —— 这个提示曾被当成前端缺陷报上来一次，所以这里明说：
+# 切换默认起 v3 之后，只在 frontend/.env 里配过 Key 的机器会第一次撞见它。
+if [[ ! -f "$ROOT/$FRONTEND_WORKSPACE/.env" ]]; then
+  echo "ℹ 未找到 $FRONTEND_WORKSPACE/.env —— GPS 面板会显示「未配置 Key」，其余功能不受影响。"
+  echo "  需要地图时在该文件里写 VITE_AMAP_KEY 与 VITE_AMAP_SECURITY_JS_CODE（两个 workspace 各自一份）。"
+fi
 
 echo "启动后端 (:${BACKEND_PORT})…"
 (
@@ -77,8 +98,8 @@ echo "启动后端 (:${BACKEND_PORT})…"
 ) &
 PIDS+=($!)
 
-echo "启动前端 (${FRONTEND_URL})…"
-(cd "$ROOT/frontend" && npm run dev) &
+echo "启动前端 —— ${FRONTEND_LABEL} (${FRONTEND_URL})…"
+(cd "$ROOT/$FRONTEND_WORKSPACE" && npm run dev) &
 PIDS+=($!)
 
 # 等待后端健康检查通过（最多 ~30s）
@@ -111,7 +132,7 @@ fi
 
 echo
 echo "─────────────────────────────────────────────"
-echo "  前端:   ${FRONTEND_URL}"
+echo "  前端:   ${FRONTEND_URL}  (${FRONTEND_LABEL})"
 echo "  后端:   http://127.0.0.1:${BACKEND_PORT}"
 echo "  账号:   ${ADMIN_USER} / ${ADMIN_PASS}"
 echo "  停止:   Ctrl+C"

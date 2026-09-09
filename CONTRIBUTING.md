@@ -74,10 +74,12 @@ npm run e2e                     # Playwright 端到端（自动拉起 backend + 
                                 # 无需 MongoDB / MQTT；首次先 npx playwright install chromium）
 
 npm run dev:backend             # 后端 dev（tsx watch）
-npm run dev:frontend            # 旧前端 dev（vite，:5173）
-npm run dev:console             # 新前端 dev（vite，:5273）
+npm run dev:console             # 新前端 dev（vite，:5273）—— 默认部署的这一套
+npm run dev:frontend            # 旧前端 dev（vite，:5173）—— 已退役，仅回滚验证用
 npm run mock:mqtt               # 发布确定性演示遥测
 ```
+
+一键起前后端用 `scripts/dev.sh`（默认起 v3 控制台，`--legacy` 起旧那套）。
 
 **`npm test` 不等于 CI。** CI 跑的是各 workspace 的 `test:coverage`（带覆盖率阈值）外加
 `check:map-contrast`，而根 `npm test` 两样都不含 —— 只跑 `npm test` 就交 PR，会在 CI 上

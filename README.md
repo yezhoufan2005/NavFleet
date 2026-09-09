@@ -126,8 +126,13 @@ docker compose --env-file deploy/.env -f deploy/docker-compose.yml up -d --build
 scripts/dev.sh
 ```
 
-同时起后端（:3000）与前端（:5173）。若检测到 `127.0.0.1:1883` 上有 broker，会自动运行
-演示发布器，走的是真实链路，只有数据是演示数据。`--no-mock` 关掉它，`--mock` 强制打开。
+同时起后端（:3000）与 **v3 控制台**（:5273）—— 也就是 compose 实际部署的那一套。若检测到
+`127.0.0.1:1883` 上有 broker，会自动运行演示发布器，走的是真实链路，只有数据是演示数据。
+`--no-mock` 关掉它，`--mock` 强制打开。`--legacy` 起已退役的 v1.0.0 那套（:5173），只在验证
+回滚时需要。
+
+高德地图 Key **按 workspace 各自一份**（`frontend-next/.env` 与 `frontend/.env`，都不进仓库）。
+缺了它 GPS 面板显示「未配置 Key」、其余功能正常；`dev.sh` 会在文件缺失时提示一句。
 
 开发环境把 `ADMIN_PASSWORD` 留空时会创建 `admin / admin123` 并打印一条告警。
 **生产环境留空则拒绝创建默认管理员** —— 与其偷偷放一个弱口令进去，不如启动失败。
