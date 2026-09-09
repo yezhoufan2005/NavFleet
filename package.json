@@ -31,7 +31,8 @@
     "dev:frontend": "npm run dev -w navfleet-frontend",
     "mock:mqtt": "npm run mock:mqtt -w navfleet-backend",
     "e2e:install": "playwright install chromium",
-    "dev:console": "npm run dev -w navfleet-console"
+    "dev:console": "npm run dev -w navfleet-console",
+    "check:deploy": "node scripts/check-deploy-wiring.mjs"
   },
   "devDependencies": {
     "@axe-core/playwright": "4.13.0",

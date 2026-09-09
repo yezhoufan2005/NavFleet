@@ -34,14 +34,18 @@ TypeScript 迁移、无 ECharts。
 
 ### 后端
 
-- Node.js 20+
+- Node.js **>= 22**（根 `package.json` 的 `engines`；CI 在 22 与 24 上跑。node 20 已 EOL，
+  矩阵在 2026-09-08 去掉了它）
 - TypeScript
-- Express
+- Express 5
 - `ws` WebSocket 服务
 - `mqtt` MQTT 客户端
 - `mongodb` 官方驱动
+- `zod` 环境变量与入参校验（fail-fast）
 - `chokidar` 监听运行期配置变化
 - `pino` 日志
+- `prom-client` Prometheus 指标
+- `helmet` / `cors` / `express-rate-limit` / `bcrypt` / `jsonwebtoken`：安全与鉴权
 
 ### 部署组件
 
@@ -87,17 +91,28 @@ flowchart LR
 NavFleet/
 ├─ backend/
 │  ├─ src/
-│  │  ├─ auth/               # 登录 / JWT / RBAC 中间件
-│  │  ├─ config.ts
-│  │  ├─ configRegistry.ts
-│  │  ├─ index.ts
-│  │  ├─ laneletOsm.ts
-│  │  ├─ normalize.ts
+│  │  ├─ app.ts              # Express 组装：中间件顺序、鉴权闸门、双前缀挂载
+│  │  ├─ index.ts            # 组合根：只负责装配运行时并启动
+│  │  ├─ config.ts           # 环境变量（zod 校验，fail-fast）+ 运行期路径
+│  │  ├─ startupChecks.ts    # 生产环境的启动前置断言
+│  │  ├─ runtimeState.ts     # 跨模块共享的运行时计数与连接状态
+│  │  ├─ auth/               # 登录 / JWT / 口令哈希 / RBAC 中间件
+│  │  ├─ routes/             # ops / fleet / scenes / debug / docs 五个 router
+│  │  ├─ mqtt.ts             # broker 连接、订阅、校验后摄入
+│  │  ├─ topics.ts           # 从一个 topic 模板推导订阅与 deviceId 提取
+│  │  ├─ normalize.ts        # 遥测归一化 + 告警派生
+│  │  ├─ store.ts            # 内存快照（写入串行化）+ 事件广播
+│  │  ├─ persistence.ts      # MongoDB 读写、索引、TTL、写回缓冲
+│  │  ├─ mongoConnection.ts  # 连接监督与有界重连
+│  │  ├─ configRegistry.ts   # 运行期配置热加载
+│  │  ├─ laneletOsm.ts       # Lanelet2 .osm 解析
+│  │  ├─ websocket.ts        # /ws 服务端，心跳与断连清理
+│  │  ├─ metrics.ts          # prom-client 注册表（每个 app 实例一份）
 │  │  ├─ openapi.ts          # OpenAPI 3.1 文档
-│  │  ├─ persistence.ts
-│  │  ├─ store.ts
+│  │  ├─ logger.ts           # pino
+│  │  ├─ requestContext.ts   # request-id 贯穿
 │  │  ├─ validation.ts       # zod 入参校验
-│  │  └─ types.ts
+│  │  └─ types.ts            # 再导出 @navfleet/shared + 后端专有类型
 │  ├─ scripts/               # mock-mqtt.ts, load-ingest.ts
 │  ├─ test/                  # Vitest 单测
 │  ├─ package.json
@@ -119,7 +134,17 @@ NavFleet/
 │  ├─ package.json
 │  └─ Dockerfile
 ├─ frontend-next/            # v3 控制台（navfleet-console）—— 默认部署的这一套
-│  ├─ src/                   # 8 条路由、web history、Tailwind v4 双主题、Reka UI
+│  ├─ src/
+│  │  ├─ views/              # Overview / Devices / DeviceDetail / Alerts / Reports
+│  │  │                      # Wall / NotFound + admin/（Admin / SystemStatus / Scenes）
+│  │  ├─ components/         # shell/ ui/ map/ device/ charts/ 五组 + 根上五个通用件
+│  │  ├─ composables/        # 16 个：useAuth / useTheme / useSvgViewport /
+│  │  │                      # useSceneOverlay / useHistoryPlayback / useAlertSound …
+│  │  ├─ stores/fleet.ts     # 唯一的 Pinia store（单例，跨路由共享）
+│  │  ├─ lib/                # realtimeLink（WS 韧性层）/ amap / pointCloudBackdrop /
+│  │  │                      # localState / globalErrorHandlers
+│  │  ├─ router/             # index.ts + guards.ts（鉴权守卫）
+│  │  └─ styles/             # ramp.css / semantic.css（由生成器产出，勿手改）
 │  ├─ scripts/               # 构建期门禁：dev-only chunk / 首屏体积
 │  ├─ nginx.conf             # SPA fallback（web history 必需）
 │  ├─ test/                  # Vitest 单测
@@ -135,19 +160,21 @@ NavFleet/
 │  ├─ formations.json
 │  ├─ scenes.json
 │  └─ scene-maps/
-├─ scripts/                  # dev.sh / smoke.sh
+├─ scripts/                  # dev.sh（开发）/ smoke.sh（API 契约）/ verify-stack.sh（整栈验收）
 └─ deploy/
    ├─ docker-compose.yml     # 基础编排
    ├─ docker-compose.tls.yml # TLS 叠加
-   ├─ docker-compose.monitoring.yml  # Prometheus + Grafana 叠加
-   ├─ docker-compose.backup.yml      # 定时备份叠加
+   ├─ docker-compose.monitoring.yml       # Prometheus + Alertmanager + Grafana 叠加
+   ├─ docker-compose.backup.yml           # 定时备份叠加
+   ├─ docker-compose.legacy-frontend.yml  # 回滚叠加：web 换回 v1.0.0 控制台
    ├─ .env.example
    ├─ nginx/                 # default.conf / locations.conf / tls.conf
    ├─ mosquitto/             # mosquitto.conf + 生成账号与 ACL 的 entrypoint
    ├─ prometheus/            # 抓取配置 + 告警规则
+   ├─ alertmanager/          # 分组 / 抑制 / 路由（出厂接收器为空，见文件头）
    ├─ grafana/               # 预置数据源与面板
    ├─ docs/                  # 部署 / 配置 / 备份恢复
-   └─ tools/                 # 备份恢复、自签证书、点云导入等脚本
+   └─ tools/                 # 备份恢复、恢复演练、自签证书、点云导入等脚本
 ```
 
 ## 5. 后端模块
@@ -209,6 +236,8 @@ PR #28 按职责拆开：
 | `runtimeState.ts`    | 跨模块共享的运行时状态（连接状态、启动时间等）                               |
 | `startupChecks.ts`   | 生产配置审计，危险组合 fail-fast                                             |
 | `mongoConnection.ts` | Mongo 连接、重连退避与真实健康探测                                           |
+| `topics.ts`          | 从一个 topic 模板推导订阅通配与 deviceId 提取（`MQTT_TOPIC_PATTERN` 的实现） |
+| `validation.ts`      | zod schema：history / alerts 查询、MQTT 遥测与状态帧、路径参数、登录体       |
 
 静态资源 `/scene-maps/**` 与离线检测定时器仍在 `app.ts` / `index.ts` 中装配。
 
@@ -279,64 +308,90 @@ PR #28 按职责拆开：
 路由、基础镜像的默认站点就够。**副作用**：边缘上任何没被显式代理的路径（例如 `/metrics`）
 现在返回 200 + HTML 而不是 404，见 `deploy/docs/deployment.md` 第 9 节。
 
-> 下面的模块走查写的仍是 **v1.0.0 那一套**。v3 的对应说明分散在 `docs/frontend-parity.md`
-> 与 ROADMAP 的 Phase 12–14，等旧前端正式下线时再合并到这里 —— 提前重写会让这一章描述一个
-> 还没退役的东西。
+> **这一节此前描述的是 v1.0.0 那一套**，并附了一句「等旧前端正式下线时再合并进来 —— 提前重写
+> 会让这一章描述一个还没退役的东西」。那个理由在切换之前是成立的；**切换之后它反过来了**：
+> 旧前端已冻结、1.1.0 部署的是 v3，于是这一章变成了在描述没人部署的那个前端。它点名的
+> `src/services/fleetApi.ts`、`src/lib/fleetNormalize.ts`、`src/components/GpsMap.vue`、
+> `src/components/RosSceneMap.vue`、`src/data-defaults.ts` 在 `frontend-next/` 里一个都不存在
+> —— 其中前两个连**冻结的那一套里也早已不在**（12A 抽进了 `packages/fleet-core`），
+> `data-defaults.ts` 两边都没有。
+> 现在按 v3 重写；冻结的那一套只留本节末尾一段差异说明。
 
-前端为多页 SPA（vue-router hash 路由 + Pinia），入口 `src/main.ts` 装载 Pinia 与
-router。原先的单体 `useDashboard` 组合式函数已拆分为 store + 服务层 + 纯归一化模块。
+入口 `src/main.ts` 装载 Pinia 与 router，`App.vue` 是鉴权门（未登录渲染登录表单，已登录渲染
+`AppShell`）。
 
-### `src/stores/fleet.ts`（Pinia store）
+### `src/stores/fleet.ts` —— 唯一的 Pinia store
 
-职责：
-
-- 持有响应式车队状态与派生视图（排序/筛选设备、编队、分组告警、每设备轨迹）。
-- 建立并维护有韧性的 WebSocket 连接（指数退避重连、应用层心跳）。
-- 处理 `fleet.snapshot` / `fleet.delta`，管理选中车辆/编队、地图模式与每设备轨迹。
-- 作为单例，跨路由视图共享，避免重复建连或状态分裂。
-
-### `src/services/fleetApi.ts`
-
-- 集中的 REST 访问层（snapshot/scenes/history/alerts），统一 `credentials` 与非 2xx 抛错。
-
-### `src/lib/fleetNormalize.ts`
-
-- 纯归一化 / 塑形函数（多格式遥测归一、告警派生、lidar→fusion 回退、场景合并、轨迹）。无 Vue 依赖，可单测。
-
-### `src/router/index.ts` 与 `src/views/`
-
-- 路由：`/` 实时监控（`DashboardView.vue`）、`/history` 历史回放（`HistoryView.vue`，时间轴回放，复用 `RosSceneMap`）、`/alerts` 告警中心（`AlertsView.vue`，筛选/确认/分页）、`/settings` 设置（`SettingsView.vue`，主题偏好 + 清除本地数据 + 连接诊断，只读监控范围内不含任何改变车队行为的开关）。
-- `App.vue` 为鉴权门 + 外壳（品牌、导航、主题切换、会话、离线横幅、skip-link、唯一的 `<main>` 地标、`<RouterView>`）。视图内部只用 `<div>`/`<section>` 布局：再嵌一层 `<main>` 属于非法 HTML，也会让辅助技术看到两个「主内容」区域。
-- 首屏快照到达前，`bootstrapPending` 让受影响区域渲染骨架屏而不是空态文案 —— 「还没到」和「筛选后没有」是两回事，后者会误导操作员去改筛选条件。
-
-### `src/composables/`
-
-- `useAuth.ts`（模块单例，登录/会话/自动续签）、`useTheme.ts`（明暗双主题）、`useNotifications.ts`（toast）、`useAlertAck.ts`（告警确认，localStorage 持久化）、`useHistoryPlayback.ts`（时间轴回放，`samples` 只读 + `setSamples` 修改器）。
-
-### `src/components/GpsMap.vue`
+整个控制台只有这一个 store，单例、跨路由共享，所以任何两个页面看到的车队状态必然一致，也不会
+出现第二条 WebSocket。
 
 职责：
 
-- 加载高德地图 JS API（按主题切换 darkblue/whitesmoke 样式）。
-- 展示启用 GPS 且有坐标的车辆。
-- 点击车辆 marker 后切换当前车辆。
-- 在缺少高德 Key 时显示配置提示。
+- 持有响应式车队状态与派生视图（排序 / 筛选后的设备、编队、按严重度分组的告警、每设备轨迹）。
+- 通过 `lib/realtimeLink.ts` 建立并维护有韧性的连接，处理 `fleet.snapshot` / `fleet.delta` 与
+  四类过渡事件（上线 / 离线 / 告警新增 / 告警清除）。
+- 管理选中车辆与编队、地图模式、每设备轨迹环。
+- `bootstrapPending` 让首屏快照到达前的区域渲染骨架屏而不是空态文案 —— 「还没到」和「筛选后
+  没有」是两回事，后者会误导操作员去改筛选条件。
 
-### `src/components/RosSceneMap.vue`
+### `src/lib/`
 
-职责：
+| 文件                     | 职责                                                           |
+| ------------------------ | -------------------------------------------------------------- |
+| `realtimeLink.ts`        | WebSocket 韧性层：指数退避重连、应用层 ping/pong、连接态机     |
+| `amap.ts`                | 高德 JS API 懒加载与 Key 缺失的可读提示                        |
+| `pointCloudBackdrop.ts`  | `.pcd` 解析为 topdown 底图（离屏 canvas → dataURL）            |
+| `localState.ts`          | 本机偏好的读写与「这台浏览器存了什么」的枚举（系统状态页读它） |
+| `globalErrorHandlers.ts` | 未捕获异常与 unhandledrejection 的兜底上报                     |
 
-- 展示当前车辆或编队所在的场景地图。
-- 支持普通底图、点云 topdown 视图、Lanelet2 overlay。
-- 支持缩放、拖拽、视角重置。
-- 展示 fusion/lidar 位姿、车辆连线和编队成员，并叠加历史轨迹线（只读监控，不含路径下发/编辑）。
+**跨前端共用的两块不在这里**：REST 访问层与纯归一化逻辑住在 `packages/fleet-core`
+（`fleetApi.ts` / `fleetNormalize.ts` / `deviceTone.ts` / `reportCodes.ts` …），两套控制台共同
+引用 —— 这是 12A 先抽包的原因：从结构上让「修一处漏一处」不可能发生。
 
-### `src/data-defaults.ts`
+### `src/router/` 与 `src/views/`
 
-职责：
+九条产品路由：`/` 总览 · `/devices` 设备（列表 ⇄ 地图两个视图）· `/devices/:deviceId` 设备详情
+（实时 / 曲线 / 历史回放 / 告警史四个 tab）· `/alerts` 消息 · `/reports` 报表 · `/admin` 管理，
+下挂 `/admin/system` 系统状态与 `/admin/scenes` 场景 · `/wall` 大屏值班 · 其余落 404。
 
-- 提供前端离线兜底场景定义。
-- 后端可用时以后端返回为准。
+`guards.ts` 是鉴权守卫，在 import 时注册 —— 所以它读的会话状态必须能在 Pinia 实例之外使用，
+这正是 `useAuth` 用模块级 `reactive` 单例而不是 store 的原因。
+
+`/reports` 与 `/wall` 目前是**诚实的占位页**（写明「施工中」与对应的 PR 号），不是空白页。
+
+### `src/components/`
+
+| 分组      | 内容                                                                      |
+| --------- | ------------------------------------------------------------------------- |
+| `shell/`  | `AppShell` / `AppTopBar` / `AppSidebarNav` / `AppBreadcrumbs` / 会话菜单  |
+| `ui/`     | `UiButton` / `UiSelect` / `UiSkeleton` / `UiSoundIcon` 等基元             |
+| `map/`    | `GpsMap.vue`（高德）与 `SceneMap.vue`（栅格 / 点云 / Lanelet2 三合一）    |
+| `device/` | 设备详情的四个 tab 与设备行卡片                                           |
+| `charts/` | ECharts 封装与 `timeSeriesOption`，**懒加载**：只有曲线/回放两个 tab 会取 |
+
+`SceneMap.vue` 是 v1.0.0 `RosSceneMap.vue` 的继任者，改名是因为它现在同时承担三类场景底图，
+不只是 ROS 栅格。缩放 / 拖拽 / 视角持久化抽在 `useSvgViewport` 与
+`useSceneViewportPersistence`。
+
+### `src/composables/`（16 个）
+
+值得单独知道的几个：`useAuth`（模块级单例，见上）、`useTheme`（明暗双主题）、
+`useSvgViewport`（场景图的视口数学）、`useSceneOverlay`（场景资源加载与降级）、
+`useHistoryPlayback`（时间轴回放）、`useAlertSound`（告警声，含浏览器自动播放策略的处理）、
+`useAlertAck`（告警确认，**仅 localStorage**，不落库 —— 页面上明说了这一点）。
+
+### 冻结的 v1.0.0（`frontend/`）差在哪
+
+hash 路由、原生 CSS（无 Tailwind / Reka UI）、渐进式 TypeScript、无 ECharts、五个页面
+（Dashboard / History / Alerts / Settings / NotFound）、地图组件叫 `GpsMap.vue` 与
+`RosSceneMap.vue`、高德加载与点云解析在 `src/utils/` 而不是 `src/lib/`。
+
+**它的 REST 层与归一化逻辑也已经不在自己家里了** —— 12A 把两者抽进 `packages/fleet-core`，所以
+`frontend/src/services/` 与 `frontend/src/lib/fleetNormalize.ts` 都不存在，冻结的这一套同样从共享
+包引用。这正是抽包的目的：两个前端不可能对同一份派生逻辑给出不同答案。
+
+冻结意味着**代码全留、不再改动**，回滚只需一行 `dockerfile:`（见
+`deploy/docker-compose.legacy-frontend.yml`）。
 
 ## 7. 数据链路
 
@@ -493,20 +548,39 @@ MongoDB time series collection，用于保存遥测历史。默认保留时间�
 
 ## 10. API
 
-除公开探针（`/health`、`/health/ready`、`/metrics`、`/openapi.json`）与
-`/api/auth/login|refresh|logout` 外，其余接口需登录会话（httpOnly Cookie）。
-机器可读定义见 `backend/src/openapi.ts`，运行时由 `GET /openapi.json` 提供。
+**两个前缀，同一批路由。** `API_PREFIXES = ["/api/v1", "/api"]`（`app.ts:26`），两个前缀挂载
+同一组 router —— 不是重定向，所以方法与请求体都不会在 30x 里丢掉。`/api/v1` 是新客户端应当用
+的那个，裸 `/api` 是现存部署、脚本与书签已经在调的那个，将来可以在不动 router 的前提下退役。
 
-### 鉴权与运维探针
+**鉴权只有一个门，在 `app.ts:154` 的 `app.use(authenticate)`。** 它之上的是公开的，它之下的
+一律需要会话（httpOnly Cookie）：
 
-- `POST /api/auth/login`、`POST /api/auth/refresh`、`POST /api/auth/logout`、`GET /api/auth/me`
-- `GET /health`（liveness）、`GET /health/ready`（readiness：store/mongo/mqtt 分项）
-- `GET /metrics`（Prometheus 文本，`METRICS_ENABLED` 开关）
-- `GET /openapi.json`（OpenAPI 3.1）
+| 位置       | 端点                                                                          |
+| ---------- | ----------------------------------------------------------------------------- |
+| **门之上** | `GET /health`、`GET /health/ready`、`GET /metrics`                            |
+| **门之上** | `POST /api/auth/login` \| `/refresh` \| `/logout`、`GET /api/auth/me`         |
+| **门之下** | `GET /openapi.json`、`GET /docs`（+ 它自带的静态资源与 `/docs/openapi.json`） |
+| **门之下** | `/scene-maps/**` 静态资源                                                     |
+| **门之下** | 下面所有业务接口（两个前缀各一份）                                            |
 
-### `GET /health`
+> `/openapi.json` 与 `/docs` **在门之下**，不是公开探针 —— 这一点此前写错过。这么设计是为了让
+> 扫描器无法枚举 API；代价是浏览器要先登录才能打开 `/docs`。
+>
+> `/api/auth` 独立于版本前缀是刻意的：refresh cookie 的 `Path` 限定在 `/api/auth`，这样它不会
+> 跟着每一次业务请求发出去；给它做一个带版本的孪生路径会把这个限制撤掉。
 
-健康检查（liveness）。
+机器可读定义见 `backend/src/openapi.ts`，运行时由 `GET /openapi.json` 提供，人读的界面在
+`GET /docs`（同源自带 Swagger UI，无 CDN）。
+
+### 运维探针
+
+- `GET /health` —— liveness，只回 `{ ok: true }`
+- `GET /health/ready` —— readiness，分项报 `store` / `mongo` / `mqtt`；`store` 未就绪时返回
+  **503**，Mongo 或 MQTT 断开只算 `degraded`（后端会降级运行而不是拒绝服务）
+- `GET /metrics` —— Prometheus 文本，`METRICS_ENABLED` 开关。**边缘 nginx 刻意不代理它**，
+  抓取方在容器网络内取 `backend:3000/metrics`
+
+### 业务接口（以下路径两个前缀各一份）
 
 ### `GET /api/fleet/snapshot`
 
@@ -565,52 +639,73 @@ MongoDB time series collection，用于保存遥测历史。默认保留时间�
 
 ## 11. WebSocket
 
-路径：
+路径 `/ws`。**升级握手只认 cookie 里的 token** —— 没有会话的连接在握手阶段就被拒，不会进入
+广播列表。
 
-```text
-/ws
-```
+服务端 → 客户端：
 
-事件：
+| 事件             | 何时                                           |
+| ---------------- | ---------------------------------------------- |
+| `fleet.snapshot` | 建立连接后的全量快照；设备被淘汰后也补发一次   |
+| `fleet.delta`    | 单设备增量变化，携带 `updatedAt`（服务端时间） |
+| `alert.created`  | 新告警                                         |
+| `alert.cleared`  | 告警清除                                       |
+| `device.online`  | 设备上线（仅在 `online` 真的翻转时）           |
+| `device.offline` | 设备离线（同上）                               |
 
-- `fleet.snapshot`：建立连接后发送全量快照。
-- `fleet.delta`：单设备增量变化。
-- `alert.created`：新告警。
-- `alert.cleared`：告警清除。
-- `device.online`：设备上线。
-- `device.offline`：设备离线。
+心跳是**应用层的 ping/pong 文本帧**，两端各有一套：服务端定期 ping 并清理不回 pong 的连接
+（`websocket.ts`），客户端在 `lib/realtimeLink.ts` 里做同样的事并在超时后退避重连。用应用层而
+不是只靠 TCP，是因为一条被中间设备静默丢弃的连接在内核看来仍然是「已连接」。
+
+`fleet.delta` 带 `updatedAt` 这一点值得知道：快照一直有这个字段而 delta 一开始没有，于是控制台
+的「数据新鲜度」只在快照到达时才动 —— 在一个每秒都在更新的页面上显示一个冻住的时间，比不显示
+更糟。
 
 ## 12. Docker 部署架构
 
-Compose 服务：
+Compose 服务与镜像：
 
-- `nginx`
-- `web` —— 被服务的那套 SPA，默认由 `frontend-next/`（v3 控制台）构建。服务名取角色而不是
-  取实现，换用哪一套只是一行 `dockerfile:`，回滚见 `deploy/docker-compose.legacy-frontend.yml`
-- `backend`
-- `mongo`
-- `mosquitto`
+| 服务        | 镜像                                      | 说明                                                      |
+| ----------- | ----------------------------------------- | --------------------------------------------------------- |
+| `nginx`     | `nginxinc/nginx-unprivileged:1.27-alpine` | 边缘入口，唯一有宿主端口映射的那一段                      |
+| `web`       | 本地构建 `frontend-next/Dockerfile`       | 被服务的那套 SPA（见下）                                  |
+| `backend`   | 本地构建 `backend/Dockerfile`             | API / WebSocket / MQTT 客户端 / 配置热加载                |
+| `mongo`     | **`mongo:7.0`**                           | 钉 7.0 而不是 8.0，理由见 `deploy/docs/deployment.md` 3.1 |
+| `mosquitto` | `eclipse-mosquitto:2.0`                   | broker，已关匿名 + 双向 ACL                               |
+
+`web` 的服务名取的是**角色**而不是实现，换用哪一套控制台只是一行 `dockerfile:` —— 回滚见
+`deploy/docker-compose.legacy-frontend.yml`。四个叠加文件（TLS / 监控 / 备份 / 回滚）都不改基础
+编排。
+
+`mongo` 钉 7.0 的一句话版本：**本项目一行代码都不需要 8.0**（时序集合、TTL、`collMod`、唯一
+索引都是 7.0 就有的），而 8.0+ 在 Linux 内核 6.19–7.0.13 上拒绝启动（SERVER-121912）。
 
 默认端口：
 
-- `HTTP_HOST_PORT=8080`
-- `MQTT_HOST_PORT=1883`
+- `HTTP_HOST_PORT=8080`（TLS 叠加下另有 `HTTPS_HOST_PORT=443`）
+- `MQTT_HOST_PORT=1883`，**只绑 `127.0.0.1`**
 
 默认内部连接：
 
-- Backend 到 Mosquitto：`mqtt://mosquitto:1883`
-- Backend 到 Mongo：`mongodb://root:example@mongo:27017/fleet_monitor?authSource=admin`
-- Nginx 到 Backend：`http://backend:3000`
-- Nginx 到 Web：`http://web:8080` —— 两个前端镜像都用 `nginx-unprivileged`，以 uid 101
-  运行、容器内监听 **8080**（不是 80，非 root 绑不上特权端口）
+- Backend → Mosquitto：`mqtt://mosquitto:1883`（带 `MQTT_SUBSCRIBER_*` 凭据）
+- Backend → Mongo：`mongodb://<user>:<pass>@mongo:27017/fleet_monitor?authSource=admin`
+- Nginx → Backend：`http://backend:3000`
+- Nginx → Web：`http://web:8080` —— 两个前端镜像都用 `nginx-unprivileged`，以 uid 101 运行、
+  容器内监听 **8080**（不是 80，非 root 绑不上特权端口）
+
+网络分三段（`edge` / `data` / `bus`），`backend` 是唯一同时在三段上的服务；`data` 是
+`internal: true`，所以 mongo 没有任何出网能力。nginx 与 web **连 mongo / mosquitto 的域名都解析
+不了**，这是实测过的。
 
 ## 13. 注意事项
 
-- 高德地图需填写API Key 才可正常渲染。
+- 高德地图需填写 API Key 才可正常渲染，且它是 **Vite 构建期变量**、按 workspace 各自一份
+  （`frontend-next/.env` 与 `frontend/.env`）—— 改了必须重新构建镜像，改容器环境变量没有用。
 - 修改代码后需要重新构建 Docker 镜像。
-- 修改 `config-runtime` 中的 JSON 配置不需要重新构建。
+- 修改 `config-runtime` 中的 JSON 配置不需要重新构建（后端热加载）。
 - 修改 `.osm` 文件不需要重新构建，但浏览器需要刷新。
 - Mosquitto **默认关闭匿名连接**（`allow_anonymous false` + 双向 ACL），compose 用
   `${MQTT_SUBSCRIBER_PASSWORD:?}` 强制必填：口令留空时 `up` 直接报错退出，而不是起一个
   谁都能连的 broker。1883 端口只绑 `127.0.0.1`。生产环境仍建议在此之上加 TLS。
 - `deploy/.env.example` 里的 MongoDB 口令是占位值，部署前必须替换。
+- 想一次性确认整栈是否正常：`scripts/verify-stack.sh`（起栈 + 56 条断言，全过才返回 0）。
