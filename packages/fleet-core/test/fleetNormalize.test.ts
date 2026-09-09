@@ -133,7 +133,7 @@ describe("dedupeAlerts", () => {
     ];
     const result = dedupeAlerts(alerts);
     expect(result).toHaveLength(2);
-    expect(result[0].id).toBe("y");
+    expect(result[0]?.id).toBe("y");
   });
 });
 
