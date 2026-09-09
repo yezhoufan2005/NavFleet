@@ -31,8 +31,83 @@ describe("openApiDocument", () => {
       "/api/v1/alerts",
       "/api/v1/scenes",
       "/api/v1/debug/ingest",
+      // Four surfaces the server has always served while the document said nothing
+      // about them. This list is the reason the gap lasted: it was the only check on
+      // path coverage and it only ever named the paths someone remembered.
+      "/openapi.json",
+      "/docs",
+      "/docs/openapi.json",
+      "/scene-maps/{assetPath}",
     ]) {
       expect(paths[path], `missing path ${path}`).toBeTruthy();
+    }
+  });
+
+  it("documents 429 and 500 on every /api operation, and on no public probe", () => {
+    const paths = openApiDocument.paths as Record<
+      string,
+      Record<string, { responses?: Record<string, unknown> }>
+    >;
+
+    // Both come from middleware mounted on the whole `/api` surface — the coarse
+    // rate limiter and the error handler at the end of the chain — so every operation
+    // under it can answer with them, and none of them said so. A generated client that
+    // has never been told about either treats both as an unexpected shape.
+    for (const [path, operations] of Object.entries(paths)) {
+      for (const [method, operation] of Object.entries(operations)) {
+        const codes = operation.responses ?? {};
+        const where = `${method.toUpperCase()} ${path}`;
+        if (path.startsWith("/api")) {
+          expect(codes["429"], `${where} should document 429`).toBeTruthy();
+          expect(codes["500"], `${where} should document 500`).toBeTruthy();
+        } else {
+          // `/health`, `/metrics`, `/docs`, `/openapi.json`, `/scene-maps/**` sit
+          // outside `/api`, so the limiter never sees them.
+          expect(codes["429"], `${where} must not claim 429`).toBeUndefined();
+        }
+      }
+    }
+  });
+
+  it("expresses nullability the way OpenAPI 3.1 does", () => {
+    // 3.1's schemas are JSON Schema 2020-12, which dropped `nullable`. A 3.1
+    // validator ignores it, so three fields that genuinely emit `null` — a report
+    // code's `stamp`, an alert's `code` and its `clearedAt` — were published as
+    // non-nullable while the keyword sat there looking like it did something.
+    expect(JSON.stringify(openApiDocument)).not.toContain('"nullable"');
+
+    const schemas = (openApiDocument.components as { schemas: Record<string, unknown> })
+      .schemas as Record<string, { properties: Record<string, { type?: unknown }> }>;
+    expect(schemas.Alert.properties.code.type).toEqual(["number", "null"]);
+    expect(schemas.Alert.properties.clearedAt.type).toEqual(["string", "null"]);
+  });
+
+  it("documents the error fields the server actually sends", () => {
+    const schemas = (openApiDocument.components as { schemas: Record<string, unknown> })
+      .schemas as Record<string, { properties: Record<string, unknown> }>;
+
+    // `issues` on a validation 400, `requiredRoles` on an RBAC 403, `requestId` on a
+    // 500 — the last one exists precisely so a caller can quote it, and a client built
+    // from the spec could not read any of the three.
+    for (const field of ["error", "message", "issues", "requiredRoles", "requestId"]) {
+      expect(schemas.Error.properties[field], `Error.${field}`).toBeTruthy();
+    }
+  });
+
+  it("carries no component that nothing references", () => {
+    const schemas = Object.keys(
+      (openApiDocument.components as { schemas: Record<string, unknown> }).schemas,
+    );
+    const serialised = JSON.stringify(openApiDocument);
+
+    // `CodeState` used to sit in `components.schemas` with no `$ref` pointing at it:
+    // a shape a client could see and could not place. An unreferenced component is a
+    // claim with no subject.
+    for (const name of schemas) {
+      expect(
+        serialised.includes(`#/components/schemas/${name}`),
+        `component ${name} is referenced by nothing`,
+      ).toBe(true);
     }
   });
 
