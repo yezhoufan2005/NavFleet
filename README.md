@@ -371,6 +371,7 @@ CI 在 Node 22 / 24 上跑全部门禁，E2E 单独一个 job。提交前 husky 
 | [CONTRIBUTING.md](CONTRIBUTING.md)                                     | 分支、提交规范、本地门禁                           |
 | [ROADMAP.md](ROADMAP.md)                                               | 当前路线图（Phase 14–18 的计划与决策）             |
 | [docs/roadmap-archive.md](docs/roadmap-archive.md)                     | 已完成阶段的记录：Phase 0–13（含每阶段修掉的缺陷） |
+| [docs/release-notes/](docs/release-notes/)                             | 各版本发版说明（Release 页面正文的来源）           |
 | [CHANGELOG.md](CHANGELOG.md)                                           | 版本变更（release-please 生成）                    |
 
 ## 路线与已知边界
