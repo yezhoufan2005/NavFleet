@@ -1200,7 +1200,7 @@ faultedDevice] = …`），所以**长度与顺序本来就是那个模块的契
       而它本来要证明的是「这个端点继承全局 cookieAuth」。改为先取局部变量并断言路径存在。
       同一个 `it` 里另外两句是安全的 —— 路径消失读作 `undefined`，而它们期望 `[]`
 
-#### 14Z — P0-f 第 3 批：type-aware lint，164 处报错里挑出 8 个真缺陷（2026-09-10）
+#### 14Z — P0-f 第 3 批：type-aware lint，164 处报错里挑出 9 个真缺陷（2026-09-10）
 
 它和第 2 批的性质不同：严格开关问「这个下标一定在吗」，type-aware lint 问「在这个类型上做这件事
 有意义吗」，所以**真缺陷的比例高得多** —— 第 2 批 131 处里几乎全是机械修复，这批 164 处里有 8 处
@@ -1209,7 +1209,10 @@ faultedDevice] = …`），所以**长度与顺序本来就是那个模块的契
 规模：backend **61** · fleet-core **40** · console **60** · e2e **3** · shared **0**。冻结的
 `frontend/` 不在其内，理由同第 2 批。
 
-**八个真缺陷**（细节见对应 PR）：
+**九个真缺陷**（细节见对应 PR）。其中第九个是**写测试时才发现的**，值得记一笔方法：修完一批
+`no-base-to-string` 之后我加了一条用例验「对象名字不再变成 `[object Object]`」，**它红了** ——
+因为那个字段走的不是 `String()` 而是 `as string`，而规则只看得见运行时调用。**给修复补测试，
+才发现修复只覆盖了缺陷的一半。**
 
 - [x] `websocket.ts`：`raw.toString("utf8")` 在 `RawData` 的 `Buffer[]` 分支上走
       `Array.prototype.toString` —— 忽略编码参数、按逗号连接，于是一个本来合法的 JSON 帧解析失败。
@@ -1236,6 +1239,11 @@ faultedDevice] = …`），所以**长度与顺序本来就是那个模块的契
       要手写 `(alert: { severity: string })` 这样的形参注解，还是拿回一个 `any`
 - [x] 四个 console 测试里的 `String(input)`：`RequestInfo` 的 `Request` 分支没有有意义的
       `toString`，会记成 `"[object Request]"`，于是 stub 里所有 `includes` / `endsWith` 静默失配
+- [x] **`fleetNormalize.ts` 里 7 处 `(… ) as string`，规则看不见它们。** 补完 `String()` 那一半
+      之后写测试验「对象名字不再变成 `[object Object]`」，**测试红了** —— 因为 `deviceName` 走的
+      不是 `String()` 而是一个断言。`no-base-to-string` 只能看到运行时调用，而 `as string` 没有
+      调用：它直接向编译器断言「这是 string」，于是下游全部照此信任。**这是同一个缺陷更危险的
+      那一半**，因为它连报都不报。`asText` 一并收掉 7 处，`as string` 归零
 
 **两处规则本身不适用，按目录关掉而不是改掉：**
 

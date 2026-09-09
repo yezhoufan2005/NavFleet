@@ -15,7 +15,6 @@ import type {
   DeviceAlert,
   DeviceSnapshot,
   FormationSnapshot,
-  MapProfile,
   Severity,
 } from "@navfleet/shared";
 
@@ -256,7 +255,7 @@ export const normalizeCode = (rawCode: unknown): CodeState => {
     { code?: unknown; info?: unknown; stamp?: unknown } | null | undefined;
   return {
     code: toNumeric(raw?.code, 0) ?? 0,
-    info: (raw?.info as string) || "",
+    info: asText(raw?.info),
     stamp: raw?.stamp ? toIsoString(raw.stamp) : null,
   };
 };
@@ -453,16 +452,15 @@ export const normalizeDevice = (
       : rawInput
   ) as Record<string, unknown>;
 
-  const topic = (raw.topic ||
-    topicHint ||
-    existingDevice?.topic ||
-    "") as string;
-  const deviceId = (raw.deviceId ||
-    raw.id ||
-    raw.device_id ||
-    extractDeviceIdFromTopic(topic) ||
-    existingDevice?.deviceId ||
-    `device-${Date.now()}`) as string;
+  const topic = asText(raw.topic || topicHint || existingDevice?.topic);
+  const deviceId =
+    asText(
+      raw.deviceId ||
+        raw.id ||
+        raw.device_id ||
+        extractDeviceIdFromTopic(topic) ||
+        existingDevice?.deviceId,
+    ) || `device-${Date.now()}`;
   const base = createDefaultDevice(
     deviceId,
     topic || `/fleet/${deviceId}/vehicle_info`,
@@ -485,21 +483,25 @@ export const normalizeDevice = (
     unknown
   >;
   const gps = (raw.gps || raw.location || {}) as Record<string, unknown>;
-  const runtimeSceneId = (raw.runtimeSceneId ||
-    raw.scene_id ||
-    raw.sceneId ||
-    (raw.scenePose as { sceneId?: unknown } | null | undefined)?.sceneId ||
-    existingDevice?.runtimeSceneId ||
-    "") as string;
+  const runtimeSceneId = asText(
+    raw.runtimeSceneId ||
+      raw.scene_id ||
+      raw.sceneId ||
+      (raw.scenePose as { sceneId?: unknown } | null | undefined)?.sceneId ||
+      existingDevice?.runtimeSceneId,
+  );
   const normalizedDevice = {
     ...base,
     ...existingDevice,
     deviceId,
-    deviceName: (raw.deviceName ||
-      raw.device_name ||
-      raw.name ||
-      existingDevice?.deviceName ||
-      deviceId) as string,
+    deviceName:
+      asText(
+        raw.deviceName ||
+          raw.device_name ||
+          raw.name ||
+          existingDevice?.deviceName,
+        deviceId,
+      ) || deviceId,
     topic: topic || existingDevice?.topic || base.topic,
     online:
       typeof raw.online === "boolean"
@@ -513,19 +515,19 @@ export const normalizeDevice = (
         existingDevice?.stamp ||
         Date.now(),
     ),
-    sceneId: (raw.scene_id ||
-      raw.sceneId ||
-      (raw.scenePose as { sceneId?: unknown } | null | undefined)?.sceneId ||
-      raw.runtimeSceneId ||
-      existingDevice?.sceneId ||
-      "") as string,
+    sceneId: asText(
+      raw.scene_id ||
+        raw.sceneId ||
+        (raw.scenePose as { sceneId?: unknown } | null | undefined)?.sceneId ||
+        raw.runtimeSceneId ||
+        existingDevice?.sceneId,
+    ),
     runtimeSceneId,
-    defaultSceneId: (raw.defaultSceneId ||
-      existingDevice?.defaultSceneId ||
-      "") as string,
-    mapProfile: (raw.mapProfile ||
-      existingDevice?.mapProfile ||
-      "lanelet") as MapProfile,
+    defaultSceneId: asText(
+      raw.defaultSceneId || existingDevice?.defaultSceneId,
+    ),
+    mapProfile:
+      asText(raw.mapProfile || existingDevice?.mapProfile) || "lanelet",
     gpsEnabled:
       typeof raw.gpsEnabled === "boolean"
         ? raw.gpsEnabled

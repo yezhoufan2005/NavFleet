@@ -220,3 +220,71 @@ describe("formatDateTime", () => {
     expect(formatDateTime(1_700_000_000_000)).not.toBe("--");
   });
 });
+
+describe("非标量字段", () => {
+  it("不把对象渲染成 [object Object]", () => {
+    // 这条用例存在的理由是它此前不存在：`String(raw.deviceName || …)` 在 `deviceName` 是
+    // 对象时会产出字面量 "[object Object]"，一路进到 console 的设备列表。车队里没有车这么
+    // 发，也没有任何东西拒绝它 —— 而归一化层的全部职责就是让「到达的东西」变成「模型说的
+    // 东西」。P0-f 第 3 批的 `no-base-to-string` 指到了它。
+    const device = normalizeDevice({
+      deviceId: "agv-obj",
+      deviceName: { zh: "叉车" },
+      scene_id: ["warehouse-a"],
+    });
+
+    expect(device.deviceName).not.toContain("[object");
+    // 兜底是设备 id，而不是空名字：一个没有名字的行比一个叫 "[object Object]" 的行还难用。
+    expect(device.deviceName).toBe("agv-obj");
+    expect(device.sceneId).toBe("");
+  });
+
+  it("整编队名同样兜底到 id 而不是空串", () => {
+    const formation = normalizeFormation({
+      formationId: "fm-1",
+      formationName: { zh: "巡检组" },
+      deviceIds: ["agv-1"],
+    });
+    expect(formation.formationName).toBe("fm-1");
+  });
+});
+
+describe("厂商自带的 alerts 数组", () => {
+  const vendorFrame = {
+    deviceId: "agv-vendor",
+    alerts: [
+      {
+        id: "v-1",
+        severity: "ERROR",
+        title: "急停",
+        detail: "触发急停",
+        code: 5102,
+      },
+      // 非对象条目：整个数组不能因为一条脏数据而被丢掉。
+      "not an object",
+    ],
+  };
+
+  it("把厂商 severity 收进联合类型，而不是原样带进 store", () => {
+    // 一个 `severity: "ERROR"` 原样活下来之后，console 会用一个不在联合里的 key 去索引
+    // `grouped[severity]` —— 拿到的是 undefined 桶，而不是一条 critical 告警。
+    const device = normalizeDevice(vendorFrame);
+    const first = device.alerts.find((alert) => alert.id === "v-1");
+
+    expect(first?.severity).toBe("critical");
+    expect(first?.code).toBe(5102);
+  });
+
+  it("脏条目补齐成一条可显示的告警而不是抛错", () => {
+    const device = normalizeDevice(vendorFrame);
+    const filled = device.alerts.find(
+      (alert) => alert.id === "agv-vendor-alert-2",
+    );
+
+    expect(filled).toBeTruthy();
+    expect(filled?.title).toBe("设备告警");
+    expect(filled?.severity).toBe("notice");
+    // ts 缺失时用设备自己的 stamp，而不是另造一个时间。
+    expect(filled?.ts).toBe(device.stamp);
+  });
+});
