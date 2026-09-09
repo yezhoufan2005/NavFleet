@@ -103,7 +103,7 @@ function sceneGpsOrigin(sceneIndex: number): GpsOrigin {
 }
 
 // Assigned round-robin by vehicle index so a full fleet covers the whole surface.
-const SCENARIO_RING: Scenario[] = [
+const SCENARIO_RING: readonly [Scenario, ...Scenario[]] = [
   "cruising",
   "speed-limited",
   "charging",
@@ -111,6 +111,22 @@ const SCENARIO_RING: Scenario[] = [
   "fault-offline",
   "teleop",
 ];
+
+/**
+ * Round-robin pick, wrapping.
+ *
+ * `ring[index % ring.length]` is provably in range, and the compiler types it
+ * `T | undefined` anyway — `noUncheckedIndexedAccess` keeps only a *known* index
+ * definite, and a modulo is not one. Demanding a non-empty tuple is what makes the
+ * fallback both expressible and correct: for a ring of length ≥ 1 the modulo cannot be
+ * out of range, and `ring[0]` is definite precisely because the type forbids emptiness.
+ *
+ * Worth one helper because the scenario picked here indexes two more tables
+ * (`SCENARIO_SPEED`, `SCENARIO_INITIAL_SOC`), so a `Scenario | undefined` here became
+ * four errors downstream.
+ */
+const pickFromRing = <T>(ring: readonly [T, ...T[]], index: number): T =>
+  ring[((index % ring.length) + ring.length) % ring.length] ?? ring[0];
 
 // Per-scenario cruising speed (m/s) and initial battery (%). Deterministic.
 const SCENARIO_SPEED: Record<Scenario, number> = {
@@ -244,31 +260,69 @@ function buildRoute(bounds: Bounds, index: number): { route: Point[]; station: P
   return { route, station };
 }
 
+/**
+ * The segments of a polyline, as pairs of endpoints; `closed` also yields the segment
+ * back to the first point.
+ *
+ * **Five geometry helpers below used to walk `points[i]` / `points[i - 1]` inside a `for`
+ * loop bounded by `.length`.** Every one of those reads is provably in range and the
+ * compiler cannot see it, so `noUncheckedIndexedAccess` turned this one file into **48 of
+ * the batch's 103**「possibly undefined」— by a wide margin the largest cluster, and all of
+ * it the same sentence repeated.
+ *
+ * The answer is not 48 `!`s. It is to iterate what the geometry is actually about — the
+ * *segment* — so both endpoints arrive already definite, once, here. The `if (previous)` is
+ * the only branch involved and it is a real one: false exactly once, on the first point.
+ */
+const segmentsOf = (points: readonly Point[], closed = false): Array<readonly [Point, Point]> => {
+  const segments: Array<readonly [Point, Point]> = [];
+  let previous: Point | undefined;
+  for (const point of points) {
+    if (previous) {
+      segments.push([previous, point]);
+    }
+    previous = point;
+  }
+  const first = points[0];
+  if (closed && first && previous) {
+    segments.push([previous, first]);
+  }
+  return segments;
+};
+
 /** Cumulative length of an open polyline. */
-function polylineLength(points: Point[]): number {
+function polylineLength(points: readonly Point[]): number {
   let total = 0;
-  for (let i = 1; i < points.length; i += 1) {
-    total += Math.hypot(points[i].x - points[i - 1].x, points[i].y - points[i - 1].y);
+  for (const [from, to] of segmentsOf(points)) {
+    total += Math.hypot(to.x - from.x, to.y - from.y);
   }
   return total;
 }
 
 /** Point at fraction `t` (0..1) of an open polyline's arc length. */
-function pointAtFraction(points: Point[], t: number): Point {
+function pointAtFraction(points: readonly Point[], t: number): Point {
+  const segments = segmentsOf(points);
   const target = polylineLength(points) * Math.min(Math.max(t, 0), 1);
   let walked = 0;
-  for (let i = 1; i < points.length; i += 1) {
-    const seg = Math.hypot(points[i].x - points[i - 1].x, points[i].y - points[i - 1].y);
-    if (walked + seg >= target || i === points.length - 1) {
+
+  for (const [index, [from, to]] of segments.entries()) {
+    const seg = Math.hypot(to.x - from.x, to.y - from.y);
+    if (walked + seg >= target || index === segments.length - 1) {
       const f = seg > 0 ? (target - walked) / seg : 0;
       return {
-        x: points[i - 1].x + (points[i].x - points[i - 1].x) * f,
-        y: points[i - 1].y + (points[i].y - points[i - 1].y) * f,
+        x: from.x + (to.x - from.x) * f,
+        y: from.y + (to.y - from.y) * f,
       };
     }
     walked += seg;
   }
-  return points[points.length - 1];
+
+  // Only reachable for a polyline with fewer than two points, which has no segment to
+  // walk: the `index === segments.length - 1` arm above returns on the last one otherwise.
+  // The previous version ended with `return points[points.length - 1]` — typed `Point`,
+  // actually `undefined` for an empty array. Both call sites check `.length < 2` first, so
+  // that lie never fired; it is still a lie the compiler now declines to sign.
+  return points[0] ?? { x: 0, y: 0 };
 }
 
 /**
@@ -332,20 +386,27 @@ function buildLaneletRoute(lines: Point[][], startIndex: number): Point[] {
   const used = new Set<number>();
   const first = startIndex % lines.length;
   used.add(first);
-  const path: Point[] = [...lines[first]];
+  const path: Point[] = [...(lines[first] ?? [])];
 
   while (polylineLength(path) < MAX_LOOP_METRES) {
-    const tail = path[path.length - 1];
+    const tail = path.at(-1);
+    if (!tail) {
+      break;
+    }
     let bestIndex = -1;
     let bestDistance = Infinity;
     let bestReversed = false;
 
     lines.forEach((line, index) => {
-      if (used.has(index) || line.length < 2) {
+      const [start] = line;
+      const end = line.at(-1);
+      // `!start || !end` adds nothing to `line.length < 2` — a one-point line still has
+      // both — and is what lets the two `Math.hypot` calls below read them directly.
+      if (used.has(index) || line.length < 2 || !start || !end) {
         return;
       }
-      const toStart = Math.hypot(line[0].x - tail.x, line[0].y - tail.y);
-      const toEnd = Math.hypot(line[line.length - 1].x - tail.x, line[line.length - 1].y - tail.y);
+      const toStart = Math.hypot(start.x - tail.x, start.y - tail.y);
+      const toEnd = Math.hypot(end.x - tail.x, end.y - tail.y);
       const distance = Math.min(toStart, toEnd);
       if (distance < bestDistance) {
         bestDistance = distance;
@@ -358,7 +419,8 @@ function buildLaneletRoute(lines: Point[][], startIndex: number): Point[] {
       break;
     }
     used.add(bestIndex);
-    const next = bestReversed ? [...lines[bestIndex]].reverse() : lines[bestIndex];
+    const best = lines[bestIndex] ?? [];
+    const next = bestReversed ? [...best].reverse() : best;
     // Skip the joining point so the route has no zero-length segment.
     path.push(...next.slice(1));
   }
@@ -399,35 +461,41 @@ async function loadSceneDrivingLines(
   }
 }
 
-function routePerimeter(route: Point[]): number {
+function routePerimeter(route: readonly Point[]): number {
   let total = 0;
-  for (let i = 0; i < route.length; i += 1) {
-    const a = route[i];
-    const b = route[(i + 1) % route.length];
-    total += Math.hypot(b.x - a.x, b.y - a.y);
+  for (const [from, to] of segmentsOf(route, true)) {
+    total += Math.hypot(to.x - from.x, to.y - from.y);
   }
   return total;
 }
 
 // Point + heading at arc-length `distance` along the closed route.
-function pointOnRoute(route: Point[], distance: number): { x: number; y: number; yaw: number } {
+function pointOnRoute(
+  route: readonly Point[],
+  distance: number,
+): { x: number; y: number; yaw: number } {
   const perimeter = routePerimeter(route);
+  const segments = segmentsOf(route, true);
   let d = ((distance % perimeter) + perimeter) % perimeter;
-  for (let i = 0; i < route.length; i += 1) {
-    const a = route[i];
-    const b = route[(i + 1) % route.length];
-    const segLen = Math.hypot(b.x - a.x, b.y - a.y);
-    if (d <= segLen || i === route.length - 1) {
+
+  for (const [index, [from, to]] of segments.entries()) {
+    const segLen = Math.hypot(to.x - from.x, to.y - from.y);
+    if (d <= segLen || index === segments.length - 1) {
       const t = segLen > 0 ? d / segLen : 0;
       return {
-        x: a.x + (b.x - a.x) * t,
-        y: a.y + (b.y - a.y) * t,
-        yaw: Math.atan2(b.y - a.y, b.x - a.x),
+        x: from.x + (to.x - from.x) * t,
+        y: from.y + (to.y - from.y) * t,
+        yaw: Math.atan2(to.y - from.y, to.x - from.x),
       };
     }
     d -= segLen;
   }
-  return { x: route[0].x, y: route[0].y, yaw: 0 };
+
+  // A route with fewer than two points has no segment; `d` is then NaN as well, since the
+  // perimeter is 0. The previous version wrote this case as `route[0].x`, which threw on an
+  // empty route rather than degrading.
+  const start = route[0];
+  return { x: start?.x ?? 0, y: start?.y ?? 0, yaw: 0 };
 }
 
 async function buildStates(count: number): Promise<DeviceState[]> {
@@ -446,7 +514,7 @@ async function buildStates(count: number): Promise<DeviceState[]> {
   const states: DeviceState[] = vehicles.slice(0, limit).map((vehicle, index) => {
     const sceneId = vehicle.defaultSceneId || "";
     const bounds = findBounds(scenes, sceneId);
-    const scenario = SCENARIO_RING[index % SCENARIO_RING.length];
+    const scenario = pickFromRing(SCENARIO_RING, index);
     const synthetic = buildRoute(bounds, index);
 
     // Prefer the real road network: a demo whose vehicles drive across blank

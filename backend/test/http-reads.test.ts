@@ -42,7 +42,7 @@ describe("GET /api/formations", () => {
     expect(response.status).toBe(200);
     const body = response.body as { items: Array<{ formationId: string }> };
     expect(body.items).toHaveLength(1);
-    expect(body.items[0].formationId).toBe("formation-a");
+    expect(body.items[0]?.formationId).toBe("formation-a");
   });
 });
 

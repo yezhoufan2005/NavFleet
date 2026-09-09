@@ -21,8 +21,8 @@ describe("validation → 400 response wiring", () => {
     const body = response.body as ValidationErrorBody;
     expect(body.error).toBe("invalid_request");
     expect(body.issues.length).toBeGreaterThan(0);
-    expect(body.issues[0].path).toBe("limit");
-    expect(typeof body.issues[0].message).toBe("string");
+    expect(body.issues[0]?.path).toBe("limit");
+    expect(typeof body.issues[0]?.message).toBe("string");
     expect(context.store.getHistory).not.toHaveBeenCalled();
   });
 
@@ -50,7 +50,7 @@ describe("validation → 400 response wiring", () => {
 
     expect(response.status).toBe(400);
     // A bare string schema has no field path, so the issue path is empty.
-    expect((response.body as ValidationErrorBody).issues[0].path).toBe("");
+    expect((response.body as ValidationErrorBody).issues[0]?.path).toBe("");
     expect(context.store.getHistory).not.toHaveBeenCalled();
   });
 

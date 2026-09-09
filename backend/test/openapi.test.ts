@@ -79,8 +79,8 @@ describe("openApiDocument", () => {
 
     const schemas = (openApiDocument.components as { schemas: Record<string, unknown> })
       .schemas as Record<string, { properties: Record<string, { type?: unknown }> }>;
-    expect(schemas.Alert.properties.code.type).toEqual(["number", "null"]);
-    expect(schemas.Alert.properties.clearedAt.type).toEqual(["string", "null"]);
+    expect(schemas.Alert?.properties.code?.type).toEqual(["number", "null"]);
+    expect(schemas.Alert?.properties.clearedAt?.type).toEqual(["string", "null"]);
   });
 
   it("documents the error fields the server actually sends", () => {
@@ -91,7 +91,7 @@ describe("openApiDocument", () => {
     // 500 — the last one exists precisely so a caller can quote it, and a client built
     // from the spec could not read any of the three.
     for (const field of ["error", "message", "issues", "requiredRoles", "requestId"]) {
-      expect(schemas.Error.properties[field], `Error.${field}`).toBeTruthy();
+      expect(schemas.Error?.properties[field], `Error.${field}`).toBeTruthy();
     }
   });
 
@@ -118,10 +118,16 @@ describe("openApiDocument", () => {
 
     const paths = openApiDocument.paths as Record<string, { get?: { security?: unknown[] } }>;
     // Public probes opt out of the global security requirement with `security: []`.
-    expect(paths["/health"].get?.security).toEqual([]);
-    expect(paths["/metrics"].get?.security).toEqual([]);
+    expect(paths["/health"]?.get?.security).toEqual([]);
+    expect(paths["/metrics"]?.get?.security).toEqual([]);
     // Authenticated endpoints inherit the global cookieAuth requirement (no override).
-    expect(paths["/api/v1/fleet/snapshot"].get?.security).toBeUndefined();
+    // Fetched into a local on purpose: written as `paths[…]?.get?.security`, a path that
+    // had *disappeared* from the spec would also read `undefined` and this assertion would
+    // stay green while documenting nothing. The two above are safe as they stand — a
+    // missing path reads `undefined`, which is not `[]`.
+    const snapshot = paths["/api/v1/fleet/snapshot"];
+    expect(snapshot).toBeTruthy();
+    expect(snapshot?.get?.security).toBeUndefined();
   });
 });
 
@@ -147,12 +153,12 @@ describe("input schemas generated from the validators", () => {
     // The hand-written version omitted this, promising empty strings were fine.
     const properties = (expected as { properties: Record<string, { minLength?: number }> })
       .properties;
-    expect(properties.username.minLength).toBe(1);
-    expect(properties.password.minLength).toBe(1);
+    expect(properties.username?.minLength).toBe(1);
+    expect(properties.password?.minLength).toBe(1);
   });
 
   it("documents the history query bounds the server actually enforces", () => {
-    const limit = paths["/api/v1/devices/{deviceId}/history"].get?.parameters?.find(
+    const limit = paths["/api/v1/devices/{deviceId}/history"]?.get?.parameters?.find(
       (parameter) => parameter.name === "limit",
     );
 
@@ -168,7 +174,7 @@ describe("input schemas generated from the validators", () => {
   });
 
   it("documents every alert filter the validator accepts, and no others", () => {
-    const documented = paths["/api/v1/alerts"].get?.parameters?.map((p) => p.name) ?? [];
+    const documented = paths["/api/v1/alerts"]?.get?.parameters?.map((p) => p.name) ?? [];
     const validated = Object.keys(
       (
         z.toJSONSchema(alertsQuerySchema, { io: "input" }) as {

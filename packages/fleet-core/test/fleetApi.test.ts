@@ -41,9 +41,9 @@ describe("fleetApi", () => {
 
     expect(payload).toEqual({ fleetName: "测试车队", devices: [] });
     expect(calls).toHaveLength(1);
-    expect(calls[0].url).toBe("/api/v1/fleet/snapshot");
-    expect(calls[0].init.credentials).toBe("include");
-    expect(calls[0].init.cache).toBe("no-store");
+    expect(calls[0]?.url).toBe("/api/v1/fleet/snapshot");
+    expect(calls[0]?.init.credentials).toBe("include");
+    expect(calls[0]?.init.cache).toBe("no-store");
   });
 
   it("returns the parsed JSON body for the scene catalog", async () => {
@@ -52,7 +52,7 @@ describe("fleetApi", () => {
     await expect(fleetApi.getScenes()).resolves.toEqual({
       items: [{ sceneId: "yard" }],
     });
-    expect(calls[0].url).toBe("/api/v1/scenes");
+    expect(calls[0]?.url).toBe("/api/v1/scenes");
   });
 
   it("throws with the status code when the response is not 2xx", async () => {
@@ -66,7 +66,7 @@ describe("fleetApi", () => {
 
     await fleetApi.getScene("floor 1/a");
 
-    expect(calls[0].url).toBe("/api/v1/scenes/floor%201%2Fa");
+    expect(calls[0]?.url).toBe("/api/v1/scenes/floor%201%2Fa");
   });
 
   it("builds a query string from the defined params only", async () => {
@@ -78,7 +78,7 @@ describe("fleetApi", () => {
       limit: 50,
     });
 
-    expect(calls[0].url).toBe(
+    expect(calls[0]?.url).toBe(
       "/api/v1/devices/agv%201/history?from=2026-08-26T00%3A00%3A00Z&limit=50",
     );
   });
@@ -88,7 +88,7 @@ describe("fleetApi", () => {
 
     await fleetApi.getAlerts();
 
-    expect(calls[0].url).toBe("/api/v1/alerts");
+    expect(calls[0]?.url).toBe("/api/v1/alerts");
   });
 
   it("passes alert filters through as query params", async () => {
@@ -100,7 +100,7 @@ describe("fleetApi", () => {
       status: "active",
     });
 
-    expect(calls[0].url).toBe(
+    expect(calls[0]?.url).toBe(
       "/api/v1/alerts?severity=critical&deviceId=agv-1&status=active",
     );
   });

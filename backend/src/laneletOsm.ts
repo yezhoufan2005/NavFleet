@@ -31,15 +31,59 @@ interface ProjectionOrigin {
 
 const round = (value: number, digits = 3): number => Number(value.toFixed(digits));
 
+const ATTRIBUTE_PATTERN = /(\w+)=(?:"([^"]*)"|'([^']*)')/g;
+const NODE_PATTERN = /<node\b([^>]*)\/>/g;
+const WAY_PATTERN = /<way\b([^>]*)>([\s\S]*?)<\/way>/g;
+const RELATION_PATTERN = /<relation\b([^>]*)>([\s\S]*?)<\/relation>/g;
+const ND_PATTERN = /<nd\b([^>]*)\/>/g;
+const TAG_PATTERN = /<tag\b([^>]*)\/>/g;
+const MEMBER_PATTERN = /<member\b([^>]*)\/>/g;
+
 const parseAttributes = (fragment: string): Record<string, string> => {
   const attributes: Record<string, string> = {};
-  const regex = /(\w+)=(?:"([^"]*)"|'([^']*)')/g;
-  let match = regex.exec(fragment);
-  while (match) {
-    attributes[match[1]] = match[2] ?? match[3] ?? "";
-    match = regex.exec(fragment);
+  for (const [, name = "", quoted, apostrophed] of fragment.matchAll(ATTRIBUTE_PATTERN)) {
+    attributes[name] = quoted ?? apostrophed ?? "";
   }
   return attributes;
+};
+
+/**
+ * One XML element this parser cares about: its attributes, and its inner body.
+ *
+ * **Every element here had its own hand-rolled `exec` loop** — six of them, each reading
+ * `match[1]` and, for containers, `match[2]`. Those reads are provably present for these
+ * patterns, and typed `string | undefined` regardless, because a capture group's type does
+ * not depend on whether the pattern can skip it. Under `noUncheckedIndexedAccess` that was
+ * **15 of this file's 16**「possibly undefined」— one shape, fifteen times.
+ *
+ * Collapsing the loops answers all fifteen at once and drops the
+ * `let m = re.exec(x); while (m) { …; m = re.exec(x); }` bookkeeping, whose failure mode is
+ * an infinite loop. `matchAll` also clones the regex internally, so the patterns can now be
+ * module constants without `lastIndex` leaking between two bodies — which is exactly why the
+ * nested ones previously had to be re-declared inside their outer loop.
+ */
+interface XmlElement {
+  /** Parsed `key="value"` pairs from the opening tag. */
+  attributes: Record<string, string>;
+  /** Everything between the tags; `""` for the self-closing patterns. */
+  body: string;
+}
+
+const elementsOf = (xml: string, pattern: RegExp): XmlElement[] =>
+  [...xml.matchAll(pattern)].map((match) => ({
+    attributes: parseAttributes(match[1] ?? ""),
+    body: match[2] ?? "",
+  }));
+
+/** `<tag k=… v=…/>` children as a record — identical in `<way>` and `<relation>`. */
+const tagsOf = (body: string): Record<string, string> => {
+  const tags: Record<string, string> = {};
+  for (const { attributes } of elementsOf(body, TAG_PATTERN)) {
+    if (attributes.k) {
+      tags[attributes.k] = attributes.v || "";
+    }
+  }
+  return tags;
 };
 
 const projectLngLat = (lng: number, lat: number, originLng: number, originLat: number) => {
@@ -51,17 +95,13 @@ const projectLngLat = (lng: number, lat: number, originLng: number, originLat: n
 
 const extractNodes = (xmlText: string): Map<string, OsmNode> => {
   const nodes = new Map<string, OsmNode>();
-  const nodeRegex = /<node\b([^>]*)\/>/g;
-  let match = nodeRegex.exec(xmlText);
 
-  while (match) {
-    const attributes = parseAttributes(match[1]);
+  for (const { attributes } of elementsOf(xmlText, NODE_PATTERN)) {
     const lat = Number(attributes.lat);
     const lng = Number(attributes.lon);
     if (attributes.id && Number.isFinite(lat) && Number.isFinite(lng)) {
       nodes.set(attributes.id, { lat, lng });
     }
-    match = nodeRegex.exec(xmlText);
   }
 
   return nodes;
@@ -69,43 +109,19 @@ const extractNodes = (xmlText: string): Map<string, OsmNode> => {
 
 const extractWays = (xmlText: string): Map<string, OsmWay> => {
   const ways = new Map<string, OsmWay>();
-  const wayRegex = /<way\b([^>]*)>([\s\S]*?)<\/way>/g;
-  let match = wayRegex.exec(xmlText);
 
-  while (match) {
-    const attributes = parseAttributes(match[1]);
-    const body = match[2];
-    const refs: string[] = [];
-    const ndRegex = /<nd\b([^>]*)\/>/g;
-    let ndMatch = ndRegex.exec(body);
-    while (ndMatch) {
-      const ndAttributes = parseAttributes(ndMatch[1]);
-      if (ndAttributes.ref) {
-        refs.push(ndAttributes.ref);
-      }
-      ndMatch = ndRegex.exec(body);
-    }
-
-    const tags: Record<string, string> = {};
-    const tagRegex = /<tag\b([^>]*)\/>/g;
-    let tagMatch = tagRegex.exec(body);
-    while (tagMatch) {
-      const tagAttributes = parseAttributes(tagMatch[1]);
-      if (tagAttributes.k) {
-        tags[tagAttributes.k] = tagAttributes.v || "";
-      }
-      tagMatch = tagRegex.exec(body);
-    }
+  for (const { attributes, body } of elementsOf(xmlText, WAY_PATTERN)) {
+    const refs = elementsOf(body, ND_PATTERN)
+      .map((nd) => nd.attributes.ref)
+      .filter((ref): ref is string => Boolean(ref));
 
     if (attributes.id) {
       ways.set(attributes.id, {
         id: attributes.id,
         refs,
-        tags,
+        tags: tagsOf(body),
       });
     }
-
-    match = wayRegex.exec(xmlText);
   }
 
   return ways;
@@ -113,36 +129,14 @@ const extractWays = (xmlText: string): Map<string, OsmWay> => {
 
 const extractLanelets = (xmlText: string): RawLanelet[] => {
   const lanelets: RawLanelet[] = [];
-  const relationRegex = /<relation\b([^>]*)>([\s\S]*?)<\/relation>/g;
-  let match = relationRegex.exec(xmlText);
 
-  while (match) {
-    const attributes = parseAttributes(match[1]);
-    const body = match[2];
-    const tags: Record<string, string> = {};
-    const members: Array<Record<string, string>> = [];
-
-    const tagRegex = /<tag\b([^>]*)\/>/g;
-    let tagMatch = tagRegex.exec(body);
-    while (tagMatch) {
-      const tagAttributes = parseAttributes(tagMatch[1]);
-      if (tagAttributes.k) {
-        tags[tagAttributes.k] = tagAttributes.v || "";
-      }
-      tagMatch = tagRegex.exec(body);
-    }
-
+  for (const { attributes, body } of elementsOf(xmlText, RELATION_PATTERN)) {
+    const tags = tagsOf(body);
     if (tags.type !== "lanelet") {
-      match = relationRegex.exec(xmlText);
       continue;
     }
 
-    const memberRegex = /<member\b([^>]*)\/>/g;
-    let memberMatch = memberRegex.exec(body);
-    while (memberMatch) {
-      members.push(parseAttributes(memberMatch[1]));
-      memberMatch = memberRegex.exec(body);
-    }
+    const members = elementsOf(body, MEMBER_PATTERN).map((member) => member.attributes);
 
     lanelets.push({
       id: attributes.id || `${lanelets.length + 1}`,
@@ -152,8 +146,6 @@ const extractLanelets = (xmlText: string): RawLanelet[] => {
       right: members.find((item) => item.role === "right")?.ref || "",
       centerline: members.find((item) => item.role === "centerline")?.ref || "",
     });
-
-    match = relationRegex.exec(xmlText);
   }
 
   return lanelets;

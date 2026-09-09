@@ -115,7 +115,7 @@ describe("ConfigRegistry.load", () => {
     const scenes = registry.listScenes();
     expect(scenes).toHaveLength(1);
     // bounds are derived from origin + width/height * resolution.
-    expect(scenes[0].bounds).toEqual({ minX: 1, maxX: 6, minY: 2, maxY: 12 });
+    expect(scenes[0]?.bounds).toEqual({ minX: 1, maxX: 6, minY: 2, maxY: 12 });
     expect(registry.getScene("scene-a")?.sceneName).toBe("场景 A");
     expect(registry.getScene("missing")).toBeNull();
     // No osmUrl, so there is no overlay to serve.
