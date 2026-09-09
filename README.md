@@ -64,7 +64,7 @@ NavFleet 把设备接入、实时展示、历史追踪、地图资源和运行�
 | **鉴权**       | JWT access + refresh（refresh cookie 限定在 `/api/auth` 路径）、限流；角色分权见上面那段说明 |
 | **可观测性**   | 分级健康探针、Prometheus 指标、request-id 贯穿日志、预置 Grafana 面板与告警规则              |
 | **运行期配置** | `config-runtime/*.json` 热加载，改车队 / 编队 / 场景无需重启或重建镜像                       |
-| **无障碍**     | WCAG 2.1 A + AA，axe-core 在 CI 中审计 5 个页面 × 明暗两套主题                               |
+| **无障碍**     | WCAG 2.1 A + AA，axe-core 在 CI 中审计 **12 条路由 × 4 个视口 × 明暗两套主题**               |
 
 ## 系统架构
 
@@ -185,7 +185,7 @@ NavFleet/
 │  │  └─ lib/            # 纯归一化函数，无 Vue 依赖
 │  └─ test/              # Vitest + jsdom + @vue/test-utils
 ├─ frontend-next/        # v3 控制台（navfleet-console）—— **默认部署的这一套**
-│  ├─ src/               # 8 条路由、web history、Tailwind v4 双主题、Reka UI
+│  ├─ src/               # 9 条产品路由、web history、Tailwind v4 双主题、Reka UI
 │  └─ test/              # Vitest + jsdom + @vue/test-utils
 ├─ packages/shared/      # @navfleet/shared —— 领域类型单一来源
 ├─ packages/fleet-core/  # @navfleet/fleet-core —— 两个前端共用的归一化与派生逻辑
@@ -374,8 +374,9 @@ CI 在 Node 22 / 24 上跑全部门禁，E2E 单独一个 job。提交前 husky 
 - **不做控制下发、不做多租户** —— 范围约束，不是待办。
 - **不做水平扩展**：状态在单进程内存里，多实例需要引入跨实例 pub/sub，与「内网单实例」的
   定位不符。
-- **11 个 `.vue` 仍是普通 `<script setup>`**，未加 `lang="ts"`。`src/**` 的 `.ts` 已全部
-  strict 且无显式 `any`，SFC 的渐进迁移推到 1.1。
+- **冻结的 `frontend/` 里有 12 个 `.vue` 仍是普通 `<script setup>`**（未加 `lang="ts"`）。
+  这条**不再是待办**：那一套已冻结，不会再迁移。部署的 `frontend-next/` 全部 SFC 都带
+  `lang="ts"`，在 `vue-tsc` 视野内。
 - **MQTT 摄入无背压**：broker 灌得足够快时，摄入队列会无限增长。
 - **`prom-client` 上游已 deprecated**，待 `@prometheus-io/client` 有采用度后替换。
 - **Lanelet2 解析不过滤 `delete="true"`**：示例网络 88 条 lanelet 中 46 条带该标记，目前
