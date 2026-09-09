@@ -26,7 +26,6 @@ BASE="http://127.0.0.1:${PORT}"
 COMPOSE_FILE="$ROOT/deploy/docker-compose.yml"
 ENV_FILE="$ROOT/deploy/.env"
 COOKIE="$(mktemp)"
-OVERLAY=""
 PASS=0
 FAIL=0
 SKIP=0
@@ -58,7 +57,6 @@ cleanup() {
     kill "$MOCK_PID" 2>/dev/null
   fi
   rm -f "$COOKIE"
-  [[ -n "$OVERLAY" ]] && rm -f "$OVERLAY"
   if [[ "$DO_DOWN" == "1" && "$CHECK_ONLY" == "0" ]]; then
     echo; echo "停栈（连它自己的卷一起删）…"
     compose down -v >/dev/null 2>&1
@@ -79,9 +77,7 @@ body() { curl -s "$@"; }
 deploy_var() { [[ -f "$ENV_FILE" ]] && sed -n "s/^$1=//p" "$ENV_FILE" | tail -1; }
 
 compose() {
-  local args=(-p "$PROJECT" -f "$COMPOSE_FILE")
-  [[ -n "$OVERLAY" ]] && args+=(-f "$OVERLAY")
-  docker compose --env-file "$ENV_FILE" "${args[@]}" "$@"
+  docker compose --env-file "$ENV_FILE" -p "$PROJECT" -f "$COMPOSE_FILE" "$@"
 }
 
 # ---------------------------------------------------------------------------
@@ -99,39 +95,12 @@ ADMIN_USER="$(deploy_var ADMIN_USERNAME)"; ADMIN_USER="${ADMIN_USER:-admin}"
 ADMIN_PASS="$(deploy_var ADMIN_PASSWORD)"
 [[ -n "$ADMIN_PASS" ]] || { echo "deploy/.env 里没有 ADMIN_PASSWORD，无法登录做鉴权断言。"; exit 1; }
 
-# SERVER-121912：MongoDB 8.0+ 自带的 TCMalloc 与 Linux 内核 6.19–7.0.13 冲突，mongod 在
-# 启动时崩溃循环。这条**不是仓库的问题**，deployment.md 3.1 把它列为部署前置检查，官方解法
-# 是把宿主内核升到 7.0.14 以上（Docker Desktop 用户即升 Docker Desktop 的虚拟机内核 ——
-# 注意升级 Docker Desktop 本身不一定动内核，要用下面这行确认）。
+# 这里曾经有一段内核检查：MongoDB 8.0+ 在 Linux 6.19–7.0.13 上拒绝启动
+# （SERVER-121912），所以脚本会在受影响的机器上自动挂一个把镜像降到 mongo:7 的临时 overlay。
 #
-# 但一个跑不起来的验收脚本毫无用处，所以在受影响内核上自动挂一个把镜像降到 mongo:7 的
-# overlay，并在开头和结尾都明说这次跑的不是仓库钉的版本。应用侧一字不改。
-KERNEL="$(docker info --format '{{.KernelVersion}}' 2>/dev/null)"
-kernel_affected() {
-  local v="${KERNEL%%-*}" major minor patch
-  IFS=. read -r major minor patch <<<"$v"
-  [[ -z "${major:-}" || -z "${minor:-}" ]] && return 1
-  patch="${patch:-0}"
-  # 6.19 ≤ 内核 ≤ 7.0.13
-  if (( major == 6 && minor >= 19 )); then return 0; fi
-  if (( major == 7 && minor == 0 && patch <= 13 )); then return 0; fi
-  return 1
-}
-
-MONGO_NOTE=""
-if kernel_affected; then
-  OVERLAY="$(mktemp -t navfleet-mongo7-XXXX.yml)"
-  cat >"$OVERLAY" <<'YML'
-# 由 scripts/verify-stack.sh 生成，不进仓库。
-services:
-  mongo:
-    image: mongo:7
-YML
-  MONGO_NOTE="内核 ${KERNEL} 命中 SERVER-121912，本次用 mongo:7 而非仓库钉的 mongo:8.0"
-  echo "⚠ ${MONGO_NOTE}"
-  echo "  仓库无需改动；要跑仓库钉的版本，把宿主内核升到 7.0.14 以上。"
-  echo
-fi
+# 那段代码已经删掉了 —— **compose 直接钉 mongo:7.0 了**（理由见 deployment.md 3.1：本项目一行
+# 代码都不需要 8.0，而 8.0 换来的只是「更新」，代价是一整类宿主起不来）。一个不再需要的
+# 变通比它解决的问题更容易误导人。
 
 # ---------------------------------------------------------------------------
 # 起栈
@@ -304,7 +273,6 @@ eq "登出" 204 "$(code -b "$COOKIE" -X POST "$BASE/api/auth/logout")"
 echo
 echo "─────────────────────────────────────────────"
 printf "  通过 %d · 失败 %d · 跳过 %d\n" "$PASS" "$FAIL" "$SKIP"
-[[ -n "$MONGO_NOTE" ]] && echo "  ⚠ ${MONGO_NOTE}"
 if [[ "$DO_DOWN" == "0" && "$CHECK_ONLY" == "0" ]]; then
   echo "  控制台: ${BASE}   账号: ${ADMIN_USER} / （deploy/.env 里的 ADMIN_PASSWORD）"
   echo "  API 文档: ${BASE}/docs"

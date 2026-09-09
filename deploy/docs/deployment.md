@@ -64,25 +64,43 @@ docker version
 docker compose version
 ```
 
-### 3.1 宿主内核：MongoDB 8 与 Linux 6.19–7.0.13 不兼容
+### 3.1 为什么 MongoDB 钉在 7.0 而不是 8.0
 
-**这一条会直接导致 `mongo` 容器起不来，且报错不提 Docker、只提内核。** MongoDB 8.0 及以上
-自带的 TCMalloc 与 Linux 内核 6.19 到 7.0.13 冲突，`mongod` 在启动时崩溃并循环重启，日志是：
+**因为 8.0 在一大批当代内核上根本起不来。** MongoDB 8.0 及以上自带的 TCMalloc 与 Linux 内核
+6.19 到 7.0.13 冲突（[SERVER-121912](https://jira.mongodb.org/browse/SERVER-121912)），`mongod`
+在启动时拒绝启动并循环重启，日志只提内核、不提 Docker：
 
 ```text
 MongoDB cannot start: Linux kernel versions 6.19 and newer has a known incompatibility
 with this version of MongoDB. See https://jira.mongodb.org/browse/SERVER-121912
 ```
 
-先看宿主（或 Docker Desktop 虚拟机）的内核：
+MongoDB 官方给的唯一解法是**把宿主内核升到 7.0.14 或更高** —— 8.0.30（2026-09-08）也只是移除了
+对 7.0.14+ 的启动拦截，没有哪个 8.0.x 能在受影响内核上跑。而「升级宿主内核」在客户机房不一定是
+一句话能办的事，Docker Desktop 用户还会撞上一个更隐蔽的情况：**升级 Docker Desktop 本身不一定
+换掉它虚拟机的内核**。
+
+所以这里的取舍是：**本项目一行代码都不需要 8.0。** 时序集合（5.0+）、TTL、`collMod`、唯一索引
+全部是 7.0 就有的能力。用 8.0 换来的只是「更新」，代价是一整类宿主起不来 —— 不值得。
+
+想确认自己这台机器：
 
 ```bash
 docker info --format '{{.KernelVersion}}'
 ```
 
-落在 `6.19` ～ `7.0.13` 之间就会中招，**升到 7.0.14 或更高即可**（这是 MongoDB 官方给的解法，
-见 8.0 发行说明）。注意 compose 里 `backend` 对 `mongo` 是 `condition: service_healthy`，
-所以 mongo 起不来时后端也不会启动 —— 症状是整栈只有 nginx 与前端在跑。
+**两件要记住的：**
+
+- **7.0 的生命周期到 2027-08-31**（MongoDB 把 7.0 从 3 年延长到了 4 年）。也就是说这个钉法有
+  大约一年的余量，之后需要一次有计划的升级 —— 届时宿主内核大概率已经在 7.0.14 以上，届时
+  升到 8.x 或更高就是一行 `image:`。
+- **已经用 8.0 跑起来过的部署不能直接降。** 8.0 写过的数据卷 mongo 7 打不开，会以
+  `exitCode: 62` 退出。这种情况要么继续用 8.0（若宿主内核不在受影响区间），要么
+  `mongodump` 导出 → 换镜像 → 清卷 → `mongorestore` 导入（见
+  [backup-and-restore.md](./backup-and-restore.md)）。
+
+注意 compose 里 `backend` 对 `mongo` 是 `condition: service_healthy`，所以 mongo 起不来时后端
+也不会启动 —— 症状是整栈只有 nginx 与前端在跑。
 
 ## 4. 首次部署
 
