@@ -79,28 +79,28 @@ CI 全绿 → `--no-ff` 合并 → 回写本文件并记录自检结果。
 
 七件事收口于 1.1.0 发版。之后的顺序**由负责人 2026-09-09 定，不要跳**：
 
-| 顺序 | 内容                                    | 状态                         |
-| ---- | --------------------------------------- | ---------------------------- |
-| 1    | **P0-f 工程门禁批次**（剩 5 批，见下）  | 第 1 批已做（14X），2–6 待办 |
-| 2    | **Phase 15** 用户体系与真 RBAC（1.2.0） | 15A schema 迁移机制必须先做  |
-| 3    | **Phase 16** 告警体系深化（1.3.0）      | 待办                         |
-| 4    | **Phase 17** 报表与数据价值（1.4.0）    | 待办                         |
-| 5    | **Phase 18** 交付成熟度收尾（2.0.0）    | 待办                         |
-| 6    | **最后三项**（见下一节）                | 负责人明确后置到所有任务之后 |
+| 顺序 | 内容                                    | 状态                          |
+| ---- | --------------------------------------- | ----------------------------- |
+| 1    | **P0-f 工程门禁批次**（剩 4 批，见下）  | 1–2 已做（14X/14Y），3–6 待办 |
+| 2    | **Phase 15** 用户体系与真 RBAC（1.2.0） | 15A schema 迁移机制必须先做   |
+| 3    | **Phase 16** 告警体系深化（1.3.0）      | 待办                          |
+| 4    | **Phase 17** 报表与数据价值（1.4.0）    | 待办                          |
+| 5    | **Phase 18** 交付成熟度收尾（2.0.0）    | 待办                          |
+| 6    | **最后三项**（见下一节）                | 负责人明确后置到所有任务之后  |
 
 ### P0-f 拆成六批，因为量出来差得很远
 
 原计划是「一个批次八项」。逐项实测之后必须拆开 —— 前四项零风险可以一次做完，两个严格开关合计
 **170+ 处机械修复**：
 
-| 批  | 内容                                                                                       | 实测规模                                                      |
-| --- | ------------------------------------------------------------------------------------------ | ------------------------------------------------------------- |
-| 1   | shared 纳入 lint · `no-unused-vars` → error · `--max-warnings 0` · playwright `retries: 0` | **0 fallout**，已完成（14X）                                  |
-| 2   | `noUncheckedIndexedAccess`                                                                 | backend **103** + fleet-core **9** + shared 0（console 未量） |
-| 3   | `recommendedTypeChecked`（type-aware lint）                                                | backend **65**（其余未量）                                    |
-| 4   | eslint 9 → 10 + eslint-plugin-vue 9 → 10                                                   | 必须同时，手写；dependabot 只给了一半                         |
-| 5   | vitest 3 → 5 + `@vitest/coverage-v8` 3 → 5                                                 | 必须同时，且要**重定四个覆盖率门槛**                          |
-| 6   | 覆盖率近零区补测                                                                           | `persistence.ts` 42.6% · `store.ts` 57.4%                     |
+| 批  | 内容                                                                                       | 实测规模                                                        |
+| --- | ------------------------------------------------------------------------------------------ | --------------------------------------------------------------- |
+| 1   | shared 纳入 lint · `no-unused-vars` → error · `--max-warnings 0` · playwright `retries: 0` | **0 fallout**，已完成（14X）                                    |
+| 2   | `noUncheckedIndexedAccess` 等五个严格开关                                                  | shared 0 · fleet-core 9 · e2e 19 · backend 103 —— 已完成（14Y） |
+| 3   | `recommendedTypeChecked`（type-aware lint）                                                | backend **65**（其余未量）                                      |
+| 4   | eslint 9 → 10 + eslint-plugin-vue 9 → 10                                                   | 必须同时，手写；dependabot 只给了一半                           |
+| 5   | vitest 3 → 5 + `@vitest/coverage-v8` 3 → 5                                                 | 必须同时，且要**重定四个覆盖率门槛**                            |
+| 6   | 覆盖率近零区补测                                                                           | `persistence.ts` 42.6% · `store.ts` 57.4%                       |
 
 **第 1 批放在最前面有个实际理由**：`--max-warnings 0` 一旦立起来，后面每一批新开的规则就不可能
 以 warning 的形式偷偷积压 —— 要么修掉，要么显式豁免，没有第三条路。
@@ -397,7 +397,12 @@ Phase 14 里，是为了它既不阻塞发版、也不被当成「以后自然�
       `format:check`」这半条已经不成立** —— 根 `format:check` 里已经有
       `prettier --check "e2e/**/*.{ts,json}"`，是这条待办写下之后补的，核对时才发现，已划掉
 - [ ] 覆盖率近零区补测：后端 `persistence.ts` 42.6%（3 例）/ `store.ts` 57.4%（**2 例**）
-- [ ] tsconfig 补 `noUncheckedIndexedAccess` 等严格开关（四份配置现在只开了 `strict`）
+- [x] tsconfig 补 `noUncheckedIndexedAccess` 等严格开关。**这条待办的括号里原本写着「四份配置现在
+      只开了 `strict`」，而那是错的**：`frontend-next/tsconfig.json` 从建起来那天就带着全部五个开关。
+      所以这一批的目标不是「更严」，是**把其余三个拉到 console 已经在的水平** —— 措辞错了，工作量
+      的判断也就错了（真正的量是 shared 0 · fleet-core 9 · e2e 19 · backend 103）。冻结的
+      `frontend/` 不在其内：加这五个开关正好会逼着改冻结代码，而冻结口径是「门禁只去掉会逼着我们
+      改它的那一个」
 - [ ] **eslint 9 → 10 + eslint-plugin-vue 9 → 10，必须同时，而且要手写 PR。** dependabot 分开开了两个
       PR，**单独任何一个都红**：#110（eslint 10）在两个前端红，#108（plugin-vue 10）在 console 红 ——
       eslint 10 需要 plugin-vue 10，而 plugin-vue 10 在 eslint 9 下不工作。
@@ -466,6 +471,7 @@ Phase 14 里，是为了它既不阻塞发版、也不被当成「以后自然�
 > | 14V  | 补三条阶段收尾门禁，明确 P0-f 不在发版前 |
 > | 14W  | **1.1.0 发布** —— Phase 14 收口          |
 > | 14X  | P0-f 第 1 批：四道零风险门禁             |
+> | 14Y  | P0-f 第 2 批：五个严格开关               |
 
 - [x] **等价性验收**：parity 清单 + E2E 75 例 + axe 零违规 + **负责人人工验收**（第 5 条决策明确
       要"检查前端是否符合预期且调整后"才进下一步）。负责人 2026-09-02 确认验收通过；其间的调整迭代见
@@ -1101,7 +1107,7 @@ coverage-v8 5，后者还要重定四个覆盖率门槛）。这批的性质是*
 - [x] `amtool check-config` 用 compose 实际钉的 `v0.28.1` 复验通过
 - [x] README 的门禁清单补 `check:map-contrast` 与 `check:deploy` 两条 —— 此前它们存在但没写进文档
 - [x] **P0-f 八项刻意排在 1.1.0 之后** —— 已执行：1.1.0 发布后逐项实测并拆成六批，
-      第 1 批（四项零风险）见 14X，2–6 批的规模见开头「工作序列」
+      第 1 批（四项零风险）见 14X、第 2 批（五个严格开关）见 14Y，3–6 批的规模见开头「工作序列」
 
 #### 14W — 1.1.0 发布（2026-09-09）
 
@@ -1155,6 +1161,42 @@ coverage-v8 5，后者还要重定四个覆盖率门槛）。这批的性质是*
       （无跨用例竞争）、端口固定 3199/5299 且从不复用已有 server（不会连到上次残留）。这个套件里
       没有「同一份代码有时过有时不过」的合法来源。注释里写明：以后真抖了，要找那条用例为什么不
       确定，而不是把 retries 加回来
+
+#### 14Y — P0-f 第 2 批：五个严格开关，131 处报错里 83 处由三个结构性改动收掉（2026-09-10）
+
+> 负责人：「自动化完成 Phase 15 前全部内容」。这是第二批 —— 唯一真正有修改量的一批。
+
+**这条待办原本的括号写错了**：它说「四份配置现在只开了 `strict`」，而 `frontend-next` 从建起来那天
+就带着全部五个开关。所以这批的目标不是「更严」，是**把其余三个拉到 console 已经在的水平**。措辞错
+了，工作量的判断也跟着错 —— 真正的量是 shared **0** · fleet-core **9** · e2e **19** · backend **103**。
+
+- [x] 四份 tsconfig 补 `noUncheckedIndexedAccess` / `noImplicitOverride` /
+      `noFallthroughCasesInSwitch` / `noUnusedLocals` / `noUnusedParameters`。冻结的 `frontend/`
+      不在其内：加这五个开关正好会逼着改冻结代码，而冻结口径是「门禁只去掉会逼着我们改它的那一个」
+- [x] **e2e 的 19 处是同一件事，用一处类型收掉。** 六个 spec 都在**按位置**从 `SEEDED_DEVICES`
+      解构（`const [noticeDevice, warningDevice, criticalDevice] = …`、`const [firstDevice, ,
+  faultedDevice] = …`），所以**长度与顺序本来就是那个模块的契约**，和字段值一样。此前标成
+      `SeededDevice[]` 是在说另一回事，而这个开关正好把不一致翻出来。改成
+      `readonly [SeededDevice, SeededDevice, SeededDevice]` 后 19 处全消，一行 spec 没动。
+      代价写进注释了：往种子里加第四台车会在那个字面量上编译不过 —— 那正是要的效果
+- [x] **`mock-mqtt.ts` 的 48 处（占整批 103 处 backend 报错的近一半），一个 `segmentsOf` 收掉。**
+      五个几何函数都在 `for` 循环里读 `points[i]` / `points[i - 1]`。改法不是 48 个 `!`，是去迭代
+      这些函数真正在讲的东西：**线段**。**这是行为改写而脚本无测试覆盖**，所以另写一次性对照：
+      旧实现逐字复制一份，与新实现在 400 条随机折线 × 21 个采样点、外加随机试验产生不了的退化形状
+      （单点／重复点／首尾同一对象／全零）上比对 —— **42880 次比较 0 处不一致**，之后删掉
+- [x] 顺带修掉两处旧的谎：`pointAtFraction` 以 `return points[points.length - 1]` 结尾，返回类型写
+      `Point`、空数组时实际返回 `undefined`；`pointOnRoute` 在空 route 上会抛
+      `Cannot read properties of undefined`。两处都因为调用点先查了 `.length` 而从未发作
+- [x] **`laneletOsm.ts` 的 16 处，一个 `elementsOf` 收掉 15 处。** 六个手写 `exec` 循环各读
+      `match[1]` / `match[2]`；合成一个helper 一次回答 15 处，同时删掉失败形态是死循环的
+      `let m = re.exec(x); while (m) { …; m = re.exec(x); }` 簿记，并把 `<way>` 与 `<relation>` 里
+      两段一模一样的 tag 收集合成 `tagsOf`。`matchAll` 内部克隆正则，所以模式现在可以提到模块常量
+      —— 嵌套的那几个此前必须写在外层循环里，正是为了躲 `lastIndex` 泄漏
+- [x] **测试里 42 处 `?.`，有一处不能这么改。** `openapi.test.ts` 那句
+      `expect(paths["/api/v1/fleet/snapshot"].get?.security).toBeUndefined()`：改成
+      `paths[…]?.get?.security` 之后，这条路径**整个从文档里消失**也读作 `undefined`、断言照绿，
+      而它本来要证明的是「这个端点继承全局 cookieAuth」。改为先取局部变量并断言路径存在。
+      同一个 `it` 里另外两句是安全的 —— 路径消失读作 `undefined`，而它们期望 `[]`
 
 ## Phase 15 — 用户体系与真 RBAC（发版 1.2.0）
 
