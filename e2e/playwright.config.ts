@@ -56,7 +56,21 @@ export default defineConfig({
   fullyParallel: false,
   workers: 1,
   forbidOnly: !!process.env.CI,
-  retries: process.env.CI ? 1 : 0,
+  /*
+   * **零重试，CI 也一样。**
+   *
+   * 这里原来是 `process.env.CI ? 1 : 0`，而那个 1 的作用不是「容忍偶发」，是**把真缺陷标成
+   * flaky 然后放行**：一条重跑就过的用例，在报告里读作「flaky」，而它可能是一个真实的竞态。
+   *
+   * 之所以现在敢去掉，是因为疑虑已经被逐个消掉了：`fleet.setup.ts` 通过 `POST /debug/ingest`
+   * 同步注入种子（不依赖 broker 的时序），套件本身 `workers: 1` 且 `fullyParallel: false`
+   * （不存在跨用例竞争），端口固定 3199/5299 且从不复用已有 server（不会连到上一次运行的残留）。
+   * 也就是说这个套件里没有「同一份代码有时过有时不过」的合法来源。
+   *
+   * 所以从现在起，红就是红。如果哪天真的抖了，正确的反应是找出那条用例为什么不确定，
+   * 而不是把 retries 加回来 —— 加回来只会让下一次抖动更难被看见。
+   */
+  retries: 0,
   timeout: 45_000,
   expect: { timeout: 10_000 },
   // Kept at the repo root so CI can archive them with a stable path.

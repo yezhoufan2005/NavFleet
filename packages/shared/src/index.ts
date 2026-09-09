@@ -36,9 +36,11 @@ export type MapProfile =
   | "lanelet"
   | "rosRaster"
   | "pointCloud"
-  // eslint-disable-next-line @typescript-eslint/ban-types -- keeps the union's known
-  // members visible while still admitting an arbitrary vendor profile; a bare `string`
-  // would absorb them and check nothing.
+  // `(string & {})` 而不是 `| string`：后者会把上面三个字面量吸收掉，于是编译器什么都不再检查，
+  // 而读者与自动补全也看不到已知取值。这里曾有一条 `eslint-disable-next-line
+  // @typescript-eslint/ban-types` —— 那个规则在 typescript-eslint v8 里**已经不存在**（被拆成
+  // no-empty-object-type 等三条），而这个写法在 v8 下本来也不触发任何规则。它是把 shared 纳入
+  // lint 之后报出来的第一件事：一条抑制着不存在规则的注释，因为这个包此前没有门禁而没人发现。
   | (string & {});
 
 export interface GpsPoint {

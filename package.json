@@ -18,7 +18,7 @@
     "typecheck": "npm run typecheck --workspaces --if-present && npm run typecheck:e2e",
     "typecheck:e2e": "tsc -p e2e/tsconfig.json",
     "lint": "npm run lint --workspaces --if-present && npm run lint:e2e",
-    "lint:e2e": "eslint e2e",
+    "lint:e2e": "eslint e2e --max-warnings 0",
     "lint:fix": "npm run lint:fix --workspaces --if-present && eslint e2e --fix",
     "format:check": "npm run format:check --workspaces --if-present && prettier --check \"e2e/**/*.{ts,json}\"",
     "format:e2e": "prettier --write \"e2e/**/*.{ts,json}\"",

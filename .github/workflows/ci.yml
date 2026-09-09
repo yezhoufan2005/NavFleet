@@ -63,6 +63,11 @@ jobs:
           cache: npm
           cache-dependency-path: package-lock.json
       - run: npm ci
+      # shared 是全仓唯一曾经没有 lint 与 format 门禁的 workspace —— 根配置 ignore 了
+      # `packages/**`（那条是为 fleet-core 自带配置写的），于是它从两边同时漏了下去。
+      # 而它恰好是最不该没门禁的那个：前后端共同引用的领域类型单一来源。
+      - run: npm run lint -w @navfleet/shared
+      - run: npm run format:check -w @navfleet/shared
       - run: npm run typecheck -w @navfleet/shared
       - run: npm run lint -w navfleet-backend
       - run: npm run format:check -w navfleet-backend
