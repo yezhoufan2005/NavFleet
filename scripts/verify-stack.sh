@@ -188,11 +188,18 @@ for path in /api/fleet/snapshot /api/v1/alerts /api/scenes /openapi.json /docs /
 done
 
 # --- 登录换会话 ----------------------------------------------------------
-LOGIN_BODY="$(printf '{"username":"%s","password":"%s"}' "$ADMIN_USER" "$ADMIN_PASS")"
+#
+# 登录体由函数拼，两次调用都走它 —— 而不是把一个「明显是错的」口令直接写成字面量。
+# 原因不是洁癖：秘密扫描器（本仓库 CI 里的 GitGuardian）看到 JSON 的口令字段后面跟着一个
+# 字面串就会判为硬编码凭据并把 PR 判红，而它没法知道那串是刻意用来被拒的。第一版就是这么
+# 被拦下来的。错口令用时间戳生成，顺带保证它不可能碰巧等于真口令。
+login_body() { printf '{"username":"%s","password":"%s"}' "$ADMIN_USER" "$1"; }
+WRONG_PASS="rejected-on-purpose-$(date +%s)"
+
 eq "错误口令登录被拒" 401 "$(code -H 'Content-Type: application/json' \
-  -d "$(printf '{"username":"%s","password":"definitely-not-it"}' "$ADMIN_USER")" "$BASE/api/auth/login")"
+  --data-binary "$(login_body "$WRONG_PASS")" "$BASE/api/auth/login")"
 eq "正确口令登录成功" 200 "$(code -c "$COOKIE" -H 'Content-Type: application/json' \
-  --data-binary "$LOGIN_BODY" "$BASE/api/auth/login")"
+  --data-binary "$(login_body "$ADMIN_PASS")" "$BASE/api/auth/login")"
 eq "会话 /api/auth/me"  200 "$(code -b "$COOKIE" "$BASE/api/auth/me")"
 eq "token 续签"         200 "$(code -b "$COOKIE" -X POST "$BASE/api/auth/refresh")"
 
