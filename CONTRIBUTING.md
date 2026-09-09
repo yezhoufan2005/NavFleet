@@ -75,7 +75,7 @@ npm run e2e                     # Playwright 端到端（自动拉起 backend + 
 
 npm run dev:backend             # 后端 dev（tsx watch）
 npm run dev:console             # 新前端 dev（vite，:5273）—— 默认部署的这一套
-npm run dev:frontend            # 旧前端 dev（vite，:5173）—— 已退役，仅回滚验证用
+npm run dev:frontend            # 旧前端 dev（vite，:5173）—— 已冻结，仅回滚验证用
 npm run mock:mqtt               # 发布确定性演示遥测
 ```
 
@@ -112,11 +112,18 @@ npm run mock:mqtt               # 发布确定性演示遥测
 ```bash
 npm run lint && npm run format:check && npm run typecheck && npm run build
 npm run check:map-contrast
-for w in navfleet-backend @navfleet/fleet-core navfleet-frontend navfleet-console; do
+for w in navfleet-backend @navfleet/fleet-core navfleet-console; do
     npm run test:coverage -w "$w" || break
 done
+npm test -w navfleet-frontend
 npm run e2e
 ```
+
+`navfleet-frontend` 是**冻结**的那一套：它照常跑 `lint` / `format:check` / `typecheck` /
+`test` / `build`，唯一去掉的是**覆盖率阈值** —— 那是这里唯一一个「谁都没碰相关代码却会变红」
+的门禁：一次 fleet-core 重构改变了旧前端测试走到的分支，棘轮就跳，而唯一的修法是去改一个
+**全部价值就在于不被改动**的 workspace 里的测试。它也是挡着 vitest 5 的四个阈值之一，去掉
+之后剩三个。
 
 涉及运行时/部署行为的改动请本地或容器验证，并在必要时更新 `ROADMAP.md` 与相关文档。
 

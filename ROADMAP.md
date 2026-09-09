@@ -1272,6 +1272,8 @@ frontend **132** · console **443** · e2e **73**。（PR #118 只改文档，�
       与 vitest 的大版本。
 - [~] **第二步（测试框架）—— 试过了，四套单测零改动全过，但覆盖率门禁四个一起红，
   决定推迟到旧前端下线之后**。实测数字与原因见本节后面的「vitest 5 的覆盖率口径」。
+  **2026-09-09 更新：14L 去掉了冻结 workspace 的覆盖率阈值，所以现在要重标的是三个
+  （backend / fleet-core / console），旧前端那一档不再进这笔账。**
 - [x] **第三步（交付侧）**：三个 Dockerfile 的 `node:20-alpine` → `node:24-alpine`，
       交付镜像不再跑在 EOL 运行时上。三个镜像都在本机重建通过，backend 运行时确认
       `v24.20.0`；后端单容器烟测 `/health` `/health/ready` `/metrics` 200、
@@ -1978,10 +1980,11 @@ keyframe **不需要各自写退化分支**，`UiSkeleton` 自己那条仍然保
 - [x] **地图帧率**（10 Hz 遥测持续 3 秒，场景地图）：v3 **60.1 fps**（等于 vsync 上限，无掉帧）、旧 **56.1 fps**。
 - [x] **切换本身**（2026-09-09）—— 负责人的口径是「切换新前端，但保留旧前端代码」，所以这一步只做
       切换，不做下线与改名。见下面的 14J
-- [x] **旧前端下线**（2026-09-09，14L）—— 负责人第二次澄清：「下线旧前端，启用新前端，我的意思是
-      不要移除旧前端保留旧前端的代码」。所以 `frontend/` 的**代码与门禁全部留着**，下线的是它
-      「默认那一套」的身份：dev 脚本、e2e 默认 baseURL、CI job 名、两个 Dockerfile 与两个
-      package.json 的自述
+- [x] **旧前端冻结**（2026-09-09，14L）—— 负责人两次澄清，第二次修正了我的判断：代码全留、
+      「后续项目只关注新前端」，而**门禁可以改**。落地是：身份全部让给 v3（dev 脚本、e2e 默认
+      baseURL、CI job 名、两个 Dockerfile 与两个 package.json 的自述），门禁只去掉**覆盖率阈值**
+      —— 那是唯一一个「谁都没碰它也会变红」的，其余（lint / format / typecheck / test / build /
+      e2e）全留
 - [ ] `frontend-next` 改名 —— **没做**，负责人这一轮没提，且它要动 CI / compose / playwright /
       lockfile，属于「跳跃」。等整理完再说
 - [ ] 同步收尾里剩下的：根 `build` 与 `playwright.config.ts` 的 workspace 名 —— 两处都要等改名
@@ -2073,34 +2076,53 @@ keyframe **不需要各自写退化分支**，`UiSkeleton` 自己那条仍然保
       `npm test` 不含 `test:coverage`（90% functions 阈值）也不含 `check:map-contrast`，照文档
       跑完全绿、CI 照样红。改成可直接粘的一段，并写明为什么不能只跑 `npm test`
 
-#### 14L — 旧前端下线（2026-09-09）
+#### 14L — 旧前端冻结（2026-09-09）
 
-> 负责人的原话：「下线旧前端，启用新前端，我的意思是**不要移除旧前端保留旧前端的代码**」。
-> 所以下线的不是代码，是它「默认那一套」的身份。**一条贯穿这一批的判断：保留代码作为回滚，
-> 就必须保留它的门禁** —— 一个没人构建的逃生门不是逃生门，而 `@navfleet/fleet-core` 是共享的，
-> 一次改动能让旧前端坏掉而 `frontend/` 下一个文件都没动。所以 CI 的 frontend job、覆盖率阈值、
-> e2e 的 frontend project **一个都没删**，只改了它们的名字与注释说清现在为什么还在。
+> 负责人两次澄清，第二次修正了我的判断。第一次：「下线旧前端，启用新前端，我的意思是**不要
+> 移除旧前端保留旧前端的代码**」。第二次：「**旧前端门禁可以修改** …… 旧前端就不改了，保留为
+> 原来的状态，后续项目只关注新前端，保留旧前端的目的是为了后续无需重写旧前端」。
+>
+> 我第一版的判断是「保留代码作为回滚，就必须保留它的**全部**门禁」，理由是逃生门不能烂掉。
+> 这个理由本身没错，但**我把它推得太远了**：门禁分两类，而只有一类真的在证明「还能用」。
+>
+> - **确定性的**（`lint` / `format:check` / `typecheck` / `test` / `build` / e2e）：代码不动，
+>   结果就不动。它们只会因为**工具链**变化而变红，而那时我们可以选择忽略这个 workspace。留。
+> - **棘轮式的**（覆盖率阈值）：**谁都没碰旧前端，它也会变红** —— 一次 fleet-core 重构改变了
+>   旧前端测试走到的分支，阈值就跳，而唯一的修法是去改一个「全部价值就在于不被改动」的
+>   workspace 里的测试。去掉。
+>
+> 也就是说，负责人说的「可以修改」正好落在这条界线上：该去的恰恰是那个会**逼着我们改动它**的
+> 门禁。顺带的收益是 vitest 5 的四个阈值变成三个 —— 这本来就是 14 记过的「等旧前端下线后
+> 只需重标三个 gate」。
 
 - [x] **`scripts/dev.sh` 默认改起 v3 控制台（:5273），旧那套退到 `--legacy`（:5173）**。这是这批里
       唯一会被每天碰到的一处：切换之后再默认起旧前端，等于让每个照文档跑 dev 的人**开发在一个
-      已经退役的界面上**
+      已经冻结的界面上**
+- [x] **CI 的 frontend job 去掉覆盖率阈值**（`test:coverage` → `test`），连带去掉它的 coverage
+      artifact 上传；`lint` / `format:check` / `typecheck` / `build` 全部保留。保留 lint 与
+      format:check 还有一个具体理由：根 `npm run lint` 用的是 `--workspaces`，会把冻结的这个也扫
+      进去 —— 如果 CI 不扫而本地扫，**文档口径与 CI 就又分叉了**，而那正是这一轮要消除的东西
+- [x] **`@navfleet/fleet-core` 的门禁从 frontend job 挪到 console job**。它是共享层，而现在只有
+      console 还在对着它开发 —— 门禁应该跟着还在动的那个消费者，否则「冻结 workspace 的 job」里
+      装着一个非冻结包的全套门禁，job 名说的和它做的不是一回事
 - [x] **顺带修掉 `dev.sh` 一个早就存在的 off-by-one**：`--help` 用 `sed -n '2,10p'` 印用法，而注释
       只到第 9 行 —— 每次 `--help` 末尾都多印一行 `set -uo pipefail`。加了 `--legacy` 之后范围正好是 2,10
 - [x] **`dev.sh` 在 `$WORKSPACE/.env` 缺失时提示一句**。高德 Key 是 Vite 构建期变量、**按 workspace
       各自一份**，而默认起的 workspace 变了 —— 只在 `frontend/.env` 配过 Key 的机器会第一次看到
       「未配置 Key」。这个提示曾被当成前端缺陷报上来一次，与其等第二次不如脚本自己说清
 - [x] **e2e 的默认 `baseURL` 从旧前端翻到 console**。一个没写清自己测哪一套的 spec，应该拿到**在役**
-      的那一套；此前的默认会让新 spec 静默指向已退役的一半。`frontend` project 显式覆盖回
-      `FRONTEND_URL`，所以它的行为没变
+      的那一套；此前的默认会让新 spec 静默指向已冻结的一半。`frontend` project 显式覆盖回
+      `FRONTEND_URL`，所以它的行为没变。**它的整套 spec 都留着** —— 这是唯一能证明冻结的代码
+      「还跑得起来」而不只是「还编得过」的东西，而且它不会因为别人重构共享包就变红
 - [x] **`seed` project 显式钉住 baseURL**。`fleet.setup.ts` 发的是相对 `/api/...`，此前隐式继承文件级
       默认值 —— 也就是说改那个默认值会静默搬动播种走的代理。钉住之后 80 例 e2e 本机全过（改动前后
       各跑一次）
-- [x] **CI job 名从「Frontend / Console v3」改成「Frontend v1.0.0, retired / Console v3, deployed」**。
+- [x] **CI job 名从「Frontend / Console v3」改成「Frontend v1.0.0, frozen / Console v3, deployed」**。
       job 名是 PR 页面上唯一看得见的那行字，两个中立的名字读不出哪个是在役的
 - [x] **两个 Dockerfile 与两个 `package.json` 的自述改成实话**：`frontend-next/Dockerfile` 原先写
       「Runs alongside navfleet-frontend rather than replacing it」、`frontend-next/package.json` 写
-      「until it reaches parity」，两句都已经不成立；`frontend/` 两处则明确写上「retired but kept，
-      门禁照跑，因为回滚不能烂掉」
+      「until it reaches parity」，两句都已经不成立；`frontend/` 两处则写明「frozen but kept，
+      门禁只去掉覆盖率阈值，理由见 CI 注释」
 - [x] **确认 `description` 不进 lockfile**：加/改这个字段后在 `node:22-alpine` 里
       `npm ci --ignore-scripts --dry-run` 通过且 lockfile 零改动（lockfile 的 workspace 镜像条目只有
       name/license/dependencies/devDependencies/engines）

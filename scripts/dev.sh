@@ -29,7 +29,7 @@ while [[ $# -gt 0 ]]; do
     --no-mock) MOCK_MODE="off"; shift ;;
     --legacy)
       FRONTEND_WORKSPACE="frontend"
-      FRONTEND_LABEL="v1.0.0 旧控制台（已退役，仅回滚用）"
+      FRONTEND_LABEL="v1.0.0 旧控制台（已冻结，仅回滚用）"
       FRONTEND_URL="http://127.0.0.1:5173"
       shift ;;
     # 2,10 是上面那段注释的确切范围。原来写的是 2,10 而注释只到第 9 行，于是 --help

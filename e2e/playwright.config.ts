@@ -83,7 +83,7 @@ export default defineConfig({
     // The console, because it is the one compose deploys. A spec that forgets to
     // say which console it means should get the one that is in service — before
     // the switch this defaulted to the v1.0.0 frontend, which now would silently
-    // point new specs at the retired half.
+    // point new specs at the frozen half.
     baseURL: CONSOLE_URL,
     trace: "retain-on-failure",
     screenshot: "only-on-failure",
@@ -100,15 +100,20 @@ export default defineConfig({
       use: { baseURL: CONSOLE_URL },
     },
     {
-      // The v1.0.0 frontend. **Retired but kept**: it is no longer what compose
-      // deploys (see deploy/docker-compose.legacy-frontend.yml), and its suite
-      // runs for exactly one reason — the rollback is only real if this half
-      // still works. `@navfleet/fleet-core` is shared, so a change there can
-      // break it without touching a single file under `frontend/`. Deleting this
-      // project would make the escape hatch rot invisibly.
+      // The v1.0.0 frontend. **Frozen but kept**: no further work goes into it, it
+      // is no longer what compose deploys, and it stays in the repo so that it can
+      // be put back without being rewritten
+      // (deploy/docker-compose.legacy-frontend.yml).
+      //
+      // Its suite runs for one reason: this is the only thing that proves the
+      // frozen code still *runs*, not merely compiles. `@navfleet/shared` and
+      // `@navfleet/fleet-core` keep moving, and either can break it without a file
+      // under `frontend/` changing. These specs also never ask the frozen code to
+      // change — unlike the coverage threshold CI drops for this workspace, they
+      // cannot go red because someone else refactored a shared package's branches.
       name: "frontend",
-      // Everything except the console's own specs — the retired frontend keeps
-      // its full suite, because a rollback restores all of those pages at once.
+      // Everything except the console's own specs — the frozen frontend keeps its
+      // full suite, because a rollback restores all of those pages at once.
       testIgnore: CONSOLE_ONLY,
       use: {
         ...devices["Desktop Chrome"],
