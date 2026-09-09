@@ -42,4 +42,41 @@ describe("UiSelect", () => {
     wrapper.vm.$emit("update:modelValue", "");
     expect(wrapper.emitted("update:modelValue")?.[0]).toEqual([""]);
   });
+
+  /**
+   * The trigger must never be blank.
+   *
+   * `modelValue` not matching any option is reachable in ordinary use, not just in
+   * theory: 告警 keeps its device filter in the URL and builds the option list from the
+   * devices that *currently* have alerts, so clearing a fault removes the selected
+   * device while the filter stays. The fallback used to be `""` — an empty control
+   * beside an empty list, with nothing saying a filter was still narrowing it.
+   */
+  it("falls back to the raw value when nothing in the list matches", () => {
+    const wrapper = mount(UiSelect, {
+      props: {
+        modelValue: "agv-gone",
+        options: [...OPTIONS],
+        ariaLabel: "设备筛选",
+      },
+      attachTo: document.body,
+    });
+
+    expect(wrapper.text()).toContain("agv-gone");
+  });
+
+  it("prefers an explicit placeholder over the raw value", () => {
+    const wrapper = mount(UiSelect, {
+      props: {
+        modelValue: "agv-gone",
+        options: [...OPTIONS],
+        placeholder: "该设备已不在车队",
+        ariaLabel: "设备筛选",
+      },
+      attachTo: document.body,
+    });
+
+    expect(wrapper.text()).toContain("该设备已不在车队");
+    expect(wrapper.text()).not.toContain("agv-gone");
+  });
 });
