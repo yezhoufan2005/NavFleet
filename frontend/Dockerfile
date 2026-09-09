@@ -1,7 +1,7 @@
 # Frontend image — built from the monorepo root context (see deploy/docker-compose.yml:
 # frontend build context is `..`). Needs the root lockfile and the shared types
 # package, so it installs from the root and builds the frontend workspace.
-FROM node:20-alpine AS build
+FROM node:24-alpine AS build
 WORKDIR /app
 
 ARG VITE_AMAP_KEY=

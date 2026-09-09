@@ -1,7 +1,7 @@
 # Console image (the v3 frontend) — built from the monorepo root context, like the
 # other two. Runs alongside navfleet-frontend rather than replacing it; the
 # switchover is a compose overlay in Phase 14.
-FROM node:20-alpine AS build
+FROM node:24-alpine AS build
 WORKDIR /app
 
 ARG VITE_AMAP_KEY=
