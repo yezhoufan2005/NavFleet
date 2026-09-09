@@ -1,6 +1,16 @@
-# Frontend image — built from the monorepo root context (see deploy/docker-compose.yml:
-# frontend build context is `..`). Needs the root lockfile and the shared types
-# package, so it installs from the root and builds the frontend workspace.
+# Frontend image (the v1.0.0 console) — built from the monorepo root context (the
+# compose build context is `..`). It needs the root lockfile and the shared
+# packages, so it installs from the root and builds only this workspace.
+#
+# **Frozen but kept.** Since the Phase 14 switch, compose deploys the v3 console
+# (frontend-next/Dockerfile) instead; this file is what
+# deploy/docker-compose.legacy-frontend.yml swaps back in. No further work goes
+# into this workspace — it is kept so it can be put back without a rewrite.
+#
+# CI still lints, typechecks, unit-tests and builds it, because `@navfleet/shared`
+# and `@navfleet/fleet-core` keep moving and either can break it without a file
+# here changing. The coverage threshold is the one gate dropped — see the comment
+# on the `frontend` job in .github/workflows/ci.yml.
 FROM node:24-alpine AS build
 WORKDIR /app
 

@@ -13,12 +13,13 @@ import {
 } from "./support/harness";
 
 /**
- * Specs that describe behaviour **both** frontends owe the operator, and therefore
+ * Specs that describe behaviour **both** consoles owe the operator, and therefore
  * run against both. Where the two differ, they consult `support/ia.ts` rather than
  * forking — see that file for why, and for the complete list of differences.
  *
- * This list is the equivalence net. It grows one spec at a time through Phase 13 as
- * the new frontend earns each page back.
+ * This list stopped growing when the switch landed: the v3 console is now the one
+ * in service, and its own `console-*` specs cover it page by page. What stays here
+ * is what must keep working in **both** — i.e. what the rollback still owes.
  */
 const SHARED_SPECS = [/login\.spec\.ts$/, /not-found\.spec\.ts$/];
 
@@ -79,24 +80,45 @@ export default defineConfig({
     ],
   ],
   use: {
-    baseURL: FRONTEND_URL,
+    // The console, because it is the one compose deploys. A spec that forgets to
+    // say which console it means should get the one that is in service — before
+    // the switch this defaulted to the v1.0.0 frontend, which now would silently
+    // point new specs at the frozen half.
+    baseURL: CONSOLE_URL,
     trace: "retain-on-failure",
     screenshot: "only-on-failure",
     video: "off",
   },
   projects: [
-    // Ingests the demo telemetry once, before any spec runs.
-    { name: "seed", testMatch: /.*\.setup\.ts/ },
+    // Ingests the demo telemetry once, before any spec runs. `fleet.setup.ts`
+    // issues relative `/api/...` calls, so it needs a baseURL that proxies to the
+    // backend — both consoles' dev servers do. Pinned rather than inherited so a
+    // later change to the file-level default cannot silently move the seed.
     {
-      // The v1.0.0 frontend: the production console, and the reference the v3 one
-      // is measured against. Renamed from "chromium" — with two frontends under
-      // test, the browser was never the interesting half of the project name.
+      name: "seed",
+      testMatch: /.*\.setup\.ts/,
+      use: { baseURL: CONSOLE_URL },
+    },
+    {
+      // The v1.0.0 frontend. **Frozen but kept**: no further work goes into it, it
+      // is no longer what compose deploys, and it stays in the repo so that it can
+      // be put back without being rewritten
+      // (deploy/docker-compose.legacy-frontend.yml).
+      //
+      // Its suite runs for one reason: this is the only thing that proves the
+      // frozen code still *runs*, not merely compiles. `@navfleet/shared` and
+      // `@navfleet/fleet-core` keep moving, and either can break it without a file
+      // under `frontend/` changing. These specs also never ask the frozen code to
+      // change — unlike the coverage threshold CI drops for this workspace, they
+      // cannot go red because someone else refactored a shared package's branches.
       name: "frontend",
-      // Everything except the console's own specs — the reference frontend keeps
-      // its full suite.
+      // Everything except the console's own specs — the frozen frontend keeps its
+      // full suite, because a rollback restores all of those pages at once.
       testIgnore: CONSOLE_ONLY,
       use: {
         ...devices["Desktop Chrome"],
+        // Overrides the file-level default, which is now the console.
+        baseURL: FRONTEND_URL,
         viewport: { width: 1440, height: 900 },
         channel: BROWSER_CHANNEL,
       },
@@ -104,12 +126,13 @@ export default defineConfig({
     },
     {
       /**
-       * The v3 console. Its spec list is the *equivalence net*, and it is
-       * deliberately shorter than the frontend's: the rest of the shared specs
-       * assert pages that Phase 13 has not built yet, and adding them now would
-       * mean 13 red tests that say nothing beyond "not written yet". Each Phase 13
-       * PR moves one spec across, so this list doubles as a readable record of how
-       * much of the old frontend's behaviour the new one has re-earned.
+       * The v3 console — **the one in service** since the Phase 14 switch.
+       *
+       * Its spec list stayed shorter than the frontend's, and that is not a gap:
+       * the shared specs cover what both consoles owe, the eight `console-*` ones
+       * cover this console's own pages, and the frontend's remaining specs assert
+       * an IA this console deliberately replaced (see `support/ia.ts`). Pointing
+       * them here would test the old information architecture, not this one.
        *
        * Shared specs on the net today: login (3) + unknown routes (1).
        */
@@ -159,7 +182,7 @@ export default defineConfig({
       timeout: 120_000,
     },
     {
-      // Both frontends proxy to the same backend, so one seeded fleet serves both.
+      // Both consoles proxy to the same backend, so one seeded fleet serves both.
       command: `npm run dev -w navfleet-console -- --port ${CONSOLE_PORT}`,
       cwd: REPO_ROOT,
       url: CONSOLE_URL,
