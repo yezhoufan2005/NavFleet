@@ -40,26 +40,31 @@ NavFleet 把设备接入、实时展示、历史追踪、地图资源和运行�
 最新快照与时序落库、WebSocket 广播。前端是一个多页工作台，实时监控、历史回放、告警中心、
 设置四个页面共享同一份状态与同一条 socket。
 
-**定位是只读监控**：完整的登录与 RBAC（管理员 / 操作员 / 只读三角色），**不含控制下发，
-也不做多租户**。这是有意的范围约束 —— 下发指令与监控是两种安全模型，混在一个进程里会让
-两者都变脆。
+**定位是只读监控**：登录后才能访问任何数据，**不含控制下发，也不做多租户**。这是有意的范围
+约束 —— 下发指令与监控是两种安全模型，混在一个进程里会让两者都变脆。
+
+> **关于 RBAC，说清楚现状：** 数据模型里有 `admin` / `operator` / `viewer` 三个角色，登录、
+> JWT、`requireRole` 中间件都在，但**当前版本三个角色的实际权限相同** —— `requireRole` 全仓库
+> 只有一处调用，且那条路由默认关闭。也没有用户管理接口，账号只能由环境变量种子出一个管理员。
+> 所以现在准确的说法是「口令保护的看板」，真 RBAC 与用户体系是 1.2.0（Phase 15）的内容。
+> 此前这里写的是「完整的登录与 RBAC」，属于过度承诺。
 
 **目标场景**是内网单实例部署：一台主机、Docker Compose、几十到数百台车。不做水平扩展与
 跨实例 pub/sub。
 
 ## 核心能力
 
-| 能力           | 说明                                                                              |
-| -------------- | --------------------------------------------------------------------------------- |
-| **MQTT 接入**  | 主题模板可配置；snake_case / camelCase 双写兼容；zod 校验后入库，被拒消息计入指标 |
-| **状态归一化** | 增量上报自动与历史值合并，避免字段丢失；`lidar` 定位在 `fusion` 缺失时回退        |
-| **告警派生**   | 提示 / 预警 / 告警报码 + 低电量、离线等规则；确认状态本地持久化                   |
-| **三类地图**   | GPS（高德）、栅格 / 点云场景图、Lanelet2 路网（服务端解析 `.osm`）                |
-| **历史回放**   | 基于 `telemetry_ts` 的时间轴回放，可变速、可拖拽进度                              |
-| **鉴权**       | JWT access + refresh（refresh cookie 限定在 `/api/auth` 路径）、RBAC、限流        |
-| **可观测性**   | 分级健康探针、Prometheus 指标、request-id 贯穿日志、预置 Grafana 面板与告警规则   |
-| **运行期配置** | `config-runtime/*.json` 热加载，改车队 / 编队 / 场景无需重启或重建镜像            |
-| **无障碍**     | WCAG 2.1 A + AA，axe-core 在 CI 中审计 5 个页面 × 明暗两套主题                    |
+| 能力           | 说明                                                                                         |
+| -------------- | -------------------------------------------------------------------------------------------- |
+| **MQTT 接入**  | 主题模板可配置；snake_case / camelCase 双写兼容；zod 校验后入库，被拒消息计入指标            |
+| **状态归一化** | 增量上报自动与历史值合并，避免字段丢失；`lidar` 定位在 `fusion` 缺失时回退                   |
+| **告警派生**   | 提示 / 预警 / 告警报码 + 低电量、离线等规则；确认状态本地持久化                              |
+| **三类地图**   | GPS（高德）、栅格 / 点云场景图、Lanelet2 路网（服务端解析 `.osm`）                           |
+| **历史回放**   | 基于 `telemetry_ts` 的时间轴回放，可变速、可拖拽进度                                         |
+| **鉴权**       | JWT access + refresh（refresh cookie 限定在 `/api/auth` 路径）、限流；角色分权见上面那段说明 |
+| **可观测性**   | 分级健康探针、Prometheus 指标、request-id 贯穿日志、预置 Grafana 面板与告警规则              |
+| **运行期配置** | `config-runtime/*.json` 热加载，改车队 / 编队 / 场景无需重启或重建镜像                       |
+| **无障碍**     | WCAG 2.1 A + AA，axe-core 在 CI 中审计 5 个页面 × 明暗两套主题                               |
 
 ## 系统架构
 
@@ -193,7 +198,8 @@ NavFleet/
 ## 配置
 
 后端所有环境变量都经 **zod 校验并 fail-fast** —— 配错一个数字就启动失败，而不是静默退回
-默认值。共 34 个键，逐项说明见
+默认值。后端自己校验 **38 个键**；连 compose 与三个叠加文件读的（broker 凭据、备份、监控）共
+61 个，逐项说明见
 [deploy/docs/config-reference.md](deploy/docs/config-reference.md)。
 
 最需要注意的几个：
@@ -328,16 +334,16 @@ CI 在 Node 22 / 24 上跑全部门禁，E2E 单独一个 job。提交前 husky 
 
 ## 文档索引
 
-| 文档                                                                   | 内容                                        |
-| ---------------------------------------------------------------------- | ------------------------------------------- |
-| [ARCHITECTURE.md](ARCHITECTURE.md)                                     | 分层、模块职责、数据流、前后端各文件的作用  |
-| [deploy/docs/deployment.md](deploy/docs/deployment.md)                 | 部署步骤、TLS、反代、镜像发布               |
-| [deploy/docs/config-reference.md](deploy/docs/config-reference.md)     | 34 个环境变量 + 运行期 JSON 全字段          |
-| [deploy/docs/backup-and-restore.md](deploy/docs/backup-and-restore.md) | 备份、恢复、演练                            |
-| [CONTRIBUTING.md](CONTRIBUTING.md)                                     | 分支、提交规范、本地门禁                    |
-| [ROADMAP.md](ROADMAP.md)                                               | 当前路线图（v1.0.0 之后的计划与决策）       |
-| [docs/roadmap-archive.md](docs/roadmap-archive.md)                     | v1.0.0 之前的阶段记录（含每阶段修掉的缺陷） |
-| [CHANGELOG.md](CHANGELOG.md)                                           | 版本变更（release-please 生成）             |
+| 文档                                                                   | 内容                                               |
+| ---------------------------------------------------------------------- | -------------------------------------------------- |
+| [ARCHITECTURE.md](ARCHITECTURE.md)                                     | 分层、模块职责、数据流、前后端各文件的作用         |
+| [deploy/docs/deployment.md](deploy/docs/deployment.md)                 | 部署步骤、TLS、反代、镜像发布                      |
+| [deploy/docs/config-reference.md](deploy/docs/config-reference.md)     | 61 个环境变量 + 运行期 JSON 全字段                 |
+| [deploy/docs/backup-and-restore.md](deploy/docs/backup-and-restore.md) | 备份、恢复、演练                                   |
+| [CONTRIBUTING.md](CONTRIBUTING.md)                                     | 分支、提交规范、本地门禁                           |
+| [ROADMAP.md](ROADMAP.md)                                               | 当前路线图（Phase 14–18 的计划与决策）             |
+| [docs/roadmap-archive.md](docs/roadmap-archive.md)                     | 已完成阶段的记录：Phase 0–13（含每阶段修掉的缺陷） |
+| [CHANGELOG.md](CHANGELOG.md)                                           | 版本变更（release-please 生成）                    |
 
 ## 路线与已知边界
 
