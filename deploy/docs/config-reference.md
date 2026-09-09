@@ -84,8 +84,16 @@ config-runtime/
 常见 `defaultMapProfile`：
 
 - `lanelet`
+- `rosRaster`
 - `pointCloud`
-- `rosRaster+lanelet`
+
+**这个字段目前没有任何读取方。** 场景渲染成什么，实际由该场景带的是 `imageUrl` /
+`osmUrl` / 还是 `pointCloudUrl` 决定；`mapProfile` 一路解析、合并、下发，然后没人读。
+留着是因为它已经在客户的 `vehicles.json` 里，删或者真正消费它是后续版本的决定。
+配了词表以外的值也不会报错 —— 会原样透传。
+
+（此前这里写的第三项是 `rosRaster+lanelet`，那个值在系统里**不存在**，而真正在用的
+`rosRaster` 反而没列。类型定义里犯了同一个错，且因为末尾有 `| string`，编译器从来指不出来。）
 
 ## 4. `vehicles.json`
 
