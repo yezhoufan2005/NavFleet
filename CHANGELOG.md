@@ -1,5 +1,26 @@
 # Changelog
 
+## [1.1.0](https://github.com/yezhoufan2005/NavFleet/compare/v1.0.3...v1.1.0) (2026-09-09)
+
+
+### Features
+
+* **console:** 接上后端一直在广播、而没人消费的那四种事件 ([3986f64](https://github.com/yezhoufan2005/NavFleet/commit/3986f64d3b45b340e75a49cbfd6f6d9dfa8207fa))
+* **deploy:** 补 Alertmanager，告警从此有接收端；并整理 ROADMAP 的现状口径 ([f486658](https://github.com/yezhoufan2005/NavFleet/commit/f486658536e811377e58a6c36fcc5d9d5c66fa38))
+
+
+### Bug Fixes
+
+* **backend:** history 的 limit 上界降到实际值，不再对外承诺 500 给不出的 4500 ([d4626d0](https://github.com/yezhoufan2005/NavFleet/commit/d4626d0abf4b3563b4153d19396c7ad241ab50a7))
+* **backend:** OpenAPI 文档与实际路由对齐 —— 四条路径、两种全局响应、三个字段、一处 3.1 违规 ([5ff9905](https://github.com/yezhoufan2005/NavFleet/commit/5ff9905c33054f16c67309773f581a7a7281c28f))
+* **ci:** 新门禁第一次进 CI 就被自己绊倒 —— 挂载点检查要豁免刻意不入库的路径 ([2ecf6a5](https://github.com/yezhoufan2005/NavFleet/commit/2ecf6a54de77292731d2ffdc51e712c029ded932))
+* **console:** 一个「未用的 prop」原来是没接上的修复；顺带删掉与只读定位相悖的 danger ([07afa83](https://github.com/yezhoufan2005/NavFleet/commit/07afa83e8beb122bd54a7f484fb2ffbf6af4693e))
+* **console:** 系统状态页的「再次检查」改成「重新检查」，与场景页一致 ([a59edfa](https://github.com/yezhoufan2005/NavFleet/commit/a59edfa2014e6158b2931e6da82768a20abaa3fe))
+* **frontend:** 冻结的控制台把历史页 limit 从 1000 降到 500 ([3341442](https://github.com/yezhoufan2005/NavFleet/commit/33414423712460a3fb0822af0a3af6f9ea527857))
+* **scripts:** --help 的 sed 范围写错，末尾多印四行代码 ([f04b077](https://github.com/yezhoufan2005/NavFleet/commit/f04b077a3812dd0a0f2f303c0fc9d15364e84128))
+* **shared:** MapProfile 的词表改成真的，并删掉一个只是第二个名字的类型 ([bba0e9d](https://github.com/yezhoufan2005/NavFleet/commit/bba0e9df011cc0e77009a50964bf34505ad8e29d))
+* 全仓审计第一批 —— 五个真 bug，两个 normalize 实现的一致性 ([90d1f95](https://github.com/yezhoufan2005/NavFleet/commit/90d1f95000ea5fe17fad113f76f5976fc315eacf))
+
 ## [1.0.3](https://github.com/yezhoufan2005/NavFleet/compare/v1.0.2...v1.0.3) (2026-09-02)
 
 
