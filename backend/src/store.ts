@@ -35,6 +35,20 @@ const logger = moduleLogger("dashboard-store");
 const WARN_THROTTLE_MS = 5_000;
 
 /**
+ * Spellings that mean "offline" in a status frame, whichever shape it arrives in.
+ *
+ * One set, because the plain-string form and the `{ status: … }` form used to
+ * interpret the same word differently: the former rejected `offline`/`0`/`false`
+ * after trimming, the latter compared only against `offline` and did not trim.
+ * `parseOnline` reads both through `isOfflineStatusToken`, so a publisher cannot
+ * get a different answer by wrapping the same word in an object.
+ */
+const OFFLINE_STATUS_TOKENS = new Set(["offline", "0", "false"]);
+
+const isOfflineStatusToken = (value: string): boolean =>
+  OFFLINE_STATUS_TOKENS.has(value.trim().toLowerCase());
+
+/**
  * One queued mutation.
  *
  * `run` never rejects — it settles the caller's promise itself — so the pump
@@ -235,7 +249,17 @@ export class DashboardStore extends EventEmitter {
    *    declared in `vehicles.json` are exempt — the operator named them, and their
    *    count is bounded by the file.
    */
-  private admitDevice(deviceId: string): boolean {
+  private admitDevice(
+    deviceId: string,
+    /**
+     * The fleet the cap is measured against. Defaults to the live map, but
+     * `applyPayloadInternal` passes the map it is *building*: it accumulates into
+     * a new Map and only assigns it at the end, so measuring `this.rawDevices`
+     * inside that loop measured a size that could not grow and admitted every
+     * device in a multi-device payload regardless of `MAX_DEVICES`.
+     */
+    observedFleet: Map<string, DeviceSnapshot> = this.rawDevices,
+  ): boolean {
     if (!isIngestableDeviceId(deviceId)) {
       this.rejectedDevices += 1;
       this.warnThrottled(
@@ -252,17 +276,17 @@ export class DashboardStore extends EventEmitter {
       return false;
     }
 
-    if (this.rawDevices.has(deviceId) || this.configRegistry.hasDeviceConfig(deviceId)) {
+    if (observedFleet.has(deviceId) || this.configRegistry.hasDeviceConfig(deviceId)) {
       return true;
     }
 
-    if (this.rawDevices.size >= config.maxDevices) {
+    if (observedFleet.size >= config.maxDevices) {
       this.cappedDevices += 1;
       this.warnThrottled(
         "device-capped",
         {
           deviceId: deviceId.slice(0, 64),
-          deviceCount: this.rawDevices.size,
+          deviceCount: observedFleet.size,
           limit: config.maxDevices,
           cappedTotal: this.cappedDevices,
         },
@@ -478,7 +502,8 @@ export class DashboardStore extends EventEmitter {
       : new Map(this.devices);
 
     for (const device of normalized.devices) {
-      if (!this.admitDevice(device.deviceId)) {
+      // `nextRawMap`, not the live map: see `admitDevice`'s `observedFleet`.
+      if (!this.admitDevice(device.deviceId, nextRawMap)) {
         continue;
       }
       const existingRaw = this.rawDevices.get(device.deviceId);
@@ -491,6 +516,28 @@ export class DashboardStore extends EventEmitter {
       this.lastIngestAt.set(mergedRaw.deviceId, Date.now());
       await this.persistRawDevice(mergedRaw);
       await this.emitChangeEvents(existingConfigured || null, mergedConfigured, source);
+    }
+
+    // A replace payload can drop devices, and rebuilding the two snapshot maps
+    // does not carry the rest of a device's footprint with it. Two things have to
+    // be cascaded by hand, exactly as `evictSilentDevices` does:
+    //
+    //   - `lastIngestAt`, whose only sweep iterates `rawDevices.keys()` — so an
+    //     entry for a device that is no longer in the fleet can never be reached
+    //     again, and the map grows for the life of the process.
+    //   - the per-device telemetry ring in persistence, which in the no-Mongo
+    //     fallback also keeps answering `GET /alerts` for a departed device.
+    //
+    // Guarded on `replace` rather than run always: in the merge case `nextRawMap`
+    // starts as a copy of the live map, so nothing can be missing and this would
+    // be an O(fleet) walk on every telemetry frame.
+    if (normalized.replace) {
+      for (const deviceId of this.rawDevices.keys()) {
+        if (!nextRawMap.has(deviceId)) {
+          this.lastIngestAt.delete(deviceId);
+          this.persistence.forgetDevice(deviceId);
+        }
+      }
     }
 
     this.rawDevices = nextRawMap;
@@ -523,19 +570,32 @@ export class DashboardStore extends EventEmitter {
   }
 
   private parseOnline(statusPayload: unknown): boolean {
+    // A bare boolean is one of the three shapes `mqttStatusSchema` admits, and it
+    // is the least ambiguous of them. Without this branch `false` fell through to
+    // the optimistic default at the bottom and marked the device **online** — the
+    // payload that says "I am offline" in the plainest possible way was the one
+    // that inverted. `{ online: false }` was always handled correctly, so this
+    // only ever bit publishers using the bare form.
+    if (typeof statusPayload === "boolean") {
+      return statusPayload;
+    }
     if (typeof statusPayload === "string") {
-      const lowered = statusPayload.trim().toLowerCase();
-      return lowered !== "offline" && lowered !== "0" && lowered !== "false";
+      return !isOfflineStatusToken(statusPayload);
     }
     if (typeof statusPayload === "object" && statusPayload !== null) {
       const record = statusPayload as Record<string, unknown>;
       if (typeof record.online === "boolean") {
         return record.online;
       }
+      // Shares `isOfflineStatusToken` with the bare-string branch rather than
+      // testing `!== "offline"` on its own: the two spellings disagreed, so
+      // `"false"` meant offline as a plain payload and online inside
+      // `{ status: … }`, and `" offline "` was online here but offline there.
       if (typeof record.status === "string") {
-        return record.status.toLowerCase() !== "offline";
+        return !isOfflineStatusToken(record.status);
       }
     }
+    // Anything else: a frame arrived at all, so the device is talking to us.
     return true;
   }
 

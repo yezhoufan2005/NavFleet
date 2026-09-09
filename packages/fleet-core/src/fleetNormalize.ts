@@ -58,10 +58,40 @@ export const round = (value: unknown, digits = 2): number => {
   return Number(numeric.toFixed(digits));
 };
 
+/**
+ * A numeric reading, or `fallback` when the value carries no reading.
+ *
+ * The `null`/`undefined`/`""` guard is the entire point, and it has to live **here**
+ * rather than only in `formatNumber`. `Number()` maps every kind of "nothing" onto a
+ * perfectly finite zero, and every default telemetry field in this system is `null`:
+ * the backend serialises a device that has never reported as `soc: null`,
+ * `speedLimit.limit: null`, `fusionLoc: {x: null, y: null, yaw: null}`. Both consoles
+ * re-normalise every snapshot through `normalizeDevice`, so without this guard those
+ * nulls became real zeros *before* any formatter saw them —
+ *
+ *   - `soc` rendered `0%`, i.e. a flat battery for a vehicle that reported none;
+ *   - `controlMode` resolved to a real mode name instead of `--`;
+ *   - `hasPose({x: 0, y: 0})` returned true, so a vehicle with no pose was drawn at
+ *     the site map's origin.
+ *
+ * `formatNumber`'s own guard (see formatters.ts) was written for exactly this defect
+ * and documents it as fixed — it could never fire, because by the time it ran the
+ * `null` had already become `0`. A fix applied downstream of the coercion is not a fix.
+ *
+ * A real zero still passes through: the distinction is "no reading" versus "a reading
+ * of zero", and on a monitoring console those are different facts.
+ *
+ * Kept identical to `backend/src/normalize.ts`'s `toNumeric` on purpose; the parity is
+ * asserted from both sides (`packages/fleet-core/test/fleetNormalize.test.ts` and
+ * `backend/test/normalize-numeric.test.ts`) rather than only claimed in a comment.
+ */
 export const toNumeric = (
   value: unknown,
   fallback: number | null = null,
 ): number | null => {
+  if (value === null || value === undefined || value === "") {
+    return fallback;
+  }
   const numeric = Number(value);
   return Number.isFinite(numeric) ? numeric : fallback;
 };
@@ -241,6 +271,29 @@ export const normalizeFormation = (
   };
 };
 
+/**
+ * Coerce a vendor-supplied severity onto the `Severity` union.
+ *
+ * Mirrors `backend/src/normalize.ts`'s `normalizeSeverity`. Without it, a frame
+ * carrying `severity: "ERROR"` kept that string, and the console then indexed
+ * `grouped[alert.severity]` with a key that does not exist — an `undefined` bucket
+ * rather than a critical alert.
+ */
+export const normalizeSeverity = (value: unknown): Severity => {
+  const normalized = String(value || "").toLowerCase();
+  if (
+    normalized.includes("critical") ||
+    normalized.includes("fatal") ||
+    normalized.includes("error")
+  ) {
+    return "critical";
+  }
+  if (normalized.includes("warn") || normalized.includes("low")) {
+    return "warning";
+  }
+  return "notice";
+};
+
 export const dedupeAlerts = <T extends AlertLike>(alerts: T[]): T[] => {
   const deduped = new Map<string, T>();
   alerts.forEach((alert) => {
@@ -261,24 +314,38 @@ export const dedupeAlerts = <T extends AlertLike>(alerts: T[]): T[] => {
 
 export const buildCodeAlerts = (device: DeviceSnapshot): DeviceAlert[] => {
   const items: Array<{
+    /**
+     * The id's middle segment, spelled out rather than derived from `source`.
+     *
+     * Interpolating `source` produced `agv-1-error_code-5102` against the backend's
+     * `agv-1-error-code-5102` (`backend/src/normalize.ts`'s `buildCodeAlerts`), and
+     * acknowledgement is persisted **by id** (`navfleet:acked-alerts`) — so the two
+     * derivations of one condition could not agree on what had been acknowledged.
+     * Latent rather than live today, because the console keeps the backend's ids for
+     * a normalized snapshot and only derives its own from a raw frame.
+     */
+    idSegment: string;
     severity: Severity;
     source: string;
     payload: CodeState;
     title: string;
   }> = [
     {
+      idSegment: "info-code",
       severity: "notice",
       source: "info_code",
       payload: device.infoCode,
       title: "提示报码",
     },
     {
+      idSegment: "warning-code",
       severity: "warning",
       source: "warning_code",
       payload: device.warningCode,
       title: "预警报码",
     },
     {
+      idSegment: "error-code",
       severity: "critical",
       source: "error_code",
       payload: device.errorCode,
@@ -289,7 +356,7 @@ export const buildCodeAlerts = (device: DeviceSnapshot): DeviceAlert[] => {
   return items
     .filter((item) => Number(item.payload?.code) !== 0)
     .map((item) => ({
-      id: `${device.deviceId}-${item.source}-${item.payload.code}`,
+      id: `${device.deviceId}-${item.idSegment}-${item.payload.code}`,
       severity: item.severity,
       source: item.source,
       title: item.title,
@@ -297,6 +364,9 @@ export const buildCodeAlerts = (device: DeviceSnapshot): DeviceAlert[] => {
       code: item.payload.code,
       info: item.payload.info || "",
       ts: item.payload.stamp || device.stamp,
+      // The backend sets this on every alert it derives; omitting it meant one alert
+      // had two shapes depending on which side built it.
+      active: true,
     }));
 };
 export const buildRuleAlerts = (device: DeviceSnapshot): DeviceAlert[] => {
@@ -309,8 +379,12 @@ export const buildRuleAlerts = (device: DeviceSnapshot): DeviceAlert[] => {
       severity: "warning",
       source: "rule-engine",
       title: "低电量预警",
-      detail: `当前电量 ${soc.toFixed(1)}%，建议尽快安排回充`,
+      // `round`, not `toFixed(1)`: the backend renders the same sentence with
+      // `round(soc, 1)`, so an integral reading came out as "15.0%" here and "15%"
+      // there — the same alert, two texts, decided by which side built it.
+      detail: `当前电量 ${round(soc, 1)}%，建议尽快安排回充`,
       ts: device.stamp,
+      active: true,
     });
   }
 
@@ -322,6 +396,7 @@ export const buildRuleAlerts = (device: DeviceSnapshot): DeviceAlert[] => {
       title: "设备离线",
       detail: "设备超过离线阈值未上报，系统已自动标记为离线",
       ts: device.stamp,
+      active: true,
     });
   }
 
@@ -530,7 +605,7 @@ export const normalizeDevice = (
     normalizedDevice.alerts = dedupeAlerts(
       raw.alerts.map((alert, index) => ({
         id: alert.id || `${normalizedDevice.deviceId}-alert-${index + 1}`,
-        severity: alert.severity || "notice",
+        severity: normalizeSeverity(alert.severity),
         source: alert.source || "snapshot",
         title: alert.title || "设备告警",
         detail: alert.detail || "",
@@ -538,6 +613,33 @@ export const normalizeDevice = (
         info: alert.info || "",
         ts: alert.ts || normalizedDevice.stamp,
       })),
+    );
+  } else if (Array.isArray(raw.alerts)) {
+    // A raw vendor frame that carries its own `alerts` array. This case used to fall
+    // past both branches, leaving the array assigned **verbatim** further up: no id
+    // defaulting, no severity coercion, no dedupe, no ordering — and typed `any[]`,
+    // which is why the fields were read off `any`. A vendor `severity: "ERROR"` then
+    // survived into the store and indexed `grouped[severity]` with a key that is not
+    // in the union.
+    normalizedDevice.alerts = dedupeAlerts(
+      (raw.alerts as unknown[]).map((entry, index) => {
+        const alert = (
+          entry && typeof entry === "object" ? entry : {}
+        ) as Record<string, unknown>;
+        return {
+          id: String(
+            alert.id || `${normalizedDevice.deviceId}-alert-${index + 1}`,
+          ),
+          severity: normalizeSeverity(alert.severity),
+          source: String(alert.source || "device"),
+          title: String(alert.title || "设备告警"),
+          detail: String(alert.detail || alert.info || ""),
+          code: toNumeric(alert.code, 0) ?? 0,
+          info: String(alert.info || ""),
+          ts: (alert.ts as string) || normalizedDevice.stamp,
+          active: true,
+        };
+      }),
     );
   } else if (!Array.isArray(raw.alerts)) {
     normalizedDevice.alerts = dedupeAlerts([
