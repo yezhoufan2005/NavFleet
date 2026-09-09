@@ -44,8 +44,26 @@ export const SEEDED_SCENE = {
 /** Telemetry frames pushed per device — also the number of history samples. */
 export const SAMPLES_PER_DEVICE = 6;
 
-/** Well inside the scene bounds (minX -51, maxX 25, minY -45, maxY 45). */
-export const SEEDED_DEVICES: SeededDevice[] = [
+/**
+ * Well inside the scene bounds (minX -51, maxX 25, minY -45, maxY 45).
+ *
+ * **A tuple, not an array — and that is a contract, not a type-level flourish.** Six specs
+ * destructure this positionally (`const [noticeDevice, warningDevice, criticalDevice] = …`,
+ * `const [firstDevice, , faultedDevice] = …`), so the *length and the order* are part of what
+ * this module promises, exactly as much as the field values are.
+ *
+ * Typing it as `SeededDevice[]` said otherwise, and under `noUncheckedIndexedAccess` that
+ * showed up as 19 「possibly undefined」 across those six files — one per positional read. The
+ * fix is not 19 `!`s: it is to say what is actually true, once, here.
+ *
+ * **Adding a fourth vehicle therefore fails to compile at this literal.** That is the point:
+ * whoever adds one has to look at who reads position 2 before widening the tuple.
+ */
+export const SEEDED_DEVICES: readonly [
+  SeededDevice,
+  SeededDevice,
+  SeededDevice,
+] = [
   {
     deviceId: "agv-a01",
     deviceName: "A01 巡检车",
