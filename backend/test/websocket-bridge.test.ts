@@ -8,6 +8,7 @@ import { ACCESS_COOKIE } from "../src/auth/middleware";
 import { signAccessToken } from "../src/auth/tokens";
 import {
   createWebSocketBridge,
+  rawToText,
   WS_MAX_PAYLOAD_BYTES,
   type WebSocketBridge,
 } from "../src/websocket";
@@ -74,7 +75,8 @@ const nextMessage = (client: WebSocket): Promise<SocketEvent> =>
   new Promise((resolve, reject) => {
     client.once("message", (raw: WebSocket.RawData) => {
       try {
-        resolve(JSON.parse(raw.toString()) as SocketEvent);
+        // The server's own decoder, so this test reads a frame exactly as the server writes it.
+        resolve(JSON.parse(rawToText(raw)) as SocketEvent);
       } catch (error) {
         reject(error instanceof Error ? error : new Error(String(error)));
       }

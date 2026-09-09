@@ -1,11 +1,35 @@
 import http from "node:http";
-import { WebSocketServer } from "ws";
+import { WebSocketServer, type RawData } from "ws";
 import type { DashboardStore } from "./store";
 import type { AppConfig } from "./config";
 import { ACCESS_COOKIE } from "./auth/middleware";
 import { verifyToken } from "./auth/tokens";
 import { moduleLogger } from "./logger";
 import type { SocketEvent } from "./types";
+
+/**
+ * A client frame as text.
+ *
+ * `raw.toString("utf8")` was the whole implementation, and `ws` types `RawData` as
+ * `Buffer | ArrayBuffer | Buffer[]`. On the array arm that call reaches
+ * `Array.prototype.toString`, which ignores the encoding argument and joins with commas —
+ * so the parse below would fail on a frame that is in fact valid JSON. Not reachable with
+ * this server's settings (the `Buffer[]` arm needs `binaryType: "fragments"`, and the
+ * default is `"nodebuffer"`), which is exactly why nothing caught it: the defect is one
+ * option away, and `no-base-to-string` (P0-f 第 3 批) is what pointed at it.
+ */
+export const rawToText = (raw: RawData): string => {
+  if (Buffer.isBuffer(raw)) {
+    return raw.toString("utf8");
+  }
+  if (Array.isArray(raw)) {
+    return Buffer.concat(raw).toString("utf8");
+  }
+  return Buffer.from(raw).toString("utf8");
+};
+
+const isRecord = (value: unknown): value is Record<string, unknown> =>
+  typeof value === "object" && value !== null;
 
 const log = moduleLogger("websocket");
 
@@ -114,8 +138,8 @@ export const createWebSocketBridge = (
       // App-level heartbeat: browsers cannot observe protocol ping/pong frames,
       // so the client sends {type:"ping"} and expects {type:"pong"}.
       try {
-        const message = JSON.parse(raw.toString("utf8"));
-        if (message?.type === "ping" && client.readyState === client.OPEN) {
+        const message: unknown = JSON.parse(rawToText(raw));
+        if (isRecord(message) && message.type === "ping" && client.readyState === client.OPEN) {
           client.send(JSON.stringify({ type: "pong", payload: null } satisfies SocketEvent));
         }
       } catch {

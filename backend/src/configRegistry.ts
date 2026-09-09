@@ -326,7 +326,14 @@ export class ConfigRegistry {
     }
   }
 
-  async startWatching(onReload: () => Promise<void> | void): Promise<void> {
+  /**
+   * Register the config-file watcher. Synchronous — setting up chokidar and the debounce
+   * timer is all that happens here; the reload work runs later, on `this.reloadQueue`.
+   *
+   * It used to be `async` with nothing to await, and `index.ts` awaited it, which read as
+   * 「等监听建立好」. What that await actually waited for was nothing.
+   */
+  startWatching(onReload: () => Promise<void> | void): void {
     if (this.watcher) {
       return;
     }

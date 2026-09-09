@@ -3,6 +3,7 @@ import { config } from "./config";
 import { MongoConnectionSupervisor, type MongoSession, redactMongoUri } from "./mongoConnection";
 import { DeviceAlert, DeviceSnapshot, HistoryQuery, UserRecord } from "./types";
 import { moduleLogger } from "./logger";
+import { asText } from "./normalize";
 
 const logger = moduleLogger("persistence");
 
@@ -303,7 +304,7 @@ export class Persistence {
       meta: {
         deviceId: snapshot.deviceId,
         fleetId: "default-fleet",
-        vehicleModel: String(snapshot.extra.vehicleModel || "generic-agv"),
+        vehicleModel: asText(snapshot.extra.vehicleModel, "generic-agv") || "generic-agv",
       },
       measurements: {
         online: snapshot.online,

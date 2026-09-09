@@ -59,9 +59,7 @@ export const connectMqtt = ({ store, topicScheme, config, state }: MqttDeps): mq
     });
   });
 
-  client.on("message", async (topic, payloadBuffer) => {
-    state.mqttMessagesTotal += 1;
-    const payloadText = payloadBuffer.toString("utf8");
+  const handleMessage = async (topic: string, payloadText: string): Promise<void> => {
     const reject = (error: ZodError): void => {
       state.mqttMessagesRejected += 1;
       logger.warn(
@@ -103,6 +101,16 @@ export const connectMqtt = ({ store, topicScheme, config, state }: MqttDeps): mq
         "Failed to process MQTT message",
       );
     }
+  };
+
+  client.on("message", (topic, payloadBuffer) => {
+    state.mqttMessagesTotal += 1;
+    // `void`, not an `async` listener. mqtt's callback type is `void`, so an async one hands
+    // back a promise nobody holds: a rejection there is an unhandled rejection, not a
+    // logged error. The body's own try/catch means it never rejects *today* — but that is a
+    // property of the body, not of the wiring, and it is the wiring that decides what
+    // happens the day an `await` lands outside that try.
+    void handleMessage(topic, payloadBuffer.toString("utf8"));
   });
 
   client.on("error", (error) => {

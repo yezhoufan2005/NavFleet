@@ -29,7 +29,7 @@ function sample(deviceId: string, stamp: string, x: number): DeviceSnapshot {
     speedLimit: { limit: null, slowdownTime: null, stamp: null, moduleName: "" },
     alerts: [],
     extra: {},
-  } as DeviceSnapshot;
+  };
 }
 
 describe("Persistence in-memory history fallback", () => {
@@ -68,16 +68,16 @@ describe("Persistence in-memory history fallback", () => {
     await persistence.writeTelemetry(sample("agv-e", "2026-01-01T00:00:10Z", 2));
 
     const cutoff = Date.parse("2026-01-01T00:00:05Z");
-    const byMillis = (await persistence.queryHistory({
+    const byMillis = await persistence.queryHistory({
       deviceId: "agv-e",
       from: String(cutoff),
-    })) as unknown[];
+    });
     expect(byMillis).toHaveLength(1);
 
-    const bySeconds = (await persistence.queryHistory({
+    const bySeconds = await persistence.queryHistory({
       deviceId: "agv-e",
       from: String(Math.floor(cutoff / 1000)),
-    })) as unknown[];
+    });
     expect(bySeconds).toHaveLength(1);
   });
 });

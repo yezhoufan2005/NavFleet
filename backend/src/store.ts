@@ -137,7 +137,7 @@ export class DashboardStore extends EventEmitter {
    * entry has to settle its caller's promise without having a value to settle it
    * with, and `void` makes that honest instead of a cast.
    */
-  private enqueue(task: () => Promise<void>, sheddable = false): Promise<void> {
+  private enqueue(task: () => Promise<void> | void, sheddable = false): Promise<void> {
     return new Promise<void>((resolve, reject) => {
       this.queue.push({
         sheddable,
@@ -145,7 +145,11 @@ export class DashboardStore extends EventEmitter {
           try {
             resolve(await task());
           } catch (error) {
-            reject(error);
+            // Wrapped rather than passed through: a queued task can throw anything, and a
+            // caller that does `.catch((e) => e.message)` on a rejected string gets a second,
+            // less informative failure. `prefer-promise-reject-errors` (P0-f 第 3 批) is what
+            // asked, and the answer is the one that makes the rejection usable.
+            reject(error instanceof Error ? error : new Error(String(error)));
           }
         },
         // A shed frame resolves rather than rejects. It is not an error the caller
@@ -404,7 +408,7 @@ export class DashboardStore extends EventEmitter {
    * is the whole implementation — there is no separate bookkeeping to get wrong.
    */
   async drain(): Promise<void> {
-    return this.enqueue(async () => undefined);
+    return this.enqueue(() => undefined);
   }
 
   private async initializeInternal(): Promise<void> {
@@ -437,7 +441,7 @@ export class DashboardStore extends EventEmitter {
     }
   }
 
-  private async reloadConfigInternal(): Promise<void> {
+  private reloadConfigInternal(): void {
     this.rebuildConfiguredDevices();
     logger.info(
       {
@@ -468,7 +472,7 @@ export class DashboardStore extends EventEmitter {
     this.devices = nextDevices;
   }
 
-  private async loadSeedPayload(): Promise<unknown | null> {
+  private async loadSeedPayload(): Promise<unknown> {
     if (!config.seedFile) {
       logger.info("Seed payload disabled; starting with empty fleet");
       return null;
@@ -517,7 +521,7 @@ export class DashboardStore extends EventEmitter {
       nextDeviceMap.set(mergedConfigured.deviceId, mergedConfigured);
       this.lastIngestAt.set(mergedRaw.deviceId, Date.now());
       await this.persistRawDevice(mergedRaw);
-      await this.emitChangeEvents(existingConfigured || null, mergedConfigured, source);
+      this.emitChangeEvents(existingConfigured || null, mergedConfigured, source);
     }
 
     // A replace payload can drop devices, and rebuilding the two snapshot maps
@@ -567,7 +571,7 @@ export class DashboardStore extends EventEmitter {
     this.devices.set(deviceId, configuredDevice);
     this.lastIngestAt.set(deviceId, Date.now());
     await this.persistRawDevice(normalizedRaw);
-    await this.emitChangeEvents(existingConfigured || null, configuredDevice, "mqtt-status");
+    this.emitChangeEvents(existingConfigured || null, configuredDevice, "mqtt-status");
     this.updatedAt = new Date().toISOString();
   }
 
@@ -607,11 +611,19 @@ export class DashboardStore extends EventEmitter {
     await this.persistence.upsertAlerts(device.deviceId, device.alerts);
   }
 
-  private async emitChangeEvents(
+  /**
+   * Broadcast what changed between two snapshots of one device.
+   *
+   * Synchronous, and now says so. It was `async` with no `await` in it and was awaited at
+   * all three call sites, which read as「广播要等一等」—— broadcasting is `this.emit`, it
+   * returns when the last listener returns. `require-await` (P0-f 第 3 批) is what surfaced
+   * it; the cost of the old shape was not performance but a false claim about the model.
+   */
+  private emitChangeEvents(
     previous: DeviceSnapshot | null,
     current: DeviceSnapshot,
     source: string,
-  ): Promise<void> {
+  ): void {
     this.broadcast({
       type: "fleet.delta",
       payload: {
@@ -748,7 +760,7 @@ export class DashboardStore extends EventEmitter {
       this.rawDevices.set(device.deviceId, updatedRaw);
       this.devices.set(device.deviceId, updatedConfigured);
       await this.persistRawDevice(updatedRaw);
-      await this.emitChangeEvents(previousConfigured, updatedConfigured, "offline-monitor");
+      this.emitChangeEvents(previousConfigured, updatedConfigured, "offline-monitor");
       this.updatedAt = new Date().toISOString();
     }
 
