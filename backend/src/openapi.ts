@@ -69,15 +69,20 @@ const errorSchema = {
   properties: {
     error: { type: "string" },
     message: { type: "string" },
-  },
-} as const;
-
-const codeStateSchema = {
-  type: "object",
-  properties: {
-    code: { type: "number" },
-    info: { type: "string" },
-    stamp: { type: "string", nullable: true },
+    /**
+     * The three fields the server actually sends and this schema did not mention, so
+     * a client generated from the spec could not read any of them:
+     *
+     * - `issues` — the zod issue list, on every 400 that goes through
+     *   `respondValidationError` (routes/helpers.ts).
+     * - `requiredRoles` — what the RBAC middleware answers a 403 with
+     *   (auth/middleware.ts), i.e. the only machine-readable hint about *why*.
+     * - `requestId` — on every 500 (app.ts), and the whole point of it is that a
+     *   caller can quote it when reporting the failure.
+     */
+    issues: { type: "array", items: { type: "object", additionalProperties: true } },
+    requiredRoles: { type: "array", items: { type: "string" } },
+    requestId: { type: "string" },
   },
 } as const;
 
@@ -139,7 +144,10 @@ export const openApiDocument = {
     },
     schemas: {
       Error: errorSchema,
-      CodeState: codeStateSchema,
+      // `CodeState` used to sit here and was referenced by nothing — no response
+      // pointed at it, so a client could see the shape and not learn where it
+      // applies. An unreferenced component in a published spec is a claim with no
+      // subject; the report-code fields are described where they are returned.
       LoginRequest: fromValidator(loginSchema),
       PublicUser: {
         type: "object",
@@ -159,12 +167,12 @@ export const openApiDocument = {
           title: { type: "string" },
           detail: { type: "string" },
           info: { type: "string" },
-          code: { type: "number", nullable: true },
+          code: { type: ["number", "null"] },
           active: { type: "boolean" },
           ts: { type: "string" },
           firstSeenAt: { type: "string", format: "date-time" },
           lastSeenAt: { type: "string", format: "date-time" },
-          clearedAt: { type: "string", format: "date-time", nullable: true },
+          clearedAt: { type: ["string", "null"], format: "date-time" },
         },
       },
       HistorySample: {
@@ -178,10 +186,11 @@ export const openApiDocument = {
     },
   },
   security: [{ cookieAuth: [] }],
-  paths: {},
+  // Assigned below, once the response helpers it needs are in scope. It used to be
+  // `paths: {}` followed by a `// PLACEHOLDER_PATHS` marker that referred to no
+  // mechanism — the empty object was unconditionally overwritten twenty lines later.
 } as Record<string, unknown>;
 
-// PLACEHOLDER_PATHS
 const ok = (description: string, schemaRef?: string) => ({
   description,
   content: {
@@ -199,6 +208,34 @@ const badRequest = {
   description: "参数校验失败",
   content: { "application/json": { schema: { $ref: "#/components/schemas/Error" } } },
 };
+const forbidden = {
+  description: "权限不足（响应体带 requiredRoles）",
+  content: { "application/json": { schema: { $ref: "#/components/schemas/Error" } } },
+};
+const notFound = {
+  description: "未找到",
+  content: { "application/json": { schema: { $ref: "#/components/schemas/Error" } } },
+};
+
+/**
+ * Answers every route under `/api` can produce, and none of them were documented.
+ *
+ * `429` comes from the express-rate-limit middleware mounted on the whole `/api`
+ * surface (app.ts), and `500` from the error handler at the end of it — which
+ * includes `requestId`. A generated client that has never been told about either
+ * treats both as an unexpected response shape, which is the one case where it is
+ * most likely to be logging something useless.
+ */
+const tooManyRequests = {
+  description: "触发限流",
+  content: { "application/json": { schema: { $ref: "#/components/schemas/Error" } } },
+};
+const serverError = {
+  description: "服务端错误（响应体带 requestId）",
+  content: { "application/json": { schema: { $ref: "#/components/schemas/Error" } } },
+};
+/** Spread into every `/api` operation's `responses`. */
+const apiWideResponses = { "429": tooManyRequests, "500": serverError } as const;
 
 (openApiDocument as { paths: Record<string, unknown> }).paths = {
   "/health": {
@@ -255,6 +292,7 @@ const badRequest = {
         },
         "400": badRequest,
         "401": unauthorized,
+        ...apiWideResponses,
       },
     },
   },
@@ -276,6 +314,7 @@ const badRequest = {
           },
         },
         "401": unauthorized,
+        ...apiWideResponses,
       },
     },
   },
@@ -284,7 +323,7 @@ const badRequest = {
       tags: ["auth"],
       summary: "登出，清除会话 cookie",
       security: [],
-      responses: { "204": { description: "已登出" } },
+      responses: { "204": { description: "已登出" }, ...apiWideResponses },
     },
   },
   "/api/auth/me": {
@@ -304,6 +343,7 @@ const badRequest = {
           },
         },
         "401": unauthorized,
+        ...apiWideResponses,
       },
     },
   },
@@ -311,14 +351,14 @@ const badRequest = {
     get: {
       tags: ["fleet"],
       summary: "车队快照（设备/编队/汇总）",
-      responses: { "200": ok("快照"), "401": unauthorized },
+      responses: { "200": ok("快照"), "401": unauthorized, ...apiWideResponses },
     },
   },
   "/api/v1/formations": {
     get: {
       tags: ["fleet"],
       summary: "编队列表",
-      responses: { "200": ok("编队"), "401": unauthorized },
+      responses: { "200": ok("编队"), "401": unauthorized, ...apiWideResponses },
     },
   },
   "/api/v1/devices/{deviceId}/history": {
@@ -355,6 +395,7 @@ const badRequest = {
         },
         "400": badRequest,
         "401": unauthorized,
+        ...apiWideResponses,
       },
     },
   },
@@ -379,6 +420,7 @@ const badRequest = {
         },
         "400": badRequest,
         "401": unauthorized,
+        ...apiWideResponses,
       },
     },
   },
@@ -386,7 +428,7 @@ const badRequest = {
     get: {
       tags: ["scenes"],
       summary: "场景地图目录",
-      responses: { "200": ok("场景列表"), "401": unauthorized },
+      responses: { "200": ok("场景列表"), "401": unauthorized, ...apiWideResponses },
     },
   },
   "/api/v1/scenes/{sceneId}": {
@@ -396,7 +438,15 @@ const badRequest = {
       parameters: [
         { name: "sceneId", in: "path", required: true, schema: fromValidator(sceneIdParamSchema) },
       ],
-      responses: { "200": ok("场景"), "401": unauthorized, "404": ok("未找到") },
+      responses: {
+        "200": ok("场景"),
+        // `sceneIdParamSchema` runs on this route, so a malformed id is a 400 —
+        // documented nowhere until now, which made it look like a 404 case.
+        "400": badRequest,
+        "401": unauthorized,
+        "404": notFound,
+        ...apiWideResponses,
+      },
     },
   },
   "/api/v1/scenes/{sceneId}/overlay": {
@@ -406,7 +456,89 @@ const badRequest = {
       parameters: [
         { name: "sceneId", in: "path", required: true, schema: fromValidator(sceneIdParamSchema) },
       ],
-      responses: { "200": ok("叠加层"), "401": unauthorized, "404": ok("未找到") },
+      responses: {
+        "200": ok("叠加层"),
+        "400": badRequest,
+        "401": unauthorized,
+        "404": notFound,
+        ...apiWideResponses,
+      },
+    },
+  },
+  /**
+   * Three surfaces the server has always served and this document never mentioned.
+   *
+   * All three sit **behind the auth gate** (`app.ts` mounts `authenticate` before
+   * them) but **outside `/api`**, so the coarse rate limiter does not apply and none
+   * of them can answer 429 — which is why they do not spread `apiWideResponses`.
+   * Documenting them is what makes "everything this deployment serves" answerable
+   * from the spec instead of from reading `app.ts`.
+   */
+  "/openapi.json": {
+    get: {
+      tags: ["ops"],
+      summary: "本文档自身（需登录会话）",
+      responses: {
+        "200": {
+          description: "OpenAPI 3.1 文档",
+          content: {
+            "application/json": { schema: { type: "object", additionalProperties: true } },
+          },
+        },
+        "401": unauthorized,
+      },
+    },
+  },
+  "/docs": {
+    get: {
+      tags: ["ops"],
+      summary: "同源自带的 Swagger UI（无 CDN，需登录会话）",
+      responses: {
+        "200": {
+          description: "HTML 页面",
+          content: { "text/html": { schema: { type: "string" } } },
+        },
+        "401": unauthorized,
+      },
+    },
+  },
+  "/docs/openapi.json": {
+    get: {
+      tags: ["ops"],
+      summary: "Swagger UI 自己取的文档副本",
+      description:
+        "与 /openapi.json 内容相同，单独一条是因为这一页要用同源相对路径取它，见 routes/docs.ts。",
+      responses: {
+        "200": {
+          description: "OpenAPI 3.1 文档",
+          content: {
+            "application/json": { schema: { type: "object", additionalProperties: true } },
+          },
+        },
+        "401": unauthorized,
+      },
+    },
+  },
+  "/scene-maps/{assetPath}": {
+    get: {
+      tags: ["scenes"],
+      summary: "场景地图静态资源（栅格图 / 点云 / .osm / 元数据）",
+      description:
+        "由 config-runtime/scene-maps 提供，运行期热加载、不进镜像。响应带 Cache-Control: no-store。",
+      parameters: [
+        {
+          name: "assetPath",
+          in: "path",
+          required: true,
+          description: "相对 scene-maps 的资源路径，可含子目录",
+          schema: { type: "string" },
+        },
+      ],
+      responses: {
+        "200": { description: "资源内容（类型随文件而定）" },
+        "401": unauthorized,
+        "404": notFound,
+      },
     },
   },
   "/api/v1/debug/ingest": {
@@ -421,8 +553,9 @@ const badRequest = {
         "200": ok("已注入并返回快照"),
         "400": badRequest,
         "401": unauthorized,
-        "403": ok("权限不足"),
-        "404": ok("未启用"),
+        "403": forbidden,
+        "404": notFound,
+        ...apiWideResponses,
       },
     },
   },
