@@ -1,6 +1,6 @@
-import { AxeBuilder } from "@axe-core/playwright";
 import type { Page } from "@playwright/test";
 import { expect, signIn, test } from "../support/fixtures";
+import { expectAccessible } from "../support/axe";
 
 /**
  * Accessibility net for the v3 console.
@@ -21,13 +21,6 @@ import { expect, signIn, test } from "../support/fixtures";
  *   `modal` told a screen reader the shell was gone while a keyboard could still
  *   tab into it.
  */
-type AxeViolation = Awaited<
-  ReturnType<AxeBuilder["analyze"]>
->["violations"][number];
-
-const BLOCKING_IMPACTS = new Set(["serious", "critical"]);
-const TAGS = ["wcag2a", "wcag2aa"];
-
 /** Signed-in routes, and the heading that proves each one actually rendered. */
 const ROUTES: readonly { path: string; heading: string | RegExp }[] = [
   { path: "/", heading: "总览" },
@@ -67,72 +60,6 @@ const VIEWPORTS: readonly { label: string; width: number; height: number }[] = [
   { label: "墙面 2560", width: 2560, height: 1440 },
 ];
 
-const formatViolations = (violations: readonly AxeViolation[]): string => {
-  if (violations.length === 0) return "  (axe reported no violations at all)";
-  return violations
-    .map((violation) => {
-      const nodes = violation.nodes
-        .map((node) => {
-          // `failureSummary` is what turns "colour contrast" into a number you can
-          // act on, but it is multi-line — flattened onto the selector line.
-          const why = (node.failureSummary ?? "")
-            .split("\n")
-            .map((line) => line.trim())
-            .filter(Boolean)
-            .join(" ");
-          return `      at ${node.target.flat().join(" ")}${why ? `\n        ${why}` : ""}`;
-        })
-        .join("\n");
-      return `  [${violation.impact ?? "unknown"}] ${violation.id} — ${violation.help}\n${nodes}`;
-    })
-    .join("\n");
-};
-
-/**
- * Wait until no CSS transition is still running before sampling colours.
- *
- * Auditing inside a transition reads a half-changed foreground against a
- * half-changed background — that is what made an intermittent 1.38:1 failure look
- * like flakiness for a day (ROADMAP, 2026-08-29).
- *
- * Two details that are easy to get wrong: filter to `CSSTransition`, because
- * `getAnimations()` also returns infinite keyframe animations that never settle; and
- * catch on `finished`, because it **rejects** with `AbortError` when an animation is
- * cancelled — which is exactly what happens to a drawer transition that is
- * interrupted.
- */
-const settleTransitions = (page: Page): Promise<void> =>
-  page.evaluate(async () => {
-    const running = document
-      .getAnimations()
-      .filter((animation) => animation instanceof CSSTransition);
-    await Promise.all(
-      running.map((animation) => animation.finished.catch(() => undefined)),
-    );
-  });
-
-const expectAccessible = async (page: Page, view: string): Promise<void> => {
-  await settleTransitions(page);
-
-  const { violations } = await new AxeBuilder({ page })
-    .withTags(TAGS)
-    .analyze();
-  const blocking = violations.filter((violation) =>
-    BLOCKING_IMPACTS.has(violation.impact ?? ""),
-  );
-
-  // `soft` so one bad surface does not hide the others — the test still fails, it
-  // just audits everything first.
-  expect
-    .soft(
-      blocking.map((violation) => `${violation.id} (${violation.impact})`),
-      `${view}: ${blocking.length} serious/critical accessibility violation(s).\n` +
-        `All ${violations.length} violation(s) axe reported for ${TAGS.join(" + ")}:\n` +
-        formatViolations(violations),
-    )
-    .toEqual([]);
-};
-
 /** Seed the theme before boot; an init script re-runs on every navigation. */
 const useTheme = async (page: Page, theme: "light" | "dark"): Promise<void> => {
   await page.addInitScript(
@@ -166,11 +93,17 @@ for (const theme of ["light", "dark"] as const) {
     /**
      * One test per viewport rather than one test for the whole grid.
      *
-     * Eight routes x four viewports is 32 axe analyses, and axe is not fast: as one
-     * test that is a couple of minutes against a 45s budget, and on a cold CI runner
-     * it started timing out — a timeout that says nothing about which route or which
-     * width was slow. Split, each test does eight analyses, gets its own budget, and
-     * names the viewport in its own title when it fails.
+     * `ROUTES.length × VIEWPORTS.length` axe analyses — **12 × 4 = 48** as this file
+     * stands — and axe is not fast: as one test that is a couple of minutes against a
+     * 45s budget, and on a cold CI runner it started timing out, with a timeout that
+     * says nothing about which route or which width was slow. Split, each test does
+     * `ROUTES.length` analyses, gets its own budget, and names the viewport in its own
+     * title when it fails.
+     *
+     * (The arithmetic here said "eight routes … 32 … eight analyses" while `ROUTES`
+     * had grown to twelve, i.e. the budget was reasoned against 2/3 of the real work.
+     * Stated against the array lengths now, so the next route added does not silently
+     * invalidate the reasoning.)
      */
     for (const viewport of VIEWPORTS) {
       test(`every route is clean at ${viewport.label}`, async ({ page }) => {

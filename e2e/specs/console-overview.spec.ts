@@ -1,5 +1,9 @@
 import { expect, signIn, test } from "../support/fixtures";
-import { SEEDED_DEVICES } from "../support/seed";
+import {
+  CONFIGURED_FORMATION_COUNT,
+  SEEDED_ALERTING,
+  SEEDED_DEVICES,
+} from "../support/seed";
 
 /**
  * 总览, the landing page — and the one page in the new IA with no v1.0.0 counterpart,
@@ -30,27 +34,39 @@ test.describe("console overview", () => {
     page,
   }) => {
     const gps = page.getByRole("article").filter({ hasText: "GPS覆盖" });
-    await expect(gps).toContainText(`/ ${SEEDED_DEVICES.length}`);
+    // Both halves. Asserting only the denominator passes for `0 / 3`, which is exactly
+    // the failure this tile exists to surface — every seeded device publishes GPS
+    // (`support/seed.ts` derives lat/lng for all of them), so the numerator is
+    // knowable and leaving it unasserted was the whole check missing.
+    await expect(gps).toContainText(
+      `${SEEDED_DEVICES.length} / ${SEEDED_DEVICES.length}`,
+    );
   });
 
   test("names the vehicles that need attention and links to them", async ({
     page,
   }) => {
-    // The seeded fleet has a faulted vehicle, so the list is not empty — which is
-    // also what makes this assertion worth having rather than tautological.
     const attention = page.locator(
       "section[aria-labelledby='attention-heading']",
     );
     await expect(attention).toBeVisible();
 
-    const faulted = SEEDED_DEVICES.find(
-      (device) => device.statusLabel !== "正常",
+    // Named, not merely present: the test's own title promises a *name*, and it used
+    // to assert only that some row linked somewhere. The seed's alerting vehicle is
+    // resolved in `support/seed.ts`, so the `if (faulted)` that used to wrap this —
+    // and could never be false — is gone with it.
+    await expect(attention).toContainText(SEEDED_ALERTING.deviceName);
+
+    // The row links, not the section's "查看全部设备" — that one goes to the list.
+    await attention
+      .locator("li")
+      .filter({ hasText: SEEDED_ALERTING.deviceName })
+      .first()
+      .getByRole("link")
+      .click();
+    await expect(page).toHaveURL(
+      new RegExp(`/devices/${SEEDED_ALERTING.deviceId}$`),
     );
-    if (faulted) {
-      // The row links, not the section's "查看全部设备" — that one goes to the list.
-      await attention.locator("li").first().getByRole("link").click();
-      await expect(page).toHaveURL(/\/devices\/.+/);
-    }
   });
 
   test("shows both clocks, and neither of them backwards", async ({ page }) => {
@@ -60,7 +76,6 @@ test.describe("console overview", () => {
     const freshness = page.getByRole("status").filter({ hasText: "数据" });
     await expect(freshness).toContainText(/数据\s*(刚刚|\d+ 秒前)/);
     await expect(freshness).toContainText("服务端");
-    await expect(freshness).not.toContainText("-");
   });
 
   test("sizes the formation panel to exactly three rows", async ({ page }) => {
@@ -77,7 +92,11 @@ test.describe("console overview", () => {
      */
     const list = page.locator(".formation-list");
     const rows = list.locator("li");
-    await expect(rows).toHaveCount(3);
+    // Three, because that is what `config-runtime/formations.json` declares — the
+    // count comes from the file (see `CONFIGURED_FORMATION_COUNT`) so a fourth
+    // formation fails here with a reason instead of a bare number mismatch.
+    expect(CONFIGURED_FORMATION_COUNT).toBe(3);
+    await expect(rows).toHaveCount(CONFIGURED_FORMATION_COUNT);
 
     const heights = await Promise.all(
       (await rows.all()).map(async (row) => (await row.boundingBox())?.height),

@@ -1,5 +1,5 @@
 import { expect, signIn, test } from "../support/fixtures";
-import { SEEDED_DEVICES, SEEDED_SCENE } from "../support/seed";
+import { SEEDED_DEVICES, SEEDED_FAULTED, SEEDED_SCENE } from "../support/seed";
 
 /**
  * The devices page in a real browser, which is the only place three of these things
@@ -21,6 +21,15 @@ import { SEEDED_DEVICES, SEEDED_SCENE } from "../support/seed";
  * uses, so a regression in the ported engine fails in both suites.
  */
 const [firstDevice] = SEEDED_DEVICES;
+
+/**
+ * The auto-mode note, exactly as `DevicesView.vue` renders it.
+ *
+ * A constant rather than a literal at each site, because the two sites disagreed:
+ * one asserted the real string and the other asserted "按车队规模自动选择", which
+ * matches nothing — and a `toBeHidden()` against zero elements passes.
+ */
+const AUTO_MODE_NOTE = "自动按车队规模选择视图";
 
 /** Centre-to-centre distance from the map surface's own centre, in CSS pixels. */
 const markerOffsetFromCentre = (page: import("@playwright/test").Page) =>
@@ -47,9 +56,12 @@ test.describe("console devices", () => {
   });
 
   test("opens on the map for a fleet a map can show", async ({ page }) => {
-    // Six seeded vehicles is under the ten-unit threshold, so `auto` picks the map.
+    // Three seeded vehicles, under the ten-unit threshold, so `auto` picks the map.
+    // (Six is the count in `config-runtime/vehicles.json`, which is not the runtime
+    // fleet — a configured device that never reports never enters the snapshot.)
+    expect(SEEDED_DEVICES).toHaveLength(3);
     await expect(page.locator(".map-surface")).toBeVisible();
-    await expect(page.getByText("自动按车队规模选择视图")).toBeVisible();
+    await expect(page.getByText(AUTO_MODE_NOTE)).toBeVisible();
   });
 
   test("the map is the body of the page, not a panel in the top third of it", async ({
@@ -123,7 +135,12 @@ test.describe("console devices", () => {
 
     await page.getByRole("button", { name: "列表", exact: true }).click();
     await expect(page.getByRole("table")).toBeVisible();
-    await expect(page.getByText("按车队规模自动选择")).toBeHidden();
+    // The auto-mode note must disappear once the layout is pinned. The string has to
+    // be the one the page actually renders: this assertion used to read
+    // "按车队规模自动选择", which matches nothing — and `toBeHidden()` on a locator
+    // that matches zero elements passes. It was green for the whole of Phase 13
+    // without ever making the check it exists to make.
+    await expect(page.getByText(AUTO_MODE_NOTE)).toBeHidden();
 
     await page.reload();
     await expect(page.getByRole("table")).toBeVisible();
@@ -255,13 +272,15 @@ test.describe("console devices", () => {
     // The seeded fleet has a faulted vehicle carrying 5102. v1.0.0 showed the number
     // and the firmware's string; this page has to say what it means, what causes it,
     // what to do, and — the part a dispatcher acts on — what the vehicle can still do.
-    const faulted = SEEDED_DEVICES.find((item) => item.errorCode?.code);
-    test.skip(!faulted, "seed carries no faulted vehicle");
+    // Resolved and asserted in `support/seed.ts`: the guard that used to sit here
+    // could never fire, so losing the faulted vehicle would have skipped this test
+    // rather than failing it.
+    const faulted = SEEDED_FAULTED;
 
-    await page.goto(`/devices/${faulted!.deviceId}`);
+    await page.goto(`/devices/${faulted.deviceId}`);
     const codes = page.locator("section[aria-labelledby='codes-heading']");
 
-    await expect(codes).toContainText(String(faulted!.errorCode!.code));
+    await expect(codes).toContainText(String(faulted.errorCode!.code));
     await expect(codes).toContainText("路径规划超时");
     await expect(codes).toContainText("任务受阻");
     await expect(codes).toContainText("处理建议");
@@ -273,13 +292,15 @@ test.describe("console devices", () => {
     // The fourth L3 tab, and the first consumer of `/api/v1/alerts` anywhere in the
     // console — 13D-1 built the alert centre on the store's live alerts and left the
     // endpoint at zero calls, so nothing before this exercised it end to end.
-    const faulted = SEEDED_DEVICES.find((item) => item.errorCode?.code);
-    test.skip(!faulted, "seed carries no faulted vehicle");
+    // Resolved and asserted in `support/seed.ts`: the guard that used to sit here
+    // could never fire, so losing the faulted vehicle would have skipped this test
+    // rather than failing it.
+    const faulted = SEEDED_FAULTED;
 
-    await page.goto(`/devices/${faulted!.deviceId}?tab=alerts`);
+    await page.goto(`/devices/${faulted.deviceId}?tab=alerts`);
 
     const history = page.locator("section", { hasText: "告警史" });
-    await expect(history).toContainText(String(faulted!.errorCode!.code));
+    await expect(history).toContainText(String(faulted.errorCode!.code));
     // The three fields the alert centre never shows, because its source has no
     // history: when it started, when it ended, whether it is still running.
     await expect(history).toContainText("发生");
