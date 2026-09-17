@@ -1,7 +1,7 @@
 import { Db, MongoClient, MongoServerError, type MongoClientEvents } from "mongodb";
 import { config } from "./config";
 import { MongoConnectionSupervisor, type MongoSession, redactMongoUri } from "./mongoConnection";
-import { DeviceAlert, DeviceSnapshot, HistoryQuery, UserRecord } from "./types";
+import { AuditEntry, DeviceAlert, DeviceSnapshot, HistoryQuery, UserRecord } from "./types";
 import { moduleLogger } from "./logger";
 import { asText } from "./normalize";
 import { runMigrations } from "./migrations/runner";
@@ -88,6 +88,9 @@ interface StoredAlert {
  */
 const MAX_ALERTS_PER_QUERY = 500;
 
+/** Most audit rows one `GET /api/audit` returns; the in-memory fallback ring is bounded to it too. */
+const MAX_AUDIT_PER_QUERY = 500;
+
 export class Persistence {
   private db: Db | null = null;
   private pendingTelemetry: TelemetryDocument[] = [];
@@ -108,6 +111,8 @@ export class Persistence {
   // Current active alerts per device, always kept in memory so /api/alerts stays
   // useful in local/dev runs without MongoDB (mirrors the telemetry fallback).
   private activeAlerts = new Map<string, StoredAlert[]>();
+  // Bounded in-memory audit trail for Mongo-less dev runs (mirrors the other fallbacks).
+  private auditFallback: AuditEntry[] = [];
   // Schema migrations run at most once per process, on the first connect that has a live
   // db. This flag makes reconnects skip them, and `migrationFailure` carries a migration
   // that *errored* so the composition root can refuse to start — kept distinct from a plain
@@ -225,6 +230,9 @@ export class Persistence {
     if (!names.has("users")) {
       await this.db.createCollection("users");
     }
+    if (!names.has("audit_log")) {
+      await this.db.createCollection("audit_log");
+    }
 
     await this.db.collection("device_latest").createIndex({ deviceId: 1 }, { unique: true });
     await this.db.collection("device_latest").createIndex({ stamp: -1 });
@@ -234,6 +242,11 @@ export class Persistence {
       .collection("alerts")
       .createIndex({ lastSeenAt: 1 }, { expireAfterSeconds: config.alertsRetentionSeconds });
     await this.db.collection("users").createIndex({ username: 1 }, { unique: true });
+    await this.db.collection("audit_log").createIndex({ actor: 1, ts: -1 });
+    await this.db.collection("audit_log").createIndex({ action: 1, ts: -1 });
+    await this.db
+      .collection("audit_log")
+      .createIndex({ ts: -1 }, { expireAfterSeconds: config.auditRetentionSeconds });
 
     // Reconcile TTLs on an existing database, not just at creation: both retention windows
     // are env-configurable, but the `expireAfterSeconds` was only ever set in the create
@@ -457,6 +470,61 @@ export class Persistence {
     await this.db
       .collection<UserRecord>("users")
       .updateOne({ username }, { $set: { lastLoginAt: at } });
+  }
+
+  /**
+   * Append an audit entry. **Best-effort**: a failure to record must never turn into a failure
+   * of the action being audited (auth, user management), so a write error is logged and
+   * swallowed. The in-memory ring keeps dev runs queryable without Mongo.
+   */
+  async appendAudit(entry: AuditEntry): Promise<void> {
+    if (!this.db) {
+      this.auditFallback.unshift(entry);
+      if (this.auditFallback.length > MAX_AUDIT_PER_QUERY) {
+        this.auditFallback.length = MAX_AUDIT_PER_QUERY;
+      }
+      return;
+    }
+    try {
+      await this.db.collection<AuditEntry>("audit_log").insertOne({ ...entry });
+    } catch (error) {
+      logger.warn({ err: error, action: entry.action }, "Failed to write audit entry");
+    }
+  }
+
+  /** Query the audit trail, newest first, filtered by actor / action / time window. */
+  async queryAudit(filters: {
+    actor?: string;
+    action?: string;
+    from?: string;
+    to?: string;
+  }): Promise<AuditEntry[]> {
+    const tsBound: Record<string, Date> = {};
+    const fromDate = toBoundDate(filters.from);
+    const toDate = toBoundDate(filters.to);
+    if (fromDate) tsBound.$gte = fromDate;
+    if (toDate) tsBound.$lte = toDate;
+
+    if (!this.db) {
+      return this.auditFallback
+        .filter((entry) => !filters.actor || entry.actor === filters.actor)
+        .filter((entry) => !filters.action || entry.action === filters.action)
+        .filter((entry) => !fromDate || entry.ts >= fromDate)
+        .filter((entry) => !toDate || entry.ts <= toDate)
+        .slice(0, MAX_AUDIT_PER_QUERY);
+    }
+
+    const query: Record<string, unknown> = {};
+    if (filters.actor) query.actor = filters.actor;
+    if (filters.action) query.action = filters.action;
+    if (Object.keys(tsBound).length > 0) query.ts = tsBound;
+
+    return this.db
+      .collection<AuditEntry>("audit_log")
+      .find(query, { projection: { _id: 0 } })
+      .sort({ ts: -1 })
+      .limit(MAX_AUDIT_PER_QUERY)
+      .toArray();
   }
 
   async restoreLatestDevices(): Promise<DeviceSnapshot[]> {

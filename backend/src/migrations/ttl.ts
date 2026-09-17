@@ -1,10 +1,11 @@
 import type { Db } from "mongodb";
 import type { Logger } from "pino";
 
-/** The two retention windows this reconciler enforces, in seconds. */
+/** The retention windows this reconciler enforces, in seconds. */
 export interface TtlConfig {
   telemetryRetentionSeconds: number;
   alertsRetentionSeconds: number;
+  auditRetentionSeconds: number;
 }
 
 /**
@@ -50,6 +51,18 @@ export const reconcileTtls = async (db: Db, ttl: TtlConfig, logger: Logger): Pro
       "Reconciled alerts lastSeenAt TTL to configured retention",
     );
   }
+
+  const auditCurrent = await ttlIndexExpireSeconds(db, "audit_log", "ts_-1");
+  if (auditCurrent !== null && auditCurrent !== ttl.auditRetentionSeconds) {
+    await db.command({
+      collMod: "audit_log",
+      index: { keyPattern: { ts: -1 }, expireAfterSeconds: ttl.auditRetentionSeconds },
+    });
+    logger.info(
+      { from: auditCurrent, to: ttl.auditRetentionSeconds },
+      "Reconciled audit_log TTL to configured retention",
+    );
+  }
 };
 
 /** The `expireAfterSeconds` set on the `telemetry_ts` timeseries collection, or null if absent/unset. */
@@ -61,9 +74,17 @@ const timeseriesExpireSeconds = async (db: Db): Promise<number | null> => {
 };
 
 /** The `expireAfterSeconds` on the `alerts.lastSeenAt_1` TTL index, or null if the index is absent. */
-const alertsIndexExpireSeconds = async (db: Db): Promise<number | null> => {
-  const indexes = await db.collection("alerts").indexes();
-  const ttlIndex = indexes.find((index) => index.name === "lastSeenAt_1");
+const alertsIndexExpireSeconds = (db: Db): Promise<number | null> =>
+  ttlIndexExpireSeconds(db, "alerts", "lastSeenAt_1");
+
+/** The `expireAfterSeconds` on a named TTL index of a collection, or null if it is absent/unset. */
+const ttlIndexExpireSeconds = async (
+  db: Db,
+  collection: string,
+  indexName: string,
+): Promise<number | null> => {
+  const indexes = await db.collection(collection).indexes();
+  const ttlIndex = indexes.find((index) => index.name === indexName);
   const value = (ttlIndex as { expireAfterSeconds?: number } | undefined)?.expireAfterSeconds;
   return typeof value === "number" ? value : null;
 };

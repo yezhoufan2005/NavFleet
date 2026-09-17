@@ -17,6 +17,7 @@ interface CommandCall {
 const createFakeDb = (opts: {
   telemetryExpire?: number | null;
   alertsExpire?: number | null;
+  auditExpire?: number | null;
 }): { db: Db; commands: CommandCall[] } => {
   const commands: CommandCall[] = [];
   const db = {
@@ -28,13 +29,21 @@ const createFakeDb = (opts: {
             : [{ name: "telemetry_ts", options: { expireAfterSeconds: opts.telemetryExpire } }],
         ),
     }),
-    collection: (_name: string) => ({
-      indexes: () =>
-        Promise.resolve(
+    collection: (name: string) => ({
+      indexes: () => {
+        if (name === "audit_log") {
+          return Promise.resolve(
+            opts.auditExpire === null || opts.auditExpire === undefined
+              ? [{ name: "_id_" }]
+              : [{ name: "_id_" }, { name: "ts_-1", expireAfterSeconds: opts.auditExpire }],
+          );
+        }
+        return Promise.resolve(
           opts.alertsExpire === null || opts.alertsExpire === undefined
             ? [{ name: "_id_" }]
             : [{ name: "_id_" }, { name: "lastSeenAt_1", expireAfterSeconds: opts.alertsExpire }],
-        ),
+        );
+      },
     }),
     command: (spec: Record<string, unknown>) => {
       commands.push({ spec });
@@ -45,7 +54,11 @@ const createFakeDb = (opts: {
 };
 
 const log = moduleLogger("test-ttl");
-const ttl = { telemetryRetentionSeconds: 100, alertsRetentionSeconds: 200 };
+const ttl = {
+  telemetryRetentionSeconds: 100,
+  alertsRetentionSeconds: 200,
+  auditRetentionSeconds: 300,
+};
 
 beforeEach(() => {
   vi.restoreAllMocks();
@@ -72,6 +85,23 @@ describe("reconcileTtls", () => {
         spec: {
           collMod: "alerts",
           index: { keyPattern: { lastSeenAt: 1 }, expireAfterSeconds: 200 },
+        },
+      },
+    ]);
+  });
+
+  it("audit_log 的 TTL 漂了 → 用 collMod 改 ts_-1 索引", async () => {
+    const { db, commands } = createFakeDb({
+      telemetryExpire: 100,
+      alertsExpire: 200,
+      auditExpire: 9,
+    });
+    await reconcileTtls(db, ttl, log);
+    expect(commands).toEqual([
+      {
+        spec: {
+          collMod: "audit_log",
+          index: { keyPattern: { ts: -1 }, expireAfterSeconds: 300 },
         },
       },
     ]);

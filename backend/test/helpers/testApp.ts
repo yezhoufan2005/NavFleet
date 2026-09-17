@@ -7,10 +7,12 @@ import { createRuntimeState, type RuntimeState } from "../../src/runtimeState";
 import { ACCESS_COOKIE } from "../../src/auth/middleware";
 import { signAccessToken } from "../../src/auth/tokens";
 import type { AuthService, AdminActionResult } from "../../src/auth/service";
+import type { AuditService } from "../../src/audit/service";
 import type { Persistence } from "../../src/persistence";
 import type { DashboardStore } from "../../src/store";
 import type {
   AdminUserView,
+  AuditEntry,
   FleetSnapshot,
   FormationSnapshot,
   LaneletOverlay,
@@ -176,11 +178,22 @@ export const createAuthServiceStub = (): AuthServiceStub => ({
   deleteUser: vi.fn(() => Promise.resolve<AdminActionResult<void>>({ ok: true, value: undefined })),
 });
 
+export interface AuditServiceStub {
+  record: Mock<(input: unknown) => Promise<void>>;
+  query: Mock<(filters: unknown) => Promise<AuditEntry[]>>;
+}
+
+export const createAuditServiceStub = (): AuditServiceStub => ({
+  record: vi.fn(() => Promise.resolve()),
+  query: vi.fn(() => Promise.resolve<AuditEntry[]>([])),
+});
+
 export interface TestAppOptions {
   configOverrides?: Partial<AppConfig>;
   store?: StoreStub;
   persistence?: PersistenceStub;
   authService?: AuthServiceStub;
+  auditService?: AuditServiceStub;
   state?: RuntimeState;
   wsClientCount?: () => number;
   /** Off by default so test apps do not each install process-metric hooks. */
@@ -207,6 +220,7 @@ export interface TestAppContext {
   store: StoreStub;
   persistence: PersistenceStub;
   authService: AuthServiceStub;
+  auditService: AuditServiceStub;
   state: RuntimeState;
   config: AppConfig;
 }
@@ -273,6 +287,7 @@ export const createTestApp = (options: TestAppOptions = {}): TestAppContext => {
   const store = options.store ?? createStoreStub();
   const persistence = options.persistence ?? createPersistenceStub();
   const authService = options.authService ?? createAuthServiceStub();
+  const auditService = options.auditService ?? createAuditServiceStub();
   const state = options.state ?? createRuntimeState();
   // Documented defaults (metrics on, debug ingest off), then per-test overrides.
   // CORS is disabled so the app under test carries no origin allowlist.
@@ -285,6 +300,7 @@ export const createTestApp = (options: TestAppOptions = {}): TestAppContext => {
     store: store as unknown as DashboardStore,
     persistence: persistence as unknown as Persistence,
     authService: authService as unknown as AuthService,
+    auditService: auditService as unknown as AuditService,
     config,
     state,
     wsClientCount: options.wsClientCount ?? ((): number => 0),
@@ -297,7 +313,7 @@ export const createTestApp = (options: TestAppOptions = {}): TestAppContext => {
   slot.use(expressApp);
   nextSlot += 1;
 
-  return { app: slot.server, store, persistence, authService, state, config };
+  return { app: slot.server, store, persistence, authService, auditService, state, config };
 };
 
 /**

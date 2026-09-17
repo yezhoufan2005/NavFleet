@@ -341,6 +341,60 @@ describe("users 集合", () => {
   });
 });
 
+describe("audit_log", () => {
+  const entry = {
+    ts: new Date("2026-07-01T00:00:00.000Z"),
+    actor: "root",
+    action: "user_delete" as const,
+    target: "bob",
+    outcome: "success" as const,
+  };
+
+  it("appendAudit 走 insertOne", async () => {
+    const { db, calls } = createFakeDb();
+    persistence.__setDbForTests(db);
+
+    await persistence.appendAudit(entry);
+    expect(calls.insertOne[0]?.collection).toBe("audit_log");
+  });
+
+  it("appendAudit 写失败被吞掉，不冒泡（审计是旁路，不能反噬主流程）", async () => {
+    const { db } = createFakeDb({}, { insertOne: true });
+    persistence.__setDbForTests(db);
+    // insertOne rejects, but appendAudit must resolve.
+    await expect(persistence.appendAudit(entry)).resolves.toBeUndefined();
+  });
+
+  it("queryAudit 过滤 actor/action/时间，按 ts 倒序、投影掉 _id", async () => {
+    const { db, calls } = createFakeDb({ audit_log: [{ actor: "root", action: "login" }] });
+    persistence.__setDbForTests(db);
+
+    await persistence.queryAudit({
+      actor: "root",
+      action: "login",
+      from: "2026-01-01T00:00:00Z",
+      to: "2026-02-01T00:00:00Z",
+    });
+
+    const [query] = calls.find;
+    expect(query?.collection).toBe("audit_log");
+    expect(query?.options).toEqual({ projection: { _id: 0 } });
+    expect(query?.sort).toEqual({ ts: -1 });
+    expect(query?.filter).toMatchObject({
+      actor: "root",
+      action: "login",
+      ts: { $gte: anyDate, $lte: anyDate },
+    });
+  });
+
+  it("queryAudit 无过滤时不写任何条件", async () => {
+    const { db, calls } = createFakeDb();
+    persistence.__setDbForTests(db);
+    await persistence.queryAudit({});
+    expect(calls.find[0]?.filter).toEqual({});
+  });
+});
+
 describe("restoreLatestDevices", () => {
   it("两个轴都有界：时间窗 + maxDevices，且按 stamp 倒序", async () => {
     const { db, calls } = createFakeDb({

@@ -4,6 +4,7 @@ import { changePasswordSchema, loginSchema } from "../validation";
 import type { UserRecord } from "../types";
 import type { AuthService } from "./service";
 import { toPublicUser } from "./service";
+import type { AuditService } from "../audit/service";
 import { ACCESS_COOKIE, REFRESH_COOKIE, createAuthenticate } from "./middleware";
 import { signAccessToken, signRefreshToken, verifyToken } from "./tokens";
 
@@ -58,7 +59,7 @@ const clearSessionCookies = (response: Response): void => {
   response.clearCookie(REFRESH_COOKIE, { ...baseCookie(), path: "/api/auth" });
 };
 
-export const buildAuthRouter = (authService: AuthService): Router => {
+export const buildAuthRouter = (authService: AuthService, audit: AuditService): Router => {
   const router = Router();
   const authenticate = createAuthenticate((username) => authService.findByUsername(username));
 
@@ -71,10 +72,17 @@ export const buildAuthRouter = (authService: AuthService): Router => {
       }
       const user = await authService.authenticate(parsed.data.username, parsed.data.password);
       if (!user) {
+        void audit.record({
+          actor: parsed.data.username,
+          action: "login_failed",
+          outcome: "failure",
+          requestId: request.requestId,
+        });
         response.status(401).json({ error: "invalid_credentials" });
         return;
       }
       await authService.recordLogin(user.username);
+      void audit.record({ actor: user.username, action: "login", requestId: request.requestId });
       issueSessionCookies(response, user);
       response.json({ user: toPublicUser(user) });
     } catch (error) {
@@ -120,6 +128,7 @@ export const buildAuthRouter = (authService: AuthService): Router => {
         (access ? verifyToken(access, "access") : null);
       if (claims) {
         await authService.invalidateSessions(claims.sub);
+        void audit.record({ actor: claims.sub, action: "logout", requestId: request.requestId });
       }
       clearSessionCookies(response);
       response.status(204).end();
@@ -149,6 +158,11 @@ export const buildAuthRouter = (authService: AuthService): Router => {
       // The change bumped tokenVersion, invalidating the caller's current cookies too —
       // re-issue at the new version so the initiating session stays signed in.
       issueSessionCookies(response, updated);
+      void audit.record({
+        actor: username,
+        action: "password_change",
+        requestId: request.requestId,
+      });
       response.status(204).end();
     } catch (error) {
       next(error);
