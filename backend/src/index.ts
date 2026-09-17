@@ -133,6 +133,19 @@ const start = async (): Promise<void> => {
   }
 
   await store.initialize();
+
+  // Refuse to start on a migration that errored: `store.initialize()` connects MongoDB, and
+  // a failed migration there means the schema is half-applied. Serving it would be worse than
+  // not starting. A plain "MongoDB unreachable" is not this — that stays a degraded, retrying
+  // in-memory run, unchanged.
+  if (persistence.migrationError) {
+    logger.fatal(
+      { err: persistence.migrationError, version: persistence.migrationError.version },
+      "Schema migration failed; refusing to start",
+    );
+    process.exit(1);
+  }
+
   await authService.initialize();
   state.storeReady = true;
   try {

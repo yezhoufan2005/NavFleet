@@ -4,6 +4,9 @@ import { MongoConnectionSupervisor, type MongoSession, redactMongoUri } from "./
 import { DeviceAlert, DeviceSnapshot, HistoryQuery, UserRecord } from "./types";
 import { moduleLogger } from "./logger";
 import { asText } from "./normalize";
+import { runMigrations } from "./migrations/runner";
+import { reconcileTtls } from "./migrations/ttl";
+import { MigrationError, type Migration } from "./migrations/types";
 
 const logger = moduleLogger("persistence");
 
@@ -105,6 +108,12 @@ export class Persistence {
   // Current active alerts per device, always kept in memory so /api/alerts stays
   // useful in local/dev runs without MongoDB (mirrors the telemetry fallback).
   private activeAlerts = new Map<string, StoredAlert[]>();
+  // Schema migrations run at most once per process, on the first connect that has a live
+  // db. This flag makes reconnects skip them, and `migrationFailure` carries a migration
+  // that *errored* so the composition root can refuse to start — kept distinct from a plain
+  // "MongoDB unreachable", which stays a degrade-and-retry, not a fatal.
+  private migrationsApplied = false;
+  private migrationFailure: MigrationError | null = null;
   // Owns connect/retry and the authoritative connectivity flag; constructing it
   // starts nothing, so `new Persistence()` stays side-effect free.
   private readonly mongo = new MongoConnectionSupervisor({
@@ -160,6 +169,11 @@ export class Persistence {
       await client.connect();
       this.db = client.db(config.mongoDbName);
       await this.ensureMongoCollections();
+      // Run schema migrations on the first connect that has a live db. A migration that
+      // *errors* rejects this session (so we never serve a half-migrated database) and is
+      // recorded on `migrationFailure` for the composition root to turn into a refuse-to-
+      // start. Reconnects skip it via `migrationsApplied`.
+      await this.migrate();
     } catch (error) {
       this.db = null;
       await client.close().catch(() => undefined);
@@ -220,6 +234,44 @@ export class Persistence {
       .collection("alerts")
       .createIndex({ lastSeenAt: 1 }, { expireAfterSeconds: config.alertsRetentionSeconds });
     await this.db.collection("users").createIndex({ username: 1 }, { unique: true });
+
+    // Reconcile TTLs on an existing database, not just at creation: both retention windows
+    // are env-configurable, but the `expireAfterSeconds` was only ever set in the create
+    // branch above, so on any database that already had the collections a retention change
+    // silently did nothing. See `reconcileTtls`.
+    await reconcileTtls(this.db, config, logger);
+  }
+
+  /**
+   * Run schema migrations once per process. No-op without a live db (the degraded/in-memory
+   * path — migrations run instead on the first connect that has one) or once already applied.
+   * A {@link MigrationError} is recorded on `migrationFailure` and rethrown; a plain
+   * connection error is left to the supervisor's backoff.
+   *
+   * `list` is injectable for tests (symmetric with `runMigrations`); production omits it and
+   * gets the real, load-time-validated list.
+   */
+  async migrate(list?: readonly Migration[]): Promise<void> {
+    if (!this.db || this.migrationsApplied) {
+      return;
+    }
+    try {
+      await runMigrations(this.db, logger, list);
+      this.migrationsApplied = true;
+    } catch (error) {
+      if (error instanceof MigrationError) {
+        this.migrationFailure = error;
+      }
+      throw error;
+    }
+  }
+
+  /**
+   * A migration that errored, or null. The composition root checks this after connect() and
+   * refuses to start if set — a half-migrated schema must not be served.
+   */
+  get migrationError(): MigrationError | null {
+    return this.migrationFailure;
   }
 
   async findUserByUsername(username: string): Promise<UserRecord | null> {
