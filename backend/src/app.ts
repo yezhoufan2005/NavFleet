@@ -19,6 +19,8 @@ import { buildFleetRouter } from "./routes/fleet";
 import { buildScenesRouter } from "./routes/scenes";
 import { buildDebugRouter } from "./routes/debug";
 import { buildUsersRouter } from "./routes/users";
+import { buildAuditRouter } from "./routes/audit";
+import type { AuditService } from "./audit/service";
 
 /**
  * Mount prefixes for the domain API. `/api/v1` is the surface to build against;
@@ -30,6 +32,7 @@ export interface AppDeps {
   store: DashboardStore;
   persistence: Persistence;
   authService: AuthService;
+  auditService: AuditService;
   config: AppConfig;
   state: RuntimeState;
   wsClientCount: () => number;
@@ -47,6 +50,7 @@ export const createApp = ({
   store,
   persistence,
   authService,
+  auditService,
   config,
   state,
   wsClientCount,
@@ -110,6 +114,9 @@ export const createApp = ({
           path: request.path,
           status: response.statusCode,
           durationMs: Math.round(durationSeconds * 1000),
+          // Attributes the request to a user once authenticated (Phase 15D). Undefined for
+          // public/unauthenticated routes; `authenticate` runs before this `finish` fires.
+          username: request.user?.username,
         },
         "request",
       );
@@ -149,7 +156,7 @@ export const createApp = ({
     legacyHeaders: false,
     message: { error: "too_many_requests" },
   });
-  app.use("/api/auth", authLimiter, captureRouteMount, buildAuthRouter(authService));
+  app.use("/api/auth", authLimiter, captureRouteMount, buildAuthRouter(authService, auditService));
 
   // Everything below requires a valid session. The middleware verifies each token against
   // the stored user (enabled + tokenVersion), so logout / password change / disable take
@@ -189,7 +196,8 @@ export const createApp = ({
     app.use(prefix, captureRouteMount, buildFleetRouter(store));
     app.use(prefix, captureRouteMount, buildScenesRouter(store));
     app.use(prefix, captureRouteMount, buildDebugRouter(store, config));
-    app.use(prefix, captureRouteMount, buildUsersRouter(authService));
+    app.use(prefix, captureRouteMount, buildUsersRouter(authService, auditService));
+    app.use(prefix, captureRouteMount, buildAuditRouter(auditService));
   }
 
   // JSON 404 for any unmatched route, keeping the error contract consistent

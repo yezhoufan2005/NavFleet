@@ -54,3 +54,30 @@ export interface UserRecord {
  * stays excluded by construction.
  */
 export type AdminUserView = Omit<UserRecord, "passwordHash">;
+
+/**
+ * The auditable actions (Phase 15D). A closed union rather than a free string so a typo at an
+ * emit site fails to compile instead of silently writing an un-queryable action. Scoped to
+ * auth + user management on purpose — a read-only monitoring system gains nothing from
+ * auditing reads, and config reload has no actor (see `configRegistry` logging).
+ */
+export type AuditAction =
+  | "login"
+  | "login_failed"
+  | "logout"
+  | "password_change"
+  | "password_reset"
+  | "user_create"
+  | "user_update"
+  | "user_delete";
+
+/** One row of the `audit_log` collection. `ts` is a BSON Date so the TTL index can expire it. */
+export interface AuditEntry {
+  ts: Date;
+  actor: string;
+  action: AuditAction;
+  target?: string;
+  outcome: "success" | "failure";
+  requestId?: string;
+  detail?: Record<string, unknown>;
+}

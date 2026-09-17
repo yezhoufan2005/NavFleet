@@ -1,6 +1,7 @@
 import express from "express";
 import { requireRole } from "../auth/middleware";
 import type { AuthService, AdminActionError } from "../auth/service";
+import type { AuditService } from "../audit/service";
 import { createUserSchema, resetPasswordSchema, updateUserSchema } from "../validation";
 import { respondValidationError } from "./helpers";
 
@@ -21,7 +22,7 @@ const respondActionError = (response: express.Response, error: AdminActionError)
  * the session gate already applied in `app.ts`. Lockout protection (last admin / self) lives
  * in the service; the router only translates its result to a status code.
  */
-export const buildUsersRouter = (authService: AuthService): express.Router => {
+export const buildUsersRouter = (authService: AuthService, audit: AuditService): express.Router => {
   const router = express.Router();
   router.use("/users", requireRole("admin"));
 
@@ -45,6 +46,13 @@ export const buildUsersRouter = (authService: AuthService): express.Router => {
         respondActionError(response, result.error);
         return;
       }
+      void audit.record({
+        actor: request.user!.username,
+        action: "user_create",
+        target: parsed.data.username,
+        requestId: request.requestId,
+        detail: { role: parsed.data.role },
+      });
       response.status(201).json({ user: result.value });
     } catch (error) {
       next(error);
@@ -81,6 +89,13 @@ export const buildUsersRouter = (authService: AuthService): express.Router => {
         respondActionError(response, result.error);
         return;
       }
+      void audit.record({
+        actor: request.user!.username,
+        action: "user_update",
+        target: request.params.username,
+        requestId: request.requestId,
+        detail: { fields: Object.keys(parsed.data) },
+      });
       response.json({ user: result.value });
     } catch (error) {
       next(error);
@@ -102,6 +117,12 @@ export const buildUsersRouter = (authService: AuthService): express.Router => {
         respondActionError(response, result.error);
         return;
       }
+      void audit.record({
+        actor: request.user!.username,
+        action: "password_reset",
+        target: request.params.username,
+        requestId: request.requestId,
+      });
       response.status(204).end();
     } catch (error) {
       next(error);
@@ -115,6 +136,12 @@ export const buildUsersRouter = (authService: AuthService): express.Router => {
         respondActionError(response, result.error);
         return;
       }
+      void audit.record({
+        actor: request.user!.username,
+        action: "user_delete",
+        target: request.params.username,
+        requestId: request.requestId,
+      });
       response.status(204).end();
     } catch (error) {
       next(error);

@@ -136,6 +136,7 @@ export const openApiDocument = {
     { name: "ops", description: "健康探针与指标" },
     { name: "debug", description: "调试注入（受限）" },
     { name: "users", description: "用户管理（需 admin）" },
+    { name: "audit", description: "审计日志（需 admin）" },
   ],
   components: {
     securitySchemes: {
@@ -175,6 +176,31 @@ export const openApiDocument = {
           createdAt: { type: "string", format: "date-time" },
           updatedAt: { type: "string", format: "date-time" },
           passwordUpdatedAt: { type: "string", format: "date-time" },
+        },
+      },
+      AuditEntry: {
+        type: "object",
+        description: "审计日志条目（鉴权与用户管理事件）",
+        properties: {
+          ts: { type: "string", format: "date-time" },
+          actor: { type: "string" },
+          action: {
+            type: "string",
+            enum: [
+              "login",
+              "login_failed",
+              "logout",
+              "password_change",
+              "password_reset",
+              "user_create",
+              "user_update",
+              "user_delete",
+            ],
+          },
+          target: { type: "string" },
+          outcome: { type: "string", enum: ["success", "failure"] },
+          requestId: { type: "string" },
+          detail: { type: "object", additionalProperties: true },
         },
       },
       Alert: {
@@ -683,6 +709,37 @@ const apiWideResponses = { "429": tooManyRequests, "500": serverError } as const
         "401": unauthorized,
         "403": forbidden,
         "404": notFound,
+        ...apiWideResponses,
+      },
+    },
+  },
+  "/api/v1/audit": {
+    get: {
+      tags: ["audit"],
+      summary: "查询审计日志（需 admin；filters: actor / action / from / to）",
+      parameters: [
+        { name: "actor", in: "query", schema: { type: "string" } },
+        { name: "action", in: "query", schema: { type: "string" } },
+        { name: "from", in: "query", schema: { type: "string" } },
+        { name: "to", in: "query", schema: { type: "string" } },
+      ],
+      responses: {
+        "200": {
+          description: "审计条目（ts 倒序，服务端夹上限）",
+          content: {
+            "application/json": {
+              schema: {
+                type: "object",
+                properties: {
+                  entries: { type: "array", items: { $ref: "#/components/schemas/AuditEntry" } },
+                },
+              },
+            },
+          },
+        },
+        "400": badRequest,
+        "401": unauthorized,
+        "403": forbidden,
         ...apiWideResponses,
       },
     },

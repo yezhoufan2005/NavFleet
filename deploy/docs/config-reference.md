@@ -411,6 +411,7 @@ broker 已关闭匿名访问，所以这一组是**唯一没有安全默认值�
 | `OFFLINE_AFTER_SECONDS`       | `60`                                                                | 设备离线判定秒数                                                    |
 | `TELEMETRY_RETENTION_SECONDS` | `2592000`                                                           | 遥测保留秒数，默认 30 天                                            |
 | `ALERTS_RETENTION_SECONDS`    | `15552000`                                                          | 告警保留秒数，默认 180 天                                           |
+| `AUDIT_RETENTION_SECONDS`     | `31536000`                                                          | 审计日志保留秒数，默认 365 天；改后重启即对已建库生效（TTL 对账）   |
 | `MAX_HISTORY_POINTS`          | `500`                                                               | 单次历史查询最大返回点数；也是 `?limit=` 的**校验上界**，超过即 400 |
 | `MONGO_BUFFER_LIMIT`          | `2000`                                                              | Mongo 写失败时内存缓冲上限                                          |
 | `INGEST_QUEUE_LIMIT`          | `1000`                                                              | 摄入串行队列长度上限，满时丢最旧的可丢遥测帧                        |

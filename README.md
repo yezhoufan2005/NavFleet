@@ -204,8 +204,8 @@ NavFleet/
 ## 配置
 
 后端所有环境变量都经 **zod 校验并 fail-fast** —— 配错一个数字就启动失败，而不是静默退回
-默认值。后端自己校验 **38 个键**；连 compose 与三个叠加文件读的（broker 凭据、备份、监控）共
-61 个，逐项说明见
+默认值。后端自己校验 **39 个键**；连 compose 与三个叠加文件读的（broker 凭据、备份、监控）共
+62 个，逐项说明见
 [deploy/docs/config-reference.md](deploy/docs/config-reference.md)。
 
 最需要注意的几个：
@@ -378,7 +378,7 @@ CI 在 Node 22 / 24 上跑全部门禁，E2E 单独一个 job。提交前 husky 
 | ---------------------------------------------------------------------- | -------------------------------------------------- |
 | [ARCHITECTURE.md](ARCHITECTURE.md)                                     | 分层、模块职责、数据流、前后端各文件的作用         |
 | [deploy/docs/deployment.md](deploy/docs/deployment.md)                 | 部署步骤、TLS、反代、镜像发布                      |
-| [deploy/docs/config-reference.md](deploy/docs/config-reference.md)     | 61 个环境变量 + 运行期 JSON 全字段                 |
+| [deploy/docs/config-reference.md](deploy/docs/config-reference.md)     | 62 个环境变量 + 运行期 JSON 全字段                 |
 | [deploy/docs/backup-and-restore.md](deploy/docs/backup-and-restore.md) | 备份、恢复、演练                                   |
 | [CONTRIBUTING.md](CONTRIBUTING.md)                                     | 分支、提交规范、本地门禁                           |
 | [ROADMAP.md](ROADMAP.md)                                               | 当前路线图（Phase 14–18 的计划与决策）             |

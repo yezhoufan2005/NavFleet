@@ -140,6 +140,9 @@ const configSchema = z.object({
   OFFLINE_AFTER_SECONDS: envInt(60),
   TELEMETRY_RETENTION_SECONDS: envInt(60 * 60 * 24 * 30),
   ALERTS_RETENTION_SECONDS: envInt(60 * 60 * 24 * 180),
+  // Audit trail (Phase 15D). Kept longer than telemetry/alerts by default — a security
+  // record is worth more the older the incident it explains.
+  AUDIT_RETENTION_SECONDS: envInt(60 * 60 * 24 * 365),
   MAX_HISTORY_POINTS: envInt(500),
   MONGO_BUFFER_LIMIT: envInt(2000),
   // P0-b: how many mutations may wait in the store's serial ingest queue before
@@ -216,6 +219,7 @@ export const parseConfig = (env: NodeJS.ProcessEnv) => {
     offlineAfterSeconds: e.OFFLINE_AFTER_SECONDS,
     telemetryRetentionSeconds: e.TELEMETRY_RETENTION_SECONDS,
     alertsRetentionSeconds: e.ALERTS_RETENTION_SECONDS,
+    auditRetentionSeconds: e.AUDIT_RETENTION_SECONDS,
     maxHistoryPoints: e.MAX_HISTORY_POINTS,
     mongoBufferLimit: e.MONGO_BUFFER_LIMIT,
     ingestQueueLimit: e.INGEST_QUEUE_LIMIT,

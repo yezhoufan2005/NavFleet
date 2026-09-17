@@ -7,6 +7,7 @@ import { ConfigRegistry } from "./configRegistry";
 import { Persistence } from "./persistence";
 import { DashboardStore } from "./store";
 import { AuthService } from "./auth/service";
+import { AuditService } from "./audit/service";
 import { buildTopicScheme } from "./topics";
 import { createApp } from "./app";
 import { createWebSocketBridge } from "./websocket";
@@ -19,6 +20,7 @@ const persistence = new Persistence();
 const configRegistry = new ConfigRegistry();
 const store = new DashboardStore(persistence, configRegistry);
 const authService = new AuthService(persistence);
+const auditService = new AuditService(persistence);
 const topicScheme = buildTopicScheme(config.topicPattern);
 
 let wsClientCount = (): number => 0;
@@ -26,6 +28,7 @@ const app = createApp({
   store,
   persistence,
   authService,
+  auditService,
   config,
   state,
   wsClientCount: () => wsClientCount(),

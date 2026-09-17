@@ -183,3 +183,22 @@ export const updateUserSchema = z
 export const resetPasswordSchema = z.object({
   newPassword: passwordSchema,
 });
+
+/** Query filters for `GET /api/audit` (admin). All optional; unbounded result is capped server-side. */
+export const auditQuerySchema = z.object({
+  actor: z.string().min(1).max(200).optional(),
+  action: z
+    .enum([
+      "login",
+      "login_failed",
+      "logout",
+      "password_change",
+      "password_reset",
+      "user_create",
+      "user_update",
+      "user_delete",
+    ])
+    .optional(),
+  from: timestampString.optional(),
+  to: timestampString.optional(),
+});

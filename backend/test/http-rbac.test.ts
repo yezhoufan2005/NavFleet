@@ -34,6 +34,7 @@ const ADMIN_ROUTES: Array<{ method: "get" | "post" | "patch" | "delete"; path: s
   { method: "delete", path: "/api/users/bob" },
   { method: "post", path: "/api/users/bob/reset-password" },
   { method: "post", path: "/api/debug/ingest" },
+  { method: "get", path: "/api/audit" },
 ];
 
 const ALL_ROLES: UserRole[] = ["viewer", "operator", "admin"];
