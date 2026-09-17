@@ -1,8 +1,9 @@
 import http from "node:http";
+import type { Duplex } from "node:stream";
 import { WebSocketServer, type RawData } from "ws";
 import type { DashboardStore } from "./store";
 import type { AppConfig } from "./config";
-import { ACCESS_COOKIE } from "./auth/middleware";
+import { ACCESS_COOKIE, type UserLookup } from "./auth/middleware";
 import { verifyToken } from "./auth/tokens";
 import { moduleLogger } from "./logger";
 import type { SocketEvent } from "./types";
@@ -83,6 +84,7 @@ export const createWebSocketBridge = (
   server: http.Server,
   store: DashboardStore,
   config: AppConfig,
+  lookupUser: UserLookup,
 ): WebSocketBridge => {
   const wsServer = new WebSocketServer({ noServer: true, maxPayload: WS_MAX_PAYLOAD_BYTES });
 
@@ -92,6 +94,11 @@ export const createWebSocketBridge = (
   wsServer.on("error", (error) => {
     log.error({ err: error }, "WebSocket server error");
   });
+
+  const rejectUpgrade = (socket: Duplex): void => {
+    socket.write("HTTP/1.1 401 Unauthorized\r\n\r\n");
+    socket.destroy();
+  };
 
   server.on("upgrade", (request, socket, head) => {
     // The handshake socket is raw and pre-`ws`, so nothing else would be
@@ -107,18 +114,39 @@ export const createWebSocketBridge = (
       return;
     }
 
-    if (config.authEnabled) {
-      const token = extractWsAccessToken(request);
-      if (!token || !verifyToken(token, "access")) {
-        socket.write("HTTP/1.1 401 Unauthorized\r\n\r\n");
-        socket.destroy();
-        return;
-      }
+    const finishUpgrade = (): void => {
+      wsServer.handleUpgrade(request, socket, head, (client) => {
+        wsServer.emit("connection", client, request);
+      });
+    };
+
+    if (!config.authEnabled) {
+      finishUpgrade();
+      return;
     }
 
-    wsServer.handleUpgrade(request, socket, head, (client) => {
-      wsServer.emit("connection", client, request);
-    });
+    const token = extractWsAccessToken(request);
+    const claims = token ? verifyToken(token, "access") : null;
+    if (!claims) {
+      rejectUpgrade(socket);
+      return;
+    }
+    // Same per-request check the REST middleware makes, once at handshake: a socket lives for
+    // hours, so a token that was valid at connect but belongs to a since-disabled account or a
+    // bumped tokenVersion must not open one. (An already-open socket is closed on shutdown; a
+    // mid-session disable is bounded by that, not by this check.)
+    lookupUser(claims.sub)
+      .then((user) => {
+        if (!user || !user.enabled || user.tokenVersion !== claims.ver) {
+          rejectUpgrade(socket);
+          return;
+        }
+        finishUpgrade();
+      })
+      .catch((error) => {
+        log.warn({ err: error }, "WebSocket upgrade user lookup failed");
+        rejectUpgrade(socket);
+      });
   });
 
   wsServer.on("connection", (client) => {

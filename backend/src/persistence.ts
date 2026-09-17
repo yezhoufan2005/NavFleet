@@ -291,12 +291,28 @@ export class Persistence {
     await this.db.collection<UserRecord>("users").updateOne(
       { username: user.username },
       {
+        // Only the credential/role fields are refreshed on an existing row: this path is
+        // the startup admin seed, which re-runs on every boot when ADMIN_PASSWORD is set.
+        // `tokenVersion` and `enabled` are deliberately left to `$setOnInsert` so a restart
+        // does not bump the version (which would log the admin out every boot) or re-enable
+        // a deliberately disabled account. Real password changes go through
+        // `setPasswordAndInvalidate`, which does bump the version.
         $set: {
           passwordHash: user.passwordHash,
           role: user.role,
           updatedAt: user.updatedAt,
         },
-        $setOnInsert: { username: user.username, createdAt: user.createdAt },
+        $setOnInsert: {
+          username: user.username,
+          createdAt: user.createdAt,
+          enabled: user.enabled,
+          tokenVersion: user.tokenVersion,
+          displayName: user.displayName,
+          email: user.email,
+          phone: user.phone,
+          lastLoginAt: user.lastLoginAt,
+          passwordUpdatedAt: user.passwordUpdatedAt,
+        },
       },
       { upsert: true },
     );
@@ -307,6 +323,69 @@ export class Persistence {
       return this.fallbackUsers.size;
     }
     return this.db.collection("users").countDocuments();
+  }
+
+  /**
+   * Set a new password hash and **invalidate every existing token** for the user by bumping
+   * `tokenVersion`. Used by the change-password flow (and, later, admin reset). The caller is
+   * responsible for re-issuing that user's own cookies if it wants them to stay signed in.
+   */
+  async setPasswordAndInvalidate(
+    username: string,
+    passwordHash: string,
+    at: string,
+  ): Promise<void> {
+    const fallback = this.fallbackUsers.get(username);
+    if (fallback) {
+      this.fallbackUsers.set(username, {
+        ...fallback,
+        passwordHash,
+        passwordUpdatedAt: at,
+        updatedAt: at,
+        tokenVersion: fallback.tokenVersion + 1,
+      });
+    }
+    if (!this.db) {
+      return;
+    }
+    await this.db
+      .collection<UserRecord>("users")
+      .updateOne(
+        { username },
+        { $set: { passwordHash, passwordUpdatedAt: at, updatedAt: at }, $inc: { tokenVersion: 1 } },
+      );
+  }
+
+  /** Bump `tokenVersion`, ending every existing session for the user (used by logout). */
+  async bumpTokenVersion(username: string, at: string): Promise<void> {
+    const fallback = this.fallbackUsers.get(username);
+    if (fallback) {
+      this.fallbackUsers.set(username, {
+        ...fallback,
+        updatedAt: at,
+        tokenVersion: fallback.tokenVersion + 1,
+      });
+    }
+    if (!this.db) {
+      return;
+    }
+    await this.db
+      .collection<UserRecord>("users")
+      .updateOne({ username }, { $set: { updatedAt: at }, $inc: { tokenVersion: 1 } });
+  }
+
+  /** Record a successful login timestamp. Best-effort; never blocks the login response. */
+  async recordLogin(username: string, at: string): Promise<void> {
+    const fallback = this.fallbackUsers.get(username);
+    if (fallback) {
+      this.fallbackUsers.set(username, { ...fallback, lastLoginAt: at });
+    }
+    if (!this.db) {
+      return;
+    }
+    await this.db
+      .collection<UserRecord>("users")
+      .updateOne({ username }, { $set: { lastLoginAt: at } });
   }
 
   async restoreLatestDevices(): Promise<DeviceSnapshot[]> {

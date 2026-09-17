@@ -108,6 +108,13 @@ export const adminUser = (): UserRecord => ({
   role: "admin",
   createdAt: UPDATED_AT,
   updatedAt: UPDATED_AT,
+  enabled: true,
+  tokenVersion: 0,
+  displayName: "admin",
+  email: null,
+  phone: null,
+  lastLoginAt: null,
+  passwordUpdatedAt: UPDATED_AT,
 });
 
 /** A minimal Lanelet2 OSM document: 4 nodes, 2 ways, 1 lanelet relation. */

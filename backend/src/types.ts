@@ -26,4 +26,23 @@ export interface UserRecord {
   role: UserRole;
   createdAt: string;
   updatedAt: string;
+  /**
+   * Fields added in Phase 15B (schema migration v2). Existing 1.1.0/1.2.0-pre rows are
+   * backfilled by the migration; the in-memory fallback and every write path produce the
+   * full shape so a Mongo-less dev run behaves identically.
+   */
+  /** A disabled account cannot authenticate; enforced per request, so disabling is immediate. */
+  enabled: boolean;
+  /**
+   * Bumped on logout and password change. A token carries the version it was minted at; the
+   * auth middleware rejects any token whose version no longer matches. This is what makes
+   * "log out" and "change password" invalidate already-issued tokens instead of waiting for
+   * them to expire — at the cost of being per-user, so a bump ends every session that user has.
+   */
+  tokenVersion: number;
+  displayName: string;
+  email: string | null;
+  phone: string | null;
+  lastLoginAt: string | null;
+  passwordUpdatedAt: string;
 }

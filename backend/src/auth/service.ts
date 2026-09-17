@@ -64,13 +64,20 @@ export class AuthService {
       role: "admin",
       createdAt: now,
       updatedAt: now,
+      enabled: true,
+      tokenVersion: 0,
+      displayName: config.adminUsername,
+      email: null,
+      phone: null,
+      lastLoginAt: null,
+      passwordUpdatedAt: now,
     });
     logger.info({ username: config.adminUsername }, "Seeded administrator account");
   }
 
   async authenticate(username: string, password: string): Promise<UserRecord | null> {
     const user = await this.persistence.findUserByUsername(username);
-    if (!user) {
+    if (!user || !user.enabled) {
       return null;
     }
     const ok = await verifyPassword(password, user.passwordHash);
@@ -78,6 +85,40 @@ export class AuthService {
   }
 
   findByUsername(username: string): Promise<UserRecord | null> {
+    return this.persistence.findUserByUsername(username);
+  }
+
+  /** Record a successful login timestamp (best-effort). */
+  recordLogin(username: string): Promise<void> {
+    return this.persistence.recordLogin(username, new Date().toISOString());
+  }
+
+  /** End every session for a user by bumping its token version (logout). */
+  invalidateSessions(username: string): Promise<void> {
+    return this.persistence.bumpTokenVersion(username, new Date().toISOString());
+  }
+
+  /**
+   * Change a user's own password: verify the old one, then store the new hash and bump the
+   * token version so all existing sessions are invalidated. Returns the refreshed user (with
+   * the new `tokenVersion`) on success, or null when the old password is wrong — the caller
+   * re-issues that user's cookies so the initiating session survives.
+   */
+  async changePassword(
+    username: string,
+    oldPassword: string,
+    newPassword: string,
+  ): Promise<UserRecord | null> {
+    const user = await this.persistence.findUserByUsername(username);
+    if (!user || !user.enabled) {
+      return null;
+    }
+    const ok = await verifyPassword(oldPassword, user.passwordHash);
+    if (!ok) {
+      return null;
+    }
+    const hash = await hashPassword(newPassword);
+    await this.persistence.setPasswordAndInvalidate(username, hash, new Date().toISOString());
     return this.persistence.findUserByUsername(username);
   }
 }

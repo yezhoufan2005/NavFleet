@@ -55,8 +55,14 @@ interface MarkerDoc {
 /** A fake `Db` that persists `schema_migrations` markers and reports a declared collection set. */
 const createFakeDb = (
   collectionNames: string[] = [],
-): { db: Db; markers: MarkerDoc[]; upsertCount: () => number } => {
+): {
+  db: Db;
+  markers: MarkerDoc[];
+  upsertCount: () => number;
+  otherUpdates: Array<{ collection: string; filter: unknown; update: unknown }>;
+} => {
   const markers: MarkerDoc[] = [];
+  const otherUpdates: Array<{ collection: string; filter: unknown; update: unknown }> = [];
   let upserts = 0;
   const names = new Set(collectionNames);
 
@@ -79,14 +85,21 @@ const createFakeDb = (
       if (name === MIGRATIONS_COLLECTION) {
         return migrationsCollection;
       }
-      throw new Error(`Unexpected collection in migration runner: ${name}`);
+      // Other collections (e.g. `users` for migration v2) record their writes so a migration's
+      // query shape can be asserted; the runner itself only orchestrates.
+      return {
+        updateMany: (filter: unknown, update: unknown) => {
+          otherUpdates.push({ collection: name, filter, update });
+          return Promise.resolve({});
+        },
+      };
     },
     listCollections: (_filter?: unknown, _options?: unknown) => ({
       toArray: () => Promise.resolve([...names].map((name) => ({ name }))),
     }),
   } as unknown as Db;
 
-  return { db, markers, upsertCount: () => upserts };
+  return { db, markers, upsertCount: () => upserts, otherUpdates };
 };
 
 const log = moduleLogger("test-migrations");
@@ -116,6 +129,27 @@ describe("migration 列表自身", () => {
   it("真实导出的列表是良构的（版本从 1 连续无缺口）", () => {
     expect(() => assertMigrationsWellFormed(migrations)).not.toThrow();
     expect(migrations[0]?.version).toBe(1);
+  });
+
+  it("v2 只补缺失字段：过滤 tokenVersion 不存在的行，用 $ifNull 派生默认值（幂等）", async () => {
+    const v2 = migrations.find((migration) => migration.version === 2);
+    expect(v2).toBeDefined();
+    const { db, otherUpdates } = createFakeDb();
+    await v2!.up(db);
+
+    expect(otherUpdates).toHaveLength(1);
+    const [write] = otherUpdates;
+    expect(write?.collection).toBe("users");
+    // 只碰还没迁过的行 —— 这是幂等的来源。
+    expect(write?.filter).toEqual({ tokenVersion: { $exists: false } });
+    // 聚合式 $set，用 $ifNull 让默认值能从既有字段派生（displayName←username 等）。
+    const pipeline = write?.update as Array<{ $set: Record<string, unknown> }>;
+    expect(pipeline[0]?.$set).toMatchObject({
+      enabled: { $ifNull: ["$enabled", true] },
+      tokenVersion: { $ifNull: ["$tokenVersion", 0] },
+      displayName: { $ifNull: ["$displayName", "$username"] },
+      passwordUpdatedAt: { $ifNull: ["$passwordUpdatedAt", "$createdAt"] },
+    });
   });
 
   it("版本有缺口时在加载期就抛错，而不是运行时静默跳过", () => {

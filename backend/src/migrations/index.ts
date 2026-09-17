@@ -22,6 +22,29 @@ export const migrations: readonly Migration[] = [
       // that "current version" has a definite value from which 15B+ migrations count.
     },
   },
+  {
+    version: 2,
+    name: "expand-user-model",
+    up: async (db) => {
+      // Backfill the Phase 15B user fields onto rows that predate them. Scoped to rows
+      // missing `tokenVersion` so a re-run touches nothing, and written as an aggregation
+      // pipeline so each default can derive from an existing field (`displayName` from
+      // `username`, `passwordUpdatedAt` from `createdAt`) in one pass.
+      await db.collection("users").updateMany({ tokenVersion: { $exists: false } }, [
+        {
+          $set: {
+            enabled: { $ifNull: ["$enabled", true] },
+            tokenVersion: { $ifNull: ["$tokenVersion", 0] },
+            displayName: { $ifNull: ["$displayName", "$username"] },
+            email: { $ifNull: ["$email", null] },
+            phone: { $ifNull: ["$phone", null] },
+            lastLoginAt: { $ifNull: ["$lastLoginAt", null] },
+            passwordUpdatedAt: { $ifNull: ["$passwordUpdatedAt", "$createdAt"] },
+          },
+        },
+      ]);
+    },
+  },
 ];
 
 /**

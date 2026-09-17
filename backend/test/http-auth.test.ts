@@ -52,7 +52,7 @@ describe("auth gate", () => {
 
   it("accepts a bearer access token as well as the cookie", async () => {
     const { app } = createTestApp();
-    const token = signAccessToken({ username: "tester", role: "viewer" });
+    const token = signAccessToken({ username: "tester", role: "viewer" }, 0);
     const response = await request(app)
       .get("/api/fleet/snapshot")
       .set("Authorization", `Bearer ${token}`);
@@ -62,14 +62,14 @@ describe("auth gate", () => {
 
   it("rejects a tampered token and a refresh token used as an access token", async () => {
     const { app } = createTestApp();
-    const access = signAccessToken({ username: "tester", role: "viewer" });
+    const access = signAccessToken({ username: "tester", role: "viewer" }, 0);
 
     const tampered = await request(app)
       .get("/api/fleet/snapshot")
       .set("Cookie", `access_token=${access}x`);
     expect(tampered.status).toBe(401);
 
-    const refresh = signRefreshToken({ username: "tester", role: "viewer" });
+    const refresh = signRefreshToken({ username: "tester", role: "viewer" }, 0);
     const wrongType = await request(app)
       .get("/api/fleet/snapshot")
       .set("Cookie", `access_token=${refresh}`);
@@ -143,7 +143,8 @@ describe("POST /api/auth/refresh", () => {
     expect(missing.status).toBe(401);
 
     // Valid signature, but the user no longer exists.
-    const token = signRefreshToken({ username: "ghost", role: "viewer" });
+    context.authService.findByUsername.mockResolvedValue(null);
+    const token = signRefreshToken({ username: "ghost", role: "viewer" }, 0);
     const unknownUser = await request(context.app)
       .post("/api/auth/refresh")
       .set("Cookie", `${REFRESH_COOKIE}=${token}`);
@@ -154,7 +155,7 @@ describe("POST /api/auth/refresh", () => {
     const context = createTestApp();
     context.authService.findByUsername.mockResolvedValue(adminUser());
 
-    const token = signRefreshToken({ username: "admin", role: "admin" });
+    const token = signRefreshToken({ username: "admin", role: "admin" }, 0);
     const response = await request(context.app)
       .post("/api/auth/refresh")
       .set("Cookie", `${REFRESH_COOKIE}=${token}`);
@@ -175,5 +176,97 @@ describe("POST /api/auth/logout", () => {
     const cookies = response.headers["set-cookie"] as unknown as string[];
     expect(cookies).toHaveLength(2);
     expect(cookies.every((cookie) => /Expires=Thu, 01 Jan 1970/.test(cookie))).toBe(true);
+  });
+
+  it("invalidates the user's sessions when a valid token is presented", async () => {
+    const context = createTestApp();
+    const response = await request(context.app)
+      .post("/api/auth/logout")
+      .set("Cookie", sessionCookie("viewer", "tester"));
+
+    expect(response.status).toBe(204);
+    // The version bump is what makes logout invalidate already-issued tokens, not just clear
+    // the cookie the client happens to hold.
+    expect(context.authService.invalidateSessions).toHaveBeenCalledWith("tester");
+  });
+});
+
+describe("POST /api/auth/refresh — rotation", () => {
+  it("re-issues BOTH the access and refresh cookies, not just access", async () => {
+    const context = createTestApp();
+    context.authService.findByUsername.mockResolvedValue(adminUser());
+
+    const token = signRefreshToken({ username: "admin", role: "admin" }, 0);
+    const response = await request(context.app)
+      .post("/api/auth/refresh")
+      .set("Cookie", `${REFRESH_COOKIE}=${token}`);
+
+    expect(response.status).toBe(200);
+    const cookies = response.headers["set-cookie"] as unknown as string[];
+    expect(cookies.some((cookie) => cookie.startsWith("access_token="))).toBe(true);
+    expect(cookies.some((cookie) => cookie.startsWith("refresh_token="))).toBe(true);
+  });
+
+  it("rejects a refresh token whose version is stale (logout happened since)", async () => {
+    const context = createTestApp();
+    // Token minted at version 0, but the stored user has moved on to version 1.
+    context.authService.findByUsername.mockResolvedValue({ ...adminUser(), tokenVersion: 1 });
+
+    const token = signRefreshToken({ username: "admin", role: "admin" }, 0);
+    const response = await request(context.app)
+      .post("/api/auth/refresh")
+      .set("Cookie", `${REFRESH_COOKIE}=${token}`);
+
+    expect(response.status).toBe(401);
+  });
+});
+
+describe("POST /api/auth/change-password", () => {
+  it("401s without a session", async () => {
+    const { app } = createTestApp();
+    const response = await request(app)
+      .post("/api/auth/change-password")
+      .send({ oldPassword: "old", newPassword: "newpass1" });
+    expect(response.status).toBe(401);
+  });
+
+  it("rejects a weak new password with 400 before touching the service", async () => {
+    const context = createTestApp();
+    const response = await request(context.app)
+      .post("/api/auth/change-password")
+      .set("Cookie", sessionCookie())
+      .send({ oldPassword: "old", newPassword: "short" });
+
+    expect(response.status).toBe(400);
+    expect(response.body).toMatchObject({ error: "invalid_request" });
+    expect(context.authService.changePassword).not.toHaveBeenCalled();
+  });
+
+  it("returns 400 invalid_credentials when the old password is wrong", async () => {
+    const context = createTestApp();
+    context.authService.changePassword.mockResolvedValue(null);
+
+    const response = await request(context.app)
+      .post("/api/auth/change-password")
+      .set("Cookie", sessionCookie())
+      .send({ oldPassword: "wrong", newPassword: "newpass1" });
+
+    expect(response.status).toBe(400);
+    expect(response.body).toEqual({ error: "invalid_credentials" });
+  });
+
+  it("on success re-issues cookies at the new version so the caller stays signed in", async () => {
+    const context = createTestApp();
+    context.authService.changePassword.mockResolvedValue({ ...adminUser(), tokenVersion: 1 });
+
+    const response = await request(context.app)
+      .post("/api/auth/change-password")
+      .set("Cookie", sessionCookie())
+      .send({ oldPassword: "admin123", newPassword: "newpass1" });
+
+    expect(response.status).toBe(204);
+    const cookies = response.headers["set-cookie"] as unknown as string[];
+    expect(cookies.some((cookie) => cookie.startsWith("access_token="))).toBe(true);
+    expect(cookies.some((cookie) => cookie.startsWith("refresh_token="))).toBe(true);
   });
 });

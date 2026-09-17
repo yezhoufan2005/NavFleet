@@ -33,7 +33,9 @@ const app = createApp({
 });
 
 const server = http.createServer(app);
-const wsBridge = createWebSocketBridge(server, store, config);
+const wsBridge = createWebSocketBridge(server, store, config, (username) =>
+  authService.findByUsername(username),
+);
 wsClientCount = wsBridge.clientCount;
 
 let shuttingDown = false;

@@ -4,7 +4,7 @@ import { randomBytes } from "node:crypto";
 import { EventEmitter } from "node:events";
 import { describe, it, expect, afterEach, vi } from "vitest";
 import WebSocket from "ws";
-import { ACCESS_COOKIE } from "../src/auth/middleware";
+import { ACCESS_COOKIE, type UserLookup } from "../src/auth/middleware";
 import { signAccessToken } from "../src/auth/tokens";
 import {
   createWebSocketBridge,
@@ -14,7 +14,7 @@ import {
 } from "../src/websocket";
 import type { AppConfig } from "../src/config";
 import type { DashboardStore } from "../src/store";
-import type { FleetSnapshot, SocketEvent } from "../src/types";
+import type { FleetSnapshot, SocketEvent, UserRecord } from "../src/types";
 import { sampleSnapshot } from "./helpers/fixtures";
 
 /**
@@ -38,9 +38,26 @@ const bridges: WebSocketBridge[] = [];
 const clients: WebSocket[] = [];
 const rawSockets: net.Socket[] = [];
 
-const token = (): string => signAccessToken({ username: "tester", role: "viewer" });
+const token = (): string => signAccessToken({ username: "tester", role: "viewer" }, 0);
 
-const startBridge = async (options: { authEnabled?: boolean } = {}): Promise<Harness> => {
+const enabledUser = (): UserRecord => ({
+  username: "tester",
+  passwordHash: "x",
+  role: "viewer",
+  createdAt: "t",
+  updatedAt: "t",
+  enabled: true,
+  tokenVersion: 0,
+  displayName: "tester",
+  email: null,
+  phone: null,
+  lastLoginAt: null,
+  passwordUpdatedAt: "t",
+});
+
+const startBridge = async (
+  options: { authEnabled?: boolean; lookupUser?: UserLookup } = {},
+): Promise<Harness> => {
   const store: StoreStub = Object.assign(new EventEmitter(), { snapshot: () => sampleSnapshot() });
   const server = http.createServer();
   servers.push(server);
@@ -50,6 +67,7 @@ const startBridge = async (options: { authEnabled?: boolean } = {}): Promise<Har
     {
       authEnabled: options.authEnabled ?? true,
     } as unknown as AppConfig,
+    options.lookupUser ?? (() => Promise.resolve(enabledUser())),
   );
   bridges.push(bridge);
   await new Promise<void>((resolve) => server.listen(0, "127.0.0.1", () => resolve()));
@@ -162,6 +180,26 @@ describe("WebSocket upgrade", () => {
     await opened(authedConnect(harness));
 
     expect(harness.bridge.clientCount()).toBe(1);
+  });
+
+  it("rejects the upgrade with 401 when the account is disabled", async () => {
+    const harness = await startBridge({
+      lookupUser: () => Promise.resolve({ ...enabledUser(), enabled: false }),
+    });
+    const error = await failed(
+      connect(harness, "", { headers: { Cookie: `${ACCESS_COOKIE}=${token()}` } }),
+    );
+    expect(error.message).toContain("401");
+  });
+
+  it("rejects the upgrade with 401 when the token version is stale", async () => {
+    const harness = await startBridge({
+      lookupUser: () => Promise.resolve({ ...enabledUser(), tokenVersion: 5 }),
+    });
+    const error = await failed(
+      connect(harness, "", { headers: { Cookie: `${ACCESS_COOKIE}=${token()}` } }),
+    );
+    expect(error.message).toContain("401");
   });
 
   it("rejects a token passed in the query string", async () => {
