@@ -22,16 +22,16 @@ CI 全绿 → `--no-ff` 合并 → 回写本文件并记录自检结果。
 > 下挂了 12 个子批次，「下线」一个词在不同段落里有三种意思。往下所有小节都是**执行记录**
 > （按发生顺序，不再重排），要知道现在怎么样，只看这一节。
 
-| 项目           | 现状                                                                                                                                                                    |
-| -------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| **已发布版本** | **1.1.0**（2026-09-09 发布，tag `v1.1.0` @ `a404680`）—— 前端焕新后的基准版                                                                                             |
-| **部署的前端** | `frontend-next/`（workspace `navfleet-console`），compose 服务名 `web`                                                                                                  |
-| **旧前端**     | `frontend/` **已冻结**：代码全留、不再改动，`--legacy` / 回滚 overlay 可启用                                                                                            |
-| **发布的镜像** | `navfleet-backend:1.1.0`、`navfleet-console:1.1.0`（**console 首次发布**，实测匿名可拉）。`navfleet-frontend` 停在 1.0.x                                                |
-| **CI**         | 6 个 job：deploy-wiring、backend+shared、frozen frontend、console、e2e、GitGuardian                                                                                     |
-| **工程门禁**   | **P0-f 六批全部完成**（14X–14AB）。lint 全部 `--max-warnings 0` + type-aware；四份 tsconfig 严格开关对齐；eslint 10 / vitest 5；四个覆盖率门槛按 vitest 5 重定          |
-| **实测基线**   | 单测 **1157**（fleet-core 123 · backend 344 · 冻结前端 132 · console 558）· E2E **80**（`retries: 0`，已三轮零抖动）· 四个覆盖率门槛全部通过，余量一致地留 2–3 个百分点 |
-| **下一步**     | **Phase 15B-2**（管理 API：用户 CRUD / 启禁用 / 改角色 / 管理员重置密码）。15A ✅（#176）· 15B-1 ✅（#179，数据模型 + token 失效语义）均未发版                          |
+| 项目           | 现状                                                                                                                                                                                        |
+| -------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **已发布版本** | **1.1.0**（2026-09-09 发布，tag `v1.1.0` @ `a404680`）—— 前端焕新后的基准版                                                                                                                 |
+| **部署的前端** | `frontend-next/`（workspace `navfleet-console`），compose 服务名 `web`                                                                                                                      |
+| **旧前端**     | `frontend/` **已冻结**：代码全留、不再改动，`--legacy` / 回滚 overlay 可启用                                                                                                                |
+| **发布的镜像** | `navfleet-backend:1.1.0`、`navfleet-console:1.1.0`（**console 首次发布**，实测匿名可拉）。`navfleet-frontend` 停在 1.0.x                                                                    |
+| **CI**         | 6 个 job：deploy-wiring、backend+shared、frozen frontend、console、e2e、GitGuardian                                                                                                         |
+| **工程门禁**   | **P0-f 六批全部完成**（14X–14AB）。lint 全部 `--max-warnings 0` + type-aware；四份 tsconfig 严格开关对齐；eslint 10 / vitest 5；四个覆盖率门槛按 vitest 5 重定                              |
+| **实测基线**   | 单测 **1157**（fleet-core 123 · backend 344 · 冻结前端 132 · console 558）· E2E **80**（`retries: 0`，已三轮零抖动）· 四个覆盖率门槛全部通过，余量一致地留 2–3 个百分点                     |
+| **下一步**     | **Phase 15C**（用户组与权限矩阵）。15A ✅（#176）· 15B-1 ✅（#179）· 15B-2 ✅（#181，管理 API）均未发版。15C 把 `requireRole` 从 2 处扩到全量、前端 `meta.roles`、定义三角色边界并修 README |
 
 **术语（此前混用过，以此为准）**：
 
@@ -82,14 +82,14 @@ CI 全绿 → `--no-ff` 合并 → 回写本文件并记录自检结果。
 
 七件事收口于 1.1.0 发版。之后的顺序**由负责人 2026-09-09 定，不要跳**：
 
-| 顺序 | 内容                                      | 状态                             |
-| ---- | ----------------------------------------- | -------------------------------- |
-| 1    | **P0-f 工程门禁批次** ✅ **六批全部完成** | 14X / 14Y / 14Z / 14AA / 14AB    |
-| 2    | **Phase 15** 用户体系与真 RBAC（1.2.0）   | 15A ✅ · 15B-1 ✅ · 15B-2 进行中 |
-| 3    | **Phase 16** 告警体系深化（1.3.0）        | 待办                             |
-| 4    | **Phase 17** 报表与数据价值（1.4.0）      | 待办                             |
-| 5    | **Phase 18** 交付成熟度收尾（2.0.0）      | 待办                             |
-| 6    | **最后三项**（见下一节）                  | 负责人明确后置到所有任务之后     |
+| 顺序 | 内容                                      | 状态                                      |
+| ---- | ----------------------------------------- | ----------------------------------------- |
+| 1    | **P0-f 工程门禁批次** ✅ **六批全部完成** | 14X / 14Y / 14Z / 14AA / 14AB             |
+| 2    | **Phase 15** 用户体系与真 RBAC（1.2.0）   | 15A ✅ · 15B-1 ✅ · 15B-2 ✅ · 15C 进行中 |
+| 3    | **Phase 16** 告警体系深化（1.3.0）        | 待办                                      |
+| 4    | **Phase 17** 报表与数据价值（1.4.0）      | 待办                                      |
+| 5    | **Phase 18** 交付成熟度收尾（2.0.0）      | 待办                                      |
+| 6    | **最后三项**（见下一节）                  | 负责人明确后置到所有任务之后              |
 
 ### P0-f 拆成六批，因为量出来差得很远
 
@@ -1486,11 +1486,18 @@ e2e 80/80 · CI 9 job 全绿（MCP 认证核验）。
   **踩了 GitGuardian 两轮**：test fixture 的假哈希 + `passwordUpdatedAt` ISO 日期被判「泛密码」，
   改成命名常量 + `--force-with-lease`（负责人逐次授权）后绿（见 [[navfleet-gitguardian-scans-commits]]）
 
-**15B-2 [ ] 待办 —— 管理 API（下一个 PR）**
+**15B-2 ✅ 完成（#181，`e54e700`，未发版）—— 管理 API**
 
-- [ ] 用户 CRUD + 管理员重置密码 + 启用禁用 + 角色分配（admin-only，`requireRole("admin")`）；
-      复用 15B-1 的 `setPasswordAndInvalidate` / `bumpTokenVersion`，使禁用/改角色/重置立即失效 token
-- [ ] 改角色时 bump `tokenVersion`（15B-1 里 role 取自 token，这里补上「改角色即时生效」的钩子）
+- [x] 用户 CRUD + 管理员重置密码 + 启用禁用 + 角色分配（`routes/users.ts`，全部 admin-only，
+      挂 `/api` 与 `/api/v1`）；复用 15B-1 的 `setPasswordAndInvalidate` / `bumpTokenVersion`，
+      使禁用/改角色/重置立即失效 token
+- [x] 改角色或禁用时 bump `tokenVersion`（补上 15B-1 说的「改角色即时生效」钩子）
+- [x] **锁死防护**（负责人确认）：不能禁用/删除/降级「最后一个启用的 admin」或「自己」
+      → `last_admin` / `self_forbidden`（409）。硬删除 + 启禁用并存
+- [x] `AdminUserView = Omit<UserRecord,"passwordHash">` + `toAdminUserView`；createUser/updateUser/
+      resetPassword/deleteUser/listUsers/countEnabledAdmins；OpenAPI 补五个端点
+- 自检：backend 405 测试 · 覆盖率 87.98/77.02/88.07/88.21 全过 · e2e 80/80 · CI 9 job 全绿。
+  测试口令全命名常量（GitGuardian 这次零返工）
 
 ### PR 15C — 用户组与权限矩阵
 
