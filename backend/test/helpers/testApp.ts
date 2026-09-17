@@ -6,10 +6,11 @@ import { parseConfig, type AppConfig } from "../../src/config";
 import { createRuntimeState, type RuntimeState } from "../../src/runtimeState";
 import { ACCESS_COOKIE } from "../../src/auth/middleware";
 import { signAccessToken } from "../../src/auth/tokens";
-import type { AuthService } from "../../src/auth/service";
+import type { AuthService, AdminActionResult } from "../../src/auth/service";
 import type { Persistence } from "../../src/persistence";
 import type { DashboardStore } from "../../src/store";
 import type {
+  AdminUserView,
   FleetSnapshot,
   FormationSnapshot,
   LaneletOverlay,
@@ -107,6 +108,16 @@ export interface AuthServiceStub {
   changePassword: Mock<
     (username: string, oldPassword: string, newPassword: string) => Promise<UserRecord | null>
   >;
+  listUsers: Mock<() => Promise<AdminUserView[]>>;
+  getUser: Mock<(username: string) => Promise<AdminUserView | null>>;
+  createUser: Mock<(input: unknown) => Promise<AdminActionResult<AdminUserView>>>;
+  updateUser: Mock<
+    (actor: string, username: string, fields: unknown) => Promise<AdminActionResult<AdminUserView>>
+  >;
+  resetPassword: Mock<
+    (username: string, newPassword: string) => Promise<AdminActionResult<AdminUserView>>
+  >;
+  deleteUser: Mock<(actor: string, username: string) => Promise<AdminActionResult<void>>>;
 }
 
 /** A full stored user with the Phase 15B fields, for stubbing `findByUsername`. */
@@ -125,6 +136,9 @@ const stubUser = (username: string, role: UserRole = "viewer"): UserRecord => ({
   passwordUpdatedAt: UPDATED_AT,
 });
 
+/** Strip `passwordHash`, mirroring the service's `toAdminUserView`. */
+const adminView = ({ passwordHash: _passwordHash, ...view }: UserRecord): AdminUserView => view;
+
 export const createAuthServiceStub = (): AuthServiceStub => ({
   authenticate: vi.fn(() => Promise.resolve<UserRecord | null>(null)),
   // Returns an enabled, version-0 user by default so a request bearing a `sessionCookie`
@@ -136,6 +150,30 @@ export const createAuthServiceStub = (): AuthServiceStub => ({
   recordLogin: vi.fn(() => Promise.resolve()),
   invalidateSessions: vi.fn(() => Promise.resolve()),
   changePassword: vi.fn(() => Promise.resolve<UserRecord | null>(null)),
+  // Admin API (15B-2). Defaults let the happy path through; guard/error cases override.
+  listUsers: vi.fn(() => Promise.resolve<AdminUserView[]>([])),
+  getUser: vi.fn((username: string) =>
+    Promise.resolve<AdminUserView | null>(adminView(stubUser(username))),
+  ),
+  createUser: vi.fn((input) =>
+    Promise.resolve<AdminActionResult<AdminUserView>>({
+      ok: true,
+      value: adminView(stubUser((input as { username: string }).username)),
+    }),
+  ),
+  updateUser: vi.fn((_actor, username) =>
+    Promise.resolve<AdminActionResult<AdminUserView>>({
+      ok: true,
+      value: adminView(stubUser(username)),
+    }),
+  ),
+  resetPassword: vi.fn((username) =>
+    Promise.resolve<AdminActionResult<AdminUserView>>({
+      ok: true,
+      value: adminView(stubUser(username)),
+    }),
+  ),
+  deleteUser: vi.fn(() => Promise.resolve<AdminActionResult<void>>({ ok: true, value: undefined })),
 });
 
 export interface TestAppOptions {

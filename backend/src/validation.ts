@@ -152,3 +152,34 @@ export const changePasswordSchema = z.object({
   oldPassword: z.string().min(1).max(200),
   newPassword: passwordSchema,
 });
+
+/** Admin API — shared field shapes for a user record. */
+const usernameSchema = z.string().min(1).max(200);
+const roleSchema = z.enum(["admin", "operator", "viewer"]);
+// Lenient contact fields: this is an ops tool, not a CRM. A non-empty string capped for
+// safety, or explicit null to clear. Format is not enforced beyond length.
+const contactSchema = z.string().max(200).nullable();
+
+export const createUserSchema = z.object({
+  username: usernameSchema,
+  password: passwordSchema,
+  role: roleSchema,
+  displayName: z.string().min(1).max(200).optional(),
+  email: contactSchema.optional(),
+  phone: contactSchema.optional(),
+});
+
+export const updateUserSchema = z
+  .object({
+    role: roleSchema.optional(),
+    displayName: z.string().min(1).max(200).optional(),
+    email: contactSchema.optional(),
+    phone: contactSchema.optional(),
+    enabled: z.boolean().optional(),
+  })
+  // A PATCH with an empty body is a client error, not a no-op success.
+  .refine((value) => Object.keys(value).length > 0, "at least one field is required");
+
+export const resetPasswordSchema = z.object({
+  newPassword: passwordSchema,
+});

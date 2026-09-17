@@ -1,6 +1,6 @@
 import { config } from "../config";
 import type { Persistence } from "../persistence";
-import type { PublicUser, UserRecord } from "../types";
+import type { AdminUserView, PublicUser, UserRecord, UserRole } from "../types";
 import { hashPassword, verifyPassword } from "./passwords";
 import { moduleLogger } from "../logger";
 
@@ -10,6 +10,34 @@ export const toPublicUser = (user: UserRecord): PublicUser => ({
   username: user.username,
   role: user.role,
 });
+
+/** Strip `passwordHash` before a user record can reach a response body. */
+export const toAdminUserView = ({
+  passwordHash: _passwordHash,
+  ...view
+}: UserRecord): AdminUserView => view;
+
+/** Why an admin action was refused, mapped to an HTTP status by the route. */
+export type AdminActionError = "not_found" | "conflict" | "last_admin" | "self_forbidden";
+
+export type AdminActionResult<T> = { ok: true; value: T } | { ok: false; error: AdminActionError };
+
+export interface CreateUserInput {
+  username: string;
+  password: string;
+  role: UserRole;
+  displayName?: string;
+  email?: string | null;
+  phone?: string | null;
+}
+
+export interface UpdateUserInput {
+  role?: UserRole;
+  displayName?: string;
+  email?: string | null;
+  phone?: string | null;
+  enabled?: boolean;
+}
 
 export class AuthService {
   constructor(private readonly persistence: Persistence) {}
@@ -120,5 +148,124 @@ export class AuthService {
     const hash = await hashPassword(newPassword);
     await this.persistence.setPasswordAndInvalidate(username, hash, new Date().toISOString());
     return this.persistence.findUserByUsername(username);
+  }
+
+  // ── Admin user management (15B-2) ──────────────────────────────────────────────
+  // All of these assume the caller is already gated to admin by `requireRole` at the route.
+
+  async listUsers(): Promise<AdminUserView[]> {
+    const users = await this.persistence.listUsers();
+    return users.map(toAdminUserView);
+  }
+
+  async getUser(username: string): Promise<AdminUserView | null> {
+    const user = await this.persistence.findUserByUsername(username);
+    return user ? toAdminUserView(user) : null;
+  }
+
+  async createUser(input: CreateUserInput): Promise<AdminActionResult<AdminUserView>> {
+    const now = new Date().toISOString();
+    const record: UserRecord = {
+      username: input.username,
+      passwordHash: await hashPassword(input.password),
+      role: input.role,
+      createdAt: now,
+      updatedAt: now,
+      enabled: true,
+      tokenVersion: 0,
+      displayName: input.displayName ?? input.username,
+      email: input.email ?? null,
+      phone: input.phone ?? null,
+      lastLoginAt: null,
+      passwordUpdatedAt: now,
+    };
+    const created = await this.persistence.createUser(record);
+    if (!created) {
+      return { ok: false, error: "conflict" };
+    }
+    return { ok: true, value: toAdminUserView(record) };
+  }
+
+  /**
+   * Update a user's profile. Guards against lockout: an action that removes an admin's power
+   * (disabling, or demoting away from admin) is refused when the target is the caller
+   * (`self_forbidden`) or the last enabled admin (`last_admin`). A role change or a disable
+   * bumps `tokenVersion` so it takes effect on already-issued tokens immediately.
+   */
+  async updateUser(
+    actor: string,
+    username: string,
+    fields: UpdateUserInput,
+  ): Promise<AdminActionResult<AdminUserView>> {
+    const target = await this.persistence.findUserByUsername(username);
+    if (!target) {
+      return { ok: false, error: "not_found" };
+    }
+
+    const demotes = fields.role !== undefined && fields.role !== "admin" && target.role === "admin";
+    const disables = fields.enabled === false && target.enabled;
+    if (demotes || disables) {
+      const guard = await this.guardAdminPower(actor, target);
+      if (guard) {
+        return { ok: false, error: guard };
+      }
+    }
+
+    const at = new Date().toISOString();
+    await this.persistence.updateUserFields(username, fields, at);
+    // Role change or disable must reach already-issued tokens now, not at expiry.
+    if ((fields.role !== undefined && fields.role !== target.role) || fields.enabled === false) {
+      await this.persistence.bumpTokenVersion(username, at);
+    }
+    const updated = await this.persistence.findUserByUsername(username);
+    return { ok: true, value: toAdminUserView(updated ?? { ...target, ...fields }) };
+  }
+
+  async resetPassword(
+    username: string,
+    newPassword: string,
+  ): Promise<AdminActionResult<AdminUserView>> {
+    const target = await this.persistence.findUserByUsername(username);
+    if (!target) {
+      return { ok: false, error: "not_found" };
+    }
+    const hash = await hashPassword(newPassword);
+    await this.persistence.setPasswordAndInvalidate(username, hash, new Date().toISOString());
+    const updated = await this.persistence.findUserByUsername(username);
+    return { ok: true, value: toAdminUserView(updated ?? target) };
+  }
+
+  async deleteUser(actor: string, username: string): Promise<AdminActionResult<void>> {
+    const target = await this.persistence.findUserByUsername(username);
+    if (!target) {
+      return { ok: false, error: "not_found" };
+    }
+    // Deleting an enabled admin removes their power — same lockout guard as disable/demote.
+    if (target.role === "admin" && target.enabled) {
+      const guard = await this.guardAdminPower(actor, target);
+      if (guard) {
+        return { ok: false, error: guard };
+      }
+    }
+    await this.persistence.deleteUser(username);
+    return { ok: true, value: undefined };
+  }
+
+  /**
+   * Returns the reason an admin-power-removing action must be refused, or null if it is safe:
+   * you cannot lock yourself out, and you cannot remove the last enabled admin.
+   */
+  private async guardAdminPower(
+    actor: string,
+    target: UserRecord,
+  ): Promise<"self_forbidden" | "last_admin" | null> {
+    if (actor === target.username) {
+      return "self_forbidden";
+    }
+    const enabledAdmins = await this.persistence.countEnabledAdmins();
+    if (enabledAdmins <= 1) {
+      return "last_admin";
+    }
+    return null;
   }
 }

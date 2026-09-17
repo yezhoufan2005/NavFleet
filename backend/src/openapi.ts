@@ -18,11 +18,14 @@ import path from "node:path";
 import { z } from "zod";
 import {
   alertsQuerySchema,
+  createUserSchema,
   deviceIdParamSchema,
   historyQuerySchema,
   ingestBodySchema,
   loginSchema,
+  resetPasswordSchema,
   sceneIdParamSchema,
+  updateUserSchema,
 } from "./validation";
 
 /**
@@ -132,6 +135,7 @@ export const openApiDocument = {
     { name: "scenes", description: "场景地图" },
     { name: "ops", description: "健康探针与指标" },
     { name: "debug", description: "调试注入（受限）" },
+    { name: "users", description: "用户管理（需 admin）" },
   ],
   components: {
     securitySchemes: {
@@ -154,6 +158,23 @@ export const openApiDocument = {
         properties: {
           username: { type: "string" },
           role: { type: "string", enum: ["admin", "operator", "viewer"] },
+        },
+      },
+      AdminUserView: {
+        type: "object",
+        description: "用户记录（管理视图，不含 passwordHash）",
+        properties: {
+          username: { type: "string" },
+          role: { type: "string", enum: ["admin", "operator", "viewer"] },
+          enabled: { type: "boolean" },
+          tokenVersion: { type: "number" },
+          displayName: { type: "string" },
+          email: { type: ["string", "null"] },
+          phone: { type: ["string", "null"] },
+          lastLoginAt: { type: ["string", "null"], format: "date-time" },
+          createdAt: { type: "string", format: "date-time" },
+          updatedAt: { type: "string", format: "date-time" },
+          passwordUpdatedAt: { type: "string", format: "date-time" },
         },
       },
       Alert: {
@@ -214,6 +235,10 @@ const forbidden = {
 };
 const notFound = {
   description: "未找到",
+  content: { "application/json": { schema: { $ref: "#/components/schemas/Error" } } },
+};
+const conflict = {
+  description: "冲突：用户名已存在，或该操作会锁死（最后一个 admin / 对自己禁用删除降级）",
   content: { "application/json": { schema: { $ref: "#/components/schemas/Error" } } },
 };
 
@@ -551,6 +576,109 @@ const apiWideResponses = { "429": tooManyRequests, "500": serverError } as const
       },
       responses: {
         "200": ok("已注入并返回快照"),
+        "400": badRequest,
+        "401": unauthorized,
+        "403": forbidden,
+        "404": notFound,
+        ...apiWideResponses,
+      },
+    },
+  },
+  // Admin user management. Documented on the `/api/v1` surface (what new clients should use);
+  // the unversioned `/api/users` twin exists as well, mounted the same way as every other
+  // domain router, but is not enumerated separately to avoid doubling the spec.
+  "/api/v1/users": {
+    get: {
+      tags: ["users"],
+      summary: "列出用户（需 admin）",
+      responses: {
+        "200": {
+          description: "用户列表",
+          content: {
+            "application/json": {
+              schema: {
+                type: "object",
+                properties: {
+                  users: { type: "array", items: { $ref: "#/components/schemas/AdminUserView" } },
+                },
+              },
+            },
+          },
+        },
+        "401": unauthorized,
+        "403": forbidden,
+        ...apiWideResponses,
+      },
+    },
+    post: {
+      tags: ["users"],
+      summary: "创建用户（需 admin）",
+      requestBody: {
+        required: true,
+        content: { "application/json": { schema: fromValidator(createUserSchema) } },
+      },
+      responses: {
+        "201": ok("已创建", "AdminUserView"),
+        "400": badRequest,
+        "401": unauthorized,
+        "403": forbidden,
+        "409": conflict,
+        ...apiWideResponses,
+      },
+    },
+  },
+  "/api/v1/users/{username}": {
+    get: {
+      tags: ["users"],
+      summary: "获取单个用户（需 admin）",
+      responses: {
+        "200": ok("用户", "AdminUserView"),
+        "401": unauthorized,
+        "403": forbidden,
+        "404": notFound,
+        ...apiWideResponses,
+      },
+    },
+    patch: {
+      tags: ["users"],
+      summary: "更新用户角色/资料/启禁用（需 admin；改角色或禁用会使已签发 token 立即失效）",
+      requestBody: {
+        required: true,
+        content: { "application/json": { schema: fromValidator(updateUserSchema) } },
+      },
+      responses: {
+        "200": ok("已更新", "AdminUserView"),
+        "400": badRequest,
+        "401": unauthorized,
+        "403": forbidden,
+        "404": notFound,
+        "409": conflict,
+        ...apiWideResponses,
+      },
+    },
+    delete: {
+      tags: ["users"],
+      summary: "删除用户（需 admin；受锁死防护约束）",
+      responses: {
+        "204": { description: "已删除" },
+        "401": unauthorized,
+        "403": forbidden,
+        "404": notFound,
+        "409": conflict,
+        ...apiWideResponses,
+      },
+    },
+  },
+  "/api/v1/users/{username}/reset-password": {
+    post: {
+      tags: ["users"],
+      summary: "管理员重置用户密码（需 admin；会使该用户所有会话失效）",
+      requestBody: {
+        required: true,
+        content: { "application/json": { schema: fromValidator(resetPasswordSchema) } },
+      },
+      responses: {
+        "204": { description: "已重置" },
         "400": badRequest,
         "401": unauthorized,
         "403": forbidden,

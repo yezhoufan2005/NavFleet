@@ -39,6 +39,8 @@ interface Recorded {
   insertMany: Array<{ collection: string; docs: unknown[]; options: unknown }>;
   insertOne: Array<{ collection: string; doc: unknown }>;
   findOne: Array<{ collection: string; filter: unknown; options: unknown }>;
+  deleteOne: Array<{ collection: string; filter: unknown }>;
+  countDocuments: Array<{ collection: string; filter: unknown }>;
 }
 
 /** A fake `Db` that records calls and replays canned rows. */
@@ -53,6 +55,8 @@ const createFakeDb = (
     insertMany: [],
     insertOne: [],
     findOne: [],
+    deleteOne: [],
+    countDocuments: [],
   };
 
   const collection = (name: string) => ({
@@ -98,7 +102,14 @@ const createFakeDb = (
         ? Promise.reject(new Error("insertOne exploded"))
         : Promise.resolve({});
     },
-    countDocuments: () => Promise.resolve((rows[name] ?? []).length),
+    deleteOne: (filter: unknown) => {
+      calls.deleteOne.push({ collection: name, filter });
+      return Promise.resolve({ deletedCount: (rows[name] ?? []).length > 0 ? 1 : 0 });
+    },
+    countDocuments: (filter: unknown = {}) => {
+      calls.countDocuments.push({ collection: name, filter });
+      return Promise.resolve((rows[name] ?? []).length);
+    },
   });
 
   return { db: { collection } as unknown as Db, calls };
@@ -259,6 +270,74 @@ describe("users 集合", () => {
 
     const [write] = calls.updateOne;
     expect(write?.update).toEqual({ $set: { lastLoginAt: "2026-07-01T00:00:00.000Z" } });
+  });
+
+  it("listUsers 投影掉 _id 并按 username 升序", async () => {
+    const { db, calls } = createFakeDb({ users: [{ username: "a" }, { username: "b" }] });
+    persistence.__setDbForTests(db);
+
+    await persistence.listUsers();
+
+    const [query] = calls.find;
+    expect(query?.collection).toBe("users");
+    expect(query?.options).toEqual({ projection: { _id: 0 } });
+    expect(query?.sort).toEqual({ username: 1 });
+  });
+
+  it("createUser 走 insertOne", async () => {
+    const { db, calls } = createFakeDb();
+    persistence.__setDbForTests(db);
+
+    const created = await persistence.createUser({
+      username: "ops",
+      passwordHash: HASH_FIXTURE,
+      role: "operator",
+      createdAt: STAMP_A,
+      updatedAt: STAMP_A,
+      enabled: true,
+      tokenVersion: 0,
+      displayName: "ops",
+      email: null,
+      phone: null,
+      lastLoginAt: null,
+      passwordUpdatedAt: STAMP_A,
+    });
+
+    expect(created).toBe(true);
+    expect(calls.insertOne[0]?.collection).toBe("users");
+  });
+
+  it("updateUserFields 只 $set 传入字段 + updatedAt", async () => {
+    const { db, calls } = createFakeDb();
+    persistence.__setDbForTests(db);
+
+    await persistence.updateUserFields("ops", { role: "viewer", enabled: false }, STAMP_B);
+
+    const [write] = calls.updateOne;
+    expect(write?.filter).toEqual({ username: "ops" });
+    expect(write?.update).toEqual({
+      $set: { role: "viewer", enabled: false, updatedAt: STAMP_B },
+    });
+  });
+
+  it("deleteUser 走 deleteOne，返回是否删到", async () => {
+    const { db, calls } = createFakeDb({ users: [{ username: "ops" }] });
+    persistence.__setDbForTests(db);
+
+    await expect(persistence.deleteUser("ops")).resolves.toBe(true);
+    expect(calls.deleteOne[0]).toEqual({ collection: "users", filter: { username: "ops" } });
+  });
+
+  it("countEnabledAdmins 用 role+enabled 过滤", async () => {
+    const { db, calls } = createFakeDb({ users: [{}, {}] });
+    persistence.__setDbForTests(db);
+
+    await persistence.countEnabledAdmins();
+
+    expect(calls.countDocuments[0]).toEqual({
+      collection: "users",
+      filter: { role: "admin", enabled: true },
+    });
   });
 });
 

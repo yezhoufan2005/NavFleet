@@ -18,6 +18,7 @@ import { buildDocsRouter } from "./routes/docs";
 import { buildFleetRouter } from "./routes/fleet";
 import { buildScenesRouter } from "./routes/scenes";
 import { buildDebugRouter } from "./routes/debug";
+import { buildUsersRouter } from "./routes/users";
 
 /**
  * Mount prefixes for the domain API. `/api/v1` is the surface to build against;
@@ -188,6 +189,7 @@ export const createApp = ({
     app.use(prefix, captureRouteMount, buildFleetRouter(store));
     app.use(prefix, captureRouteMount, buildScenesRouter(store));
     app.use(prefix, captureRouteMount, buildDebugRouter(store, config));
+    app.use(prefix, captureRouteMount, buildUsersRouter(authService));
   }
 
   // JSON 404 for any unmatched route, keeping the error contract consistent
