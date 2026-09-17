@@ -22,16 +22,16 @@ CI 全绿 → `--no-ff` 合并 → 回写本文件并记录自检结果。
 > 下挂了 12 个子批次，「下线」一个词在不同段落里有三种意思。往下所有小节都是**执行记录**
 > （按发生顺序，不再重排），要知道现在怎么样，只看这一节。
 
-| 项目           | 现状                                                                                                                                                                                    |
-| -------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| **已发布版本** | **1.1.0**（2026-09-09 发布，tag `v1.1.0` @ `a404680`）—— 前端焕新后的基准版                                                                                                             |
-| **部署的前端** | `frontend-next/`（workspace `navfleet-console`），compose 服务名 `web`                                                                                                                  |
-| **旧前端**     | `frontend/` **已冻结**：代码全留、不再改动，`--legacy` / 回滚 overlay 可启用                                                                                                            |
-| **发布的镜像** | `navfleet-backend:1.1.0`、`navfleet-console:1.1.0`（**console 首次发布**，实测匿名可拉）。`navfleet-frontend` 停在 1.0.x                                                                |
-| **CI**         | 6 个 job：deploy-wiring、backend+shared、frozen frontend、console、e2e、GitGuardian                                                                                                     |
-| **工程门禁**   | **P0-f 六批全部完成**（14X–14AB）。lint 全部 `--max-warnings 0` + type-aware；四份 tsconfig 严格开关对齐；eslint 10 / vitest 5；四个覆盖率门槛按 vitest 5 重定                          |
-| **实测基线**   | 单测 **1157**（fleet-core 123 · backend 344 · 冻结前端 132 · console 558）· E2E **80**（`retries: 0`，已三轮零抖动）· 四个覆盖率门槛全部通过，余量一致地留 2–3 个百分点                 |
-| **下一步**     | **Phase 15B**（用户模型与管理 API）。15A schema 迁移机制**已完成**（#176 · `24f8ca2`，未发版）。15B 开工前两处等负责人拍板：`AUTH_ENABLED=false` 在 RBAC 后的去留、15D 日志脱敏是否提前 |
+| 项目           | 现状                                                                                                                                                                    |
+| -------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **已发布版本** | **1.1.0**（2026-09-09 发布，tag `v1.1.0` @ `a404680`）—— 前端焕新后的基准版                                                                                             |
+| **部署的前端** | `frontend-next/`（workspace `navfleet-console`），compose 服务名 `web`                                                                                                  |
+| **旧前端**     | `frontend/` **已冻结**：代码全留、不再改动，`--legacy` / 回滚 overlay 可启用                                                                                            |
+| **发布的镜像** | `navfleet-backend:1.1.0`、`navfleet-console:1.1.0`（**console 首次发布**，实测匿名可拉）。`navfleet-frontend` 停在 1.0.x                                                |
+| **CI**         | 6 个 job：deploy-wiring、backend+shared、frozen frontend、console、e2e、GitGuardian                                                                                     |
+| **工程门禁**   | **P0-f 六批全部完成**（14X–14AB）。lint 全部 `--max-warnings 0` + type-aware；四份 tsconfig 严格开关对齐；eslint 10 / vitest 5；四个覆盖率门槛按 vitest 5 重定          |
+| **实测基线**   | 单测 **1157**（fleet-core 123 · backend 344 · 冻结前端 132 · console 558）· E2E **80**（`retries: 0`，已三轮零抖动）· 四个覆盖率门槛全部通过，余量一致地留 2–3 个百分点 |
+| **下一步**     | **Phase 15B-2**（管理 API：用户 CRUD / 启禁用 / 改角色 / 管理员重置密码）。15A ✅（#176）· 15B-1 ✅（#179，数据模型 + token 失效语义）均未发版                          |
 
 **术语（此前混用过，以此为准）**：
 
@@ -82,14 +82,14 @@ CI 全绿 → `--no-ff` 合并 → 回写本文件并记录自检结果。
 
 七件事收口于 1.1.0 发版。之后的顺序**由负责人 2026-09-09 定，不要跳**：
 
-| 顺序 | 内容                                      | 状态                          |
-| ---- | ----------------------------------------- | ----------------------------- |
-| 1    | **P0-f 工程门禁批次** ✅ **六批全部完成** | 14X / 14Y / 14Z / 14AA / 14AB |
-| 2    | **Phase 15** 用户体系与真 RBAC（1.2.0）   | 15A ✅（#176）· 15B 进行中    |
-| 3    | **Phase 16** 告警体系深化（1.3.0）        | 待办                          |
-| 4    | **Phase 17** 报表与数据价值（1.4.0）      | 待办                          |
-| 5    | **Phase 18** 交付成熟度收尾（2.0.0）      | 待办                          |
-| 6    | **最后三项**（见下一节）                  | 负责人明确后置到所有任务之后  |
+| 顺序 | 内容                                      | 状态                             |
+| ---- | ----------------------------------------- | -------------------------------- |
+| 1    | **P0-f 工程门禁批次** ✅ **六批全部完成** | 14X / 14Y / 14Z / 14AA / 14AB    |
+| 2    | **Phase 15** 用户体系与真 RBAC（1.2.0）   | 15A ✅ · 15B-1 ✅ · 15B-2 进行中 |
+| 3    | **Phase 16** 告警体系深化（1.3.0）        | 待办                             |
+| 4    | **Phase 17** 报表与数据价值（1.4.0）      | 待办                             |
+| 5    | **Phase 18** 交付成熟度收尾（2.0.0）      | 待办                             |
+| 6    | **最后三项**（见下一节）                  | 负责人明确后置到所有任务之后     |
 
 ### P0-f 拆成六批，因为量出来差得很远
 
@@ -1467,15 +1467,30 @@ mongod」这条依赖。14AA 留下的 `__setDbForTests` + 假 `Db`（`backend/t
 全过 · 四 workspace lint/format/typecheck · build · check:deploy 32/32 · check:map-contrast ·
 e2e 80/80 · CI 9 job 全绿（MCP 认证核验）。
 
-### PR 15B — 用户模型与管理 API
+### PR 15B — 用户模型与管理 API（拆成 15B-1 / 15B-2）
 
-- [ ] `UserRecord` 从 5 个字段扩展：显示名、邮箱/手机（通知用）、启用状态、最后登录、
-      `tokenVersion`、密码更新时间
-- [ ] 用户 CRUD + **改密码**（自己改 / 管理员重置）+ 启用禁用 + 角色分配
-- [ ] `tokenVersion` 让登出与改密**真正失效 token**（现在 logout 只 `clearCookie`，已签发 token 在
-      TTL 内仍有效，refresh 最长 7 天）
-- [ ] 密码复杂度校验（现在无注册/改密路径，所以从未校验过）
-- [ ] refresh token 轮转（现在 `/refresh` 不换 refresh cookie）
+**15B-1 ✅ 完成（#179，`5ed49ea`，未发版）—— 数据模型 + token 失效语义**
+
+- [x] `UserRecord` 从 5 字段扩展：`enabled` / `tokenVersion` / `displayName` / `email` / `phone` /
+      `lastLoginAt` / `passwordUpdatedAt`。迁移 v2 幂等 backfill（`$ifNull` 聚合，只碰未迁行）
+- [x] `tokenVersion` 让登出与改密**真正失效 token**（负责人选「每请求校验，立即失效」）：
+      `createAuthenticate` 与 WS 握手验签后查用户，账号不存在/禁用/`ver` 不匹配 → 401。role 仍取自
+      已签发 token（改角色的立即生效属 15C，届时 bump 版本）
+- [x] 密码复杂度校验（`passwordSchema`：≥8、含字母与数字）+ 自助改密 `POST /api/auth/change-password`
+      （验旧 → 校验新 → `setPasswordAndInvalidate` bump 版本 → 重签调用方 cookie）
+- [x] refresh token 轮转（`/refresh` 现在重签 access **和** refresh）
+- [x] logout bump `tokenVersion`（该用户全设备失效；按会话粒度留 15E）；登录记 `lastLoginAt`
+- [x] **15D 提前的一处**：broker URL 连接日志脱敏（`mqtt.ts` 复用 `redactMongoUri`）
+- [x] `AUTH_ENABLED=false` 短路**保留**（负责人：保留，可视情况再改）
+- 自检：backend 383 测试 · 覆盖率 88.05/76.87/87.40/88.30 全过 · e2e 80/80 · CI 9 job 全绿。
+  **踩了 GitGuardian 两轮**：test fixture 的假哈希 + `passwordUpdatedAt` ISO 日期被判「泛密码」，
+  改成命名常量 + `--force-with-lease`（负责人逐次授权）后绿（见 [[navfleet-gitguardian-scans-commits]]）
+
+**15B-2 [ ] 待办 —— 管理 API（下一个 PR）**
+
+- [ ] 用户 CRUD + 管理员重置密码 + 启用禁用 + 角色分配（admin-only，`requireRole("admin")`）；
+      复用 15B-1 的 `setPasswordAndInvalidate` / `bumpTokenVersion`，使禁用/改角色/重置立即失效 token
+- [ ] 改角色时 bump `tokenVersion`（15B-1 里 role 取自 token，这里补上「改角色即时生效」的钩子）
 
 ### PR 15C — 用户组与权限矩阵
 
