@@ -22,16 +22,16 @@ CI 全绿 → `--no-ff` 合并 → 回写本文件并记录自检结果。
 > 下挂了 12 个子批次，「下线」一个词在不同段落里有三种意思。往下所有小节都是**执行记录**
 > （按发生顺序，不再重排），要知道现在怎么样，只看这一节。
 
-| 项目           | 现状                                                                                                                                                                    |
-| -------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| **已发布版本** | **1.1.0**（2026-09-09 发布，tag `v1.1.0` @ `a404680`）—— 前端焕新后的基准版                                                                                             |
-| **部署的前端** | `frontend-next/`（workspace `navfleet-console`），compose 服务名 `web`                                                                                                  |
-| **旧前端**     | `frontend/` **已冻结**：代码全留、不再改动，`--legacy` / 回滚 overlay 可启用                                                                                            |
-| **发布的镜像** | `navfleet-backend:1.1.0`、`navfleet-console:1.1.0`（**console 首次发布**，实测匿名可拉）。`navfleet-frontend` 停在 1.0.x                                                |
-| **CI**         | 6 个 job：deploy-wiring、backend+shared、frozen frontend、console、e2e、GitGuardian                                                                                     |
-| **工程门禁**   | **P0-f 六批全部完成**（14X–14AB）。lint 全部 `--max-warnings 0` + type-aware；四份 tsconfig 严格开关对齐；eslint 10 / vitest 5；四个覆盖率门槛按 vitest 5 重定          |
-| **实测基线**   | 单测 **1157**（fleet-core 123 · backend 344 · 冻结前端 132 · console 558）· E2E **80**（`retries: 0`，已三轮零抖动）· 四个覆盖率门槛全部通过，余量一致地留 2–3 个百分点 |
-| **下一步**     | **Phase 15**（用户体系与真 RBAC，1.2.0），其中 15A schema 迁移机制必须先做。**尚未开工**，但**开工前的前提已逐条核对**（见 Phase 15 开头）                              |
+| 项目           | 现状                                                                                                                                                                                    |
+| -------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **已发布版本** | **1.1.0**（2026-09-09 发布，tag `v1.1.0` @ `a404680`）—— 前端焕新后的基准版                                                                                                             |
+| **部署的前端** | `frontend-next/`（workspace `navfleet-console`），compose 服务名 `web`                                                                                                                  |
+| **旧前端**     | `frontend/` **已冻结**：代码全留、不再改动，`--legacy` / 回滚 overlay 可启用                                                                                                            |
+| **发布的镜像** | `navfleet-backend:1.1.0`、`navfleet-console:1.1.0`（**console 首次发布**，实测匿名可拉）。`navfleet-frontend` 停在 1.0.x                                                                |
+| **CI**         | 6 个 job：deploy-wiring、backend+shared、frozen frontend、console、e2e、GitGuardian                                                                                                     |
+| **工程门禁**   | **P0-f 六批全部完成**（14X–14AB）。lint 全部 `--max-warnings 0` + type-aware；四份 tsconfig 严格开关对齐；eslint 10 / vitest 5；四个覆盖率门槛按 vitest 5 重定                          |
+| **实测基线**   | 单测 **1157**（fleet-core 123 · backend 344 · 冻结前端 132 · console 558）· E2E **80**（`retries: 0`，已三轮零抖动）· 四个覆盖率门槛全部通过，余量一致地留 2–3 个百分点                 |
+| **下一步**     | **Phase 15B**（用户模型与管理 API）。15A schema 迁移机制**已完成**（#176 · `24f8ca2`，未发版）。15B 开工前两处等负责人拍板：`AUTH_ENABLED=false` 在 RBAC 后的去留、15D 日志脱敏是否提前 |
 
 **术语（此前混用过，以此为准）**：
 
@@ -85,7 +85,7 @@ CI 全绿 → `--no-ff` 合并 → 回写本文件并记录自检结果。
 | 顺序 | 内容                                      | 状态                          |
 | ---- | ----------------------------------------- | ----------------------------- |
 | 1    | **P0-f 工程门禁批次** ✅ **六批全部完成** | 14X / 14Y / 14Z / 14AA / 14AB |
-| 2    | **Phase 15** 用户体系与真 RBAC（1.2.0）   | 15A schema 迁移机制必须先做   |
+| 2    | **Phase 15** 用户体系与真 RBAC（1.2.0）   | 15A ✅（#176）· 15B 进行中    |
 | 3    | **Phase 16** 告警体系深化（1.3.0）        | 待办                          |
 | 4    | **Phase 17** 报表与数据价值（1.4.0）      | 待办                          |
 | 5    | **Phase 18** 交付成熟度收尾（2.0.0）      | 待办                          |
@@ -1447,21 +1447,25 @@ mongod」这条依赖。14AA 留下的 `__setDbForTests` + 假 `Db`（`backend/t
 正好是现成的缝：迁移里会出错的是**语句形状**（改的是哪个集合、幂等不幂等、失败后回没回滚），
 而这些假 `Db` 全都答得了。要不要为了迁移引入 testcontainers 是个方向选择，**默认沿用假 `Db`**。
 
-### PR 15A — schema 迁移机制（前置，非可选）
+### PR 15A — schema 迁移机制（前置，非可选）✅ 完成（#176，`24f8ca2`，未发版）
 
-- [ ] 迁移框架：版本标记集合 + 顺序化迁移脚本 + 启动时自动执行（幂等）+ 失败即拒绝启动
-- [ ] 补一处已确认的坑：`telemetry_ts` 的 TTL 只在 `createCollection` 分支设定
-      （`persistence.ts:195-201`），集合已存在时不 `collMod` → **改 `TELEMETRY_RETENTION_SECONDS`
-      对已建库无效**，而 `deploy/docs/backup-and-restore.md:79,84` 只说"通过环境变量调整"，未区分
-      首次建库与后续调整（行号 2026-09-10 复核过一遍，原先记的 `:151-160` / `:63-64` 已随后续改动漂移）
-- [ ] **同一个坑还有另一半，2026-09-10 复核时才看清**：`alerts` 的 TTL 走
-      `createIndex({ lastSeenAt: 1 }, { expireAfterSeconds })`（`persistence.ts:219-221`），
-      而这一半的后果可能比 `telemetry_ts` 那一半重 —— `ensureMongoCollections` 是在
-      `connect()` 的 `try` 里 `await` 的（`:159-167`），**它抛出任何异常都会走
-      `this.db = null` 并把这次连接判失败**，于是退化成内存模式。所以做 15A 时要先核实：改
-      `ALERTS_RETENTION_SECONDS` 之后重启，MongoDB 是静默沿用旧 TTL，还是报
-      `IndexOptionsConflict` 把连接打掉。两种后果的处置完全不同，不能凭印象写
-- [ ] 升级文档补回滚步骤与"升级前强制备份"环节（现在两者都没有）
+- [x] 迁移框架：版本标记集合 `schema_migrations` + 顺序化迁移（`backend/src/migrations/`）+ 启动时
+      自动执行（幂等，重连不重跑）+ 失败即拒绝启动。**「失败即拒绝启动」按与负责人确认的口径实现**：
+      迁移**出错**才 fatal（`index.ts` 查 `persistence.migrationError` → `process.exit(1)`）；Mongo
+      **不可达**仍内存降级、迁移推迟到首次连上时跑。老库（有集合、无标记）基线到 v1 而不重跑创建
+- [x] TTL 坑两半一起修（`migrations/ttl.ts` 的 `reconcileTtls`，每次连接对账收敛）：`telemetry_ts`
+      走 `collMod`；`alerts` 也走 `collMod` 改索引 TTL，**而不是**会触发 `IndexOptionsConflict` 的
+      第二次 `createIndex` —— 后者正是那半个坑「抛异常→连接判失败→退化内存模式」的根源。改保留期
+      重启即生效。**单测用假 `Db` 断言命令形状；真库上「静默沿用 vs conflict」待有 docker 时核实**
+      （已在 PR 描述标注，不阻塞：修复方向本就是从可能 conflict 的 createIndex 换成不会 conflict 的
+      collMod）
+- [x] 升级文档：`deployment.md` 新增「6.2.1 涉及 schema 变更的升级」（先强制备份 → 自动迁移 →
+      失败拒启 → 按备份回滚，单向不维护 `down`）；`backup-and-restore.md` 更正保留期说明 + 补
+      `schema_migrations` 行
+
+**自检**：backend 360 测试（+migrations 15 · +ttl-reconcile 5）· 覆盖率 87.71/76.13/86.76/87.98
+全过 · 四 workspace lint/format/typecheck · build · check:deploy 32/32 · check:map-contrast ·
+e2e 80/80 · CI 9 job 全绿（MCP 认证核验）。
 
 ### PR 15B — 用户模型与管理 API
 
