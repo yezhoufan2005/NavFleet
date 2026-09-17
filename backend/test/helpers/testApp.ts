@@ -102,11 +102,40 @@ export const createPersistenceStub = (): PersistenceStub => ({
 export interface AuthServiceStub {
   authenticate: Mock<(username: string, password: string) => Promise<UserRecord | null>>;
   findByUsername: Mock<(username: string) => Promise<UserRecord | null>>;
+  recordLogin: Mock<(username: string) => Promise<void>>;
+  invalidateSessions: Mock<(username: string) => Promise<void>>;
+  changePassword: Mock<
+    (username: string, oldPassword: string, newPassword: string) => Promise<UserRecord | null>
+  >;
 }
+
+/** A full stored user with the Phase 15B fields, for stubbing `findByUsername`. */
+const stubUser = (username: string, role: UserRole = "viewer"): UserRecord => ({
+  username,
+  passwordHash: "stub",
+  role,
+  createdAt: UPDATED_AT,
+  updatedAt: UPDATED_AT,
+  enabled: true,
+  tokenVersion: 0,
+  displayName: username,
+  email: null,
+  phone: null,
+  lastLoginAt: null,
+  passwordUpdatedAt: UPDATED_AT,
+});
 
 export const createAuthServiceStub = (): AuthServiceStub => ({
   authenticate: vi.fn(() => Promise.resolve<UserRecord | null>(null)),
-  findByUsername: vi.fn(() => Promise.resolve<UserRecord | null>(null)),
+  // Returns an enabled, version-0 user by default so a request bearing a `sessionCookie`
+  // (signed at version 0) passes the per-request revocation check. Cases that test
+  // unauthorized/disabled/stale override this.
+  findByUsername: vi.fn((username: string) =>
+    Promise.resolve<UserRecord | null>(stubUser(username)),
+  ),
+  recordLogin: vi.fn(() => Promise.resolve()),
+  invalidateSessions: vi.fn(() => Promise.resolve()),
+  changePassword: vi.fn(() => Promise.resolve<UserRecord | null>(null)),
 });
 
 export interface TestAppOptions {
@@ -238,7 +267,7 @@ export const createTestApp = (options: TestAppOptions = {}): TestAppContext => {
  * and secret the production middleware verifies against.
  */
 export const sessionCookie = (role: UserRole = "viewer", username = "tester"): string =>
-  `${ACCESS_COOKIE}=${signAccessToken({ username, role })}`;
+  `${ACCESS_COOKIE}=${signAccessToken({ username, role }, 0)}`;
 
 /** The uniform 400 body produced by respondValidationError(). */
 export interface ValidationErrorBody {

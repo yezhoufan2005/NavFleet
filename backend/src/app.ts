@@ -11,7 +11,7 @@ import type { RuntimeState } from "./runtimeState";
 import { runtimePaths } from "./config";
 import { createMetrics, captureRouteMount } from "./metrics";
 import { requestContext, requestLogger } from "./requestContext";
-import { authenticate } from "./auth/middleware";
+import { createAuthenticate } from "./auth/middleware";
 import { buildAuthRouter } from "./auth/routes";
 import { buildOpsRouter, buildOpenApiRouter } from "./routes/ops";
 import { buildDocsRouter } from "./routes/docs";
@@ -150,8 +150,10 @@ export const createApp = ({
   });
   app.use("/api/auth", authLimiter, captureRouteMount, buildAuthRouter(authService));
 
-  // Everything below requires a valid session.
-  app.use(authenticate);
+  // Everything below requires a valid session. The middleware verifies each token against
+  // the stored user (enabled + tokenVersion), so logout / password change / disable take
+  // effect immediately rather than at token expiry.
+  app.use(createAuthenticate((username) => authService.findByUsername(username)));
 
   app.use(captureRouteMount, buildOpenApiRouter());
   app.use(captureRouteMount, buildDocsRouter());

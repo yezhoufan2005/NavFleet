@@ -133,3 +133,22 @@ export const loginSchema = z.object({
   username: z.string().min(1).max(200),
   password: z.string().min(1).max(200),
 });
+
+/**
+ * Password complexity for any *new* password (self change-password now; admin reset/create in
+ * 15B-2). Deliberately modest — at least 8 chars, with both a letter and a digit — because a
+ * single-instance intranet tool gains little from ornate rules that mostly push operators
+ * toward `Password1!` on a sticky note. Login is intentionally NOT held to this (existing
+ * accounts predate any policy); it only guards passwords being set.
+ */
+export const passwordSchema = z
+  .string()
+  .min(8, "密码至少 8 位")
+  .max(200)
+  .refine((value) => /[A-Za-z]/.test(value), "密码需包含字母")
+  .refine((value) => /\d/.test(value), "密码需包含数字");
+
+export const changePasswordSchema = z.object({
+  oldPassword: z.string().min(1).max(200),
+  newPassword: passwordSchema,
+});

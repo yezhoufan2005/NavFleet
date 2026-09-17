@@ -6,6 +6,10 @@ import type { TopicScheme } from "./topics";
 import type { RuntimeState } from "./runtimeState";
 import { mqttStatusSchema, mqttTelemetrySchema } from "./validation";
 import { logger } from "./logger";
+// A general URL credential stripper despite the name (used for the Mongo URI too): turns
+// `mqtt://user:pass@host:1883` into `mqtt://host:1883`. MQTT_URL can embed a password, and
+// logging it raw would put it in plaintext — the same leak `mongoUri` already avoids.
+import { redactMongoUri as redactUrlCredentials } from "./mongoConnection";
 
 const safeJsonParse = (value: string): unknown => {
   try {
@@ -48,7 +52,7 @@ export const connectMqtt = ({ store, topicScheme, config, state }: MqttDeps): mq
 
   client.on("connect", () => {
     state.mqttConnected = true;
-    logger.info({ url: config.mqttUrl }, "Connected to MQTT broker");
+    logger.info({ url: redactUrlCredentials(config.mqttUrl) }, "Connected to MQTT broker");
     const subscriptions = [topicScheme.telemetrySubscription, topicScheme.statusSubscription];
     client.subscribe(subscriptions, (error) => {
       if (error) {
