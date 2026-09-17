@@ -1,8 +1,10 @@
-import { describe, it, expect } from "vitest";
+import { describe, it, expect, afterEach } from "vitest";
 import { createMemoryHistory } from "vue-router";
 import { mount } from "@vue/test-utils";
 import { createPinia, setActivePinia } from "pinia";
+import type { UserRole } from "@navfleet/shared";
 import { createAppRouter, NAV_SECTIONS, routes } from "@/router";
+import { useAuth, __resetAuth } from "@/composables/useAuth";
 import AppSidebarNav from "@/components/shell/AppSidebarNav.vue";
 
 /**
@@ -106,13 +108,22 @@ describe("route table", () => {
 describe("primary navigation", () => {
   const ACTIVE = "bg-brand";
 
+  afterEach(() => {
+    __resetAuth();
+  });
+
   /**
    * A Pinia is needed now that the nav reads the alert count for its badge. Fresh per
-   * mount so a count set in one case cannot leak into the next.
+   * mount so a count set in one case cannot leak into the next. Signed in as `admin` by
+   * default so every nav entry (incl. the admin-only 管理) is present — role filtering has
+   * its own cases below.
    */
-  const mountNav = async (path: string) => {
+  const mountNav = async (path: string, role: UserRole = "admin") => {
     const pinia = createPinia();
     setActivePinia(pinia);
+    const auth = useAuth();
+    auth.state.status = "authenticated";
+    auth.state.user = { username: "tester", role };
     const router = createAppRouter(createMemoryHistory());
     await router.push(path);
     await router.isReady();
@@ -161,5 +172,17 @@ describe("primary navigation", () => {
     // navigation" ambiguous.
     const wrapper = await mountNav("/");
     expect(wrapper.find("nav").attributes("aria-label")).toBe("主导航");
+  });
+
+  it("shows 管理 to an admin but hides it from viewer and operator (15C)", async () => {
+    const adminNav = await mountNav("/", "admin");
+    expect(link(adminNav, "管理"), "admin sees 管理").toBeDefined();
+
+    for (const role of ["viewer", "operator"] as const) {
+      const nav = await mountNav("/", role);
+      expect(link(nav, "管理"), `${role} must not see 管理`).toBeUndefined();
+      // The read sections stay visible for everyone.
+      expect(link(nav, "总览"), `${role} sees 总览`).toBeDefined();
+    }
   });
 });

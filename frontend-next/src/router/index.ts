@@ -1,5 +1,6 @@
 import { createRouter, createWebHistory } from "vue-router";
 import type { RouteRecordRaw, RouterHistory } from "vue-router";
+import type { UserRole } from "@navfleet/shared";
 import { useAuth } from "@/composables/useAuth";
 import { createAuthGuard } from "./guards";
 
@@ -33,6 +34,11 @@ declare module "vue-router" {
      * The wall display is the only user: it must be non-interactive (C7).
      */
     bare?: boolean;
+    /**
+     * Roles allowed on this route (Phase 15C). Absent = any authenticated user (viewer+).
+     * The auth guard bounces an authenticated user outside the list to the landing page.
+     */
+    roles?: readonly UserRole[];
   }
 }
 
@@ -81,24 +87,25 @@ const routes: RouteRecordRaw[] = [
     // 13F; the rest (用户 / 用户组 / 审计 / 设备接入 / 报码字典) come with Phase 15–17,
     // and registering empty ones now would put dead entries in the navigation.
     path: "/admin",
-    meta: { title: "管理" },
+    meta: { title: "管理", roles: ["admin"] },
     children: [
       {
         path: "",
         name: "admin",
         component: () => import("@/views/AdminView.vue"),
+        meta: { roles: ["admin"] },
       },
       {
         path: "system",
         name: "admin-system",
         component: () => import("@/views/admin/SystemStatusView.vue"),
-        meta: { title: "系统状态" },
+        meta: { title: "系统状态", roles: ["admin"] },
       },
       {
         path: "scenes",
         name: "admin-scenes",
         component: () => import("@/views/admin/ScenesView.vue"),
-        meta: { title: "场景" },
+        meta: { title: "场景", roles: ["admin"] },
       },
     ],
   },
@@ -149,6 +156,8 @@ export interface NavSection {
   routeName: string;
   label: string;
   icon: NavIconName;
+  /** Roles that may see this entry (Phase 15C). Absent = everyone authenticated. */
+  roles?: readonly UserRole[];
 }
 
 export type NavIconName =
@@ -159,7 +168,7 @@ export const NAV_SECTIONS: readonly NavSection[] = [
   { routeName: "devices", label: "设备", icon: "devices" },
   { routeName: "alerts", label: "消息", icon: "alerts" },
   { routeName: "reports", label: "报表", icon: "reports" },
-  { routeName: "admin", label: "管理", icon: "admin" },
+  { routeName: "admin", label: "管理", icon: "admin", roles: ["admin"] },
 ];
 
 /**

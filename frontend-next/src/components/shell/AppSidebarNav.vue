@@ -33,6 +33,7 @@
 import { computed } from "vue";
 import { RouterLink } from "vue-router";
 import { NAV_SECTIONS } from "@/router";
+import { useAuth } from "@/composables/useAuth";
 import { useFleetStore } from "@/stores/fleet";
 import NavIcon from "./NavIcon.vue";
 
@@ -40,6 +41,22 @@ const { labelled = true } = defineProps<{
   /** `false` in collapsed mode: icons only. */
   labelled?: boolean;
 }>();
+
+const { state: authState } = useAuth();
+
+/**
+ * Nav entries the current user may see (Phase 15C). A section with `roles` is shown only to
+ * those roles — the 管理 entry is admin-only. Hiding the entry is UX; the route guard is the
+ * real gate, so a viewer typing `/admin` is still bounced. An entry with no `roles` is shown
+ * to everyone authenticated.
+ */
+const visibleSections = computed(() =>
+  NAV_SECTIONS.filter((section) => {
+    if (!section.roles) return true;
+    const role = authState.user?.role;
+    return role !== undefined && section.roles.includes(role);
+  }),
+);
 
 const fleet = useFleetStore();
 
@@ -139,7 +156,7 @@ const BADGE_TONE_CLASS: Record<string, string> = {
     :class="labelled ? 'px-2' : 'px-1.5'"
   >
     <RouterLink
-      v-for="section in NAV_SECTIONS"
+      v-for="section in visibleSections"
       :key="section.routeName"
       v-slot="{ href, isActive, isExactActive, navigate }"
       :to="{ name: section.routeName }"

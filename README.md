@@ -43,11 +43,17 @@ NavFleet 把设备接入、实时展示、历史追踪、地图资源和运行�
 **定位是只读监控**：登录后才能访问任何数据，**不含控制下发，也不做多租户**。这是有意的范围
 约束 —— 下发指令与监控是两种安全模型，混在一个进程里会让两者都变脆。
 
-> **关于 RBAC，说清楚现状：** 数据模型里有 `admin` / `operator` / `viewer` 三个角色，登录、
-> JWT、`requireRole` 中间件都在，但**当前版本三个角色的实际权限相同** —— `requireRole` 全仓库
-> 只有一处调用，且那条路由默认关闭。也没有用户管理接口，账号只能由环境变量种子出一个管理员。
-> 所以现在准确的说法是「口令保护的看板」，真 RBAC 与用户体系是 1.2.0（Phase 15）的内容。
-> 此前这里写的是「完整的登录与 RBAC」，属于过度承诺。
+> **RBAC（现状，1.2.0 起真实生效）：** 三个角色 `admin` / `operator` / `viewer`，逐路由强制并有
+> 每路由×每角色的集成测试网格钉住：
+>
+> - **viewer / operator**：登录后可读全部监控数据（车队快照、设备、历史、告警、场景）。
+> - **admin**：额外可用**用户管理**（`/api/users*` 增删改、启禁用、改角色、重置密码）、
+>   **调试注入**（`/api/debug/ingest`，且需 `DEBUG_INGEST_ENABLED`）、以及控制台的**管理区**
+>   （`/admin/*`）。
+>
+> **`operator` 目前 ≡ `viewer`**：这是只读监控系统，配置走文件监听不走 API，所以暂无 operator
+> 专属的操作接口；它的专属操作面（如告警确认）随 Phase 16 到来。登出 / 改密 / 禁用 / 改角色会
+> **立即失效**已签发的 token（每请求校验 `tokenVersion` 与 `enabled`）。
 
 **目标场景**是内网单实例部署：一台主机、Docker Compose、几十到数百台车。不做水平扩展与
 跨实例 pub/sub。
@@ -224,25 +230,31 @@ NavFleet/
 挂两次而不是做 30x 跳转，是为了不丢方法与请求体。鉴权路径**故意不带版本**：refresh cookie
 的作用域被限定在 `/api/auth`，加一个带版本的孪生路径会让这个限制失效。
 
-| 方法   | 路径                                | 鉴权   | 说明                                |
-| ------ | ----------------------------------- | ------ | ----------------------------------- |
-| `GET`  | `/health`                           | 公开   | 存活探针                            |
-| `GET`  | `/health/ready`                     | 公开   | 就绪探针（Mongo / MQTT 真实连通性） |
-| `GET`  | `/metrics`                          | 公开*  | Prometheus 指标                     |
-| `POST` | `/api/auth/login`                   | 公开   | 登录，签发 access + refresh         |
-| `POST` | `/api/auth/refresh`                 | cookie | 续签                                |
-| `POST` | `/api/auth/logout`                  | cookie | 注销                                |
-| `GET`  | `/api/auth/me`                      | 需登录 | 当前用户与角色                      |
-| `GET`  | `/api/v1/fleet/snapshot`            | 需登录 | 全量车队快照                        |
-| `GET`  | `/api/v1/formations`                | 需登录 | 编队列表                            |
-| `GET`  | `/api/v1/devices/:deviceId/history` | 需登录 | 历史遥测（分页、时间范围）          |
-| `GET`  | `/api/v1/alerts`                    | 需登录 | 告警查询（严重度 / 设备 / 时间）    |
-| `GET`  | `/api/v1/scenes`                    | 需登录 | 场景定义列表                        |
-| `GET`  | `/api/v1/scenes/:sceneId`           | 需登录 | 单个场景                            |
-| `GET`  | `/api/v1/scenes/:sceneId/overlay`   | 需登录 | Lanelet2 overlay（服务端解析结果）  |
-| `POST` | `/api/v1/debug/ingest`              | admin  | 注入状态，**默认不挂载**            |
-| `GET`  | `/openapi.json`                     | 需登录 | OpenAPI 3.1 文档                    |
-| `GET`  | `/docs`                             | 需登录 | 同源自带的 Swagger UI               |
+| 方法     | 路径                                     | 鉴权   | 说明                                |
+| -------- | ---------------------------------------- | ------ | ----------------------------------- |
+| `GET`    | `/health`                                | 公开   | 存活探针                            |
+| `GET`    | `/health/ready`                          | 公开   | 就绪探针（Mongo / MQTT 真实连通性） |
+| `GET`    | `/metrics`                               | 公开*  | Prometheus 指标                     |
+| `POST`   | `/api/auth/login`                        | 公开   | 登录，签发 access + refresh         |
+| `POST`   | `/api/auth/refresh`                      | cookie | 续签                                |
+| `POST`   | `/api/auth/logout`                       | cookie | 注销                                |
+| `GET`    | `/api/auth/me`                           | 需登录 | 当前用户与角色                      |
+| `GET`    | `/api/v1/fleet/snapshot`                 | 需登录 | 全量车队快照                        |
+| `GET`    | `/api/v1/formations`                     | 需登录 | 编队列表                            |
+| `GET`    | `/api/v1/devices/:deviceId/history`      | 需登录 | 历史遥测（分页、时间范围）          |
+| `GET`    | `/api/v1/alerts`                         | 需登录 | 告警查询（严重度 / 设备 / 时间）    |
+| `GET`    | `/api/v1/scenes`                         | 需登录 | 场景定义列表                        |
+| `GET`    | `/api/v1/scenes/:sceneId`                | 需登录 | 单个场景                            |
+| `GET`    | `/api/v1/scenes/:sceneId/overlay`        | 需登录 | Lanelet2 overlay（服务端解析结果）  |
+| `POST`   | `/api/v1/debug/ingest`                   | admin  | 注入状态，**默认不挂载**            |
+| `POST`   | `/api/auth/change-password`              | 需登录 | 自助改密（改后重签当前会话 cookie） |
+| `GET`    | `/api/v1/users`                          | admin  | 用户列表（不含 passwordHash）       |
+| `POST`   | `/api/v1/users`                          | admin  | 创建用户                            |
+| `PATCH`  | `/api/v1/users/:username`                | admin  | 改角色 / 资料 / 启禁用              |
+| `DELETE` | `/api/v1/users/:username`                | admin  | 删除用户（受锁死防护约束）          |
+| `POST`   | `/api/v1/users/:username/reset-password` | admin  | 管理员重置密码                      |
+| `GET`    | `/openapi.json`                          | 需登录 | OpenAPI 3.1 文档                    |
+| `GET`    | `/docs`                                  | 需登录 | 同源自带的 Swagger UI               |
 
 \* 边缘 nginx **不路由** `/metrics`：Prometheus 从容器网络内部抓取，公网/局域网碰不到它。
 
