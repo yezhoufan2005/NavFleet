@@ -74,15 +74,19 @@ docker compose -f deploy/docker-compose.yml restart backend
 以下由后端在启动时自动创建（`backend/src/persistence.ts` 的 `ensureMongoCollections`），
 无需手动维护，但可据此规划容量与保留：
 
-| 集合            | 索引 / 策略                                                                                                            | 说明                       |
-| --------------- | ---------------------------------------------------------------------------------------------------------------------- | -------------------------- |
-| `telemetry_ts`  | 时序集合（timeField=`ts`, metaField=`meta`），`expireAfterSeconds=TELEMETRY_RETENTION_SECONDS`（默认 30 天）           | 历史轨迹来源；到期自动清理 |
-| `device_latest` | `{deviceId:1}` 唯一、`{stamp:-1}`                                                                                      | 每设备最新快照             |
-| `alerts`        | `{deviceId:1, ts:-1}`、`{severity:1, active:1, ts:-1}`、`{lastSeenAt:1}` TTL=`ALERTS_RETENTION_SECONDS`（默认 180 天） | 告警查询与到期清理         |
-| `users`         | `{username:1}` 唯一                                                                                                    | 账号                       |
+| 集合                | 索引 / 策略                                                                                                            | 说明                       |
+| ------------------- | ---------------------------------------------------------------------------------------------------------------------- | -------------------------- |
+| `telemetry_ts`      | 时序集合（timeField=`ts`, metaField=`meta`），`expireAfterSeconds=TELEMETRY_RETENTION_SECONDS`（默认 30 天）           | 历史轨迹来源；到期自动清理 |
+| `device_latest`     | `{deviceId:1}` 唯一、`{stamp:-1}`                                                                                      | 每设备最新快照             |
+| `alerts`            | `{deviceId:1, ts:-1}`、`{severity:1, active:1, ts:-1}`、`{lastSeenAt:1}` TTL=`ALERTS_RETENTION_SECONDS`（默认 180 天） | 告警查询与到期清理         |
+| `users`             | `{username:1}` 唯一                                                                                                    | 账号                       |
+| `schema_migrations` | `{version}`（迁移标记）                                                                                                | 已应用的 schema 版本记录   |
 
 保留时长通过环境变量调整（见 `backend/.env.example`）：`TELEMETRY_RETENTION_SECONDS`、
-`ALERTS_RETENTION_SECONDS`。调大将增加磁盘占用，请结合备份策略与磁盘容量评估。
+`ALERTS_RETENTION_SECONDS`。**1.2.0 起，改这两个值对已建库也生效**：后端每次连接会把
+`telemetry_ts` 的 TTL 与 `alerts.lastSeenAt` 索引的 TTL 收敛到配置值（`collMod`，见
+`backend/src/migrations/ttl.ts`），所以调整后重启即生效 —— 在此之前它们只在集合首次创建时设定，
+改环境变量对已存在的库无效。调大将增加磁盘占用，请结合备份策略与磁盘容量评估。
 
 ## 校验恢复可用性
 

@@ -345,6 +345,34 @@ cd /opt/navfleet
 docker compose --env-file deploy/.env -f deploy/docker-compose.yml up -d --build
 ```
 
+### 6.2.1 涉及 schema 变更的升级（1.2.0 起）
+
+从 1.2.0 起后端带**自动 schema 迁移**：启动时按顺序执行未应用的迁移，成功记入
+`schema_migrations` 集合，**迁移出错则拒绝启动**（宁可不服务，也不服务一个迁移到一半的库）。
+因此跨版本升级的顺序是「先备份，再升级」：
+
+```bash
+# 1) 升级前强制备份（迁移不可逆，回滚靠这一步的产物）
+deploy/tools/mongo-backup.sh
+
+# 2) 部署新镜像；后端启动时自动迁移
+docker compose --env-file deploy/.env -f deploy/docker-compose.yml up -d --build
+
+# 3) 确认后端起来了（迁移失败会让 backend 容器退出，日志有 "Schema migration failed"）
+docker compose --env-file deploy/.env -f deploy/docker-compose.yml logs --tail=50 backend
+```
+
+**回滚**：迁移是前进单向的（本系统不维护 `down` 脚本，单实例只读监控用备份恢复更可靠）。
+若新版本有问题，回到旧镜像并用第 1 步的归档还原数据库：
+
+```bash
+deploy/tools/mongo-restore.sh deploy/backups/<升级前那份>.gz
+# 再把 compose 指回旧镜像 tag 重启
+```
+
+已建库首次升到 1.2.0 时会被**基线**到初始 schema 版本（结构本就已存在，不重跑创建），
+之后的迁移从基线之上开始。全新空库则从头依次执行。
+
 ### 6.3 停止服务
 
 ```bash
