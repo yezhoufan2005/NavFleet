@@ -1,4 +1,4 @@
-import { Db, MongoClient, type MongoClientEvents } from "mongodb";
+import { Db, MongoClient, MongoServerError, type MongoClientEvents } from "mongodb";
 import { config } from "./config";
 import { MongoConnectionSupervisor, type MongoSession, redactMongoUri } from "./mongoConnection";
 import { DeviceAlert, DeviceSnapshot, HistoryQuery, UserRecord } from "./types";
@@ -323,6 +323,77 @@ export class Persistence {
       return this.fallbackUsers.size;
     }
     return this.db.collection("users").countDocuments();
+  }
+
+  /** Every user, projected without `_id` (callers strip `passwordHash` for responses). */
+  async listUsers(): Promise<UserRecord[]> {
+    if (!this.db) {
+      return [...this.fallbackUsers.values()];
+    }
+    return this.db
+      .collection<UserRecord>("users")
+      .find({}, { projection: { _id: 0 } })
+      .sort({ username: 1 })
+      .toArray();
+  }
+
+  /** Insert a new user. Returns false if the username already exists (unique index / fallback). */
+  async createUser(user: UserRecord): Promise<boolean> {
+    if (!this.db) {
+      if (this.fallbackUsers.has(user.username)) {
+        return false;
+      }
+      this.fallbackUsers.set(user.username, user);
+      return true;
+    }
+    try {
+      await this.db.collection<UserRecord>("users").insertOne({ ...user });
+      return true;
+    } catch (error) {
+      // Duplicate key on the unique `username` index means "already exists"; anything else
+      // is a real failure worth surfacing.
+      if (error instanceof MongoServerError && error.code === 11000) {
+        return false;
+      }
+      throw error;
+    }
+  }
+
+  /** Patch a user's mutable profile fields (never the password — that path bumps the version). */
+  async updateUserFields(
+    username: string,
+    fields: Partial<Pick<UserRecord, "role" | "displayName" | "email" | "phone" | "enabled">>,
+    at: string,
+  ): Promise<void> {
+    const fallback = this.fallbackUsers.get(username);
+    if (fallback) {
+      this.fallbackUsers.set(username, { ...fallback, ...fields, updatedAt: at });
+    }
+    if (!this.db) {
+      return;
+    }
+    await this.db
+      .collection<UserRecord>("users")
+      .updateOne({ username }, { $set: { ...fields, updatedAt: at } });
+  }
+
+  /** Hard-delete a user. Returns false when no such user existed. */
+  async deleteUser(username: string): Promise<boolean> {
+    if (!this.db) {
+      return this.fallbackUsers.delete(username);
+    }
+    const result = await this.db.collection<UserRecord>("users").deleteOne({ username });
+    return result.deletedCount > 0;
+  }
+
+  /** How many enabled admins exist — the guard against locking everyone out. */
+  async countEnabledAdmins(): Promise<number> {
+    if (!this.db) {
+      return [...this.fallbackUsers.values()].filter(
+        (user) => user.role === "admin" && user.enabled,
+      ).length;
+    }
+    return this.db.collection("users").countDocuments({ role: "admin", enabled: true });
   }
 
   /**

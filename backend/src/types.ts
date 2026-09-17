@@ -46,3 +46,11 @@ export interface UserRecord {
   lastLoginAt: string | null;
   passwordUpdatedAt: string;
 }
+
+/**
+ * A user as returned by the admin API — `UserRecord` minus `passwordHash`. Declared as an
+ * explicit `Omit` (not an ad-hoc object) so that if a future field is added to `UserRecord`
+ * it shows up here automatically, while the one field that must never reach a response body
+ * stays excluded by construction.
+ */
+export type AdminUserView = Omit<UserRecord, "passwordHash">;
