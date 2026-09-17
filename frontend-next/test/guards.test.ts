@@ -1,5 +1,7 @@
 import { describe, it, expect, vi } from "vitest";
 import { reactive } from "vue";
+import type { RouteMeta } from "vue-router";
+import type { UserRole } from "@navfleet/shared";
 import {
   createAuthGuard,
   AUTH_FALLBACK_ROUTE_NAME,
@@ -15,9 +17,14 @@ import type { AuthStatus } from "@/composables/useAuth";
  * State is passed in rather than imported, which is the seam that makes this
  * testable without a running app or a real session.
  */
-const stateWith = (status: AuthStatus): AuthGuardState => reactive({ status });
+const stateWith = (status: AuthStatus, role?: UserRole): AuthGuardState =>
+  reactive({ status, user: role ? { username: "tester", role } : null });
 
-const target = (name: string, fullPath = `/${name}`) => ({ name, fullPath });
+const target = (name: string, fullPath = `/${name}`, meta: RouteMeta = {}) => ({
+  name,
+  fullPath,
+  meta,
+});
 
 describe("createAuthGuard", () => {
   it("lets an authenticated navigation through", async () => {
@@ -105,5 +112,32 @@ describe("createAuthGuard", () => {
     // there is nothing left listening to notice.
     state.status = "anonymous";
     await expect(pending).resolves.toBe(true);
+  });
+
+  // ── Role gate (Phase 15C) ───────────────────────────────────────────────────
+  const adminOnly: RouteMeta = { roles: ["admin"] };
+
+  it("lets an admin into a route restricted to admin", async () => {
+    const guard = createAuthGuard(stateWith("authenticated", "admin"));
+    await expect(guard(target("admin", "/admin", adminOnly))).resolves.toBe(
+      true,
+    );
+  });
+
+  it("bounces a viewer or operator off an admin-only route to the landing page", async () => {
+    for (const role of ["viewer", "operator"] as const) {
+      const guard = createAuthGuard(stateWith("authenticated", role));
+      await expect(
+        guard(target("admin", "/admin", adminOnly)),
+      ).resolves.toEqual({
+        name: AUTH_FALLBACK_ROUTE_NAME,
+        replace: true,
+      });
+    }
+  });
+
+  it("lets any authenticated role through a route with no roles restriction", async () => {
+    const guard = createAuthGuard(stateWith("authenticated", "viewer"));
+    await expect(guard(target("alerts"))).resolves.toBe(true);
   });
 });

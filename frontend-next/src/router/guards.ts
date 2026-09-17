@@ -1,6 +1,11 @@
 import { watch } from "vue";
-import type { RouteLocationNormalized, RouteLocationRaw } from "vue-router";
+import type {
+  RouteLocationNormalized,
+  RouteLocationRaw,
+  RouteMeta,
+} from "vue-router";
 import type { AuthStatus } from "@/composables/useAuth";
+import type { PublicUser, UserRole } from "@navfleet/shared";
 
 /**
  * Route guard for the authenticated area.
@@ -21,12 +26,16 @@ import type { AuthStatus } from "@/composables/useAuth";
  */
 export interface AuthGuardState {
   status: AuthStatus;
+  /** The signed-in user, for role checks. Optional/null keeps anonymous and older callers valid. */
+  user?: PublicUser | null;
 }
 
 export type AuthGuardTarget = Pick<
   RouteLocationNormalized,
   "name" | "fullPath"
->;
+> & {
+  meta?: RouteMeta;
+};
 
 /** Where an anonymous visitor is sent, and the one route that is never gated. */
 export const AUTH_FALLBACK_ROUTE_NAME = "overview";
@@ -92,6 +101,19 @@ export const createAuthGuard = (
 
     if (status === "unknown") {
       console.warn("[router] 会话状态在超时前仍未确定，放行导航", to.fullPath);
+    }
+
+    // Role gate. `meta.roles`, when present, lists the roles allowed on that route; an
+    // authenticated user outside it is bounced to the landing page (same fallback as
+    // anonymous, and unconditionally allowed, so no redirect loop). This is defence in
+    // depth behind the nav hiding the entry — a deep link must not be an open door.
+    const roles = (to.meta as { roles?: readonly UserRole[] } | undefined)
+      ?.roles;
+    if (roles && roles.length > 0) {
+      const role = state.user?.role;
+      if (!role || !roles.includes(role)) {
+        return { name: AUTH_FALLBACK_ROUTE_NAME, replace: true };
+      }
     }
 
     return true;
