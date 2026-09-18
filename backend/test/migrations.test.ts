@@ -170,6 +170,26 @@ describe("migration 列表自身", () => {
     });
   });
 
+  it("v4 只补告警确认字段：过滤 ackedBy 不存在的行，用 $ifNull 幂等 backfill（Phase 16A）", async () => {
+    const v4 = migrations.find((migration) => migration.version === 4);
+    expect(v4).toBeDefined();
+    const { db, otherUpdates } = createFakeDb();
+    await v4!.up(db);
+
+    expect(otherUpdates).toHaveLength(1);
+    const [write] = otherUpdates;
+    // 告警集合，不是 users —— 这条迁的是 alerts。
+    expect(write?.collection).toBe("alerts");
+    // 只碰还没迁过的行 —— 幂等的来源，与 v2/v3 同型。
+    expect(write?.filter).toEqual({ ackedBy: { $exists: false } });
+    const pipeline = write?.update as Array<{ $set: Record<string, unknown> }>;
+    expect(pipeline[0]?.$set).toMatchObject({
+      ackedBy: { $ifNull: ["$ackedBy", null] },
+      ackedAt: { $ifNull: ["$ackedAt", null] },
+      comment: { $ifNull: ["$comment", null] },
+    });
+  });
+
   it("版本有缺口时在加载期就抛错，而不是运行时静默跳过", () => {
     expect(() =>
       assertMigrationsWellFormed([

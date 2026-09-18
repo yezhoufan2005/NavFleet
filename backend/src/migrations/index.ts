@@ -63,6 +63,25 @@ export const migrations: readonly Migration[] = [
       ]);
     },
   },
+  {
+    version: 4,
+    name: "add-alert-ack-fields",
+    up: async (db) => {
+      // Backfill the Phase 16A acknowledgement fields onto alert rows that predate them.
+      // Scoped to rows missing `ackedBy` so a re-run touches nothing; `$ifNull` sets each
+      // default only where absent — the same idempotent shape as v2/v3. Existing rows are
+      // historical, so they backfill as unacknowledged (null).
+      await db.collection("alerts").updateMany({ ackedBy: { $exists: false } }, [
+        {
+          $set: {
+            ackedBy: { $ifNull: ["$ackedBy", null] },
+            ackedAt: { $ifNull: ["$ackedAt", null] },
+            comment: { $ifNull: ["$comment", null] },
+          },
+        },
+      ]);
+    },
+  },
 ];
 
 /**

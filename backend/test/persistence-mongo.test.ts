@@ -86,7 +86,7 @@ const createFakeDb = (
       calls.updateOne.push({ collection: name, filter, update, options });
       return failures.updateOne
         ? Promise.reject(new Error("updateOne exploded"))
-        : Promise.resolve({});
+        : Promise.resolve({ matchedCount: 1, modifiedCount: 1 });
     },
     updateMany: (filter: unknown, update: unknown) => {
       calls.updateMany.push({ collection: name, filter, update });
@@ -529,6 +529,25 @@ describe("upsertAlerts", () => {
     expect(update.$setOnInsert).toHaveProperty("firstSeenAt");
     expect(update.$set).not.toHaveProperty("firstSeenAt");
     expect(update.$set).toHaveProperty("lastSeenAt");
+    // 确认字段只在插入时初始化为 null；re-report 的 $set 不碰它们，确认得以保留（Phase 16A）。
+    expect(update.$setOnInsert).toMatchObject({
+      ackedBy: null,
+      ackedAt: null,
+      comment: null,
+    });
+    expect(update.$set).not.toHaveProperty("ackedBy");
+  });
+
+  it("清除一条告警时一并清掉确认 —— 重新触发是新的一次，应回到未确认（Phase 16A）", async () => {
+    const { db, calls } = createFakeDb();
+    persistence.__setDbForTests(db);
+
+    await persistence.upsertAlerts("agv-a", [alert("low-soc")]);
+
+    const [clear] = calls.updateMany;
+    expect(clear?.update).toMatchObject({
+      $set: { active: false, ackedBy: null, ackedAt: null, comment: null },
+    });
   });
 
   it("即使 Mongo 报错，内存里的活跃集合仍然是更新过的", async () => {
@@ -541,6 +560,76 @@ describe("upsertAlerts", () => {
     persistence.__setDbForTests(null);
     const items = (await persistence.queryAlerts({})) as Array<{ alertId: string }>;
     expect(items.map((item) => item.alertId)).toEqual(["low-soc"]);
+  });
+});
+
+describe("ackAlert / unackAlert（Phase 16A）", () => {
+  it("ack 只命中活跃行，写入确认三字段并返回命中（Mongo 路径）", async () => {
+    const { db, calls } = createFakeDb();
+    persistence.__setDbForTests(db);
+
+    const at = new Date("2026-03-01T08:00:00.000Z");
+    const ok = await persistence.ackAlert("agv-a:low-soc", "op-1", "看过了", at);
+
+    expect(ok).toBe(true);
+    const [write] = calls.updateOne;
+    expect(write?.collection).toBe("alerts");
+    // active:true 是契约的一半：不能确认一个已经不再发生的告警。
+    expect(write?.filter).toEqual({ eventKey: "agv-a:low-soc", active: true });
+    expect(write?.update).toEqual({
+      $set: { ackedBy: "op-1", ackedAt: at, comment: "看过了" },
+    });
+  });
+
+  it("unack 把三字段置回 null（Mongo 路径）", async () => {
+    const { db, calls } = createFakeDb();
+    persistence.__setDbForTests(db);
+
+    const ok = await persistence.unackAlert("agv-a:low-soc");
+
+    expect(ok).toBe(true);
+    const [write] = calls.updateOne;
+    expect(write?.filter).toEqual({ eventKey: "agv-a:low-soc", active: true });
+    expect(write?.update).toEqual({
+      $set: { ackedBy: null, ackedAt: null, comment: null },
+    });
+  });
+
+  it("内存降级路径：命中活跃告警则更新并返回 true，未知 eventKey 返回 false（→ 路由 404）", async () => {
+    persistence.__setDbForTests(null);
+    // 先让内存里有一条活跃告警。
+    await persistence.upsertAlerts("agv-a", [alert("low-soc")]);
+
+    const at = new Date("2026-03-01T08:00:00.000Z");
+    expect(await persistence.ackAlert("agv-a:low-soc", "op-1", null, at)).toBe(true);
+
+    const [acked] = (await persistence.queryAlerts({})) as Array<{
+      ackedBy: string | null;
+      ackedAt: string | null;
+    }>;
+    expect(acked?.ackedBy).toBe("op-1");
+    expect(acked?.ackedAt).toBe(at.toISOString());
+
+    // 未知 key：什么都不改，返回未命中。
+    expect(await persistence.ackAlert("agv-a:ghost", "op-1", null, at)).toBe(false);
+    expect(await persistence.unackAlert("agv-a:ghost")).toBe(false);
+
+    // unack 把它清回未确认。
+    expect(await persistence.unackAlert("agv-a:low-soc")).toBe(true);
+    const [cleared] = (await persistence.queryAlerts({})) as Array<{ ackedBy: string | null }>;
+    expect(cleared?.ackedBy).toBeNull();
+  });
+
+  it("内存降级路径：re-report 保留已存在的确认（与 Mongo 的 $set 不碰确认字段同构）", async () => {
+    persistence.__setDbForTests(null);
+    await persistence.upsertAlerts("agv-a", [alert("low-soc")]);
+    await persistence.ackAlert("agv-a:low-soc", "op-1", null, new Date());
+
+    // 同一条告警再次上报（仍活跃）。
+    await persistence.upsertAlerts("agv-a", [alert("low-soc")]);
+
+    const [item] = (await persistence.queryAlerts({})) as Array<{ ackedBy: string | null }>;
+    expect(item?.ackedBy).toBe("op-1");
   });
 });
 

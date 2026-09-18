@@ -200,8 +200,25 @@ export const auditQuerySchema = z.object({
       "session_revoke",
       "force_logout",
       "account_locked",
+      "alert_ack",
+      "alert_unack",
     ])
     .optional(),
   from: timestampString.optional(),
   to: timestampString.optional(),
 });
+
+// Alert acknowledgement (Phase 16A). `eventKey` is assembled server-side from these two —
+// deviceId can contain arbitrary vendor characters, so it never goes into a path segment.
+// The comment is optional operator context, length-bounded like other free text.
+const alertRefSchema = {
+  deviceId: z.string().min(1).max(200),
+  alertId: z.string().min(1).max(200),
+};
+
+export const alertAckSchema = z.object({
+  ...alertRefSchema,
+  comment: z.string().max(500).optional(),
+});
+
+export const alertUnackSchema = z.object(alertRefSchema);

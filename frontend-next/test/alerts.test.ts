@@ -4,12 +4,15 @@ import { createMemoryHistory, createRouter } from "vue-router";
 import type { Router } from "vue-router";
 import { enableAutoUnmount, flushPromises, mount } from "@vue/test-utils";
 import { fleetApi } from "@navfleet/fleet-core";
+import type { UserRole } from "@navfleet/shared";
 import AlertsView from "@/views/AlertsView.vue";
 import UiSelect from "@/components/ui/UiSelect.vue";
 import NotificationHost from "@/components/NotificationHost.vue";
 import { useFleetStore } from "@/stores/fleet";
+import { useAuth, __resetAuth } from "@/composables/useAuth";
 import {
   ALERT_ACK_STORAGE_KEY,
+  useAlertAck,
   __resetAlertAck,
 } from "@/composables/useAlertAck";
 import {
@@ -21,6 +24,11 @@ import {
  * The alert centre. Most of these cover the 11B audit's list — the things that were
  * missing rather than wrong: filter state in the URL, a toggle that says it is one,
  * an empty state that is announced, and a row that reaches the vehicle.
+ *
+ * Acknowledgement is server-backed since Phase 16A: `fleetApi.ack/unackAlert` are mocked,
+ * the confirm control is operator+ only, and the overlay the view reads lives in the fleet
+ * store (seeded from the backend, kept live by WS). These tests sign in as `operator` by
+ * default so the control is present; the viewer case has its own test.
  */
 enableAutoUnmount(afterEach);
 
@@ -39,6 +47,15 @@ const device = (patch: Record<string, unknown> = {}) => ({
 
 let store: ReturnType<typeof useFleetStore>;
 let router: Router;
+/** Captured so an assertion reads the spy variable, not `fleetApi.ackAlert` unbound. */
+let ackSpy: ReturnType<typeof vi.spyOn>;
+
+/** Sign in so `canAck` is true (operator+) unless a test asks for another role. */
+const signIn = (role: UserRole = "operator"): void => {
+  const auth = useAuth();
+  auth.state.status = "authenticated";
+  auth.state.user = { username: "op", role };
+};
 
 const mountAlerts = async (query = "") => {
   router = createRouter({
@@ -79,19 +96,28 @@ const seedMixed = () =>
     "api",
   );
 
-const alertIds = () =>
-  (["critical", "warning", "notice"] as const).flatMap((bucket) =>
-    store.groupedAlerts[bucket].map((alert) => alert.id),
-  );
+/** The critical alert's (deviceId, id) — the row the ack tests act on. */
+const criticalRef = (): { deviceId: string; id: string } => {
+  const alert = store.groupedAlerts.critical[0]!;
+  return { deviceId: alert.deviceId, id: alert.id };
+};
 
 beforeEach(() => {
   setActivePinia(createPinia());
   localStorage.clear();
   __resetAlertAck();
+  __resetAuth();
   __resetNotifications();
   vi.spyOn(fleetApi, "getScenes").mockResolvedValue({ items: [] });
   vi.spyOn(fleetApi, "getScene").mockRejectedValue(new Error("no scene"));
+  // AlertsView seeds the ack overlay from this on mount; default it empty. Tests that care
+  // about a pre-existing ack drive the store overlay directly instead.
+  vi.spyOn(fleetApi, "getAlerts").mockResolvedValue({ items: [] });
+  // Acknowledgement writes succeed by default; tests that need a failure re-mock.
+  ackSpy = vi.spyOn(fleetApi, "ackAlert").mockResolvedValue();
+  vi.spyOn(fleetApi, "unackAlert").mockResolvedValue();
   store = useFleetStore();
+  signIn();
 });
 
 afterEach(() => {
@@ -129,11 +155,12 @@ describe("the list", () => {
     expect(wrapper.find("a[href='/devices/agv-01']").exists()).toBe(true);
   });
 
-  it("states the acknowledgement limitation on the page", async () => {
-    // A known limitation and a silent one look identical to whoever is on shift.
+  it("no longer warns that acknowledgement is browser-only", async () => {
+    // The limitation the page used to state out loud is gone: acknowledgement is
+    // server-backed now, so the sentence would be a lie.
     seedMixed();
     const wrapper = await mountAlerts();
-    expect(wrapper.text()).toContain("只保存在本浏览器");
+    expect(wrapper.text()).not.toContain("只保存在本浏览器");
   });
 });
 
@@ -207,8 +234,6 @@ describe("the controls the template wires up", () => {
     // filter is a `UiSelect` now, and its list lives in a portal that jsdom cannot open
     // meaningfully. What this case owns is the *wiring* — that the view turns a chosen
     // value into a query param — and `UiSelect`'s own mapping is covered in ui-select.
-    // Not awaited: `$emit` returns the component instance, not a promise. The
-    // `flushPromises()` below is what actually lets the view react.
     wrapper.findComponent(UiSelect).vm.$emit("update:modelValue", "agv-02");
     await flushPromises();
 
@@ -216,16 +241,6 @@ describe("the controls the template wires up", () => {
     expect(wrapper.findAll("li")).toHaveLength(1);
   });
 
-  /**
-   * The filtered device stays in the list after its fault clears.
-   *
-   * This is the normal life of an alert filter, not an edge case: narrow to one vehicle,
-   * the fault clears, and the device leaves `deviceOptions` (which is built by walking
-   * the current alerts) while the filter itself lives in the URL and stays. The page was
-   * then an empty list beside a dropdown showing **nothing** — no indication that a
-   * filter was still narrowing it, and no way out except knowing to re-pick 全部设备
-   * from a control that looked unset.
-   */
   it("keeps the filtered vehicle selectable after its alert clears", async () => {
     seedMixed();
     const wrapper = await mountAlerts("?device=agv-02");
@@ -248,13 +263,10 @@ describe("the controls the template wires up", () => {
     const select = wrapper.findComponent(UiSelect);
     const options = select.props("options");
     expect(options.map((option) => option.value)).toContain("agv-02");
-    // Named, not merely present: the label comes from the fleet, so it reads as the
-    // vehicle rather than as an id.
     expect(select.text()).toContain("B07 巡检车");
   });
 
   it("filters by the search box, committing on Enter", async () => {
-    // Enter skips the debounce, because pressing it in a search box means "now".
     seedMixed();
     const wrapper = await mountAlerts();
     const box = wrapper.find("input[type='search']");
@@ -267,9 +279,6 @@ describe("the controls the template wires up", () => {
   });
 
   it("does not navigate on every keystroke", async () => {
-    // `q` lives in the URL like the other filters, so a link reproduces the view — but
-    // eight characters used to mean eight `router.replace` calls, each re-running every
-    // filter computed. The draft is local until the typing settles.
     vi.useFakeTimers();
     try {
       seedMixed();
@@ -278,9 +287,7 @@ describe("the controls the template wires up", () => {
 
       await box.setValue("电");
       await box.setValue("电量");
-      // The box shows what was typed straight away…
       expect((box.element as HTMLInputElement).value).toBe("电量");
-      // …and the URL has not moved yet.
       expect(router.currentRoute.value.query.q).toBeUndefined();
 
       await vi.advanceTimersByTimeAsync(300);
@@ -308,7 +315,6 @@ describe("the controls the template wires up", () => {
   });
 
   it("pages a long list and clamps when a filter shrinks it", async () => {
-    // 25 faulted vehicles: two pages at 20 per page.
     store.ingestPayload(
       {
         fleetName: "示范车队",
@@ -341,7 +347,6 @@ describe("the controls the template wires up", () => {
   });
 
   it("pulls the page number back when a filter leaves it past the end", async () => {
-    // Staying on page 2 of a one-page list shows nothing and looks broken.
     store.ingestPayload(
       {
         fleetName: "示范车队",
@@ -372,8 +377,8 @@ describe("the controls the template wires up", () => {
   });
 });
 
-describe("acknowledging", () => {
-  it("is a toggle that says so", async () => {
+describe("acknowledging (server-backed, Phase 16A)", () => {
+  it("is a toggle that says so, and writes through to the backend", async () => {
     seedMixed();
     const wrapper = await mountAlerts("?acked=1");
     const button = wrapper.findAll("li")[0]!.findAll("button").at(-1)!;
@@ -381,7 +386,11 @@ describe("acknowledging", () => {
     expect(button.attributes("aria-pressed")).toBe("false");
     expect(button.attributes("aria-label")).toContain("确认告警");
 
+    const ref = criticalRef();
     await button.trigger("click");
+    await flushPromises();
+
+    expect(ackSpy).toHaveBeenCalledWith(ref.deviceId, ref.id);
     expect(
       wrapper
         .findAll("li")[0]!
@@ -402,17 +411,56 @@ describe("acknowledging", () => {
     expect(wrapper.findAll("li")).toHaveLength(2);
   });
 
-  it("survives a reload", async () => {
+  it("shows who confirmed a row", async () => {
+    // The whole point of moving off localStorage: the name is the same on every console.
     seedMixed();
-    const [first] = alertIds();
-    const wrapper = await mountAlerts();
+    const wrapper = await mountAlerts("?acked=1");
     await wrapper.findAll("li")[0]!.findAll("button").at(-1)!.trigger("click");
+    await flushPromises();
 
-    expect(localStorage.getItem(ALERT_ACK_STORAGE_KEY)).toContain(first);
+    expect(wrapper.findAll("li")[0]!.text()).toContain("已确认 · op");
+  });
+
+  it("rolls the row back and warns when the write fails", async () => {
+    vi.spyOn(fleetApi, "ackAlert").mockRejectedValue(new Error("forbidden"));
+    seedMixed();
+    const wrapper = await mountAlerts("?acked=1");
+    const button = wrapper.findAll("li")[0]!.findAll("button").at(-1)!;
+
+    await button.trigger("click");
+    await flushPromises();
+
+    expect(
+      wrapper
+        .findAll("li")[0]!
+        .findAll("button")
+        .at(-1)!
+        .attributes("aria-pressed"),
+    ).toBe("false");
+    expect(useNotifications().items.at(-1)?.message).toContain("权限");
+  });
+
+  it("reflects an acknowledgement made on another console", async () => {
+    // A cross-console `alert.acked` lands in the store overlay; the open view must follow
+    // without a reload — that is what the WS branch buys.
+    seedMixed();
+    const wrapper = await mountAlerts("?acked=1");
+    const ref = criticalRef();
+
+    store.applyAck(`${ref.deviceId}:${ref.id}`, {
+      ackedBy: "someone-else",
+      ackedAt: "2026-01-01T00:00:00.000Z",
+      comment: null,
+    });
+    await flushPromises();
+
+    const row = wrapper
+      .findAll("li")
+      .find((li) => li.attributes("data-acknowledged") === "true");
+    expect(row?.text()).toContain("已确认 · someone-else");
   });
 
   it("offers an undo after a bulk acknowledgement, and the undo works", async () => {
-    // A bulk action is easy to trigger by accident and tedious to reverse by hand.
     seedMixed();
     const wrapper = await mountAlerts();
 
@@ -439,21 +487,34 @@ describe("acknowledging", () => {
       .findAll("button")
       .find((button) => button.text().includes("确认当前筛选"))
       ?.trigger("click");
+    await flushPromises();
     __resetNotifications();
     await flushPromises();
 
-    // The bulk button is gone, so there is nothing to click — and nothing to announce.
     expect(
       wrapper.findAll("button").some((b) => b.text().includes("确认当前筛选")),
     ).toBe(false);
     expect(useNotifications().items).toEqual([]);
   });
+
+  it("hides every confirm control from a viewer", async () => {
+    // Acknowledging is the first operator-only capability; a viewer reads the list but
+    // cannot confirm. The backend enforces it too — this is the UI half.
+    __resetAuth();
+    signIn("viewer");
+    seedMixed();
+    const wrapper = await mountAlerts("?acked=1");
+
+    const rowButtons = wrapper.findAll("li")[0]!.findAll("button");
+    expect(rowButtons).toHaveLength(0);
+    expect(
+      wrapper.findAll("button").some((b) => b.text().includes("确认当前筛选")),
+    ).toBe(false);
+  });
 });
 
 describe("the toast's undo button", () => {
   it("runs the action and dismisses itself", async () => {
-    // Leaving 撤销 on screen after it has been used invites a second click that would
-    // undo the undo.
     const undone = vi.fn();
     const host = mount(NotificationHost);
     useNotifications().notify("已确认 3 条告警", {
@@ -479,12 +540,6 @@ describe("the toast's undo button", () => {
 });
 
 describe("what a row says without being read", () => {
-  /**
-   * Two visual encodings v1.0.0 had and the port reduced to a single badge. They are
-   * asserted through `data-*` hooks rather than computed styles, because the scoped rules
-   * key on exactly these attributes — an assertion on colour would pin the palette, which
-   * is not the contract. A third one was restored and then withdrawn; see below.
-   */
   it("carries its severity on the whole row, not only in a badge", async () => {
     seedMixed();
     const wrapper = await mountAlerts();
@@ -498,15 +553,6 @@ describe("what a row says without being read", () => {
   });
 
   it("does not ring the rows of whatever vehicle the store happens to have selected", async () => {
-    // 13T-C restored v1.0.0's `.alert-item.focused` here; 14A acceptance took it back
-    // out. In v1.0.0 that rule lived in a drawer beside the map, where the operator had
-    // just made the selection. This page has no selection control, so the ring landed on
-    // whichever vehicle `ensureSelectedDevice()` picked — read during manual review as
-    // rows lighting up at random, which is exactly what it looked like.
-    //
-    // Asserted rather than deleted: a cue that was ported once from a v1.0.0 stylesheet
-    // is a cue that gets ported again, and the reason it is wrong is not visible from
-    // the CSS rule itself.
     seedMixed();
     store.selectDevice("agv-02");
     const wrapper = await mountAlerts();
@@ -518,9 +564,6 @@ describe("what a row says without being read", () => {
   });
 
   it("fades an acknowledged row instead of making it identical", async () => {
-    // Revealed by 显示已确认, acknowledged and unacknowledged rows used to differ only in
-    // one button's colour — so right after a bulk confirm you could not see which ones
-    // you had just done.
     seedMixed();
     const wrapper = await mountAlerts("?acked=1");
     await wrapper.findAll("li")[0]!.findAll("button").at(-1)!.trigger("click");
@@ -533,8 +576,6 @@ describe("what a row says without being read", () => {
   });
 
   it("names where the row came from", async () => {
-    // `source` has been computed on every alert since 12A and read by nothing. It decides
-    // whether the vehicle or the platform is the thing to go and look at.
     seedMixed();
     const wrapper = await mountAlerts();
     const rows = wrapper.findAll("li");
@@ -545,9 +586,6 @@ describe("what a row says without being read", () => {
   });
 
   it("finds a row by its source, in either form", async () => {
-    // The placeholder names 来源, and a placeholder promising a field the filter does not
-    // search is its own small lie. Both forms are searched: the operator sees 规则引擎 on
-    // the row, but a deployment reading logs knows it as `rule-engine`.
     seedMixed();
     const wrapper = await mountAlerts("?q=" + encodeURIComponent("预警报码"));
     expect(wrapper.findAll("li")).toHaveLength(1);
@@ -557,8 +595,6 @@ describe("what a row says without being read", () => {
   });
 
   it("shows an unmapped source verbatim rather than hiding it", async () => {
-    // A pre-normalized snapshot can carry any string (`fleetNormalize.ts:500`), so the
-    // label map cannot be treated as exhaustive.
     store.ingestPayload(
       {
         fleetName: "示范车队",
@@ -590,9 +626,6 @@ describe("what a row says without being read", () => {
 
 describe("acting on more than one row", () => {
   it("acknowledges the whole filtered set, not just the visible page", async () => {
-    // The port had narrowed this to the page. `frontend-research.md:36` says
-    // 「保持能力，补反馈与撤销」 for this control — the feedback and the undo arrived,
-    // the capability shrank.
     seedMixed();
     const wrapper = await mountAlerts();
     const bulk = wrapper
@@ -613,8 +646,6 @@ describe("acting on more than one row", () => {
   });
 
   it("offers 清除已确认 with a count, and an undo", async () => {
-    // The counterpart v1.0.0 had beside the bulk confirm. The admin page's 清除本地数据
-    // is not an equivalent — it takes theme, sidebar, map mode and sound with it.
     seedMixed();
     const wrapper = await mountAlerts();
     await wrapper
@@ -638,18 +669,11 @@ describe("acting on more than one row", () => {
     expect(toast?.action?.label).toBe("撤销");
   });
 
-  it("counts the acknowledged alerts present, not every id ever stored", async () => {
-    // The stored set keeps ids for alerts that have since cleared, so counting it drifts
-    // upward forever — a page showing three rows could have reported 「已确认 12」.
-    localStorage.setItem(
-      ALERT_ACK_STORAGE_KEY,
-      JSON.stringify(["long-gone-1", "long-gone-2", "long-gone-3"]),
-    );
-    __resetAlertAck();
+  it("counts the acknowledged alerts present, not a stale overlay", async () => {
     seedMixed();
     const wrapper = await mountAlerts();
 
-    // Nothing present is acknowledged, so neither control appears.
+    // Nothing present is acknowledged yet, so neither control appears.
     expect(
       wrapper.findAll("button").some((b) => b.text().includes("清除已确认")),
     ).toBe(false);
@@ -666,62 +690,77 @@ describe("acting on more than one row", () => {
   });
 });
 
-describe("the acknowledgement store itself", () => {
-  /**
-   * `acknowledgedCount` and `clearAll` were deleted rather than wired up in 13T-C — both
-   * operated on the whole *stored* set, which keeps ids for alerts that have since
-   * cleared, so both reported and acted on more than any button could honestly claim.
-   * The page counts and clears what is currently in the fleet instead; these cases assert
-   * the store's surface through the operations that remain.
-   */
-  it("clears the ids it is given, and only those", async () => {
+describe("useAlertAck — the action layer", () => {
+  it("acknowledges through the API and updates the overlay optimistically", async () => {
     seedMixed();
-    const ack = (await import("@/composables/useAlertAck")).useAlertAck();
-    const ids = alertIds();
-    ack.acknowledgeMany(ids);
-    ack.acknowledge("stale-alert-no-longer-in-fleet");
+    const ack = useAlertAck();
+    const ref = criticalRef();
 
-    const cleared = ack.unacknowledgeMany(ids);
-
-    expect(cleared).toEqual(ids);
-    expect(ids.every((id) => !ack.isAcknowledged(id))).toBe(true);
-    // The id for an alert that has cleared is untouched — `clearAll` would have taken it.
-    expect(ack.isAcknowledged("stale-alert-no-longer-in-fleet")).toBe(true);
+    const ok = await ack.acknowledge(ref.deviceId, ref.id, "看到了");
+    expect(ok).toBe(true);
+    expect(ackSpy).toHaveBeenCalledWith(ref.deviceId, ref.id, "看到了");
+    expect(ack.isAcknowledged(ref.deviceId, ref.id)).toBe(true);
+    expect(ack.acknowledgedBy(ref.deviceId, ref.id)).toBe("op");
   });
 
-  it("ignores an empty id rather than storing one", async () => {
-    const ack = (await import("@/composables/useAlertAck")).useAlertAck();
-    ack.acknowledge("");
-    ack.unacknowledge("");
-    expect(ack.isAcknowledged("")).toBe(false);
+  it("rolls back and reports when the write is refused", async () => {
+    vi.spyOn(fleetApi, "unackAlert").mockRejectedValue(new Error("not_found"));
+    seedMixed();
+    const ack = useAlertAck();
+    const ref = criticalRef();
+    // Put it in the acked state first (its own call succeeds by default mock).
+    await ack.acknowledge(ref.deviceId, ref.id);
+
+    const ok = await ack.unacknowledge(ref.deviceId, ref.id);
+    expect(ok).toBe(false);
+    // The optimistic removal was undone, so it is acknowledged again.
+    expect(ack.isAcknowledged(ref.deviceId, ref.id)).toBe(true);
+    expect(useNotifications().items.at(-1)?.message).toContain("活跃");
   });
 
-  it("reports only the ids a bulk call actually changed", async () => {
-    // That set is what an undo has to reverse — undoing an id that was already
-    // acknowledged before the bulk action would un-acknowledge someone else's work.
-    const ack = (await import("@/composables/useAlertAck")).useAlertAck();
-    ack.acknowledge("a");
+  it("reports only the refs a bulk call actually changed", async () => {
+    seedMixed();
+    const ack = useAlertAck();
+    const [critical, warning] = [
+      criticalRef(),
+      {
+        deviceId: store.groupedAlerts.warning[0]!.deviceId,
+        id: store.groupedAlerts.warning[0]!.id,
+      },
+    ];
+    await ack.acknowledge(critical.deviceId, critical.id);
 
-    expect(ack.acknowledgeMany(["a", "b"])).toEqual(["b"]);
-    // Symmetric, which is what lets 清除已确认 offer an undo of its own.
-    expect(ack.unacknowledgeMany(["a", "never-acked"])).toEqual(["a"]);
+    const changed = await ack.acknowledgeMany([critical, warning]);
+    // The already-acked critical is not re-reported; only the warning changed.
+    expect(changed).toEqual([warning]);
   });
 
-  it("keeps working when storage refuses", async () => {
-    vi.spyOn(Storage.prototype, "setItem").mockImplementation(() => {
-      throw new Error("QuotaExceededError");
-    });
-    const ack = (await import("@/composables/useAlertAck")).useAlertAck();
+  it("migrates still-active localStorage acks, then drops the key", async () => {
+    seedMixed();
+    const ref = criticalRef();
+    localStorage.setItem(
+      ALERT_ACK_STORAGE_KEY,
+      JSON.stringify([ref.id, "long-gone"]),
+    );
+    // The migration only runs where the caller can actually confirm (apiReady + operator).
+    store.state.realtime.apiReady = true;
+    const ack = useAlertAck();
 
-    expect(() => ack.acknowledge("a")).not.toThrow();
-    expect(ack.isAcknowledged("a")).toBe(true);
+    await ack.migrateLegacyAcks([ref]);
+    await flushPromises();
+
+    expect(ackSpy).toHaveBeenCalledWith(ref.deviceId, ref.id);
+    // The cleared "long-gone" id was not active, so it was dropped, not pushed.
+    expect(ackSpy).toHaveBeenCalledTimes(1);
+    expect(localStorage.getItem(ALERT_ACK_STORAGE_KEY)).toBeNull();
   });
 
-  it("survives a stored value that is not an array", async () => {
-    localStorage.setItem(ALERT_ACK_STORAGE_KEY, '{"not":"an array"}');
-    __resetAlertAck();
-    const ack = (await import("@/composables/useAlertAck")).useAlertAck();
+  it("clears the legacy key even when there is nothing to migrate", async () => {
+    localStorage.setItem(ALERT_ACK_STORAGE_KEY, JSON.stringify([]));
+    const ack = useAlertAck();
 
-    expect(ack.isAcknowledged("anything")).toBe(false);
+    await ack.migrateLegacyAcks([]);
+
+    expect(localStorage.getItem(ALERT_ACK_STORAGE_KEY)).toBeNull();
   });
 });

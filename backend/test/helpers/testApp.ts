@@ -53,6 +53,10 @@ export interface StoreStub {
   >;
   getAlerts: Mock<(filters: Record<string, string | undefined>) => Promise<unknown[]>>;
   applyPayload: Mock<(payload: unknown, source?: string) => Promise<FleetSnapshot>>;
+  broadcastAlertAck: Mock<
+    (payload: { deviceId: string; alertId: string; ackedBy: string; ackedAt: string }) => void
+  >;
+  broadcastAlertUnack: Mock<(payload: { deviceId: string; alertId: string }) => void>;
   ingestQueueStats: Mock<() => { depth: number; dropped: number; limit: number }>;
   deviceAdmissionStats: Mock<
     () => { rejected: number; capped: number; evicted: number; limit: number }
@@ -89,6 +93,8 @@ export const createStoreStub = (): StoreStub => ({
   getHistory: vi.fn(() => Promise.resolve([sampleHistoryPoint()])),
   getAlerts: vi.fn(() => Promise.resolve([sampleAlert()])),
   applyPayload: vi.fn(() => Promise.resolve(sampleSnapshot())),
+  broadcastAlertAck: vi.fn(() => undefined),
+  broadcastAlertUnack: vi.fn(() => undefined),
   ingestQueueStats: vi.fn(() => ({ depth: 0, dropped: 0, limit: 1000 })),
   deviceAdmissionStats: vi.fn(() => ({ rejected: 0, capped: 0, evicted: 0, limit: 1000 })),
 });
@@ -96,11 +102,18 @@ export const createStoreStub = (): StoreStub => ({
 export interface PersistenceStub {
   isMongoConnected: Mock<() => boolean>;
   telemetryBufferStats: Mock<() => { pending: number; dropped: number; limit: number }>;
+  ackAlert: Mock<
+    (eventKey: string, ackedBy: string, comment: string | null, at: Date) => Promise<boolean>
+  >;
+  unackAlert: Mock<(eventKey: string) => Promise<boolean>>;
 }
 
 export const createPersistenceStub = (): PersistenceStub => ({
   isMongoConnected: vi.fn(() => false),
   telemetryBufferStats: vi.fn(() => ({ pending: 0, dropped: 0, limit: 2000 })),
+  // Default to "no such active alert" (→ 404); the ack behaviour tests override to true.
+  ackAlert: vi.fn(() => Promise.resolve(false)),
+  unackAlert: vi.fn(() => Promise.resolve(false)),
 });
 
 export interface AuthServiceStub {

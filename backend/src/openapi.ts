@@ -17,6 +17,8 @@ import fs from "node:fs";
 import path from "node:path";
 import { z } from "zod";
 import {
+  alertAckSchema,
+  alertUnackSchema,
   alertsQuerySchema,
   createUserSchema,
   deviceIdParamSchema,
@@ -198,6 +200,8 @@ export const openApiDocument = {
               "session_revoke",
               "force_logout",
               "account_locked",
+              "alert_ack",
+              "alert_unack",
             ],
           },
           target: { type: "string" },
@@ -223,6 +227,9 @@ export const openApiDocument = {
           firstSeenAt: { type: "string", format: "date-time" },
           lastSeenAt: { type: "string", format: "date-time" },
           clearedAt: { type: ["string", "null"], format: "date-time" },
+          ackedBy: { type: ["string", "null"] },
+          ackedAt: { type: ["string", "null"], format: "date-time" },
+          comment: { type: ["string", "null"] },
         },
       },
       HistorySample: {
@@ -526,6 +533,43 @@ const apiWideResponses = { "429": tooManyRequests, "500": serverError } as const
         },
         "400": badRequest,
         "401": unauthorized,
+        ...apiWideResponses,
+      },
+    },
+  },
+  "/api/v1/alerts/ack": {
+    post: {
+      tags: ["alerts"],
+      summary: "确认一条活跃告警（需 operator 或 admin）",
+      requestBody: {
+        required: true,
+        content: { "application/json": { schema: fromValidator(alertAckSchema) } },
+      },
+      responses: {
+        "204": { description: "已确认" },
+        "400": badRequest,
+        "401": unauthorized,
+        "403": forbidden,
+        // 未知或已清除（非活跃）告警。
+        "404": notFound,
+        ...apiWideResponses,
+      },
+    },
+  },
+  "/api/v1/alerts/unack": {
+    post: {
+      tags: ["alerts"],
+      summary: "取消确认一条活跃告警（需 operator 或 admin）",
+      requestBody: {
+        required: true,
+        content: { "application/json": { schema: fromValidator(alertUnackSchema) } },
+      },
+      responses: {
+        "204": { description: "已取消确认" },
+        "400": badRequest,
+        "401": unauthorized,
+        "403": forbidden,
+        "404": notFound,
         ...apiWideResponses,
       },
     },

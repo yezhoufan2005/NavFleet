@@ -1,13 +1,15 @@
 import { expect, signIn, test } from "../support/fixtures";
+import { ADMIN } from "../support/harness";
 import { SEEDED_ALERTING } from "../support/seed";
 
 /**
- * The alert centre in a real browser. Two of these can only be checked here: a URL
- * that survives a reload, and an acknowledgement that survives one.
+ * The alert centre in a real browser. Two of these can only be checked here: a URL that
+ * survives a reload, and an acknowledgement that survives one — the latter now because it is
+ * written to the backend (Phase 16A), not because a localStorage entry outlived the tab.
  *
  * The equivalence question ("does it do what v1.0.0 did") is answered by the shared
  * `alerts.spec.ts` staying green on the old frontend plus the console's own unit
- * tests; what a browser adds is the state that lives outside the app.
+ * tests; what a browser adds is the round trip through the server.
  */
 /**
  * The seeded vehicle with something to report. Resolved and asserted in
@@ -56,6 +58,26 @@ test.describe("console alerts", () => {
     ).toHaveAttribute("aria-pressed", "true");
   });
 
+  test("records who confirmed it, not just that it is confirmed", async ({
+    page,
+  }) => {
+    // The point of moving acknowledgement off localStorage (Phase 16A): it carries a who.
+    const row = page.locator("li").filter({ hasText: faulted.deviceName });
+    await row.getByRole("button", { name: /确认告警/ }).click();
+
+    await page.getByRole("checkbox").check();
+    await expect(
+      page.locator("li").filter({ hasText: faulted.deviceName }),
+    ).toContainText(`已确认 · ${ADMIN.username}`);
+  });
+
+  test("no longer claims acknowledgement is browser-local", async ({
+    page,
+  }) => {
+    // The limitation the page used to state out loud is gone; the sentence would now be a lie.
+    await expect(page.getByText("只保存在本浏览器")).toHaveCount(0);
+  });
+
   test("a row reaches the vehicle it came from", async ({ page }) => {
     await page
       .locator("li")
@@ -63,12 +85,6 @@ test.describe("console alerts", () => {
       .getByRole("link")
       .click();
     await expect(page).toHaveURL(new RegExp(`/devices/${faulted.deviceId}$`));
-  });
-
-  test("says the acknowledgement is browser-local rather than leaving it implied", async ({
-    page,
-  }) => {
-    await expect(page.getByText("只保存在本浏览器")).toBeVisible();
   });
 
   test("the search box waits for the typing to stop before it navigates", async ({

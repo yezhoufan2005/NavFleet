@@ -16,6 +16,7 @@ import { buildAuthRouter } from "./auth/routes";
 import { buildOpsRouter, buildOpenApiRouter } from "./routes/ops";
 import { buildDocsRouter } from "./routes/docs";
 import { buildFleetRouter } from "./routes/fleet";
+import { buildAlertsRouter } from "./routes/alerts";
 import { buildScenesRouter } from "./routes/scenes";
 import { buildDebugRouter } from "./routes/debug";
 import { buildUsersRouter } from "./routes/users";
@@ -200,6 +201,7 @@ export const createApp = ({
    */
   for (const prefix of API_PREFIXES) {
     app.use(prefix, captureRouteMount, buildFleetRouter(store));
+    app.use(prefix, captureRouteMount, buildAlertsRouter(store, persistence, auditService));
     app.use(prefix, captureRouteMount, buildScenesRouter(store));
     app.use(prefix, captureRouteMount, buildDebugRouter(store, config));
     app.use(prefix, captureRouteMount, buildUsersRouter(authService, auditService));

@@ -39,6 +39,9 @@ beforeEach(() => {
   __resetNotifications();
   vi.spyOn(fleetApi, "getScenes").mockResolvedValue({ items: [] });
   vi.spyOn(fleetApi, "getScene").mockRejectedValue(new Error("no scene"));
+  // Bootstrap seeds the Phase 16A ack overlay from this; default it to empty so the
+  // fire-and-forget seed resolves without a real network call.
+  vi.spyOn(fleetApi, "getAlerts").mockResolvedValue({ items: [] });
   store = useFleetStore();
 });
 
@@ -442,6 +445,41 @@ describe("bootstrap", () => {
     release(snapshot([device()]));
     await pending;
     expect(store.bootstrapPending).toBe(false);
+  });
+
+  it("seeds the acknowledgement overlay from the active alerts (Phase 16A)", async () => {
+    vi.spyOn(fleetApi, "getAlerts").mockResolvedValue({
+      items: [
+        {
+          eventKey: "agv-01:err-1",
+          deviceId: "agv-01",
+          alertId: "err-1",
+          severity: "critical",
+          active: true,
+          ackedBy: "operator-a",
+          ackedAt: "2026-01-01T00:00:00.000Z",
+          comment: null,
+        },
+        // An active but unacknowledged alert contributes nothing to the overlay.
+        {
+          eventKey: "agv-01:warn-1",
+          deviceId: "agv-01",
+          alertId: "warn-1",
+          severity: "warning",
+          active: true,
+          ackedBy: null,
+          ackedAt: null,
+          comment: null,
+        },
+      ],
+    });
+
+    // Seeded on demand (the alerts view calls this on mount), not from bootstrap.
+    await store.seedAckState();
+
+    expect(store.isAlertAcked("agv-01", "err-1")).toBe(true);
+    expect(store.getAck("agv-01", "err-1")?.ackedBy).toBe("operator-a");
+    expect(store.isAlertAcked("agv-01", "warn-1")).toBe(false);
   });
 });
 

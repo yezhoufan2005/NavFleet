@@ -2,6 +2,8 @@ import { describe, it, expect } from "vitest";
 import {
   historyQuerySchema,
   alertsQuerySchema,
+  alertAckSchema,
+  alertUnackSchema,
   ingestBodySchema,
   mqttTelemetrySchema,
   mqttStatusSchema,
@@ -40,6 +42,31 @@ describe("alertsQuerySchema", () => {
   it("rejects unknown severity or status values", () => {
     expect(alertsQuerySchema.safeParse({ severity: "fatal" }).success).toBe(false);
     expect(alertsQuerySchema.safeParse({ status: "open" }).success).toBe(false);
+  });
+});
+
+describe("alertAckSchema / alertUnackSchema (Phase 16A)", () => {
+  it("accepts a deviceId + alertId, with an optional comment", () => {
+    expect(alertAckSchema.safeParse({ deviceId: "agv-01", alertId: "e1" }).success).toBe(true);
+    expect(
+      alertAckSchema.safeParse({ deviceId: "agv-01", alertId: "e1", comment: "看过了" }).success,
+    ).toBe(true);
+    expect(alertUnackSchema.safeParse({ deviceId: "agv-01", alertId: "e1" }).success).toBe(true);
+  });
+
+  it("requires both ids and bounds their length", () => {
+    expect(alertAckSchema.safeParse({ deviceId: "agv-01" }).success).toBe(false);
+    expect(alertAckSchema.safeParse({ alertId: "e1" }).success).toBe(false);
+    expect(alertAckSchema.safeParse({ deviceId: "", alertId: "e1" }).success).toBe(false);
+    expect(alertAckSchema.safeParse({ deviceId: "a".repeat(201), alertId: "e1" }).success).toBe(
+      false,
+    );
+  });
+
+  it("bounds the comment length", () => {
+    expect(
+      alertAckSchema.safeParse({ deviceId: "a", alertId: "e1", comment: "x".repeat(501) }).success,
+    ).toBe(false);
   });
 });
 

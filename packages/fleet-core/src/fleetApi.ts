@@ -51,6 +51,8 @@ export interface HistorySample {
 
 export interface AlertRecord {
   id?: string;
+  eventKey?: string;
+  alertId?: string;
   deviceId?: string;
   deviceName?: string;
   severity: "critical" | "warning" | "notice";
@@ -62,6 +64,10 @@ export interface AlertRecord {
   active?: boolean;
   ts?: string;
   clearedAt?: string | null;
+  // Acknowledgement (Phase 16A). Present on rows read back from the alerts collection.
+  ackedBy?: string | null;
+  ackedAt?: string | null;
+  comment?: string | null;
   [key: string]: unknown;
 }
 
@@ -241,6 +247,26 @@ export const fleetApi = {
   getAlerts(params: AlertsQueryParams = {}): Promise<{ items: AlertRecord[] }> {
     return requestJson<{ items: AlertRecord[] }>(
       `/api/v1/alerts${buildQuery(params)}`,
+    );
+  },
+
+  // ── Alert acknowledgement (operator+, Phase 16A) ────────────────────────────
+  // eventKey (deviceId:alertId) is assembled server-side from the body, so deviceId
+  // — which can hold arbitrary vendor characters — never enters a path segment.
+  ackAlert(deviceId: string, alertId: string, comment?: string): Promise<void> {
+    return requestVoid(
+      "/api/v1/alerts/ack",
+      jsonBody(
+        "POST",
+        comment ? { deviceId, alertId, comment } : { deviceId, alertId },
+      ),
+    );
+  },
+
+  unackAlert(deviceId: string, alertId: string): Promise<void> {
+    return requestVoid(
+      "/api/v1/alerts/unack",
+      jsonBody("POST", { deviceId, alertId }),
     );
   },
 

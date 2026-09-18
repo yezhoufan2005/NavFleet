@@ -78,6 +78,11 @@ interface StoredAlert {
   active: boolean;
   firstSeenAt: string;
   lastSeenAt: string;
+  // Acknowledgement (Phase 16A). null until an operator+ confirms the occurrence;
+  // cleared back to null when the alert clears, because a re-fire is a new occurrence.
+  ackedBy: string | null;
+  ackedAt: string | null;
+  comment: string | null;
 }
 
 /**
@@ -843,23 +848,44 @@ export class Persistence {
   async upsertAlerts(deviceId: string, alerts: DeviceAlert[]): Promise<void> {
     // Always mirror the current active set into memory so the /api/alerts
     // fallback works without MongoDB and stays consistent with the live snapshot.
+    // Carry any existing acknowledgement forward for an eventKey that is still active,
+    // so a re-report does not silently drop a confirmation (mirrors the Mongo path,
+    // whose $set leaves the ack fields untouched). A cleared eventKey simply falls out
+    // of the new set, which is the same as nulling its ack.
+    const priorAcks = new Map(
+      (this.activeAlerts.get(deviceId) ?? []).map((alert) => [
+        alert.eventKey,
+        {
+          ackedBy: alert.ackedBy,
+          ackedAt: alert.ackedAt,
+          comment: alert.comment,
+        },
+      ]),
+    );
     this.activeAlerts.set(
       deviceId,
-      alerts.map((alert) => ({
-        eventKey: `${deviceId}:${alert.id}`,
-        deviceId,
-        alertId: alert.id,
-        severity: alert.severity,
-        title: alert.title,
-        detail: alert.detail,
-        source: alert.source,
-        code: alert.code ?? null,
-        info: alert.info ?? "",
-        ts: alert.ts,
-        active: true,
-        firstSeenAt: alert.ts,
-        lastSeenAt: alert.ts,
-      })),
+      alerts.map((alert) => {
+        const eventKey = `${deviceId}:${alert.id}`;
+        const ack = priorAcks.get(eventKey);
+        return {
+          eventKey,
+          deviceId,
+          alertId: alert.id,
+          severity: alert.severity,
+          title: alert.title,
+          detail: alert.detail,
+          source: alert.source,
+          code: alert.code ?? null,
+          info: alert.info ?? "",
+          ts: alert.ts,
+          active: true,
+          firstSeenAt: alert.ts,
+          lastSeenAt: alert.ts,
+          ackedBy: ack?.ackedBy ?? null,
+          ackedAt: ack?.ackedAt ?? null,
+          comment: ack?.comment ?? null,
+        };
+      }),
     );
 
     if (!this.db) {
@@ -891,6 +917,11 @@ export class Persistence {
               },
               $setOnInsert: {
                 firstSeenAt: new Date(alert.ts),
+                // A brand-new occurrence starts unacknowledged. On a re-report this
+                // branch is skipped, so an existing ack is preserved.
+                ackedBy: null,
+                ackedAt: null,
+                comment: null,
               },
             },
             { upsert: true },
@@ -909,12 +940,82 @@ export class Persistence {
             active: false,
             clearedAt: new Date(),
             lastSeenAt: new Date(),
+            // You acknowledged one occurrence; a later re-fire is a new one and must
+            // come back unacknowledged.
+            ackedBy: null,
+            ackedAt: null,
+            comment: null,
           },
         },
       );
     } catch (error) {
       logger.warn({ err: error, deviceId }, "Failed to persist alerts to MongoDB");
     }
+  }
+
+  /**
+   * Acknowledge one active alert occurrence (Phase 16A). Returns true when a matching
+   * active row was found and updated, false otherwise (unknown eventKey, or already
+   * cleared) so the route can answer 404. Only active rows are touched — you cannot
+   * acknowledge an occurrence that is no longer happening.
+   */
+  async ackAlert(
+    eventKey: string,
+    ackedBy: string,
+    comment: string | null,
+    at: Date,
+  ): Promise<boolean> {
+    const iso = at.toISOString();
+    if (!this.db) {
+      const alert = this.findMemoryActiveAlert(eventKey);
+      if (!alert) {
+        return false;
+      }
+      alert.ackedBy = ackedBy;
+      alert.ackedAt = iso;
+      alert.comment = comment;
+      return true;
+    }
+
+    const result = await this.db
+      .collection("alerts")
+      .updateOne(
+        { eventKey, active: true },
+        { $set: { ackedBy, ackedAt: new Date(iso), comment } },
+      );
+    return result.matchedCount > 0;
+  }
+
+  /** Undo an acknowledgement (Phase 16A). Same active-only match and 404 contract. */
+  async unackAlert(eventKey: string): Promise<boolean> {
+    if (!this.db) {
+      const alert = this.findMemoryActiveAlert(eventKey);
+      if (!alert) {
+        return false;
+      }
+      alert.ackedBy = null;
+      alert.ackedAt = null;
+      alert.comment = null;
+      return true;
+    }
+
+    const result = await this.db
+      .collection("alerts")
+      .updateOne(
+        { eventKey, active: true },
+        { $set: { ackedBy: null, ackedAt: null, comment: null } },
+      );
+    return result.matchedCount > 0;
+  }
+
+  private findMemoryActiveAlert(eventKey: string): StoredAlert | undefined {
+    for (const alerts of this.activeAlerts.values()) {
+      const match = alerts.find((alert) => alert.eventKey === eventKey);
+      if (match) {
+        return match;
+      }
+    }
+    return undefined;
   }
 
   private appendMemoryTelemetry(document: TelemetryDocument): void {
