@@ -159,6 +159,7 @@ export default defineConfig({
         /console-devices\.spec\.ts$/,
         /console-overview\.spec\.ts$/,
         /console-alerts\.spec\.ts$/,
+        /console-alert-history\.spec\.ts$/,
         /console-playback\.spec\.ts$/,
         /console-admin\.spec\.ts$/,
       ],

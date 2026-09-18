@@ -682,6 +682,17 @@ describe("查询", () => {
     await persistence.queryAlerts({ status: "nonsense" });
     expect(calls.find[2]?.filter).toEqual({});
   });
+
+  it("内存镜像里的告警带 clearedAt=null（Phase 16B，与 openapi Alert schema 对齐）", async () => {
+    // 内存只存活跃告警，所以 clearedAt 恒为 null；这条钉住接口不再漏这个字段。
+    persistence.__setDbForTests(null);
+    await persistence.upsertAlerts("agv-a", [alert("low-soc")]);
+
+    const [item] = (await persistence.queryAlerts({})) as Array<{
+      clearedAt: string | null;
+    }>;
+    expect(item).toHaveProperty("clearedAt", null);
+  });
 });
 
 describe("登录锁定字段", () => {

@@ -8,6 +8,11 @@ import {
   type TimeSeries,
 } from "@/components/charts/timeSeriesOption";
 import TimeSeriesChart from "@/components/charts/TimeSeriesChart.vue";
+import {
+  buildCategoryBarOption,
+  type CategoryDatum,
+} from "@/components/charts/categoryBarOption";
+import CategoryBarChart from "@/components/charts/CategoryBarChart.vue";
 import { useChartTheme } from "@/composables/useChartTheme";
 import { __resetTheme, useTheme } from "@/composables/useTheme";
 
@@ -50,6 +55,26 @@ vi.mock("@/components/charts/timeSeriesOption", async (importOriginal) => {
   };
 });
 
+// Same treatment for the bar chart's option module: keep the pure builder real, stub only the
+// renderer so the component mounts in jsdom (no canvas). See the note above.
+vi.mock("@/components/charts/categoryBarOption", async (importOriginal) => {
+  const actual =
+    await importOriginal<
+      typeof import("@/components/charts/categoryBarOption")
+    >();
+  return {
+    ...actual,
+    echarts: {
+      init: () => ({
+        setOption: vi.fn(),
+        on: vi.fn(),
+        resize: vi.fn(),
+        dispose: vi.fn(),
+      }),
+    },
+  };
+});
+
 const palette = {
   series: ["#111111", "#222222", "#333333", "#444444", "#555555"],
   grid: "#dddddd",
@@ -58,6 +83,7 @@ const palette = {
   inkMuted: "#666666",
   surface: "#ffffff",
   tooltipBorder: "#eeeeee",
+  status: { critical: "#c00000", warning: "#c07000", notice: "#0060c0" },
 };
 
 const points = (count: number, offset = 0): [number, number][] =>
@@ -346,5 +372,111 @@ describe("TimeSeriesChart", () => {
 
     expect(wrapper.props("series")[0]?.points).toHaveLength(10);
     expect(wrapper.find("[data-testid='chart-surface']").exists()).toBe(true);
+  });
+});
+
+describe("buildCategoryBarOption", () => {
+  const data: CategoryDatum[] = [
+    { label: "告警", value: 3, color: "#c00000" },
+    { label: "预警", value: 5, color: "#c07000" },
+    { label: "提示", value: 2 },
+  ];
+
+  it("declares exactly one value axis, never two", () => {
+    const option = buildCategoryBarOption({ data, palette });
+    // Vertical: category on X, value on Y. Only one of them is a value axis.
+    expect(option.xAxis).toMatchObject({ type: "category" });
+    expect(option.yAxis).toMatchObject({ type: "value" });
+    expect(Array.isArray(option.yAxis)).toBe(false);
+  });
+
+  it("swaps the axes for a horizontal orientation and puts the largest bar on top", () => {
+    const option = buildCategoryBarOption({
+      data,
+      palette,
+      orientation: "horizontal",
+    });
+    expect(option.xAxis).toMatchObject({ type: "value" });
+    expect(option.yAxis).toMatchObject({ type: "category", inverse: true });
+  });
+
+  it("paints each bar with its own colour when given one, else the single colour", () => {
+    const option = buildCategoryBarOption({ data, palette, color: "#123456" });
+    const bars = (
+      option.series as { data: { itemStyle: { color: string } }[] }[]
+    )[0]!.data;
+    expect(bars[0]!.itemStyle.color).toBe("#c00000"); // per-datum
+    expect(bars[2]!.itemStyle.color).toBe("#123456"); // falls back to the single colour
+  });
+
+  it("defaults the single colour to the first series slot", () => {
+    const option = buildCategoryBarOption({
+      data: [{ label: "x", value: 1 }],
+      palette,
+    });
+    const bar = (
+      option.series as { data: { itemStyle: { color: string } }[] }[]
+    )[0]!.data[0]!;
+    expect(bar.itemStyle.color).toBe(palette.series[0]);
+  });
+
+  it("keeps the value axis on whole numbers and its text on ink tokens", () => {
+    const option = buildCategoryBarOption({ data, palette, unit: "条" });
+    expect(option.yAxis).toMatchObject({
+      minInterval: 1,
+      name: "条",
+      axisLabel: { color: palette.inkMuted },
+    });
+  });
+
+  it("can turn animation off for a reduced-motion viewer", () => {
+    expect(
+      buildCategoryBarOption({ data, palette, animate: false }).animation,
+    ).toBe(false);
+  });
+});
+
+describe("CategoryBarChart", () => {
+  let warn: ReturnType<typeof vi.spyOn>;
+
+  beforeEach(() => {
+    warn = vi.spyOn(console, "warn").mockImplementation(() => undefined);
+  });
+
+  afterEach(() => {
+    warn.mockRestore();
+  });
+
+  const mountBar = (
+    data: CategoryDatum[],
+    props: Record<string, unknown> = {},
+  ) => mount(CategoryBarChart, { props: { data, label: "分布", ...props } });
+
+  it("names the figure for a screen reader and offers the table as an alternative", () => {
+    const wrapper = mountBar([{ label: "告警", value: 3 }]);
+    const surface = wrapper.get("[data-testid='bar-surface']");
+    expect(surface.attributes("role")).toBe("img");
+    expect(surface.attributes("aria-label")).toContain("分布");
+    expect(wrapper.get("button").text()).toBe("看数据表");
+  });
+
+  it("switches to a real table of label/value pairs", async () => {
+    const wrapper = mountBar(
+      [
+        { label: "告警", value: 3 },
+        { label: "预警", value: 5 },
+      ],
+      { unit: "条" },
+    );
+    await wrapper.get("button").trigger("click");
+
+    expect(wrapper.find("[data-testid='bar-surface']").exists()).toBe(false);
+    const headers = wrapper.findAll("thead th").map((cell) => cell.text());
+    expect(headers).toEqual(["项", "数值 (条)"]);
+    const firstRow = wrapper.findAll("tbody tr")[0]!;
+    expect(firstRow.findAll("th, td").map((cell) => cell.text())).toEqual([
+      "告警",
+      "3",
+    ]);
   });
 });

@@ -78,6 +78,10 @@ interface StoredAlert {
   active: boolean;
   firstSeenAt: string;
   lastSeenAt: string;
+  // When the alert cleared (active→false), or null while it is still active. Written only on
+  // the clear path in Mongo; the in-memory mirror holds active alerts only, so it is always
+  // null there. Declared here to match the OpenAPI Alert schema, which already carries it.
+  clearedAt: string | null;
   // Acknowledgement (Phase 16A). null until an operator+ confirms the occurrence;
   // cleared back to null when the alert clears, because a re-fire is a new occurrence.
   ackedBy: string | null;
@@ -881,6 +885,8 @@ export class Persistence {
           active: true,
           firstSeenAt: alert.ts,
           lastSeenAt: alert.ts,
+          // The in-memory mirror holds active alerts only, so nothing here has cleared.
+          clearedAt: null,
           ackedBy: ack?.ackedBy ?? null,
           ackedAt: ack?.ackedAt ?? null,
           comment: ack?.comment ?? null,

@@ -30,6 +30,12 @@ export interface ChartPalette {
   inkMuted: string;
   surface: string;
   tooltipBorder: string;
+  /**
+   * Severity colours for status dimensions (Phase 16B). Severity is a *status*, not a
+   * categorical series, so a chart of it wears the same critical/warning/notice tokens the
+   * badges use elsewhere — not the reserved `--color-chart-*` series slots.
+   */
+  status: { critical: string; warning: string; notice: string };
 }
 
 const FALLBACK: ChartPalette = {
@@ -40,6 +46,7 @@ const FALLBACK: ChartPalette = {
   inkMuted: "#4b5859",
   surface: "#ffffff",
   tooltipBorder: "#dbe5e6",
+  status: { critical: "#b4232b", warning: "#a15c07", notice: "#1f5fbf" },
 };
 
 let probe: CanvasRenderingContext2D | null = null;
@@ -82,6 +89,11 @@ const readPalette = (): ChartPalette => ({
   inkMuted: readToken("--color-ink-muted", FALLBACK.inkMuted),
   surface: readToken("--color-surface-raised", FALLBACK.surface),
   tooltipBorder: readToken("--color-border", FALLBACK.tooltipBorder),
+  status: {
+    critical: readToken("--color-critical", FALLBACK.status.critical),
+    warning: readToken("--color-warning", FALLBACK.status.warning),
+    notice: readToken("--color-notice", FALLBACK.status.notice),
+  },
 });
 
 /**
