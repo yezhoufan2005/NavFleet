@@ -76,6 +76,14 @@ const routes: RouteRecordRaw[] = [
     meta: { title: "消息" },
   },
   {
+    // Cleared-alert history + statistics (Phase 16B). Read-only, so viewer+ (no `roles`).
+    // Lazy like every view, which keeps ECharts (pulled in by its charts) out of first-load.
+    path: "/alert-history",
+    name: "alert-history",
+    component: () => import("@/views/AlertHistoryView.vue"),
+    meta: { title: "告警史" },
+  },
+  {
     path: "/reports",
     name: "reports",
     component: () => import("@/views/ReportsView.vue"),
@@ -181,12 +189,13 @@ export interface NavSection {
 }
 
 export type NavIconName =
-  "overview" | "devices" | "alerts" | "reports" | "admin";
+  "overview" | "devices" | "alerts" | "alert-history" | "reports" | "admin";
 
 export const NAV_SECTIONS: readonly NavSection[] = [
   { routeName: "overview", label: "总览", icon: "overview" },
   { routeName: "devices", label: "设备", icon: "devices" },
   { routeName: "alerts", label: "消息", icon: "alerts" },
+  { routeName: "alert-history", label: "告警史", icon: "alert-history" },
   { routeName: "reports", label: "报表", icon: "reports" },
   { routeName: "admin", label: "管理", icon: "admin", roles: ["admin"] },
 ];

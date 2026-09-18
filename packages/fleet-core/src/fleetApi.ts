@@ -64,6 +64,10 @@ export interface AlertRecord {
   active?: boolean;
   ts?: string;
   clearedAt?: string | null;
+  // Lifecycle timestamps carried on rows read back from the alerts collection (Phase 16A/16B).
+  // Serialized as ISO strings over HTTP even though Mongo stores them as Date.
+  firstSeenAt?: string;
+  lastSeenAt?: string;
   // Acknowledgement (Phase 16A). Present on rows read back from the alerts collection.
   ackedBy?: string | null;
   ackedAt?: string | null;

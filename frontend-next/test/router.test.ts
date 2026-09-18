@@ -43,6 +43,9 @@ describe("route table", () => {
       { path: "/devices", name: "devices", title: undefined },
       { path: "/devices/:deviceId", name: "device-detail", title: "设备详情" },
       { path: "/alerts", name: "alerts", title: "消息" },
+      // 告警史: cleared-alert history + stats (Phase 16B). Its own top-level section, read-only
+      // (viewer+), so it carries no roles.
+      { path: "/alert-history", name: "alert-history", title: "告警史" },
       { path: "/reports", name: "reports", title: "报表" },
       // 管理 is nested for the same reason 设备 is: `router-link-active` follows
       // matched records, so a child page has to keep the section lit. Its landing
