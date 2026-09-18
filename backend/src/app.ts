@@ -22,7 +22,9 @@ import { buildScenesRouter } from "./routes/scenes";
 import { buildDebugRouter } from "./routes/debug";
 import { buildUsersRouter } from "./routes/users";
 import { buildAuditRouter } from "./routes/audit";
+import { buildNotifyRouter } from "./routes/notify";
 import type { AuditService } from "./audit/service";
+import type { NotifyService } from "./notify/service";
 
 /**
  * Mount prefixes for the domain API. `/api/v1` is the surface to build against;
@@ -35,6 +37,7 @@ export interface AppDeps {
   persistence: Persistence;
   authService: AuthService;
   auditService: AuditService;
+  notifyService: NotifyService;
   config: AppConfig;
   state: RuntimeState;
   wsClientCount: () => number;
@@ -53,6 +56,7 @@ export const createApp = ({
   persistence,
   authService,
   auditService,
+  notifyService,
   config,
   state,
   wsClientCount,
@@ -208,6 +212,7 @@ export const createApp = ({
     app.use(prefix, captureRouteMount, buildDebugRouter(store, config));
     app.use(prefix, captureRouteMount, buildUsersRouter(authService, auditService));
     app.use(prefix, captureRouteMount, buildAuditRouter(auditService));
+    app.use(prefix, captureRouteMount, buildNotifyRouter(notifyService));
   }
 
   // JSON 404 for any unmatched route, keeping the error contract consistent

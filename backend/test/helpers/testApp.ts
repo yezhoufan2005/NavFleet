@@ -8,6 +8,7 @@ import { ACCESS_COOKIE } from "../../src/auth/middleware";
 import { signAccessToken } from "../../src/auth/tokens";
 import type { AuthService, AdminActionResult, AuthResult } from "../../src/auth/service";
 import type { AuditService } from "../../src/audit/service";
+import type { NotifyService } from "../../src/notify/service";
 import type { Persistence } from "../../src/persistence";
 import type { DashboardStore } from "../../src/store";
 import { DEFAULT_REPORT_CODES } from "@navfleet/shared";
@@ -17,6 +18,8 @@ import type {
   FleetSnapshot,
   FormationSnapshot,
   LaneletOverlay,
+  NotifyChannelView,
+  NotifySendRecord,
   SceneMapDefinition,
   SessionRecord,
   UserRecord,
@@ -224,12 +227,25 @@ export const createAuditServiceStub = (): AuditServiceStub => ({
   query: vi.fn(() => Promise.resolve<AuditEntry[]>([])),
 });
 
+export interface NotifyServiceStub {
+  dispatch: Mock<(event: unknown) => Promise<void>>;
+  queryLog: Mock<(filters: unknown) => Promise<NotifySendRecord[]>>;
+  effectiveConfig: Mock<() => NotifyChannelView[]>;
+}
+
+export const createNotifyServiceStub = (): NotifyServiceStub => ({
+  dispatch: vi.fn(() => Promise.resolve()),
+  queryLog: vi.fn(() => Promise.resolve<NotifySendRecord[]>([])),
+  effectiveConfig: vi.fn(() => []),
+});
+
 export interface TestAppOptions {
   configOverrides?: Partial<AppConfig>;
   store?: StoreStub;
   persistence?: PersistenceStub;
   authService?: AuthServiceStub;
   auditService?: AuditServiceStub;
+  notifyService?: NotifyServiceStub;
   state?: RuntimeState;
   wsClientCount?: () => number;
   /** Off by default so test apps do not each install process-metric hooks. */
@@ -257,6 +273,7 @@ export interface TestAppContext {
   persistence: PersistenceStub;
   authService: AuthServiceStub;
   auditService: AuditServiceStub;
+  notifyService: NotifyServiceStub;
   state: RuntimeState;
   config: AppConfig;
 }
@@ -324,6 +341,7 @@ export const createTestApp = (options: TestAppOptions = {}): TestAppContext => {
   const persistence = options.persistence ?? createPersistenceStub();
   const authService = options.authService ?? createAuthServiceStub();
   const auditService = options.auditService ?? createAuditServiceStub();
+  const notifyService = options.notifyService ?? createNotifyServiceStub();
   const state = options.state ?? createRuntimeState();
   // Documented defaults (metrics on, debug ingest off), then per-test overrides.
   // CORS is disabled so the app under test carries no origin allowlist.
@@ -337,6 +355,7 @@ export const createTestApp = (options: TestAppOptions = {}): TestAppContext => {
     persistence: persistence as unknown as Persistence,
     authService: authService as unknown as AuthService,
     auditService: auditService as unknown as AuditService,
+    notifyService: notifyService as unknown as NotifyService,
     config,
     state,
     wsClientCount: options.wsClientCount ?? ((): number => 0),
@@ -349,7 +368,16 @@ export const createTestApp = (options: TestAppOptions = {}): TestAppContext => {
   slot.use(expressApp);
   nextSlot += 1;
 
-  return { app: slot.server, store, persistence, authService, auditService, state, config };
+  return {
+    app: slot.server,
+    store,
+    persistence,
+    authService,
+    auditService,
+    notifyService,
+    state,
+    config,
+  };
 };
 
 /**

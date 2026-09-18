@@ -140,6 +140,7 @@ export const openApiDocument = {
     { name: "debug", description: "调试注入（受限）" },
     { name: "users", description: "用户管理（需 admin）" },
     { name: "audit", description: "审计日志（需 admin）" },
+    { name: "notify", description: "告警外发：发送记录与生效渠道（需 admin）" },
   ],
   components: {
     securitySchemes: {
@@ -239,6 +240,40 @@ export const openApiDocument = {
           ts: { type: "string", format: "date-time" },
           meta: { type: "object", additionalProperties: true },
           measurements: { type: "object", additionalProperties: true },
+        },
+      },
+      NotifySendRecord: {
+        type: "object",
+        description: "一条告警外发记录（Phase 16D-1）",
+        properties: {
+          ts: { type: "string", format: "date-time" },
+          eventKey: { type: "string" },
+          channelId: { type: "string" },
+          channelType: { type: "string", enum: ["webhook", "wecom", "dingtalk"] },
+          deviceId: { type: "string" },
+          alertId: { type: "string" },
+          severity: { type: "string", enum: ["critical", "warning", "notice"] },
+          title: { type: "string" },
+          status: { type: "string", enum: ["sent", "failed"] },
+          httpStatus: { type: ["number", "null"] },
+          attempts: { type: "number" },
+          latencyMs: { type: ["number", "null"] },
+          error: { type: ["string", "null"] },
+        },
+      },
+      NotifyChannelView: {
+        type: "object",
+        description: "生效渠道视图（不含端点 URL；configured 表示其端点环境变量是否已配）",
+        properties: {
+          id: { type: "string" },
+          type: { type: "string", enum: ["webhook", "wecom", "dingtalk"] },
+          enabled: { type: "boolean" },
+          severities: {
+            type: "array",
+            items: { type: "string", enum: ["critical", "warning", "notice"] },
+          },
+          scope: { type: "object", additionalProperties: true },
+          configured: { type: "boolean" },
         },
       },
       SessionView: {
@@ -916,6 +951,68 @@ const apiWideResponses = { "429": tooManyRequests, "500": serverError } as const
           },
         },
         "400": badRequest,
+        "401": unauthorized,
+        "403": forbidden,
+        ...apiWideResponses,
+      },
+    },
+  },
+  "/api/v1/notify/log": {
+    get: {
+      tags: ["notify"],
+      summary: "查询告警外发记录（需 admin；filters: deviceId / channelId / status / from / to）",
+      parameters: [
+        { name: "deviceId", in: "query", schema: { type: "string" } },
+        { name: "channelId", in: "query", schema: { type: "string" } },
+        { name: "status", in: "query", schema: { type: "string", enum: ["sent", "failed"] } },
+        { name: "from", in: "query", schema: { type: "string" } },
+        { name: "to", in: "query", schema: { type: "string" } },
+      ],
+      responses: {
+        "200": {
+          description: "发送记录（ts 倒序，服务端夹上限）",
+          content: {
+            "application/json": {
+              schema: {
+                type: "object",
+                properties: {
+                  items: {
+                    type: "array",
+                    items: { $ref: "#/components/schemas/NotifySendRecord" },
+                  },
+                },
+              },
+            },
+          },
+        },
+        "400": badRequest,
+        "401": unauthorized,
+        "403": forbidden,
+        ...apiWideResponses,
+      },
+    },
+  },
+  "/api/v1/notify/config": {
+    get: {
+      tags: ["notify"],
+      summary: "生效外发渠道（需 admin；不含端点 URL）",
+      responses: {
+        "200": {
+          description: "渠道视图数组",
+          content: {
+            "application/json": {
+              schema: {
+                type: "object",
+                properties: {
+                  channels: {
+                    type: "array",
+                    items: { $ref: "#/components/schemas/NotifyChannelView" },
+                  },
+                },
+              },
+            },
+          },
+        },
         "401": unauthorized,
         "403": forbidden,
         ...apiWideResponses,

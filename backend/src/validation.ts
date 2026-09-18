@@ -208,6 +208,14 @@ export const auditQuerySchema = z.object({
   to: timestampString.optional(),
 });
 
+/** Query filters for `GET /api/notify/log` (admin). All optional; unbounded result is capped server-side. */
+export const notifyLogQuerySchema = z.object({
+  deviceId: z.string().min(1).max(200).optional(),
+  channelId: z.string().min(1).max(200).optional(),
+  status: z.enum(["sent", "failed"]).optional(),
+  from: timestampString.optional(),
+  to: timestampString.optional(),
+});
 // Alert acknowledgement (Phase 16A). `eventKey` is assembled server-side from these two —
 // deviceId can contain arbitrary vendor characters, so it never goes into a path segment.
 // The comment is optional operator context, length-bounded like other free text.

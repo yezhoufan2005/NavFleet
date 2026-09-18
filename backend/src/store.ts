@@ -738,6 +738,16 @@ export class DashboardStore extends EventEmitter {
     return this.configRegistry.buildFormationSnapshots(devices);
   }
 
+  /**
+   * The current state of one device, or null if none is held. Used by the notification
+   * dispatcher (Phase 16D-1) to resolve an alert's device for scope matching and the message's
+   * display name, without rebuilding a whole `snapshot()`. Returns the live reference — callers
+   * read it (name/tags/formationIds) and never mutate.
+   */
+  getDevice(deviceId: string): DeviceSnapshot | null {
+    return this.devices.get(deviceId) ?? null;
+  }
+
   getScenes(): SceneMapDefinition[] {
     return this.configRegistry.listScenes();
   }

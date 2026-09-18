@@ -405,6 +405,74 @@ describe("audit_log", () => {
   });
 });
 
+describe("notify_log（Phase 16D-1）", () => {
+  const record = {
+    ts: "2026-07-01T00:00:00.000Z",
+    eventKey: "agv-a:agv-a-offline",
+    channelId: "ops-webhook",
+    channelType: "webhook" as const,
+    deviceId: "agv-a",
+    alertId: "agv-a-offline",
+    severity: "critical",
+    title: "设备离线",
+    status: "failed" as const,
+    httpStatus: 503,
+    attempts: 3,
+    latencyMs: 42,
+    error: "HTTP 503",
+  };
+
+  it("appendNotify 走 insertOne，并补一个 expireAt Date 给 TTL", async () => {
+    const { db, calls } = createFakeDb();
+    persistence.__setDbForTests(db);
+
+    await persistence.appendNotify(record);
+    const [insert] = calls.insertOne;
+    expect(insert?.collection).toBe("notify_log");
+    expect((insert?.doc as { expireAt: unknown }).expireAt).toBeInstanceOf(Date);
+  });
+
+  it("appendNotify 写失败被吞掉，不冒泡（发送记录是旁路，不能反噬 fire-and-forget）", async () => {
+    const { db } = createFakeDb({}, { insertOne: true });
+    persistence.__setDbForTests(db);
+    await expect(persistence.appendNotify(record)).resolves.toBeUndefined();
+  });
+
+  it("queryNotify 过滤 device/channel/status/时间，按 ts 倒序、投影掉 _id 与 expireAt", async () => {
+    const { db, calls } = createFakeDb({ notify_log: [record] });
+    persistence.__setDbForTests(db);
+
+    await persistence.queryNotify({
+      deviceId: "agv-a",
+      channelId: "ops-webhook",
+      status: "failed",
+      from: "2026-01-01T00:00:00Z",
+      to: "2026-08-01T00:00:00Z",
+    });
+
+    const [query] = calls.find;
+    expect(query?.collection).toBe("notify_log");
+    expect(query?.options).toEqual({ projection: { _id: 0, expireAt: 0 } });
+    expect(query?.sort).toEqual({ ts: -1 });
+    expect(query?.filter).toMatchObject({
+      deviceId: "agv-a",
+      channelId: "ops-webhook",
+      status: "failed",
+      ts: { $gte: anyString, $lte: anyString },
+    });
+  });
+
+  it("无 Mongo 时落内存环并可回查、按过滤命中", async () => {
+    const memoryOnly = new Persistence();
+    await memoryOnly.appendNotify(record);
+    await memoryOnly.appendNotify({ ...record, channelId: "wecom-bot", status: "sent" });
+
+    expect(await memoryOnly.queryNotify({})).toHaveLength(2);
+    expect(await memoryOnly.queryNotify({ status: "sent" })).toHaveLength(1);
+    expect(await memoryOnly.queryNotify({ channelId: "ops-webhook" })).toHaveLength(1);
+  });
+});
+
 describe("restoreLatestDevices", () => {
   it("两个轴都有界：时间窗 + maxDevices，且按 stamp 倒序", async () => {
     const { db, calls } = createFakeDb({
