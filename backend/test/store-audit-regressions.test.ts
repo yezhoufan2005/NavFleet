@@ -4,6 +4,7 @@ import type { ConfigRegistry } from "../src/configRegistry";
 import type { Persistence } from "../src/persistence";
 import { DashboardStore } from "../src/store";
 import type { DeviceSnapshot, FleetConfig, SocketEvent } from "../src/types";
+import { DEFAULT_ALERT_RULES } from "@navfleet/shared";
 
 /**
  * Three defects found by the 2026-09-09 repo-wide audit, all in `DashboardStore`
@@ -43,6 +44,7 @@ const createStore = (
   const configRegistryStub = {
     async load(): Promise<void> {},
     getFleetConfig: (): FleetConfig => ({ ...FLEET_CONFIG }),
+    getAlertRules: () => DEFAULT_ALERT_RULES,
     applyDeviceConfig: (snapshot: DeviceSnapshot): DeviceSnapshot => snapshot,
     hasDeviceConfig: (deviceId: string): boolean => configured.has(deviceId),
     listScenes: () => [],

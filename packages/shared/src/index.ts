@@ -272,3 +272,8 @@ export interface PublicUser {
 
 /** `[lng, lat]` coordinate pair, as consumed by the AMap SDK (frontend). */
 export type LngLat = [number, number];
+
+// The alert rule engine — types, defaults, and the pure evaluator both the backend and
+// the two frontends share (Phase 16C-1). Kept in its own file because it carries runtime
+// logic, and this barrel was otherwise types-only.
+export * from "./alertRules";

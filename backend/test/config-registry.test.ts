@@ -58,6 +58,8 @@ interface ConfigFiles {
   vehicles?: unknown;
   formations?: unknown;
   scenes?: unknown;
+  /** `rules.json` is optional. Pass a value to write it; omit to leave none on disk. */
+  rules?: unknown;
 }
 
 const writeConfig = async (files: ConfigFiles = {}): Promise<void> => {
@@ -72,6 +74,16 @@ const writeConfig = async (files: ConfigFiles = {}): Promise<void> => {
       fs.writeFile(path.join(configRoot, filename), JSON.stringify(value), "utf8"),
     ),
   );
+  // rules.json is optional: write it only when the case supplies one, and otherwise make
+  // sure a file left by an earlier case in this shared temp dir does not leak forward.
+  const rulesPath = path.join(configRoot, "rules.json");
+  if (files.rules === undefined) {
+    await fs.rm(rulesPath, { force: true });
+  } else if (typeof files.rules === "string") {
+    await fs.writeFile(rulesPath, files.rules, "utf8");
+  } else {
+    await fs.writeFile(rulesPath, JSON.stringify(files.rules), "utf8");
+  }
 };
 
 beforeAll(async () => {
@@ -244,6 +256,137 @@ describe("ConfigRegistry validation", () => {
 
     await writeConfig({ vehicles: [{ deviceId: "agv-1" }, { deviceId: "agv-2" }] });
     await expect(registry.reload("test")).resolves.toBe(true);
+  });
+});
+
+describe("ConfigRegistry.getAlertRules (Phase 16C-1)", () => {
+  it("returns the built-in defaults before load() and when no rules.json exists", async () => {
+    const registry = new ConfigRegistry();
+    // Unlike the other getters, this one has a safe default and does not throw pre-load —
+    // a frame arriving before the first load still evaluates against the built-in rules.
+    expect(registry.getAlertRules()).toEqual({
+      lowBattery: { enabled: true, thresholdPct: 20, debounceSeconds: 0 },
+      offline: { enabled: true },
+    });
+
+    await writeConfig();
+    await registry.load();
+    expect(registry.getAlertRules().lowBattery.thresholdPct).toBe(20);
+  });
+
+  it("merges a deployment's rules.json over the defaults", async () => {
+    await writeConfig({
+      rules: {
+        lowBattery: {
+          enabled: true,
+          thresholdPct: 30,
+          scope: { formationIds: ["formation-a"], tags: ["cold"] },
+          debounceSeconds: 45,
+        },
+        offline: { enabled: false, afterSeconds: 90, scope: { deviceIds: ["agv-1"] } },
+      },
+    });
+    const registry = new ConfigRegistry();
+    await registry.load();
+
+    expect(registry.getAlertRules()).toEqual({
+      lowBattery: {
+        enabled: true,
+        thresholdPct: 30,
+        scope: { deviceIds: undefined, formationIds: ["formation-a"], tags: ["cold"] },
+        debounceSeconds: 45,
+      },
+      offline: {
+        enabled: false,
+        afterSeconds: 90,
+        scope: { deviceIds: ["agv-1"], formationIds: undefined, tags: undefined },
+        debounceSeconds: undefined,
+      },
+    });
+  });
+
+  it("keeps every default a partial rules.json omits", async () => {
+    await writeConfig({ rules: { offline: { enabled: false } } });
+    const registry = new ConfigRegistry();
+    await registry.load();
+
+    const rules = registry.getAlertRules();
+    // Only offline.enabled was set; low battery is untouched.
+    expect(rules.lowBattery).toEqual({ enabled: true, thresholdPct: 20, debounceSeconds: 0 });
+    expect(rules.offline.enabled).toBe(false);
+  });
+
+  it("ignores unknown top-level keys so a newer file stays loadable", async () => {
+    await writeConfig({ rules: { speeding: { enabled: true }, offline: { afterSeconds: 120 } } });
+    const registry = new ConfigRegistry();
+    await registry.load();
+    expect(registry.getAlertRules().offline.afterSeconds).toBe(120);
+  });
+
+  it.each([
+    {
+      name: "rules.json is not an object",
+      rules: [],
+      message: /rules\.json must be a JSON object/,
+    },
+    {
+      name: "a rule is not an object",
+      rules: { lowBattery: 20 },
+      message: /rules\.lowBattery must be a JSON object/,
+    },
+    {
+      name: "enabled is not a boolean",
+      rules: { lowBattery: { enabled: "yes" } },
+      message: /rules\.lowBattery\.enabled must be a boolean/,
+    },
+    {
+      name: "a threshold is not a number",
+      rules: { lowBattery: { thresholdPct: "low" } },
+      message: /rules\.lowBattery\.thresholdPct must be a finite number/,
+    },
+    {
+      name: "a threshold is not positive",
+      rules: { lowBattery: { thresholdPct: 0 } },
+      message: /rules\.lowBattery\.thresholdPct must be > 0/,
+    },
+    {
+      name: "a debounce is negative",
+      rules: { lowBattery: { debounceSeconds: -1 } },
+      message: /rules\.lowBattery\.debounceSeconds must be >= 0/,
+    },
+    {
+      name: "a scope is not an object",
+      rules: { offline: { scope: [] } },
+      message: /rules\.offline\.scope must be a JSON object/,
+    },
+    {
+      name: "a scope dimension is not a string array",
+      rules: { offline: { scope: { deviceIds: [1, 2] } } },
+      message: /rules\.offline\.scope\.deviceIds must be an array of strings/,
+    },
+  ])("rejects rules.json when $name", async ({ rules, message }) => {
+    await writeConfig({ rules });
+    await expect(new ConfigRegistry().load()).rejects.toThrow(message);
+  });
+
+  it("rejects unparseable rules.json", async () => {
+    await writeConfig({ rules: "{ not json" });
+    await expect(new ConfigRegistry().load()).rejects.toThrow();
+  });
+
+  it("keeps the previous rules when a rules.json reload fails", async () => {
+    await writeConfig({ rules: { lowBattery: { thresholdPct: 25 } } });
+    const registry = new ConfigRegistry();
+    await registry.load();
+    expect(registry.getAlertRules().lowBattery.thresholdPct).toBe(25);
+
+    await writeConfig({ rules: { lowBattery: { thresholdPct: "bad" } } });
+    await expect(registry.reload("test")).resolves.toBe(false);
+    expect(registry.getAlertRules().lowBattery.thresholdPct).toBe(25);
+
+    await writeConfig({ rules: { lowBattery: { thresholdPct: 40 } } });
+    await expect(registry.reload("test")).resolves.toBe(true);
+    expect(registry.getAlertRules().lowBattery.thresholdPct).toBe(40);
   });
 });
 

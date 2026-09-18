@@ -17,6 +17,10 @@ import type {
   FormationSnapshot,
   Severity,
 } from "@navfleet/shared";
+// The rule engine now lives in `@navfleet/shared` (Phase 16C-1), the one package the
+// backend and both frontends all depend on. This reader uses the built-in defaults — it
+// cannot see backend config and does not need to (see `buildRuleAlerts` below).
+import { evaluateRuleAlerts } from "@navfleet/shared";
 
 /** A point-like value whose coordinates may be absent/nullish (loose input). */
 type MaybePoint = { x?: number | null; y?: number | null } | null | undefined;
@@ -399,39 +403,18 @@ export const buildCodeAlerts = (device: DeviceSnapshot): DeviceAlert[] => {
       active: true,
     }));
 };
-export const buildRuleAlerts = (device: DeviceSnapshot): DeviceAlert[] => {
-  const alerts: DeviceAlert[] = [];
-  const soc = Number(device.vehicleInfo?.soc);
-
-  if (Number.isFinite(soc) && soc > 0 && soc < 20) {
-    alerts.push({
-      id: `${device.deviceId}-low-soc`,
-      severity: "warning",
-      source: "rule-engine",
-      title: "低电量预警",
-      // `round`, not `toFixed(1)`: the backend renders the same sentence with
-      // `round(soc, 1)`, so an integral reading came out as "15.0%" here and "15%"
-      // there — the same alert, two texts, decided by which side built it.
-      detail: `当前电量 ${round(soc, 1)}%，建议尽快安排回充`,
-      ts: device.stamp,
-      active: true,
-    });
-  }
-
-  if (!device.online) {
-    alerts.push({
-      id: `${device.deviceId}-offline`,
-      severity: "critical",
-      source: "rule-engine",
-      title: "设备离线",
-      detail: "设备超过离线阈值未上报，系统已自动标记为离线",
-      ts: device.stamp,
-      active: true,
-    });
-  }
-
-  return alerts;
-};
+/**
+ * The rule alerts a device would raise, under the built-in default rules.
+ *
+ * A thin delegate to the shared evaluator (Phase 16C-1): the low-battery threshold and the
+ * offline alert used to be hand-written here *and* in `backend/src/normalize.ts`, and they
+ * drifted on the `round` vs `toFixed` detail text at least once. This reader keeps
+ * `DEFAULT_ALERT_RULES` deliberately — it only reaches this branch for a frame that arrives
+ * without an `alerts` array; a normal backend snapshot already carries the alerts the
+ * backend evaluated against its (possibly retuned) `rules.json`, and those are kept as-is.
+ */
+export const buildRuleAlerts = (device: DeviceSnapshot): DeviceAlert[] =>
+  evaluateRuleAlerts(device);
 
 export const normalizeDevice = (
   rawInput: unknown,

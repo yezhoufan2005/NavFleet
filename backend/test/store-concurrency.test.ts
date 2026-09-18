@@ -3,6 +3,7 @@ import type { ConfigRegistry } from "../src/configRegistry";
 import type { Persistence } from "../src/persistence";
 import { DashboardStore } from "../src/store";
 import type { DeviceSnapshot, FleetConfig } from "../src/types";
+import { DEFAULT_ALERT_RULES } from "@navfleet/shared";
 
 const delay = (ms: number): Promise<void> => new Promise((resolve) => setTimeout(resolve, ms));
 
@@ -47,6 +48,7 @@ const FLEET_CONFIG: FleetConfig = {
 const configRegistryStub = {
   async load(): Promise<void> {},
   getFleetConfig: (): FleetConfig => ({ ...FLEET_CONFIG }),
+  getAlertRules: () => DEFAULT_ALERT_RULES,
   applyDeviceConfig: (snapshot: DeviceSnapshot): DeviceSnapshot => snapshot,
   hasDeviceConfig: (): boolean => false,
   listScenes: () => [],
