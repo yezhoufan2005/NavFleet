@@ -22,16 +22,16 @@ CI 全绿 → `--no-ff` 合并 → 回写本文件并记录自检结果。
 > 下挂了 12 个子批次，「下线」一个词在不同段落里有三种意思。往下所有小节都是**执行记录**
 > （按发生顺序，不再重排），要知道现在怎么样，只看这一节。
 
-| 项目           | 现状                                                                                                                                                                                                                                           |
-| -------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| **已发布版本** | **1.2.0**（2026-09-18 发布，tag `v1.2.0`；用户体系与真 RBAC）。上一版 1.1.0 @ `a404680`（前端焕新基准）                                                                                                                                        |
-| **部署的前端** | `frontend-next/`（workspace `navfleet-console`），compose 服务名 `web`                                                                                                                                                                         |
-| **旧前端**     | `frontend/` **已冻结**：代码全留、不再改动，`--legacy` / 回滚 overlay 可启用                                                                                                                                                                   |
-| **发布的镜像** | `navfleet-backend:1.2.0`、`navfleet-console:1.2.0`。`navfleet-frontend` 停在 1.0.x                                                                                                                                                             |
-| **CI**         | 9 个 job：deploy-wiring、backend+shared×2（node 22/24）、frozen frontend×2、console×2、e2e、GitGuardian                                                                                                                                        |
-| **工程门禁**   | **P0-f 六批全部完成**（14X–14AB）。lint 全部 `--max-warnings 0` + type-aware；四份 tsconfig 严格开关对齐；eslint 10 / vitest 5；四个覆盖率门槛按 vitest 5 重定                                                                                 |
-| **实测基线**   | 四个覆盖率门槛全部通过，余量一致地留 2–3 个百分点；E2E `retries: 0`                                                                                                                                                                            |
-| **下一步**     | **Phase 16 进行中**：16A（确认落库，#190）、16B（告警历史与统计，#192）已合入 main（2026-09-18）。接着 16C（规则引擎+报码字典）→ 16D（外发，收口发版 **1.3.0**）。16A–16C 用 `feat` 累积到 release-please 的 1.3.0 PR，合并与 tag 由负责人手动 |
+| 项目           | 现状                                                                                                                                                                                                                                                                        |
+| -------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **已发布版本** | **1.2.0**（2026-09-18 发布，tag `v1.2.0`；用户体系与真 RBAC）。上一版 1.1.0 @ `a404680`（前端焕新基准）                                                                                                                                                                     |
+| **部署的前端** | `frontend-next/`（workspace `navfleet-console`），compose 服务名 `web`                                                                                                                                                                                                      |
+| **旧前端**     | `frontend/` **已冻结**：代码全留、不再改动，`--legacy` / 回滚 overlay 可启用                                                                                                                                                                                                |
+| **发布的镜像** | `navfleet-backend:1.2.0`、`navfleet-console:1.2.0`。`navfleet-frontend` 停在 1.0.x                                                                                                                                                                                          |
+| **CI**         | 9 个 job：deploy-wiring、backend+shared×2（node 22/24）、frozen frontend×2、console×2、e2e、GitGuardian                                                                                                                                                                     |
+| **工程门禁**   | **P0-f 六批全部完成**（14X–14AB）。lint 全部 `--max-warnings 0` + type-aware；四份 tsconfig 严格开关对齐；eslint 10 / vitest 5；四个覆盖率门槛按 vitest 5 重定                                                                                                              |
+| **实测基线**   | 四个覆盖率门槛全部通过，余量一致地留 2–3 个百分点；E2E `retries: 0`                                                                                                                                                                                                         |
+| **下一步**     | **Phase 16 进行中**：16A（确认落库，#190）、16B（告警历史与统计，#192）、16C-1（规则引擎收敛+配置化，#193）已合入 main（2026-09-18）。接着 16C-2（报码字典）→ 16D（外发，收口发版 **1.3.0**）。16A–16C 用 `feat` 累积到 release-please 的 1.3.0 PR，合并与 tag 由负责人手动 |
 
 **术语（此前混用过，以此为准）**：
 
@@ -1583,14 +1583,29 @@ e2e 80/80 · CI 9 job 全绿（MCP 认证核验）。
   命中时页面注明；后端仅类型订正（`AlertRecord` 补 firstSeen/lastSeen、`StoredAlert` 补 clearedAt），
   无新端点/聚合/索引
 
-### PR 16C — 可配置规则引擎与报码字典
+### PR 16C — 可配置规则引擎与报码字典（拆成 16C-1 / 16C-2）
 
-- [ ] 规则配置化：阈值、启停、作用范围（设备/编队/标签）、去抖动窗口。消除前后端两份硬编码规则
-      （`normalize.ts:207-236` 与 `fleetNormalize.ts:222-250` 各写一遍，仍需对齐——两份 rule engine
-      是重复实现，需收敛为单一来源）
-- [ ] **报码字典**（`code` → 名称 / 等级 / 分类 / 处理建议），可配置 + 管理 UI + 导入导出。
-      现存 4 个报码只是 mock 与 e2e 的演示常量；不同厂商车型报码不同，这是这类产品最常被要求定制的地方
-- [ ] 规则与字典的热重载（沿用 configRegistry 的原子替换 + 校验失败保留旧快照）
+#### PR 16C-1 — 规则引擎收敛 + 配置化 ✅（#193，2026-09-18 合入 main）
+
+- [x] 规则配置化：阈值、启停、作用范围（设备/编队/标签，并集）、去抖动窗口。消除前后端两份硬编码
+      规则——两份 rule engine（backend 的 `normalize.ts` ingest 与 fleet-core 的 `fleetNormalize.ts`
+      reader，分居 backend↔frontend 边界）已收敛为 `@navfleet/shared` 单一来源（`alertRules.ts`：
+      `evaluateRuleAlerts` / `DEFAULT_ALERT_RULES` / `deviceMatchesScope` / `buildOfflineAlert` /
+      `applyRuleDebounce`）；低电量阈值 20 不再写两遍
+- [x] 后端为可配置权威：`configRegistry` 新增可选 `rules.json`（原子替换 + 校验失败保留旧快照 +
+      纳入热重载 watch），`getAlertRules()` 下发 ingest 与离线巡检；文件缺失=内置默认，未知键忽略
+- [x] 去抖动窗口：低电量 `debounceSeconds`（store 跨帧 linger，纯函数）；离线的去抖是其 `afterSeconds`
+      静默窗口。前端仍用内置默认规则、行为零变化（冻结旧前端不受影响）
+
+#### PR 16C-2 — 报码字典（下一步）
+
+- [ ] **报码字典**（`code` → 名称 / 等级 / 分类 / 处理建议），可配置 + 管理 UI + 导入导出。13C 已建
+      内置表 `packages/fleet-core/src/reportCodes.ts`（21 条，VDA 5050 形状）；缺的是「配置化」——按
+      **内置基表 + 部署侧 `codebook.json` 覆盖层 + 查看/导入导出 UI + 热重载（沿用 configRegistry）**做。
+      不同厂商车型报码不同，这是这类产品最常被要求定制的地方
+- [ ] 字典热重载沿用 configRegistry 的原子替换 + 校验失败保留旧快照（规则侧 16C-1 已落）
+- 边界：public 仓库不逐条抄厂商码表，只照抄 VDA 5050 `errorType` 公开枚举，其余按公开故障类别/分层
+  自撰文案（真实形状非真实内容），真实码值等供应商给（见 P1-d 前置说明）
 
 ### PR 16D — 告警外发
 
