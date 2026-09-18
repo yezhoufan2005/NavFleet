@@ -22,16 +22,16 @@ CI 全绿 → `--no-ff` 合并 → 回写本文件并记录自检结果。
 > 下挂了 12 个子批次，「下线」一个词在不同段落里有三种意思。往下所有小节都是**执行记录**
 > （按发生顺序，不再重排），要知道现在怎么样，只看这一节。
 
-| 项目           | 现状                                                                                                                                                                             |
-| -------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| **已发布版本** | **1.1.0**（2026-09-09 发布，tag `v1.1.0` @ `a404680`）—— 前端焕新后的基准版                                                                                                      |
-| **部署的前端** | `frontend-next/`（workspace `navfleet-console`），compose 服务名 `web`                                                                                                           |
-| **旧前端**     | `frontend/` **已冻结**：代码全留、不再改动，`--legacy` / 回滚 overlay 可启用                                                                                                     |
-| **发布的镜像** | `navfleet-backend:1.1.0`、`navfleet-console:1.1.0`（**console 首次发布**，实测匿名可拉）。`navfleet-frontend` 停在 1.0.x                                                         |
-| **CI**         | 6 个 job：deploy-wiring、backend+shared、frozen frontend、console、e2e、GitGuardian                                                                                              |
-| **工程门禁**   | **P0-f 六批全部完成**（14X–14AB）。lint 全部 `--max-warnings 0` + type-aware；四份 tsconfig 严格开关对齐；eslint 10 / vitest 5；四个覆盖率门槛按 vitest 5 重定                   |
-| **实测基线**   | 单测 **1312**（fleet-core 128 · backend 459 · 冻结前端 132 · console 593）· E2E **80**（`retries: 0`，已三轮零抖动）· 四个覆盖率门槛全部通过，余量一致地留 2–3 个百分点          |
-| **下一步**     | **Phase 16**（告警体系深化，发版 1.3.0）。Phase 15 全部子批次已合入 main（15A–15D + 15E-1 #187 + 15E-2 #188）；**1.2.0 发版 PR 由 release-please 生成，合并与 tag 由负责人手动** |
+| 项目           | 现状                                                                                                                                                                                                                                     |
+| -------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **已发布版本** | **1.2.0**（2026-09-18 发布，tag `v1.2.0`；用户体系与真 RBAC）。上一版 1.1.0 @ `a404680`（前端焕新基准）                                                                                                                                  |
+| **部署的前端** | `frontend-next/`（workspace `navfleet-console`），compose 服务名 `web`                                                                                                                                                                   |
+| **旧前端**     | `frontend/` **已冻结**：代码全留、不再改动，`--legacy` / 回滚 overlay 可启用                                                                                                                                                             |
+| **发布的镜像** | `navfleet-backend:1.2.0`、`navfleet-console:1.2.0`。`navfleet-frontend` 停在 1.0.x                                                                                                                                                       |
+| **CI**         | 9 个 job：deploy-wiring、backend+shared×2（node 22/24）、frozen frontend×2、console×2、e2e、GitGuardian                                                                                                                                  |
+| **工程门禁**   | **P0-f 六批全部完成**（14X–14AB）。lint 全部 `--max-warnings 0` + type-aware；四份 tsconfig 严格开关对齐；eslint 10 / vitest 5；四个覆盖率门槛按 vitest 5 重定                                                                           |
+| **实测基线**   | 四个覆盖率门槛全部通过，余量一致地留 2–3 个百分点；E2E `retries: 0`                                                                                                                                                                      |
+| **下一步**     | **Phase 16 进行中**：16A（确认落库）已合入 main（#190，2026-09-18）。接着 16B（告警历史与统计）→ 16C（规则引擎+报码字典）→ 16D（外发，收口发版 **1.3.0**）。16A–16C 用 `feat` 累积到 release-please 的 1.3.0 PR，合并与 tag 由负责人手动 |
 
 **术语（此前混用过，以此为准）**：
 
@@ -1564,24 +1564,27 @@ e2e 80/80 · CI 9 job 全绿（MCP 认证核验）。
 > 告警现在是**纯派生、无状态**：规则只有 2 条（低电量阈值 20 在前后端各硬编码一遍）、
 > 唯一可配阈值是 `OFFLINE_AFTER_SECONDS`、确认只存浏览器、`alerts` 集合积累的历史零读取方。
 
-### PR 16A — 确认落库
+### PR 16A — 确认落库 ✅（#190，2026-09-18 合入 main）
 
-- [ ] `StoredAlert` 补 `ackedBy` / `ackedAt` / `comment`（现在连字段都没有）
-- [ ] 确认/取消确认 API + 审计联动；localStorage 数据一次性迁移并下线 `useAlertAck` 的本地存储
-- [ ] 跨设备跨用户实时同步（WS 事件）
+- [x] `StoredAlert` 补 `ackedBy` / `ackedAt` / `comment`；迁移 v4 幂等 backfill
+- [x] 确认/取消确认 API（`POST /api/alerts/ack|unack`，**operator+**）+ 审计联动（`alert_ack` / `alert_unack`）；
+      localStorage 数据一次性迁移仍活跃的部分后下线 `useAlertAck` 的本地存储
+- [x] 跨设备跨用户实时同步（WS `alert.acked` / `alert.unacked`）
+- [x] 清除告警时一并清确认（重新触发是新的一次，回到未确认）；viewer 隐藏确认控件、可展示确认人
+- 不单独发版（`feat` 会开一个 1.3.0 release PR 挂着，累积 16B/16C，由 16D 收口）
 
 ### PR 16B — 告警历史与统计
 
-- [ ] 接线 `/api/v1/alerts` —— 端点早就存在，前端 `getAlerts()` **唯一调用方是它自己的单元测试**
-- [ ] 展示已落库却零读取的字段：`firstSeenAt` / `lastSeenAt` / `clearedAt` / `active=false` 的已清除告警；
-      `status=cleared` 查询能力已有 schema 支持却无 UI 入口
+- [ ] 展示 `firstSeenAt` / `lastSeenAt` / `clearedAt` / `active=false` 的已清除告警；`status=cleared`
+      查询能力已有 schema 支持却无 fleet 级 UI 入口（`getAlerts()` 已有真实调用方：16A 的确认 seed
+      与设备详情的 `DeviceAlertsTab`，不再只是自测）
 - [ ] 持续时长、发生频次、Top 排行、按设备/严重度/时间的分布
 
 ### PR 16C — 可配置规则引擎与报码字典
 
 - [ ] 规则配置化：阈值、启停、作用范围（设备/编队/标签）、去抖动窗口。消除前后端两份硬编码规则
-      （`normalize.ts:207-236` 与 `fleetNormalize.ts:222-250` 各写一遍，且已存在差异——前端不产出
-      `alerts[].active`）
+      （`normalize.ts:207-236` 与 `fleetNormalize.ts:222-250` 各写一遍，仍需对齐——两份 rule engine
+      是重复实现，需收敛为单一来源）
 - [ ] **报码字典**（`code` → 名称 / 等级 / 分类 / 处理建议），可配置 + 管理 UI + 导入导出。
       现存 4 个报码只是 mock 与 e2e 的演示常量；不同厂商车型报码不同，这是这类产品最常被要求定制的地方
 - [ ] 规则与字典的热重载（沿用 configRegistry 的原子替换 + 校验失败保留旧快照）
