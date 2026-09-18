@@ -1,3 +1,4 @@
+import type { Page } from "@playwright/test";
 import { expect, signIn, test } from "../support/fixtures";
 import { ADMIN } from "../support/harness";
 import { SEEDED_ALERTING } from "../support/seed";
@@ -19,10 +20,42 @@ import { SEEDED_ALERTING } from "../support/seed";
  */
 const faulted = SEEDED_ALERTING;
 
+/**
+ * Undo any acknowledgement left on the backend by an earlier test.
+ *
+ * Acknowledgement is server-backed since Phase 16A, and this suite runs `workers: 1` against
+ * one long-lived backend — so, unlike the old per-browser localStorage, an ack made in one
+ * test would otherwise stay for the next and hide the vehicle it expects to find. Reading the
+ * active alerts back and unacking each restores the pristine, unacked fleet every test assumes.
+ * Uses `page.request`, which shares the signed-in context's cookies (unack is operator+).
+ */
+const resetAcks = async (page: Page): Promise<void> => {
+  const response = await page.request.get("/api/v1/alerts?status=active");
+  if (!response.ok()) return;
+  const { items } = (await response.json()) as {
+    items: { deviceId: string; alertId: string; ackedBy: string | null }[];
+  };
+  for (const alert of items) {
+    if (alert.ackedBy) {
+      await page.request.post("/api/v1/alerts/unack", {
+        data: { deviceId: alert.deviceId, alertId: alert.alertId },
+      });
+    }
+  }
+};
+
 test.describe("console alerts", () => {
   test.beforeEach(async ({ page }) => {
     await signIn(page);
+    // Clear any ack a prior test wrote to the shared backend, then open a clean list.
+    await resetAcks(page);
     await page.goto("/alerts");
+  });
+
+  // Leave the shared backend as we found it, so a later spec file does not inherit a
+  // hidden (acknowledged) alert.
+  test.afterEach(async ({ page }) => {
+    await resetAcks(page);
   });
 
   test("narrows by severity and puts that in the URL", async ({ page }) => {
