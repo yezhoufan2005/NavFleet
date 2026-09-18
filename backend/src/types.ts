@@ -119,7 +119,9 @@ export type AuditAction =
   | "account_locked"
   // Alert acknowledgement (Phase 16A).
   | "alert_ack"
-  | "alert_unack";
+  | "alert_unack"
+  // Report-code dictionary import (Phase 16C-2).
+  | "codebook_import";
 
 /** One row of the `audit_log` collection. `ts` is a BSON Date so the TTL index can expire it. */
 export interface AuditEntry {

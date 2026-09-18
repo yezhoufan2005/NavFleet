@@ -10,6 +10,7 @@ import type { AuthService, AdminActionResult, AuthResult } from "../../src/auth/
 import type { AuditService } from "../../src/audit/service";
 import type { Persistence } from "../../src/persistence";
 import type { DashboardStore } from "../../src/store";
+import { DEFAULT_REPORT_CODES } from "@navfleet/shared";
 import type {
   AdminUserView,
   AuditEntry,
@@ -20,6 +21,7 @@ import type {
   SessionRecord,
   UserRecord,
   UserRole,
+  ReportCodeEntry,
 } from "../../src/types";
 import {
   SCENE_ID,
@@ -48,6 +50,8 @@ export interface StoreStub {
   getScenes: Mock<() => SceneMapDefinition[]>;
   getScene: Mock<(sceneId: string) => SceneMapDefinition | null>;
   getSceneOverlay: Mock<(sceneId: string) => LaneletOverlay | null>;
+  getCodebook: Mock<() => ReportCodeEntry[]>;
+  importCodebook: Mock<(rawEntries: unknown) => Promise<ReportCodeEntry[]>>;
   getHistory: Mock<
     (deviceId: string, from?: string, to?: string, limit?: number) => Promise<unknown[]>
   >;
@@ -90,6 +94,8 @@ export const createStoreStub = (): StoreStub => ({
   getScenes: vi.fn(() => [sampleScene()]),
   getScene: vi.fn((sceneId: string) => (sceneId === SCENE_ID ? sampleScene() : null)),
   getSceneOverlay: vi.fn((sceneId: string) => (sceneId === SCENE_ID ? sampleOverlay() : null)),
+  getCodebook: vi.fn(() => [...DEFAULT_REPORT_CODES]),
+  importCodebook: vi.fn(() => Promise.resolve([...DEFAULT_REPORT_CODES])),
   getHistory: vi.fn(() => Promise.resolve([sampleHistoryPoint()])),
   getAlerts: vi.fn(() => Promise.resolve([sampleAlert()])),
   applyPayload: vi.fn(() => Promise.resolve(sampleSnapshot())),

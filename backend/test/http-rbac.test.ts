@@ -23,6 +23,7 @@ const READ_ROUTES: Array<{ method: "get"; path: string }> = [
   { method: "get", path: `/api/scenes/${SCENE_ID}/overlay` },
   { method: "get", path: `/api/devices/${DEVICE_ID}/history` },
   { method: "get", path: "/api/alerts" },
+  { method: "get", path: "/api/codebook" },
   { method: "get", path: "/api/auth/me" },
   { method: "get", path: "/api/auth/sessions" },
 ];
@@ -42,7 +43,7 @@ const OPERATOR_ROUTES: Array<{
   { method: "post", path: "/api/alerts/unack", body: { deviceId: DEVICE_ID, alertId: "a1" } },
 ];
 
-const ADMIN_ROUTES: Array<{ method: "get" | "post" | "patch" | "delete"; path: string }> = [
+const ADMIN_ROUTES: Array<{ method: "get" | "post" | "patch" | "delete" | "put"; path: string }> = [
   { method: "get", path: "/api/users" },
   { method: "post", path: "/api/users" },
   { method: "get", path: "/api/users/bob" },
@@ -54,6 +55,7 @@ const ADMIN_ROUTES: Array<{ method: "get" | "post" | "patch" | "delete"; path: s
   { method: "delete", path: "/api/users/bob/sessions/s1" },
   { method: "post", path: "/api/debug/ingest" },
   { method: "get", path: "/api/audit" },
+  { method: "put", path: "/api/codebook" },
 ];
 
 const ALL_ROLES: UserRole[] = ["viewer", "operator", "admin"];

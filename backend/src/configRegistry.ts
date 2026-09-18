@@ -1,7 +1,15 @@
 import fs from "node:fs/promises";
 import path from "node:path";
 import chokidar, { FSWatcher } from "chokidar";
-import { AlertRulesConfig, DEFAULT_ALERT_RULES, RuleScope } from "@navfleet/shared";
+import {
+  AlertRulesConfig,
+  DEFAULT_ALERT_RULES,
+  DEFAULT_REPORT_CODES,
+  ReportCodeEntry,
+  RuleScope,
+  mergeCodebook,
+  parseCodebook,
+} from "@navfleet/shared";
 import { config, runtimePaths } from "./config";
 import { parseLaneletOsmFile } from "./laneletOsm";
 import { moduleLogger } from "./logger";
@@ -23,6 +31,7 @@ const VEHICLES_FILE = runtimePaths.vehiclesFilePath;
 const FORMATIONS_FILE = runtimePaths.formationsFilePath;
 const SCENES_FILE = runtimePaths.scenesFilePath;
 const RULES_FILE = runtimePaths.rulesFilePath;
+const CODEBOOK_FILE = runtimePaths.codebookFilePath;
 
 const DEFAULT_FLEET_CONFIG: FleetConfig = {
   fleetName: "智能车队",
@@ -41,6 +50,7 @@ interface LoadedConfigSnapshot {
   sceneConfigs: Map<string, SceneMapDefinition>;
   sceneOverlays: Map<string, LaneletOverlay>;
   alertRules: AlertRulesConfig;
+  codebook: ReportCodeEntry[];
 }
 
 const deriveBounds = (scene: SceneMapDefinition): NonNullable<SceneMapDefinition["bounds"]> => ({
@@ -251,6 +261,7 @@ export class ConfigRegistry {
   private sceneConfigs = new Map<string, SceneMapDefinition>();
   private sceneOverlays = new Map<string, LaneletOverlay>();
   private alertRules: AlertRulesConfig = DEFAULT_ALERT_RULES;
+  private codebook: ReportCodeEntry[] = [...DEFAULT_REPORT_CODES];
   private loaded = false;
   private watcher: FSWatcher | null = null;
   private reloadTimer: NodeJS.Timeout | null = null;
@@ -258,15 +269,23 @@ export class ConfigRegistry {
   private pendingReloadReason = "startup";
 
   private async loadSnapshot(): Promise<LoadedConfigSnapshot> {
-    const [fleetRaw, vehiclesRaw, formationsRaw, scenesRaw, rulesRaw] = await Promise.all([
-      readJsonFile<unknown>(FLEET_FILE),
-      readJsonFile<unknown>(VEHICLES_FILE),
-      readJsonFile<unknown>(FORMATIONS_FILE),
-      readJsonFile<unknown>(SCENES_FILE),
-      readOptionalJsonFile<unknown>(RULES_FILE),
-    ]);
+    const [fleetRaw, vehiclesRaw, formationsRaw, scenesRaw, rulesRaw, codebookRaw] =
+      await Promise.all([
+        readJsonFile<unknown>(FLEET_FILE),
+        readJsonFile<unknown>(VEHICLES_FILE),
+        readJsonFile<unknown>(FORMATIONS_FILE),
+        readJsonFile<unknown>(SCENES_FILE),
+        readOptionalJsonFile<unknown>(RULES_FILE),
+        readOptionalJsonFile<unknown>(CODEBOOK_FILE),
+      ]);
 
     const alertRules = parseAlertRules(rulesRaw);
+    // A deployment's codebook.json (if any) is validated then layered over the built-in
+    // table; the merged result is what `getCodebook` 下发s. Missing file = the built-in table.
+    const codebook = mergeCodebook(
+      DEFAULT_REPORT_CODES,
+      codebookRaw === null ? [] : parseCodebook(codebookRaw),
+    );
 
     const fleetConfig = ensureObject(fleetRaw, FLEET_FILE, "fleet.json") as Partial<FleetConfig>;
     const vehicleRecords = ensureArray(vehiclesRaw, VEHICLES_FILE, "vehicles.json") as Array<
@@ -419,6 +438,7 @@ export class ConfigRegistry {
       sceneConfigs: nextSceneConfigs,
       sceneOverlays: nextSceneOverlays,
       alertRules,
+      codebook,
     };
   }
 
@@ -430,6 +450,7 @@ export class ConfigRegistry {
     this.sceneConfigs = snapshot.sceneConfigs;
     this.sceneOverlays = snapshot.sceneOverlays;
     this.alertRules = snapshot.alertRules;
+    this.codebook = snapshot.codebook;
     this.loaded = true;
   }
 
@@ -493,6 +514,7 @@ export class ConfigRegistry {
         FORMATIONS_FILE,
         SCENES_FILE,
         RULES_FILE,
+        CODEBOOK_FILE,
         path.join(runtimePaths.sceneMapsPath, "**/*.osm"),
       ],
       {
@@ -585,6 +607,29 @@ export class ConfigRegistry {
    */
   getAlertRules(): AlertRulesConfig {
     return this.alertRules;
+  }
+
+  /**
+   * The report-code dictionary in effect — the built-in table with the deployment's
+   * `codebook.json` layered over it (Phase 16C-2). Like `getAlertRules`, does not require
+   * the registry to be loaded: it defaults to the built-in table, so a code lookup before
+   * `load()` still resolves. Returns a copy so a caller cannot mutate the live snapshot.
+   */
+  getCodebook(): ReportCodeEntry[] {
+    return this.codebook.map((entry) => ({ ...entry }));
+  }
+
+  /**
+   * Persist a deployment codebook (the import endpoint's payload) as `codebook.json`, then
+   * reload so `getCodebook` reflects it. Validates first via `parseCodebook`, so an invalid
+   * payload throws *before* anything is written and the live snapshot is untouched. The
+   * config volume must be writable for this to succeed (see deploy/docker-compose.yml).
+   */
+  async importCodebook(rawEntries: unknown): Promise<ReportCodeEntry[]> {
+    const entries = parseCodebook(rawEntries);
+    await fs.writeFile(CODEBOOK_FILE, `${JSON.stringify(entries, null, 2)}\n`, "utf8");
+    await this.reload("codebook-import");
+    return this.getCodebook();
   }
 
   getDeviceConfig(deviceId: string): DeviceConfig | null {

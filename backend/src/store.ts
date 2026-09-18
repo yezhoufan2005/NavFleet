@@ -23,6 +23,7 @@ import {
   FleetSnapshot,
   FormationSnapshot,
   LaneletOverlay,
+  ReportCodeEntry,
   SceneMapDefinition,
   SocketEvent,
 } from "./types";
@@ -747,6 +748,16 @@ export class DashboardStore extends EventEmitter {
 
   getSceneOverlay(sceneId: string): LaneletOverlay | null {
     return this.configRegistry.getSceneOverlay(sceneId);
+  }
+
+  /** The report-code dictionary in effect (built-in ⊕ deployment codebook). Phase 16C-2. */
+  getCodebook(): ReportCodeEntry[] {
+    return this.configRegistry.getCodebook();
+  }
+
+  /** Validate + persist a deployment codebook, reload, and return the merged table. */
+  importCodebook(rawEntries: unknown): Promise<ReportCodeEntry[]> {
+    return this.configRegistry.importCodebook(rawEntries);
   }
 
   async getHistory(

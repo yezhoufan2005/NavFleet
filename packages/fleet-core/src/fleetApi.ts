@@ -8,7 +8,7 @@
  * keeps that explicit and future-proofs a split-origin deployment.
  */
 
-import type { DeviceSnapshot } from "@navfleet/shared";
+import type { DeviceSnapshot, ReportCodeEntry } from "@navfleet/shared";
 
 export interface FleetSnapshotResponse {
   fleetName?: string;
@@ -231,6 +231,23 @@ export const fleetApi = {
 
   getScenes(): Promise<{ items: SceneDefinition[] }> {
     return requestJson<{ items: SceneDefinition[] }>("/api/v1/scenes");
+  },
+
+  // ── Report-code dictionary (Phase 16C-2) ────────────────────────────────────
+  // The table in effect (built-in ⊕ deployment codebook). Read-for-everyone (viewer+),
+  // so the device-detail card can describe codes against the deployment's own meanings.
+  getCodebook(): Promise<{ items: ReportCodeEntry[] }> {
+    return requestJson<{ items: ReportCodeEntry[] }>("/api/v1/codebook");
+  },
+
+  // Replace the deployment codebook (admin). Returns the merged table the backend now serves.
+  importCodebook(
+    items: ReportCodeEntry[],
+  ): Promise<{ items: ReportCodeEntry[] }> {
+    return requestJson<{ items: ReportCodeEntry[] }>(
+      "/api/v1/codebook",
+      jsonBody("PUT", { items }),
+    );
   },
 
   getScene(sceneId: string): Promise<SceneDefinition> {

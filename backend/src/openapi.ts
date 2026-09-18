@@ -135,6 +135,7 @@ export const openApiDocument = {
     { name: "fleet", description: "车队快照与设备" },
     { name: "alerts", description: "告警" },
     { name: "scenes", description: "场景地图" },
+    { name: "codebook", description: "报码字典" },
     { name: "ops", description: "健康探针与指标" },
     { name: "debug", description: "调试注入（受限）" },
     { name: "users", description: "用户管理（需 admin）" },
@@ -611,6 +612,29 @@ const apiWideResponses = { "429": tooManyRequests, "500": serverError } as const
         "400": badRequest,
         "401": unauthorized,
         "404": notFound,
+        ...apiWideResponses,
+      },
+    },
+  },
+  "/api/v1/codebook": {
+    get: {
+      tags: ["codebook"],
+      summary: "生效的报码字典（内置表叠加部署侧码表）",
+      responses: { "200": ok("报码列表"), "401": unauthorized, ...apiWideResponses },
+    },
+    put: {
+      tags: ["codebook"],
+      summary: "替换部署侧报码字典（需 admin）",
+      requestBody: {
+        required: true,
+        content: { "application/json": { schema: { type: "object" } } },
+      },
+      responses: {
+        "200": ok("合并后的报码列表"),
+        // 校验失败（非法码表）。
+        "400": badRequest,
+        "401": unauthorized,
+        "403": forbidden,
         ...apiWideResponses,
       },
     },

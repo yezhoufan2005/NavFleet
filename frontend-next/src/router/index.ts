@@ -122,6 +122,12 @@ const routes: RouteRecordRaw[] = [
         meta: { title: "用户", roles: ["admin"] },
       },
       {
+        path: "codebook",
+        name: "admin-codebook",
+        component: () => import("@/views/admin/CodebookView.vue"),
+        meta: { title: "报码字典", roles: ["admin"] },
+      },
+      {
         path: "audit",
         name: "admin-audit",
         component: () => import("@/views/admin/AuditView.vue"),

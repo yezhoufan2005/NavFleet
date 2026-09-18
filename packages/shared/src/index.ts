@@ -277,3 +277,8 @@ export type LngLat = [number, number];
 // the two frontends share (Phase 16C-1). Kept in its own file because it carries runtime
 // logic, and this barrel was otherwise types-only.
 export * from "./alertRules";
+
+// The report-code dictionary — built-in table, wire type, and the pure merge/lookup the
+// backend layers a deployment's codebook over and 下发s (Phase 16C-2). Moved here from
+// fleet-core so the backend, which does not depend on fleet-core, can reach it.
+export * from "./reportCodes";
