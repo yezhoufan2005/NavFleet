@@ -20,21 +20,19 @@
  * stayed fully clickable.
  */
 /**
- * ## There is no `danger` variant, deliberately
+ * ## The `danger` variant is for confirmed destructive actions only
  *
- * One was declared here from the start (`bg-critical text-critical-contrast`) and never
- * used by anything. Deleting it is not only dead-code tidying: NavFleet is a **read-only**
- * monitoring console, and a destructive-action button is a variant for actions the product
- * does not have. Leaving it in the design system is an invitation to build one.
- *
- * If a genuinely destructive control ever arrives (Phase 15's user management is the first
- * plausible place — deleting an account), it comes back **with** its confirmation pattern,
- * not before.
+ * It was removed for most of this project's life: NavFleet is a read-only monitoring console,
+ * and a destructive-action button is a variant for actions the product did not have. Phase 15's
+ * user management is the first place it does — deleting an account, force-logging-out a user,
+ * revoking a session — and, as the original note promised, it comes back **with** its
+ * confirmation pattern (`UiConfirmDialog`), not before. Use it only for the confirm button of a
+ * genuinely irreversible action, never as a louder primary.
  */
 import { computed } from "vue";
 import { Primitive } from "reka-ui";
 
-type Variant = "primary" | "secondary" | "ghost";
+type Variant = "primary" | "secondary" | "ghost" | "danger";
 type Size = "sm" | "md";
 
 const {
@@ -62,6 +60,7 @@ const VARIANTS: Record<Variant, string> = {
   secondary:
     "bg-surface-raised text-ink border border-border-strong hover:bg-surface-sunken",
   ghost: "text-ink-muted hover:bg-surface-sunken hover:text-ink",
+  danger: "bg-critical text-critical-contrast hover:bg-critical-hover",
 };
 
 const SIZES: Record<Size, string> = {

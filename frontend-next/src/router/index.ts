@@ -107,7 +107,27 @@ const routes: RouteRecordRaw[] = [
         component: () => import("@/views/admin/ScenesView.vue"),
         meta: { title: "场景", roles: ["admin"] },
       },
+      {
+        path: "users",
+        name: "admin-users",
+        component: () => import("@/views/admin/UsersView.vue"),
+        meta: { title: "用户", roles: ["admin"] },
+      },
+      {
+        path: "audit",
+        name: "admin-audit",
+        component: () => import("@/views/admin/AuditView.vue"),
+        meta: { title: "审计", roles: ["admin"] },
+      },
     ],
+  },
+  {
+    // Personal center: any authenticated user (viewer+), so NO `roles`. Change own
+    // password, view and revoke own sessions. Reached from the session menu, not the nav.
+    path: "/profile",
+    name: "profile",
+    component: () => import("@/views/ProfileView.vue"),
+    meta: { title: "个人中心" },
   },
   {
     path: "/wall",

@@ -35,6 +35,8 @@ const ADMIN_ROUTES: Array<{ method: "get" | "post" | "patch" | "delete"; path: s
   { method: "delete", path: "/api/users/bob" },
   { method: "post", path: "/api/users/bob/reset-password" },
   { method: "post", path: "/api/users/bob/logout" },
+  { method: "get", path: "/api/users/bob/sessions" },
+  { method: "delete", path: "/api/users/bob/sessions/s1" },
   { method: "post", path: "/api/debug/ingest" },
   { method: "get", path: "/api/audit" },
 ];

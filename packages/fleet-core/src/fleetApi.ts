@@ -77,6 +77,91 @@ export interface AlertsQueryParams {
   status?: "active" | "cleared";
 }
 
+export type UserRoleName = "admin" | "operator" | "viewer";
+
+/** A user as the admin API returns it (management view, never carries `passwordHash`). */
+export interface AdminUser {
+  username: string;
+  role: UserRoleName;
+  enabled: boolean;
+  tokenVersion: number;
+  displayName: string;
+  email: string | null;
+  phone: string | null;
+  lastLoginAt: string | null;
+  createdAt: string;
+  updatedAt: string;
+  passwordUpdatedAt: string;
+  failedAttempts: number;
+  lockedUntil: string | null;
+  [key: string]: unknown;
+}
+
+/** One audit-log row as `GET /api/v1/audit` returns it. */
+export interface AuditRecord {
+  ts: string;
+  actor: string;
+  action: string;
+  target?: string;
+  outcome: "success" | "failure";
+  requestId?: string;
+  detail?: Record<string, unknown>;
+  [key: string]: unknown;
+}
+
+/** A tracked login session (own or, for an admin, another user's). */
+export interface SessionRecordView {
+  sessionId: string;
+  username: string;
+  createdAt: string;
+  lastSeenAt: string;
+  userAgent: string;
+  ip: string;
+  current?: boolean;
+}
+
+export interface CreateUserPayload {
+  username: string;
+  password: string;
+  role: UserRoleName;
+  displayName?: string;
+  email?: string | null;
+  phone?: string | null;
+}
+
+export interface UpdateUserPayload {
+  role?: UserRoleName;
+  displayName?: string;
+  email?: string | null;
+  phone?: string | null;
+  enabled?: boolean;
+}
+
+export interface AuditQueryParams {
+  actor?: string;
+  action?: string;
+  from?: string;
+  to?: string;
+}
+
+/**
+ * Turn a failed response into an Error whose `message` is the backend's stable error *code*
+ * (`conflict`, `last_admin`, `self_forbidden`, `not_found`, …) when the body carries one, so a
+ * caller can map it to a message — several admin refusals share HTTP 409 and only the code
+ * tells them apart. Falls back to `HTTP <status>` when there is no JSON `error` field.
+ */
+async function failureError(response: Response): Promise<Error> {
+  try {
+    const body = (await response.json()) as { error?: string } | null;
+    if (body && typeof body.error === "string" && body.error) {
+      return new Error(body.error);
+    }
+  } catch {
+    // Non-JSON or empty body — fall through to the status.
+  }
+  return new Error(`HTTP ${response.status}`);
+}
+
 async function requestJson<T>(
   path: string,
   init: RequestInit = {},
@@ -87,9 +172,33 @@ async function requestJson<T>(
     ...init,
   });
   if (!response.ok) {
-    throw new Error(`HTTP ${response.status}`);
+    throw await failureError(response);
   }
   return (await response.json()) as T;
+}
+
+/** Like `requestJson`, for endpoints that answer 204 with no body (delete / reset / logout). */
+async function requestVoid(
+  path: string,
+  init: RequestInit = {},
+): Promise<void> {
+  const response = await fetch(path, {
+    credentials: "include",
+    cache: "no-store",
+    ...init,
+  });
+  if (!response.ok) {
+    throw await failureError(response);
+  }
+}
+
+/** JSON body + header for a write; spread into the `init` of a POST/PATCH. */
+function jsonBody(method: string, body: unknown): RequestInit {
+  return {
+    method,
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(body),
+  };
 }
 
 // Generic over the param bag: interfaces have no implicit index signature, so a
@@ -132,6 +241,77 @@ export const fleetApi = {
   getAlerts(params: AlertsQueryParams = {}): Promise<{ items: AlertRecord[] }> {
     return requestJson<{ items: AlertRecord[] }>(
       `/api/v1/alerts${buildQuery(params)}`,
+    );
+  },
+
+  // ── User management (admin, Phase 15E-2) ────────────────────────────────────
+  getUsers(): Promise<{ users: AdminUser[] }> {
+    return requestJson<{ users: AdminUser[] }>("/api/v1/users");
+  },
+
+  getUser(username: string): Promise<{ user: AdminUser }> {
+    return requestJson<{ user: AdminUser }>(
+      `/api/v1/users/${encodeURIComponent(username)}`,
+    );
+  },
+
+  createUser(payload: CreateUserPayload): Promise<{ user: AdminUser }> {
+    return requestJson<{ user: AdminUser }>(
+      "/api/v1/users",
+      jsonBody("POST", payload),
+    );
+  },
+
+  updateUser(
+    username: string,
+    payload: UpdateUserPayload,
+  ): Promise<{ user: AdminUser }> {
+    return requestJson<{ user: AdminUser }>(
+      `/api/v1/users/${encodeURIComponent(username)}`,
+      jsonBody("PATCH", payload),
+    );
+  },
+
+  resetPassword(username: string, newPassword: string): Promise<void> {
+    return requestVoid(
+      `/api/v1/users/${encodeURIComponent(username)}/reset-password`,
+      jsonBody("POST", { newPassword }),
+    );
+  },
+
+  deleteUser(username: string): Promise<void> {
+    return requestVoid(`/api/v1/users/${encodeURIComponent(username)}`, {
+      method: "DELETE",
+    });
+  },
+
+  forceLogout(username: string): Promise<void> {
+    return requestVoid(`/api/v1/users/${encodeURIComponent(username)}/logout`, {
+      method: "POST",
+    });
+  },
+
+  getUserSessions(
+    username: string,
+  ): Promise<{ sessions: SessionRecordView[] }> {
+    return requestJson<{ sessions: SessionRecordView[] }>(
+      `/api/v1/users/${encodeURIComponent(username)}/sessions`,
+    );
+  },
+
+  revokeUserSession(username: string, sessionId: string): Promise<void> {
+    return requestVoid(
+      `/api/v1/users/${encodeURIComponent(username)}/sessions/${encodeURIComponent(sessionId)}`,
+      { method: "DELETE" },
+    );
+  },
+
+  // ── Audit log (admin, Phase 15E-2) ──────────────────────────────────────────
+  getAuditLog(
+    params: AuditQueryParams = {},
+  ): Promise<{ entries: AuditRecord[] }> {
+    return requestJson<{ entries: AuditRecord[] }>(
+      `/api/v1/audit${buildQuery(params)}`,
     );
   },
 };

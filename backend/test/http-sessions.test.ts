@@ -144,3 +144,78 @@ describe("POST /api/users/:username/logout (admin force-logout)", () => {
     expect(response.status).toBe(404);
   });
 });
+
+describe("GET /api/users/:username/sessions (admin views another's sessions)", () => {
+  it("403s a non-admin caller", async () => {
+    const { app } = createTestApp();
+    const response = await request(app)
+      .get("/api/users/bob/sessions")
+      .set("Cookie", sessionCookie("operator"));
+    expect(response.status).toBe(403);
+  });
+
+  it("lists the target user's sessions (no `current` flag in the admin view)", async () => {
+    const context = createTestApp();
+    context.authService.listSessions.mockResolvedValue([
+      sessionRecord("sid-a", "bob"),
+      sessionRecord("sid-b", "bob"),
+    ]);
+
+    const response = await request(context.app)
+      .get("/api/users/bob/sessions")
+      .set("Cookie", sessionCookie("admin"));
+
+    expect(response.status).toBe(200);
+    expect(context.authService.listSessions).toHaveBeenCalledWith("bob");
+    const body = response.body as { sessions: Array<{ sessionId: string; current?: unknown }> };
+    expect(body.sessions.map((s) => s.sessionId)).toEqual(["sid-a", "sid-b"]);
+    expect(body.sessions[0]).not.toHaveProperty("current");
+  });
+
+  it("404s when the target user does not exist", async () => {
+    const context = createTestApp();
+    context.authService.getUser.mockResolvedValue(null);
+
+    const response = await request(context.app)
+      .get("/api/users/ghost/sessions")
+      .set("Cookie", sessionCookie("admin"));
+
+    expect(response.status).toBe(404);
+  });
+});
+
+describe("DELETE /api/users/:username/sessions/:sessionId (admin revokes one)", () => {
+  it("403s a non-admin caller", async () => {
+    const { app } = createTestApp();
+    const response = await request(app)
+      .delete("/api/users/bob/sessions/sid-a")
+      .set("Cookie", sessionCookie("viewer"));
+    expect(response.status).toBe(403);
+  });
+
+  it("revokes the target's session and audits it with a user:session target", async () => {
+    const context = createTestApp();
+    context.authService.revokeSession.mockResolvedValue(true);
+
+    const response = await request(context.app)
+      .delete("/api/users/bob/sessions/sid-a")
+      .set("Cookie", sessionCookie("admin"));
+
+    expect(response.status).toBe(204);
+    expect(context.authService.revokeSession).toHaveBeenCalledWith("bob", "sid-a");
+    expect(context.auditService.record).toHaveBeenCalledWith(
+      expect.objectContaining({ action: "session_revoke", target: "bob:sid-a" }),
+    );
+  });
+
+  it("404s when that session is not the target's (or does not exist)", async () => {
+    const context = createTestApp();
+    context.authService.revokeSession.mockResolvedValue(false);
+
+    const response = await request(context.app)
+      .delete("/api/users/bob/sessions/nope")
+      .set("Cookie", sessionCookie("admin"));
+
+    expect(response.status).toBe(404);
+  });
+});

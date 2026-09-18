@@ -413,11 +413,13 @@ describe("管理落地页", () => {
     const links = wrapper.findAll("a");
 
     expect(links.map((link) => link.attributes("href")).sort()).toEqual([
+      "/admin/audit",
       "/admin/scenes",
       "/admin/system",
+      "/admin/users",
     ]);
     // The unbuilt ones still say which PR brings them, rather than going quiet.
-    expect(wrapper.text()).toContain("PR 15B");
+    expect(wrapper.text()).toContain("PR 15C");
     expect(wrapper.text()).toContain("PR 16C");
   });
 
@@ -427,6 +429,6 @@ describe("管理落地页", () => {
       .findAll("span")
       .filter((span) => span.text() === "已就绪");
 
-    expect(readyBadges).toHaveLength(2);
+    expect(readyBadges).toHaveLength(4);
   });
 });

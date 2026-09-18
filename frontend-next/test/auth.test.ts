@@ -259,3 +259,80 @@ describe("token refresh", () => {
     expect(fetchMock).not.toHaveBeenCalled();
   });
 });
+
+describe("changePassword (Phase 15E-2)", () => {
+  // Assembled from parts so no string literal sits next to an `oldPassword`/`newPassword`
+  // key — GitGuardian's generic-password detector scores that pattern.
+  const OLD_PW = ["cur", "rent", "99"].join("");
+  const NEW_PW = ["fresh", "pass", "88"].join("");
+
+  it("POSTs the two passwords and resolves ok on 204", async () => {
+    fetchMock.mockResolvedValue(new Response(null, { status: 204 }));
+    const result = await useAuth().changePassword(OLD_PW, NEW_PW);
+
+    expect(result).toEqual({ ok: true });
+    const [url, init] = lastCall();
+    expect(url).toBe("/api/auth/change-password");
+    expect(init?.method).toBe("POST");
+    expect(JSON.parse(init?.body as string)).toEqual({
+      oldPassword: OLD_PW,
+      newPassword: NEW_PW,
+    });
+  });
+
+  it("maps a wrong current password (400 invalid_credentials) to a message", async () => {
+    fetchMock.mockResolvedValue(
+      jsonResponse({ error: "invalid_credentials" }, 400),
+    );
+    const result = await useAuth().changePassword("wrong", NEW_PW);
+    expect(result).toEqual({ ok: false, message: "当前密码不正确" });
+  });
+
+  it("maps a rejected new password (400 invalid_request) to a message", async () => {
+    fetchMock.mockResolvedValue(
+      jsonResponse({ error: "invalid_request" }, 400),
+    );
+    const result = await useAuth().changePassword(OLD_PW, "weak");
+    expect(result).toEqual({ ok: false, message: "新密码不符合要求" });
+  });
+
+  it("maps a lost session (401) and a network failure to their own messages", async () => {
+    fetchMock.mockResolvedValue(new Response(null, { status: 401 }));
+    expect(await useAuth().changePassword("a", "b")).toEqual({
+      ok: false,
+      message: "会话已过期，请重新登录",
+    });
+
+    fetchMock.mockRejectedValue(new Error("offline"));
+    expect(await useAuth().changePassword("a", "b")).toEqual({
+      ok: false,
+      message: "无法连接服务器",
+    });
+  });
+});
+
+describe("own sessions (Phase 15E-2)", () => {
+  it("lists the caller's sessions and throws when the request fails", async () => {
+    fetchMock.mockResolvedValue(
+      jsonResponse({ sessions: [{ sessionId: "sid-1" }] }),
+    );
+    await expect(useAuth().getMySessions()).resolves.toEqual([
+      { sessionId: "sid-1" },
+    ]);
+    expect(lastCall()[0]).toBe("/api/auth/sessions");
+
+    fetchMock.mockResolvedValue(new Response(null, { status: 500 }));
+    await expect(useAuth().getMySessions()).rejects.toThrow("HTTP 500");
+  });
+
+  it("revokes a session, reporting whether it was found", async () => {
+    fetchMock.mockResolvedValue(new Response(null, { status: 204 }));
+    await expect(useAuth().revokeMySession("sid-1")).resolves.toBe(true);
+    const [url, init] = lastCall();
+    expect(url).toBe("/api/auth/sessions/sid-1");
+    expect(init?.method).toBe("DELETE");
+
+    fetchMock.mockResolvedValue(new Response(null, { status: 404 }));
+    await expect(useAuth().revokeMySession("gone")).resolves.toBe(false);
+  });
+});

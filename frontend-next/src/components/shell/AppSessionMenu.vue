@@ -33,6 +33,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "reka-ui";
+import { RouterLink } from "vue-router";
 import UiSoundIcon from "@/components/ui/UiSoundIcon.vue";
 import type { PublicUser, UserRole } from "@navfleet/shared";
 import { useTheme, type ThemePreference } from "@/composables/useTheme";
@@ -265,6 +266,18 @@ const onThemeChange = (value: unknown): void => {
         </DropdownMenuRadioGroup>
 
         <DropdownMenuSeparator class="my-1 h-px bg-border" />
+        <!--
+          个人中心 is navigation (改密码 / 本人会话), so it renders as a real RouterLink via
+          `as-child` — ⌘-click and "copy link address" keep working, unlike a `@select` handler.
+        -->
+        <DropdownMenuItem as-child>
+          <RouterLink
+            to="/profile"
+            class="flex cursor-default rounded-sm px-2 py-1.5 text-sm text-ink-muted no-underline select-none data-[highlighted]:bg-surface-sunken data-[highlighted]:text-ink"
+          >
+            个人中心
+          </RouterLink>
+        </DropdownMenuItem>
         <DropdownMenuItem
           class="cursor-default rounded-sm px-2 py-1.5 text-sm text-ink-muted select-none data-[highlighted]:bg-critical-wash data-[highlighted]:text-critical-ink"
           @select="emit('logout')"
