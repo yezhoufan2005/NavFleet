@@ -116,7 +116,10 @@ export type AuditAction =
   // Session management (Phase 15E).
   | "session_revoke"
   | "force_logout"
-  | "account_locked";
+  | "account_locked"
+  // Alert acknowledgement (Phase 16A).
+  | "alert_ack"
+  | "alert_unack";
 
 /** One row of the `audit_log` collection. `ts` is a BSON Date so the TTL index can expire it. */
 export interface AuditEntry {

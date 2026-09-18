@@ -688,6 +688,26 @@ export class DashboardStore extends EventEmitter {
     this.emit("event", event);
   }
 
+  /**
+   * Fan out an acknowledgement to every connected client (Phase 16A). Unlike the
+   * fleet/device/alert events above, this is not derived from a telemetry delta — it is
+   * driven by the ack route after it has written to persistence — so it gets its own entry
+   * point rather than going through `emitChangeEvents`. The `wsBridge` already forwards
+   * anything the store emits as `"event"`.
+   */
+  broadcastAlertAck(payload: {
+    deviceId: string;
+    alertId: string;
+    ackedBy: string;
+    ackedAt: string;
+  }): void {
+    this.broadcast({ type: "alert.acked", payload });
+  }
+
+  broadcastAlertUnack(payload: { deviceId: string; alertId: string }): void {
+    this.broadcast({ type: "alert.unacked", payload });
+  }
+
   snapshot(): FleetSnapshot {
     const devices = [...this.devices.values()];
     return buildFleetSnapshot(

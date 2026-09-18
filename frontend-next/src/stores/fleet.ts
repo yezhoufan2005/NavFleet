@@ -156,6 +156,73 @@ export const useFleetStore = defineStore("fleet", () => {
     },
   });
 
+  /**
+   * Server-backed acknowledgement overlay (Phase 16A), keyed by eventKey (`deviceId:alertId`).
+   *
+   * Confirmation used to live in browser localStorage, so it did not survive a different
+   * device, a different operator, or a cleared cache, and could not be audited. It now lives
+   * on the `alerts` collection; this map is the console's live view of it — seeded once from
+   * `GET /alerts?status=active` on bootstrap and kept current by `alert.acked`/`alert.unacked`
+   * WS events, so every open console agrees on what is confirmed and by whom, across users.
+   *
+   * A reactive Map (not a plain object) so `useAlertAck`'s reads track individual keys.
+   */
+  interface AckEntry {
+    ackedBy: string;
+    ackedAt: string;
+    comment: string | null;
+  }
+  const ackState = reactive(new Map<string, AckEntry>());
+  const ackEventKey = (deviceId: string, alertId: string): string =>
+    `${deviceId}:${alertId}`;
+  const isAlertAcked = (deviceId: string, alertId: string): boolean =>
+    ackState.has(ackEventKey(deviceId, alertId));
+  const getAck = (deviceId: string, alertId: string): AckEntry | null =>
+    ackState.get(ackEventKey(deviceId, alertId)) ?? null;
+  const applyAck = (eventKey: string, entry: AckEntry): void => {
+    ackState.set(eventKey, entry);
+  };
+  const applyUnack = (eventKey: string): void => {
+    ackState.delete(eventKey);
+  };
+
+  let ackSeedInFlight = false;
+  /**
+   * Reload the acknowledgement overlay from the backend. Called from the alerts view on mount
+   * (the one place the overlay is displayed) so a confirmation made while this console was
+   * disconnected — or by another operator — is picked up; between reads the WS
+   * `alert.acked`/`alert.unacked` events keep it current. A failure is swallowed: a missing
+   * overlay must not blank the page, and the live stream will still deliver new changes.
+   */
+  const seedAckState = async (): Promise<void> => {
+    if (ackSeedInFlight) return;
+    ackSeedInFlight = true;
+    try {
+      const { items } = await fleetApi.getAlerts({ status: "active" });
+      const next = new Map<string, AckEntry>();
+      for (const item of items) {
+        const eventKey =
+          item.eventKey ??
+          (item.deviceId && item.alertId
+            ? ackEventKey(item.deviceId, item.alertId)
+            : null);
+        if (eventKey && item.ackedBy && item.ackedAt) {
+          next.set(eventKey, {
+            ackedBy: item.ackedBy,
+            ackedAt: item.ackedAt,
+            comment: item.comment ?? null,
+          });
+        }
+      }
+      ackState.clear();
+      for (const [key, entry] of next) ackState.set(key, entry);
+    } catch {
+      // Keep whatever overlay we have; the WS stream will still deliver new changes.
+    } finally {
+      ackSeedInFlight = false;
+    }
+  };
+
   const getSceneDefinition = (
     sceneId: string,
   ): SceneDefinitionRecord | null => {
@@ -635,6 +702,34 @@ export const useFleetStore = defineStore("fleet", () => {
       typeof frame.deviceId === "string" ? frame.deviceId : undefined;
     if (!deviceId) return;
 
+    // Acknowledgement events (Phase 16A) carry no `alert` object and never toast — they
+    // only reconcile the ack overlay so every open console reflects who confirmed what,
+    // the moment any operator (here or elsewhere) does it.
+    if (type === "alert.acked" || type === "alert.unacked") {
+      const ack = payload as {
+        alertId?: unknown;
+        ackedBy?: unknown;
+        ackedAt?: unknown;
+      };
+      if (typeof ack.alertId !== "string") return;
+      const eventKey = ackEventKey(deviceId, ack.alertId);
+      if (type === "alert.acked") {
+        if (
+          typeof ack.ackedBy === "string" &&
+          typeof ack.ackedAt === "string"
+        ) {
+          applyAck(eventKey, {
+            ackedBy: ack.ackedBy,
+            ackedAt: ack.ackedAt,
+            comment: null,
+          });
+        }
+      } else {
+        applyUnack(eventKey);
+      }
+      return;
+    }
+
     if (type === "device.offline") {
       announcedOffline.add(deviceId);
       if (!admitTransitionToast()) return;
@@ -954,6 +1049,14 @@ export const useFleetStore = defineStore("fleet", () => {
     summary,
     groupedAlerts,
     trailsByDeviceId,
+    // Acknowledgement overlay (Phase 16A). `useAlertAck` reads `isAlertAcked`/`getAck` and
+    // drives optimistic updates through `applyAck`/`applyUnack`; the alerts view seeds it once
+    // on mount via `seedAckState`. The map itself stays internal — never poked from outside.
+    isAlertAcked,
+    getAck,
+    applyAck,
+    applyUnack,
+    seedAckState,
     bootstrapPending,
     connection,
     getSceneDefinition,

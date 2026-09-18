@@ -1,105 +1,186 @@
-import { reactive } from "vue";
+import { fleetApi } from "@navfleet/fleet-core";
+import { useFleetStore } from "@/stores/fleet";
+import { useAuth } from "@/composables/useAuth";
+import { notify } from "@/composables/useNotifications";
 
 /**
- * Client-side alert acknowledgement.
+ * Alert acknowledgement — server-backed since Phase 16A.
  *
- * Alerts are derived from live telemetry, so there is nothing on the backend to
- * "clear" — an alert disappears when the condition behind it does. What an operator
- * still needs is to mark one as *seen*, so acknowledgement is tracked by the alert's
- * stable id and persisted per browser.
+ * Confirmation used to live in this composable's own `localStorage` set of bare alert ids,
+ * so it did not survive a different device, a different operator, or a cleared cache, and
+ * carried no who and no when. It now lives on the `alerts` collection: this layer is the thin
+ * action surface over `POST /api/alerts/(un)ack`, and the *state* it reads is the fleet
+ * store's `ackState` overlay (seeded from the backend, kept live by WS), so every open console
+ * agrees on what is confirmed and by whom.
  *
- * **This is knowingly the wrong place for it, and the page says so out loud.**
- * Acknowledgements never reach the database, carry no who and no when, and the next
- * person on shift sees none of them. `/api/v1/alerts` — which would fix half of
- * that — already exists and has never been called. Both are Phase 16 work; porting
- * the local behaviour first is what lets the console reach parity without pretending
- * the limitation is not there.
+ * Identity moved from a bare `alert.id` to `(deviceId, id)` — the eventKey the backend keys on
+ * — because a code can be active on more than one vehicle at once. Callers already have both.
  *
- * ## Two exports were removed rather than wired up (13T-C)
- *
- * `acknowledgedCount` and `clearAll` were both dead here, and 13T-C was meant to give
- * them the UI v1.0.0 had for them. Neither turned out to be the right shape:
- *
- * - `acknowledgedCount` counted the **whole stored set**, which keeps ids for alerts that
- *   have since cleared. It drifts upward forever, so a page showing three rows could have
- *   reported "12 已确认". 告警 counts the acknowledged alerts *currently in the fleet*
- *   instead — which is also what v1.0.0's own local computed did.
- * - `clearAll` emptied that same whole set, i.e. more than the 清除已确认 button claims.
- *   The page clears the ids it can see, so the undo can put back exactly those.
- *
- * Deleting them was the honest outcome: keeping a dead export because a checklist named it
- * is how the "declared but never consumed" pattern got into the codebase in the first
- * place.
+ * Acknowledging is an operator+ capability; the button is hidden from viewers in the view, and
+ * the backend enforces it regardless. Writes are optimistic (the overlay updates immediately,
+ * then the authoritative `alert.acked` broadcast confirms it) and roll back on failure.
  */
+export interface AlertRef {
+  deviceId: string;
+  id: string;
+}
+
 const STORAGE_KEY = "navfleet:acked-alerts";
+export const ALERT_ACK_STORAGE_KEY = STORAGE_KEY;
 
-const load = (): string[] => {
-  try {
-    const raw = localStorage.getItem(STORAGE_KEY);
-    const parsed: unknown = raw ? JSON.parse(raw) : [];
-    return Array.isArray(parsed) ? parsed.map(String) : [];
-  } catch {
-    // Private mode can throw on access alone.
-    return [];
-  }
-};
+/** Module-level: the one-time localStorage migration runs at most once per page load. */
+let legacyMigrationDone = false;
 
-/** Module singleton: every view has to share one acknowledgement set. */
-const state = reactive({ ids: new Set<string>(load()) });
-
-const persist = (): void => {
-  try {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify([...state.ids]));
-  } catch {
-    // Storage blocked; the acknowledgement still holds for this session.
-  }
+/** Backend error code → operator-facing message. Codes come from `fleetApi.failureError`. */
+const ackErrorMessage = (error: unknown): string => {
+  const code = error instanceof Error ? error.message : "";
+  if (code === "forbidden") return "没有确认告警的权限";
+  if (code === "not_found") return "该告警已不在活跃状态，无法确认";
+  return "操作失败，请稍后重试";
 };
 
 export const useAlertAck = () => {
-  const acknowledge = (id: string): void => {
-    if (!id) return;
-    state.ids.add(id);
-    persist();
+  const fleet = useFleetStore();
+  const auth = useAuth();
+
+  const eventKey = (deviceId: string, id: string): string =>
+    `${deviceId}:${id}`;
+
+  /** Optimistic overlay entry using the current user as best-effort actor; the WS broadcast
+   *  that follows carries the authoritative `ackedBy`/`ackedAt` and overwrites it. */
+  const optimisticEntry = (comment: string | null) => ({
+    ackedBy: auth.state.user?.username ?? "",
+    ackedAt: new Date().toISOString(),
+    comment,
+  });
+
+  const isAcknowledged = (deviceId: string, id: string): boolean =>
+    fleet.isAlertAcked(deviceId, id);
+
+  /** Who confirmed a still-active alert, for display next to the row. */
+  const acknowledgedBy = (deviceId: string, id: string): string | null =>
+    fleet.getAck(deviceId, id)?.ackedBy ?? null;
+
+  const acknowledge = async (
+    deviceId: string,
+    id: string,
+    comment?: string,
+  ): Promise<boolean> => {
+    if (!deviceId || !id || fleet.isAlertAcked(deviceId, id)) return false;
+    const key = eventKey(deviceId, id);
+    fleet.applyAck(key, optimisticEntry(comment ?? null));
+    try {
+      // Call without the third argument when there is no comment, so the request body carries
+      // no empty `comment` field (and call sites without one assert a clean two-arg call).
+      await (comment === undefined
+        ? fleetApi.ackAlert(deviceId, id)
+        : fleetApi.ackAlert(deviceId, id, comment));
+      return true;
+    } catch (error) {
+      fleet.applyUnack(key);
+      notify(ackErrorMessage(error), { type: "error" });
+      return false;
+    }
   };
 
-  const unacknowledge = (id: string): void => {
-    if (!id) return;
-    state.ids.delete(id);
-    persist();
+  const unacknowledge = async (
+    deviceId: string,
+    id: string,
+  ): Promise<boolean> => {
+    if (!deviceId || !id || !fleet.isAlertAcked(deviceId, id)) return false;
+    const key = eventKey(deviceId, id);
+    const previous = fleet.getAck(deviceId, id);
+    fleet.applyUnack(key);
+    try {
+      await fleetApi.unackAlert(deviceId, id);
+      return true;
+    } catch (error) {
+      if (previous) fleet.applyAck(key, previous);
+      notify(ackErrorMessage(error), { type: "error" });
+      return false;
+    }
   };
 
-  /** Returns the ids it actually changed, so a caller can offer an undo. */
-  const acknowledgeMany = (ids: readonly string[]): string[] => {
-    const changed = ids.filter((id) => id && !state.ids.has(id));
-    changed.forEach((id) => state.ids.add(id));
-    if (changed.length) persist();
-    return changed;
+  /** Acknowledge a set, returning the refs that actually changed so a caller can offer undo. */
+  const acknowledgeMany = async (
+    refs: readonly AlertRef[],
+  ): Promise<AlertRef[]> => {
+    const results = await Promise.all(
+      refs.map(async (ref) =>
+        (await acknowledge(ref.deviceId, ref.id)) ? ref : null,
+      ),
+    );
+    return results.filter((ref): ref is AlertRef => ref !== null);
+  };
+
+  const unacknowledgeMany = async (
+    refs: readonly AlertRef[],
+  ): Promise<AlertRef[]> => {
+    const results = await Promise.all(
+      refs.map(async (ref) =>
+        (await unacknowledge(ref.deviceId, ref.id)) ? ref : null,
+      ),
+    );
+    return results.filter((ref): ref is AlertRef => ref !== null);
   };
 
   /**
-   * Returns the ids it actually changed, symmetrically with `acknowledgeMany` — the undo
-   * on 清除已确认 needs to restore exactly those and nothing else. It also means a call
-   * with nothing to do no longer writes to storage.
+   * One-time migration off the old per-browser store (Phase 16A): take the bare ids this
+   * browser had acknowledged, keep the ones still matching an active alert, push each to the
+   * backend, then drop the localStorage key for good. Callable only where the caller is
+   * operator+ (the view guards this); the backend would 403 an unprivileged migration and the
+   * key would be left in place for a later privileged session to pick up.
    */
-  const unacknowledgeMany = (ids: readonly string[]): string[] => {
-    const changed = ids.filter((id) => id && state.ids.has(id));
-    changed.forEach((id) => state.ids.delete(id));
-    if (changed.length) persist();
-    return changed;
+  const migrateLegacyAcks = async (
+    activeRefs: readonly AlertRef[],
+  ): Promise<void> => {
+    if (legacyMigrationDone) return;
+    legacyMigrationDone = true;
+
+    let legacyIds: string[];
+    try {
+      const raw = localStorage.getItem(STORAGE_KEY);
+      const parsed: unknown = raw ? JSON.parse(raw) : [];
+      legacyIds = Array.isArray(parsed) ? parsed.map(String) : [];
+    } catch {
+      // Private mode can throw on read alone; nothing to migrate then.
+      return;
+    }
+    if (!legacyIds.length) {
+      try {
+        localStorage.removeItem(STORAGE_KEY);
+      } catch {
+        /* ignore */
+      }
+      return;
+    }
+
+    const legacy = new Set(legacyIds);
+    const targets = activeRefs.filter(
+      (ref) => legacy.has(ref.id) && !fleet.isAlertAcked(ref.deviceId, ref.id),
+    );
+    await Promise.allSettled(
+      targets.map((ref) => acknowledge(ref.deviceId, ref.id)),
+    );
+    try {
+      localStorage.removeItem(STORAGE_KEY);
+    } catch {
+      /* ignore */
+    }
   };
 
   return {
-    isAcknowledged: (id: string): boolean => state.ids.has(id),
+    isAcknowledged,
+    acknowledgedBy,
     acknowledge,
     unacknowledge,
     acknowledgeMany,
     unacknowledgeMany,
+    migrateLegacyAcks,
   };
 };
 
-export const ALERT_ACK_STORAGE_KEY = STORAGE_KEY;
-
-/** Test-only: module state would otherwise leak between files. */
+/** Test-only: reset the one-time migration guard so each test starts fresh. */
 export const __resetAlertAck = (): void => {
-  state.ids = new Set<string>(load());
+  legacyMigrationDone = false;
 };

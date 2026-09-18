@@ -163,3 +163,42 @@ describe("transition events", () => {
     );
   });
 });
+
+describe("acknowledgement events (Phase 16A)", () => {
+  // These carry no `alert` object and never toast — they only reconcile the ack overlay so
+  // every open console reflects who confirmed what, the moment any operator does it.
+  it("records who acknowledged, silently", () => {
+    const store = useFleetStore();
+    send("alert.acked", {
+      deviceId: "agv-a01",
+      alertId: "err-1",
+      ackedBy: "operator-b",
+      ackedAt: "2026-01-01T00:00:00.000Z",
+    });
+
+    expect(store.isAlertAcked("agv-a01", "err-1")).toBe(true);
+    expect(store.getAck("agv-a01", "err-1")?.ackedBy).toBe("operator-b");
+    // Reconciliation is not a transition, so it says nothing.
+    expect(messages()).toEqual([]);
+  });
+
+  it("removes the acknowledgement when one is undone elsewhere", () => {
+    const store = useFleetStore();
+    send("alert.acked", {
+      deviceId: "agv-a01",
+      alertId: "err-1",
+      ackedBy: "operator-b",
+      ackedAt: "2026-01-01T00:00:00.000Z",
+    });
+    expect(store.isAlertAcked("agv-a01", "err-1")).toBe(true);
+
+    send("alert.unacked", { deviceId: "agv-a01", alertId: "err-1" });
+    expect(store.isAlertAcked("agv-a01", "err-1")).toBe(false);
+  });
+
+  it("ignores an acknowledgement frame with no alert id", () => {
+    const store = useFleetStore();
+    send("alert.acked", { deviceId: "agv-a01", ackedBy: "x", ackedAt: "y" });
+    expect(store.isAlertAcked("agv-a01", "err-1")).toBe(false);
+  });
+});

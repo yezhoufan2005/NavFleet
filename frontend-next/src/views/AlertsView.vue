@@ -16,17 +16,18 @@
  * - **A row reaches the vehicle.** Diagnosing an alert used to mean reading the
  *   device id and going to find it.
  *
- * The honest limitation is stated on the page, not buried here: acknowledgements are
- * per-browser. They do not reach the database, carry no who and no when, and the next
- * person on shift sees none of them. Saying so is the difference between a known
- * limitation and a silent one.
+ * Acknowledgement is server-backed since Phase 16A: it reaches the database, records who
+ * confirmed each occurrence and when, syncs across every open console over WS, and is an
+ * operator+ capability — so the confirm control is hidden from viewers. A re-fired alert
+ * comes back unacknowledged, because the confirmation was of one occurrence, not the code.
  */
-import { computed, watch } from "vue";
+import { computed, onMounted, watch } from "vue";
 import { RouterLink, useRoute, useRouter } from "vue-router";
 import PageHeader from "@/components/PageHeader.vue";
 import UiSelect from "@/components/ui/UiSelect.vue";
 import { useFleetStore } from "@/stores/fleet";
 import { useAlertAck } from "@/composables/useAlertAck";
+import { useAuth } from "@/composables/useAuth";
 import { useDebouncedText } from "@/composables/useDebouncedText";
 import { useNotifications } from "@/composables/useNotifications";
 import { formatDateTime } from "@navfleet/fleet-core";
@@ -84,7 +85,18 @@ const route = useRoute();
 const router = useRouter();
 const fleet = useFleetStore();
 const ack = useAlertAck();
+const auth = useAuth();
 const { notify } = useNotifications();
+
+/**
+ * Acknowledging is operator+ (Phase 16A) — the first capability that separates operator from
+ * viewer. Viewers still read the list and see who confirmed what; they just cannot confirm, so
+ * every mutating control is hidden from them (the backend enforces it regardless).
+ */
+const canAck = computed(() => {
+  const role = auth.state.user?.role;
+  return role === "operator" || role === "admin";
+});
 
 /**
  * Filters read from the URL and written back to it.
@@ -192,7 +204,8 @@ const filtered = computed(() => {
       return false;
     if (deviceFilter.value && alert.deviceId !== deviceFilter.value)
       return false;
-    if (!showAcknowledged.value && ack.isAcknowledged(alert.id)) return false;
+    if (!showAcknowledged.value && ack.isAcknowledged(alert.deviceId, alert.id))
+      return false;
     if (!keyword) return true;
     return [
       alert.title,
@@ -236,55 +249,58 @@ watch(pageCount, (count) => {
  */
 const unacknowledgedFiltered = computed(() =>
   filtered.value
-    .filter((alert) => !ack.isAcknowledged(alert.id))
-    .map((alert) => alert.id),
+    .filter((alert) => !ack.isAcknowledged(alert.deviceId, alert.id))
+    .map((alert) => ({ deviceId: alert.deviceId, id: alert.id })),
 );
 
 /**
  * Acknowledging in bulk offers an undo, because it is the one action here that is both
  * easy to trigger by accident and tedious to reverse by hand. That matters more now that
  * the button reaches past the page — the undo is what makes the wider scope safe rather
- * than alarming.
+ * than alarming. Each call is a backend write; `acknowledgeMany` returns only the refs that
+ * actually landed, so the undo restores exactly those.
  */
-const acknowledgeFiltered = (): void => {
-  const changed = ack.acknowledgeMany(unacknowledgedFiltered.value);
+const acknowledgeFiltered = async (): Promise<void> => {
+  const changed = await ack.acknowledgeMany(unacknowledgedFiltered.value);
   if (!changed.length) return;
   notify(`已确认 ${changed.length} 条告警`, {
     type: "success",
-    action: { label: "撤销", handler: () => ack.unacknowledgeMany(changed) },
+    action: {
+      label: "撤销",
+      handler: () => void ack.unacknowledgeMany(changed),
+    },
   });
 };
 
 /**
  * How many of the alerts currently in the fleet are acknowledged.
  *
- * Deliberately **not** `ack.acknowledgedCount`, which counts the whole stored set: that
- * includes ids for alerts that have since cleared, so it drifts upward forever and would
- * report "12 acknowledged" on a page showing three rows. v1.0.0 made the same choice
+ * Deliberately **not** a stored count that would include ids for alerts that have since
+ * cleared: this counts the acknowledged alerts currently in the fleet, so it cannot drift
+ * upward past what the page can show. v1.0.0 made the same choice
  * (`frontend/src/views/AlertsView.vue:52-54`).
  */
 const acknowledgedPresent = computed(
-  () => allAlerts.value.filter((alert) => ack.isAcknowledged(alert.id)).length,
+  () =>
+    allAlerts.value.filter((alert) =>
+      ack.isAcknowledged(alert.deviceId, alert.id),
+    ).length,
 );
 
 /**
- * Clears the acknowledgement of every alert currently in the fleet.
- *
- * `clearAll` would also drop ids belonging to alerts that are no longer present, which
- * is a different and larger action than the button says. The admin page's "clear local
- * data" is not an equivalent either — it takes theme, sidebar, map mode and sound
- * preferences with it.
+ * Clears the acknowledgement of every alert currently in the fleet. Symmetric with the bulk
+ * confirm: it only touches alerts the page can see, so the undo can put back exactly those.
  */
-const clearAcknowledged = (): void => {
-  const cleared = ack.unacknowledgeMany(
+const clearAcknowledged = async (): Promise<void> => {
+  const cleared = await ack.unacknowledgeMany(
     allAlerts.value
-      .filter((alert) => ack.isAcknowledged(alert.id))
-      .map((a) => a.id),
+      .filter((alert) => ack.isAcknowledged(alert.deviceId, alert.id))
+      .map((alert) => ({ deviceId: alert.deviceId, id: alert.id })),
   );
   if (!cleared.length) return;
   notify(`已取消确认 ${cleared.length} 条告警`, {
     type: "info",
-    action: { label: "撤销", handler: () => ack.acknowledgeMany(cleared) },
+    action: { label: "撤销", handler: () => void ack.acknowledgeMany(cleared) },
   });
 };
 
@@ -303,6 +319,34 @@ const {
   () => search.value,
   (value) => setFilter({ q: value || null }),
 );
+
+/**
+ * One-time migration of this browser's old localStorage acknowledgements (Phase 16A): once
+ * the backend is reachable and the caller can actually confirm, push the still-active ones up
+ * and drop the local key. Guarded to operator+ because the ack endpoint is — a viewer running
+ * it would 403 every row and the key would be left for a later privileged session. The
+ * composable itself only runs the body once per page load.
+ */
+const runLegacyMigration = (): void => {
+  if (!canAck.value || !fleet.state.realtime.apiReady) return;
+  void ack.migrateLegacyAcks(
+    allAlerts.value.map((alert) => ({
+      deviceId: alert.deviceId,
+      id: alert.id,
+    })),
+  );
+};
+
+// Seed the acknowledgement overlay from the backend once, when the page that displays it opens
+// (Phase 16A). Any role may read it — who-confirmed-what is shown to viewers too; only the
+// confirm action is operator+. Between reads the WS stream keeps it live, so this is the only
+// place a read is needed. Kept out of the global bootstrap so pages that never show alerts do
+// not issue the request.
+onMounted(() => {
+  void fleet.seedAckState();
+  runLegacyMigration();
+});
+watch(() => canAck.value && fleet.state.realtime.apiReady, runLegacyMigration);
 </script>
 
 <template>
@@ -315,7 +359,7 @@ const {
         action into four rounds of pagination.
       -->
       <button
-        v-if="unacknowledgedFiltered.length"
+        v-if="canAck && unacknowledgedFiltered.length"
         type="button"
         class="rounded-sm border border-border-strong bg-surface-raised px-2.5 py-1 text-xs text-ink-muted transition-colors duration-150 ease-standard hover:text-ink"
         @click="acknowledgeFiltered"
@@ -327,7 +371,7 @@ const {
            and the port dropped. The admin page's 清除本地数据 is not an equivalent: it
            takes theme, sidebar, map mode and sound preferences with it. -->
       <button
-        v-if="acknowledgedPresent"
+        v-if="canAck && acknowledgedPresent"
         type="button"
         class="rounded-sm border border-border-strong bg-surface-raised px-2.5 py-1 text-xs text-ink-muted transition-colors duration-150 ease-standard hover:text-ink"
         @click="clearAcknowledged"
@@ -335,18 +379,6 @@ const {
         清除已确认 {{ acknowledgedPresent }} 条
       </button>
     </template>
-
-    <!--
-      Trimmed rather than deleted (14E). Acceptance asked whether this could go, and the
-      answer is half: the *fact* has to stay, because an operator who acknowledges twenty
-      rows and then hears a colleague say they see none of them acknowledged has been
-      misled by a silence. What went is the half that was written for us — "不入库、不记录
-      操作人与时间" restates the same thing in implementation terms, and "落库与历史留到
-      Phase 16" is a roadmap note on a page an operator opens every shift.
-    -->
-    <p class="text-xs text-ink-muted">
-      确认状态只保存在本浏览器，换台机器或换个人都看不到
-    </p>
 
     <div class="flex flex-wrap items-end gap-3">
       <div
@@ -470,7 +502,9 @@ const {
         :key="alert.id"
         class="alert-row flex flex-col gap-2 rounded-md border border-border bg-surface-raised p-3 sm:flex-row sm:items-start"
         :data-severity="alert.severity"
-        :data-acknowledged="ack.isAcknowledged(alert.id) ? 'true' : undefined"
+        :data-acknowledged="
+          ack.isAcknowledged(alert.deviceId, alert.id) ? 'true' : undefined
+        "
       >
         <span
           class="shrink-0 rounded-xs px-2 py-0.5 font-mono text-2xs"
@@ -503,6 +537,13 @@ const {
                  nothing until now; it decides whether the vehicle or the platform is the
                  thing to go look at. -->
             <span>{{ SOURCE_LABELS[alert.source] || alert.source }}</span>
+            <!-- Who confirmed it (Phase 16A). Server-backed, so it is the same name on
+                 every console — the point of moving acknowledgement off localStorage. -->
+            <span
+              v-if="ack.acknowledgedBy(alert.deviceId, alert.id)"
+              class="text-brand-ink"
+              >已确认 · {{ ack.acknowledgedBy(alert.deviceId, alert.id) }}</span
+            >
           </span>
         </div>
 
@@ -515,22 +556,23 @@ const {
              darkens its wash instead, because that one already carries a brand fill and a
              second fill on top would read as a different state rather than a hover. -->
         <button
+          v-if="canAck"
           type="button"
           class="shrink-0 rounded-sm border px-2.5 py-1 text-xs transition-colors duration-150 ease-standard"
           :class="
-            ack.isAcknowledged(alert.id)
+            ack.isAcknowledged(alert.deviceId, alert.id)
               ? 'border-brand bg-brand-wash text-brand-ink hover:bg-surface-sunken'
               : 'border-border-strong bg-surface text-ink-muted hover:border-brand hover:bg-brand-wash hover:text-brand-ink'
           "
-          :aria-pressed="ack.isAcknowledged(alert.id)"
+          :aria-pressed="ack.isAcknowledged(alert.deviceId, alert.id)"
           :aria-label="`确认告警：${alert.title}`"
           @click="
-            ack.isAcknowledged(alert.id)
-              ? ack.unacknowledge(alert.id)
-              : ack.acknowledge(alert.id)
+            ack.isAcknowledged(alert.deviceId, alert.id)
+              ? ack.unacknowledge(alert.deviceId, alert.id)
+              : ack.acknowledge(alert.deviceId, alert.id)
           "
         >
-          {{ ack.isAcknowledged(alert.id) ? "已确认" : "确认" }}
+          {{ ack.isAcknowledged(alert.deviceId, alert.id) ? "已确认" : "确认" }}
         </button>
       </li>
     </ul>
