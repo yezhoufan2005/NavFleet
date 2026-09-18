@@ -49,7 +49,7 @@ describe("GET /api/audit — admin only", () => {
 describe("audit emit points", () => {
   it("records a successful login and a failed login", async () => {
     const context = createTestApp();
-    context.authService.authenticate.mockResolvedValueOnce(adminUser());
+    context.authService.authenticate.mockResolvedValueOnce({ ok: true, user: adminUser() });
     await request(context.app)
       .post("/api/auth/login")
       .send({ username: "admin", password: PASSWORD });
@@ -57,7 +57,7 @@ describe("audit emit points", () => {
       expect.objectContaining({ actor: "admin", action: "login" }),
     );
 
-    context.authService.authenticate.mockResolvedValueOnce(null);
+    context.authService.authenticate.mockResolvedValueOnce({ ok: false, lockedJustNow: false });
     await request(context.app).post("/api/auth/login").send({ username: "mallory", password: "x" });
     expect(context.auditService.record).toHaveBeenCalledWith(
       expect.objectContaining({ actor: "mallory", action: "login_failed", outcome: "failure" }),

@@ -197,6 +197,9 @@ export const auditQuerySchema = z.object({
       "user_create",
       "user_update",
       "user_delete",
+      "session_revoke",
+      "force_logout",
+      "account_locked",
     ])
     .optional(),
   from: timestampString.optional(),

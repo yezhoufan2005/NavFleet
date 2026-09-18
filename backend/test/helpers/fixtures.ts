@@ -115,6 +115,8 @@ export const adminUser = (): UserRecord => ({
   phone: null,
   lastLoginAt: null,
   passwordUpdatedAt: UPDATED_AT,
+  failedAttempts: 0,
+  lockedUntil: null,
 });
 
 /** A minimal Lanelet2 OSM document: 4 nodes, 2 ways, 1 lanelet relation. */

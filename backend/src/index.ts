@@ -36,8 +36,12 @@ const app = createApp({
 });
 
 const server = http.createServer(app);
-const wsBridge = createWebSocketBridge(server, store, config, (username) =>
-  authService.findByUsername(username),
+const wsBridge = createWebSocketBridge(
+  server,
+  store,
+  config,
+  (username) => authService.findByUsername(username),
+  (username, sessionId) => authService.isSessionActive(username, sessionId),
 );
 wsClientCount = wsBridge.clientCount;
 

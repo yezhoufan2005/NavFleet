@@ -193,6 +193,13 @@ const configSchema = z.object({
   // because a test suite that logs in per case has no way to raise a constant.
   AUTH_RATE_LIMIT_WINDOW_MS: envInt(15 * 60_000, 1_000),
   AUTH_RATE_LIMIT_MAX: envInt(50, 1),
+  // Account-level login lockout (Phase 15E), orthogonal to the per-IP AUTH_RATE_LIMIT above:
+  // after this many consecutive failures a single account is locked for AUTH_LOCK_WINDOW_MS,
+  // which stops it being brute-forced from a rotating set of source addresses (the per-IP
+  // limiter only bounds one address). The window is long enough to make guessing impractical
+  // and short enough that a genuine typo-locked operator recovers without a support ticket.
+  AUTH_LOCK_THRESHOLD: envInt(5, 1),
+  AUTH_LOCK_WINDOW_MS: envInt(15 * 60_000, 1_000),
 });
 
 /**
@@ -243,6 +250,8 @@ export const parseConfig = (env: NodeJS.ProcessEnv) => {
     rateLimitMax: e.RATE_LIMIT_MAX,
     authRateLimitWindowMs: e.AUTH_RATE_LIMIT_WINDOW_MS,
     authRateLimitMax: e.AUTH_RATE_LIMIT_MAX,
+    authLockThreshold: e.AUTH_LOCK_THRESHOLD,
+    authLockWindowMs: e.AUTH_LOCK_WINDOW_MS,
   };
 };
 

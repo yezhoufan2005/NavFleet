@@ -6,6 +6,8 @@ import { verifyToken } from "./tokens";
 declare module "express-serve-static-core" {
   interface Request {
     user?: PublicUser;
+    /** The `sid` of the token that authenticated this request (Phase 15E), when it carried one. */
+    sessionId?: string;
   }
 }
 
@@ -14,6 +16,13 @@ export const REFRESH_COOKIE = "refresh_token";
 
 /** Look up the stored user, so the middleware can check `enabled` and `tokenVersion`. */
 export type UserLookup = (username: string) => Promise<UserRecord | null>;
+
+/**
+ * Is this session still live? (Phase 15E.) Answered against the `sessions` collection; a
+ * revoked session (logout / self-revoke / force-logout) returns false, which 401s the request
+ * even though the token's signature, `enabled` and `tokenVersion` all still check out.
+ */
+export type SessionCheck = (username: string, sessionId: string) => Promise<boolean>;
 
 const extractAccessToken = (request: Request): string => {
   const cookieToken = (request.cookies as Record<string, string> | undefined)?.[ACCESS_COOKIE];
@@ -38,9 +47,13 @@ const extractAccessToken = (request: Request): string => {
  *
  * When AUTH_ENABLED=false, a synthetic admin is attached and no lookup happens (fully open
  * mode for local/dev — deliberately preserved).
+ *
+ * `isSessionActive` adds the Phase 15E per-session check: when the token names a session
+ * (`sid`), that session must still exist. A token with no `sid` (minted before 15E) is
+ * governed by `tokenVersion` alone, unchanged — so the upgrade forces no re-login.
  */
 export const createAuthenticate =
-  (lookupUser: UserLookup) =>
+  (lookupUser: UserLookup, isSessionActive?: SessionCheck) =>
   (request: Request, response: Response, next: NextFunction): void => {
     if (!config.authEnabled) {
       request.user = { username: "anonymous", role: "admin" };
@@ -56,16 +69,21 @@ export const createAuthenticate =
     }
 
     lookupUser(claims.sub)
-      .then((user) => {
+      .then(async (user) => {
         if (!user || !user.enabled || user.tokenVersion !== claims.ver) {
+          response.status(401).json({ error: "unauthorized" });
+          return;
+        }
+        // Per-session revocation (Phase 15E): a token that names a session must still name a
+        // live one. Only checked when the token carries a `sid` and a checker is wired.
+        if (claims.sid && isSessionActive && !(await isSessionActive(claims.sub, claims.sid))) {
           response.status(401).json({ error: "unauthorized" });
           return;
         }
         // Role comes from the token, which we signed at login from the user's role — the
         // lookup above only gates revocation (account gone / disabled / version bumped).
-        // Making a *role change* take effect immediately is Phase 15C's concern and will bump
-        // tokenVersion; until then a role stays in force for at most one access-token TTL.
         request.user = { username: claims.sub, role: claims.role };
+        request.sessionId = claims.sid;
         next();
       })
       .catch(next);

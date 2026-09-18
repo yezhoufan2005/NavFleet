@@ -40,6 +40,7 @@ interface Recorded {
   insertOne: Array<{ collection: string; doc: unknown }>;
   findOne: Array<{ collection: string; filter: unknown; options: unknown }>;
   deleteOne: Array<{ collection: string; filter: unknown }>;
+  deleteMany: Array<{ collection: string; filter: unknown }>;
   countDocuments: Array<{ collection: string; filter: unknown }>;
 }
 
@@ -56,6 +57,7 @@ const createFakeDb = (
     insertOne: [],
     findOne: [],
     deleteOne: [],
+    deleteMany: [],
     countDocuments: [],
   };
 
@@ -105,6 +107,10 @@ const createFakeDb = (
     deleteOne: (filter: unknown) => {
       calls.deleteOne.push({ collection: name, filter });
       return Promise.resolve({ deletedCount: (rows[name] ?? []).length > 0 ? 1 : 0 });
+    },
+    deleteMany: (filter: unknown) => {
+      calls.deleteMany.push({ collection: name, filter });
+      return Promise.resolve({ deletedCount: (rows[name] ?? []).length });
     },
     countDocuments: (filter: unknown = {}) => {
       calls.countDocuments.push({ collection: name, filter });
@@ -211,6 +217,8 @@ describe("users 集合", () => {
       phone: null,
       lastLoginAt: null,
       passwordUpdatedAt: STAMP_A,
+      failedAttempts: 0,
+      lockedUntil: null,
     });
 
     const [write] = calls.updateOne;
@@ -301,6 +309,8 @@ describe("users 集合", () => {
       phone: null,
       lastLoginAt: null,
       passwordUpdatedAt: STAMP_A,
+      failedAttempts: 0,
+      lockedUntil: null,
     });
 
     expect(created).toBe(true);
@@ -582,5 +592,111 @@ describe("查询", () => {
     // 无法识别的 status 不该退化成 `active: undefined`（那会匹配不到任何行）。
     await persistence.queryAlerts({ status: "nonsense" });
     expect(calls.find[2]?.filter).toEqual({});
+  });
+});
+
+describe("登录锁定字段", () => {
+  it("setLoginFailure 一次写 failedAttempts + lockedUntil，二者不分家", async () => {
+    const { db, calls } = createFakeDb();
+    persistence.__setDbForTests(db);
+
+    await persistence.setLoginFailure("ops", 5, STAMP_B, STAMP_A);
+
+    const [write] = calls.updateOne;
+    expect(write?.filter).toEqual({ username: "ops" });
+    expect(write?.update).toEqual({
+      $set: { failedAttempts: 5, lockedUntil: STAMP_B, updatedAt: STAMP_A },
+    });
+  });
+
+  it("clearLoginFailures 归零并清空锁", async () => {
+    const { db, calls } = createFakeDb();
+    persistence.__setDbForTests(db);
+
+    await persistence.clearLoginFailures("ops", STAMP_A);
+
+    expect(calls.updateOne[0]?.update).toEqual({
+      $set: { failedAttempts: 0, lockedUntil: null, updatedAt: STAMP_A },
+    });
+  });
+});
+
+describe("sessions 集合", () => {
+  const session = () => ({
+    sessionId: "sid-1",
+    username: "ops",
+    createdAt: STAMP_A,
+    lastSeenAt: STAMP_A,
+    userAgent: "ua",
+    ip: "127.0.0.1",
+    expiresAt: new Date("2026-02-01T00:00:00.000Z"),
+  });
+
+  it("createSession 以 sessionId 为键 upsert", async () => {
+    const { db, calls } = createFakeDb();
+    persistence.__setDbForTests(db);
+
+    await persistence.createSession(session());
+
+    expect(calls.updateOne[0]).toMatchObject({
+      collection: "sessions",
+      filter: { sessionId: "sid-1" },
+      options: { upsert: true },
+    });
+  });
+
+  it("touchSession 只顺延 lastSeenAt 与 expiresAt", async () => {
+    const { db, calls } = createFakeDb();
+    persistence.__setDbForTests(db);
+
+    const nextExpiry = new Date("2026-03-01T00:00:00.000Z");
+    await persistence.touchSession("sid-1", STAMP_B, nextExpiry);
+
+    const [write] = calls.updateOne;
+    expect(write?.filter).toEqual({ sessionId: "sid-1" });
+    expect(write?.update).toEqual({ $set: { lastSeenAt: STAMP_B, expiresAt: nextExpiry } });
+  });
+
+  it("isSessionActive 按 sessionId + username 计数（别的车主的会话不算数）", async () => {
+    const { db, calls } = createFakeDb({ sessions: [{}] });
+    persistence.__setDbForTests(db);
+
+    await expect(persistence.isSessionActive("ops", "sid-1")).resolves.toBe(true);
+    expect(calls.countDocuments[0]).toEqual({
+      collection: "sessions",
+      filter: { sessionId: "sid-1", username: "ops" },
+    });
+  });
+
+  it("listSessions 投影掉 _id、按 createdAt 倒序", async () => {
+    const { db, calls } = createFakeDb({ sessions: [session()] });
+    persistence.__setDbForTests(db);
+
+    await persistence.listSessions("ops");
+
+    const [query] = calls.find;
+    expect(query?.collection).toBe("sessions");
+    expect(query?.filter).toEqual({ username: "ops" });
+    expect(query?.options).toEqual({ projection: { _id: 0 } });
+    expect(query?.sort).toEqual({ createdAt: -1 });
+  });
+
+  it("deleteSession 用 sessionId + username 双条件（只能删自己的）", async () => {
+    const { db, calls } = createFakeDb({ sessions: [session()] });
+    persistence.__setDbForTests(db);
+
+    await expect(persistence.deleteSession("ops", "sid-1")).resolves.toBe(true);
+    expect(calls.deleteOne[0]).toEqual({
+      collection: "sessions",
+      filter: { sessionId: "sid-1", username: "ops" },
+    });
+  });
+
+  it("deleteAllSessions 用 username 一把清空（强制下线 / 全设备失效）", async () => {
+    const { db, calls } = createFakeDb();
+    persistence.__setDbForTests(db);
+
+    await persistence.deleteAllSessions("ops");
+    expect(calls.deleteMany[0]).toEqual({ collection: "sessions", filter: { username: "ops" } });
   });
 });

@@ -152,6 +152,24 @@ describe("migration 列表自身", () => {
     });
   });
 
+  it("v3 只补锁定字段：过滤 failedAttempts 不存在的行，用 $ifNull 幂等 backfill", async () => {
+    const v3 = migrations.find((migration) => migration.version === 3);
+    expect(v3).toBeDefined();
+    const { db, otherUpdates } = createFakeDb();
+    await v3!.up(db);
+
+    expect(otherUpdates).toHaveLength(1);
+    const [write] = otherUpdates;
+    expect(write?.collection).toBe("users");
+    // 只碰还没迁过的行 —— 幂等的来源，与 v2 同型。
+    expect(write?.filter).toEqual({ failedAttempts: { $exists: false } });
+    const pipeline = write?.update as Array<{ $set: Record<string, unknown> }>;
+    expect(pipeline[0]?.$set).toMatchObject({
+      failedAttempts: { $ifNull: ["$failedAttempts", 0] },
+      lockedUntil: { $ifNull: ["$lockedUntil", null] },
+    });
+  });
+
   it("版本有缺口时在加载期就抛错，而不是运行时静默跳过", () => {
     expect(() =>
       assertMigrationsWellFormed([

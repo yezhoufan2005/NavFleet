@@ -1,6 +1,7 @@
 import { describe, it, expect } from "vitest";
 import { Persistence } from "../src/persistence";
 import { AuthService } from "../src/auth/service";
+import { config } from "../src/config";
 
 // Persistence never connects to Mongo here, so it uses its in-memory user
 // fallback — exercising the seed + authenticate flow without a database.
@@ -10,9 +11,9 @@ describe("AuthService (in-memory fallback)", () => {
     const service = new AuthService(persistence);
     await service.initialize();
 
-    const user = await service.authenticate("admin", "admin123");
-    expect(user).not.toBeNull();
-    expect(user?.role).toBe("admin");
+    const result = await service.authenticate("admin", "admin123");
+    expect(result.ok).toBe(true);
+    expect(result.ok && result.user.role).toBe("admin");
   });
 
   it("rejects wrong credentials and unknown users", async () => {
@@ -20,8 +21,8 @@ describe("AuthService (in-memory fallback)", () => {
     const service = new AuthService(persistence);
     await service.initialize();
 
-    expect(await service.authenticate("admin", "wrong")).toBeNull();
-    expect(await service.authenticate("ghost", "admin123")).toBeNull();
+    expect((await service.authenticate("admin", "wrong")).ok).toBe(false);
+    expect((await service.authenticate("ghost", "admin123")).ok).toBe(false);
   });
 
   it("changes password: verifies old, bumps tokenVersion, and rejects the old one after", async () => {
@@ -37,8 +38,8 @@ describe("AuthService (in-memory fallback)", () => {
     expect(updated?.passwordUpdatedAt).not.toBe(before?.passwordUpdatedAt);
 
     // Old password no longer authenticates; new one does.
-    expect(await service.authenticate("admin", "admin123")).toBeNull();
-    expect(await service.authenticate("admin", "newpass1")).not.toBeNull();
+    expect((await service.authenticate("admin", "admin123")).ok).toBe(false);
+    expect((await service.authenticate("admin", "newpass1")).ok).toBe(true);
   });
 
   it("change password with a wrong old password returns null and changes nothing", async () => {
@@ -48,16 +49,16 @@ describe("AuthService (in-memory fallback)", () => {
 
     expect(await service.changePassword("admin", "wrong", "newpass1")).toBeNull();
     // Unchanged: original password still works.
-    expect(await service.authenticate("admin", "admin123")).not.toBeNull();
+    expect((await service.authenticate("admin", "admin123")).ok).toBe(true);
   });
 
-  it("invalidateSessions bumps tokenVersion", async () => {
+  it("revokeAllSessions bumps tokenVersion (and drops session rows)", async () => {
     const persistence = new Persistence();
     const service = new AuthService(persistence);
     await service.initialize();
 
     const before = await service.findByUsername("admin");
-    await service.invalidateSessions("admin");
+    await service.revokeAllSessions("admin");
     const after = await service.findByUsername("admin");
     expect(after?.tokenVersion).toBe((before?.tokenVersion ?? 0) + 1);
   });
@@ -70,7 +71,7 @@ describe("AuthService (in-memory fallback)", () => {
     const admin = await service.findByUsername("admin");
     await persistence.upsertUser({ ...admin!, enabled: false });
 
-    expect(await service.authenticate("admin", "admin123")).toBeNull();
+    expect((await service.authenticate("admin", "admin123")).ok).toBe(false);
   });
 
   it("records the last login timestamp", async () => {
@@ -165,11 +166,79 @@ describe("AuthService — admin user management", () => {
 
     const ok = await service.resetPassword("admin", A_PASSWORD);
     expect(ok.ok).toBe(true);
-    expect(await service.authenticate("admin", A_PASSWORD)).not.toBeNull();
+    expect((await service.authenticate("admin", A_PASSWORD)).ok).toBe(true);
 
     expect(await service.resetPassword("ghost", A_PASSWORD)).toEqual({
       ok: false,
       error: "not_found",
     });
+  });
+});
+
+// Account-level login lockout (Phase 15E). Real Persistence in-memory fallback so the counter
+// and lock deadline round-trip through actual writes.
+describe("AuthService — login lockout", () => {
+  const freshService = async (): Promise<{ service: AuthService; persistence: Persistence }> => {
+    const persistence = new Persistence();
+    const service = new AuthService(persistence);
+    await service.initialize();
+    return { service, persistence };
+  };
+
+  it("locks the account after AUTH_LOCK_THRESHOLD consecutive failures", async () => {
+    const { service } = await freshService();
+    // One below the threshold: still just a bad-password failure, not a lockout.
+    for (let i = 0; i < config.authLockThreshold - 1; i += 1) {
+      expect(await service.authenticate("admin", "wrong")).toEqual({
+        ok: false,
+        lockedJustNow: false,
+      });
+    }
+    // The attempt that reaches the threshold trips the lock.
+    expect(await service.authenticate("admin", "wrong")).toEqual({
+      ok: false,
+      lockedJustNow: true,
+    });
+  });
+
+  it("rejects even the correct password while locked, without revealing the lock", async () => {
+    const { service } = await freshService();
+    for (let i = 0; i < config.authLockThreshold; i += 1) {
+      await service.authenticate("admin", "wrong");
+    }
+    // Correct password, but the account is locked — refused, and NOT reported as a fresh lock.
+    expect(await service.authenticate("admin", "admin123")).toEqual({
+      ok: false,
+      lockedJustNow: false,
+    });
+  });
+
+  it("recovers once the lock window has passed, starting the counter fresh", async () => {
+    const { service, persistence } = await freshService();
+    // Drive it into a lock, then rewind the deadline into the past.
+    for (let i = 0; i < config.authLockThreshold; i += 1) {
+      await service.authenticate("admin", "wrong");
+    }
+    const past = new Date(Date.now() - 1000).toISOString();
+    await persistence.setLoginFailure("admin", config.authLockThreshold, past, past);
+
+    // Lock expired → the correct password authenticates again.
+    const result = await service.authenticate("admin", "admin123");
+    expect(result.ok).toBe(true);
+    // And the counter was cleared, so a single later failure does not immediately re-lock.
+    expect(await service.authenticate("admin", "wrong")).toEqual({
+      ok: false,
+      lockedJustNow: false,
+    });
+  });
+
+  it("a successful login clears an accumulated (sub-threshold) failure count", async () => {
+    const { service, persistence } = await freshService();
+    await service.authenticate("admin", "wrong");
+    await service.authenticate("admin", "wrong");
+    expect((await persistence.findUserByUsername("admin"))?.failedAttempts).toBe(2);
+
+    expect((await service.authenticate("admin", "admin123")).ok).toBe(true);
+    expect((await persistence.findUserByUsername("admin"))?.failedAttempts).toBe(0);
   });
 });
