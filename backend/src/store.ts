@@ -2,6 +2,7 @@ import { EventEmitter } from "node:events";
 import fs from "node:fs/promises";
 import path from "node:path";
 import { config } from "./config";
+import { deviceMatchesScope, applyRuleDebounce } from "@navfleet/shared";
 import { ConfigRegistry } from "./configRegistry";
 import {
   buildFleetSnapshot,
@@ -493,12 +494,13 @@ export class DashboardStore extends EventEmitter {
     source: string,
     options: ApplyPayloadOptions = {},
   ): Promise<void> {
+    const alertRules = this.configRegistry.getAlertRules();
     const normalized = normalizePayload(
       payload,
       this.rawDevices,
       this.fleetName,
       this.topicPattern,
-      options,
+      { ...options, rules: alertRules },
     );
     const nextRawMap = normalized.replace
       ? new Map<string, DeviceSnapshot>()
@@ -515,6 +517,16 @@ export class DashboardStore extends EventEmitter {
       const existingRaw = this.rawDevices.get(device.deviceId);
       const existingConfigured = this.devices.get(device.deviceId);
       const mergedRaw = mergeDevice(existingRaw, device);
+      // Linger a debounced rule alert across the frame that would clear it (Phase 16C-1).
+      // `mergeDevice` takes the freshly-evaluated alerts wholesale, so without this a low
+      // battery reading hovering on the threshold would flap on and off frame by frame.
+      mergedRaw.alerts = applyRuleDebounce(
+        mergedRaw.deviceId,
+        existingRaw?.alerts ?? [],
+        mergedRaw.alerts,
+        alertRules,
+        Date.now(),
+      );
       const mergedConfigured = this.applySnapshotConfig(mergedRaw);
 
       nextRawMap.set(mergedRaw.deviceId, mergedRaw);
@@ -564,6 +576,8 @@ export class DashboardStore extends EventEmitter {
         stamp: new Date().toISOString(),
       },
       existingRaw || null,
+      "",
+      this.configRegistry.getAlertRules(),
     );
     const configuredDevice = this.applySnapshotConfig(normalizedRaw);
 
@@ -753,12 +767,20 @@ export class DashboardStore extends EventEmitter {
   }
 
   private async evaluateOfflineDevicesInternal(): Promise<void> {
-    const thresholdMs = config.offlineAfterSeconds * 1000;
+    // The offline rule is configurable (Phase 16C-1): a deployment can retune the silence
+    // window, scope detection to some devices, or turn it off. `afterSeconds` falls back to
+    // the `OFFLINE_AFTER_SECONDS` env default when `rules.json` does not set it. Eviction
+    // (below) is a memory concern, not a rule, so it runs regardless.
+    const offlineRule = this.configRegistry.getAlertRules().offline;
+    const thresholdMs = (offlineRule.afterSeconds ?? config.offlineAfterSeconds) * 1000;
     const now = Date.now();
 
     for (const device of this.rawDevices.values()) {
       const isStale = now - Date.parse(device.stamp) > thresholdMs;
       if (!isStale || !device.online) {
+        continue;
+      }
+      if (!offlineRule.enabled || !deviceMatchesScope(device, offlineRule.scope)) {
         continue;
       }
 

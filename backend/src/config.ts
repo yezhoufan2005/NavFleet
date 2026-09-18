@@ -281,5 +281,6 @@ export const runtimePaths = {
   vehiclesFilePath: path.join(config.configRootPath, "vehicles.json"),
   formationsFilePath: path.join(config.configRootPath, "formations.json"),
   scenesFilePath: path.join(config.configRootPath, "scenes.json"),
+  rulesFilePath: path.join(config.configRootPath, "rules.json"),
   sceneMapsPath: path.join(config.configRootPath, "scene-maps"),
 };

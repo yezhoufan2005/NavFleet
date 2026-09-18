@@ -1,6 +1,7 @@
 import fs from "node:fs/promises";
 import path from "node:path";
 import chokidar, { FSWatcher } from "chokidar";
+import { AlertRulesConfig, DEFAULT_ALERT_RULES, RuleScope } from "@navfleet/shared";
 import { config, runtimePaths } from "./config";
 import { parseLaneletOsmFile } from "./laneletOsm";
 import { moduleLogger } from "./logger";
@@ -21,6 +22,7 @@ const FLEET_FILE = runtimePaths.fleetFilePath;
 const VEHICLES_FILE = runtimePaths.vehiclesFilePath;
 const FORMATIONS_FILE = runtimePaths.formationsFilePath;
 const SCENES_FILE = runtimePaths.scenesFilePath;
+const RULES_FILE = runtimePaths.rulesFilePath;
 
 const DEFAULT_FLEET_CONFIG: FleetConfig = {
   fleetName: "智能车队",
@@ -38,6 +40,7 @@ interface LoadedConfigSnapshot {
   deviceFormationIds: Map<string, string[]>;
   sceneConfigs: Map<string, SceneMapDefinition>;
   sceneOverlays: Map<string, LaneletOverlay>;
+  alertRules: AlertRulesConfig;
 }
 
 const deriveBounds = (scene: SceneMapDefinition): NonNullable<SceneMapDefinition["bounds"]> => ({
@@ -101,6 +104,145 @@ async function readJsonFile<T>(filePath: string): Promise<T> {
   return JSON.parse(content) as T;
 }
 
+/**
+ * Like `readJsonFile`, but a **missing** file is not an error — it resolves to `null`.
+ * `rules.json` is optional: a deployment that does not retune anything ships without one
+ * and runs on `DEFAULT_ALERT_RULES`. A file that exists but is malformed still throws, so
+ * a typo is a validation failure (old snapshot kept), not a silent fall-back to defaults.
+ */
+async function readOptionalJsonFile<T>(filePath: string): Promise<T | null> {
+  let content: string;
+  try {
+    content = await fs.readFile(filePath, "utf8");
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code === "ENOENT") {
+      return null;
+    }
+    throw error;
+  }
+  return JSON.parse(content) as T;
+}
+
+/** Coerce the optional `scope` of a rule, rejecting anything but string arrays. */
+const parseRuleScope = (value: unknown, label: string): RuleScope | undefined => {
+  if (value === undefined || value === null) {
+    return undefined;
+  }
+  if (!isRecord(value)) {
+    throw new Error(`${label}.scope must be a JSON object: ${RULES_FILE}`);
+  }
+  const stringArray = (raw: unknown, field: string): string[] | undefined => {
+    if (raw === undefined || raw === null) {
+      return undefined;
+    }
+    if (!Array.isArray(raw) || raw.some((entry) => typeof entry !== "string")) {
+      throw new Error(`${label}.scope.${field} must be an array of strings: ${RULES_FILE}`);
+    }
+    return raw as string[];
+  };
+  return {
+    deviceIds: stringArray(value.deviceIds, "deviceIds"),
+    formationIds: stringArray(value.formationIds, "formationIds"),
+    tags: stringArray(value.tags, "tags"),
+  };
+};
+
+const parseBoolean = (value: unknown, fallback: boolean, label: string): boolean => {
+  if (value === undefined) {
+    return fallback;
+  }
+  if (typeof value !== "boolean") {
+    throw new Error(`${label} must be a boolean: ${RULES_FILE}`);
+  }
+  return value;
+};
+
+const parsePositiveNumber = (
+  value: unknown,
+  fallback: number | undefined,
+  label: string,
+  { min = 0, allowMinInclusive = true }: { min?: number; allowMinInclusive?: boolean } = {},
+): number | undefined => {
+  if (value === undefined) {
+    return fallback;
+  }
+  if (typeof value !== "number" || !Number.isFinite(value)) {
+    throw new Error(`${label} must be a finite number: ${RULES_FILE}`);
+  }
+  if (allowMinInclusive ? value < min : value <= min) {
+    throw new Error(`${label} must be ${allowMinInclusive ? ">=" : ">"} ${min}: ${RULES_FILE}`);
+  }
+  return value;
+};
+
+/**
+ * Merge a deployment's (partial, untrusted) `rules.json` over the built-in defaults into a
+ * fully-populated, validated `AlertRulesConfig`. Anything the file omits keeps its default;
+ * anything malformed throws, so `reload` keeps the previous snapshot. Unknown top-level keys
+ * are ignored rather than rejected, so a newer file stays loadable by an older build.
+ */
+const parseAlertRules = (raw: unknown): AlertRulesConfig => {
+  if (raw === null) {
+    return DEFAULT_ALERT_RULES;
+  }
+  if (!isRecord(raw)) {
+    throw new Error(`rules.json must be a JSON object: ${RULES_FILE}`);
+  }
+
+  const lowBatteryRaw = raw.lowBattery;
+  if (lowBatteryRaw !== undefined && !isRecord(lowBatteryRaw)) {
+    throw new Error(`rules.lowBattery must be a JSON object: ${RULES_FILE}`);
+  }
+  const offlineRaw = raw.offline;
+  if (offlineRaw !== undefined && !isRecord(offlineRaw)) {
+    throw new Error(`rules.offline must be a JSON object: ${RULES_FILE}`);
+  }
+
+  const lb = lowBatteryRaw ?? {};
+  const off = offlineRaw ?? {};
+  const defaults = DEFAULT_ALERT_RULES;
+
+  return {
+    lowBattery: {
+      enabled: parseBoolean(lb.enabled, defaults.lowBattery.enabled, "rules.lowBattery.enabled"),
+      thresholdPct:
+        parsePositiveNumber(
+          lb.thresholdPct,
+          defaults.lowBattery.thresholdPct,
+          "rules.lowBattery.thresholdPct",
+          {
+            min: 0,
+            allowMinInclusive: false,
+          },
+        ) ?? defaults.lowBattery.thresholdPct,
+      scope: parseRuleScope(lb.scope, "rules.lowBattery"),
+      debounceSeconds: parsePositiveNumber(
+        lb.debounceSeconds,
+        defaults.lowBattery.debounceSeconds,
+        "rules.lowBattery.debounceSeconds",
+      ),
+    },
+    offline: {
+      enabled: parseBoolean(off.enabled, defaults.offline.enabled, "rules.offline.enabled"),
+      afterSeconds: parsePositiveNumber(
+        off.afterSeconds,
+        defaults.offline.afterSeconds,
+        "rules.offline.afterSeconds",
+        {
+          min: 0,
+          allowMinInclusive: false,
+        },
+      ),
+      scope: parseRuleScope(off.scope, "rules.offline"),
+      debounceSeconds: parsePositiveNumber(
+        off.debounceSeconds,
+        defaults.offline.debounceSeconds,
+        "rules.offline.debounceSeconds",
+      ),
+    },
+  };
+};
+
 export class ConfigRegistry {
   private fleetConfig: FleetConfig = { ...DEFAULT_FLEET_CONFIG };
   private deviceConfigs = new Map<string, DeviceConfig>();
@@ -108,6 +250,7 @@ export class ConfigRegistry {
   private deviceFormationIds = new Map<string, string[]>();
   private sceneConfigs = new Map<string, SceneMapDefinition>();
   private sceneOverlays = new Map<string, LaneletOverlay>();
+  private alertRules: AlertRulesConfig = DEFAULT_ALERT_RULES;
   private loaded = false;
   private watcher: FSWatcher | null = null;
   private reloadTimer: NodeJS.Timeout | null = null;
@@ -115,12 +258,15 @@ export class ConfigRegistry {
   private pendingReloadReason = "startup";
 
   private async loadSnapshot(): Promise<LoadedConfigSnapshot> {
-    const [fleetRaw, vehiclesRaw, formationsRaw, scenesRaw] = await Promise.all([
+    const [fleetRaw, vehiclesRaw, formationsRaw, scenesRaw, rulesRaw] = await Promise.all([
       readJsonFile<unknown>(FLEET_FILE),
       readJsonFile<unknown>(VEHICLES_FILE),
       readJsonFile<unknown>(FORMATIONS_FILE),
       readJsonFile<unknown>(SCENES_FILE),
+      readOptionalJsonFile<unknown>(RULES_FILE),
     ]);
+
+    const alertRules = parseAlertRules(rulesRaw);
 
     const fleetConfig = ensureObject(fleetRaw, FLEET_FILE, "fleet.json") as Partial<FleetConfig>;
     const vehicleRecords = ensureArray(vehiclesRaw, VEHICLES_FILE, "vehicles.json") as Array<
@@ -272,6 +418,7 @@ export class ConfigRegistry {
       deviceFormationIds: nextDeviceFormationIds,
       sceneConfigs: nextSceneConfigs,
       sceneOverlays: nextSceneOverlays,
+      alertRules,
     };
   }
 
@@ -282,6 +429,7 @@ export class ConfigRegistry {
     this.deviceFormationIds = snapshot.deviceFormationIds;
     this.sceneConfigs = snapshot.sceneConfigs;
     this.sceneOverlays = snapshot.sceneOverlays;
+    this.alertRules = snapshot.alertRules;
     this.loaded = true;
   }
 
@@ -344,6 +492,7 @@ export class ConfigRegistry {
         VEHICLES_FILE,
         FORMATIONS_FILE,
         SCENES_FILE,
+        RULES_FILE,
         path.join(runtimePaths.sceneMapsPath, "**/*.osm"),
       ],
       {
@@ -422,6 +571,20 @@ export class ConfigRegistry {
   getFleetConfig(): FleetConfig {
     this.ensureLoaded();
     return { ...this.fleetConfig };
+  }
+
+  /**
+   * The alert rules ingest evaluates against (Phase 16C-1). Returns the live snapshot
+   * *reference*, not a copy: it is read once per incoming frame and only ever handed to the
+   * pure `evaluateRuleAlerts`, which never mutates it, and a reload swaps the whole object
+   * atomically — so a caller holding a reference keeps a consistent snapshot rather than
+   * seeing a half-applied change. Unlike the other getters this does **not** require the
+   * registry to be loaded: `this.alertRules` starts at `DEFAULT_ALERT_RULES`, so a frame
+   * that arrives before `load()` (or a test store that never loads config) still evaluates
+   * against the built-in rules rather than throwing.
+   */
+  getAlertRules(): AlertRulesConfig {
+    return this.alertRules;
   }
 
   getDeviceConfig(deviceId: string): DeviceConfig | null {

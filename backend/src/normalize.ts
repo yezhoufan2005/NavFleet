@@ -1,12 +1,19 @@
 import { CodeState, DeviceAlert, DeviceSnapshot, FleetSnapshot, Severity } from "./types";
+import {
+  AlertRulesConfig,
+  DEFAULT_ALERT_RULES,
+  buildOfflineAlert,
+  evaluateRuleAlerts,
+  offlineAlertId,
+} from "@navfleet/shared";
 import { buildTopicScheme, TopicScheme } from "./topics";
 
-type UnknownRecord = Record<string, unknown>;
+// The offline-alert helpers moved to `@navfleet/shared` (Phase 16C-1) so the rule engine
+// has one home both this backend and the two frontends reach. Re-exported here because the
+// store's offline sweep and the normalize tests import them from `./normalize`.
+export { buildOfflineAlert, offlineAlertId };
 
-const round = (value: number, precision = 2): number => {
-  const factor = 10 ** precision;
-  return Math.round(value * factor) / factor;
-};
+type UnknownRecord = Record<string, unknown>;
 
 const toNumeric = (value: unknown, fallback: number | null = null): number | null => {
   if (value === null || value === undefined || value === "") {
@@ -256,57 +263,16 @@ const buildCodeAlerts = (snapshot: DeviceSnapshot): DeviceAlert[] => {
 };
 
 /**
- * The id every offline alert carries.
- *
- * Exported because otherwise it is written out three times — once below, and twice in the
- * store's offline sweep (the filter that removes the stale copy, and the fresh one it
- * appends) — and because this id is what acknowledgement keys on. Drift between the copies
- * fails nothing loudly: the sweep's filter stops matching what the sweep then appends, so
- * the device accumulates two offline alerts and the one an operator acknowledges is not the
- * one that comes back on the next sweep.
+ * The rule alerts for a snapshot, under the given rules (defaults when the store passes
+ * none). A thin adapter over the shared evaluator: the low-battery threshold and the
+ * offline alert used to be written out here *and* in `fleetNormalize.ts`, drifting on the
+ * `round` vs `toFixed` detail text at least once. `rules` is how a deployment's
+ * `rules.json` reaches ingest — see `ConfigRegistry.getAlertRules`.
  */
-export const offlineAlertId = (deviceId: string): string => `${deviceId}-offline`;
-
-/**
- * The "device is offline" alert, in one place.
- *
- * Two callers raise it for the same reason at different moments: the normaliser, for a
- * snapshot that arrives already marked offline, and the store's sweep, for a device that
- * has stopped reporting. Only the timestamp differs between them — hence the parameter —
- * and the other five fields used to be written out verbatim on both sides.
- */
-export const buildOfflineAlert = (deviceId: string, ts: string): DeviceAlert => ({
-  id: offlineAlertId(deviceId),
-  title: "设备离线",
-  detail: "设备超过离线阈值未上报，系统已自动标记为离线",
-  severity: "critical",
-  source: "rule-engine",
-  ts,
-  active: true,
-});
-
-const buildRuleAlerts = (snapshot: DeviceSnapshot): DeviceAlert[] => {
-  const alerts: DeviceAlert[] = [];
-  const soc = snapshot.vehicleInfo.soc ?? 0;
-
-  if (soc > 0 && soc < 20) {
-    alerts.push({
-      id: `${snapshot.deviceId}-low-soc`,
-      title: "低电量预警",
-      detail: `当前电量 ${round(soc, 1)}%，建议尽快安排回充`,
-      severity: "warning",
-      source: "rule-engine",
-      ts: snapshot.stamp,
-      active: true,
-    });
-  }
-
-  if (!snapshot.online) {
-    alerts.push(buildOfflineAlert(snapshot.deviceId, snapshot.stamp));
-  }
-
-  return alerts;
-};
+const buildRuleAlerts = (
+  snapshot: DeviceSnapshot,
+  rules: AlertRulesConfig = DEFAULT_ALERT_RULES,
+): DeviceAlert[] => evaluateRuleAlerts(snapshot, rules);
 
 const dedupeAlerts = (alerts: DeviceAlert[]): DeviceAlert[] => {
   const deduplicated = new Map<string, DeviceAlert>();
@@ -325,6 +291,7 @@ export const normalizeDevice = (
   rawInput: UnknownRecord,
   existingDevice: DeviceSnapshot | null = null,
   topicHint = "",
+  rules: AlertRulesConfig = DEFAULT_ALERT_RULES,
 ): DeviceSnapshot => {
   const payloadRecord = isRecord(rawInput.payload) ? rawInput.payload : null;
   const raw: UnknownRecord = payloadRecord
@@ -505,7 +472,7 @@ export const normalizeDevice = (
     snapshot.alerts = dedupeAlerts([
       ...buildRawAlerts(raw, stamp, deviceId),
       ...buildCodeAlerts(snapshot),
-      ...buildRuleAlerts(snapshot),
+      ...buildRuleAlerts(snapshot, rules),
     ]);
   }
 
@@ -548,6 +515,14 @@ export interface NormalizePayloadOptions {
    * file or the debug ingest endpoint — so the capability now travels with the caller.
    */
   allowReplace?: boolean;
+
+  /**
+   * The alert rules ingest evaluates against (Phase 16C-1). Absent = the built-in
+   * defaults; the store passes `ConfigRegistry.getAlertRules()` so a deployment's
+   * `rules.json` (retuned threshold, a disabled or scoped rule) governs what alerts a
+   * live frame raises.
+   */
+  rules?: AlertRulesConfig;
 }
 
 export const normalizePayload = (
@@ -560,6 +535,8 @@ export const normalizePayload = (
   if (!isRecord(input) && !Array.isArray(input)) {
     throw new Error("payload must be a JSON object");
   }
+
+  const rules = options.rules ?? DEFAULT_ALERT_RULES;
 
   const rejectReplace = (shape: string): never => {
     throw new Error(
@@ -575,7 +552,7 @@ export const normalizePayload = (
       replace: true,
       fleetName,
       topicPattern,
-      devices: input.filter(isRecord).map((item) => normalizeDevice(item)),
+      devices: input.filter(isRecord).map((item) => normalizeDevice(item, null, "", rules)),
     };
   }
 
@@ -585,7 +562,7 @@ export const normalizePayload = (
       replace: true,
       fleetName,
       topicPattern,
-      devices: input.devices.filter(isRecord).map((item) => normalizeDevice(item)),
+      devices: input.devices.filter(isRecord).map((item) => normalizeDevice(item, null, "", rules)),
     };
   }
 
@@ -600,7 +577,9 @@ export const normalizePayload = (
         replace: true,
         fleetName,
         topicPattern,
-        devices: payloadBody.devices.filter(isRecord).map((item) => normalizeDevice(item)),
+        devices: payloadBody.devices
+          .filter(isRecord)
+          .map((item) => normalizeDevice(item, null, "", rules)),
       };
     }
 
@@ -616,6 +595,7 @@ export const normalizePayload = (
           { ...payloadBody, deviceId },
           existingDevices.get(deviceId) || null,
           asText(input.topic),
+          rules,
         ),
       ],
     };
@@ -633,6 +613,7 @@ export const normalizePayload = (
         { ...input, deviceId },
         existingDevices.get(deviceId) || null,
         asText(input.topic || ""),
+        rules,
       ),
     ],
   };

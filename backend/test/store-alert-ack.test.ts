@@ -3,6 +3,7 @@ import type { ConfigRegistry } from "../src/configRegistry";
 import type { Persistence } from "../src/persistence";
 import { DashboardStore } from "../src/store";
 import type { DeviceSnapshot, FleetConfig, SocketEvent } from "../src/types";
+import { DEFAULT_ALERT_RULES } from "@navfleet/shared";
 
 /**
  * The two acknowledgement broadcasts (Phase 16A). Unlike the fleet/device/alert events, these
@@ -33,6 +34,7 @@ const createStore = (): { store: DashboardStore; events: SocketEvent[] } => {
   const configRegistryStub = {
     async load(): Promise<void> {},
     getFleetConfig: (): FleetConfig => ({ ...FLEET_CONFIG }),
+    getAlertRules: () => DEFAULT_ALERT_RULES,
     applyDeviceConfig: (snapshot: DeviceSnapshot): DeviceSnapshot => snapshot,
     hasDeviceConfig: (): boolean => false,
     listScenes: () => [],
