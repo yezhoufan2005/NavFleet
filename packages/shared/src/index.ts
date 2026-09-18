@@ -282,3 +282,7 @@ export * from "./alertRules";
 // backend layers a deployment's codebook over and 下发s (Phase 16C-2). Moved here from
 // fleet-core so the backend, which does not depend on fleet-core, can reach it.
 export * from "./reportCodes";
+
+// 告警外发的共享契约（Phase 16D-1）——生效渠道视图与发送记录的形状（两个前端的只读「外发」页渲染
+// 它们），以及「零配置不外发」的默认。路由/正文/发送等后端独有逻辑不在这里。
+export * from "./notify";

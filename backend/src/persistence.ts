@@ -6,6 +6,7 @@ import {
   DeviceAlert,
   DeviceSnapshot,
   HistoryQuery,
+  NotifySendRecord,
   SessionRecord,
   UserRecord,
 } from "./types";
@@ -107,6 +108,9 @@ const MAX_ALERTS_PER_QUERY = 500;
 /** Most audit rows one `GET /api/audit` returns; the in-memory fallback ring is bounded to it too. */
 const MAX_AUDIT_PER_QUERY = 500;
 
+/** Most notify-send rows one `GET /api/notify/log` returns; the in-memory fallback ring is bounded to it too. */
+const MAX_NOTIFY_PER_QUERY = 500;
+
 export class Persistence {
   private db: Db | null = null;
   private pendingTelemetry: TelemetryDocument[] = [];
@@ -132,6 +136,10 @@ export class Persistence {
   private activeAlerts = new Map<string, StoredAlert[]>();
   // Bounded in-memory audit trail for Mongo-less dev runs (mirrors the other fallbacks).
   private auditFallback: AuditEntry[] = [];
+  // Bounded in-memory outbound-send log for Mongo-less dev runs (Phase 16D-1; mirrors the
+  // audit fallback). Send records are best-effort telemetry about notifications, never on the
+  // path of the action being audited, so like audit a write failure is swallowed.
+  private notifyFallback: NotifySendRecord[] = [];
   // Schema migrations run at most once per process, on the first connect that has a live
   // db. This flag makes reconnects skip them, and `migrationFailure` carries a migration
   // that *errored* so the composition root can refuse to start — kept distinct from a plain
@@ -252,6 +260,9 @@ export class Persistence {
     if (!names.has("audit_log")) {
       await this.db.createCollection("audit_log");
     }
+    if (!names.has("notify_log")) {
+      await this.db.createCollection("notify_log");
+    }
     if (!names.has("sessions")) {
       await this.db.createCollection("sessions");
     }
@@ -269,6 +280,16 @@ export class Persistence {
     await this.db
       .collection("audit_log")
       .createIndex({ ts: -1 }, { expireAfterSeconds: config.auditRetentionSeconds });
+    // notify_log (Phase 16D-1): send records queried by device / channel / status, newest first.
+    // TTL is on a dedicated BSON Date (`expireAt`) rather than the display `ts` (an ISO string,
+    // which a TTL index would silently never expire); the retention window is the alerts one,
+    // since a send record is only meaningful next to the alert that triggered it.
+    await this.db.collection("notify_log").createIndex({ deviceId: 1, ts: -1 });
+    await this.db.collection("notify_log").createIndex({ channelId: 1, ts: -1 });
+    await this.db.collection("notify_log").createIndex({ status: 1, ts: -1 });
+    await this.db
+      .collection("notify_log")
+      .createIndex({ expireAt: 1 }, { expireAfterSeconds: config.alertsRetentionSeconds });
     await this.db.collection("sessions").createIndex({ sessionId: 1 }, { unique: true });
     await this.db.collection("sessions").createIndex({ username: 1, createdAt: -1 });
     // TTL on the session's own expiry timestamp: a session never refreshed disappears at the
@@ -680,6 +701,74 @@ export class Persistence {
       .find(query, { projection: { _id: 0 } })
       .sort({ ts: -1 })
       .limit(MAX_AUDIT_PER_QUERY)
+      .toArray();
+  }
+
+  /**
+   * Append an outbound-send record (Phase 16D-1). **Best-effort**, exactly like `appendAudit`:
+   * the notification pipeline runs fire-and-forget off the alert-created event and must never
+   * turn a logging failure into anything the ingest path sees, so a write error is logged and
+   * swallowed. The Mongo document carries a parallel `expireAt` BSON Date so the TTL index can
+   * expire it; the wire shape (string `ts`) is what `queryNotify` returns.
+   */
+  async appendNotify(record: NotifySendRecord): Promise<void> {
+    if (!this.db) {
+      this.notifyFallback.unshift(record);
+      if (this.notifyFallback.length > MAX_NOTIFY_PER_QUERY) {
+        this.notifyFallback.length = MAX_NOTIFY_PER_QUERY;
+      }
+      return;
+    }
+    try {
+      await this.db
+        .collection("notify_log")
+        .insertOne({ ...record, expireAt: new Date(record.ts) });
+    } catch (error) {
+      logger.warn(
+        { err: error, channelId: record.channelId, eventKey: record.eventKey },
+        "Failed to write notify-send record",
+      );
+    }
+  }
+
+  /** Query the outbound-send log, newest first, filtered by device / channel / status / time. */
+  async queryNotify(filters: {
+    deviceId?: string;
+    channelId?: string;
+    status?: string;
+    from?: string;
+    to?: string;
+  }): Promise<NotifySendRecord[]> {
+    const fromDate = toBoundDate(filters.from);
+    const toDate = toBoundDate(filters.to);
+
+    if (!this.db) {
+      return this.notifyFallback
+        .filter((record) => !filters.deviceId || record.deviceId === filters.deviceId)
+        .filter((record) => !filters.channelId || record.channelId === filters.channelId)
+        .filter((record) => !filters.status || record.status === filters.status)
+        .filter((record) => !fromDate || Date.parse(record.ts) >= fromDate.getTime())
+        .filter((record) => !toDate || Date.parse(record.ts) <= toDate.getTime())
+        .slice(0, MAX_NOTIFY_PER_QUERY);
+    }
+
+    const tsBound: Record<string, string> = {};
+    if (fromDate) tsBound.$gte = fromDate.toISOString();
+    if (toDate) tsBound.$lte = toDate.toISOString();
+
+    const query: Record<string, unknown> = {};
+    if (filters.deviceId) query.deviceId = filters.deviceId;
+    if (filters.channelId) query.channelId = filters.channelId;
+    if (filters.status) query.status = filters.status;
+    // `ts` is an ISO-8601 string, which compares lexicographically in timestamp order, so a
+    // string range is a time range here (the same idiom `restoreLatestDevices` relies on).
+    if (Object.keys(tsBound).length > 0) query.ts = tsBound;
+
+    return this.db
+      .collection<NotifySendRecord>("notify_log")
+      .find(query, { projection: { _id: 0, expireAt: 0 } })
+      .sort({ ts: -1 })
+      .limit(MAX_NOTIFY_PER_QUERY)
       .toArray();
   }
 

@@ -4,9 +4,16 @@ import chokidar, { FSWatcher } from "chokidar";
 import {
   AlertRulesConfig,
   DEFAULT_ALERT_RULES,
+  DEFAULT_NOTIFY_CONFIG,
   DEFAULT_REPORT_CODES,
+  NOTIFY_CHANNEL_TYPES,
+  NOTIFY_SEVERITIES,
+  NotifyChannelConfig,
+  NotifyChannelType,
+  NotifyConfig,
   ReportCodeEntry,
   RuleScope,
+  Severity,
   mergeCodebook,
   parseCodebook,
 } from "@navfleet/shared";
@@ -32,6 +39,7 @@ const FORMATIONS_FILE = runtimePaths.formationsFilePath;
 const SCENES_FILE = runtimePaths.scenesFilePath;
 const RULES_FILE = runtimePaths.rulesFilePath;
 const CODEBOOK_FILE = runtimePaths.codebookFilePath;
+const NOTIFY_FILE = runtimePaths.notifyFilePath;
 
 const DEFAULT_FLEET_CONFIG: FleetConfig = {
   fleetName: "智能车队",
@@ -51,6 +59,7 @@ interface LoadedConfigSnapshot {
   sceneOverlays: Map<string, LaneletOverlay>;
   alertRules: AlertRulesConfig;
   codebook: ReportCodeEntry[];
+  notifyConfig: NotifyConfig;
 }
 
 const deriveBounds = (scene: SceneMapDefinition): NonNullable<SceneMapDefinition["bounds"]> => ({
@@ -133,20 +142,24 @@ async function readOptionalJsonFile<T>(filePath: string): Promise<T | null> {
   return JSON.parse(content) as T;
 }
 
-/** Coerce the optional `scope` of a rule, rejecting anything but string arrays. */
-const parseRuleScope = (value: unknown, label: string): RuleScope | undefined => {
+/** Coerce the optional `scope` of a rule/channel, rejecting anything but string arrays. */
+const parseRuleScope = (
+  value: unknown,
+  label: string,
+  file: string = RULES_FILE,
+): RuleScope | undefined => {
   if (value === undefined || value === null) {
     return undefined;
   }
   if (!isRecord(value)) {
-    throw new Error(`${label}.scope must be a JSON object: ${RULES_FILE}`);
+    throw new Error(`${label}.scope must be a JSON object: ${file}`);
   }
   const stringArray = (raw: unknown, field: string): string[] | undefined => {
     if (raw === undefined || raw === null) {
       return undefined;
     }
     if (!Array.isArray(raw) || raw.some((entry) => typeof entry !== "string")) {
-      throw new Error(`${label}.scope.${field} must be an array of strings: ${RULES_FILE}`);
+      throw new Error(`${label}.scope.${field} must be an array of strings: ${file}`);
     }
     return raw as string[];
   };
@@ -157,12 +170,17 @@ const parseRuleScope = (value: unknown, label: string): RuleScope | undefined =>
   };
 };
 
-const parseBoolean = (value: unknown, fallback: boolean, label: string): boolean => {
+const parseBoolean = (
+  value: unknown,
+  fallback: boolean,
+  label: string,
+  file: string = RULES_FILE,
+): boolean => {
   if (value === undefined) {
     return fallback;
   }
   if (typeof value !== "boolean") {
-    throw new Error(`${label} must be a boolean: ${RULES_FILE}`);
+    throw new Error(`${label} must be a boolean: ${file}`);
   }
   return value;
 };
@@ -253,6 +271,94 @@ const parseAlertRules = (raw: unknown): AlertRulesConfig => {
   };
 };
 
+const CHANNEL_TYPES = new Set<string>(NOTIFY_CHANNEL_TYPES);
+const SEVERITY_VALUES = new Set<string>(NOTIFY_SEVERITIES);
+
+/** The severities a channel receives: absent = all three, a list = only those (validated). */
+const parseSeverities = (value: unknown, label: string): Severity[] => {
+  if (value === undefined || value === null) {
+    return [...NOTIFY_SEVERITIES];
+  }
+  if (!Array.isArray(value)) {
+    throw new Error(`${label}.severities must be an array of strings: ${NOTIFY_FILE}`);
+  }
+  return value.map((entry, index) => {
+    if (typeof entry !== "string" || !SEVERITY_VALUES.has(entry)) {
+      throw new Error(
+        `${label}.severities[${index}] must be one of ${[...SEVERITY_VALUES].join("/")}: ${NOTIFY_FILE}`,
+      );
+    }
+    return entry as Severity;
+  });
+};
+
+const parseNotifyChannel = (raw: Record<string, unknown>, index: number): NotifyChannelConfig => {
+  const label = `notify.channels[${index}]`;
+
+  const id = typeof raw.id === "string" ? raw.id.trim() : "";
+  if (!id) {
+    throw new Error(`${label}.id must be a non-empty string: ${NOTIFY_FILE}`);
+  }
+
+  const type = raw.type;
+  if (typeof type !== "string" || !CHANNEL_TYPES.has(type)) {
+    throw new Error(
+      `${label}.type must be one of ${[...CHANNEL_TYPES].join("/")}: ${NOTIFY_FILE} (${id})`,
+    );
+  }
+
+  const urlEnv = typeof raw.urlEnv === "string" ? raw.urlEnv.trim() : "";
+  if (!urlEnv) {
+    // The endpoint URL carries a secret (a WeCom/DingTalk bot key), so a channel names the env
+    // var that holds it rather than the URL itself — this field is that name and is required.
+    throw new Error(
+      `${label}.urlEnv must be a non-empty environment variable name: ${NOTIFY_FILE} (${id})`,
+    );
+  }
+
+  return {
+    id,
+    type: type as NotifyChannelType,
+    enabled: parseBoolean(raw.enabled, true, `${label}.enabled`, NOTIFY_FILE),
+    urlEnv,
+    severities: parseSeverities(raw.severities, label),
+    scope: parseRuleScope(raw.scope, label, NOTIFY_FILE),
+  };
+};
+
+/**
+ * Merge a deployment's (partial, untrusted) `notify.json` into a validated `NotifyConfig`.
+ * A missing file → `DEFAULT_NOTIFY_CONFIG` (no channels, so nothing is ever sent — the
+ * zero-config red line). A present-but-malformed file throws, so `reload` keeps the previous
+ * snapshot. Channel ids must be unique. Unknown top-level keys are ignored (forward-compat).
+ */
+const parseNotifyConfig = (raw: unknown): NotifyConfig => {
+  if (raw === null) {
+    return DEFAULT_NOTIFY_CONFIG;
+  }
+  if (!isRecord(raw)) {
+    throw new Error(`notify.json must be a JSON object: ${NOTIFY_FILE}`);
+  }
+
+  const channelsRaw = raw.channels;
+  if (channelsRaw === undefined) {
+    return { channels: [] };
+  }
+  const channelRecords = ensureArray(channelsRaw, NOTIFY_FILE, "notify.channels");
+
+  const seenIds = new Set<string>();
+  const channels = channelRecords.map((entry, index) => {
+    const channel = parseNotifyChannel(entry, index);
+    if (seenIds.has(channel.id)) {
+      throw new Error(`Duplicate channel id in notify.json: ${channel.id}`);
+    }
+    seenIds.add(channel.id);
+    return channel;
+  });
+
+  return { channels };
+};
+
 export class ConfigRegistry {
   private fleetConfig: FleetConfig = { ...DEFAULT_FLEET_CONFIG };
   private deviceConfigs = new Map<string, DeviceConfig>();
@@ -262,6 +368,7 @@ export class ConfigRegistry {
   private sceneOverlays = new Map<string, LaneletOverlay>();
   private alertRules: AlertRulesConfig = DEFAULT_ALERT_RULES;
   private codebook: ReportCodeEntry[] = [...DEFAULT_REPORT_CODES];
+  private notifyConfig: NotifyConfig = DEFAULT_NOTIFY_CONFIG;
   private loaded = false;
   private watcher: FSWatcher | null = null;
   private reloadTimer: NodeJS.Timeout | null = null;
@@ -269,7 +376,7 @@ export class ConfigRegistry {
   private pendingReloadReason = "startup";
 
   private async loadSnapshot(): Promise<LoadedConfigSnapshot> {
-    const [fleetRaw, vehiclesRaw, formationsRaw, scenesRaw, rulesRaw, codebookRaw] =
+    const [fleetRaw, vehiclesRaw, formationsRaw, scenesRaw, rulesRaw, codebookRaw, notifyRaw] =
       await Promise.all([
         readJsonFile<unknown>(FLEET_FILE),
         readJsonFile<unknown>(VEHICLES_FILE),
@@ -277,6 +384,7 @@ export class ConfigRegistry {
         readJsonFile<unknown>(SCENES_FILE),
         readOptionalJsonFile<unknown>(RULES_FILE),
         readOptionalJsonFile<unknown>(CODEBOOK_FILE),
+        readOptionalJsonFile<unknown>(NOTIFY_FILE),
       ]);
 
     const alertRules = parseAlertRules(rulesRaw);
@@ -286,6 +394,8 @@ export class ConfigRegistry {
       DEFAULT_REPORT_CODES,
       codebookRaw === null ? [] : parseCodebook(codebookRaw),
     );
+    // Missing notify.json = no channels = nothing is ever sent (the zero-config red line).
+    const notifyConfig = parseNotifyConfig(notifyRaw);
 
     const fleetConfig = ensureObject(fleetRaw, FLEET_FILE, "fleet.json") as Partial<FleetConfig>;
     const vehicleRecords = ensureArray(vehiclesRaw, VEHICLES_FILE, "vehicles.json") as Array<
@@ -439,6 +549,7 @@ export class ConfigRegistry {
       sceneOverlays: nextSceneOverlays,
       alertRules,
       codebook,
+      notifyConfig,
     };
   }
 
@@ -451,6 +562,7 @@ export class ConfigRegistry {
     this.sceneOverlays = snapshot.sceneOverlays;
     this.alertRules = snapshot.alertRules;
     this.codebook = snapshot.codebook;
+    this.notifyConfig = snapshot.notifyConfig;
     this.loaded = true;
   }
 
@@ -515,6 +627,7 @@ export class ConfigRegistry {
         SCENES_FILE,
         RULES_FILE,
         CODEBOOK_FILE,
+        NOTIFY_FILE,
         path.join(runtimePaths.sceneMapsPath, "**/*.osm"),
       ],
       {
@@ -617,6 +730,18 @@ export class ConfigRegistry {
    */
   getCodebook(): ReportCodeEntry[] {
     return this.codebook.map((entry) => ({ ...entry }));
+  }
+
+  /**
+   * The outbound-notification config in effect (Phase 16D-1) — the deployment's `notify.json`,
+   * or `DEFAULT_NOTIFY_CONFIG` (no channels) when there is none. Like `getAlertRules`, does
+   * **not** require the registry to be loaded: it defaults to "no channels", so the dispatcher
+   * subscribing before `load()` (or a test that never loads config) simply sends nothing rather
+   * than throwing. Returns the live reference: the dispatcher reads it per alert and only hands
+   * it to the pure channel selector, and a reload swaps the whole object atomically.
+   */
+  getNotifyConfig(): NotifyConfig {
+    return this.notifyConfig;
   }
 
   /**

@@ -159,6 +159,11 @@ const configSchema = z.object({
   DEVICE_RETENTION_SECONDS: envInt(60 * 60 * 24, 0),
   CONFIG_WATCH_USE_POLLING: envBool(false),
   CONFIG_WATCH_DEBOUNCE_MS: envInt(1000, 100),
+  // 告警外发（Phase 16D-1）。渠道/路由走盘上 notify.json；这里只放发送行为的旋钮。
+  // 每次尝试的超时（毫秒）与最多尝试次数（含首发）；出站在 ingest 之外 fire-and-forget，超时是为了
+  // 一个不响应的群机器人不至于把发送任务挂死。
+  NOTIFY_TIMEOUT_MS: envInt(5_000, 100),
+  NOTIFY_MAX_ATTEMPTS: envInt(3, 1),
   AUTH_ENABLED: envBool(true),
   JWT_SECRET: envStr(""),
   JWT_ACCESS_TTL: envStr("15m"),
@@ -235,6 +240,8 @@ export const parseConfig = (env: NodeJS.ProcessEnv) => {
     configRootPath: resolveConfigRootPath(),
     configWatchUsePolling: e.CONFIG_WATCH_USE_POLLING,
     configWatchDebounceMs: e.CONFIG_WATCH_DEBOUNCE_MS,
+    notifyTimeoutMs: e.NOTIFY_TIMEOUT_MS,
+    notifyMaxAttempts: e.NOTIFY_MAX_ATTEMPTS,
     authEnabled: e.AUTH_ENABLED,
     jwtSecret: e.JWT_SECRET,
     jwtAccessTtl: e.JWT_ACCESS_TTL,
@@ -283,5 +290,6 @@ export const runtimePaths = {
   scenesFilePath: path.join(config.configRootPath, "scenes.json"),
   rulesFilePath: path.join(config.configRootPath, "rules.json"),
   codebookFilePath: path.join(config.configRootPath, "codebook.json"),
+  notifyFilePath: path.join(config.configRootPath, "notify.json"),
   sceneMapsPath: path.join(config.configRootPath, "scene-maps"),
 };

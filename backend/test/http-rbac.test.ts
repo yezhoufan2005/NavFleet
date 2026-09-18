@@ -56,6 +56,9 @@ const ADMIN_ROUTES: Array<{ method: "get" | "post" | "patch" | "delete" | "put";
   { method: "post", path: "/api/debug/ingest" },
   { method: "get", path: "/api/audit" },
   { method: "put", path: "/api/codebook" },
+  // 告警外发 read API (Phase 16D-1): send log + effective channels are admin-only, like audit.
+  { method: "get", path: "/api/notify/log" },
+  { method: "get", path: "/api/notify/config" },
 ];
 
 const ALL_ROLES: UserRole[] = ["viewer", "operator", "admin"];

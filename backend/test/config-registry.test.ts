@@ -63,6 +63,8 @@ interface ConfigFiles {
   rules?: unknown;
   /** `codebook.json` is optional. Pass a value to write it; omit to leave none on disk. */
   codebook?: unknown;
+  /** `notify.json` is optional. Pass a value to write it; omit to leave none on disk. */
+  notify?: unknown;
 }
 
 const writeConfig = async (files: ConfigFiles = {}): Promise<void> => {
@@ -95,6 +97,15 @@ const writeConfig = async (files: ConfigFiles = {}): Promise<void> => {
     await fs.writeFile(codebookPath, files.codebook, "utf8");
   } else {
     await fs.writeFile(codebookPath, JSON.stringify(files.codebook), "utf8");
+  }
+  // notify.json is optional too, same rules as rules.json.
+  const notifyPath = path.join(configRoot, "notify.json");
+  if (files.notify === undefined) {
+    await fs.rm(notifyPath, { force: true });
+  } else if (typeof files.notify === "string") {
+    await fs.writeFile(notifyPath, files.notify, "utf8");
+  } else {
+    await fs.writeFile(notifyPath, JSON.stringify(files.notify), "utf8");
   }
 };
 
@@ -485,6 +496,74 @@ describe("ConfigRegistry.getCodebook / importCodebook (Phase 16C-2)", () => {
     );
     // Nothing written.
     await expect(fs.readFile(path.join(configRoot, "codebook.json"), "utf8")).rejects.toThrow();
+  });
+});
+
+describe("ConfigRegistry.getNotifyConfig (Phase 16D-1)", () => {
+  const webhook = {
+    id: "ops-webhook",
+    type: "webhook",
+    enabled: true,
+    urlEnv: "NAVFLEET_TEST_WEBHOOK_URL",
+    severities: ["critical"],
+  };
+
+  it("returns no channels before load() and when no notify.json exists (zero-config red line)", async () => {
+    const registry = new ConfigRegistry();
+    expect(registry.getNotifyConfig()).toEqual({ channels: [] });
+
+    await writeConfig();
+    await registry.load();
+    expect(registry.getNotifyConfig()).toEqual({ channels: [] });
+  });
+
+  it("loads channels and defaults severities to all three when absent", async () => {
+    await writeConfig({
+      notify: {
+        channels: [
+          webhook,
+          { id: "wecom-bot", type: "wecom", enabled: false, urlEnv: "NAVFLEET_TEST_WECOM_URL" },
+        ],
+      },
+    });
+    const registry = new ConfigRegistry();
+    await registry.load();
+
+    const { channels } = registry.getNotifyConfig();
+    expect(channels).toHaveLength(2);
+    expect(channels[0]).toMatchObject({ id: "ops-webhook", type: "webhook", enabled: true });
+    expect(channels[0]?.severities).toEqual(["critical"]);
+    // severities absent → all three; enabled absent → true.
+    expect(channels[1]?.severities).toEqual(["critical", "warning", "notice"]);
+    expect(channels[1]?.enabled).toBe(false);
+  });
+
+  it("ignores unknown top-level keys but rejects a malformed channel", async () => {
+    await writeConfig({ notify: { channels: [webhook], somethingNew: 42 } });
+    await expect(new ConfigRegistry().load()).resolves.toBeUndefined();
+
+    await writeConfig({ notify: { channels: [{ id: "x", type: "sms", urlEnv: "E" }] } });
+    await expect(new ConfigRegistry().load()).rejects.toThrow(/type must be one of/);
+  });
+
+  it("rejects a channel missing urlEnv, and duplicate ids", async () => {
+    await writeConfig({ notify: { channels: [{ id: "x", type: "webhook", enabled: true }] } });
+    await expect(new ConfigRegistry().load()).rejects.toThrow(/urlEnv must be a non-empty/);
+
+    await writeConfig({ notify: { channels: [webhook, { ...webhook }] } });
+    await expect(new ConfigRegistry().load()).rejects.toThrow(/Duplicate channel id/);
+  });
+
+  it("keeps the previous notify config when a reload fails", async () => {
+    await writeConfig({ notify: { channels: [webhook] } });
+    const registry = new ConfigRegistry();
+    await registry.load();
+    expect(registry.getNotifyConfig().channels).toHaveLength(1);
+
+    await writeConfig({ notify: { channels: [{ ...webhook, severities: ["nope"] }] } });
+    await expect(registry.reload("test")).resolves.toBe(false);
+    // Old snapshot kept.
+    expect(registry.getNotifyConfig().channels[0]?.id).toBe("ops-webhook");
   });
 });
 

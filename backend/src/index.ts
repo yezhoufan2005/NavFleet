@@ -8,10 +8,12 @@ import { Persistence } from "./persistence";
 import { DashboardStore } from "./store";
 import { AuthService } from "./auth/service";
 import { AuditService } from "./audit/service";
+import { NotifyService, type AlertCreatedEvent } from "./notify/service";
 import { buildTopicScheme } from "./topics";
 import { createApp } from "./app";
 import { createWebSocketBridge } from "./websocket";
 import { connectMqtt } from "./mqtt";
+import type { SocketEvent } from "./types";
 
 // Composition root: build the dependency graph, wire HTTP + WebSocket + MQTT,
 // then own the process lifecycle (startup, config hot-reload, graceful shutdown).
@@ -21,7 +23,25 @@ const configRegistry = new ConfigRegistry();
 const store = new DashboardStore(persistence, configRegistry);
 const authService = new AuthService(persistence);
 const auditService = new AuditService(persistence);
+const notifyService = new NotifyService({
+  persistence,
+  getNotifyConfig: () => configRegistry.getNotifyConfig(),
+  resolveDevice: (deviceId) => store.getDevice(deviceId),
+  maxAttempts: config.notifyMaxAttempts,
+  timeoutMs: config.notifyTimeoutMs,
+});
 const topicScheme = buildTopicScheme(config.topicPattern);
+
+// Outbound notifications (Phase 16D-1). A SECOND listener on the store's event bus, alongside
+// the WebSocket bridge below — it taps `alert.created` (emitted once when an alert id first
+// appears) and dispatches fire-and-forget. Un-awaited on purpose: `alert.created` fires inside
+// the store's serial ingest queue, so awaiting a slow webhook here would stall all ingest;
+// `dispatch` contains its own failures and never rejects.
+store.on("event", (event: SocketEvent) => {
+  if (event.type === "alert.created") {
+    void notifyService.dispatch(event.payload as AlertCreatedEvent);
+  }
+});
 
 let wsClientCount = (): number => 0;
 const app = createApp({
@@ -29,6 +49,7 @@ const app = createApp({
   persistence,
   authService,
   auditService,
+  notifyService,
   config,
   state,
   wsClientCount: () => wsClientCount(),
