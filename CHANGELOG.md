@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.2.0](https://github.com/yezhoufan2005/NavFleet/compare/v1.1.0...v1.2.0) (2026-09-18)
+
+
+### Features
+
+* **console:** 用户 / 审计 / 会话管理页 + 个人中心（Phase 15E-2，收口 1.2.0） ([bf9a9ba](https://github.com/yezhoufan2005/NavFleet/commit/bf9a9ba85eb217df182965038a7d99294e2bd553))
+
 ## [1.1.0](https://github.com/yezhoufan2005/NavFleet/compare/v1.0.3...v1.1.0) (2026-09-09)
 
 
