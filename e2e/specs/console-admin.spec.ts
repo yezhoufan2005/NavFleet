@@ -27,10 +27,13 @@ test.describe("console admin", () => {
 
     await expect(page.getByRole("link", { name: /系统状态/ })).toBeVisible();
     await expect(page.getByRole("link", { name: /场景/ })).toBeVisible();
+    // 用户 and 审计 are built as of Phase 15E-2, so they are links now too.
+    await expect(page.getByRole("link", { name: /用户/ })).toBeVisible();
+    await expect(page.getByRole("link", { name: /审计/ })).toBeVisible();
     // Unbuilt areas are not links — a card that looks clickable and is not would be
     // worse than a plain list.
     await expect(page.getByRole("link", { name: /用户组/ })).toHaveCount(0);
-    await expect(page.getByText("PR 15B")).toBeVisible();
+    await expect(page.getByText("PR 15C")).toBeVisible();
   });
 
   test("a child keeps 管理 lit and shows up in the breadcrumb", async ({

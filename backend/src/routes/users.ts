@@ -172,5 +172,54 @@ export const buildUsersRouter = (authService: AuthService, audit: AuditService):
     }
   });
 
+  /**
+   * View a specific user's active sessions (Phase 15E-2, admin). Read-only; 404 for an unknown
+   * user rather than a bare empty list, so the console can tell "no sessions" from "no user".
+   */
+  router.get("/users/:username/sessions", async (request, response, next) => {
+    try {
+      const user = await authService.getUser(request.params.username);
+      if (!user) {
+        response.status(404).json({ error: "not_found" });
+        return;
+      }
+      const sessions = await authService.listSessions(request.params.username);
+      response.json({
+        sessions: sessions.map((session) => ({
+          sessionId: session.sessionId,
+          username: session.username,
+          createdAt: session.createdAt,
+          lastSeenAt: session.lastSeenAt,
+          userAgent: session.userAgent,
+          ip: session.ip,
+        })),
+      });
+    } catch (error) {
+      next(error);
+    }
+  });
+
+  /** Revoke one specific session of a user (admin). 404 when that session is not that user's. */
+  router.delete("/users/:username/sessions/:sessionId", async (request, response, next) => {
+    try {
+      const username = request.params.username;
+      const sessionId = String(request.params.sessionId);
+      const revoked = await authService.revokeSession(username, sessionId);
+      if (!revoked) {
+        response.status(404).json({ error: "not_found" });
+        return;
+      }
+      void audit.record({
+        actor: request.user!.username,
+        action: "session_revoke",
+        target: `${username}:${sessionId}`,
+        requestId: request.requestId,
+      });
+      response.status(204).end();
+    } catch (error) {
+      next(error);
+    }
+  });
+
   return router;
 };

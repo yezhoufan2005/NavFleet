@@ -37,6 +37,7 @@
   --color-warning-ink: var(--color-amber-800);
   --color-warning-wash: var(--color-amber-50);
   --color-critical: var(--color-rose-700);
+  --color-critical-hover: var(--color-rose-800);
   --color-critical-contrast: var(--color-rose-25);
   --color-critical-ink: var(--color-rose-800);
   --color-critical-wash: var(--color-rose-50);
@@ -101,6 +102,7 @@
     --color-warning-ink: var(--color-amber-200);
     --color-warning-wash: var(--color-amber-900);
     --color-critical: var(--color-rose-300);
+    --color-critical-hover: var(--color-rose-200);
     --color-critical-contrast: var(--color-rose-950);
     --color-critical-ink: var(--color-rose-200);
     --color-critical-wash: var(--color-rose-900);
@@ -165,6 +167,7 @@
   --color-warning-ink: var(--color-amber-200);
   --color-warning-wash: var(--color-amber-900);
   --color-critical: var(--color-rose-300);
+  --color-critical-hover: var(--color-rose-200);
   --color-critical-contrast: var(--color-rose-950);
   --color-critical-ink: var(--color-rose-200);
   --color-critical-wash: var(--color-rose-900);

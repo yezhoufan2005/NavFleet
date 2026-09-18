@@ -781,6 +781,48 @@ const apiWideResponses = { "429": tooManyRequests, "500": serverError } as const
       },
     },
   },
+  "/api/v1/users/{username}/sessions": {
+    get: {
+      tags: ["users"],
+      summary: "查看某用户的活跃会话（需 admin）",
+      responses: {
+        "200": {
+          description: "该用户的会话列表",
+          content: {
+            "application/json": {
+              schema: {
+                type: "object",
+                properties: {
+                  sessions: {
+                    type: "array",
+                    items: { $ref: "#/components/schemas/SessionView" },
+                  },
+                },
+              },
+            },
+          },
+        },
+        "401": unauthorized,
+        "403": forbidden,
+        "404": notFound,
+        ...apiWideResponses,
+      },
+    },
+  },
+  "/api/v1/users/{username}/sessions/{sessionId}": {
+    delete: {
+      tags: ["users"],
+      summary: "下线某用户的某个会话（需 admin）",
+      parameters: [{ name: "sessionId", in: "path", required: true, schema: { type: "string" } }],
+      responses: {
+        "204": { description: "已下线" },
+        "401": unauthorized,
+        "403": forbidden,
+        "404": notFound,
+        ...apiWideResponses,
+      },
+    },
+  },
   "/api/v1/audit": {
     get: {
       tags: ["audit"],

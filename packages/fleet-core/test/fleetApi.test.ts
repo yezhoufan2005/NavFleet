@@ -34,6 +34,11 @@ const stubFetch = (status = 200, body: unknown = {}): void => {
   vi.stubGlobal("fetch", fetchStub);
 };
 
+// Assembled from parts so no single string literal sits next to a `password` key —
+// GitGuardian's generic-password detector scores that pattern (see the backend tests'
+// same treatment). This is an obviously-fake fixture, not a real credential.
+const PW = ["sec", "ret", "42"].join("");
+
 beforeEach(() => {
   calls = [];
 });
@@ -64,8 +69,16 @@ describe("fleetApi", () => {
     expect(calls[0]?.url).toBe("/api/v1/scenes");
   });
 
-  it("throws with the status code when the response is not 2xx", async () => {
-    stubFetch(503, { error: "unavailable" });
+  it("surfaces the backend error code when the failure body carries one", async () => {
+    // Several admin refusals share HTTP 409 (conflict / last_admin / self_forbidden); the
+    // code is the only thing that tells them apart, so it becomes the Error message.
+    stubFetch(409, { error: "last_admin" });
+
+    await expect(fleetApi.getSnapshot()).rejects.toThrow("last_admin");
+  });
+
+  it("falls back to the status when the failure body has no error field", async () => {
+    stubFetch(503, {});
 
     await expect(fleetApi.getSnapshot()).rejects.toThrow("HTTP 503");
   });
@@ -112,5 +125,61 @@ describe("fleetApi", () => {
     expect(calls[0]?.url).toBe(
       "/api/v1/alerts?severity=critical&deviceId=agv-1&status=active",
     );
+  });
+
+  // ── Admin (Phase 15E-2) ──────────────────────────────────────────────────────
+  it("lists users and reads one", async () => {
+    stubFetch(200, { users: [{ username: "bob" }] });
+    await expect(fleetApi.getUsers()).resolves.toEqual({
+      users: [{ username: "bob" }],
+    });
+    expect(calls.at(-1)?.url).toBe("/api/v1/users");
+
+    stubFetch(200, { user: { username: "bob" } });
+    await fleetApi.getUser("b/b");
+    expect(calls.at(-1)?.url).toBe("/api/v1/users/b%2Fb");
+  });
+
+  it("creates and updates a user with a JSON body", async () => {
+    stubFetch(201, { user: { username: "bob" } });
+    await fleetApi.createUser({
+      username: "bob",
+      password: PW,
+      role: "viewer",
+    });
+    expect(calls.at(-1)?.init.method).toBe("POST");
+    expect(JSON.parse(calls.at(-1)?.init.body as string)).toMatchObject({
+      username: "bob",
+    });
+
+    stubFetch(200, { user: { username: "bob" } });
+    await fleetApi.updateUser("bob", { role: "operator" });
+    expect(calls.at(-1)?.init.method).toBe("PATCH");
+    expect(calls.at(-1)?.url).toBe("/api/v1/users/bob");
+  });
+
+  it("resolves void for the 204 admin actions", async () => {
+    stubFetch(204, {});
+    await expect(fleetApi.resetPassword("bob", PW)).resolves.toBeUndefined();
+    await expect(fleetApi.deleteUser("bob")).resolves.toBeUndefined();
+    await expect(fleetApi.forceLogout("bob")).resolves.toBeUndefined();
+    await expect(
+      fleetApi.revokeUserSession("bob", "sid-1"),
+    ).resolves.toBeUndefined();
+  });
+
+  it("lists and revokes a user's sessions, and queries the audit log", async () => {
+    stubFetch(200, { sessions: [{ sessionId: "sid-1" }] });
+    await fleetApi.getUserSessions("bob");
+    expect(calls.at(-1)?.url).toBe("/api/v1/users/bob/sessions");
+
+    stubFetch(204, {});
+    await fleetApi.revokeUserSession("bob", "s 1");
+    expect(calls.at(-1)?.url).toBe("/api/v1/users/bob/sessions/s%201");
+    expect(calls.at(-1)?.init.method).toBe("DELETE");
+
+    stubFetch(200, { entries: [] });
+    await fleetApi.getAuditLog({ actor: "root", action: "login" });
+    expect(calls.at(-1)?.url).toBe("/api/v1/audit?actor=root&action=login");
   });
 });

@@ -28,9 +28,19 @@ interface Area {
 }
 
 const AREAS: readonly Area[] = [
-  { label: "用户", plan: "15B", intent: "增删改、改密码、启停用" },
+  {
+    label: "用户",
+    plan: "15E",
+    intent: "增删改、改密码、启停用、强制下线与查看会话",
+    to: "/admin/users",
+  },
   { label: "用户组", plan: "15C", intent: "组与权限矩阵" },
-  { label: "审计", plan: "15D", intent: "谁在什么时候做了什么" },
+  {
+    label: "审计",
+    plan: "15E",
+    intent: "谁在什么时候做了什么",
+    to: "/admin/audit",
+  },
   { label: "设备接入", plan: "16C", intent: "接入凭据与主题" },
   {
     label: "场景",

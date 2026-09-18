@@ -1,5 +1,6 @@
 import { reactive } from "vue";
 import type { PublicUser, UserRole } from "@navfleet/shared";
+import type { SessionRecordView } from "@navfleet/fleet-core";
 import { notify } from "@/composables/useNotifications";
 
 /**
@@ -260,7 +261,75 @@ export const useAuth = () => {
     setAnonymous();
   };
 
-  return { state, fetchMe, login, logout };
+  /**
+   * Change the caller's own password (Phase 15E-2, personal center). The backend invalidates
+   * every session on success and re-issues fresh cookies for THIS device, so the local session
+   * survives untouched — no state change here beyond reporting the outcome. The 400 body
+   * distinguishes a wrong current password from a new one that fails policy.
+   */
+  const changePassword = async (
+    oldPassword: string,
+    newPassword: string,
+  ): Promise<{ ok: true } | { ok: false; message: string }> => {
+    try {
+      const response = await request("/api/auth/change-password", {
+        method: "POST",
+        body: JSON.stringify({ oldPassword, newPassword }),
+      });
+      if (response.ok) {
+        return { ok: true };
+      }
+      if (response.status === 400) {
+        const body = (await response.json().catch(() => null)) as {
+          error?: string;
+        } | null;
+        return {
+          ok: false,
+          message:
+            body?.error === "invalid_credentials"
+              ? "当前密码不正确"
+              : "新密码不符合要求",
+        };
+      }
+      if (response.status === 401) {
+        return { ok: false, message: "会话已过期，请重新登录" };
+      }
+      return { ok: false, message: "修改失败，请稍后重试" };
+    } catch {
+      return { ok: false, message: "无法连接服务器" };
+    }
+  };
+
+  /** List the caller's own active sessions (the current one flagged `current`). */
+  const getMySessions = async (): Promise<SessionRecordView[]> => {
+    const response = await request("/api/auth/sessions");
+    if (!response.ok) {
+      throw new Error(`HTTP ${response.status}`);
+    }
+    const body = (await response.json()) as { sessions?: SessionRecordView[] };
+    return body.sessions ?? [];
+  };
+
+  /** Revoke one of the caller's own sessions. Returns whether it was found and removed. */
+  const revokeMySession = async (sessionId: string): Promise<boolean> => {
+    const response = await request(
+      `/api/auth/sessions/${encodeURIComponent(sessionId)}`,
+      {
+        method: "DELETE",
+      },
+    );
+    return response.ok;
+  };
+
+  return {
+    state,
+    fetchMe,
+    login,
+    logout,
+    changePassword,
+    getMySessions,
+    revokeMySession,
+  };
 };
 
 /** Test-only reset for the module singleton. */
