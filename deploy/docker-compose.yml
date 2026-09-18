@@ -132,7 +132,11 @@ services:
       - type: bind
         source: ${CONFIG_RUNTIME_HOST_PATH:-../config-runtime}
         target: /runtime-config
-        read_only: true
+        # Writable so the admin 报码字典 import (PUT /api/v1/codebook, Phase 16C-2) can
+        # persist codebook.json here. The other config files (fleet/vehicles/formations/
+        # scenes/rules) remain operator-edited on the host; the backend only writes the
+        # codebook. read_only was the previous posture, when nothing wrote config from the API.
+        read_only: false
     depends_on:
       mongo:
         condition: service_healthy

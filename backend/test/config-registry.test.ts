@@ -3,6 +3,7 @@ import fs from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import type { DeviceSnapshot, FleetConfig, SceneMapDefinition } from "../src/types";
+import { DEFAULT_REPORT_CODES } from "@navfleet/shared";
 import { SAMPLE_OSM, sampleDevice } from "./helpers/fixtures";
 
 /**
@@ -60,6 +61,8 @@ interface ConfigFiles {
   scenes?: unknown;
   /** `rules.json` is optional. Pass a value to write it; omit to leave none on disk. */
   rules?: unknown;
+  /** `codebook.json` is optional. Pass a value to write it; omit to leave none on disk. */
+  codebook?: unknown;
 }
 
 const writeConfig = async (files: ConfigFiles = {}): Promise<void> => {
@@ -83,6 +86,15 @@ const writeConfig = async (files: ConfigFiles = {}): Promise<void> => {
     await fs.writeFile(rulesPath, files.rules, "utf8");
   } else {
     await fs.writeFile(rulesPath, JSON.stringify(files.rules), "utf8");
+  }
+  // codebook.json is optional too, same rules as rules.json.
+  const codebookPath = path.join(configRoot, "codebook.json");
+  if (files.codebook === undefined) {
+    await fs.rm(codebookPath, { force: true });
+  } else if (typeof files.codebook === "string") {
+    await fs.writeFile(codebookPath, files.codebook, "utf8");
+  } else {
+    await fs.writeFile(codebookPath, JSON.stringify(files.codebook), "utf8");
   }
 };
 
@@ -387,6 +399,92 @@ describe("ConfigRegistry.getAlertRules (Phase 16C-1)", () => {
     await writeConfig({ rules: { lowBattery: { thresholdPct: 40 } } });
     await expect(registry.reload("test")).resolves.toBe(true);
     expect(registry.getAlertRules().lowBattery.thresholdPct).toBe(40);
+  });
+});
+
+describe("ConfigRegistry.getCodebook / importCodebook (Phase 16C-2)", () => {
+  const override = {
+    code: 2301,
+    channel: "warning",
+    subsystem: "power",
+    label: "本厂电量低",
+    description: "低于本厂阈值",
+    hint: "推去充电区",
+    impact: "urgent",
+  };
+
+  it("returns the built-in table before load() and when no codebook.json exists", async () => {
+    const registry = new ConfigRegistry();
+    expect(registry.getCodebook()).toHaveLength(DEFAULT_REPORT_CODES.length);
+
+    await writeConfig();
+    await registry.load();
+    expect(registry.getCodebook()).toHaveLength(DEFAULT_REPORT_CODES.length);
+  });
+
+  it("layers a deployment codebook.json over the built-in table", async () => {
+    await writeConfig({ codebook: [override, { ...override, code: 9001, label: "本厂新码" }] });
+    const registry = new ConfigRegistry();
+    await registry.load();
+
+    const byCode = new Map(registry.getCodebook().map((entry) => [entry.code, entry]));
+    expect(byCode.get(2301)?.label).toBe("本厂电量低"); // override wins
+    expect(byCode.get(9001)?.label).toBe("本厂新码"); // new code added
+    expect(byCode.get(1101)?.label).toBe("定位稳定"); // untouched built-in survives
+    // Merged table is longer than the built-in by exactly the one net-new code.
+    expect(registry.getCodebook()).toHaveLength(DEFAULT_REPORT_CODES.length + 1);
+  });
+
+  it("rejects a malformed codebook.json on load", async () => {
+    await writeConfig({ codebook: [{ ...override, code: 0 }] });
+    await expect(new ConfigRegistry().load()).rejects.toThrow(/code must be a positive integer/);
+  });
+
+  it("keeps the previous codebook when a reload fails", async () => {
+    await writeConfig({ codebook: [override] });
+    const registry = new ConfigRegistry();
+    await registry.load();
+    expect(new Map(registry.getCodebook().map((e) => [e.code, e])).get(2301)?.label).toBe(
+      "本厂电量低",
+    );
+
+    await writeConfig({ codebook: [{ ...override, impact: "nope" }] });
+    await expect(registry.reload("test")).resolves.toBe(false);
+    // Old snapshot kept.
+    expect(new Map(registry.getCodebook().map((e) => [e.code, e])).get(2301)?.label).toBe(
+      "本厂电量低",
+    );
+  });
+
+  it("persists an imported codebook and reflects it in getCodebook", async () => {
+    await writeConfig();
+    const registry = new ConfigRegistry();
+    await registry.load();
+
+    const merged = await registry.importCodebook([override]);
+    expect(new Map(merged.map((e) => [e.code, e])).get(2301)?.label).toBe("本厂电量低");
+    // Written to disk as codebook.json.
+    const onDisk: unknown = JSON.parse(
+      await fs.readFile(path.join(configRoot, "codebook.json"), "utf8"),
+    );
+    expect(onDisk).toEqual([override]);
+    // A fresh registry loading the same dir sees it.
+    const reloaded = new ConfigRegistry();
+    await reloaded.load();
+    expect(new Map(reloaded.getCodebook().map((e) => [e.code, e])).get(2301)?.label).toBe(
+      "本厂电量低",
+    );
+  });
+
+  it("rejects an invalid import without writing anything", async () => {
+    await writeConfig();
+    const registry = new ConfigRegistry();
+    await registry.load();
+    await expect(registry.importCodebook([{ ...override, code: -1 }])).rejects.toThrow(
+      /code must be a positive integer/,
+    );
+    // Nothing written.
+    await expect(fs.readFile(path.join(configRoot, "codebook.json"), "utf8")).rejects.toThrow();
   });
 });
 

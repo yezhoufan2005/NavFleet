@@ -162,6 +162,7 @@ export default defineConfig({
         /console-alert-history\.spec\.ts$/,
         /console-playback\.spec\.ts$/,
         /console-admin\.spec\.ts$/,
+        /console-codebook\.spec\.ts$/,
       ],
       use: {
         ...devices["Desktop Chrome"],

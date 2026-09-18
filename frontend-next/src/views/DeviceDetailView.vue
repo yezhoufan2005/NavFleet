@@ -29,7 +29,7 @@
  * is a URL rather than a sentence with a step in it. `replace` rather than `push`, so
  * the back button leaves the device instead of walking back through tabs.
  */
-import { computed, defineAsyncComponent } from "vue";
+import { computed, defineAsyncComponent, onMounted } from "vue";
 import { useRoute, useRouter } from "vue-router";
 import { TabsContent, TabsList, TabsRoot, TabsTrigger } from "reka-ui";
 import PageHeader from "@/components/PageHeader.vue";
@@ -37,7 +37,6 @@ import { useFleetStore } from "@/stores/fleet";
 import {
   CODE_IMPACTS,
   controlModeMap,
-  describeDeviceCodes,
   describeEnum,
   deviceToneLabels,
   formatEnum,
@@ -49,6 +48,7 @@ import {
   hasPose,
   taskStatusMap,
 } from "@navfleet/fleet-core";
+import { useCodebook } from "@/composables/useCodebook";
 
 const route = useRoute();
 const router = useRouter();
@@ -114,9 +114,15 @@ const TONE_BADGE: Record<string, string> = {
   offline: "bg-offline-wash text-offline-ink",
 };
 
-/** The active report codes, decoded. Empty for a healthy vehicle. */
+/** The active report codes, decoded against the deployment codebook. Empty for a healthy vehicle. */
+const codebook = useCodebook();
+onMounted(() => {
+  // Fetch the table in effect (built-in ⊕ deployment codebook); until it lands, the shared
+  // built-in table backs `describeDevice`, so the card renders rather than flashing empty.
+  void codebook.load();
+});
 const codes = computed(() =>
-  device.value ? describeDeviceCodes(device.value) : [],
+  device.value ? codebook.describeDevice(device.value) : [],
 );
 
 const CHANNEL_LABELS: Record<string, string> = {

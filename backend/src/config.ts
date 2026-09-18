@@ -282,5 +282,6 @@ export const runtimePaths = {
   formationsFilePath: path.join(config.configRootPath, "formations.json"),
   scenesFilePath: path.join(config.configRootPath, "scenes.json"),
   rulesFilePath: path.join(config.configRootPath, "rules.json"),
+  codebookFilePath: path.join(config.configRootPath, "codebook.json"),
   sceneMapsPath: path.join(config.configRootPath, "scene-maps"),
 };

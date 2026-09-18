@@ -51,7 +51,8 @@ const AREAS: readonly Area[] = [
   {
     label: "报码字典",
     plan: "16C",
-    intent: "报码到文案的映射，目前根本不存在",
+    intent: "报码到含义/等级/处理建议的映射，可导入部署侧码表覆盖内置表",
+    to: "/admin/codebook",
   },
   {
     label: "系统状态",
