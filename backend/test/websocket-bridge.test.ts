@@ -4,7 +4,7 @@ import { randomBytes } from "node:crypto";
 import { EventEmitter } from "node:events";
 import { describe, it, expect, afterEach, vi } from "vitest";
 import WebSocket from "ws";
-import { ACCESS_COOKIE, type UserLookup } from "../src/auth/middleware";
+import { ACCESS_COOKIE, type SessionCheck, type UserLookup } from "../src/auth/middleware";
 import { signAccessToken } from "../src/auth/tokens";
 import {
   createWebSocketBridge,
@@ -39,6 +39,8 @@ const clients: WebSocket[] = [];
 const rawSockets: net.Socket[] = [];
 
 const token = (): string => signAccessToken({ username: "tester", role: "viewer" }, 0);
+const tokenWithSid = (sid = "sid-1"): string =>
+  signAccessToken({ username: "tester", role: "viewer" }, 0, sid);
 
 const enabledUser = (): UserRecord => ({
   username: "tester",
@@ -53,10 +55,12 @@ const enabledUser = (): UserRecord => ({
   phone: null,
   lastLoginAt: null,
   passwordUpdatedAt: "t",
+  failedAttempts: 0,
+  lockedUntil: null,
 });
 
 const startBridge = async (
-  options: { authEnabled?: boolean; lookupUser?: UserLookup } = {},
+  options: { authEnabled?: boolean; lookupUser?: UserLookup; isSessionActive?: SessionCheck } = {},
 ): Promise<Harness> => {
   const store: StoreStub = Object.assign(new EventEmitter(), { snapshot: () => sampleSnapshot() });
   const server = http.createServer();
@@ -68,6 +72,7 @@ const startBridge = async (
       authEnabled: options.authEnabled ?? true,
     } as unknown as AppConfig,
     options.lookupUser ?? (() => Promise.resolve(enabledUser())),
+    options.isSessionActive,
   );
   bridges.push(bridge);
   await new Promise<void>((resolve) => server.listen(0, "127.0.0.1", () => resolve()));
@@ -200,6 +205,24 @@ describe("WebSocket upgrade", () => {
       connect(harness, "", { headers: { Cookie: `${ACCESS_COOKIE}=${token()}` } }),
     );
     expect(error.message).toContain("401");
+  });
+
+  it("rejects the upgrade with 401 when the token's session has been revoked", async () => {
+    // The user is fine (enabled, current version) but the session the token names is gone —
+    // the same per-request check the REST gate makes, applied once at the handshake.
+    const harness = await startBridge({ isSessionActive: () => Promise.resolve(false) });
+    const error = await failed(
+      connect(harness, "", { headers: { Cookie: `${ACCESS_COOKIE}=${tokenWithSid()}` } }),
+    );
+    expect(error.message).toContain("401");
+  });
+
+  it("accepts a token whose session is still live", async () => {
+    const harness = await startBridge({ isSessionActive: () => Promise.resolve(true) });
+    await opened(
+      connect(harness, "", { headers: { Cookie: `${ACCESS_COOKIE}=${tokenWithSid()}` } }),
+    );
+    expect(harness.bridge.clientCount()).toBe(1);
   });
 
   it("rejects a token passed in the query string", async () => {

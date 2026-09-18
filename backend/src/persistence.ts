@@ -1,7 +1,14 @@
 import { Db, MongoClient, MongoServerError, type MongoClientEvents } from "mongodb";
 import { config } from "./config";
 import { MongoConnectionSupervisor, type MongoSession, redactMongoUri } from "./mongoConnection";
-import { AuditEntry, DeviceAlert, DeviceSnapshot, HistoryQuery, UserRecord } from "./types";
+import {
+  AuditEntry,
+  DeviceAlert,
+  DeviceSnapshot,
+  HistoryQuery,
+  SessionRecord,
+  UserRecord,
+} from "./types";
 import { moduleLogger } from "./logger";
 import { asText } from "./normalize";
 import { runMigrations } from "./migrations/runner";
@@ -108,6 +115,9 @@ export class Persistence {
   // In-memory user store used when MongoDB is unavailable, so auth still works
   // for local/dev runs (mirrors the telemetry in-memory fallback).
   private fallbackUsers = new Map<string, UserRecord>();
+  // In-memory session store for Mongo-less dev runs (mirrors the user fallback), keyed by
+  // sessionId. A dev run without Mongo still tracks and revokes per-device sessions.
+  private fallbackSessions = new Map<string, SessionRecord>();
   // Current active alerts per device, always kept in memory so /api/alerts stays
   // useful in local/dev runs without MongoDB (mirrors the telemetry fallback).
   private activeAlerts = new Map<string, StoredAlert[]>();
@@ -233,6 +243,9 @@ export class Persistence {
     if (!names.has("audit_log")) {
       await this.db.createCollection("audit_log");
     }
+    if (!names.has("sessions")) {
+      await this.db.createCollection("sessions");
+    }
 
     await this.db.collection("device_latest").createIndex({ deviceId: 1 }, { unique: true });
     await this.db.collection("device_latest").createIndex({ stamp: -1 });
@@ -247,6 +260,13 @@ export class Persistence {
     await this.db
       .collection("audit_log")
       .createIndex({ ts: -1 }, { expireAfterSeconds: config.auditRetentionSeconds });
+    await this.db.collection("sessions").createIndex({ sessionId: 1 }, { unique: true });
+    await this.db.collection("sessions").createIndex({ username: 1, createdAt: -1 });
+    // TTL on the session's own expiry timestamp: a session never refreshed disappears at the
+    // refresh horizon on its own, and each refresh pushes `expiresAt` out. `expireAfterSeconds:
+    // 0` is the "expire at the date in this field" idiom, so there is no config-driven window to
+    // reconcile — the window lives in `expiresAt`, computed from JWT_REFRESH_TTL at write time.
+    await this.db.collection("sessions").createIndex({ expiresAt: 1 }, { expireAfterSeconds: 0 });
 
     // Reconcile TTLs on an existing database, not just at creation: both retention windows
     // are env-configurable, but the `expireAfterSeconds` was only ever set in the create
@@ -325,6 +345,8 @@ export class Persistence {
           phone: user.phone,
           lastLoginAt: user.lastLoginAt,
           passwordUpdatedAt: user.passwordUpdatedAt,
+          failedAttempts: user.failedAttempts,
+          lockedUntil: user.lockedUntil,
         },
       },
       { upsert: true },
@@ -470,6 +492,131 @@ export class Persistence {
     await this.db
       .collection<UserRecord>("users")
       .updateOne({ username }, { $set: { lastLoginAt: at } });
+  }
+
+  /**
+   * Record a failed-login count and, when the threshold trips, a lockout deadline. Written
+   * together so the two never diverge. `lockedUntil` is null while below the threshold.
+   */
+  async setLoginFailure(
+    username: string,
+    failedAttempts: number,
+    lockedUntil: string | null,
+    at: string,
+  ): Promise<void> {
+    const fallback = this.fallbackUsers.get(username);
+    if (fallback) {
+      this.fallbackUsers.set(username, { ...fallback, failedAttempts, lockedUntil, updatedAt: at });
+    }
+    if (!this.db) {
+      return;
+    }
+    await this.db
+      .collection<UserRecord>("users")
+      .updateOne({ username }, { $set: { failedAttempts, lockedUntil, updatedAt: at } });
+  }
+
+  /** Clear the failure counter and any lockout after a successful login. */
+  async clearLoginFailures(username: string, at: string): Promise<void> {
+    const fallback = this.fallbackUsers.get(username);
+    if (fallback) {
+      this.fallbackUsers.set(username, {
+        ...fallback,
+        failedAttempts: 0,
+        lockedUntil: null,
+        updatedAt: at,
+      });
+    }
+    if (!this.db) {
+      return;
+    }
+    await this.db
+      .collection<UserRecord>("users")
+      .updateOne({ username }, { $set: { failedAttempts: 0, lockedUntil: null, updatedAt: at } });
+  }
+
+  // ── Sessions (Phase 15E) ────────────────────────────────────────────────────────
+  // Per-login rows tracked so a user can see/revoke sessions and an admin can force-log-out.
+  // The in-memory fallback keeps this working in a Mongo-less dev run.
+
+  /** Create a session row for a fresh login. */
+  async createSession(session: SessionRecord): Promise<void> {
+    this.fallbackSessions.set(session.sessionId, session);
+    if (!this.db) {
+      return;
+    }
+    await this.db
+      .collection<SessionRecord>("sessions")
+      .updateOne({ sessionId: session.sessionId }, { $set: { ...session } }, { upsert: true });
+  }
+
+  /** Bump a session's `lastSeenAt` and push its `expiresAt` out (called on refresh). */
+  async touchSession(sessionId: string, lastSeenAt: string, expiresAt: Date): Promise<void> {
+    const fallback = this.fallbackSessions.get(sessionId);
+    if (fallback) {
+      this.fallbackSessions.set(sessionId, { ...fallback, lastSeenAt, expiresAt });
+    }
+    if (!this.db) {
+      return;
+    }
+    await this.db
+      .collection<SessionRecord>("sessions")
+      .updateOne({ sessionId }, { $set: { lastSeenAt, expiresAt } });
+  }
+
+  /** Whether a live session with this id exists for the user. */
+  async isSessionActive(username: string, sessionId: string): Promise<boolean> {
+    if (!this.db) {
+      const session = this.fallbackSessions.get(sessionId);
+      return !!session && session.username === username && session.expiresAt.getTime() > Date.now();
+    }
+    const count = await this.db
+      .collection<SessionRecord>("sessions")
+      .countDocuments({ sessionId, username });
+    return count > 0;
+  }
+
+  /** List a user's sessions, newest first. */
+  async listSessions(username: string): Promise<SessionRecord[]> {
+    if (!this.db) {
+      return [...this.fallbackSessions.values()]
+        .filter((session) => session.username === username)
+        .sort((left, right) => Date.parse(right.createdAt) - Date.parse(left.createdAt));
+    }
+    return this.db
+      .collection<SessionRecord>("sessions")
+      .find({ username }, { projection: { _id: 0 } })
+      .sort({ createdAt: -1 })
+      .toArray();
+  }
+
+  /** Delete one of a user's sessions. Returns false when no such session belonged to them. */
+  async deleteSession(username: string, sessionId: string): Promise<boolean> {
+    if (!this.db) {
+      const session = this.fallbackSessions.get(sessionId);
+      if (session && session.username === username) {
+        this.fallbackSessions.delete(sessionId);
+        return true;
+      }
+      return false;
+    }
+    const result = await this.db
+      .collection<SessionRecord>("sessions")
+      .deleteOne({ sessionId, username });
+    return result.deletedCount > 0;
+  }
+
+  /** Delete every session for a user (logout-all / force-logout / all-devices invalidation). */
+  async deleteAllSessions(username: string): Promise<void> {
+    for (const [id, session] of this.fallbackSessions) {
+      if (session.username === username) {
+        this.fallbackSessions.delete(id);
+      }
+    }
+    if (!this.db) {
+      return;
+    }
+    await this.db.collection<SessionRecord>("sessions").deleteMany({ username });
   }
 
   /**

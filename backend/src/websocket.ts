@@ -3,7 +3,7 @@ import type { Duplex } from "node:stream";
 import { WebSocketServer, type RawData } from "ws";
 import type { DashboardStore } from "./store";
 import type { AppConfig } from "./config";
-import { ACCESS_COOKIE, type UserLookup } from "./auth/middleware";
+import { ACCESS_COOKIE, type SessionCheck, type UserLookup } from "./auth/middleware";
 import { verifyToken } from "./auth/tokens";
 import { moduleLogger } from "./logger";
 import type { SocketEvent } from "./types";
@@ -85,6 +85,7 @@ export const createWebSocketBridge = (
   store: DashboardStore,
   config: AppConfig,
   lookupUser: UserLookup,
+  isSessionActive?: SessionCheck,
 ): WebSocketBridge => {
   const wsServer = new WebSocketServer({ noServer: true, maxPayload: WS_MAX_PAYLOAD_BYTES });
 
@@ -136,8 +137,15 @@ export const createWebSocketBridge = (
     // bumped tokenVersion must not open one. (An already-open socket is closed on shutdown; a
     // mid-session disable is bounded by that, not by this check.)
     lookupUser(claims.sub)
-      .then((user) => {
+      .then(async (user) => {
         if (!user || !user.enabled || user.tokenVersion !== claims.ver) {
+          rejectUpgrade(socket);
+          return;
+        }
+        // Per-session revocation (Phase 15E), checked once at handshake like the other gates:
+        // a socket that would live for hours must not open on a token whose session has been
+        // revoked. Only when the token names a session and a checker is wired.
+        if (claims.sid && isSessionActive && !(await isSessionActive(claims.sub, claims.sid))) {
           rejectUpgrade(socket);
           return;
         }

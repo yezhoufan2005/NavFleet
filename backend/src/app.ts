@@ -159,9 +159,15 @@ export const createApp = ({
   app.use("/api/auth", authLimiter, captureRouteMount, buildAuthRouter(authService, auditService));
 
   // Everything below requires a valid session. The middleware verifies each token against
-  // the stored user (enabled + tokenVersion), so logout / password change / disable take
+  // the stored user (enabled + tokenVersion) and, when the token names a session (Phase 15E),
+  // against that session still being live, so logout / revoke / force-logout / disable take
   // effect immediately rather than at token expiry.
-  app.use(createAuthenticate((username) => authService.findByUsername(username)));
+  app.use(
+    createAuthenticate(
+      (username) => authService.findByUsername(username),
+      (username, sessionId) => authService.isSessionActive(username, sessionId),
+    ),
+  );
 
   app.use(captureRouteMount, buildOpenApiRouter());
   app.use(captureRouteMount, buildDocsRouter());

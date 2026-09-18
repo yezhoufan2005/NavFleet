@@ -33,6 +33,8 @@ const storedUser = (overrides: Partial<UserRecord> = {}): UserRecord => ({
   phone: null,
   lastLoginAt: null,
   passwordUpdatedAt: "t",
+  failedAttempts: 0,
+  lockedUntil: null,
   ...overrides,
 });
 

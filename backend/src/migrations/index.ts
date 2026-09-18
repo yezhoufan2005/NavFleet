@@ -45,6 +45,24 @@ export const migrations: readonly Migration[] = [
       ]);
     },
   },
+  {
+    version: 3,
+    name: "add-login-lockout-fields",
+    up: async (db) => {
+      // Backfill the Phase 15E account-lockout fields onto rows that predate them. Scoped to
+      // rows missing `failedAttempts` so a re-run touches nothing, and written as an aggregation
+      // pipeline with `$ifNull` so the defaults are set only where absent — the same idempotent
+      // shape as v2.
+      await db.collection("users").updateMany({ failedAttempts: { $exists: false } }, [
+        {
+          $set: {
+            failedAttempts: { $ifNull: ["$failedAttempts", 0] },
+            lockedUntil: { $ifNull: ["$lockedUntil", null] },
+          },
+        },
+      ]);
+    },
+  },
 ];
 
 /**

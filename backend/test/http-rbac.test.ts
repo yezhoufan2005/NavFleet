@@ -24,6 +24,7 @@ const READ_ROUTES: Array<{ method: "get"; path: string }> = [
   { method: "get", path: `/api/devices/${DEVICE_ID}/history` },
   { method: "get", path: "/api/alerts" },
   { method: "get", path: "/api/auth/me" },
+  { method: "get", path: "/api/auth/sessions" },
 ];
 
 const ADMIN_ROUTES: Array<{ method: "get" | "post" | "patch" | "delete"; path: string }> = [
@@ -33,6 +34,7 @@ const ADMIN_ROUTES: Array<{ method: "get" | "post" | "patch" | "delete"; path: s
   { method: "patch", path: "/api/users/bob" },
   { method: "delete", path: "/api/users/bob" },
   { method: "post", path: "/api/users/bob/reset-password" },
+  { method: "post", path: "/api/users/bob/logout" },
   { method: "post", path: "/api/debug/ingest" },
   { method: "get", path: "/api/audit" },
 ];

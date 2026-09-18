@@ -195,6 +195,9 @@ export const openApiDocument = {
               "user_create",
               "user_update",
               "user_delete",
+              "session_revoke",
+              "force_logout",
+              "account_locked",
             ],
           },
           target: { type: "string" },
@@ -228,6 +231,19 @@ export const openApiDocument = {
           ts: { type: "string", format: "date-time" },
           meta: { type: "object", additionalProperties: true },
           measurements: { type: "object", additionalProperties: true },
+        },
+      },
+      SessionView: {
+        type: "object",
+        description: "调用者自己的一个活跃会话（Phase 15E），current 标出当前请求所在会话",
+        properties: {
+          sessionId: { type: "string" },
+          username: { type: "string" },
+          createdAt: { type: "string", format: "date-time" },
+          lastSeenAt: { type: "string", format: "date-time" },
+          userAgent: { type: "string" },
+          ip: { type: "string" },
+          current: { type: "boolean" },
         },
       },
     },
@@ -394,6 +410,45 @@ const apiWideResponses = { "429": tooManyRequests, "500": serverError } as const
           },
         },
         "401": unauthorized,
+        ...apiWideResponses,
+      },
+    },
+  },
+  "/api/auth/sessions": {
+    get: {
+      tags: ["auth"],
+      summary: "列出当前用户自己的活跃会话（current 标出本次会话）",
+      responses: {
+        "200": {
+          description: "会话列表",
+          content: {
+            "application/json": {
+              schema: {
+                type: "object",
+                properties: {
+                  sessions: {
+                    type: "array",
+                    items: { $ref: "#/components/schemas/SessionView" },
+                  },
+                },
+              },
+            },
+          },
+        },
+        "401": unauthorized,
+        ...apiWideResponses,
+      },
+    },
+  },
+  "/api/auth/sessions/{sessionId}": {
+    delete: {
+      tags: ["auth"],
+      summary: "下线本人某个会话（仅能删自己的；删别人的当作未找到）",
+      parameters: [{ name: "sessionId", in: "path", required: true, schema: { type: "string" } }],
+      responses: {
+        "204": { description: "已下线" },
+        "401": unauthorized,
+        "404": notFound,
         ...apiWideResponses,
       },
     },
@@ -706,6 +761,19 @@ const apiWideResponses = { "429": tooManyRequests, "500": serverError } as const
       responses: {
         "204": { description: "已重置" },
         "400": badRequest,
+        "401": unauthorized,
+        "403": forbidden,
+        "404": notFound,
+        ...apiWideResponses,
+      },
+    },
+  },
+  "/api/v1/users/{username}/logout": {
+    post: {
+      tags: ["users"],
+      summary: "强制下线用户所有设备（需 admin；踢掉全部会话并使已签发 token 立即失效）",
+      responses: {
+        "204": { description: "已强制下线" },
         "401": unauthorized,
         "403": forbidden,
         "404": notFound,

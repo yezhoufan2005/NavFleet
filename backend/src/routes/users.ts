@@ -148,5 +148,29 @@ export const buildUsersRouter = (authService: AuthService, audit: AuditService):
     }
   });
 
+  /**
+   * Force-log-out a user from every device (Phase 15E): drop all their sessions and bump the
+   * token version. Deliberately NOT self-forbidden — an admin ending their own other sessions
+   * is a legitimate "I lost a laptop" action — but always audited.
+   */
+  router.post("/users/:username/logout", async (request, response, next) => {
+    try {
+      const result = await authService.forceLogout(request.params.username);
+      if (!result.ok) {
+        respondActionError(response, result.error);
+        return;
+      }
+      void audit.record({
+        actor: request.user!.username,
+        action: "force_logout",
+        target: request.params.username,
+        requestId: request.requestId,
+      });
+      response.status(204).end();
+    } catch (error) {
+      next(error);
+    }
+  });
+
   return router;
 };

@@ -45,6 +45,49 @@ export interface UserRecord {
   phone: string | null;
   lastLoginAt: string | null;
   passwordUpdatedAt: string;
+  /**
+   * Account-level login lockout (Phase 15E), backfilled by migration v3. `failedAttempts`
+   * counts consecutive failures since the last success; when it reaches `AUTH_LOCK_THRESHOLD`
+   * the account is locked until `lockedUntil` (ISO-8601), after which the counter resets on
+   * the next attempt. Orthogonal to the per-IP rate limit: this stops one account being
+   * brute-forced from many addresses, the limiter stops one address hammering many accounts.
+   */
+  failedAttempts: number;
+  lockedUntil: string | null;
+}
+
+/**
+ * One row of the `sessions` collection (Phase 15E): a single login, tracked per device so a
+ * user can see and revoke their active sessions and an admin can force-log-out an account.
+ *
+ * A login mints one `sessionId`, carried as the `sid` claim on both that login's access and
+ * refresh tokens; a refresh keeps the same `sid` (same session, renewed). The per-request auth
+ * check requires the token's `sid` to still name a live row here — deleting the row (logout,
+ * self-revoke, force-logout) invalidates every token that names it, at the cost of one indexed
+ * lookup per authenticated request (the same trade-off `tokenVersion` already makes).
+ *
+ * `expiresAt` is a BSON Date carrying a TTL index (expireAfterSeconds: 0), so a session that is
+ * never refreshed disappears on its own at the refresh-token horizon; a refresh pushes it out.
+ */
+export interface SessionRecord {
+  sessionId: string;
+  username: string;
+  createdAt: string;
+  lastSeenAt: string;
+  userAgent: string;
+  ip: string;
+  expiresAt: Date;
+}
+
+/** A session as returned to its owner — `expiresAt` serialised, plus whether it is the caller's current one. */
+export interface SessionView {
+  sessionId: string;
+  username: string;
+  createdAt: string;
+  lastSeenAt: string;
+  userAgent: string;
+  ip: string;
+  current: boolean;
 }
 
 /**
@@ -69,7 +112,11 @@ export type AuditAction =
   | "password_reset"
   | "user_create"
   | "user_update"
-  | "user_delete";
+  | "user_delete"
+  // Session management (Phase 15E).
+  | "session_revoke"
+  | "force_logout"
+  | "account_locked";
 
 /** One row of the `audit_log` collection. `ts` is a BSON Date so the TTL index can expire it. */
 export interface AuditEntry {

@@ -2,7 +2,14 @@ import { describe, it, expect } from "vitest";
 import request from "supertest";
 import { REFRESH_COOKIE } from "../src/auth/middleware";
 import { signAccessToken, signRefreshToken } from "../src/auth/tokens";
-import { adminUser, createTestApp, sessionCookie, DEVICE_ID, SCENE_ID } from "./helpers/testApp";
+import {
+  adminUser,
+  createTestApp,
+  sessionCookie,
+  sessionCookieWithSid,
+  DEVICE_ID,
+  SCENE_ID,
+} from "./helpers/testApp";
 
 /**
  * Every authenticated surface behind app.use(authenticate). The debug ingest
@@ -109,7 +116,7 @@ describe("POST /api/auth/login", () => {
 
   it("issues httpOnly access and refresh cookies on success", async () => {
     const context = createTestApp();
-    context.authService.authenticate.mockResolvedValue(adminUser());
+    context.authService.authenticate.mockResolvedValue({ ok: true, user: adminUser() });
 
     const response = await request(context.app)
       .post("/api/auth/login")
@@ -117,6 +124,10 @@ describe("POST /api/auth/login", () => {
 
     expect(response.status).toBe(200);
     expect(response.body).toEqual({ user: { username: "admin", role: "admin" } });
+    // Login opens a tracked session (Phase 15E).
+    expect(context.authService.createSession).toHaveBeenCalledWith(
+      expect.objectContaining({ username: "admin" }),
+    );
 
     const cookies = response.headers["set-cookie"] as unknown as string[];
     const access = cookies.find((cookie) => cookie.startsWith("access_token="));
@@ -178,16 +189,16 @@ describe("POST /api/auth/logout", () => {
     expect(cookies.every((cookie) => /Expires=Thu, 01 Jan 1970/.test(cookie))).toBe(true);
   });
 
-  it("invalidates the user's sessions when a valid token is presented", async () => {
+  it("revokes only the presented session when a valid token is presented", async () => {
     const context = createTestApp();
     const response = await request(context.app)
       .post("/api/auth/logout")
-      .set("Cookie", sessionCookie("viewer", "tester"));
+      .set("Cookie", sessionCookieWithSid("viewer", "tester", "sid-logout"));
 
     expect(response.status).toBe(204);
-    // The version bump is what makes logout invalidate already-issued tokens, not just clear
-    // the cookie the client happens to hold.
-    expect(context.authService.invalidateSessions).toHaveBeenCalledWith("tester");
+    // Per-session logout (Phase 15E): the session the token names is revoked, and — unlike the
+    // pre-15E logout — the user's tokenVersion is left alone so their other devices stay in.
+    expect(context.authService.revokeSession).toHaveBeenCalledWith("tester", "sid-logout");
   });
 });
 
@@ -218,6 +229,36 @@ describe("POST /api/auth/refresh — rotation", () => {
       .set("Cookie", `${REFRESH_COOKIE}=${token}`);
 
     expect(response.status).toBe(401);
+  });
+
+  it("keeps the same session id across a refresh and touches it", async () => {
+    const context = createTestApp();
+    context.authService.findByUsername.mockResolvedValue(adminUser());
+    context.authService.isSessionActive.mockResolvedValue(true);
+
+    const token = signRefreshToken({ username: "admin", role: "admin" }, 0, "sid-keep");
+    const response = await request(context.app)
+      .post("/api/auth/refresh")
+      .set("Cookie", `${REFRESH_COOKIE}=${token}`);
+
+    expect(response.status).toBe(200);
+    // Same session renewed, not a new one.
+    expect(context.authService.touchSession).toHaveBeenCalledWith("sid-keep");
+    expect(context.authService.createSession).not.toHaveBeenCalled();
+  });
+
+  it("rejects a refresh whose named session has been revoked", async () => {
+    const context = createTestApp();
+    context.authService.findByUsername.mockResolvedValue(adminUser());
+    context.authService.isSessionActive.mockResolvedValue(false);
+
+    const token = signRefreshToken({ username: "admin", role: "admin" }, 0, "sid-gone");
+    const response = await request(context.app)
+      .post("/api/auth/refresh")
+      .set("Cookie", `${REFRESH_COOKIE}=${token}`);
+
+    expect(response.status).toBe(401);
+    expect(context.authService.touchSession).not.toHaveBeenCalled();
   });
 });
 

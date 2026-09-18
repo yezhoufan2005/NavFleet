@@ -4,6 +4,28 @@ import type { PublicUser, UserRole } from "../types";
 
 export type TokenType = "access" | "refresh";
 
+const DURATION_UNITS: Record<string, number> = {
+  s: 1000,
+  m: 60_000,
+  h: 3_600_000,
+  d: 86_400_000,
+};
+
+/**
+ * Parse a duration like "15m" / "7d" into milliseconds; falls back to 0 on a malformed value.
+ * Shared by the cookie `maxAge` (routes) and the session `expiresAt` (service) so the token,
+ * its cookie and its session row all expire on the same clock.
+ */
+export const durationToMs = (value: string): number => {
+  const match = /^(\d+)([smhd])$/.exec(value.trim());
+  if (!match) {
+    return 0;
+  }
+  const [, amount = "0", unit = ""] = match;
+  const scale = DURATION_UNITS[unit];
+  return scale === undefined ? 0 : Number(amount) * scale;
+};
+
 export interface TokenClaims {
   sub: string;
   role: UserRole;
@@ -15,6 +37,15 @@ export interface TokenClaims {
    * matching a freshly-migrated user's `tokenVersion: 0`, so a deploy does not force re-login.
    */
   ver: number;
+  /**
+   * The session id (Phase 15E): one per login, shared by that login's access and refresh
+   * tokens and preserved across refresh. The auth middleware requires it to still name a live
+   * `sessions` row, which is how per-session logout / self-revoke / force-logout invalidate a
+   * specific token rather than every token the user holds. Optional because tokens minted
+   * before this field existed carry none — those are governed by `ver` alone, exactly as
+   * before, and expire within a refresh TTL of the deploy (mirrors how `ver` defaults to 0).
+   */
+  sid?: string;
 }
 
 const secret = (): string => {
@@ -34,9 +65,15 @@ const signToken = (
   tokenVersion: number,
   type: TokenType,
   expiresIn: string,
+  sessionId?: string,
 ): string =>
   jwt.sign(
-    { role: user.role, type, ver: tokenVersion } satisfies Omit<TokenClaims, "sub">,
+    {
+      role: user.role,
+      type,
+      ver: tokenVersion,
+      ...(sessionId ? { sid: sessionId } : {}),
+    } satisfies Omit<TokenClaims, "sub">,
     secret(),
     {
       subject: user.username,
@@ -45,11 +82,17 @@ const signToken = (
     },
   );
 
-export const signAccessToken = (user: PublicUser, tokenVersion: number): string =>
-  signToken(user, tokenVersion, "access", config.jwtAccessTtl);
+export const signAccessToken = (
+  user: PublicUser,
+  tokenVersion: number,
+  sessionId?: string,
+): string => signToken(user, tokenVersion, "access", config.jwtAccessTtl, sessionId);
 
-export const signRefreshToken = (user: PublicUser, tokenVersion: number): string =>
-  signToken(user, tokenVersion, "refresh", config.jwtRefreshTtl);
+export const signRefreshToken = (
+  user: PublicUser,
+  tokenVersion: number,
+  sessionId?: string,
+): string => signToken(user, tokenVersion, "refresh", config.jwtRefreshTtl, sessionId);
 
 export const verifyToken = (token: string, expectedType: TokenType): TokenClaims | null => {
   try {
@@ -57,7 +100,12 @@ export const verifyToken = (token: string, expectedType: TokenType): TokenClaims
     if (typeof decoded === "string" || !decoded.sub) {
       return null;
     }
-    const claims = decoded as jwt.JwtPayload & { role?: UserRole; type?: TokenType; ver?: number };
+    const claims = decoded as jwt.JwtPayload & {
+      role?: UserRole;
+      type?: TokenType;
+      ver?: number;
+      sid?: string;
+    };
     if (claims.type !== expectedType || !claims.role) {
       return null;
     }
@@ -66,6 +114,7 @@ export const verifyToken = (token: string, expectedType: TokenType): TokenClaims
       role: claims.role,
       type: claims.type,
       ver: typeof claims.ver === "number" ? claims.ver : 0,
+      ...(typeof claims.sid === "string" && claims.sid ? { sid: claims.sid } : {}),
     };
   } catch {
     return null;
