@@ -144,16 +144,31 @@ const formatTime = (iso: string): string =>
           aria-label="按动作筛选"
         />
       </label>
+      <!-- 起 ≤ 止 enforced with native min/max so an inverted range cannot be picked at all. -->
       <label class="flex flex-col gap-1">
         <span class="text-2xs text-ink-muted">起</span>
-        <input v-model="from" type="date" :class="INPUT_CLASS" />
+        <input
+          v-model="from"
+          type="date"
+          :max="to || undefined"
+          :class="INPUT_CLASS"
+        />
       </label>
       <label class="flex flex-col gap-1">
         <span class="text-2xs text-ink-muted">止</span>
-        <input v-model="to" type="date" :class="INPUT_CLASS" />
+        <input
+          v-model="to"
+          type="date"
+          :min="from || undefined"
+          :class="INPUT_CLASS"
+        />
       </label>
       <UiButton size="sm" @click="applyFilters">查询</UiButton>
-      <UiButton variant="ghost" size="sm" @click="resetFilters">重置</UiButton>
+      <!-- 重置 carries a border like 查询, but a quieter secondary fill so it does not read as
+           a second primary action. -->
+      <UiButton variant="secondary" size="sm" @click="resetFilters"
+        >重置</UiButton
+      >
     </section>
 
     <!-- AUDIT_TABLE_PLACEHOLDER -->
