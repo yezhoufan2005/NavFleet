@@ -183,18 +183,8 @@ export const parseLaneletOsmText = (
       : { lat: firstNode.lat, lng: firstNode.lng };
 
   const projectedNodes = new Map<string, { x: number; y: number }>();
-  let minX = Number.POSITIVE_INFINITY;
-  let maxX = Number.NEGATIVE_INFINITY;
-  let minY = Number.POSITIVE_INFINITY;
-  let maxY = Number.NEGATIVE_INFINITY;
-
   for (const [nodeId, node] of nodes.entries()) {
-    const projected = projectLngLat(node.lng, node.lat, origin.lng, origin.lat);
-    projectedNodes.set(nodeId, projected);
-    minX = Math.min(minX, projected.x);
-    maxX = Math.max(maxX, projected.x);
-    minY = Math.min(minY, projected.y);
-    maxY = Math.max(maxY, projected.y);
+    projectedNodes.set(nodeId, projectLngLat(node.lng, node.lat, origin.lng, origin.lat));
   }
 
   const normalizePoint = (point: { x: number; y: number }) => ({
@@ -214,6 +204,43 @@ export const parseLaneletOsmText = (
       .map(normalizePoint);
   };
 
+  const overlayLanelets = lanelets
+    .map((lanelet) => ({
+      id: lanelet.id,
+      subtype: lanelet.subtype,
+      oneWay: lanelet.oneWay,
+      left: mapWayPoints(lanelet.left),
+      right: mapWayPoints(lanelet.right),
+      centerline: mapWayPoints(lanelet.centerline),
+    }))
+    .filter((lanelet) => lanelet.left.length || lanelet.right.length || lanelet.centerline.length);
+
+  // Frame only what is drawn. Iterating *every* node would fold in the tombstone-only
+  // nodes of delete=true lanelets (this map carries 46 such relations against 42 live
+  // ones), leaving the live network sitting off-centre in an oversized frame with a
+  // ~10m band of empty space — the "过滤后地图渲染不对" report after Phase 18 started
+  // skipping tombstones. Compute bounds from the points that actually survived into the
+  // drawn lanelets; fall back to all nodes only if nothing is drawable at all.
+  const boundsPoints = overlayLanelets.length
+    ? overlayLanelets.flatMap((lanelet) => [
+        ...lanelet.left,
+        ...lanelet.right,
+        ...lanelet.centerline,
+      ])
+    : [...projectedNodes.values()].map(normalizePoint);
+
+  let minX = Number.POSITIVE_INFINITY;
+  let maxX = Number.NEGATIVE_INFINITY;
+  let minY = Number.POSITIVE_INFINITY;
+  let maxY = Number.NEGATIVE_INFINITY;
+
+  for (const point of boundsPoints) {
+    minX = Math.min(minX, point.x);
+    maxX = Math.max(maxX, point.x);
+    minY = Math.min(minY, point.y);
+    maxY = Math.max(maxY, point.y);
+  }
+
   return {
     sceneId,
     source: sourceName,
@@ -232,20 +259,11 @@ export const parseLaneletOsmText = (
     stats: {
       nodeCount: nodes.size,
       wayCount: ways.size,
-      laneletCount: lanelets.length,
+      // Count what is drawn, in step with bounds: after the delete filter and after
+      // dropping lanelets whose ways resolved to no points.
+      laneletCount: overlayLanelets.length,
     },
-    lanelets: lanelets
-      .map((lanelet) => ({
-        id: lanelet.id,
-        subtype: lanelet.subtype,
-        oneWay: lanelet.oneWay,
-        left: mapWayPoints(lanelet.left),
-        right: mapWayPoints(lanelet.right),
-        centerline: mapWayPoints(lanelet.centerline),
-      }))
-      .filter(
-        (lanelet) => lanelet.left.length || lanelet.right.length || lanelet.centerline.length,
-      ),
+    lanelets: overlayLanelets,
   };
 };
 
