@@ -14,11 +14,20 @@
 import nodemailer from "nodemailer";
 import type { AttemptOutcome } from "./retry";
 
+export interface EmailAttachment {
+  filename: string;
+  content: string;
+}
+
 export interface EmailMessage {
   from: string;
   to: string[];
   subject: string;
   text: string;
+  /** Optional HTML body (Phase 17B-2 scheduled reports); alert emails send text only. */
+  html?: string;
+  /** Optional attachments (e.g. a report CSV); omitted for alert emails. */
+  attachments?: EmailAttachment[];
 }
 
 export interface EmailSendOptions {
@@ -52,6 +61,8 @@ const nodemailerSend = async (
         to: message.to.join(", "),
         subject: message.subject,
         text: message.text,
+        ...(message.html ? { html: message.html } : {}),
+        ...(message.attachments ? { attachments: message.attachments } : {}),
       }),
       new Promise<never>((_resolve, reject) => {
         timer = setTimeout(() => reject(new Error("email send timed out")), timeoutMs);

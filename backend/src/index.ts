@@ -9,6 +9,7 @@ import { DashboardStore } from "./store";
 import { AuthService } from "./auth/service";
 import { AuditService } from "./audit/service";
 import { NotifyService, type AlertCreatedEvent } from "./notify/service";
+import { ReportScheduler } from "./reports/scheduler";
 import { buildTopicScheme } from "./topics";
 import { createApp } from "./app";
 import { createWebSocketBridge } from "./websocket";
@@ -28,6 +29,20 @@ const notifyService = new NotifyService({
   getNotifyConfig: () => configRegistry.getNotifyConfig(),
   resolveDevice: (deviceId) => store.getDevice(deviceId),
   resolveUserEmail: async (username) => (await authService.findByUsername(username))?.email ?? null,
+  maxAttempts: config.notifyMaxAttempts,
+  timeoutMs: config.notifyTimeoutMs,
+});
+// Scheduled email reports (Phase 17B-2). Reuses 17A's aggregation (via the store) and 16D's email
+// send + recipient resolution; driven by a ~60s poll below (no cron dependency). Zero schedules in
+// reports.json ⇒ nothing is ever sent (the same zero-config red line as notify).
+const reportScheduler = new ReportScheduler({
+  getSchedules: () => configRegistry.getReportsConfig().schedules,
+  getNotifyGroups: () => configRegistry.getNotifyConfig().groups,
+  aggregateAlertStats: (range) => store.getAlertStats(range),
+  aggregateAvailability: (params) => store.getAvailabilityReport(params),
+  resolveUserEmail: async (username) => (await authService.findByUsername(username))?.email ?? null,
+  nameOf: (deviceId) => store.getDevice(deviceId)?.deviceName || deviceId,
+  timezone: config.reportTimezone,
   maxAttempts: config.notifyMaxAttempts,
   timeoutMs: config.notifyTimeoutMs,
 });
@@ -82,6 +97,8 @@ let mqttClient: ReturnType<typeof connectMqtt> | null = null;
 let offlineSweep: NodeJS.Timeout | null = null;
 /** The notification digest-flush poll (Phase 16D-2a), stopped on shutdown. */
 let digestFlush: NodeJS.Timeout | null = null;
+/** The scheduled-report poll (Phase 17B-2), stopped on shutdown. */
+let reportPoll: NodeJS.Timeout | null = null;
 
 const shutdown = async (signal: string): Promise<void> => {
   if (shuttingDown) {
@@ -109,6 +126,10 @@ const shutdown = async (signal: string): Promise<void> => {
   if (digestFlush) {
     clearInterval(digestFlush);
     digestFlush = null;
+  }
+  if (reportPoll) {
+    clearInterval(reportPoll);
+    reportPoll = null;
   }
   // Cancel any pending escalation timers so they cannot fire into a closing process.
   notifyService.dispose();
@@ -219,6 +240,23 @@ const start = async (): Promise<void> => {
     });
   }, 15_000);
   digestFlush.unref();
+
+  // Fire due scheduled reports (Phase 17B-2). A 60s poll, not cron: due-ness is "past the local
+  // send time and not yet sent today", which is immune to a tick landing a minute late. The first
+  // tick marks any already-past times as handled without sending, so a restart never re-sends.
+  reportPoll = setInterval(() => {
+    try {
+      reportScheduler.tick();
+    } catch (error) {
+      logger.error({ err: error }, "Scheduled report tick failed");
+    }
+  }, 60_000);
+  reportPoll.unref();
+  try {
+    reportScheduler.tick();
+  } catch (error) {
+    logger.error({ err: error }, "Scheduled report tick failed");
+  }
 
   // Retry the write-behind buffer on a timer. The write path only flushed *after a
   // successful write*, which never arrives while MongoDB is down — so a reconnect used to

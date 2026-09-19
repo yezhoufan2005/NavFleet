@@ -65,6 +65,8 @@ interface ConfigFiles {
   codebook?: unknown;
   /** `notify.json` is optional. Pass a value to write it; omit to leave none on disk. */
   notify?: unknown;
+  /** `reports.json` is optional. Pass a value to write it; omit to leave none on disk. */
+  reports?: unknown;
 }
 
 const writeConfig = async (files: ConfigFiles = {}): Promise<void> => {
@@ -106,6 +108,15 @@ const writeConfig = async (files: ConfigFiles = {}): Promise<void> => {
     await fs.writeFile(notifyPath, files.notify, "utf8");
   } else {
     await fs.writeFile(notifyPath, JSON.stringify(files.notify), "utf8");
+  }
+  // reports.json is optional too, same rules as rules.json.
+  const reportsPath = path.join(configRoot, "reports.json");
+  if (files.reports === undefined) {
+    await fs.rm(reportsPath, { force: true });
+  } else if (typeof files.reports === "string") {
+    await fs.writeFile(reportsPath, files.reports, "utf8");
+  } else {
+    await fs.writeFile(reportsPath, JSON.stringify(files.reports), "utf8");
   }
 };
 
@@ -653,5 +664,74 @@ describe("ConfigRegistry scene-map path resolution", () => {
     const registry = new ConfigRegistry();
     await registry.load();
     expect(registry.getSceneOverlay("scene-a")).not.toBeNull();
+  });
+});
+
+describe("ConfigRegistry.getReportsConfig (Phase 17B-2)", () => {
+  const schedule = (over: Record<string, unknown> = {}) => ({
+    id: "daily",
+    range: "7d",
+    time: "08:30",
+    smtpEnv: "NAVFLEET_SMTP_URL",
+    from: "reports@navfleet.local",
+    groups: ["ops"],
+    ...over,
+  });
+
+  it("returns no schedules before load() and when reports.json is absent", async () => {
+    const registry = new ConfigRegistry();
+    expect(registry.getReportsConfig()).toEqual({ schedules: [] });
+
+    await writeConfig({ reports: undefined });
+    await registry.load();
+    expect(registry.getReportsConfig()).toEqual({ schedules: [] });
+  });
+
+  it("parses a valid schedule, defaulting enabled to true", async () => {
+    await writeConfig({ reports: { schedules: [schedule({ weekday: 1 })] } });
+    const registry = new ConfigRegistry();
+    await registry.load();
+
+    const [parsed] = registry.getReportsConfig().schedules;
+    expect(parsed).toMatchObject({
+      id: "daily",
+      enabled: true,
+      range: "7d",
+      time: "08:30",
+      weekday: 1,
+      smtpEnv: "NAVFLEET_SMTP_URL",
+      from: "reports@navfleet.local",
+      groups: ["ops"],
+    });
+  });
+
+  it("keeps the SMTP URL out of the parsed config — only the env var name is named", async () => {
+    // The red line: a connection string with credentials must never live in reports.json.
+    await writeConfig({ reports: { schedules: [schedule()] } });
+    const registry = new ConfigRegistry();
+    await registry.load();
+    const serialized = JSON.stringify(registry.getReportsConfig());
+    expect(serialized).toContain("NAVFLEET_SMTP_URL");
+    expect(serialized).not.toMatch(/smtps?:\/\//);
+  });
+
+  const rejects = async (reports: unknown, message: RegExp): Promise<void> => {
+    await writeConfig({ reports });
+    await expect(new ConfigRegistry().load()).rejects.toThrow(message);
+  };
+
+  it("rejects an unknown range, a bad time, an out-of-range weekday, and missing smtpEnv/from", async () => {
+    await rejects({ schedules: [schedule({ range: "1y" })] }, /range must be one of/);
+    await rejects({ schedules: [schedule({ time: "8:30" })] }, /time must be "HH:MM"/);
+    await rejects({ schedules: [schedule({ weekday: 9 })] }, /weekday must be an integer 0-6/);
+    await rejects({ schedules: [schedule({ smtpEnv: undefined })] }, /must set smtpEnv/);
+    await rejects({ schedules: [schedule({ from: undefined })] }, /must set from/);
+  });
+
+  it("rejects duplicate schedule ids", async () => {
+    await rejects(
+      { schedules: [schedule(), schedule({ time: "09:00" })] },
+      /Duplicate schedule id/,
+    );
   });
 });
