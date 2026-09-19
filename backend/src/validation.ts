@@ -215,6 +215,15 @@ export const reportRangeSchema = z.object({
   to: timestampString.optional(),
 });
 
+/** Query filters for `GET /api/reports/availability` (Phase 17A-2, viewer+). `bucket` defaults to
+ * day; `deviceId` narrows to one vehicle, otherwise the whole fleet. Bounds filter on `ts`. */
+export const reportAvailabilityQuerySchema = z.object({
+  from: timestampString.optional(),
+  to: timestampString.optional(),
+  deviceId: z.string().min(1).max(200).optional(),
+  bucket: z.enum(["hour", "day"]).default("day"),
+});
+
 /** Query filters for `GET /api/notify/log` (admin). All optional; unbounded result is capped server-side. */
 export const notifyLogQuerySchema = z.object({
   deviceId: z.string().min(1).max(200).optional(),

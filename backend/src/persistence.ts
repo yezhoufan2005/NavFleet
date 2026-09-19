@@ -1,14 +1,16 @@
 import { Db, MongoClient, MongoServerError, type MongoClientEvents } from "mongodb";
 import { config } from "./config";
-import { emptyAlertStatsReport } from "@navfleet/shared";
+import { emptyAlertStatsReport, emptyAvailabilityReport } from "@navfleet/shared";
 import { MongoConnectionSupervisor, type MongoSession, redactMongoUri } from "./mongoConnection";
 import {
   AlertStatsReport,
   AuditEntry,
+  AvailabilityReport,
   DeviceAlert,
   DeviceSnapshot,
   HistoryQuery,
   NotifySendRecord,
+  ReportBucketUnit,
   SessionRecord,
   UserRecord,
 } from "./types";
@@ -17,6 +19,11 @@ import {
   mapAlertStatsFacet,
   type AlertStatsFacet,
 } from "./reports/alertStatsPipeline";
+import {
+  buildAvailabilityPipeline,
+  mapAvailabilityRows,
+  type AvailabilityRow,
+} from "./reports/availabilityPipeline";
 import { moduleLogger } from "./logger";
 import { asText } from "./normalize";
 import { runMigrations } from "./migrations/runner";
@@ -1274,5 +1281,36 @@ export class Persistence {
       .aggregate<AlertStatsFacet>(pipeline)
       .toArray();
     return mapAlertStatsFacet(facet ?? {});
+  }
+
+  /**
+   * Server-side availability + battery time-series over `telemetry_ts` (Phase 17A-2).
+   *
+   * Downsamples raw frames into (device × time-bucket) rows — online-frame ratio and soc
+   * mean/min — via `$dateTrunc`, so the report page never scans the whole series client-side.
+   * No Mongo means no history to aggregate, so this honest-empties with `available:false` like
+   * the alert-stats path, rather than returning zero-filled buckets that read as "all offline".
+   */
+  async aggregateAvailability(params: {
+    deviceId?: string;
+    from?: string;
+    to?: string;
+    bucket: ReportBucketUnit;
+  }): Promise<AvailabilityReport> {
+    if (!this.db) {
+      return emptyAvailabilityReport(params.bucket, false);
+    }
+    const pipeline = buildAvailabilityPipeline({
+      deviceId: params.deviceId ?? null,
+      from: toBoundDate(params.from),
+      to: toBoundDate(params.to),
+      bucket: params.bucket,
+      timezone: config.reportTimezone,
+    });
+    const rows = await this.db
+      .collection("telemetry_ts")
+      .aggregate<AvailabilityRow>(pipeline)
+      .toArray();
+    return mapAvailabilityRows(rows, params.bucket);
   }
 }

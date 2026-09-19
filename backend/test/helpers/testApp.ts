@@ -31,6 +31,7 @@ import {
   UPDATED_AT,
   sampleAlert,
   sampleAlertStatsReport,
+  sampleAvailabilityReport,
   sampleFormation,
   sampleHistoryPoint,
   sampleOverlay,
@@ -61,6 +62,9 @@ export interface StoreStub {
   >;
   getAlerts: Mock<(filters: Record<string, string | undefined>) => Promise<unknown[]>>;
   getAlertStats: Mock<(range: { from?: string; to?: string }) => Promise<unknown>>;
+  getAvailabilityReport: Mock<
+    (params: { deviceId?: string; from?: string; to?: string; bucket: string }) => Promise<unknown>
+  >;
   applyPayload: Mock<(payload: unknown, source?: string) => Promise<FleetSnapshot>>;
   broadcastAlertAck: Mock<
     (payload: { deviceId: string; alertId: string; ackedBy: string; ackedAt: string }) => void
@@ -104,6 +108,7 @@ export const createStoreStub = (): StoreStub => ({
   getHistory: vi.fn(() => Promise.resolve([sampleHistoryPoint()])),
   getAlerts: vi.fn(() => Promise.resolve([sampleAlert()])),
   getAlertStats: vi.fn(() => Promise.resolve(sampleAlertStatsReport())),
+  getAvailabilityReport: vi.fn(() => Promise.resolve(sampleAvailabilityReport())),
   applyPayload: vi.fn(() => Promise.resolve(sampleSnapshot())),
   broadcastAlertAck: vi.fn(() => undefined),
   broadcastAlertUnack: vi.fn(() => undefined),
