@@ -690,6 +690,39 @@ describe("acting on more than one row", () => {
   });
 });
 
+describe("the 告警史 tab", () => {
+  it("toggles to 告警史 and back through the bar button, folding the history in", async () => {
+    const spy = vi
+      .spyOn(fleetApi, "getAlerts")
+      .mockResolvedValue({ items: [] });
+    const wrapper = await mountAlerts();
+    const toggle = () =>
+      wrapper
+        .findAll("button")
+        .find((b) => b.text() === "告警史" || b.text() === "消息页");
+
+    // Live tab: the toggle offers 告警史 and the live-only 显示已确认 control is present.
+    expect(toggle()?.text()).toBe("告警史");
+    expect(wrapper.text()).toContain("显示已确认");
+
+    await toggle()!.trigger("click");
+    await flushPromises();
+
+    // History tab: the panel fetched cleared alerts, the URL carries the tab, the toggle
+    // now returns to 消息页, and 显示已确认 is gone.
+    expect(spy).toHaveBeenCalledWith({ status: "cleared" });
+    expect(wrapper.vm.$route.query.view).toBe("history");
+    expect(toggle()?.text()).toBe("消息页");
+    expect(wrapper.text()).toContain("暂无已清除");
+    expect(wrapper.text()).not.toContain("显示已确认");
+
+    await toggle()!.trigger("click");
+    await flushPromises();
+    expect(wrapper.vm.$route.query.view).toBeUndefined();
+    expect(toggle()?.text()).toBe("告警史");
+  });
+});
+
 describe("useAlertAck — the action layer", () => {
   it("acknowledges through the API and updates the overlay optimistically", async () => {
     seedMixed();

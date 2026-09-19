@@ -38,6 +38,9 @@ const ROUTES: readonly { path: string; heading: string | RegExp }[] = [
   // where "still running" has to read as a word rather than a colour.
   { path: "/devices/agv-c12?tab=alerts", heading: /c12/i },
   { path: "/alerts", heading: "消息" },
+  // 告警史 is now a tab of 消息 (?view=history): its own surface, and the one where "still
+  // running" reads as a word rather than a colour, plus an in-text link in the empty state.
+  { path: "/alerts?view=history", heading: "消息" },
   { path: "/reports", heading: "报表" },
   { path: "/admin", heading: "管理" },
   // The two built children. 系统状态 carries a data table and a row of state badges;

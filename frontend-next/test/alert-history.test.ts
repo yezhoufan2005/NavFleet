@@ -1,19 +1,20 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 import { createMemoryHistory, createRouter, type Router } from "vue-router";
+import { createPinia, setActivePinia } from "pinia";
 import { enableAutoUnmount, flushPromises, mount } from "@vue/test-utils";
 import { fleetApi, type AlertRecord } from "@navfleet/fleet-core";
-import AlertHistoryView from "@/views/AlertHistoryView.vue";
-import UiSelect from "@/components/ui/UiSelect.vue";
+import AlertHistoryPanel from "@/components/alerts/AlertHistoryPanel.vue";
 
 /**
- * 告警史 — the cleared-alert history + statistics page (Phase 16B). `fleetApi.getAlerts` is
- * mocked; the charts are stubbed (their option builders are tested in charts.test.ts), so this
- * file owns the view's own logic: loading/error/empty states, the client-side stats it derives,
- * the URL filters, and the 500-row cap notice.
+ * 告警史面板 — the cleared-alert history + statistics, now the 消息 页 history tab (Phase 18).
+ * `fleetApi.getAlerts` is mocked; the charts are stubbed (their option builders are tested in
+ * charts.test.ts), so this file owns the panel's own logic: loading/error/empty states, the
+ * client-side stats, the URL filters it reads (the shared bar lives in AlertsView), and the
+ * 500-row cap notice.
  */
 enableAutoUnmount(afterEach);
 
-// The charts need a canvas; stub them and assert the view feeds them the right data instead.
+// The charts need a canvas; stub them and assert the panel feeds them the right data instead.
 const barStub = {
   props: ["data", "label"],
   template:
@@ -36,19 +37,19 @@ const record = (over: Partial<AlertRecord> = {}): AlertRecord => ({
 
 let router: Router;
 
-const mountView = async (query = "") => {
+const mountPanel = async (query = "") => {
+  setActivePinia(createPinia());
   router = createRouter({
     history: createMemoryHistory(),
     routes: [
-      { path: "/alert-history", component: AlertHistoryView },
-      { path: "/alerts", component: { template: "<i />" } },
+      { path: "/", component: { template: "<i />" } },
       { path: "/admin/system", component: { template: "<i />" } },
       { path: "/devices/:deviceId", component: { template: "<i />" } },
     ],
   });
-  await router.push(`/alert-history${query}`);
+  await router.push(`/${query}`);
   await router.isReady();
-  const wrapper = mount(AlertHistoryView, {
+  const wrapper = mount(AlertHistoryPanel, {
     global: { plugins: [router], stubs: { CategoryBarChart: barStub } },
   });
   await flushPromises();
@@ -62,25 +63,26 @@ beforeEach(() => {
 afterEach(() => {
   vi.restoreAllMocks();
 });
+// PLACEHOLDER_TESTS
 
 describe("loading and failure", () => {
   it("reads only cleared alerts from the endpoint", async () => {
     const spy = vi
       .spyOn(fleetApi, "getAlerts")
       .mockResolvedValue({ items: [] });
-    await mountView();
+    await mountPanel();
     expect(spy).toHaveBeenCalledWith({ status: "cleared" });
   });
 
   it("shows an error state when the history fails to load", async () => {
     vi.spyOn(fleetApi, "getAlerts").mockRejectedValue(new Error("HTTP 503"));
-    const wrapper = await mountView();
+    const wrapper = await mountPanel();
     expect(wrapper.find("[role='status']").text()).toContain("HTTP 503");
   });
 
   it("explains the empty result and links to 系统状态 (Mongo may be off)", async () => {
     vi.spyOn(fleetApi, "getAlerts").mockResolvedValue({ items: [] });
-    const wrapper = await mountView();
+    const wrapper = await mountPanel();
     expect(wrapper.text()).toContain("MongoDB");
     expect(wrapper.find("a[href='/admin/system']").exists()).toBe(true);
   });
@@ -99,13 +101,11 @@ describe("the statistics", () => {
         }), // 3h, not acked
       ],
     });
-    const wrapper = await mountView();
+    const wrapper = await mountPanel();
     const text = wrapper.text();
     expect(text).toContain("已清除");
-    // 1 of 2 acknowledged.
-    expect(text).toContain("50%");
-    // mean of 1h and 3h = 2h.
-    expect(text).toContain("2小时0分");
+    expect(text).toContain("50%"); // 1 of 2 acknowledged
+    expect(text).toContain("2小时0分"); // mean of 1h and 3h
   });
 
   it("feeds the severity chart one bar per severity, summing to the total", async () => {
@@ -116,18 +116,27 @@ describe("the statistics", () => {
         record({ severity: "notice" }),
       ],
     });
-    const wrapper = await mountView();
+    const wrapper = await mountPanel();
     const severityBar = wrapper
       .findAll(".bar-stub")
       .find((node) => node.attributes("data-label") === "按严重度分布");
     expect(severityBar?.attributes("data-count")).toBe("3");
     expect(severityBar?.attributes("data-total")).toBe("3");
   });
+
+  it("labels the per-device chart 按消息数分布, not 告警", async () => {
+    const wrapper = await mountPanel();
+    const labels = wrapper
+      .findAll(".bar-stub")
+      .map((node) => node.attributes("data-label"));
+    expect(labels).toContain("按消息数分布");
+    expect(labels).toContain("按时间天频次");
+  });
 });
 
 describe("the cleared-alert list", () => {
   it("renders a row that reaches the vehicle and shows its duration", async () => {
-    const wrapper = await mountView();
+    const wrapper = await mountPanel();
     expect(wrapper.find("a[href='/devices/agv-01']").exists()).toBe(true);
     expect(wrapper.text()).toContain("1小时0分");
   });
@@ -136,7 +145,7 @@ describe("the cleared-alert list", () => {
     vi.spyOn(fleetApi, "getAlerts").mockResolvedValue({
       items: [record({ ackedBy: "supervisor" })],
     });
-    const wrapper = await mountView();
+    const wrapper = await mountPanel();
     expect(wrapper.text()).toContain("已确认 · supervisor");
   });
 });
@@ -157,16 +166,25 @@ describe("filters and the cap notice", () => {
         }),
       ],
     });
-    const wrapper = await mountView("?severity=critical");
+    const wrapper = await mountPanel("?severity=critical");
     expect(wrapper.text()).toContain("路径规划超时");
     expect(wrapper.text()).not.toContain("限速降速");
   });
 
-  it("writes the device filter back to the URL", async () => {
-    const wrapper = await mountView();
-    wrapper.findComponent(UiSelect).vm.$emit("update:modelValue", "agv-01");
-    await flushPromises();
-    expect(router.currentRoute.value.query.device).toBe("agv-01");
+  it("narrows the list by device from the URL", async () => {
+    vi.spyOn(fleetApi, "getAlerts").mockResolvedValue({
+      items: [
+        record({ deviceId: "agv-01", title: "甲车告警" }),
+        record({
+          eventKey: "agv-02:e1",
+          deviceId: "agv-02",
+          title: "乙车告警",
+        }),
+      ],
+    });
+    const wrapper = await mountPanel("?device=agv-02");
+    expect(wrapper.text()).toContain("乙车告警");
+    expect(wrapper.text()).not.toContain("甲车告警");
   });
 
   it("says so when the result is capped at 500", async () => {
@@ -175,7 +193,7 @@ describe("filters and the cap notice", () => {
         record({ eventKey: `agv:${index}` }),
       ),
     });
-    const wrapper = await mountView();
+    const wrapper = await mountPanel();
     expect(wrapper.text()).toContain("最近 500 条");
   });
 });

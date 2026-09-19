@@ -29,7 +29,7 @@ test.describe("console shell", () => {
   });
 
   test("the skip link jumps straight to the content", async ({ page }) => {
-    // Five nav links sit between the top of the document and the content on every
+    // The primary nav links sit between the top of the document and the content on every
     // page. Whether the link is *reachable* is what a unit test cannot answer: it is
     // visually hidden until focused, so this needs a real Tab.
     await signIn(page);

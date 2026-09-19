@@ -10,6 +10,7 @@
  * Used by the 告警史 page for severity distribution, per-device Top-N and per-day frequency.
  */
 import { computed, onBeforeUnmount, ref, useTemplateRef, watch } from "vue";
+import type { CSSProperties } from "vue";
 import type { ECharts } from "echarts/core";
 import UiButton from "@/components/ui/UiButton.vue";
 import { useChartTheme } from "@/composables/useChartTheme";
@@ -27,6 +28,7 @@ const {
   height = 260,
   orientation = "vertical",
   color,
+  scroll = false,
 } = defineProps<{
   data: readonly CategoryDatum[];
   /** Accessible name for the figure, and the table's caption. */
@@ -35,9 +37,31 @@ const {
   height?: number;
   orientation?: BarOrientation;
   color?: string;
+  /**
+   * Keep the card at `height` and let the plot grow past it with one scrollbar, instead of
+   * compressing every bar to fit. Horizontal bars grow downward (vertical scroll), vertical
+   * bars grow rightward (horizontal scroll). Off by default — a fixed 3-bar chart needs none.
+   */
+  scroll?: boolean;
 }>();
 
 const { palette, animate } = useChartTheme();
+
+/** Min on-screen slot per bar before the plot outgrows the card and scrolls. */
+const SLOT_PX = 32;
+
+/**
+ * The plotting surface size. Without `scroll` it fills the fixed-height card. With it, the
+ * card stays `height` and scrolls while the surface grows along the bars' axis — down for
+ * horizontal bars, right for vertical — so a long Top-N or a wide day range stays readable.
+ */
+const surfaceStyle = computed<CSSProperties>(() => {
+  if (!scroll) return { width: "100%", height: "100%" };
+  const extent = data.length * SLOT_PX;
+  return orientation === "horizontal"
+    ? { width: "100%", height: `${Math.max(height, extent)}px` }
+    : { height: "100%", minWidth: `${extent}px` };
+});
 
 const surface = useTemplateRef<HTMLElement>("surface");
 const showTable = ref(false);
@@ -103,13 +127,17 @@ onBeforeUnmount(disposeChart);
 
     <div
       v-if="!showTable"
-      ref="surface"
-      class="w-full"
+      class="w-full overflow-auto"
       :style="{ height: `${height}px` }"
-      role="img"
-      :aria-label="`${label}（图表；可切换为数据表）`"
-      data-testid="bar-surface"
-    />
+    >
+      <div
+        ref="surface"
+        :style="surfaceStyle"
+        role="img"
+        :aria-label="`${label}（图表；可切换为数据表）`"
+        data-testid="bar-surface"
+      />
+    </div>
 
     <div
       v-else
