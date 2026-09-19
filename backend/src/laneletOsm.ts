@@ -136,6 +136,15 @@ const extractLanelets = (xmlText: string): RawLanelet[] => {
       continue;
     }
 
+    // Lanelet2 marks a superseded lanelet with `<tag k="delete" v="true"/>` rather than
+    // removing the relation, so an editor can keep the history in the same file. Those are
+    // tombstones, not geometry: drawing them put 46 of this map's 88 lanelets on screen as
+    // live lanes. Skip them here so they never reach the overlay (and `laneletCount` counts
+    // only what is drawn).
+    if (tags.delete === "true") {
+      continue;
+    }
+
     const members = elementsOf(body, MEMBER_PATTERN).map((member) => member.attributes);
 
     lanelets.push({

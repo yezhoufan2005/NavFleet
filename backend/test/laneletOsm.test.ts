@@ -49,4 +49,33 @@ describe("parseLaneletOsmText", () => {
   it("throws when the OSM text contains no nodes", () => {
     expect(() => parseLaneletOsmText("<osm></osm>", "empty.osm", "s")).toThrow();
   });
+
+  it("skips lanelets tombstoned with delete=true rather than drawing them", () => {
+    // Lanelet2 keeps a superseded lanelet in the file, tagged delete=true, instead of
+    // removing it. Such a relation is history, not a live lane — it must not be drawn, and
+    // must not count towards laneletCount.
+    const withDeleted = `<?xml version="1.0" encoding="UTF-8"?>
+<osm version="0.6">
+  <node id="1" lat="31.2300" lon="121.4700"/>
+  <node id="2" lat="31.2301" lon="121.4700"/>
+  <node id="3" lat="31.2300" lon="121.4702"/>
+  <node id="4" lat="31.2301" lon="121.4702"/>
+  <way id="10"><nd ref="1"/><nd ref="2"/></way>
+  <way id="11"><nd ref="3"/><nd ref="4"/></way>
+  <relation id="100">
+    <tag k="type" v="lanelet"/>
+    <member type="way" ref="10" role="left"/>
+    <member type="way" ref="11" role="right"/>
+  </relation>
+  <relation id="200">
+    <tag k="type" v="lanelet"/>
+    <tag k="delete" v="true"/>
+    <member type="way" ref="10" role="left"/>
+    <member type="way" ref="11" role="right"/>
+  </relation>
+</osm>`;
+    const overlay = parseLaneletOsmText(withDeleted, "deleted.osm", "scene-x");
+    expect(overlay.stats.laneletCount).toBe(1);
+    expect(overlay.lanelets.map((lanelet) => lanelet.id)).toEqual(["100"]);
+  });
 });
