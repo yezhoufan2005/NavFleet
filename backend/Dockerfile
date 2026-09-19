@@ -16,9 +16,11 @@ COPY backend/package.json ./backend/
 COPY frontend/package.json ./frontend/
 RUN npm ci --ignore-scripts
 
-# Shared types (source, type-only) + backend sources, then build the backend workspace.
+# Shared sources (bundled into the backend by esbuild — the backend imports runtime
+# values from @navfleet/shared, not just types) + backend sources and build driver,
+# then build the self-contained backend bundle.
 COPY packages/shared ./packages/shared
-COPY backend/tsconfig.json backend/tsconfig.build.json ./backend/
+COPY backend/tsconfig.json backend/tsconfig.build.json backend/build.mjs ./backend/
 COPY backend/src ./backend/src
 RUN npm run build -w navfleet-backend
 
