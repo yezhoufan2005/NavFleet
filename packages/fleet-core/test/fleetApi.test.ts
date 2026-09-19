@@ -214,4 +214,16 @@ describe("fleetApi", () => {
       alertId: "err-1",
     });
   });
+
+  it("reads the outbound send log with filters and the effective channels (Phase 16D)", async () => {
+    stubFetch(200, { items: [] });
+    await fleetApi.getNotifyLog({ deviceId: "agv-1", status: "failed" });
+    expect(calls.at(-1)?.url).toBe(
+      "/api/v1/notify/log?deviceId=agv-1&status=failed",
+    );
+
+    stubFetch(200, { channels: [] });
+    await fleetApi.getNotifyConfig();
+    expect(calls.at(-1)?.url).toBe("/api/v1/notify/config");
+  });
 });

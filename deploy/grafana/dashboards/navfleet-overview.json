@@ -1012,6 +1012,132 @@
         }
       ],
       "description": "前两条是数据丢失（历史会出现空洞），后三条是内存上界在起作用：淘汰属正常回收，被上限拒绝说明该调高 MAX_DEVICES 或在 vehicles.json 里声明该车。"
+    },
+    {
+      "type": "timeseries",
+      "title": "外发成功 / 失败速率",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "navfleet-prometheus"
+      },
+      "gridPos": {
+        "x": 0,
+        "y": 40,
+        "w": 12,
+        "h": 8
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "cps",
+          "custom": {
+            "drawStyle": "line",
+            "lineWidth": 2,
+            "fillOpacity": 12,
+            "showPoints": "never",
+            "spanNulls": true,
+            "stacking": {
+              "mode": "none",
+              "group": "A"
+            }
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "navfleet-prometheus"
+          },
+          "editorMode": "code",
+          "expr": "sum(rate(navfleet_notify_sends_total{status=\"sent\"}[5m]))",
+          "range": true,
+          "refId": "A",
+          "format": "time_series",
+          "legendFormat": "外发成功 /s"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "navfleet-prometheus"
+          },
+          "editorMode": "code",
+          "expr": "sum(rate(navfleet_notify_sends_total{status=\"failed\"}[5m]))",
+          "range": true,
+          "refId": "A",
+          "format": "time_series",
+          "legendFormat": "外发失败 /s"
+        }
+      ],
+      "description": "告警外发（Phase 16D）：按结局的发送速率。零配置部署没有任何渠道，这两条恒为 0——那是「出厂不外发」红线，不是故障。成功率 = 成功 /（成功+失败）。"
+    },
+    {
+      "type": "timeseries",
+      "title": "外发延迟 p95（按渠道类型）",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "navfleet-prometheus"
+      },
+      "gridPos": {
+        "x": 12,
+        "y": 40,
+        "w": 12,
+        "h": 8
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "s",
+          "custom": {
+            "drawStyle": "line",
+            "lineWidth": 2,
+            "fillOpacity": 12,
+            "showPoints": "never",
+            "spanNulls": true,
+            "stacking": {
+              "mode": "none",
+              "group": "A"
+            }
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "navfleet-prometheus"
+          },
+          "editorMode": "code",
+          "expr": "histogram_quantile(0.95, sum(rate(navfleet_notify_send_duration_seconds_bucket[5m])) by (le, channel_type))",
+          "range": true,
+          "refId": "A",
+          "format": "time_series",
+          "legendFormat": "{{channel_type}} p95"
+        }
+      ],
+      "description": "每类外发渠道的发送延迟 p95（webhook/企业微信/钉钉/邮件）。持续偏高通常是对端群机器人或 SMTP 慢，与本平台无关。"
     }
   ]
 }

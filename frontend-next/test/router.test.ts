@@ -57,6 +57,7 @@ describe("route table", () => {
       { path: "/admin/scenes", name: "admin-scenes", title: "场景" },
       { path: "/admin/users", name: "admin-users", title: "用户" },
       { path: "/admin/codebook", name: "admin-codebook", title: "报码字典" },
+      { path: "/admin/notify", name: "admin-notify", title: "外发" },
       { path: "/admin/audit", name: "admin-audit", title: "审计" },
       // Personal center: any authenticated user, so it carries no roles and is
       // reached from the session menu rather than the primary nav.

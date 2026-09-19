@@ -415,6 +415,7 @@ describe("管理落地页", () => {
     expect(links.map((link) => link.attributes("href")).sort()).toEqual([
       "/admin/audit",
       "/admin/codebook",
+      "/admin/notify",
       "/admin/scenes",
       "/admin/system",
       "/admin/users",
@@ -430,6 +431,6 @@ describe("管理落地页", () => {
       .findAll("span")
       .filter((span) => span.text() === "已就绪");
 
-    expect(readyBadges).toHaveLength(5);
+    expect(readyBadges).toHaveLength(6);
   });
 });

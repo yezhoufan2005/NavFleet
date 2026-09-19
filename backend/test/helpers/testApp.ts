@@ -231,12 +231,14 @@ export interface NotifyServiceStub {
   dispatch: Mock<(event: unknown) => Promise<void>>;
   queryLog: Mock<(filters: unknown) => Promise<NotifySendRecord[]>>;
   effectiveConfig: Mock<() => NotifyChannelView[]>;
+  setSendObserver: Mock<(observer: unknown) => void>;
 }
 
 export const createNotifyServiceStub = (): NotifyServiceStub => ({
   dispatch: vi.fn(() => Promise.resolve()),
   queryLog: vi.fn(() => Promise.resolve<NotifySendRecord[]>([])),
   effectiveConfig: vi.fn(() => []),
+  setSendObserver: vi.fn(() => undefined),
 });
 
 export interface TestAppOptions {

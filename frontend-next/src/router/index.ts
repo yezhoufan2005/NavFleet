@@ -128,6 +128,12 @@ const routes: RouteRecordRaw[] = [
         meta: { title: "报码字典", roles: ["admin"] },
       },
       {
+        path: "notify",
+        name: "admin-notify",
+        component: () => import("@/views/admin/NotifyView.vue"),
+        meta: { title: "外发", roles: ["admin"] },
+      },
+      {
         path: "audit",
         name: "admin-audit",
         component: () => import("@/views/admin/AuditView.vue"),

@@ -82,6 +82,8 @@ export interface NotifyServiceDeps {
 export class NotifyService {
   private readonly resolveEnv: (name: string) => string | undefined;
   private readonly now: () => Date;
+  /** Optional metrics hook, wired by the composition root after the registry exists (16D-2b). */
+  private sendObserver?: (channelType: string, status: string, latencyMs: number | null) => void;
   /** Last-sent epoch ms per `${eventKey}::${channelId}`, for re-notify dedup. Bounded. */
   private readonly lastSentAt = new Map<string, number>();
   /** Buffered alert contexts per channelId, with the epoch ms the buffer opened, awaiting flush. */
@@ -99,6 +101,13 @@ export class NotifyService {
 
   private key(eventKey: string, channelId: string): string {
     return `${eventKey}::${channelId}`;
+  }
+
+  /** Wire the Prometheus send observer (called by `createApp` once the metrics registry exists). */
+  setSendObserver(
+    observer: (channelType: string, status: string, latencyMs: number | null) => void,
+  ): void {
+    this.sendObserver = observer;
   }
 
   /**
@@ -298,6 +307,7 @@ export class NotifyService {
       error: outcome.error,
     };
     await this.deps.persistence.appendNotify(record);
+    this.sendObserver?.(record.channelType, record.status, record.latencyMs);
   }
 
   private pruneLastSent(): void {
