@@ -8,6 +8,9 @@ import {
   buildWecomBody,
 } from "../src/notify/channels";
 import { selectChannelsForAlert } from "../src/notify/routing";
+import { resolveRecipients } from "../src/notify/recipients";
+import { isWithinSilence } from "../src/notify/silence";
+import { sendEmail } from "../src/notify/email";
 import { NotifyService, type NotifyDevice } from "../src/notify/service";
 
 /**
@@ -190,6 +193,9 @@ describe("NotifyService.dispatch", () => {
       env?: Record<string, string>;
       fetchImpl?: typeof fetch;
       resolveDevice?: (id: string) => NotifyDevice | null;
+      resolveUserEmail?: (username: string) => Promise<string | null>;
+      emailSendImpl?: (smtpUrl: string, msg: unknown, timeoutMs: number) => Promise<void>;
+      now?: () => Date;
     } = {},
   ) => {
     const records: NotifySendRecord[] = [];
@@ -204,11 +210,14 @@ describe("NotifyService.dispatch", () => {
       persistence: persistence,
       getNotifyConfig: () => over.config ?? { channels: [channel] },
       resolveDevice: over.resolveDevice ?? (() => device),
+      resolveUserEmail: over.resolveUserEmail ?? (() => Promise.resolve(null)),
       maxAttempts: 2,
       timeoutMs: 500,
       resolveEnv: (name) => (over.env ?? { NAVFLEET_TEST_WEBHOOK_URL: "https://hook" })[name],
       fetchImpl: over.fetchImpl ?? vi.fn(() => Promise.resolve(respond(200))),
-      now: () => new Date("2026-09-19T00:00:00.000Z"),
+      emailSendImpl: over.emailSendImpl,
+      sleep: () => Promise.resolve(),
+      now: over.now ?? (() => new Date("2026-09-19T00:00:00.000Z")),
     });
     return { service, records, persistence };
   };
@@ -284,6 +293,146 @@ describe("NotifyService.dispatch", () => {
     await service.dispatch({ source: "mqtt", deviceId: "ghost", alert: alertOf() });
     expect(records[0]).toMatchObject({ deviceId: "ghost", status: "sent" });
   });
+
+  it("suppresses an alert falling in a silence window (no send, no record)", async () => {
+    const fetchImpl = vi.fn(() => Promise.resolve(respond(200))) as unknown as typeof fetch;
+    const silenced = { ...channel, silenceWindows: [{ from: "00:00", to: "23:59" }] };
+    const { service, records } = makeService({ config: { channels: [silenced] }, fetchImpl });
+    await service.dispatch({ source: "mqtt", deviceId: "agv-1", alert: alertOf() });
+    expect(fetchImpl).not.toHaveBeenCalled();
+    expect(records).toHaveLength(0);
+  });
+
+  it("suppresses a repeat of the same alert within the re-notify window", async () => {
+    const fetchImpl = vi.fn(() => Promise.resolve(respond(200))) as unknown as typeof fetch;
+    const deduped = { ...channel, renotifySeconds: 3600 };
+    const { service, records } = makeService({ config: { channels: [deduped] }, fetchImpl });
+    await service.dispatch({ source: "mqtt", deviceId: "agv-1", alert: alertOf() });
+    await service.dispatch({ source: "mqtt", deviceId: "agv-1", alert: alertOf() });
+    expect(fetchImpl).toHaveBeenCalledOnce();
+    expect(records).toHaveLength(1);
+  });
+
+  it("digests non-critical severities but sends critical immediately", async () => {
+    let clock = Date.parse("2026-09-19T00:00:00.000Z");
+    const fetchImpl = vi.fn(() => Promise.resolve(respond(200))) as unknown as typeof fetch;
+    const digestCh = { ...channel, digestSeconds: 60 };
+    const { service, records } = makeService({
+      config: { channels: [digestCh] },
+      fetchImpl,
+      now: () => new Date(clock),
+    });
+
+    // A critical bypasses the digest → immediate send + record.
+    await service.dispatch({
+      source: "mqtt",
+      deviceId: "agv-1",
+      alert: alertOf({ id: "a-crit", severity: "critical" }),
+    });
+    expect(records).toHaveLength(1);
+
+    // A warning is buffered → no send yet.
+    await service.dispatch({ source: "mqtt", deviceId: "agv-1", alert: alertOf({ id: "a-warn" }) });
+    expect(records).toHaveLength(1);
+
+    // Not ripe yet → flush sends nothing.
+    await service.flushDigests();
+    expect(records).toHaveLength(1);
+
+    // After the window → one combined digest send.
+    clock += 60_000;
+    await service.flushDigests();
+    expect(records).toHaveLength(2);
+    expect(records[1]).toMatchObject({ channelId: "ops-webhook", status: "sent" });
+    expect(records[1]?.alertId).toBe("digest");
+  });
+
+  it("sends an email channel through the injected sender and records it", async () => {
+    const sendImpl = vi.fn(() => Promise.resolve());
+    const emailCh = {
+      id: "ops-mail",
+      type: "email" as const,
+      enabled: true,
+      urlEnv: "SMTP_URL",
+      severities: ["critical", "warning", "notice"] as Severity[],
+      from: "alerts@x.io",
+      recipients: [{ email: "ops@x.io" }],
+    };
+    const { service, records } = makeService({
+      config: { channels: [emailCh] },
+      env: { SMTP_URL: "smtp://host" },
+      emailSendImpl: sendImpl,
+    });
+    await service.dispatch({ source: "mqtt", deviceId: "agv-1", alert: alertOf() });
+    expect(sendImpl).toHaveBeenCalledOnce();
+    expect(records[0]).toMatchObject({
+      channelId: "ops-mail",
+      channelType: "email",
+      status: "sent",
+    });
+  });
+
+  it("records a failed email when no recipients resolve", async () => {
+    const sendImpl = vi.fn(() => Promise.resolve());
+    const emailCh = {
+      id: "ops-mail",
+      type: "email" as const,
+      enabled: true,
+      urlEnv: "SMTP_URL",
+      severities: ["critical", "warning", "notice"] as Severity[],
+      from: "alerts@x.io",
+    };
+    const { service, records } = makeService({
+      config: { channels: [emailCh] },
+      env: { SMTP_URL: "smtp://host" },
+      emailSendImpl: sendImpl,
+    });
+    await service.dispatch({ source: "mqtt", deviceId: "agv-1", alert: alertOf() });
+    expect(sendImpl).not.toHaveBeenCalled();
+    expect(records[0]).toMatchObject({ status: "failed", error: "no recipients resolved" });
+  });
+
+  it("escalates a critical to the target channel after the delay, unless resolved first", async () => {
+    vi.useFakeTimers();
+    try {
+      const fetchImpl = vi.fn(() => Promise.resolve(respond(200))) as unknown as typeof fetch;
+      const primary = {
+        ...channel,
+        severities: ["critical"] as Severity[],
+        escalation: { afterSeconds: 300, channelId: "backup" },
+      };
+      // The target subscribes to nothing, so it is not selected for the immediate send — it only
+      // ever receives the escalation.
+      const backup = { ...channel, id: "backup", severities: [] as Severity[] };
+      const { service, records } = makeService({
+        config: { channels: [primary, backup] },
+        fetchImpl,
+      });
+
+      await service.dispatch({
+        source: "mqtt",
+        deviceId: "agv-1",
+        alert: alertOf({ id: "a-crit", severity: "critical" }),
+      });
+      expect(records).toHaveLength(1); // immediate to primary only
+
+      await vi.advanceTimersByTimeAsync(300_000);
+      expect(records).toHaveLength(2); // escalated to backup
+      expect(records[1]).toMatchObject({ channelId: "backup", status: "sent" });
+
+      // A second critical, then resolve before the delay → no escalation.
+      await service.dispatch({
+        source: "mqtt",
+        deviceId: "agv-1",
+        alert: alertOf({ id: "a-crit-2", severity: "critical" }),
+      });
+      service.onAlertResolved("agv-1:a-crit-2");
+      await vi.advanceTimersByTimeAsync(300_000);
+      expect(records).toHaveLength(3); // only the immediate send of the second alert
+    } finally {
+      vi.useRealTimers();
+    }
+  });
 });
 
 describe("NotifyService read APIs", () => {
@@ -311,6 +460,7 @@ describe("NotifyService read APIs", () => {
       resolveDevice: () => null,
       maxAttempts: 1,
       timeoutMs: 100,
+      resolveUserEmail: () => Promise.resolve(null),
       resolveEnv: (name) => (name === "SET_ENV" ? "https://hook" : undefined),
     });
 
@@ -329,10 +479,83 @@ describe("NotifyService read APIs", () => {
       persistence: { appendNotify: vi.fn(), queryNotify },
       getNotifyConfig: () => ({ channels: [] }),
       resolveDevice: () => null,
+      resolveUserEmail: () => Promise.resolve(null),
       maxAttempts: 1,
       timeoutMs: 100,
     });
     await service.queryLog({ deviceId: "agv-1", status: "failed" });
     expect(queryNotify).toHaveBeenCalledWith({ deviceId: "agv-1", status: "failed" });
+  });
+});
+
+describe("resolveRecipients (16D-2a)", () => {
+  it("collects inline + group refs, resolves user refs, dedups, skips users without email", async () => {
+    const groups = {
+      oncall: [{ user: "alice" }, { email: "ops@x.io" }],
+    };
+    const channel = {
+      recipients: [{ email: "ops@x.io" }, { user: "bob" }],
+      groups: ["oncall"],
+    };
+    const emails: Record<string, string | null> = { alice: "alice@x.io", bob: null };
+    const to = await resolveRecipients(channel, groups, (u) => Promise.resolve(emails[u] ?? null));
+
+    expect(to.sort()).toEqual(["alice@x.io", "ops@x.io"]); // bob skipped (no email), ops deduped
+  });
+
+  it("returns nothing when a channel names no recipients", async () => {
+    expect(await resolveRecipients({}, {}, () => Promise.resolve(null))).toEqual([]);
+  });
+});
+
+describe("isWithinSilence (16D-2a)", () => {
+  const at = (iso: string): Date => new Date(iso);
+
+  it("is false when there are no windows", () => {
+    expect(isWithinSilence(at("2026-09-19T03:00:00"), undefined)).toBe(false);
+    expect(isWithinSilence(at("2026-09-19T03:00:00"), [])).toBe(false);
+  });
+
+  it("matches a same-day window and rejects outside it", () => {
+    const windows = [{ from: "09:00", to: "18:00" }];
+    expect(isWithinSilence(at("2026-09-19T10:00:00"), windows)).toBe(true);
+    expect(isWithinSilence(at("2026-09-19T20:00:00"), windows)).toBe(false);
+  });
+
+  it("handles a window that wraps past midnight", () => {
+    const windows = [{ from: "22:00", to: "06:00" }];
+    expect(isWithinSilence(at("2026-09-19T23:30:00"), windows)).toBe(true);
+    expect(isWithinSilence(at("2026-09-19T02:00:00"), windows)).toBe(true);
+    expect(isWithinSilence(at("2026-09-19T12:00:00"), windows)).toBe(false);
+  });
+
+  it("filters by day of week when days are listed", () => {
+    // 2026-09-19 is a Saturday (day 6); the window lists only weekdays.
+    const windows = [{ days: [1, 2, 3, 4, 5], from: "00:00", to: "23:59" }];
+    expect(isWithinSilence(at("2026-09-19T10:00:00"), windows)).toBe(false);
+    expect(isWithinSilence(at("2026-09-21T10:00:00"), windows)).toBe(true); // Monday
+  });
+});
+
+describe("sendEmail (16D-2a)", () => {
+  const message = { from: "a@x.io", to: ["b@x.io"], subject: "s", text: "t" };
+  const opts = (sendImpl: (u: string, m: unknown, t: number) => Promise<void>) => ({
+    maxAttempts: 3,
+    timeoutMs: 100,
+    sendImpl,
+    sleep: () => Promise.resolve(),
+  });
+
+  it("returns ok with httpStatus null on success", async () => {
+    const sendImpl = vi.fn(() => Promise.resolve());
+    const outcome = await sendEmail("smtp://h", message, opts(sendImpl));
+    expect(outcome).toMatchObject({ ok: true, httpStatus: null, attempts: 1 });
+    expect(sendImpl).toHaveBeenCalledOnce();
+  });
+
+  it("retries a throw then gives up, folding the error", async () => {
+    const sendImpl = vi.fn(() => Promise.reject(new Error("SMTP down")));
+    const outcome = await sendEmail("smtp://h", message, opts(sendImpl));
+    expect(outcome).toMatchObject({ ok: false, httpStatus: null, attempts: 3, error: "SMTP down" });
   });
 });
