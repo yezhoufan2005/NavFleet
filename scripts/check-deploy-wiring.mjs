@@ -205,6 +205,42 @@ for (const f of composeFiles) {
   }
 }
 
+// ---------------------------------------------------------------------------
+// 7. locations.conf 里 include 的每个文件都必须被挂进容器
+// ---------------------------------------------------------------------------
+// `include /etc/nginx/security-headers.conf;` 引用的文件若没有对应的 volume 挂载，nginx
+// 启动时直接 `open() ... failed`——又是要等真起栈才看得到的那类。判据：locations.conf /
+// default.conf / tls.conf 里出现的每个 /etc/nginx/*.conf include 目标，都要有某个 compose
+// 文件把一个文件挂到该容器路径。（locations.conf 自身由 default/tls.conf include，已在别处挂载。）
+const mountTargets = new Set();
+for (const f of composeFiles) {
+  for (const m of read(join(DEPLOY, f)).matchAll(
+    /:\s*(\/etc\/nginx\/[A-Za-z0-9_.-]+):ro\b/g,
+  )) {
+    mountTargets.add(m[1]);
+  }
+}
+const includeTargets = new Set();
+for (const conf of [
+  "nginx/locations.conf",
+  "nginx/default.conf",
+  "nginx/tls.conf",
+]) {
+  const p = join(DEPLOY, conf);
+  if (!existsSync(p)) continue;
+  for (const m of read(p).matchAll(/^\s*include\s+(\/etc\/nginx\/\S+?);/gm)) {
+    includeTargets.add(m[1]);
+  }
+}
+for (const target of includeTargets) {
+  if (mountTargets.has(target))
+    ok(`nginx include 的 ${target} 有对应的 volume 挂载`);
+  else
+    bad(
+      `nginx include 了 ${target} 但没有任何 compose 把文件挂到该路径（nginx 启动会 open() 失败）`,
+    );
+}
+
 console.log(`\n通过 ${pass} · 失败 ${failures.length}`);
 if (failures.length) {
   console.error("\n部署接线检查未通过：");
