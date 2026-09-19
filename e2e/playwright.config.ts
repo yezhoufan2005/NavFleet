@@ -164,6 +164,7 @@ export default defineConfig({
         /console-admin\.spec\.ts$/,
         /console-codebook\.spec\.ts$/,
         /console-notify\.spec\.ts$/,
+        /console-reports\.spec\.ts$/,
       ],
       use: {
         ...devices["Desktop Chrome"],
