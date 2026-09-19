@@ -294,7 +294,7 @@ const exportCsv = (): void => {
       暂无历史可聚合；报表依赖后端连接 MongoDB ——
       <RouterLink
         to="/admin/system"
-        class="text-brand-ink underline-offset-2 hover:underline"
+        class="text-brand-ink underline underline-offset-2"
         >管理 / 系统状态</RouterLink
       >
       会说明它此刻连上了没有
