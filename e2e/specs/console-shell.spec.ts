@@ -189,10 +189,13 @@ test.describe("console shell", () => {
     await signIn(page);
     await page.goto("/wall");
 
-    await expect(
-      page.getByRole("heading", { name: "大屏值班模式" }),
-    ).toBeVisible();
-    // Non-interactive by requirement (C7): no navigation, no session control.
+    // The KPI band, the freshness indicator and the alert panel are the wall's three
+    // parts; the 活跃告警 heading is the stable render proof (the h1 is the fleet name).
+    await expect(page.getByRole("heading", { name: /活跃告警/ })).toBeVisible();
+    await expect(page.locator(".wall-kpi .wall-tile")).toHaveCount(4);
+    await expect(page.locator(".wall-pill")).toBeVisible();
+    // Non-interactive by requirement (C7): no navigation, no session control, and a
+    // <header> scoped inside <main> is not a banner landmark.
     await expect(page.getByRole("navigation")).toHaveCount(0);
     await expect(page.getByRole("banner")).toHaveCount(0);
   });

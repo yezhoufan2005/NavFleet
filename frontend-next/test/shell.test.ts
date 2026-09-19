@@ -633,8 +633,9 @@ describe("the wall display", () => {
   it("renders without the shell", async () => {
     const wrapper = await signedIn("/wall");
 
-    expect(wrapper.text()).toContain("大屏值班模式");
-    // No sidebar, no top bar, no session menu: it has to be non-interactive.
+    expect(wrapper.text()).toContain("车队大屏值班");
+    // No sidebar, no top bar, no session menu: it has to be non-interactive. The wall's own
+    // header region is a plain div, so a <header> element still means the shell is present.
     expect(wrapper.find("header").exists()).toBe(false);
     expect(wrapper.findAll("nav")).toHaveLength(0);
   });
