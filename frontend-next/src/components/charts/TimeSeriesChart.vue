@@ -38,6 +38,7 @@ const {
   height = 260,
   label,
   legendPosition = "top",
+  tableMaxRows = null,
   cursorAt = null,
 } = defineProps<{
   series: readonly TimeSeries[];
@@ -48,6 +49,13 @@ const {
   label: string;
   /** Legend placement for multi-series charts — `"right"` when a top strip would wrap. */
   legendPosition?: "top" | "right";
+  /**
+   * Cap the data-table to this many visible rows and scroll the rest — the 回放窗口速度 table
+   * asks for a short, fixed height rather than the default 24rem. When set, the header sits
+   * outside the scroll area so the scrollbar runs beside the records only, not the header row.
+   * Null (the default) keeps the original single-scroller table for every other chart.
+   */
+  tableMaxRows?: number | null;
   /**
    * A vertical cursor at this instant (epoch ms), for history playback. Applied as a
    * separate merge rather than through the option, so a moving cursor does not
@@ -197,6 +205,14 @@ const sampled = computed(() => stamps.value.length > TABLE_ROW_LIMIT);
 
 const formatStamp = (stamp: number): string =>
   new Date(stamp).toLocaleString(undefined, { hour12: false });
+
+/** When a row cap is asked for, the header leaves the scroll box and only the body scrolls. */
+const fixedRows = computed(
+  () => typeof tableMaxRows === "number" && tableMaxRows > 0,
+);
+/** One body row is `py-1.5` + a text-xs line ≈ 29px; the header is rendered separately. */
+const BODY_ROW_PX = 29;
+const bodyMaxHeight = computed(() => `${(tableMaxRows ?? 0) * BODY_ROW_PX}px`);
 </script>
 
 <template>
@@ -223,6 +239,79 @@ const formatStamp = (stamp: number): string =>
       :aria-label="`${label}（图表；可切换为数据表）`"
       data-testid="chart-surface"
     />
+
+    <!--
+      Row-capped variant (回放窗口速度): the header is its own table outside the scroll box, so
+      the scrollbar runs beside the records only — not up through the 时间/速度 header row. Both
+      tables are `table-fixed` over the same colgroup, so the columns line up despite the split.
+    -->
+    <div
+      v-else-if="fixedRows"
+      class="overflow-hidden rounded-sm border border-border"
+    >
+      <table class="w-full table-fixed border-collapse text-left text-sm">
+        <caption class="sr-only">
+          {{
+            label
+          }}<template v-if="sampled"
+            >（等距抽样后的 {{ rows.length }} 行）</template
+          >
+        </caption>
+        <colgroup>
+          <col class="w-[45%]" />
+          <col v-for="entry in series" :key="entry.name" />
+        </colgroup>
+        <thead class="bg-surface-sunken text-2xs text-ink-muted uppercase">
+          <tr>
+            <th scope="col" class="px-3 py-2 font-medium">时间</th>
+            <th
+              v-for="entry in series"
+              :key="entry.name"
+              scope="col"
+              class="px-3 py-2 font-medium"
+            >
+              {{ entry.name }}<template v-if="unit"> ({{ unit }})</template>
+            </th>
+          </tr>
+        </thead>
+      </table>
+      <!-- Only the body scrolls, and it is the focusable region (WCAG 2.1.1). -->
+      <div
+        class="overflow-auto border-t border-border"
+        tabindex="0"
+        role="region"
+        :aria-label="`${label} 数据表`"
+        :style="{ maxHeight: bodyMaxHeight }"
+      >
+        <table class="w-full table-fixed border-collapse text-left text-sm">
+          <colgroup>
+            <col class="w-[45%]" />
+            <col v-for="entry in series" :key="entry.name" />
+          </colgroup>
+          <tbody>
+            <tr
+              v-for="row in rows"
+              :key="row.stamp"
+              class="border-b border-border last:border-b-0"
+            >
+              <th
+                scope="row"
+                class="px-3 py-1.5 font-mono text-xs font-normal whitespace-nowrap text-ink-muted"
+              >
+                {{ formatStamp(row.stamp) }}
+              </th>
+              <td
+                v-for="(value, index) in row.values"
+                :key="index"
+                class="px-3 py-1.5 font-mono text-xs text-ink"
+              >
+                {{ value === undefined ? "--" : value.toFixed(2) }}
+              </td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
 
     <!--
       Focusable, and that is a keyboard requirement rather than a nicety: the box is
