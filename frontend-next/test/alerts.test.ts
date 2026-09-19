@@ -645,7 +645,7 @@ describe("acting on more than one row", () => {
     expect(bulk?.text()).toContain("1");
   });
 
-  it("offers 清除已确认 with a count, and an undo", async () => {
+  it("offers 清除已经确认 with a count, and an undo", async () => {
     seedMixed();
     const wrapper = await mountAlerts();
     await wrapper
@@ -657,7 +657,7 @@ describe("acting on more than one row", () => {
 
     const clear = wrapper
       .findAll("button")
-      .find((button) => button.text().includes("清除已确认"));
+      .find((button) => button.text().includes("清除已经确认"));
     expect(clear?.text()).toContain("3");
 
     await clear!.trigger("click");
@@ -675,7 +675,7 @@ describe("acting on more than one row", () => {
 
     // Nothing present is acknowledged yet, so neither control appears.
     expect(
-      wrapper.findAll("button").some((b) => b.text().includes("清除已确认")),
+      wrapper.findAll("button").some((b) => b.text().includes("清除已经确认")),
     ).toBe(false);
     expect(wrapper.text()).not.toContain("显示已确认（");
   });
