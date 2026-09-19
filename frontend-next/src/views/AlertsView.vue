@@ -376,7 +376,7 @@ watch(() => canAck.value && fleet.state.realtime.apiReady, runLegacyMigration);
         class="rounded-sm border border-border-strong bg-surface-raised px-2.5 py-1 text-xs text-ink-muted transition-colors duration-150 ease-standard hover:text-ink"
         @click="clearAcknowledged"
       >
-        清除已确认 {{ acknowledgedPresent }} 条
+        清除已经确认 {{ acknowledgedPresent }} 条
       </button>
     </template>
 

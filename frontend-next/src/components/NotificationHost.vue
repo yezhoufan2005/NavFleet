@@ -53,10 +53,12 @@ const TONES: Record<NotificationType, string> = {
       leave-active-class="transition duration-150 ease-exit"
       leave-to-class="translate-y-1 opacity-0"
     >
+      <!-- items-center so the ✕ close button (and the undo) sit centred against the
+           toast rather than pinned to the top edge; messages here are short. -->
       <div
         v-for="item in items"
         :key="item.id"
-        class="pointer-events-auto flex max-w-96 items-start gap-2 rounded-md border p-3 text-sm shadow-overlay"
+        class="pointer-events-auto flex max-w-96 items-center gap-2 rounded-md border p-3 text-sm shadow-overlay"
         :class="TONES[item.type]"
         role="status"
       >
