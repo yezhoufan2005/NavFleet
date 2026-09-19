@@ -1,7 +1,9 @@
 import { Db, MongoClient, MongoServerError, type MongoClientEvents } from "mongodb";
 import { config } from "./config";
+import { emptyAlertStatsReport } from "@navfleet/shared";
 import { MongoConnectionSupervisor, type MongoSession, redactMongoUri } from "./mongoConnection";
 import {
+  AlertStatsReport,
   AuditEntry,
   DeviceAlert,
   DeviceSnapshot,
@@ -10,6 +12,11 @@ import {
   SessionRecord,
   UserRecord,
 } from "./types";
+import {
+  buildAlertStatsPipeline,
+  mapAlertStatsFacet,
+  type AlertStatsFacet,
+} from "./reports/alertStatsPipeline";
 import { moduleLogger } from "./logger";
 import { asText } from "./normalize";
 import { runMigrations } from "./migrations/runner";
@@ -110,6 +117,9 @@ const MAX_AUDIT_PER_QUERY = 500;
 
 /** Most notify-send rows one `GET /api/notify/log` returns; the in-memory fallback ring is bounded to it too. */
 const MAX_NOTIFY_PER_QUERY = 500;
+
+/** How many devices the alert-stats Top-N ranking keeps (Phase 17A). Matches 16B's client-side default. */
+const ALERT_STATS_TOP_N = 8;
 
 export class Persistence {
   private db: Db | null = null;
@@ -1235,5 +1245,34 @@ export class Persistence {
     return items
       .sort((left, right) => Date.parse(right.ts) - Date.parse(left.ts))
       .slice(0, MAX_ALERTS_PER_QUERY);
+  }
+
+  /**
+   * Server-side alert statistics over the whole `alerts` collection (Phase 17A).
+   *
+   * The point of doing this in Mongo rather than in the browser (as 16B does) is to escape the
+   * 500-row read cap on `/api/alerts`: a `$facet` aggregate sees every alert in the retention
+   * window, not just the newest page. With no Mongo there is no history to aggregate, so this
+   * returns an honest-empty report flagged `available:false` — the same contract the
+   * cleared-alert paths already keep — rather than a zero-filled one that would read as
+   * "there were no alerts".
+   */
+  async aggregateAlertStats(range: { from?: string; to?: string }): Promise<AlertStatsReport> {
+    if (!this.db) {
+      return emptyAlertStatsReport(false);
+    }
+    const pipeline = buildAlertStatsPipeline({
+      from: toBoundDate(range.from),
+      to: toBoundDate(range.to),
+      topN: ALERT_STATS_TOP_N,
+      timezone: config.reportTimezone,
+    });
+    // `$facet` always yields exactly one document; the `?? {}` only satisfies the type for the
+    // (unreachable) empty-cursor case, and the mapper turns it into a zeroed but available report.
+    const [facet] = await this.db
+      .collection("alerts")
+      .aggregate<AlertStatsFacet>(pipeline)
+      .toArray();
+    return mapAlertStatsFacet(facet ?? {});
   }
 }

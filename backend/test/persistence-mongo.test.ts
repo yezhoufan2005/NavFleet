@@ -24,6 +24,10 @@ interface FakeCursor {
   toArray: () => Promise<unknown[]>;
 }
 
+interface AggregateCursor {
+  toArray: () => Promise<unknown[]>;
+}
+
 interface FindCall {
   collection: string;
   filter: unknown;
@@ -42,12 +46,14 @@ interface Recorded {
   deleteOne: Array<{ collection: string; filter: unknown }>;
   deleteMany: Array<{ collection: string; filter: unknown }>;
   countDocuments: Array<{ collection: string; filter: unknown }>;
+  aggregate: Array<{ collection: string; pipeline: unknown }>;
 }
 
 /** A fake `Db` that records calls and replays canned rows. */
 const createFakeDb = (
   rows: Record<string, unknown[]> = {},
   failures: { insertMany?: boolean; updateOne?: boolean; insertOne?: boolean } = {},
+  aggregates: Record<string, unknown[]> = {},
 ): { db: Db; calls: Recorded } => {
   const calls: Recorded = {
     find: [],
@@ -59,6 +65,7 @@ const createFakeDb = (
     deleteOne: [],
     deleteMany: [],
     countDocuments: [],
+    aggregate: [],
   };
 
   const collection = (name: string) => ({
@@ -115,6 +122,10 @@ const createFakeDb = (
     countDocuments: (filter: unknown = {}) => {
       calls.countDocuments.push({ collection: name, filter });
       return Promise.resolve((rows[name] ?? []).length);
+    },
+    aggregate: (pipeline: unknown): AggregateCursor => {
+      calls.aggregate.push({ collection: name, pipeline });
+      return { toArray: () => Promise.resolve(aggregates[name] ?? []) };
     },
   });
 
@@ -760,6 +771,89 @@ describe("查询", () => {
       clearedAt: string | null;
     }>;
     expect(item).toHaveProperty("clearedAt", null);
+  });
+});
+
+describe("aggregateAlertStats（Phase 17A 服务端聚合）", () => {
+  // 一份 facet 结果替真实 Mongo 作答：fake db 不执行管道，只把它录下来并回放 canned 文档。管道的
+  // 形状（纯 builder）与 facet→报表的映射（纯 mapper）各有自己的单测；这里验的是接线——方法把
+  // 管道发给 alerts 集合的 aggregate，并把结果喂给 mapper。
+  const facet = {
+    bySeverity: [
+      { _id: "critical", count: 2 },
+      { _id: "warning", count: 3 },
+      // 未知严重度：mapper 应归到 notice，而不是凭空多一档。
+      { _id: "weird", count: 1 },
+    ],
+    topDevices: [
+      { _id: "agv-1", count: 4 },
+      { _id: "agv-2", count: 1 },
+    ],
+    daily: [{ _id: "2026-09-01", count: 5 }],
+    totals: [{ _id: null, total: 6, acked: 3 }],
+    durations: [{ _id: null, values: [1000, 3000, 2000] }],
+  };
+
+  it("把区间管道发给 alerts.aggregate，并把 facet 映射成报表", async () => {
+    const { db, calls } = createFakeDb({}, {}, { alerts: [facet] });
+    persistence.__setDbForTests(db);
+
+    const report = await persistence.aggregateAlertStats({
+      from: "2026-09-01T00:00:00Z",
+      to: "2026-09-30T00:00:00Z",
+    });
+
+    // 接线：聚合打在 alerts 上；给了边界就有一个按 firstSeenAt 过滤的 $match，随后是 $facet。
+    const [call] = calls.aggregate;
+    expect(call?.collection).toBe("alerts");
+    const pipeline = call?.pipeline as Array<Record<string, unknown>>;
+    expect(pipeline[0]).toMatchObject({
+      $match: { firstSeenAt: { $gte: anyDate, $lte: anyDate } },
+    });
+    const facetStage = pipeline.find((stage) => "$facet" in stage)?.$facet as Record<
+      string,
+      unknown
+    >;
+    expect(Object.keys(facetStage).sort()).toEqual([
+      "bySeverity",
+      "daily",
+      "durations",
+      "topDevices",
+      "totals",
+    ]);
+
+    // 映射：未知严重度并入 notice，Top-N 只留 deviceId，确认率零除保护，时长中位数取对。
+    expect(report.available).toBe(true);
+    expect(report.total).toBe(6);
+    expect(report.bySeverity).toEqual({ critical: 2, warning: 3, notice: 1 });
+    expect(report.topDevices).toEqual([
+      { deviceId: "agv-1", count: 4 },
+      { deviceId: "agv-2", count: 1 },
+    ]);
+    expect(report.daily).toEqual([{ day: "2026-09-01", count: 5 }]);
+    expect(report.ackRate).toBe(0.5);
+    expect(report.duration).toEqual({ count: 3, meanMs: 2000, p50Ms: 2000 });
+  });
+
+  it("没给边界时不加 $match，直接 $facet 扫 TTL 窗口内全部", async () => {
+    const { db, calls } = createFakeDb({}, {}, { alerts: [facet] });
+    persistence.__setDbForTests(db);
+
+    await persistence.aggregateAlertStats({});
+
+    const pipeline = calls.aggregate[0]?.pipeline as Array<Record<string, unknown>>;
+    expect(pipeline).toHaveLength(1);
+    expect(pipeline[0]).toHaveProperty("$facet");
+  });
+
+  it("无 Mongo 时返回 available:false 的诚实空态，不谎报'零告警'", async () => {
+    persistence.__setDbForTests(null);
+    const report = await persistence.aggregateAlertStats({});
+    expect(report.available).toBe(false);
+    expect(report.total).toBe(0);
+    expect(report.bySeverity).toEqual({ critical: 0, warning: 0, notice: 0 });
+    expect(report.ackRate).toBeNull();
+    expect(report.duration).toEqual({ count: 0, meanMs: null, p50Ms: null });
   });
 });
 

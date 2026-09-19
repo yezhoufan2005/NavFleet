@@ -23,6 +23,7 @@ import { buildDebugRouter } from "./routes/debug";
 import { buildUsersRouter } from "./routes/users";
 import { buildAuditRouter } from "./routes/audit";
 import { buildNotifyRouter } from "./routes/notify";
+import { buildReportsRouter } from "./routes/reports";
 import type { AuditService } from "./audit/service";
 import type { NotifyService } from "./notify/service";
 
@@ -209,6 +210,7 @@ export const createApp = ({
    */
   for (const prefix of API_PREFIXES) {
     app.use(prefix, captureRouteMount, buildFleetRouter(store));
+    app.use(prefix, captureRouteMount, buildReportsRouter(store));
     app.use(prefix, captureRouteMount, buildAlertsRouter(store, persistence, auditService));
     app.use(prefix, captureRouteMount, buildScenesRouter(store));
     app.use(prefix, captureRouteMount, buildCodebookRouter(store, auditService));

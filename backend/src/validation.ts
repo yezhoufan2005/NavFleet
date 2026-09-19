@@ -208,6 +208,13 @@ export const auditQuerySchema = z.object({
   to: timestampString.optional(),
 });
 
+/** Query filters for `GET /api/reports/alerts` (Phase 17A, viewer+). Both optional; the aggregate
+ * spans the whole retention window when neither bound is given. Bounds filter on `firstSeenAt`. */
+export const reportRangeSchema = z.object({
+  from: timestampString.optional(),
+  to: timestampString.optional(),
+});
+
 /** Query filters for `GET /api/notify/log` (admin). All optional; unbounded result is capped server-side. */
 export const notifyLogQuerySchema = z.object({
   deviceId: z.string().min(1).max(200).optional(),

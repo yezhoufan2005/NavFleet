@@ -226,4 +226,17 @@ describe("fleetApi", () => {
     await fleetApi.getNotifyConfig();
     expect(calls.at(-1)?.url).toBe("/api/v1/notify/config");
   });
+
+  it("reads the server-side alert-stats report, forwarding the range (Phase 17A)", async () => {
+    stubFetch(200, { total: 0, available: true });
+    await fleetApi.getAlertStatsReport({ from: "2026-09-01T00:00:00Z" });
+    expect(calls.at(-1)?.url).toBe(
+      "/api/v1/reports/alerts?from=2026-09-01T00%3A00%3A00Z",
+    );
+
+    stubFetch(200, { total: 0, available: false });
+    await fleetApi.getAlertStatsReport();
+    // No params ⇒ no query string; the aggregate then spans the whole retention window.
+    expect(calls.at(-1)?.url).toBe("/api/v1/reports/alerts");
+  });
 });
