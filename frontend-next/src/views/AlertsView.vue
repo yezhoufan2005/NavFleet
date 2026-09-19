@@ -25,6 +25,7 @@ import { computed, onMounted, watch } from "vue";
 import { RouterLink, useRoute, useRouter } from "vue-router";
 import PageHeader from "@/components/PageHeader.vue";
 import UiSelect from "@/components/ui/UiSelect.vue";
+import AlertHistoryPanel from "@/components/alerts/AlertHistoryPanel.vue";
 import { useFleetStore } from "@/stores/fleet";
 import { useAlertAck } from "@/composables/useAlertAck";
 import { useAuth } from "@/composables/useAuth";
@@ -124,6 +125,18 @@ const page = computed(() => {
   return Number.isFinite(value) && value >= 1 ? Math.floor(value) : 1;
 });
 
+/**
+ * 消息 页 has two tabs behind one filter bar: live alerts off the store (default) and 告警史
+ * — cleared alerts — behind `?view=history`. The severity / device / search filters are shared
+ * (the bar looks identical either way); only 显示已确认 and the bulk-ack actions are live-only.
+ * Folded in from the former top-level 告警史 page in Phase 18; `/alert-history` now redirects
+ * here so old links keep working.
+ */
+const view = computed<"live" | "history">(() =>
+  readParam("view") === "history" ? "history" : "live",
+);
+const isLive = computed(() => view.value === "live");
+
 /** Writes only what differs from the default, so a clean view has a clean URL. */
 const setQuery = (patch: Record<string, string | null>): void => {
   const next: Record<string, string> = {};
@@ -138,6 +151,10 @@ const setFilter = (patch: Record<string, string | null>): void => {
   // now has one page shows nothing and looks broken.
   setQuery({ ...patch, page: null });
 };
+
+/** Switch between the live list and 告警史; page is live-only, so drop it on the way. */
+const toggleView = (): void =>
+  setQuery({ view: isLive.value ? "history" : null, page: null });
 
 /**
  * Every alert in the fleet, worst severity first and newest **onset** first within it.
@@ -359,7 +376,7 @@ watch(() => canAck.value && fleet.state.realtime.apiReady, runLegacyMigration);
         action into four rounds of pagination.
       -->
       <button
-        v-if="canAck && unacknowledgedFiltered.length"
+        v-if="isLive && canAck && unacknowledgedFiltered.length"
         type="button"
         class="rounded-sm border border-border-strong bg-surface-raised px-2.5 py-1 text-xs text-ink-muted transition-colors duration-150 ease-standard hover:text-ink"
         @click="acknowledgeFiltered"
@@ -371,7 +388,7 @@ watch(() => canAck.value && fleet.state.realtime.apiReady, runLegacyMigration);
            and the port dropped. The admin page's 清除本地数据 is not an equivalent: it
            takes theme, sidebar, map mode and sound preferences with it. -->
       <button
-        v-if="canAck && acknowledgedPresent"
+        v-if="isLive && canAck && acknowledgedPresent"
         type="button"
         class="rounded-sm border border-border-strong bg-surface-raised px-2.5 py-1 text-xs text-ink-muted transition-colors duration-150 ease-standard hover:text-ink"
         @click="clearAcknowledged"
@@ -442,7 +459,10 @@ watch(() => canAck.value && fleet.state.realtime.apiReady, runLegacyMigration);
         the words toggles it — so the height goes there rather than on the box, which would
         just make an oversized checkbox.
       -->
-      <label class="flex min-h-6 items-center gap-2 text-xs text-ink-muted">
+      <label
+        v-if="isLive"
+        class="flex min-h-6 items-center gap-2 text-xs text-ink-muted"
+      >
         <input
           type="checkbox"
           class="size-4"
@@ -459,22 +479,41 @@ watch(() => canAck.value && fleet.state.realtime.apiReady, runLegacyMigration);
           >（{{ acknowledgedPresent }}）</template
         >
       </label>
+
+      <!--
+        The 告警史 ↔ 消息页 tab toggle, pinned to the far right of the same bar so switching
+        tabs feels like part of it. `ml-auto` keeps it right-aligned whether or not the
+        live-only 显示已确认 control is present, so the bar reads the same across both tabs.
+      -->
+      <button
+        type="button"
+        class="ml-auto self-end rounded-sm border border-border-strong bg-surface-raised px-2.5 py-1 text-xs text-ink-muted transition-colors duration-150 ease-standard hover:text-ink"
+        :aria-pressed="!isLive"
+        @click="toggleView"
+      >
+        {{ isLive ? "告警史" : "消息页" }}
+      </button>
     </div>
 
-    <!-- A live region: filtering down to nothing has to be announced, not leave a
-         blank panel behind. -->
-    <p
-      v-if="!pageRows.length"
-      class="rounded-md border border-border bg-surface-raised p-8 text-center text-sm text-ink-muted"
-      role="status"
-    >
-      {{
-        allAlerts.length ? "没有符合当前筛选条件的消息" : "当前车队没有活跃告警"
-      }}
-    </p>
+    <AlertHistoryPanel v-if="!isLive" />
 
-    <ul v-else class="m-0 flex list-none flex-col gap-2 p-0">
-      <!--
+    <template v-else>
+      <!-- A live region: filtering down to nothing has to be announced, not leave a
+           blank panel behind. -->
+      <p
+        v-if="!pageRows.length"
+        class="rounded-md border border-border bg-surface-raised p-8 text-center text-sm text-ink-muted"
+        role="status"
+      >
+        {{
+          allAlerts.length
+            ? "没有符合当前筛选条件的消息"
+            : "当前车队没有活跃告警"
+        }}
+      </p>
+
+      <ul v-else class="m-0 flex list-none flex-col gap-2 p-0">
+        <!--
         Two visual encodings the port dropped, both restored on this element rather than
         on the badge:
 
@@ -497,57 +536,58 @@ watch(() => canAck.value && fleet.state.realtime.apiReady, runLegacyMigration);
         random, which is the correct reading: nothing on screen accounted for it. A cue
         whose cause is off-screen is noise, however faithful it is to the original.
       -->
-      <li
-        v-for="alert in pageRows"
-        :key="alert.id"
-        class="alert-row flex flex-col gap-2 rounded-md border border-border bg-surface-raised p-3 sm:flex-row sm:items-start"
-        :data-severity="alert.severity"
-        :data-acknowledged="
-          ack.isAcknowledged(alert.deviceId, alert.id) ? 'true' : undefined
-        "
-      >
-        <span
-          class="shrink-0 rounded-xs px-2 py-0.5 font-mono text-2xs"
-          :class="SEVERITY_BADGE[alert.severity]"
-          >{{ SEVERITY_LABELS[alert.severity] }}</span
+        <li
+          v-for="alert in pageRows"
+          :key="alert.id"
+          class="alert-row flex flex-col gap-2 rounded-md border border-border bg-surface-raised p-3 sm:flex-row sm:items-start"
+          :data-severity="alert.severity"
+          :data-acknowledged="
+            ack.isAcknowledged(alert.deviceId, alert.id) ? 'true' : undefined
+          "
         >
-
-        <div class="flex min-w-0 flex-1 flex-col gap-0.5">
-          <strong class="text-sm text-ink">{{ alert.title }}</strong>
-          <span v-if="alert.detail" class="text-xs text-ink-muted">{{
-            alert.detail
-          }}</span>
           <span
-            class="flex flex-wrap items-center gap-2 text-2xs text-ink-subtle"
+            class="shrink-0 rounded-xs px-2 py-0.5 font-mono text-2xs"
+            :class="SEVERITY_BADGE[alert.severity]"
+            >{{ SEVERITY_LABELS[alert.severity] }}</span
           >
-            <!-- The row reaches the vehicle: diagnosing an alert used to mean reading
-                 the device id and going to find it. -->
-            <RouterLink
-              :to="`/devices/${alert.deviceId}`"
-              class="text-brand-ink underline-offset-2 hover:underline"
-              >{{ alert.deviceName || alert.deviceId }}</RouterLink
-            >
-            <!-- The onset, not the last report. `ts` is refreshed on every telemetry
-                 cycle, so rendering it made this line rewrite itself once a second. -->
-            <span class="font-mono">{{
-              formatDateTime(alert.firstSeenAt)
+
+          <div class="flex min-w-0 flex-1 flex-col gap-0.5">
+            <strong class="text-sm text-ink">{{ alert.title }}</strong>
+            <span v-if="alert.detail" class="text-xs text-ink-muted">{{
+              alert.detail
             }}</span>
-            <span v-if="alert.code" class="font-mono">#{{ alert.code }}</span>
-            <!-- Where the row came from. Computed on every alert since 12A and read by
+            <span
+              class="flex flex-wrap items-center gap-2 text-2xs text-ink-subtle"
+            >
+              <!-- The row reaches the vehicle: diagnosing an alert used to mean reading
+                 the device id and going to find it. -->
+              <RouterLink
+                :to="`/devices/${alert.deviceId}`"
+                class="text-brand-ink underline-offset-2 hover:underline"
+                >{{ alert.deviceName || alert.deviceId }}</RouterLink
+              >
+              <!-- The onset, not the last report. `ts` is refreshed on every telemetry
+                 cycle, so rendering it made this line rewrite itself once a second. -->
+              <span class="font-mono">{{
+                formatDateTime(alert.firstSeenAt)
+              }}</span>
+              <span v-if="alert.code" class="font-mono">#{{ alert.code }}</span>
+              <!-- Where the row came from. Computed on every alert since 12A and read by
                  nothing until now; it decides whether the vehicle or the platform is the
                  thing to go look at. -->
-            <span>{{ SOURCE_LABELS[alert.source] || alert.source }}</span>
-            <!-- Who confirmed it (Phase 16A). Server-backed, so it is the same name on
+              <span>{{ SOURCE_LABELS[alert.source] || alert.source }}</span>
+              <!-- Who confirmed it (Phase 16A). Server-backed, so it is the same name on
                  every console — the point of moving acknowledgement off localStorage. -->
-            <span
-              v-if="ack.acknowledgedBy(alert.deviceId, alert.id)"
-              class="text-brand-ink"
-              >已确认 · {{ ack.acknowledgedBy(alert.deviceId, alert.id) }}</span
-            >
-          </span>
-        </div>
+              <span
+                v-if="ack.acknowledgedBy(alert.deviceId, alert.id)"
+                class="text-brand-ink"
+                >已确认 ·
+                {{ ack.acknowledgedBy(alert.deviceId, alert.id) }}</span
+              >
+            </span>
+          </div>
 
-        <!-- A toggle that says it is one, rather than a button whose meaning is
+          <!-- A toggle that says it is one, rather than a button whose meaning is
              carried by its colour.
 
              The idle hover moves the border and the surface, not only the ink: acceptance
@@ -555,54 +595,57 @@ watch(() => canAck.value && fleet.state.realtime.apiReady, runLegacyMigration);
              on a 12px label is a few percent of the control's area. The confirmed state
              darkens its wash instead, because that one already carries a brand fill and a
              second fill on top would read as a different state rather than a hover. -->
-        <button
-          v-if="canAck"
-          type="button"
-          class="shrink-0 rounded-sm border px-2.5 py-1 text-xs transition-colors duration-150 ease-standard"
-          :class="
-            ack.isAcknowledged(alert.deviceId, alert.id)
-              ? 'border-brand bg-brand-wash text-brand-ink hover:bg-surface-sunken'
-              : 'border-border-strong bg-surface text-ink-muted hover:border-brand hover:bg-brand-wash hover:text-brand-ink'
-          "
-          :aria-pressed="ack.isAcknowledged(alert.deviceId, alert.id)"
-          :aria-label="`确认告警：${alert.title}`"
-          @click="
-            ack.isAcknowledged(alert.deviceId, alert.id)
-              ? ack.unacknowledge(alert.deviceId, alert.id)
-              : ack.acknowledge(alert.deviceId, alert.id)
-          "
-        >
-          {{ ack.isAcknowledged(alert.deviceId, alert.id) ? "已确认" : "确认" }}
-        </button>
-      </li>
-    </ul>
+          <button
+            v-if="canAck"
+            type="button"
+            class="shrink-0 rounded-sm border px-2.5 py-1 text-xs transition-colors duration-150 ease-standard"
+            :class="
+              ack.isAcknowledged(alert.deviceId, alert.id)
+                ? 'border-brand bg-brand-wash text-brand-ink hover:bg-surface-sunken'
+                : 'border-border-strong bg-surface text-ink-muted hover:border-brand hover:bg-brand-wash hover:text-brand-ink'
+            "
+            :aria-pressed="ack.isAcknowledged(alert.deviceId, alert.id)"
+            :aria-label="`确认告警：${alert.title}`"
+            @click="
+              ack.isAcknowledged(alert.deviceId, alert.id)
+                ? ack.unacknowledge(alert.deviceId, alert.id)
+                : ack.acknowledge(alert.deviceId, alert.id)
+            "
+          >
+            {{
+              ack.isAcknowledged(alert.deviceId, alert.id) ? "已确认" : "确认"
+            }}
+          </button>
+        </li>
+      </ul>
 
-    <nav
-      v-if="pageCount > 1"
-      class="flex items-center justify-between gap-3"
-      aria-label="分页"
-    >
-      <button
-        type="button"
-        class="rounded-sm border border-border-strong bg-surface-raised px-2.5 py-1 text-xs text-ink-muted disabled:opacity-50"
-        :disabled="page <= 1"
-        @click="setQuery({ page: page > 2 ? String(page - 1) : null })"
+      <nav
+        v-if="pageCount > 1"
+        class="flex items-center justify-between gap-3"
+        aria-label="分页"
       >
-        上一页
-      </button>
-      <span class="font-mono text-2xs text-ink-muted"
-        >第 {{ Math.min(page, pageCount) }} / {{ pageCount }} 页 · 共
-        {{ filtered.length }} 条</span
-      >
-      <button
-        type="button"
-        class="rounded-sm border border-border-strong bg-surface-raised px-2.5 py-1 text-xs text-ink-muted disabled:opacity-50"
-        :disabled="page >= pageCount"
-        @click="setQuery({ page: String(Math.min(page + 1, pageCount)) })"
-      >
-        下一页
-      </button>
-    </nav>
+        <button
+          type="button"
+          class="rounded-sm border border-border-strong bg-surface-raised px-2.5 py-1 text-xs text-ink-muted disabled:opacity-50"
+          :disabled="page <= 1"
+          @click="setQuery({ page: page > 2 ? String(page - 1) : null })"
+        >
+          上一页
+        </button>
+        <span class="font-mono text-2xs text-ink-muted"
+          >第 {{ Math.min(page, pageCount) }} / {{ pageCount }} 页 · 共
+          {{ filtered.length }} 条</span
+        >
+        <button
+          type="button"
+          class="rounded-sm border border-border-strong bg-surface-raised px-2.5 py-1 text-xs text-ink-muted disabled:opacity-50"
+          :disabled="page >= pageCount"
+          @click="setQuery({ page: String(Math.min(page + 1, pageCount)) })"
+        >
+          下一页
+        </button>
+      </nav>
+    </template>
   </PageHeader>
 </template>
 

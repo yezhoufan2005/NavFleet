@@ -1,6 +1,6 @@
 <script setup lang="ts">
 /**
- * The six primary-navigation glyphs, inline.
+ * The five primary-navigation glyphs, inline.
  *
  * Inline rather than an icon package: a handful of icons do not justify a dependency, and
  * a sprite or font would add a request on the critical path of a console whose
@@ -34,8 +34,6 @@ const PATHS: Record<NavIconName, string> = {
   // the page, and reusing it for the section would blur the two.
   alerts:
     "M9.5 18.5a2.5 2.5 0 0 0 5 0M6 15.5V10a6 6 0 1 1 12 0v5.5l1.6 2.5H4.4z",
-  // A clock: history is the time dimension of the alerts the bell announces.
-  "alert-history": "M12 4a8 8 0 1 0 0 16a8 8 0 1 0 0-16M12 8.5V12l2.5 2",
   reports: "M4 20V4M4 20h16M8 17v-5M12.5 17V8M17 17v-7",
   // Sliders: two tracks, one handle on each, at different positions.
   admin:
