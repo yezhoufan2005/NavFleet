@@ -5,6 +5,7 @@ import { enableAutoUnmount, flushPromises, mount } from "@vue/test-utils";
 import { nextTick } from "vue";
 import { fleetApi } from "@navfleet/fleet-core";
 import DevicesView from "@/views/DevicesView.vue";
+import UiSelect from "@/components/ui/UiSelect.vue";
 import { useFleetStore } from "@/stores/fleet";
 import { __resetDeviceView } from "@/composables/useDeviceView";
 import { __resetTheme } from "@/composables/useTheme";
@@ -141,6 +142,30 @@ describe("large fleet rendering", () => {
     // The page travels in the URL, for the same reason the sort does: "it is on page 3"
     // has to be something you can send to a colleague.
     expect(wrapper.vm.$route.query.page).toBe("2");
+  });
+
+  it("changes page size via the per-page dropdown and records it in the URL", async () => {
+    ingest(45);
+    const wrapper = await mountList();
+    expect(wrapper.get("nav[aria-label='分页']").text()).toContain(
+      "第 1 / 3 页",
+    );
+
+    const sizeSelect = wrapper
+      .findAllComponents(UiSelect)
+      .find((component) => component.props("ariaLabel") === "每页条数");
+    expect(sizeSelect).toBeTruthy();
+
+    sizeSelect!.vm.$emit("update:modelValue", "50");
+    await flushPromises();
+
+    // 45 rows at 50/page is a single page: the pager buttons drop, the selector stays,
+    // and the chosen density rides in the URL like the page number does.
+    expect(wrapper.findAll("tbody tr.device-row")).toHaveLength(45);
+    expect(wrapper.findAll("button").some((b) => b.text() === "下一页")).toBe(
+      false,
+    );
+    expect(wrapper.vm.$route.query.pageSize).toBe("50");
   });
 
   it("keeps the per-device node count bounded", async () => {

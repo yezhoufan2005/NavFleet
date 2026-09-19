@@ -136,12 +136,18 @@ const onUpdate = (next: unknown): void => {
     </SelectTrigger>
 
     <SelectPortal>
+      <!--
+        Cap the open list at ~10 rows and scroll past that. Each item is `py-1.5 text-xs`
+        ≈ 28px; 10 rows (280px) + the viewport's `p-1` (8px) ≈ 18rem = `max-h-72`. Under ten
+        options the content is shorter and the panel shrinks to fit; over ten, Reka's
+        viewport scrolls. One cap here governs every UiSelect in the console.
+      -->
       <SelectContent
         position="popper"
         side="bottom"
         :side-offset="4"
         align="start"
-        class="z-50 max-h-64 min-w-(--reka-select-trigger-width) overflow-hidden rounded-md border border-border bg-surface-raised shadow-overlay"
+        class="z-50 max-h-72 min-w-(--reka-select-trigger-width) overflow-hidden rounded-md border border-border bg-surface-raised shadow-overlay"
       >
         <SelectViewport class="p-1">
           <SelectItem

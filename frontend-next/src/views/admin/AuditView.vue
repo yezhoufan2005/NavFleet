@@ -52,8 +52,19 @@ const to = ref(readParam("to"));
 const entries = ref<AuditRecord[]>([]);
 const status = ref<"loading" | "ready" | "error">("loading");
 
-const PAGE_SIZE = 20;
+const PAGE_SIZE_OPTIONS = [
+  { value: "10", label: "10 条/页" },
+  { value: "20", label: "20 条/页" },
+  { value: "50", label: "50 条/页" },
+];
+const pageSize = ref(20);
 const page = ref(1);
+
+/** Changing page size restarts at the first page so the slice offset stays in range. */
+const setPageSize = (next: string): void => {
+  pageSize.value = Number(next);
+  page.value = 1;
+};
 
 const load = async (): Promise<void> => {
   status.value = "loading";
@@ -95,10 +106,13 @@ const resetFilters = (): void => {
 onMounted(() => void load());
 
 const pageCount = computed(() =>
-  Math.max(1, Math.ceil(entries.value.length / PAGE_SIZE)),
+  Math.max(1, Math.ceil(entries.value.length / pageSize.value)),
 );
 const pageRows = computed(() =>
-  entries.value.slice((page.value - 1) * PAGE_SIZE, page.value * PAGE_SIZE),
+  entries.value.slice(
+    (page.value - 1) * pageSize.value,
+    page.value * pageSize.value,
+  ),
 );
 
 const formatTime = (iso: string): string =>
@@ -208,27 +222,35 @@ const formatTime = (iso: string): string =>
           </tbody>
         </table>
       </div>
-      <div
-        v-if="pageCount > 1"
-        class="flex items-center justify-end gap-3 text-sm"
-      >
-        <UiButton
-          variant="ghost"
-          size="sm"
-          :disabled="page <= 1"
-          @click="page -= 1"
-        >
-          上一页
-        </UiButton>
-        <span class="text-ink-muted">第 {{ page }} / {{ pageCount }} 页</span>
-        <UiButton
-          variant="ghost"
-          size="sm"
-          :disabled="page >= pageCount"
-          @click="page += 1"
-        >
-          下一页
-        </UiButton>
+      <div class="flex items-center justify-between gap-3 text-sm">
+        <label class="flex items-center gap-2">
+          <span class="text-ink-muted">每页</span>
+          <UiSelect
+            :model-value="String(pageSize)"
+            :options="PAGE_SIZE_OPTIONS"
+            aria-label="每页条数"
+            @update:model-value="setPageSize"
+          />
+        </label>
+        <div v-if="pageCount > 1" class="flex items-center gap-3">
+          <UiButton
+            variant="ghost"
+            size="sm"
+            :disabled="page <= 1"
+            @click="page -= 1"
+          >
+            上一页
+          </UiButton>
+          <span class="text-ink-muted">第 {{ page }} / {{ pageCount }} 页</span>
+          <UiButton
+            variant="ghost"
+            size="sm"
+            :disabled="page >= pageCount"
+            @click="page += 1"
+          >
+            下一页
+          </UiButton>
+        </div>
       </div>
     </template>
   </PageHeader>

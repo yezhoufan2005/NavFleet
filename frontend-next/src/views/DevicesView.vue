@@ -119,18 +119,30 @@ const rows = computed(() =>
 );
 
 /**
- * Pagination, same shape as 告警's: page size, page in the URL, and a clamp.
+ * Pagination, same shape as 告警's: page size and page both in the URL, and a clamp.
  *
  * The list did not have it, and «scroll a 200-row table» is not the same capability —
  * pagination is what makes "the vehicle I want is on page 3" a thing you can say to a
- * colleague, because the page number travels in the link like the sort does. `PAGE_SIZE`
- * matches 告警 so the two lists page identically.
+ * colleague, because the page number travels in the link like the sort does. The page
+ * size is selectable (10 / 20 / 50, default 20) and rides in the URL too, so a chosen
+ * density is part of the shareable view; an out-of-range `pageSize` falls back to 20.
  *
  * The clamp matters more than it looks: filtering down to one page while sitting on page
  * four would otherwise render an empty table under a populated header, which reads as
  * "no devices" rather than "wrong page".
  */
-const PAGE_SIZE = 20;
+const PAGE_SIZE_OPTIONS = [
+  { value: "10", label: "10 条/页" },
+  { value: "20", label: "20 条/页" },
+  { value: "50", label: "50 条/页" },
+];
+const ALLOWED_PAGE_SIZES = [10, 20, 50];
+const DEFAULT_PAGE_SIZE = 20;
+
+const pageSize = computed(() => {
+  const value = Number(route.query.pageSize);
+  return ALLOWED_PAGE_SIZES.includes(value) ? value : DEFAULT_PAGE_SIZE;
+});
 
 const page = computed(() => {
   const value = Number(route.query.page);
@@ -138,17 +150,29 @@ const page = computed(() => {
 });
 
 const pageCount = computed(() =>
-  Math.max(1, Math.ceil(rows.value.length / PAGE_SIZE)),
+  Math.max(1, Math.ceil(rows.value.length / pageSize.value)),
 );
 
 const pageRows = computed(() => {
-  const start = (Math.min(page.value, pageCount.value) - 1) * PAGE_SIZE;
-  return rows.value.slice(start, start + PAGE_SIZE);
+  const start = (Math.min(page.value, pageCount.value) - 1) * pageSize.value;
+  return rows.value.slice(start, start + pageSize.value);
 });
 
 const setPage = (next: number): void => {
   void router.replace({
     query: { ...route.query, page: next > 1 ? String(next) : undefined },
+  });
+};
+
+/** Changing page size drops back to page 1 (offset would otherwise fall out of range). */
+const setPageSize = (next: string): void => {
+  const size = Number(next);
+  void router.replace({
+    query: {
+      ...route.query,
+      pageSize: size !== DEFAULT_PAGE_SIZE ? String(size) : undefined,
+      page: undefined,
+    },
   });
 };
 
@@ -710,32 +734,43 @@ watch(
       </table>
     </div>
 
-    <!-- Hidden at one page: a pager that can only say 第 1 / 1 页 is furniture. -->
+    <!-- Page-size selector always available in list view; the pager appears past one page. -->
     <nav
-      v-if="layout === 'list' && pageCount > 1"
+      v-if="layout === 'list' && rows.length"
       class="flex items-center justify-between gap-3"
       aria-label="分页"
     >
-      <button
-        type="button"
-        class="rounded-sm border border-border-strong bg-surface-raised px-2.5 py-1 text-xs text-ink-muted transition-colors duration-150 ease-standard hover:text-ink disabled:opacity-50"
-        :disabled="page <= 1"
-        @click="setPage(page - 1)"
-      >
-        上一页
-      </button>
-      <span class="font-mono text-2xs text-ink-muted">
-        第 {{ Math.min(page, pageCount) }} / {{ pageCount }} 页 · 共
-        {{ rows.length }} 台
-      </span>
-      <button
-        type="button"
-        class="rounded-sm border border-border-strong bg-surface-raised px-2.5 py-1 text-xs text-ink-muted transition-colors duration-150 ease-standard hover:text-ink disabled:opacity-50"
-        :disabled="page >= pageCount"
-        @click="setPage(page + 1)"
-      >
-        下一页
-      </button>
+      <label class="flex items-center gap-2 text-xs text-ink-muted">
+        <span>每页</span>
+        <UiSelect
+          :model-value="String(pageSize)"
+          :options="PAGE_SIZE_OPTIONS"
+          aria-label="每页条数"
+          @update:model-value="setPageSize"
+        />
+      </label>
+      <div v-if="pageCount > 1" class="flex items-center gap-3">
+        <button
+          type="button"
+          class="rounded-sm border border-border-strong bg-surface-raised px-2.5 py-1 text-xs text-ink-muted transition-colors duration-150 ease-standard hover:text-ink disabled:opacity-50"
+          :disabled="page <= 1"
+          @click="setPage(page - 1)"
+        >
+          上一页
+        </button>
+        <span class="font-mono text-2xs text-ink-muted">
+          第 {{ Math.min(page, pageCount) }} / {{ pageCount }} 页 · 共
+          {{ rows.length }} 台
+        </span>
+        <button
+          type="button"
+          class="rounded-sm border border-border-strong bg-surface-raised px-2.5 py-1 text-xs text-ink-muted transition-colors duration-150 ease-standard hover:text-ink disabled:opacity-50"
+          :disabled="page >= pageCount"
+          @click="setPage(page + 1)"
+        >
+          下一页
+        </button>
+      </div>
     </nav>
   </PageHeader>
 </template>

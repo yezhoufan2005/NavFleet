@@ -3,6 +3,7 @@ import { createMemoryHistory, createRouter, type Router } from "vue-router";
 import { enableAutoUnmount, flushPromises, mount } from "@vue/test-utils";
 import { fleetApi, type AuditRecord } from "@navfleet/fleet-core";
 import AuditView from "@/views/admin/AuditView.vue";
+import UiSelect from "@/components/ui/UiSelect.vue";
 
 /**
  * 审计 — the audit log page. Filters are server-side (assert the params reach `getAuditLog`),
@@ -100,5 +101,29 @@ describe("AuditView", () => {
     const next = wrapper.findAll("button").find((b) => b.text() === "下一页");
     await next!.trigger("click");
     expect(wrapper.text()).toContain("第 2 / 2 页");
+  });
+
+  it("re-paginates when the per-page dropdown changes and returns to page 1", async () => {
+    const many = Array.from({ length: 25 }, (_, i) =>
+      entry({ actor: `u${i}` }),
+    );
+    const wrapper = await mountView(many);
+    expect(wrapper.text()).toContain("第 1 / 2 页"); // default 20/page
+
+    const sizeSelect = wrapper
+      .findAllComponents(UiSelect)
+      .find((component) => component.props("ariaLabel") === "每页条数");
+    expect(sizeSelect).toBeTruthy();
+
+    sizeSelect!.vm.$emit("update:modelValue", "10");
+    await flushPromises();
+    expect(wrapper.text()).toContain("第 1 / 3 页"); // 25 rows / 10
+
+    sizeSelect!.vm.$emit("update:modelValue", "50");
+    await flushPromises();
+    // 25 rows on one page of 50 — the pager drops out entirely.
+    expect(wrapper.findAll("button").some((b) => b.text() === "下一页")).toBe(
+      false,
+    );
   });
 });
