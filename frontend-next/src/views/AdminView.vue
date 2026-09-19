@@ -2,19 +2,14 @@
 /**
  * 管理 — an aggregate section, so it gets a real landing page.
  *
- * Constraint C2: clicking an aggregate must not drop you into whichever child
- * happens to be first. This page is the map of the section, and it also carries the
- * honest news that most of it does not exist yet.
+ * Constraint C2: clicking an aggregate must not drop you into whichever child happens to be
+ * first. This page is the map of the section — one card per built admin area.
  *
- * That "does not exist yet" is the biggest gap the second audit surfaced. v1.0.0's
- * RBAC is nominal — the three roles have identical permissions in a production
- * deployment, there is no user-management API of any kind, and adding a second
- * person means writing to the database by hand. Phase 15 is where that changes;
- * until then, listing the areas is more useful than pretending.
- *
- * Two of them are now real, and the difference has to be visible without reading:
- * a built area is a link with a solid border, an unbuilt one is dashed and inert.
- * A card that looks clickable and is not would make this page worse than a list.
+ * It once also carried dashed "not built yet" placeholders for planned areas (用户组 / 设备
+ * 接入). Those were dropped in Phase 18: full RBAC groups are heavy for a read-only intranet
+ * console whose three roles are near-identical, and device-access credential management is
+ * deployment-side config, not something a read-only console should write. Every card here is
+ * therefore a real, navigable area.
  */
 import { RouterLink } from "vue-router";
 import PageHeader from "@/components/PageHeader.vue";
@@ -23,8 +18,7 @@ interface Area {
   label: string;
   plan: string;
   intent: string;
-  /** Present once the area exists. Absent means "not built", and it renders inert. */
-  to?: string;
+  to: string;
 }
 
 const AREAS: readonly Area[] = [
@@ -34,14 +28,12 @@ const AREAS: readonly Area[] = [
     intent: "增删改、改密码、启停用、强制下线与查看会话",
     to: "/admin/users",
   },
-  { label: "用户组", plan: "15C", intent: "组与权限矩阵" },
   {
     label: "审计",
     plan: "15E",
     intent: "谁在什么时候做了什么",
     to: "/admin/audit",
   },
-  { label: "设备接入", plan: "16C", intent: "接入凭据与主题" },
   {
     label: "场景",
     plan: "13F",
@@ -80,7 +72,6 @@ const CARD_BASE =
         <!-- A link, because it is navigation — so ⌘-click and "copy link address"
              keep working. -->
         <RouterLink
-          v-if="area.to"
           :to="area.to"
           :class="[
             CARD_BASE,
@@ -95,19 +86,6 @@ const CARD_BASE =
           </span>
           <span class="text-sm text-ink-muted">{{ area.intent }}</span>
         </RouterLink>
-
-        <div
-          v-else
-          :class="[CARD_BASE, 'border border-dashed border-border-strong']"
-        >
-          <span class="flex items-baseline gap-2">
-            <span class="text-md font-semibold text-ink">{{ area.label }}</span>
-            <span class="ml-auto font-mono text-2xs text-ink-subtle"
-              >PR {{ area.plan }}</span
-            >
-          </span>
-          <span class="text-sm text-ink-muted">{{ area.intent }}</span>
-        </div>
       </li>
     </ul>
   </PageHeader>

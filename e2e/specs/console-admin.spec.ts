@@ -18,22 +18,20 @@ test.describe("console admin", () => {
     await signIn(page);
   });
 
-  test("the landing page links the built areas and marks the rest unbuilt", async ({
-    page,
-  }) => {
+  test("the landing page links every built area", async ({ page }) => {
     // An aggregate section gets a real landing page rather than a redirect into
     // whichever child happens to be first (constraint C2).
     await page.goto("/admin");
 
     await expect(page.getByRole("link", { name: /系统状态/ })).toBeVisible();
     await expect(page.getByRole("link", { name: /场景/ })).toBeVisible();
-    // 用户 and 审计 are built as of Phase 15E-2, so they are links now too.
     await expect(page.getByRole("link", { name: /用户/ })).toBeVisible();
     await expect(page.getByRole("link", { name: /审计/ })).toBeVisible();
-    // Unbuilt areas are not links — a card that looks clickable and is not would be
-    // worse than a plain list.
-    await expect(page.getByRole("link", { name: /用户组/ })).toHaveCount(0);
-    await expect(page.getByText("PR 15C")).toBeVisible();
+    // The dashed "not built yet" placeholders (用户组 / 设备接入) were dropped in Phase 18,
+    // so there is no inert card and no "PR xx" marker left on the page.
+    await expect(page.getByText("用户组")).toHaveCount(0);
+    await expect(page.getByText("设备接入")).toHaveCount(0);
+    await expect(page.getByText(/^PR /)).toHaveCount(0);
   });
 
   test("a child keeps 管理 lit and shows up in the breadcrumb", async ({
@@ -121,11 +119,11 @@ test.describe("console admin", () => {
   test("scenes are read-only, because a map is what a vehicle localises against", async ({
     page,
   }) => {
-    // The red line, asserted rather than assumed: no form, no editing control.
+    // The red line, asserted rather than assumed: no form, no editing control. (The former
+    // 「只读」 lede was removed in Phase 18; the structural check below is the real guarantee.)
     await page.goto("/admin/scenes");
 
     await expect(page.locator("form")).toHaveCount(0);
     await expect(page.locator("input, textarea, select")).toHaveCount(0);
-    await expect(page.getByText("只读")).toBeVisible();
   });
 });
