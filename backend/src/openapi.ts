@@ -25,6 +25,7 @@ import {
   historyQuerySchema,
   ingestBodySchema,
   loginSchema,
+  reportRangeSchema,
   resetPasswordSchema,
   sceneIdParamSchema,
   updateUserSchema,
@@ -134,6 +135,7 @@ export const openApiDocument = {
     { name: "auth", description: "登录 / 会话" },
     { name: "fleet", description: "车队快照与设备" },
     { name: "alerts", description: "告警" },
+    { name: "reports", description: "报表聚合（Phase 17A）" },
     { name: "scenes", description: "场景地图" },
     { name: "codebook", description: "报码字典" },
     { name: "ops", description: "健康探针与指标" },
@@ -287,6 +289,57 @@ export const openApiDocument = {
           userAgent: { type: "string" },
           ip: { type: "string" },
           current: { type: "boolean" },
+        },
+      },
+      AlertStatsReport: {
+        type: "object",
+        description:
+          "告警统计（Phase 17A，服务端聚合，不受 /alerts 的 500 条上限约束）。" +
+          "available:false 表示该部署无 Mongo、无历史可聚合——其余字段是零值而非'确无告警'。",
+        properties: {
+          total: { type: "number" },
+          bySeverity: {
+            type: "object",
+            properties: {
+              critical: { type: "number" },
+              warning: { type: "number" },
+              notice: { type: "number" },
+            },
+          },
+          topDevices: {
+            type: "array",
+            description:
+              "按告警条数降序的设备 Top-N（只带 deviceId；名字由前端用在线设备列表映射）",
+            items: {
+              type: "object",
+              properties: {
+                deviceId: { type: "string" },
+                count: { type: "number" },
+              },
+            },
+          },
+          daily: {
+            type: "array",
+            description: "按天频次（按部署时区切日界），升序",
+            items: {
+              type: "object",
+              properties: {
+                day: { type: "string" },
+                count: { type: "number" },
+              },
+            },
+          },
+          ackRate: { type: ["number", "null"] },
+          duration: {
+            type: "object",
+            description: "已清除告警的处理时长（毫秒）；count 为算得出时长的样本数",
+            properties: {
+              count: { type: "number" },
+              meanMs: { type: ["number", "null"] },
+              p50Ms: { type: ["number", "null"] },
+            },
+          },
+          available: { type: "boolean" },
         },
       },
     },
@@ -564,6 +617,29 @@ const apiWideResponses = { "429": tooManyRequests, "500": serverError } as const
                   items: { type: "array", items: { $ref: "#/components/schemas/Alert" } },
                 },
               },
+            },
+          },
+        },
+        "400": badRequest,
+        "401": unauthorized,
+        ...apiWideResponses,
+      },
+    },
+  },
+  "/api/v1/reports/alerts": {
+    get: {
+      tags: ["reports"],
+      summary: "告警统计（服务端聚合，Phase 17A）",
+      parameters: queryParameters(reportRangeSchema, {
+        from: "ISO-8601 或 epoch，按 firstSeenAt 过滤下界",
+        to: "ISO-8601 或 epoch，上界",
+      }),
+      responses: {
+        "200": {
+          description: "告警统计",
+          content: {
+            "application/json": {
+              schema: { $ref: "#/components/schemas/AlertStatsReport" },
             },
           },
         },

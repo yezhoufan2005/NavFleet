@@ -9,6 +9,7 @@
  */
 
 import type {
+  AlertStatsReport,
   DeviceSnapshot,
   NotifyChannelView,
   NotifySendRecord,
@@ -90,6 +91,13 @@ export interface AlertsQueryParams {
   severity?: "critical" | "warning" | "notice";
   deviceId?: string;
   status?: "active" | "cleared";
+}
+
+/** Range for the server-side report aggregation (Phase 17A). Both optional; the aggregate spans
+ * the whole retention window when neither is given. */
+export interface ReportRangeParams {
+  from?: string;
+  to?: string;
 }
 
 export type UserRoleName = "admin" | "operator" | "viewer";
@@ -282,6 +290,17 @@ export const fleetApi = {
   getAlerts(params: AlertsQueryParams = {}): Promise<{ items: AlertRecord[] }> {
     return requestJson<{ items: AlertRecord[] }>(
       `/api/v1/alerts${buildQuery(params)}`,
+    );
+  },
+
+  // ── Report aggregation (viewer+, Phase 17A) ─────────────────────────────────
+  // Server-side alert statistics over the whole retention window — not bounded by the 500-row
+  // cap on getAlerts. `available:false` means the deployment has no Mongo/history to aggregate.
+  getAlertStatsReport(
+    params: ReportRangeParams = {},
+  ): Promise<AlertStatsReport> {
+    return requestJson<AlertStatsReport>(
+      `/api/v1/reports/alerts${buildQuery(params)}`,
     );
   },
 

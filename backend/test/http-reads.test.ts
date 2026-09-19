@@ -5,6 +5,7 @@ import {
   SCENE_ID,
   createTestApp,
   sampleAlert,
+  sampleAlertStatsReport,
   sampleHistoryPoint,
   sessionCookie,
   type TestAppContext,
@@ -160,5 +161,39 @@ describe("GET /api/alerts", () => {
       status: "active",
       deviceId: DEVICE_ID,
     });
+  });
+});
+
+describe("GET /api/reports/alerts (Phase 17A)", () => {
+  it("returns the aggregated report as the response body (viewer+, no envelope)", async () => {
+    const context = createTestApp();
+    const response = await authed(context, "/api/reports/alerts");
+
+    expect(response.status).toBe(200);
+    // The report is the body itself, not wrapped in `{ items }` — it is one object, not a list.
+    expect(response.body).toEqual(sampleAlertStatsReport());
+    expect(context.store.getAlertStats).toHaveBeenCalledWith({});
+  });
+
+  it("forwards the validated from/to window to the store", async () => {
+    const context = createTestApp();
+    const response = await authed(
+      context,
+      "/api/reports/alerts?from=2026-09-01T00:00:00Z&to=2026-09-30T00:00:00Z",
+    );
+
+    expect(response.status).toBe(200);
+    expect(context.store.getAlertStats).toHaveBeenCalledWith({
+      from: "2026-09-01T00:00:00Z",
+      to: "2026-09-30T00:00:00Z",
+    });
+  });
+
+  it("rejects an unparseable bound with 400 rather than passing it through", async () => {
+    const context = createTestApp();
+    const response = await authed(context, "/api/reports/alerts?from=not-a-time");
+
+    expect(response.status).toBe(400);
+    expect(context.store.getAlertStats).not.toHaveBeenCalled();
   });
 });

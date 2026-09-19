@@ -102,6 +102,17 @@ export const sampleAlert = (): Record<string, unknown> => ({
   status: "active",
 });
 
+/** A populated alert-stats report (Phase 17A) for the store stub the reports route reads. */
+export const sampleAlertStatsReport = (): Record<string, unknown> => ({
+  total: 3,
+  bySeverity: { critical: 1, warning: 2, notice: 0 },
+  topDevices: [{ deviceId: DEVICE_ID, count: 3 }],
+  daily: [{ day: "2026-09-01", count: 3 }],
+  ackRate: 0.5,
+  duration: { count: 2, meanMs: 90000, p50Ms: 90000 },
+  available: true,
+});
+
 export const adminUser = (): UserRecord => ({
   username: "admin",
   passwordHash: "not-checked-by-the-stub",

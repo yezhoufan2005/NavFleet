@@ -164,6 +164,9 @@ const configSchema = z.object({
   // 一个不响应的群机器人不至于把发送任务挂死。
   NOTIFY_TIMEOUT_MS: envInt(5_000, 100),
   NOTIFY_MAX_ATTEMPTS: envInt(3, 1),
+  // 报表聚合（Phase 17A）。告警日频次按这个 IANA 时区切日界——默认按部署所在地（国内内网车队），
+  // 交给 Mongo 的 `$dateToString`。按 UTC 切日会把 UTC+8 午夜后的告警错算到"昨天"。
+  REPORT_TIMEZONE: envStr("Asia/Shanghai"),
   AUTH_ENABLED: envBool(true),
   JWT_SECRET: envStr(""),
   JWT_ACCESS_TTL: envStr("15m"),
@@ -242,6 +245,7 @@ export const parseConfig = (env: NodeJS.ProcessEnv) => {
     configWatchDebounceMs: e.CONFIG_WATCH_DEBOUNCE_MS,
     notifyTimeoutMs: e.NOTIFY_TIMEOUT_MS,
     notifyMaxAttempts: e.NOTIFY_MAX_ATTEMPTS,
+    reportTimezone: e.REPORT_TIMEZONE,
     authEnabled: e.AUTH_ENABLED,
     jwtSecret: e.JWT_SECRET,
     jwtAccessTtl: e.JWT_ACCESS_TTL,

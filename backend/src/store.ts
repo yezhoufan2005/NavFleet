@@ -787,6 +787,11 @@ export class DashboardStore extends EventEmitter {
     return this.persistence.queryAlerts(filters);
   }
 
+  /** Server-side alert statistics over the retention window (Phase 17A); honest-empty without Mongo. */
+  async getAlertStats(range: { from?: string; to?: string }) {
+    return this.persistence.aggregateAlertStats(range);
+  }
+
   private async evaluateOfflineDevicesInternal(): Promise<void> {
     // The offline rule is configurable (Phase 16C-1): a deployment can retune the silence
     // window, scope detection to some devices, or turn it off. `afterSeconds` falls back to
