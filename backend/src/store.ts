@@ -3,6 +3,7 @@ import fs from "node:fs/promises";
 import path from "node:path";
 import { config } from "./config";
 import { deviceMatchesScope, applyRuleDebounce } from "@navfleet/shared";
+import type { ReportBucketUnit } from "@navfleet/shared";
 import { ConfigRegistry } from "./configRegistry";
 import {
   buildFleetSnapshot,
@@ -790,6 +791,16 @@ export class DashboardStore extends EventEmitter {
   /** Server-side alert statistics over the retention window (Phase 17A); honest-empty without Mongo. */
   async getAlertStats(range: { from?: string; to?: string }) {
     return this.persistence.aggregateAlertStats(range);
+  }
+
+  /** Server-side availability + battery time-series (Phase 17A-2); honest-empty without Mongo. */
+  async getAvailabilityReport(params: {
+    deviceId?: string;
+    from?: string;
+    to?: string;
+    bucket: ReportBucketUnit;
+  }) {
+    return this.persistence.aggregateAvailability(params);
   }
 
   private async evaluateOfflineDevicesInternal(): Promise<void> {

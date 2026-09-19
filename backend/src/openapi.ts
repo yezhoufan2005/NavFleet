@@ -25,6 +25,7 @@ import {
   historyQuerySchema,
   ingestBodySchema,
   loginSchema,
+  reportAvailabilityQuerySchema,
   reportRangeSchema,
   resetPasswordSchema,
   sceneIdParamSchema,
@@ -342,6 +343,39 @@ export const openApiDocument = {
           available: { type: "boolean" },
         },
       },
+      AvailabilityReport: {
+        type: "object",
+        description:
+          "可用率/电量时序（Phase 17A-2，telemetry_ts 按时/日 $dateTrunc 降采样）。" +
+          "available:false 表示无 Mongo、无历史可聚合。",
+        properties: {
+          bucket: { type: "string", enum: ["hour", "day"] },
+          devices: {
+            type: "array",
+            items: {
+              type: "object",
+              properties: {
+                deviceId: { type: "string" },
+                buckets: {
+                  type: "array",
+                  items: {
+                    type: "object",
+                    properties: {
+                      bucketStart: { type: "string", format: "date-time" },
+                      onlineSamples: { type: "number" },
+                      totalSamples: { type: "number" },
+                      onlineRatio: { type: "number" },
+                      socMean: { type: ["number", "null"] },
+                      socMin: { type: ["number", "null"] },
+                    },
+                  },
+                },
+              },
+            },
+          },
+          available: { type: "boolean" },
+        },
+      },
     },
   },
   security: [{ cookieAuth: [] }],
@@ -640,6 +674,31 @@ const apiWideResponses = { "429": tooManyRequests, "500": serverError } as const
           content: {
             "application/json": {
               schema: { $ref: "#/components/schemas/AlertStatsReport" },
+            },
+          },
+        },
+        "400": badRequest,
+        "401": unauthorized,
+        ...apiWideResponses,
+      },
+    },
+  },
+  "/api/v1/reports/availability": {
+    get: {
+      tags: ["reports"],
+      summary: "可用率/电量时序（服务端聚合，Phase 17A-2）",
+      parameters: queryParameters(reportAvailabilityQuerySchema, {
+        from: "ISO-8601 或 epoch，按 ts 过滤下界",
+        to: "ISO-8601 或 epoch，上界",
+        deviceId: "只看这一台；缺省为全车队",
+        bucket: "分桶粒度（hour/day），缺省 day",
+      }),
+      responses: {
+        "200": {
+          description: "可用率/电量时序",
+          content: {
+            "application/json": {
+              schema: { $ref: "#/components/schemas/AvailabilityReport" },
             },
           },
         },

@@ -857,6 +857,61 @@ describe("aggregateAlertStats（Phase 17A 服务端聚合）", () => {
   });
 });
 
+describe("aggregateAvailability（Phase 17A-2 可用率/电量时序）", () => {
+  const rows = [
+    {
+      _id: { deviceId: "agv-1", bucketStart: new Date("2026-09-01T00:00:00Z") },
+      onlineSamples: 9,
+      totalSamples: 10,
+      socMean: 82.5,
+      socMin: 70,
+    },
+  ];
+
+  it("把设备+区间管道发给 telemetry_ts.aggregate，并把行映射成每台一条序列", async () => {
+    const { db, calls } = createFakeDb({}, {}, { telemetry_ts: rows });
+    persistence.__setDbForTests(db);
+
+    const report = await persistence.aggregateAvailability({
+      deviceId: "agv-1",
+      from: "2026-09-01T00:00:00Z",
+      to: "2026-09-02T00:00:00Z",
+      bucket: "hour",
+    });
+
+    const [call] = calls.aggregate;
+    expect(call?.collection).toBe("telemetry_ts");
+    const pipeline = call?.pipeline as Array<Record<string, unknown>>;
+    expect(pipeline[0]).toMatchObject({
+      $match: { "meta.deviceId": "agv-1", ts: { $gte: anyDate, $lte: anyDate } },
+    });
+
+    expect(report.available).toBe(true);
+    expect(report.bucket).toBe("hour");
+    expect(report.devices).toEqual([
+      {
+        deviceId: "agv-1",
+        buckets: [
+          {
+            bucketStart: "2026-09-01T00:00:00.000Z",
+            onlineSamples: 9,
+            totalSamples: 10,
+            onlineRatio: 0.9,
+            socMean: 82.5,
+            socMin: 70,
+          },
+        ],
+      },
+    ]);
+  });
+
+  it("无 Mongo 时返回 available:false 的诚实空态，并回显请求的桶粒度", async () => {
+    persistence.__setDbForTests(null);
+    const report = await persistence.aggregateAvailability({ bucket: "day" });
+    expect(report).toEqual({ bucket: "day", devices: [], available: false });
+  });
+});
+
 describe("登录锁定字段", () => {
   it("setLoginFailure 一次写 failedAttempts + lockedUntil，二者不分家", async () => {
     const { db, calls } = createFakeDb();

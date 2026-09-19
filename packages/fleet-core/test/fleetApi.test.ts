@@ -239,4 +239,20 @@ describe("fleetApi", () => {
     // No params ⇒ no query string; the aggregate then spans the whole retention window.
     expect(calls.at(-1)?.url).toBe("/api/v1/reports/alerts");
   });
+
+  it("reads the availability/battery time-series with device, range and bucket (Phase 17A-2)", async () => {
+    stubFetch(200, { bucket: "hour", devices: [], available: true });
+    await fleetApi.getAvailabilityReport({
+      deviceId: "agv-1",
+      from: "2026-09-01T00:00:00Z",
+      bucket: "hour",
+    });
+    expect(calls.at(-1)?.url).toBe(
+      "/api/v1/reports/availability?deviceId=agv-1&from=2026-09-01T00%3A00%3A00Z&bucket=hour",
+    );
+
+    stubFetch(200, { bucket: "day", devices: [], available: false });
+    await fleetApi.getAvailabilityReport();
+    expect(calls.at(-1)?.url).toBe("/api/v1/reports/availability");
+  });
 });

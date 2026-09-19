@@ -10,9 +10,11 @@
 
 import type {
   AlertStatsReport,
+  AvailabilityReport,
   DeviceSnapshot,
   NotifyChannelView,
   NotifySendRecord,
+  ReportBucketUnit,
   ReportCodeEntry,
 } from "@navfleet/shared";
 
@@ -98,6 +100,15 @@ export interface AlertsQueryParams {
 export interface ReportRangeParams {
   from?: string;
   to?: string;
+}
+
+/** Query for the availability/battery time-series (Phase 17A-2). `deviceId` narrows to one vehicle;
+ * `bucket` defaults server-side to day when omitted. */
+export interface AvailabilityQueryParams {
+  from?: string;
+  to?: string;
+  deviceId?: string;
+  bucket?: ReportBucketUnit;
 }
 
 export type UserRoleName = "admin" | "operator" | "viewer";
@@ -301,6 +312,15 @@ export const fleetApi = {
   ): Promise<AlertStatsReport> {
     return requestJson<AlertStatsReport>(
       `/api/v1/reports/alerts${buildQuery(params)}`,
+    );
+  },
+
+  // Availability + battery time-series, downsampled server-side by hour/day (Phase 17A-2).
+  getAvailabilityReport(
+    params: AvailabilityQueryParams = {},
+  ): Promise<AvailabilityReport> {
+    return requestJson<AvailabilityReport>(
+      `/api/v1/reports/availability${buildQuery(params)}`,
     );
   },
 

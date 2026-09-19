@@ -69,3 +69,47 @@ export const emptyAlertStatsReport = (
   duration: { count: 0, meanMs: null, p50Ms: null },
   available,
 });
+
+/** 可用率/电量时序的分桶粒度（Phase 17A-2）。时序库按此 `$dateTrunc` 降采样。 */
+export type ReportBucketUnit = "hour" | "day";
+export const REPORT_BUCKET_UNITS: readonly ReportBucketUnit[] = ["hour", "day"];
+
+/**
+ * 一个时间桶内、单台设备的可用率与电量（Phase 17A-2）。
+ *
+ * `onlineRatio = onlineSamples / totalSamples`：这段时间里上报的帧中有多少标着在线，即可用率的直接
+ * 度量。`socMean`/`socMin` 来自 `vehicleInfo.soc`；桶内没有任何数值样本时为 null（`$avg`/`$min`
+ * 会跳过缺失/非数值，不会把 null 当 0）。
+ */
+export interface AvailabilityBucket {
+  /** 桶起点 ISO（`$dateTrunc` 的结果，按部署时区切界）。 */
+  bucketStart: string;
+  onlineSamples: number;
+  totalSamples: number;
+  onlineRatio: number;
+  socMean: number | null;
+  socMin: number | null;
+}
+
+export interface AvailabilityDeviceSeries {
+  deviceId: string;
+  /** 按桶起点升序。 */
+  buckets: AvailabilityBucket[];
+}
+
+export interface AvailabilityReport {
+  bucket: ReportBucketUnit;
+  devices: AvailabilityDeviceSeries[];
+  /** 是否有历史后端（Mongo）。false ⇒ 诚实空态（同 16B「无 Mongo 无历史」先例）。 */
+  available: boolean;
+}
+
+/** 空的可用率报表：无 Mongo 或区间内无遥测时的零值形状。 */
+export const emptyAvailabilityReport = (
+  bucket: ReportBucketUnit,
+  available: boolean,
+): AvailabilityReport => ({
+  bucket,
+  devices: [],
+  available,
+});

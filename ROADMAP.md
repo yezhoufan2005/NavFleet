@@ -22,16 +22,16 @@ CI 全绿 → `--no-ff` 合并 → 回写本文件并记录自检结果。
 > 下挂了 12 个子批次，「下线」一个词在不同段落里有三种意思。往下所有小节都是**执行记录**
 > （按发生顺序，不再重排），要知道现在怎么样，只看这一节。
 
-| 项目           | 现状                                                                                                                                                                                                                                                                              |
-| -------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| **已发布版本** | **1.3.0**（2026-09-19 发布，tag `v1.3.0`；Phase 16 告警体系深化：确认落库 / 历史统计 / 可配置规则引擎与报码字典 / 告警外发）。上一版 1.2.0 @ `v1.2.0`（用户体系与真 RBAC），再上 1.1.0 @ `a404680`（前端焕新基准）                                                                |
-| **部署的前端** | `frontend-next/`（workspace `navfleet-console`），compose 服务名 `web`                                                                                                                                                                                                            |
-| **旧前端**     | `frontend/` **已冻结**：代码全留、不再改动，`--legacy` / 回滚 overlay 可启用                                                                                                                                                                                                      |
-| **发布的镜像** | `navfleet-backend:1.3.0`、`navfleet-console:1.3.0`。`navfleet-frontend` 停在 1.0.x                                                                                                                                                                                                |
-| **CI**         | 9 个 job：deploy-wiring、backend+shared×2（node 22/24）、frozen frontend×2、console×2、e2e、GitGuardian                                                                                                                                                                           |
-| **工程门禁**   | **P0-f 六批全部完成**（14X–14AB）。lint 全部 `--max-warnings 0` + type-aware；四份 tsconfig 严格开关对齐；eslint 10 / vitest 5；四个覆盖率门槛按 vitest 5 重定                                                                                                                    |
-| **实测基线**   | 四个覆盖率门槛全部通过，余量一致地留 2–3 个百分点；E2E `retries: 0`                                                                                                                                                                                                               |
-| **下一步**     | **Phase 17 进行中（报表与数据价值，发版 1.4.0）**：17A-1 告警统计聚合已合入 main（服务端 `$facet`，摆脱 500 条上限，`GET /reports/alerts`）。下一步 **17A-2**：可用率/电量时序聚合（`telemetry_ts` 按时/日 `$dateTrunc`）+ history 字段投影；随后 17B 报表页与导出 → 17C 大屏值班 |
+| 项目           | 现状                                                                                                                                                                                                                                                                                                        |
+| -------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **已发布版本** | **1.3.0**（2026-09-19 发布，tag `v1.3.0`；Phase 16 告警体系深化：确认落库 / 历史统计 / 可配置规则引擎与报码字典 / 告警外发）。上一版 1.2.0 @ `v1.2.0`（用户体系与真 RBAC），再上 1.1.0 @ `a404680`（前端焕新基准）                                                                                          |
+| **部署的前端** | `frontend-next/`（workspace `navfleet-console`），compose 服务名 `web`                                                                                                                                                                                                                                      |
+| **旧前端**     | `frontend/` **已冻结**：代码全留、不再改动，`--legacy` / 回滚 overlay 可启用                                                                                                                                                                                                                                |
+| **发布的镜像** | `navfleet-backend:1.3.0`、`navfleet-console:1.3.0`。`navfleet-frontend` 停在 1.0.x                                                                                                                                                                                                                          |
+| **CI**         | 9 个 job：deploy-wiring、backend+shared×2（node 22/24）、frozen frontend×2、console×2、e2e、GitGuardian                                                                                                                                                                                                     |
+| **工程门禁**   | **P0-f 六批全部完成**（14X–14AB）。lint 全部 `--max-warnings 0` + type-aware；四份 tsconfig 严格开关对齐；eslint 10 / vitest 5；四个覆盖率门槛按 vitest 5 重定                                                                                                                                              |
+| **实测基线**   | 四个覆盖率门槛全部通过，余量一致地留 2–3 个百分点；E2E `retries: 0`                                                                                                                                                                                                                                         |
+| **下一步**     | **Phase 17 进行中（报表与数据价值，发版 1.4.0）**：17A 聚合层已收口——17A-1 告警统计（`GET /reports/alerts`）+ 17A-2 可用率/电量时序（`GET /reports/availability`，`telemetry_ts` 按时/日 `$dateTrunc`）均合入 main。下一步 **17B 报表页与导出**（消费这两个端点；页面版式先与负责人确认再建）→ 17C 大屏值班 |
 
 **术语（此前混用过，以此为准）**：
 
@@ -1670,12 +1670,19 @@ mapper（各自单测——一条 `$group` key 写错、median 取错元素、�
   - openapi 测试钉住），前端 playback 也改成不发 `limit`、由服务端夹并在页面注明。它是**过时的 TODO，
     不是待办**，此处核销。
 
-**17A-2 可用率/电量时序 + history 投影（待做）**：
+**17A-2 可用率/电量时序 ✅（合入 main）**：`telemetry_ts` 上按（设备 × 时间桶）`$dateTrunc` 降采样
+——在线帧比（`onlineRatio = onlineSamples/totalSamples`，可用率的直接度量）+ 电量 `soc` 均值/最低，
+时/日两种粒度、按 `REPORT_TIMEZONE` 切桶界。同 17A-1 的拆法：纯 builder（`availabilityPipeline.ts`）
 
-- [ ] 聚合管道：在线率/可用率（`telemetry_ts` 的 `online` 标志按桶）+ 电量分桶（`soc` 均值/最低），
-      按时/日 `$dateTrunc` 降采样，避免每次全量扫时序库
-- [ ] history 支持字段投影（现在整条文档原样返回，17 个 measurements 全传）
-- 里程/行驶时长（`fusionLoc` 精度未证实）与班次（净新概念 + 需配置）**搁置**到真需要时（17B 或更后），
+- 纯 mapper（按 deviceId 顺序切段成序列、`onlineRatio` 零除保护、soc 收敛 3 位），persistence 用
+  fake db 验接线，无 Mongo = `available:false` 诚实空态。新只读端点 `GET /reports/availability`
+  （viewer+，`deviceId`/`from`/`to`/`bucket` 均可选，`bucket` 缺省 day）+ fleet-core
+  `getAvailabilityReport`。**零新依赖**。
+
+* **history 字段投影暂不做，挪到 17B 真需要时**：现在整条文档原样返回（17 个 measurements 全传）是
+  个带宽优化，但**当前零消费方**——投影一旦上线，投影字段白名单应由 17B 报表页/导出实际要画的字段
+  驱动，而不是先造一个没人调的旋钮。故不在 17A 提前实现（非搁置里程/班次那种范围外，是「等消费方」）。
+* 里程/行驶时长（`fusionLoc` 精度未证实）与班次（净新概念 + 需配置）**搁置**到真需要时（17B 或更后），
   不在本阶段吃掉 17B 的范围
 
 ### PR 17B — 报表页与导出

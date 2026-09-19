@@ -6,6 +6,7 @@ import {
   createTestApp,
   sampleAlert,
   sampleAlertStatsReport,
+  sampleAvailabilityReport,
   sampleHistoryPoint,
   sessionCookie,
   type TestAppContext,
@@ -195,5 +196,41 @@ describe("GET /api/reports/alerts (Phase 17A)", () => {
 
     expect(response.status).toBe(400);
     expect(context.store.getAlertStats).not.toHaveBeenCalled();
+  });
+});
+
+describe("GET /api/reports/availability (Phase 17A-2)", () => {
+  it("returns the report and defaults the bucket to day", async () => {
+    const context = createTestApp();
+    const response = await authed(context, "/api/reports/availability");
+
+    expect(response.status).toBe(200);
+    expect(response.body).toEqual(sampleAvailabilityReport());
+    // The schema fills in the default, so the store always receives an explicit bucket.
+    expect(context.store.getAvailabilityReport).toHaveBeenCalledWith({ bucket: "day" });
+  });
+
+  it("forwards device, range and an explicit bucket", async () => {
+    const context = createTestApp();
+    const response = await authed(
+      context,
+      `/api/reports/availability?deviceId=${DEVICE_ID}&from=2026-09-01T00:00:00Z&to=2026-09-30T00:00:00Z&bucket=hour`,
+    );
+
+    expect(response.status).toBe(200);
+    expect(context.store.getAvailabilityReport).toHaveBeenCalledWith({
+      deviceId: DEVICE_ID,
+      from: "2026-09-01T00:00:00Z",
+      to: "2026-09-30T00:00:00Z",
+      bucket: "hour",
+    });
+  });
+
+  it("rejects an unknown bucket with 400", async () => {
+    const context = createTestApp();
+    const response = await authed(context, "/api/reports/availability?bucket=week");
+
+    expect(response.status).toBe(400);
+    expect(context.store.getAvailabilityReport).not.toHaveBeenCalled();
   });
 });

@@ -113,6 +113,27 @@ export const sampleAlertStatsReport = (): Record<string, unknown> => ({
   available: true,
 });
 
+/** A populated availability report (Phase 17A-2) for the store stub the reports route reads. */
+export const sampleAvailabilityReport = (): Record<string, unknown> => ({
+  bucket: "day",
+  devices: [
+    {
+      deviceId: DEVICE_ID,
+      buckets: [
+        {
+          bucketStart: "2026-09-01T00:00:00.000Z",
+          onlineSamples: 9,
+          totalSamples: 10,
+          onlineRatio: 0.9,
+          socMean: 82.5,
+          socMin: 70,
+        },
+      ],
+    },
+  ],
+  available: true,
+});
+
 export const adminUser = (): UserRecord => ({
   username: "admin",
   passwordHash: "not-checked-by-the-stub",
