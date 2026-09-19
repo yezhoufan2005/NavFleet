@@ -145,7 +145,7 @@ describe("报表 状态与内容", () => {
     expect(wrapper.text()).toContain("平均在线率");
     expect(wrapper.text()).toContain("95.0%");
     expect(wrapper.text()).toContain("79.0%");
-    // 确认率 0.5 → 50%; 告警总数 4.
+    // 确认率 0.5 → 50%; 消息总数 4.
     expect(wrapper.text()).toContain("50%");
 
     // Two time-series (online + battery) and three bar charts (severity/top/daily).
@@ -182,13 +182,32 @@ describe("报表 状态与内容", () => {
 
     const button = wrapper
       .findAll("button")
-      .find((candidate) => candidate.text() === "近 24 小时");
+      .find((candidate) => candidate.text() === "近 7 天");
     await button!.trigger("click");
     await flushPromises();
 
-    // A refetch happened, and the shorter window starts later than the default 7-day one.
+    // A refetch happened, and the 7-day window starts earlier than the default 12-hour one.
     expect(avail.mock.calls.length).toBeGreaterThan(1);
     const lastFrom = avail.mock.calls.at(-1)![0]!.from;
-    expect(Date.parse(lastFrom!)).toBeGreaterThan(Date.parse(firstFrom!));
+    expect(Date.parse(lastFrom!)).toBeLessThan(Date.parse(firstFrom!));
+  });
+
+  it("自定义起止日期接管预设并带该窗口取数", async () => {
+    const avail = vi
+      .spyOn(fleetApi, "getAvailabilityReport")
+      .mockResolvedValue(availabilityReport());
+    // A custom window in the URL: the fetch must use those dates, not a preset window.
+    const wrapper = await mountView("?from=2026-03-01&to=2026-03-03");
+
+    const call = avail.mock.calls.at(-1)![0]!;
+    expect(call.from).toBe(new Date("2026-03-01T00:00:00").toISOString());
+    expect(call.to).toBe(new Date("2026-03-03T23:59:59.999").toISOString());
+
+    // No preset is highlighted while a custom window is in force.
+    const pressed = wrapper
+      .findAll("button")
+      .filter((button) => button.attributes("aria-pressed") === "true")
+      .map((button) => button.text());
+    expect(pressed).not.toContain("近 12 小时");
   });
 });

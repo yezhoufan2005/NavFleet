@@ -58,6 +58,13 @@ export interface TimeSeriesOptionInput {
    * Making the unit chart-level means the option builder cannot express one.
    */
   unit?: string;
+  /**
+   * Where the legend sits when there is more than one series. `"top"` (the default) is a
+   * horizontal strip above the plot; `"right"` is a vertical list beside it — which a chart
+   * with many series (e.g. one line per vehicle on the reports page) needs, because a top
+   * strip wraps over several rows and covers the plot.
+   */
+  legendPosition?: "top" | "right";
   animate?: boolean;
 }
 
@@ -82,9 +89,13 @@ export const buildTimeSeriesOption = ({
   series,
   palette,
   unit,
+  legendPosition = "top",
   animate = true,
 }: TimeSeriesOptionInput): EChartsOption => {
-  const directLabels = series.length <= DIRECT_LABEL_LIMIT;
+  const legendRight = legendPosition === "right" && series.length > 1;
+  // End labels and a right-side legend both claim the right margin, so they are mutually
+  // exclusive: with the legend on the right, identity comes from it, not from end labels.
+  const directLabels = series.length <= DIRECT_LABEL_LIMIT && !legendRight;
 
   return {
     animation: animate,
@@ -93,11 +104,11 @@ export const buildTimeSeriesOption = ({
     // repaint the survivors.
     color: [...palette.series],
     backgroundColor: "transparent",
-    // Room on the right for the end labels, and none wasted on a title ECharts
-    // would draw in its own font — the surrounding card owns the heading.
+    // Room on the right for the end labels (or the legend), and none wasted on a title
+    // ECharts would draw in its own font — the surrounding card owns the heading.
     grid: {
-      top: series.length > 1 ? 32 : 12,
-      right: directLabels ? 72 : 16,
+      top: series.length > 1 && !legendRight ? 32 : 12,
+      right: legendRight ? 108 : directLabels ? 72 : 16,
       bottom: 28,
       left: 52,
       containLabel: false,
@@ -105,11 +116,19 @@ export const buildTimeSeriesOption = ({
     legend:
       series.length > 1
         ? {
-            top: 0,
-            left: 0,
+            ...(legendRight
+              ? {
+                  orient: "vertical" as const,
+                  right: 0,
+                  top: "middle" as const,
+                }
+              : { top: 0, left: 0 }),
             icon: "roundRect",
             itemWidth: 10,
             itemHeight: 10,
+            // Many vehicles can overflow a vertical legend; let it scroll rather than
+            // push the plot to nothing.
+            type: "scroll",
             // Text wears an ink token, never the series colour: the swatch beside
             // it already carries identity.
             textStyle: { color: palette.inkMuted, fontSize: 12 },

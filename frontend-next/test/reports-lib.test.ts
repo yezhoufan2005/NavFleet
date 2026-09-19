@@ -25,6 +25,10 @@ describe("windowForPreset", () => {
   const now = Date.UTC(2026, 8, 30, 12, 0, 0);
 
   it("ends the window at now and reaches back the preset span", () => {
+    expect(windowForPreset("12h", now)).toEqual({
+      from: new Date(now - 12 * 3_600_000).toISOString(),
+      to: new Date(now).toISOString(),
+    });
     expect(windowForPreset("24h", now)).toEqual({
       from: new Date(now - 24 * 3_600_000).toISOString(),
       to: new Date(now).toISOString(),

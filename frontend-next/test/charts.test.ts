@@ -128,6 +128,24 @@ describe("buildTimeSeriesOption", () => {
     ).toBeTruthy();
   });
 
+  it("puts the legend on the right when asked, and drops end labels for it", () => {
+    // A top strip wraps and covers the plot once there are many vehicles; a right-side
+    // vertical legend is what the reports page asks for. End labels claim the same right
+    // margin, so they must give way to it.
+    const option = buildTimeSeriesOption({
+      series: seriesOf(3),
+      palette,
+      legendPosition: "right",
+    });
+    expect(option.legend).toMatchObject({ orient: "vertical", right: 0 });
+    const endLabelled = (option.series as { endLabel?: unknown }[]).some(
+      (entry) => entry.endLabel !== undefined,
+    );
+    expect(endLabelled).toBe(false);
+    // The grid leaves room on the right for the legend.
+    expect((option.grid as { right: number }).right).toBeGreaterThan(72);
+  });
+
   it("direct-labels up to four series so identity is never colour alone", () => {
     const labelled = buildTimeSeriesOption({
       series: seriesOf(TIME_SERIES_DIRECT_LABEL_LIMIT),
