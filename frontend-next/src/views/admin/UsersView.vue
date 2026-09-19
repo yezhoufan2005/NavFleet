@@ -9,7 +9,7 @@
  * backend's lockout guards (last enabled admin, acting on yourself) come back as stable error
  * codes, which `messageFor` turns into a sentence rather than a bare "HTTP 409".
  */
-import { computed, onMounted, ref } from "vue";
+import { computed, onMounted, ref, watch } from "vue";
 import {
   DialogContent,
   DialogDescription,
@@ -91,6 +91,16 @@ const fDisplayName = ref("");
 const fEmail = ref("");
 const fPhone = ref("");
 const fEnabled = ref(true);
+/**
+ * Mint as a long-lived read-only wall-display account (Phase 17C). Create-only: kiosk is a
+ * property of how the account is born (a months-long refresh horizon), not something toggled
+ * later. A kiosk is read-only by construction, so checking it forces the role to viewer — the
+ * backend refuses any other role, and `submitForm` pins it again so the two cannot drift.
+ */
+const fKiosk = ref(false);
+watch(fKiosk, (on) => {
+  if (on) fRole.value = "viewer";
+});
 
 const dialogTitle = computed(() =>
   mode.value === "create"
@@ -110,6 +120,7 @@ const openCreate = (): void => {
   fDisplayName.value = "";
   fEmail.value = "";
   fPhone.value = "";
+  fKiosk.value = false;
 };
 
 const openEdit = (user: AdminUser): void => {
@@ -159,10 +170,13 @@ const submitForm = async (): Promise<void> => {
       await fleetApi.createUser({
         username: fUsername.value,
         password: fPassword.value,
-        role: fRole.value,
+        // A kiosk is read-only by construction; pin viewer so a stale role selection
+        // (e.g. picked before the box was checked) can never reach the backend.
+        role: fKiosk.value ? "viewer" : fRole.value,
         displayName: fDisplayName.value || undefined,
         email: fEmail.value || null,
         phone: fPhone.value || null,
+        kiosk: fKiosk.value || undefined,
       });
       notify("已创建用户", { type: "success" });
     } else if (mode.value === "edit" && selected.value) {
@@ -523,6 +537,17 @@ const formatTime = (iso: string | null): string =>
                 :disabled="saving"
                 :class="INPUT_CLASS"
               />
+            </label>
+            <label v-if="mode === 'create'" class="flex flex-col gap-1">
+              <span class="flex items-center gap-2">
+                <input v-model="fKiosk" type="checkbox" :disabled="saving" />
+                <span class="text-sm text-ink"
+                  >大屏 kiosk 账号（长效只读）</span
+                >
+              </span>
+              <span class="text-2xs text-ink-subtle">
+                固定为只读角色，登录后会话数月不掉线，用于无人值守的墙面大屏
+              </span>
             </label>
             <label v-if="mode === 'edit'" class="flex items-center gap-2">
               <input v-model="fEnabled" type="checkbox" :disabled="saving" />

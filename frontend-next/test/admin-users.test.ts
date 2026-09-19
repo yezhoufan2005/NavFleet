@@ -241,6 +241,45 @@ describe("UsersView — create dialog", () => {
     expect(create).not.toHaveBeenCalled();
     expect(document.body.textContent).toContain("密码至少 8 位");
   });
+
+  it("mints a kiosk account: forwards the flag and pins the role to viewer", async () => {
+    // A kiosk is read-only by construction (Phase 17C); the backend refuses any other role,
+    // and the form pins viewer so a stale selection cannot slip an operator/admin through.
+    const create = vi
+      .spyOn(fleetApi, "createUser")
+      .mockResolvedValue({ user: user({ username: "wall", kiosk: true }) });
+    const wrapper = await mountView([]);
+    await wrapper
+      .findAll("button")
+      .find((b) => b.text() === "新建用户")!
+      .trigger("click");
+    await flushPromises();
+
+    const inputs = [
+      ...document.body.querySelectorAll("form input"),
+    ] as HTMLInputElement[];
+    setInput(inputs[0]!, "wall"); // username
+    setInput(inputs[1]!, PW); // password
+    const kiosk = document.body.querySelector(
+      'form input[type="checkbox"]',
+    ) as HTMLInputElement;
+    kiosk.checked = true;
+    kiosk.dispatchEvent(new Event("change", { bubbles: true }));
+    await flushPromises();
+
+    document.body
+      .querySelector("form")!
+      .dispatchEvent(new Event("submit", { bubbles: true, cancelable: true }));
+    await flushPromises();
+
+    expect(create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        username: "wall",
+        kiosk: true,
+        role: "viewer",
+      }),
+    );
+  });
 });
 
 describe("UsersView — edit and reset", () => {

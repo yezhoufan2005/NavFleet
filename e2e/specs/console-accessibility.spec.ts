@@ -46,7 +46,9 @@ const ROUTES: readonly { path: string; heading: string | RegExp }[] = [
   { path: "/admin/system", heading: "系统状态" },
   { path: "/admin/scenes", heading: "场景" },
   { path: "/no-such-page", heading: "页面不存在" },
-  { path: "/wall", heading: "大屏值班模式" },
+  // 大屏值班: shell-less, non-interactive. Its h1 is the (deployment-defined) fleet name,
+  // so the render proof targets the always-present 活跃告警 panel heading instead.
+  { path: "/wall", heading: /活跃告警/ },
 ];
 
 /**
