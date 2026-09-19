@@ -368,6 +368,23 @@ describe("TimeSeriesChart", () => {
     expect(wrapper.get("caption").text()).toContain("抽样");
   });
 
+  it("with a row cap, floats the header out of the scroll box", async () => {
+    // 回放窗口速度 asks for a short table whose scrollbar runs beside the records only, not
+    // up through the header. That splits the one table into a header table and a scrolling
+    // body table, both table-fixed over the same colgroup so the columns still line up.
+    const wrapper = mountChart(seriesOf(1, 20), { tableMaxRows: 5 });
+    await wrapper.get("button").trigger("click");
+
+    const tables = wrapper.findAll("table");
+    expect(tables).toHaveLength(2);
+    expect(tables[0]!.find("thead").exists()).toBe(true);
+    expect(tables[0]!.find("tbody").exists()).toBe(false);
+    // The focusable scroll region is the body wrapper, capped to the five-row height.
+    const region = wrapper.get("[role='region']");
+    expect(region.attributes("style")).toContain("max-height");
+    expect(wrapper.findAll("tbody tr")).toHaveLength(20);
+  });
+
   it("goes back to the chart, and the toggle says which way it goes", async () => {
     const wrapper = mountChart(seriesOf(1));
     const toggle = wrapper.get("button");
