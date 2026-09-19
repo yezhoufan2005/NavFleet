@@ -35,14 +35,19 @@ import {
 } from "@/lib/reportsView";
 
 const RANGES: readonly { value: RangePreset; label: string }[] = [
-  { value: "24h", label: "近 24 小时" },
+  { value: "12h", label: "近 12 小时" },
+  { value: "24h", label: "近 1 天" },
   { value: "7d", label: "近 7 天" },
   { value: "30d", label: "近 30 天" },
 ];
+const RANGE_VALUES: readonly RangePreset[] = ["12h", "24h", "7d", "30d"];
 const BUCKETS: readonly { value: ReportBucketUnit; label: string }[] = [
   { value: "hour", label: "按小时" },
   { value: "day", label: "按天" },
 ];
+/** Date inputs share the audit page's field styling so the controls line up across pages. */
+const DATE_INPUT_CLASS =
+  "h-7 rounded-sm border border-border-strong bg-surface px-2 text-xs text-ink";
 const SEVERITY_LABELS = {
   critical: "告警",
   warning: "预警",
@@ -67,12 +72,35 @@ const readParam = (key: string): string => {
 };
 const range = computed<RangePreset>(() => {
   const value = readParam("range");
-  return value === "24h" || value === "30d" ? value : "7d";
+  return RANGE_VALUES.includes(value as RangePreset)
+    ? (value as RangePreset)
+    : "12h";
 });
 const bucket = computed<ReportBucketUnit>(() =>
   readParam("bucket") === "hour" ? "hour" : "day",
 );
 const deviceFilter = computed(() => readParam("device"));
+
+/**
+ * Custom window: two `YYYY-MM-DD` params. Active only when both are set and 起 ≤ 止 — an
+ * inverted or half-filled range falls back to the preset rather than fetching nonsense.
+ * Selecting a preset clears them; picking dates clears the preset (they are one control in
+ * two shapes). The backend already takes `from`/`to`, so this needs no new endpoint.
+ */
+const customFrom = computed(() => readParam("from"));
+const customTo = computed(() => readParam("to"));
+const isCustom = computed(
+  () =>
+    Boolean(customFrom.value) &&
+    Boolean(customTo.value) &&
+    customFrom.value <= customTo.value,
+);
+
+const setCustom = (patch: { from?: string; to?: string }): void => {
+  const nextFrom = patch.from ?? customFrom.value;
+  const nextTo = patch.to ?? customTo.value;
+  setFilter({ from: nextFrom || null, to: nextTo || null, range: null });
+};
 
 const setFilter = (patch: Record<string, string | null>): void => {
   const next: Record<string, string> = {};
@@ -91,7 +119,12 @@ const load = async (): Promise<void> => {
   const request = (requestId += 1);
   status.value = "loading";
   errorMessage.value = "";
-  const window = windowForPreset(range.value, Date.now());
+  const window = isCustom.value
+    ? {
+        from: new Date(`${customFrom.value}T00:00:00`).toISOString(),
+        to: new Date(`${customTo.value}T23:59:59.999`).toISOString(),
+      }
+    : windowForPreset(range.value, Date.now());
   try {
     const [avail, alerts] = await Promise.all([
       fleetApi.getAvailabilityReport({
@@ -117,7 +150,7 @@ const load = async (): Promise<void> => {
 };
 
 onMounted(() => void load());
-watch([range, bucket, deviceFilter], () => void load());
+watch([range, bucket, deviceFilter, customFrom, customTo], () => void load());
 
 // ── Derived: availability / KPI band ────────────────────────────────────────────────────
 const noHistory = computed(
@@ -216,7 +249,7 @@ const exportCsv = (): void => {
 <template>
   <PageHeader title="报表" scroll-content>
     <p class="max-w-prose text-xs text-ink-muted">
-      车队可用率、电量与告警的聚合视图，可导出交班/汇报
+      车队可用率、电量与消息的聚合视图，可导出交班/汇报
     </p>
 
     <!-- Filters in one row above the charts (data-viz convention), export at the end. -->
@@ -232,16 +265,43 @@ const exportCsv = (): void => {
           type="button"
           class="px-2.5 py-1 text-xs transition-colors duration-150 ease-standard"
           :class="
-            range === option.value
+            !isCustom && range === option.value
               ? 'bg-brand text-brand-contrast'
               : 'bg-surface-raised text-ink-muted hover:text-ink'
           "
-          :aria-pressed="range === option.value"
-          @click="setFilter({ range: option.value })"
+          :aria-pressed="!isCustom && range === option.value"
+          @click="setFilter({ range: option.value, from: null, to: null })"
         >
           {{ option.label }}
         </button>
       </div>
+
+      <!-- 自定义起止：与预设是同一控件的两种形态，选日期即接管，选预设即清空。起 ≤ 止 由
+           原生 min/max 约束，另在 isCustom 里兜底。 -->
+      <label class="flex flex-col gap-1">
+        <span class="font-mono text-2xs text-ink-subtle">起</span>
+        <input
+          type="date"
+          :class="DATE_INPUT_CLASS"
+          :value="customFrom"
+          :max="customTo || undefined"
+          aria-label="自定义起始日期"
+          @change="
+            setCustom({ from: ($event.target as HTMLInputElement).value })
+          "
+        />
+      </label>
+      <label class="flex flex-col gap-1">
+        <span class="font-mono text-2xs text-ink-subtle">止</span>
+        <input
+          type="date"
+          :class="DATE_INPUT_CLASS"
+          :value="customTo"
+          :min="customFrom || undefined"
+          aria-label="自定义结束日期"
+          @change="setCustom({ to: ($event.target as HTMLInputElement).value })"
+        />
+      </label>
 
       <label class="flex flex-col gap-1">
         <span class="font-mono text-2xs text-ink-subtle">粒度</span>
@@ -273,9 +333,32 @@ const exportCsv = (): void => {
       </button>
     </div>
 
-    <p v-if="status === 'loading'" class="m-0 text-sm text-ink-muted">
-      正在加载报表…
-    </p>
+    <!-- Loading: a skeleton in the shape of the result (KPI band + two chart columns) rather
+         than a bare line, so the wait reads as "this is filling in" — the aggregation can be
+         slow. Blocks are decorative; a screen reader hears the sr-only status instead. -->
+    <div v-if="status === 'loading'" class="flex flex-col gap-4">
+      <p class="sr-only" role="status">正在加载报表…</p>
+      <dl class="m-0 grid grid-cols-2 gap-3 sm:grid-cols-4" aria-hidden="true">
+        <div
+          v-for="n in 4"
+          :key="n"
+          class="h-[4.5rem] rounded-md border border-border bg-surface-raised motion-safe:animate-pulse"
+        />
+      </dl>
+      <div class="grid gap-4 lg:grid-cols-[2fr_1fr]" aria-hidden="true">
+        <div class="flex flex-col gap-4">
+          <div
+            class="h-64 rounded-md border border-border bg-surface-raised motion-safe:animate-pulse"
+          />
+          <div
+            class="h-64 rounded-md border border-border bg-surface-raised motion-safe:animate-pulse"
+          />
+        </div>
+        <div
+          class="h-64 rounded-md border border-border bg-surface-raised motion-safe:animate-pulse"
+        />
+      </div>
+    </div>
 
     <p
       v-else-if="status === 'error'"
@@ -316,7 +399,7 @@ const exportCsv = (): void => {
           </dd>
         </div>
         <div class="rounded-md border border-border bg-surface-raised p-3">
-          <dt class="text-2xs text-ink-subtle">告警总数</dt>
+          <dt class="text-2xs text-ink-subtle">消息总数</dt>
           <dd class="m-0 font-mono text-lg tabular-nums text-ink">
             {{ alertTotal }}
           </dd>
@@ -329,8 +412,9 @@ const exportCsv = (): void => {
         </div>
       </dl>
 
-      <!-- Two columns: left = availability/battery over time, right = alert breakdown. -->
-      <div class="grid gap-4 lg:grid-cols-2">
+      <!-- Two columns: left = availability/battery over time (wider), right = message
+           breakdown, narrowed to the 消息摘要 proportion so its empty state is not a wide slab. -->
+      <div class="grid gap-4 lg:grid-cols-[2fr_1fr]">
         <div class="flex flex-col gap-4">
           <section
             class="rounded-md border border-border bg-surface-raised p-4"
@@ -341,6 +425,7 @@ const exportCsv = (): void => {
               label="在线率趋势"
               unit="%"
               :height="240"
+              legend-position="right"
             />
             <p v-else class="m-0 py-8 text-center text-sm text-ink-muted">
               该时间段没有遥测样本
@@ -352,9 +437,10 @@ const exportCsv = (): void => {
             <TimeSeriesChart
               v-if="hasAvailabilityData"
               :series="batterySeries"
-              label="电量 (soc) 均值"
+              label="电量SOC均值"
               unit="%"
               :height="240"
+              legend-position="right"
             />
             <p v-else class="m-0 py-8 text-center text-sm text-ink-muted">
               该时间段没有电量样本
@@ -369,12 +455,12 @@ const exportCsv = (): void => {
             <CategoryBarChart
               v-if="hasAlertData"
               :data="severityData"
-              label="告警按严重度分布"
+              label="按严重度分布"
               unit="条"
               :height="200"
             />
             <p v-else class="m-0 py-8 text-center text-sm text-ink-muted">
-              该时间段没有告警
+              该时间段没有消息
             </p>
           </section>
           <section
@@ -383,7 +469,7 @@ const exportCsv = (): void => {
           >
             <CategoryBarChart
               :data="deviceData"
-              label="设备 Top（按告警条数）"
+              label="按消息数分布"
               unit="条"
               orientation="horizontal"
               :height="200"
@@ -395,7 +481,7 @@ const exportCsv = (): void => {
           >
             <CategoryBarChart
               :data="dailyData"
-              label="告警按天频次"
+              label="按时间天频次"
               unit="条"
               :height="200"
             />

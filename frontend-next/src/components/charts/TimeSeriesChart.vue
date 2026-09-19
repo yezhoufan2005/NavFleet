@@ -37,6 +37,7 @@ const {
   unit,
   height = 260,
   label,
+  legendPosition = "top",
   cursorAt = null,
 } = defineProps<{
   series: readonly TimeSeries[];
@@ -45,6 +46,8 @@ const {
   height?: number;
   /** Accessible name for the figure, and the table's caption. */
   label: string;
+  /** Legend placement for multi-series charts — `"right"` when a top strip would wrap. */
+  legendPosition?: "top" | "right";
   /**
    * A vertical cursor at this instant (epoch ms), for history playback. Applied as a
    * separate merge rather than through the option, so a moving cursor does not
@@ -76,6 +79,7 @@ const option = computed(() =>
     series,
     palette: palette.value,
     unit,
+    legendPosition,
     animate: animate.value,
   }),
 );

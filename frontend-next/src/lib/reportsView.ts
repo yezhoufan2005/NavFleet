@@ -11,7 +11,7 @@
 import type { AvailabilityReport } from "@navfleet/shared";
 import type { TimeSeries } from "@/components/charts/timeSeriesOption";
 
-export type RangePreset = "24h" | "7d" | "30d";
+export type RangePreset = "12h" | "24h" | "7d" | "30d";
 
 export interface RangeWindow {
   from: string;
@@ -19,6 +19,7 @@ export interface RangeWindow {
 }
 
 const PRESET_HOURS: Record<RangePreset, number> = {
+  "12h": 12,
   "24h": 24,
   "7d": 24 * 7,
   "30d": 24 * 30,
