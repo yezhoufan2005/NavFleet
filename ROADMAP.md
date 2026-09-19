@@ -1749,12 +1749,15 @@ mapper（各自单测——一条 `$group` key 写错、median 取错元素、�
 - [ ] 场景地图上传与管理（含越权路径防护复核）
 - [ ] 多平台镜像（当前 amd64-only）+ 镜像 SBOM / 签名（v2 的 PR 6C 已延后一次）
 - [ ] `prom-client` → `@prometheus-io/client`（上游已 deprecated，v2 因新包采用度不足暂留）
-- [ ] Lanelet2 `delete="true"` 过滤（88 条 lanelet 中 46 条带删除标记仍被绘制）
+- [x] Lanelet2 `delete="true"` 过滤（88 条 lanelet 中 46 条带删除标记仍被绘制）—— `laneletOsm.ts`
+      在 `extractLanelets` 跳过带 `delete=true` tag 的 relation，不再画墓碑 lanelet，`laneletCount`
+      也只计已绘制的
 - [ ] 运维盲区补齐：Mongo 写入延迟与失败计数、缓冲溢出丢弃计数、WS 广播背压指标；
       mongo / mosquitto / nginx 的 exporter（Prometheus 现在只有 backend 与自身两个 job）
-- [ ] 安全余项：`Permissions-Policy` 与其他 location 的安全头（nginx 的 `add_header` 不跨 location 继承，
-      所以目前只有 SPA 那一个 location 带全套安全头）；mongo healthcheck 的口令传递方式
-      与备份脚本不一致（后者刻意避开了命令行参数，前者没有）；MQTT over TLS
+- [ ] 安全余项：~~`Permissions-Policy` 与其他 location 的安全头~~ ✅（抽出 `security-headers.conf`
+      片段，每个 location `include`，补 `Permissions-Policy`；`check-deploy-wiring` 加「include 的文件
+      必须被挂载」一条守住）；**剩** mongo healthcheck 的口令传递方式与备份脚本不一致（后者刻意避开
+      命令行参数，前者没有）；MQTT over TLS
 - [ ] i18n（v2 两次排除，若确有海外交付需求再启动）
 - [ ] axe `incomplete` 桶的人工审阅流程（半透明/渐变表面落进该桶而不产生违规，Phase 10 已确认
       这类缺陷 suite 抓不到）
