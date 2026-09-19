@@ -22,18 +22,27 @@ const baseCookie = (): CookieOptions => ({
  * current `tokenVersion` so a later bump invalidates them. Called on login, on refresh
  * (rotation, same `sid`), and after a self password change (a fresh `sid`).
  */
+/** The refresh horizon for a user: a kiosk account (Phase 17C) lives far longer than 7d. */
+const refreshTtlFor = (user: UserRecord): string =>
+  user.kiosk ? config.kioskRefreshTtl : config.jwtRefreshTtl;
+
 const issueSessionCookies = (response: Response, user: UserRecord, sessionId: string): void => {
   const publicUser = toPublicUser(user);
+  const refreshTtl = refreshTtlFor(user);
   response.cookie(ACCESS_COOKIE, signAccessToken(publicUser, user.tokenVersion, sessionId), {
     ...baseCookie(),
     path: "/",
     maxAge: durationToMs(config.jwtAccessTtl) || undefined,
   });
-  response.cookie(REFRESH_COOKIE, signRefreshToken(publicUser, user.tokenVersion, sessionId), {
-    ...baseCookie(),
-    path: "/api/auth",
-    maxAge: durationToMs(config.jwtRefreshTtl) || undefined,
-  });
+  response.cookie(
+    REFRESH_COOKIE,
+    signRefreshToken(publicUser, user.tokenVersion, sessionId, refreshTtl),
+    {
+      ...baseCookie(),
+      path: "/api/auth",
+      maxAge: durationToMs(refreshTtl) || undefined,
+    },
+  );
 };
 
 const clearSessionCookies = (response: Response): void => {
@@ -89,13 +98,22 @@ export const buildAuthRouter = (authService: AuthService, audit: AuditService): 
       }
       const user = result.user;
       const sessionId = randomUUID();
-      await authService.createSession({
-        sessionId,
-        username: user.username,
-        ...sessionContext(request),
-      });
+      await authService.createSession(
+        {
+          sessionId,
+          username: user.username,
+          ...sessionContext(request),
+        },
+        user.kiosk,
+      );
       await authService.recordLogin(user.username);
-      void audit.record({ actor: user.username, action: "login", requestId: request.requestId });
+      // Tag a kiosk login so the audit trail can tell an unattended wall screen from a person.
+      void audit.record({
+        actor: user.username,
+        action: "login",
+        requestId: request.requestId,
+        ...(user.kiosk ? { detail: { kiosk: true } } : {}),
+      });
       issueSessionCookies(response, user, sessionId);
       response.json({ user: toPublicUser(user) });
     } catch (error) {
@@ -128,14 +146,17 @@ export const buildAuthRouter = (authService: AuthService, audit: AuditService): 
           response.status(401).json({ error: "unauthorized" });
           return;
         }
-        await authService.touchSession(sessionId);
+        await authService.touchSession(sessionId, user.kiosk);
       } else {
         sessionId = randomUUID();
-        await authService.createSession({
-          sessionId,
-          username: user.username,
-          ...sessionContext(request),
-        });
+        await authService.createSession(
+          {
+            sessionId,
+            username: user.username,
+            ...sessionContext(request),
+          },
+          user.kiosk,
+        );
       }
       // Rotate both cookies, not just the access token: a refresh that only re-minted access
       // left the same refresh token valid for its full 7 days regardless of activity.

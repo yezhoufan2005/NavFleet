@@ -45,6 +45,8 @@ export interface CreateUserInput {
   displayName?: string;
   email?: string | null;
   phone?: string | null;
+  /** Mint as a kiosk account (Phase 17C): long-lived read-only wall credential. Route enforces viewer. */
+  kiosk?: boolean;
 }
 
 export interface UpdateUserInput {
@@ -171,31 +173,36 @@ export class AuthService {
 
   // ── Sessions (Phase 15E) ────────────────────────────────────────────────────────
 
-  /** The refresh-token horizon in ms, the lifetime a session gets before it must be touched. */
-  private sessionLifetimeMs(): number {
-    return durationToMs(config.jwtRefreshTtl) || 7 * 86_400_000;
+  /**
+   * The refresh-token horizon in ms — the lifetime a session gets before it must be touched.
+   * A kiosk account (Phase 17C) gets the much longer `kioskRefreshTtl` so an unattended wall
+   * screen is not logged out after a week; everyone else gets the normal refresh horizon.
+   */
+  private sessionLifetimeMs(kiosk = false): number {
+    const ttl = kiosk ? config.kioskRefreshTtl : config.jwtRefreshTtl;
+    return durationToMs(ttl) || 7 * 86_400_000;
   }
 
-  /** Start tracking a login session, stamped now and expiring at the refresh horizon. */
-  createSession(input: CreateSessionInput): Promise<void> {
+  /** Start tracking a login session, stamped now and expiring at the (kiosk-aware) refresh horizon. */
+  createSession(input: CreateSessionInput, kiosk = false): Promise<void> {
     const now = new Date();
     const nowIso = now.toISOString();
     const session: SessionRecord = {
       ...input,
       createdAt: nowIso,
       lastSeenAt: nowIso,
-      expiresAt: new Date(now.getTime() + this.sessionLifetimeMs()),
+      expiresAt: new Date(now.getTime() + this.sessionLifetimeMs(kiosk)),
     };
     return this.persistence.createSession(session);
   }
 
-  /** Mark a session seen and push its expiry out (on refresh). */
-  touchSession(sessionId: string): Promise<void> {
+  /** Mark a session seen and push its expiry out (on refresh), honouring the kiosk horizon. */
+  touchSession(sessionId: string, kiosk = false): Promise<void> {
     const now = new Date();
     return this.persistence.touchSession(
       sessionId,
       now.toISOString(),
-      new Date(now.getTime() + this.sessionLifetimeMs()),
+      new Date(now.getTime() + this.sessionLifetimeMs(kiosk)),
     );
   }
 
@@ -278,6 +285,8 @@ export class AuthService {
       passwordUpdatedAt: now,
       failedAttempts: 0,
       lockedUntil: null,
+      // Only ever true for a viewer (the route/schema enforce it); absent for a normal account.
+      ...(input.kiosk ? { kiosk: true } : {}),
     };
     const created = await this.persistence.createUser(record);
     if (!created) {

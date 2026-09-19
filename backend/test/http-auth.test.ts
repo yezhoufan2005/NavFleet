@@ -127,6 +127,7 @@ describe("POST /api/auth/login", () => {
     // Login opens a tracked session (Phase 15E).
     expect(context.authService.createSession).toHaveBeenCalledWith(
       expect.objectContaining({ username: "admin" }),
+      undefined,
     );
 
     const cookies = response.headers["set-cookie"] as unknown as string[];
@@ -143,6 +144,33 @@ describe("POST /api/auth/login", () => {
       .set("Cookie", `access_token=${token}`);
     expect(reuse.status).toBe(200);
     expect(reuse.body).toEqual({ user: { username: "admin", role: "admin" } });
+  });
+
+  it("gives a kiosk login a long-lived refresh cookie and tags the audit (Phase 17C)", async () => {
+    const context = createTestApp();
+    context.authService.authenticate.mockResolvedValue({
+      ok: true,
+      user: { ...adminUser(), username: "wall", role: "viewer", kiosk: true },
+    });
+
+    const response = await request(context.app)
+      .post("/api/auth/login")
+      .send({ username: "wall", password: "secret" });
+
+    expect(response.status).toBe(200);
+    const cookies = response.headers["set-cookie"] as unknown as string[];
+    const refresh = cookies.find((cookie) => cookie.startsWith("refresh_token=")) ?? "";
+    const maxAge = Number(/Max-Age=(\d+)/.exec(refresh)?.[1] ?? "0");
+    // Kiosk horizon (180d) is far past the normal 7d — the whole point of the flag.
+    expect(maxAge).toBeGreaterThan(150 * 86_400);
+    // The session is opened with the kiosk flag, and the login is tagged so audit can tell it apart.
+    expect(context.authService.createSession).toHaveBeenCalledWith(
+      expect.objectContaining({ username: "wall" }),
+      true,
+    );
+    expect(context.auditService.record).toHaveBeenCalledWith(
+      expect.objectContaining({ action: "login", detail: { kiosk: true } }),
+    );
   });
 });
 
@@ -243,7 +271,7 @@ describe("POST /api/auth/refresh — rotation", () => {
 
     expect(response.status).toBe(200);
     // Same session renewed, not a new one.
-    expect(context.authService.touchSession).toHaveBeenCalledWith("sid-keep");
+    expect(context.authService.touchSession).toHaveBeenCalledWith("sid-keep", undefined);
     expect(context.authService.createSession).not.toHaveBeenCalled();
   });
 

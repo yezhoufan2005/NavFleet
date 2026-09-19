@@ -242,3 +242,33 @@ describe("AuthService — login lockout", () => {
     expect((await persistence.findUserByUsername("admin"))?.failedAttempts).toBe(0);
   });
 });
+
+describe("AuthService — kiosk session horizon (Phase 17C)", () => {
+  it("gives a kiosk session a far longer expiry than a normal one", async () => {
+    const service = new AuthService(new Persistence());
+    const base = { username: "u", userAgent: "", ip: "" };
+    await service.createSession({ sessionId: "normal", ...base }, false);
+    await service.createSession({ sessionId: "kiosk", ...base }, true);
+
+    const sessions = await service.listSessions("u");
+    const normal = sessions.find((s) => s.sessionId === "normal")!;
+    const kiosk = sessions.find((s) => s.sessionId === "kiosk")!;
+
+    // Normal ~ jwtRefreshTtl (7d); kiosk ~ kioskRefreshTtl (180d) — the whole point of the flag.
+    expect(kiosk.expiresAt.getTime()).toBeGreaterThan(normal.expiresAt.getTime());
+    const kioskDays = (kiosk.expiresAt.getTime() - Date.now()) / 86_400_000;
+    expect(kioskDays).toBeGreaterThan(150);
+  });
+
+  it("touchSession pushes a kiosk session out by the kiosk horizon, not the default", async () => {
+    const service = new AuthService(new Persistence());
+    await service.createSession(
+      { sessionId: "kiosk", username: "u", userAgent: "", ip: "" },
+      false,
+    );
+    await service.touchSession("kiosk", true);
+    const [session] = await service.listSessions("u");
+    const days = (session!.expiresAt.getTime() - Date.now()) / 86_400_000;
+    expect(days).toBeGreaterThan(150);
+  });
+});

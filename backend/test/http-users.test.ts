@@ -88,6 +88,29 @@ describe("users API — CRUD wiring (admin)", () => {
     expect(context.authService.createUser).not.toHaveBeenCalled();
   });
 
+  it("creates a kiosk viewer and forwards the flag to the service (Phase 17C)", async () => {
+    const context = createTestApp();
+    const response = await request(context.app)
+      .post("/api/users")
+      .set("Cookie", ADMIN)
+      .send({ username: "wall", password: NEW_PASSWORD, role: "viewer", kiosk: true });
+    expect(response.status).toBe(201);
+    expect(context.authService.createUser).toHaveBeenCalledWith(
+      expect.objectContaining({ username: "wall", role: "viewer", kiosk: true }),
+    );
+  });
+
+  it("400s a kiosk account that is not a viewer, before calling the service", async () => {
+    // A kiosk is read-only by construction; minting a long-lived operator/admin token is refused.
+    const context = createTestApp();
+    const response = await request(context.app)
+      .post("/api/users")
+      .set("Cookie", ADMIN)
+      .send({ username: "wall", password: NEW_PASSWORD, role: "operator", kiosk: true });
+    expect(response.status).toBe(400);
+    expect(context.authService.createUser).not.toHaveBeenCalled();
+  });
+
   it("patches a user and passes the acting username to the service", async () => {
     const context = createTestApp();
     const response = await request(context.app)

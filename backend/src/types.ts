@@ -54,6 +54,15 @@ export interface UserRecord {
    */
   failedAttempts: number;
   lockedUntil: string | null;
+  /**
+   * A kiosk account (Phase 17C): an unattended wall display's read-only credential. Always
+   * `role: "viewer"` (read-only by RBAC), but given a much longer refresh horizon
+   * (`KIOSK_REFRESH_TTL`) so the screen stays logged in for months, and tagged here so the audit
+   * trail and admin UI can tell it apart from a person. Optional/absent = a normal account (no
+   * migration needed: absence means "not a kiosk"). Revocation is unchanged — a kiosk is still
+   * subject to `tokenVersion`, session liveness and short access-token TTL.
+   */
+  kiosk?: boolean;
 }
 
 /**
