@@ -128,6 +128,8 @@ export interface AdminUser {
   passwordUpdatedAt: string;
   failedAttempts: number;
   lockedUntil: string | null;
+  /** Long-lived read-only wall-display account (Phase 17C); absent/false for a normal account. */
+  kiosk?: boolean;
   [key: string]: unknown;
 }
 
@@ -161,6 +163,8 @@ export interface CreateUserPayload {
   displayName?: string;
   email?: string | null;
   phone?: string | null;
+  /** Mint as a long-lived read-only kiosk account (Phase 17C); the backend requires role "viewer". */
+  kiosk?: boolean;
 }
 
 export interface UpdateUserPayload {

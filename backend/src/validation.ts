@@ -160,14 +160,23 @@ const roleSchema = z.enum(["admin", "operator", "viewer"]);
 // safety, or explicit null to clear. Format is not enforced beyond length.
 const contactSchema = z.string().max(200).nullable();
 
-export const createUserSchema = z.object({
-  username: usernameSchema,
-  password: passwordSchema,
-  role: roleSchema,
-  displayName: z.string().min(1).max(200).optional(),
-  email: contactSchema.optional(),
-  phone: contactSchema.optional(),
-});
+export const createUserSchema = z
+  .object({
+    username: usernameSchema,
+    password: passwordSchema,
+    role: roleSchema,
+    displayName: z.string().min(1).max(200).optional(),
+    email: contactSchema.optional(),
+    phone: contactSchema.optional(),
+    // A kiosk account (Phase 17C) is a long-lived read-only credential for a wall display. It is
+    // read-only by construction, so it must be a viewer — reject any other role rather than mint
+    // a long-lived operator/admin token by mistake.
+    kiosk: z.boolean().optional(),
+  })
+  .refine((value) => !value.kiosk || value.role === "viewer", {
+    message: "kiosk 账号必须是 viewer（只读）",
+    path: ["kiosk"],
+  });
 
 export const updateUserSchema = z
   .object({

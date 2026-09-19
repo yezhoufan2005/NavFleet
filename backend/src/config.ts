@@ -171,6 +171,10 @@ const configSchema = z.object({
   JWT_SECRET: envStr(""),
   JWT_ACCESS_TTL: envStr("15m"),
   JWT_REFRESH_TTL: envStr("7d"),
+  // Refresh horizon for a kiosk account (Phase 17C): a wall display stays logged in for months
+  // without a human. Access tokens stay short (JWT_ACCESS_TTL) so revocation latency is unchanged;
+  // this only lengthens the *refresh* horizon + the session row's expiry for kiosk users.
+  KIOSK_REFRESH_TTL: envStr("180d"),
   BCRYPT_ROUNDS: envInt(10),
   ADMIN_USERNAME: envStr("admin"),
   ADMIN_PASSWORD: envStr(""),
@@ -250,6 +254,7 @@ export const parseConfig = (env: NodeJS.ProcessEnv) => {
     jwtSecret: e.JWT_SECRET,
     jwtAccessTtl: e.JWT_ACCESS_TTL,
     jwtRefreshTtl: e.JWT_REFRESH_TTL,
+    kioskRefreshTtl: e.KIOSK_REFRESH_TTL,
     bcryptRounds: e.BCRYPT_ROUNDS,
     adminUsername: e.ADMIN_USERNAME,
     adminPassword: e.ADMIN_PASSWORD,

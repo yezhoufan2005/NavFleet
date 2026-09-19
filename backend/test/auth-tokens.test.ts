@@ -18,6 +18,19 @@ describe("tokens", () => {
     expect(verifyToken(signAccessToken(user, 7), "access")?.ver).toBe(7);
   });
 
+  it("honours a refresh-TTL override so a kiosk token outlives a normal one (Phase 17C)", () => {
+    // verifyToken maps to domain claims and drops `exp`, so read the raw payload's exp directly.
+    const expOf = (token: string): number => {
+      const payload = JSON.parse(Buffer.from(token.split(".")[1]!, "base64url").toString()) as {
+        exp: number;
+      };
+      return payload.exp;
+    };
+    const short = expOf(signRefreshToken(user, 0, "sid", "1s"));
+    const long = expOf(signRefreshToken(user, 0, "sid", "180d"));
+    expect(long - short).toBeGreaterThan(179 * 24 * 3600);
+  });
+
   it("rejects an access token when a refresh token is expected", () => {
     expect(verifyToken(signAccessToken(user, 0), "refresh")).toBeNull();
   });

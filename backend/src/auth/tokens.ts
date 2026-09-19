@@ -92,7 +92,9 @@ export const signRefreshToken = (
   user: PublicUser,
   tokenVersion: number,
   sessionId?: string,
-): string => signToken(user, tokenVersion, "refresh", config.jwtRefreshTtl, sessionId);
+  /** Override the refresh horizon (Phase 17C: a kiosk credential lives far longer than 7d). */
+  ttl: string = config.jwtRefreshTtl,
+): string => signToken(user, tokenVersion, "refresh", ttl, sessionId);
 
 export const verifyToken = (token: string, expectedType: TokenType): TokenClaims | null => {
   try {

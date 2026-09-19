@@ -176,6 +176,10 @@ export const openApiDocument = {
           role: { type: "string", enum: ["admin", "operator", "viewer"] },
           enabled: { type: "boolean" },
           tokenVersion: { type: "number" },
+          kiosk: {
+            type: "boolean",
+            description: "长期只读大屏账号（Phase 17C）；普通账号缺省不带此字段",
+          },
           displayName: { type: "string" },
           email: { type: ["string", "null"] },
           phone: { type: ["string", "null"] },

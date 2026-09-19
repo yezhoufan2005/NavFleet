@@ -51,7 +51,7 @@ export const buildUsersRouter = (authService: AuthService, audit: AuditService):
         action: "user_create",
         target: parsed.data.username,
         requestId: request.requestId,
-        detail: { role: parsed.data.role },
+        detail: { role: parsed.data.role, ...(parsed.data.kiosk ? { kiosk: true } : {}) },
       });
       response.status(201).json({ user: result.value });
     } catch (error) {
