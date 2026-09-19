@@ -210,4 +210,12 @@ describe("报表 状态与内容", () => {
       .map((button) => button.text());
     expect(pressed).not.toContain("近 12 小时");
   });
+
+  it("按月粒度会带 month 去取可用率", async () => {
+    const avail = vi
+      .spyOn(fleetApi, "getAvailabilityReport")
+      .mockResolvedValue(availabilityReport());
+    await mountView("?bucket=month");
+    expect(avail.mock.calls.at(-1)![0]!.bucket).toBe("month");
+  });
 });

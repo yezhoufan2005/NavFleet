@@ -230,7 +230,7 @@ export const reportAvailabilityQuerySchema = z.object({
   from: timestampString.optional(),
   to: timestampString.optional(),
   deviceId: z.string().min(1).max(200).optional(),
-  bucket: z.enum(["hour", "day"]).default("day"),
+  bucket: z.enum(["hour", "day", "month"]).default("day"),
 });
 
 /** Query filters for `GET /api/notify/log` (admin). All optional; unbounded result is capped server-side. */

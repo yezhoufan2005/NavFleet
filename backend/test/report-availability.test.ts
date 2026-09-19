@@ -40,6 +40,22 @@ describe("buildAvailabilityPipeline", () => {
     expect(group._id.bucketStart.$dateTrunc.timezone).toBe(TZ);
   });
 
+  it("passes a month granularity straight through to $dateTrunc", () => {
+    // Phase 18: 按月 is a valid granularity. `$dateTrunc` truncates to the month natively, so
+    // the pipeline just forwards the unit — no new aggregation code, only the wider enum.
+    const pipeline = buildAvailabilityPipeline({
+      deviceId: null,
+      from: null,
+      to: null,
+      bucket: "month",
+      timezone: TZ,
+    });
+    const group = pipeline.find((stage) => "$group" in stage)!.$group as {
+      _id: { bucketStart: { $dateTrunc: { unit: string; timezone: string } } };
+    };
+    expect(group._id.bucketStart.$dateTrunc.unit).toBe("month");
+  });
+
   it("omits the match entirely for the whole fleet over the whole window", () => {
     const pipeline = buildAvailabilityPipeline({
       deviceId: null,
