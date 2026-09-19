@@ -565,6 +565,49 @@ describe("ConfigRegistry.getNotifyConfig (Phase 16D-1)", () => {
     // Old snapshot kept.
     expect(registry.getNotifyConfig().channels[0]?.id).toBe("ops-webhook");
   });
+
+  it("parses an email channel, recipient groups, and the digest/renotify/silence/escalation policy", async () => {
+    await writeConfig({
+      notify: {
+        groups: { oncall: [{ user: "alice" }, { email: "ops@x.io" }] },
+        channels: [
+          { ...webhook, id: "primary", digestSeconds: 60, renotifySeconds: 300 },
+          {
+            id: "mail",
+            type: "email",
+            enabled: true,
+            urlEnv: "NAVFLEET_TEST_SMTP_URL",
+            from: "alerts@x.io",
+            groups: ["oncall"],
+            silenceWindows: [{ from: "22:00", to: "06:00" }],
+            escalation: { afterSeconds: 300, channelId: "primary" },
+          },
+        ],
+      },
+    });
+    const registry = new ConfigRegistry();
+    await registry.load();
+    const config = registry.getNotifyConfig();
+
+    expect(config.groups?.oncall).toEqual([{ user: "alice" }, { email: "ops@x.io" }]);
+    expect(config.channels[0]).toMatchObject({ digestSeconds: 60, renotifySeconds: 300 });
+    const mail = config.channels[1];
+    expect(mail).toMatchObject({ type: "email", from: "alerts@x.io", groups: ["oncall"] });
+    expect(mail?.silenceWindows).toEqual([{ days: undefined, from: "22:00", to: "06:00" }]);
+    expect(mail?.escalation).toEqual({ afterSeconds: 300, channelId: "primary" });
+  });
+
+  it("rejects a recipient with neither email nor user, and a bad escalation", async () => {
+    await writeConfig({
+      notify: { channels: [{ ...webhook, id: "m", type: "email", recipients: [{}] }] },
+    });
+    await expect(new ConfigRegistry().load()).rejects.toThrow(/must set an email or a user/);
+
+    await writeConfig({
+      notify: { channels: [{ ...webhook, escalation: { channelId: "x" } }] },
+    });
+    await expect(new ConfigRegistry().load()).rejects.toThrow(/afterSeconds/);
+  });
 });
 
 describe("ConfigRegistry scene-map path resolution", () => {

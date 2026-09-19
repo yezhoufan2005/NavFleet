@@ -17,6 +17,9 @@
 import type { NotifyChannelType, Severity } from "@navfleet/shared";
 import { postWithRetry, type AttemptOutcome, type RetryOptions } from "./retry";
 
+/** The channel types whose body is an HTTP JSON POST. `email` is not one — it has its own path. */
+export type HttpChannelType = Exclude<NotifyChannelType, "email">;
+
 /** Everything a channel body may template from — the alert plus its device's display name. */
 export interface NotifyAlertContext {
   deviceId: string;
@@ -30,7 +33,7 @@ export interface NotifyAlertContext {
 }
 
 /** Human-readable severity, for the group-chat message bodies. */
-const SEVERITY_LABEL: Record<Severity, string> = {
+export const SEVERITY_LABEL: Record<Severity, string> = {
   critical: "严重",
   warning: "警告",
   notice: "提示",
@@ -43,6 +46,18 @@ const markdownLines = (context: NotifyAlertContext): string[] => [
   `详情：${context.detail}`,
   `时间：${context.ts}`,
 ];
+
+/** Plain-text lines for the email body (no markdown emphasis). Also reused for digest items. */
+export const plainLines = (context: NotifyAlertContext): string[] => [
+  `【${SEVERITY_LABEL[context.severity]}】${context.title}`,
+  `设备：${context.deviceName}（${context.deviceId}）`,
+  `详情：${context.detail}`,
+  `时间：${context.ts}`,
+];
+
+/** The email subject for a single alert. */
+export const emailSubject = (context: NotifyAlertContext): string =>
+  `【${SEVERITY_LABEL[context.severity]}】${context.deviceName} ${context.title}`;
 
 /** The generic webhook body: the alert as a flat JSON object a receiver can map however it likes. */
 export const buildWebhookBody = (context: NotifyAlertContext): Record<string, unknown> => ({
@@ -71,9 +86,9 @@ export const buildDingtalkBody = (context: NotifyAlertContext): Record<string, u
   },
 });
 
-/** Build the request body for a channel type. Exhaustive over `NotifyChannelType`. */
+/** Build the request body for an HTTP channel type. Exhaustive over `HttpChannelType`. */
 export const buildChannelBody = (
-  type: NotifyChannelType,
+  type: HttpChannelType,
   context: NotifyAlertContext,
 ): Record<string, unknown> => {
   switch (type) {
@@ -87,12 +102,12 @@ export const buildChannelBody = (
 };
 
 /**
- * Send one alert to one channel's resolved endpoint. Pure of policy — the caller has already
+ * Send one alert to one HTTP channel's resolved endpoint. Pure of policy — the caller has already
  * decided this channel should receive this alert and resolved its URL from env — this only
  * builds the body and posts it with bounded retry, returning the attempt outcome to record.
  */
 export const sendToChannel = (
-  type: NotifyChannelType,
+  type: HttpChannelType,
   url: string,
   context: NotifyAlertContext,
   options: RetryOptions,

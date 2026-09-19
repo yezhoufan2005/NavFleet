@@ -27,19 +27,24 @@ const notifyService = new NotifyService({
   persistence,
   getNotifyConfig: () => configRegistry.getNotifyConfig(),
   resolveDevice: (deviceId) => store.getDevice(deviceId),
+  resolveUserEmail: async (username) => (await authService.findByUsername(username))?.email ?? null,
   maxAttempts: config.notifyMaxAttempts,
   timeoutMs: config.notifyTimeoutMs,
 });
 const topicScheme = buildTopicScheme(config.topicPattern);
 
-// Outbound notifications (Phase 16D-1). A SECOND listener on the store's event bus, alongside
+// Outbound notifications (Phase 16D). A SECOND listener on the store's event bus, alongside
 // the WebSocket bridge below — it taps `alert.created` (emitted once when an alert id first
 // appears) and dispatches fire-and-forget. Un-awaited on purpose: `alert.created` fires inside
 // the store's serial ingest queue, so awaiting a slow webhook here would stall all ingest;
-// `dispatch` contains its own failures and never rejects.
+// `dispatch` contains its own failures and never rejects. `alert.acked`/`alert.cleared` cancel a
+// pending escalation (16D-2a) — the alert has been attended to, or has gone away.
 store.on("event", (event: SocketEvent) => {
   if (event.type === "alert.created") {
     void notifyService.dispatch(event.payload as AlertCreatedEvent);
+  } else if (event.type === "alert.acked" || event.type === "alert.cleared") {
+    const payload = event.payload as { deviceId: string; alertId: string };
+    notifyService.onAlertResolved(`${payload.deviceId}:${payload.alertId}`);
   }
 });
 
@@ -75,6 +80,8 @@ let shuttingDown = false;
 let mqttClient: ReturnType<typeof connectMqtt> | null = null;
 /** The offline sweep, so it stops firing into a store that is being drained. */
 let offlineSweep: NodeJS.Timeout | null = null;
+/** The notification digest-flush poll (Phase 16D-2a), stopped on shutdown. */
+let digestFlush: NodeJS.Timeout | null = null;
 
 const shutdown = async (signal: string): Promise<void> => {
   if (shuttingDown) {
@@ -98,6 +105,13 @@ const shutdown = async (signal: string): Promise<void> => {
     clearInterval(offlineSweep);
     offlineSweep = null;
   }
+
+  if (digestFlush) {
+    clearInterval(digestFlush);
+    digestFlush = null;
+  }
+  // Cancel any pending escalation timers so they cannot fire into a closing process.
+  notifyService.dispose();
 
   if (mqttClient) {
     try {
@@ -196,6 +210,15 @@ const start = async (): Promise<void> => {
     });
   }, 15_000);
   offlineSweep.unref();
+
+  // Flush ripe notification digests (Phase 16D-2a). This poll interval is the digest granularity:
+  // a channel's `digestSeconds` is honoured to within one tick. Fire-and-forget; contained inside.
+  digestFlush = setInterval(() => {
+    notifyService.flushDigests().catch((error) => {
+      logger.error({ err: error }, "Notify digest flush failed");
+    });
+  }, 15_000);
+  digestFlush.unref();
 
   // Retry the write-behind buffer on a timer. The write path only flushed *after a
   // successful write*, which never arrives while MongoDB is down — so a reconnect used to

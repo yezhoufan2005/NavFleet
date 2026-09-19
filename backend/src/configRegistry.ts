@@ -11,6 +11,9 @@ import {
   NotifyChannelConfig,
   NotifyChannelType,
   NotifyConfig,
+  NotifyEscalation,
+  NotifyRecipient,
+  NotifySilenceWindow,
   ReportCodeEntry,
   RuleScope,
   Severity,
@@ -292,6 +295,99 @@ const parseSeverities = (value: unknown, label: string): Severity[] => {
   });
 };
 
+const parseOptionalString = (value: unknown, label: string): string | undefined => {
+  if (value === undefined || value === null) {
+    return undefined;
+  }
+  if (typeof value !== "string") {
+    throw new Error(`${label} must be a string: ${NOTIFY_FILE}`);
+  }
+  return value.trim() || undefined;
+};
+
+const parseStringList = (value: unknown, label: string): string[] | undefined => {
+  if (value === undefined || value === null) {
+    return undefined;
+  }
+  if (!Array.isArray(value) || value.some((entry) => typeof entry !== "string")) {
+    throw new Error(`${label} must be an array of strings: ${NOTIFY_FILE}`);
+  }
+  return value as string[];
+};
+
+/** A recipient is a literal `email` or a `user` reference; at least one is required. */
+const parseRecipient = (raw: unknown, label: string): NotifyRecipient => {
+  if (!isRecord(raw)) {
+    throw new Error(`${label} must be a JSON object: ${NOTIFY_FILE}`);
+  }
+  const email = parseOptionalString(raw.email, `${label}.email`);
+  const user = parseOptionalString(raw.user, `${label}.user`);
+  if (!email && !user) {
+    throw new Error(`${label} must set an email or a user: ${NOTIFY_FILE}`);
+  }
+  return { email, user };
+};
+
+const parseRecipients = (value: unknown, label: string): NotifyRecipient[] | undefined => {
+  if (value === undefined || value === null) {
+    return undefined;
+  }
+  if (!Array.isArray(value)) {
+    throw new Error(`${label} must be an array: ${NOTIFY_FILE}`);
+  }
+  return value.map((entry, index) => parseRecipient(entry, `${label}[${index}]`));
+};
+
+const parseSilenceWindow = (raw: unknown, label: string): NotifySilenceWindow => {
+  if (!isRecord(raw)) {
+    throw new Error(`${label} must be a JSON object: ${NOTIFY_FILE}`);
+  }
+  if (typeof raw.from !== "string" || typeof raw.to !== "string") {
+    throw new Error(`${label} must have string from/to ("HH:MM"): ${NOTIFY_FILE}`);
+  }
+  let days: number[] | undefined;
+  if (raw.days !== undefined && raw.days !== null) {
+    if (
+      !Array.isArray(raw.days) ||
+      raw.days.some(
+        (day) => typeof day !== "number" || !Number.isInteger(day) || day < 0 || day > 6,
+      )
+    ) {
+      throw new Error(`${label}.days must be integers 0-6 (0=Sun): ${NOTIFY_FILE}`);
+    }
+    days = raw.days as number[];
+  }
+  return { days, from: raw.from, to: raw.to };
+};
+
+const parseSilenceWindows = (value: unknown, label: string): NotifySilenceWindow[] | undefined => {
+  if (value === undefined || value === null) {
+    return undefined;
+  }
+  if (!Array.isArray(value)) {
+    throw new Error(`${label} must be an array: ${NOTIFY_FILE}`);
+  }
+  return value.map((entry, index) => parseSilenceWindow(entry, `${label}[${index}]`));
+};
+
+const parseEscalation = (value: unknown, label: string): NotifyEscalation | undefined => {
+  if (value === undefined || value === null) {
+    return undefined;
+  }
+  if (!isRecord(value)) {
+    throw new Error(`${label} must be a JSON object: ${NOTIFY_FILE}`);
+  }
+  const afterSeconds = parsePositiveNumber(value.afterSeconds, undefined, `${label}.afterSeconds`, {
+    min: 0,
+    allowMinInclusive: false,
+  });
+  const channelId = parseOptionalString(value.channelId, `${label}.channelId`);
+  if (afterSeconds === undefined || !channelId) {
+    throw new Error(`${label} must set afterSeconds (>0) and channelId: ${NOTIFY_FILE}`);
+  }
+  return { afterSeconds, channelId };
+};
+
 const parseNotifyChannel = (raw: Record<string, unknown>, index: number): NotifyChannelConfig => {
   const label = `notify.channels[${index}]`;
 
@@ -309,8 +405,8 @@ const parseNotifyChannel = (raw: Record<string, unknown>, index: number): Notify
 
   const urlEnv = typeof raw.urlEnv === "string" ? raw.urlEnv.trim() : "";
   if (!urlEnv) {
-    // The endpoint URL carries a secret (a WeCom/DingTalk bot key), so a channel names the env
-    // var that holds it rather than the URL itself — this field is that name and is required.
+    // The endpoint URL / SMTP string carries a secret, so a channel names the env var that holds
+    // it rather than the value itself — this field is that name and is required.
     throw new Error(
       `${label}.urlEnv must be a non-empty environment variable name: ${NOTIFY_FILE} (${id})`,
     );
@@ -323,6 +419,21 @@ const parseNotifyChannel = (raw: Record<string, unknown>, index: number): Notify
     urlEnv,
     severities: parseSeverities(raw.severities, label),
     scope: parseRuleScope(raw.scope, label, NOTIFY_FILE),
+    from: parseOptionalString(raw.from, `${label}.from`),
+    recipients: parseRecipients(raw.recipients, `${label}.recipients`),
+    groups: parseStringList(raw.groups, `${label}.groups`),
+    digestSeconds: parsePositiveNumber(raw.digestSeconds, undefined, `${label}.digestSeconds`),
+    digestSeverities:
+      raw.digestSeverities === undefined
+        ? undefined
+        : parseSeverities(raw.digestSeverities, `${label}.digest`),
+    renotifySeconds: parsePositiveNumber(
+      raw.renotifySeconds,
+      undefined,
+      `${label}.renotifySeconds`,
+    ),
+    silenceWindows: parseSilenceWindows(raw.silenceWindows, `${label}.silenceWindows`),
+    escalation: parseEscalation(raw.escalation, `${label}.escalation`),
   };
 };
 
@@ -341,22 +452,34 @@ const parseNotifyConfig = (raw: unknown): NotifyConfig => {
   }
 
   const channelsRaw = raw.channels;
-  if (channelsRaw === undefined) {
-    return { channels: [] };
-  }
-  const channelRecords = ensureArray(channelsRaw, NOTIFY_FILE, "notify.channels");
+  const channels =
+    channelsRaw === undefined
+      ? []
+      : (() => {
+          const records = ensureArray(channelsRaw, NOTIFY_FILE, "notify.channels");
+          const seenIds = new Set<string>();
+          return records.map((entry, index) => {
+            const channel = parseNotifyChannel(entry, index);
+            if (seenIds.has(channel.id)) {
+              throw new Error(`Duplicate channel id in notify.json: ${channel.id}`);
+            }
+            seenIds.add(channel.id);
+            return channel;
+          });
+        })();
 
-  const seenIds = new Set<string>();
-  const channels = channelRecords.map((entry, index) => {
-    const channel = parseNotifyChannel(entry, index);
-    if (seenIds.has(channel.id)) {
-      throw new Error(`Duplicate channel id in notify.json: ${channel.id}`);
+  let groups: NotifyConfig["groups"];
+  if (raw.groups !== undefined && raw.groups !== null) {
+    if (!isRecord(raw.groups)) {
+      throw new Error(`notify.groups must be a JSON object: ${NOTIFY_FILE}`);
     }
-    seenIds.add(channel.id);
-    return channel;
-  });
+    groups = {};
+    for (const [name, list] of Object.entries(raw.groups)) {
+      groups[name] = parseRecipients(list, `notify.groups.${name}`) ?? [];
+    }
+  }
 
-  return { channels };
+  return groups ? { channels, groups } : { channels };
 };
 
 export class ConfigRegistry {

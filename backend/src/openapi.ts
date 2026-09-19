@@ -249,7 +249,7 @@ export const openApiDocument = {
           ts: { type: "string", format: "date-time" },
           eventKey: { type: "string" },
           channelId: { type: "string" },
-          channelType: { type: "string", enum: ["webhook", "wecom", "dingtalk"] },
+          channelType: { type: "string", enum: ["webhook", "wecom", "dingtalk", "email"] },
           deviceId: { type: "string" },
           alertId: { type: "string" },
           severity: { type: "string", enum: ["critical", "warning", "notice"] },
@@ -266,7 +266,7 @@ export const openApiDocument = {
         description: "生效渠道视图（不含端点 URL；configured 表示其端点环境变量是否已配）",
         properties: {
           id: { type: "string" },
-          type: { type: "string", enum: ["webhook", "wecom", "dingtalk"] },
+          type: { type: "string", enum: ["webhook", "wecom", "dingtalk", "email"] },
           enabled: { type: "boolean" },
           severities: {
             type: "array",
