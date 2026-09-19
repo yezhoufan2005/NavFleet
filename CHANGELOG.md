@@ -1,5 +1,27 @@
 # Changelog
 
+## [1.4.0](https://github.com/yezhoufan2005/NavFleet/compare/v1.3.0...v1.4.0) (2026-09-19)
+
+
+### Features
+
+* **auth:** kiosk 账号——长效只读大屏凭据（Phase 17C-1） ([3861f5d](https://github.com/yezhoufan2005/NavFleet/commit/3861f5d697e17bfcb2fba2287754fade57484447))
+* **auth:** kiosk 账号——长效只读大屏凭据（Phase 17C-1） ([a0787e0](https://github.com/yezhoufan2005/NavFleet/commit/a0787e0ed6028c73b33c8afd7c5e0b8bcd1db0c2))
+* **console:** 大屏值班页——KPI 带 + 地图 + 滚动告警，强制新鲜度指示（Phase 17C-2，17C 收口） ([d83b2cd](https://github.com/yezhoufan2005/NavFleet/commit/d83b2cd5c079fb3bfad97072b76480f757e5f399))
+* **reports:** 定时邮件报表，盘上 reports.json + 复用 16D 邮件渠道（Phase 17B-2） ([9e9f6bc](https://github.com/yezhoufan2005/NavFleet/commit/9e9f6bc8e5d716474cdd8f7dcd8d01ba0f6c555c))
+* **reports:** 定时邮件报表，盘上 reports.json + 复用 16D 邮件渠道（Phase 17B-2） ([e94ab5c](https://github.com/yezhoufan2005/NavFleet/commit/e94ab5c5e49277f68af5f8b7901942020d295cbc))
+* **reports:** 报表页 + CSV 导出，消费 17A 聚合端点（Phase 17B-1） ([62ecb7a](https://github.com/yezhoufan2005/NavFleet/commit/62ecb7a11a5fbe21b7fe200cae7a8fee6f21d513))
+* **reports:** 报表页 + CSV 导出，消费 17A 聚合端点（Phase 17B-1） ([ef1e1af](https://github.com/yezhoufan2005/NavFleet/commit/ef1e1af51db8bd0bfb3d2267648ac5efb1890b5e))
+* **reports:** 服务端可用率/电量时序聚合（$dateTrunc 降采样，Phase 17A-2） ([ca9a1ad](https://github.com/yezhoufan2005/NavFleet/commit/ca9a1ad14debff2787b3658c794484573c111e69))
+* **reports:** 服务端可用率/电量时序聚合（$dateTrunc 降采样，Phase 17A-2） ([9f407c4](https://github.com/yezhoufan2005/NavFleet/commit/9f407c49d67a85528a4e9b6ec4930d8bd03d17bb))
+* **reports:** 服务端告警统计聚合，摆脱 /alerts 的 500 条上限（Phase 17A-1） ([81a0aaa](https://github.com/yezhoufan2005/NavFleet/commit/81a0aaac85c9fbf50eae4fe6870a3a68f29f536c))
+* **reports:** 服务端告警统计聚合，摆脱 /alerts 的 500 条上限（Phase 17A-1） ([568bf3d](https://github.com/yezhoufan2005/NavFleet/commit/568bf3ddee07a3fb1a88f27aa1771cf089432f6b))
+
+
+### Bug Fixes
+
+* **reports:** 空态链接持久下划线，过 axe link-in-text-block（深/浅色） ([b34cdc6](https://github.com/yezhoufan2005/NavFleet/commit/b34cdc602ab96a3d21866e69afc5bbfb1bb18a6b))
+
 ## [1.3.0](https://github.com/yezhoufan2005/NavFleet/compare/v1.2.0...v1.3.0) (2026-09-19)
 
 
