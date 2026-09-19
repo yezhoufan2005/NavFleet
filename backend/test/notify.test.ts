@@ -244,6 +244,14 @@ describe("NotifyService.dispatch", () => {
     expect(records[0]).toMatchObject({ status: "failed", httpStatus: 500 });
   });
 
+  it("feeds each send into the metrics observer (channel type, status, latency)", async () => {
+    const observer = vi.fn();
+    const { service } = makeService();
+    service.setSendObserver(observer);
+    await service.dispatch({ source: "mqtt", deviceId: "agv-1", alert: alertOf() });
+    expect(observer).toHaveBeenCalledWith("webhook", "sent", expect.any(Number));
+  });
+
   it("sends nothing and records nothing when there are no channels (zero-config)", async () => {
     const fetchImpl = vi.fn(() => Promise.resolve(respond(200))) as unknown as typeof fetch;
     const { service, records } = makeService({ config: { channels: [] }, fetchImpl });

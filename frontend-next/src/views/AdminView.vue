@@ -55,6 +55,13 @@ const AREAS: readonly Area[] = [
     to: "/admin/codebook",
   },
   {
+    label: "外发",
+    plan: "16D",
+    intent:
+      "告警外发渠道与发送记录（webhook / 企业微信 / 钉钉 / 邮件），盘上 notify.json 配置、这里只读",
+    to: "/admin/notify",
+  },
+  {
     label: "系统状态",
     plan: "13F",
     intent: "链路诊断与本浏览器留存的数据",

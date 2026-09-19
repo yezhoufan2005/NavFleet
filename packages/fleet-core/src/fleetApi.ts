@@ -8,7 +8,12 @@
  * keeps that explicit and future-proofs a split-origin deployment.
  */
 
-import type { DeviceSnapshot, ReportCodeEntry } from "@navfleet/shared";
+import type {
+  DeviceSnapshot,
+  NotifyChannelView,
+  NotifySendRecord,
+  ReportCodeEntry,
+} from "@navfleet/shared";
 
 export interface FleetSnapshotResponse {
   fleetName?: string;
@@ -150,6 +155,15 @@ export interface UpdateUserPayload {
 export interface AuditQueryParams {
   actor?: string;
   action?: string;
+  from?: string;
+  to?: string;
+}
+
+/** Query filters for the outbound-notification send log (`GET /api/v1/notify/log`, admin). */
+export interface NotifyLogQueryParams {
+  deviceId?: string;
+  channelId?: string;
+  status?: "sent" | "failed";
   from?: string;
   to?: string;
 }
@@ -359,6 +373,24 @@ export const fleetApi = {
   ): Promise<{ entries: AuditRecord[] }> {
     return requestJson<{ entries: AuditRecord[] }>(
       `/api/v1/audit${buildQuery(params)}`,
+    );
+  },
+
+  // ── Outbound notifications (admin, Phase 16D) ───────────────────────────────
+  // Recent send records (newest first, server-capped), and the effective channels with
+  // secrets redacted (`configured` says whether each channel's endpoint env is set; the URL
+  // is never returned). Both are read-only — channels/routing are file-managed in notify.json.
+  getNotifyLog(
+    params: NotifyLogQueryParams = {},
+  ): Promise<{ items: NotifySendRecord[] }> {
+    return requestJson<{ items: NotifySendRecord[] }>(
+      `/api/v1/notify/log${buildQuery(params)}`,
+    );
+  },
+
+  getNotifyConfig(): Promise<{ channels: NotifyChannelView[] }> {
+    return requestJson<{ channels: NotifyChannelView[] }>(
+      "/api/v1/notify/config",
     );
   },
 };

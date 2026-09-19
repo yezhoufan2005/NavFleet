@@ -42,6 +42,8 @@ export interface Metrics {
   contentType: string;
   /** Record one finished HTTP request in the duration histogram. */
   observeHttpRequest: (request: Request, response: Response, durationSeconds: number) => void;
+  /** Record one outbound notification send (Phase 16D-2b): count by channel type + outcome, and latency. */
+  observeNotifySend: (channelType: string, status: string, latencyMs: number | null) => void;
 }
 
 /**
@@ -246,6 +248,23 @@ export const createMetrics = ({
     registers: [registry],
   });
 
+  // Outbound-notification observability (Phase 16D-2b): sends by channel type + outcome, and
+  // send latency by channel type. The send log (notify_log) is the per-event record; these are
+  // the aggregate the Grafana panel reads (success rate = sent / (sent+failed), latency percentiles).
+  const notifySends = new Counter({
+    name: "navfleet_notify_sends_total",
+    help: "Outbound notification sends by channel type and outcome",
+    labelNames: ["channel_type", "status"] as const,
+    registers: [registry],
+  });
+  const notifyDuration = new Histogram({
+    name: "navfleet_notify_send_duration_seconds",
+    help: "Outbound notification send latency by channel type",
+    labelNames: ["channel_type"] as const,
+    buckets: [0.05, 0.1, 0.25, 0.5, 1, 2.5, 5, 10, 30],
+    registers: [registry],
+  });
+
   return {
     render: () => registry.metrics(),
     contentType: registry.contentType,
@@ -258,6 +277,12 @@ export const createMetrics = ({
         },
         durationSeconds,
       );
+    },
+    observeNotifySend: (channelType: string, status: string, latencyMs: number | null) => {
+      notifySends.inc({ channel_type: channelType, status });
+      if (latencyMs !== null && latencyMs >= 0) {
+        notifyDuration.observe({ channel_type: channelType }, latencyMs / 1000);
+      }
     },
   };
 };

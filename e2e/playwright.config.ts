@@ -163,6 +163,7 @@ export default defineConfig({
         /console-playback\.spec\.ts$/,
         /console-admin\.spec\.ts$/,
         /console-codebook\.spec\.ts$/,
+        /console-notify\.spec\.ts$/,
       ],
       use: {
         ...devices["Desktop Chrome"],
