@@ -1,5 +1,24 @@
 # Changelog
 
+## [1.5.0](https://github.com/yezhoufan2005/NavFleet/compare/v1.4.0...v1.5.0) (2026-09-19)
+
+
+### Features
+
+* **console:** 审计与设备列表支持每页条数选择（10/20/50，默认20） ([bcd4208](https://github.com/yezhoufan2005/NavFleet/commit/bcd4208b5fd2842880db4b997e6f55594199c7a4))
+* **deploy:** 安全头覆盖所有 location + Permissions-Policy（Phase 18） ([ba6ce38](https://github.com/yezhoufan2005/NavFleet/commit/ba6ce38b409a9913d3c041c8c9e3bc855a61ec1f))
+
+
+### Bug Fixes
+
+* **backend:** 打包时 bundle @navfleet/shared，修复生产镜像启动即崩 ([524d6f6](https://github.com/yezhoufan2005/NavFleet/commit/524d6f683e6aba1927268521317ef892d5479a2c))
+* **console:** 「清除已确认」按钮文案改为「清除已经确认」 ([80a71cb](https://github.com/yezhoufan2005/NavFleet/commit/80a71cba8394068b1eea2e75cb53d30dab6cbefc))
+* **console:** 下拉列表面板最多约 10 行、超出滚动 ([8c7bb42](https://github.com/yezhoufan2005/NavFleet/commit/8c7bb42e55634620b65f045253f097ac8e49f973))
+* **console:** 通知 toast 关闭 × 垂直居中 ([3e01dd1](https://github.com/yezhoufan2005/NavFleet/commit/3e01dd1da235db1ab3df15f7697e3f3c1a392653))
+* **demo:** 回充阈值下移至 15% 形成迟滞，消除低电告警边界抖动 ([2f71355](https://github.com/yezhoufan2005/NavFleet/commit/2f71355f6fdb0100f86c37d1ebd4e860d1db1df1))
+* **map:** lanelet 叠加层 bounds 只按 live 车道节点计算 ([30a9a0e](https://github.com/yezhoufan2005/NavFleet/commit/30a9a0e039fd66cc654022ff42c9737d5c510ba4))
+* **map:** Lanelet2 delete=true 过滤——不画墓碑 lanelet ([1d83780](https://github.com/yezhoufan2005/NavFleet/commit/1d837805db802e2fbfab4462e0b99e32af76145f))
+
 ## [1.4.0](https://github.com/yezhoufan2005/NavFleet/compare/v1.3.0...v1.4.0) (2026-09-19)
 
 
