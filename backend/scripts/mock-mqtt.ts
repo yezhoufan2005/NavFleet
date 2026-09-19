@@ -657,7 +657,16 @@ const FAULT_OFFLINE_TICKS = 14;
 // Battery duty cycle: a vehicle patrols until it runs low, parks at its charging
 // station to recharge, then resumes patrolling. Without this the deterministic
 // drain simply bottoms out and every vehicle sits at 0% for the rest of the demo.
-const LOW_SOC_PERCENT = 20;
+//
+// The recharge trigger sits *below* the 20% low-battery alert threshold
+// (@navfleet/shared DEFAULT_ALERT_RULES.lowBattery.thresholdPct) on purpose. If a
+// vehicle turned back to charge the instant it crossed 20%, its soc would dip under
+// 20 for a single frame and be pushed back over it the very next frame — flickering
+// the low-battery warning (and the active-alert count) on and off every duty cycle.
+// That boundary flicker was the "告警在 7↔8 之间快速抖动" report. Parking only at 15%
+// gives the excursion below 20% real width, so the warning fires once, stays on while
+// the vehicle is genuinely low, and clears once on the way back up.
+const LOW_SOC_PERCENT = 15;
 const RESUME_SOC_PERCENT = 90;
 
 // Evolve battery deterministically: recharge at the station, drain while driving.
