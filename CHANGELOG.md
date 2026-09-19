@@ -1,5 +1,18 @@
 # Changelog
 
+## [1.3.0](https://github.com/yezhoufan2005/NavFleet/compare/v1.2.0...v1.3.0) (2026-09-19)
+
+
+### Features
+
+* **alerts:** 告警史页——已清除告警列表与就地统计（Phase 16B） ([3d2db8c](https://github.com/yezhoufan2005/NavFleet/commit/3d2db8c49121c53f678195db387efc57f4aecb98))
+* **alerts:** 告警确认落库 + operator 确认能力（Phase 16A） ([dcbf6af](https://github.com/yezhoufan2005/NavFleet/commit/dcbf6afadd31961d8598b5b858b34600f737dffd))
+* **alerts:** 规则引擎收敛到 @navfleet/shared 并可配置（Phase 16C-1） ([63992eb](https://github.com/yezhoufan2005/NavFleet/commit/63992ebe29c8d18b27ee07eec97422a1f5c5d427))
+* **codebook:** 报码字典可配置——部署侧覆盖内置表 + 管理页导入导出（Phase 16C-2） ([7ec9bc2](https://github.com/yezhoufan2005/NavFleet/commit/7ec9bc2d479a6046a50b8f5143f96d10e05a7544))
+* **notify:** 只读外发页 + 发送指标/Grafana 面板（Phase 16D-2b） ([9bf76f9](https://github.com/yezhoufan2005/NavFleet/commit/9bf76f9b4293997a6047d3de8d0b7c9fa5cbefc1))
+* **notify:** 告警外发骨架——HTTP 渠道 + 分级路由 + 发送记录（Phase 16D-1） ([777d069](https://github.com/yezhoufan2005/NavFleet/commit/777d0695c329ac5b0f04c7f66a600599a82bd915))
+* **notify:** 邮件渠道 + 收件方用户组 + 汇总/静默/去重/升级策略（Phase 16D-2a） ([7b51d46](https://github.com/yezhoufan2005/NavFleet/commit/7b51d466d3c864fc30cc2908b3c0983fcf8b0dce))
+
 ## [1.2.0](https://github.com/yezhoufan2005/NavFleet/compare/v1.1.0...v1.2.0) (2026-09-18)
 
 
