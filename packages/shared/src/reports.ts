@@ -12,6 +12,7 @@
  */
 
 import type { Severity } from "./index";
+import type { NotifyRecipient } from "./notify";
 
 /**
  * 告警统计按「首次出现时间」（`firstSeenAt`）分桶。日频次按**部署配置的时区**切日界（见
@@ -113,3 +114,51 @@ export const emptyAvailabilityReport = (
   devices: [],
   available,
 });
+
+// ── 定时报表（Phase 17B-2）───────────────────────────────────────────────────────────────
+//
+// 把报表按周期（每天/每周某时）生成并邮件推送给收件方。配置走盘上 reports.json（configRegistry，
+// 同 notify.json/rules.json「无 UI、盘上手改」先例），**不做 Web 端写入**。收件方沿用 16D 的
+// NotifyRecipient（email 字面量或 user 引用），groups 引用 notify.json 的用户组——「复用 16D 渠道」。
+//
+// **红线（照搬告警外发那批规矩）**：出厂零配置 = 不发。`DEFAULT_REPORTS_CONFIG.schedules` 为空。
+// SMTP 连接串（含凭据）走 env（schedule 里只记 `smtpEnv` 变量名），绝不落 reports.json。
+
+/** 报表回看窗口。生成时以「现在」为上界、往回取这么久。 */
+export type ReportRangePreset = "24h" | "7d" | "30d";
+export const REPORT_RANGE_PRESETS: readonly ReportRangePreset[] = [
+  "24h",
+  "7d",
+  "30d",
+];
+
+/**
+ * 一条定时报表。`time` 是部署时区（`REPORT_TIMEZONE`）的 `HH:MM`；给了 `weekday`（0=周日…6=周六）就是
+ * 每周那一天发，不给就是每天。`smtpEnv` 指名一个装 SMTP 连接串的环境变量（同 notify email 的 urlEnv
+ * 口径，密钥不落盘）。收件人为空 ⇒ 这条静默跳过（记一次日志，不发）。
+ */
+export interface ReportScheduleConfig {
+  id: string;
+  enabled: boolean;
+  /** 回看窗口。 */
+  range: ReportRangePreset;
+  /** 发送时刻，部署时区的 `HH:MM`（24 小时制）。 */
+  time: string;
+  /** 每周第几天发（0–6，周日起）；缺省为每天。 */
+  weekday?: number;
+  /** 装 SMTP 连接串的环境变量名（值不落 reports.json）。 */
+  smtpEnv: string;
+  /** 发件人地址（`From:`）。 */
+  from: string;
+  /** 内联收件人（email 字面量或 user 引用）。 */
+  recipients?: NotifyRecipient[];
+  /** 引用 notify.json 里的用户组名。 */
+  groups?: string[];
+}
+
+export interface ReportsConfig {
+  schedules: ReportScheduleConfig[];
+}
+
+/** 出厂零配置：不发任何定时报表（红线）。 */
+export const DEFAULT_REPORTS_CONFIG: ReportsConfig = { schedules: [] };

@@ -6,6 +6,7 @@ import {
   DEFAULT_ALERT_RULES,
   DEFAULT_NOTIFY_CONFIG,
   DEFAULT_REPORT_CODES,
+  DEFAULT_REPORTS_CONFIG,
   NOTIFY_CHANNEL_TYPES,
   NOTIFY_SEVERITIES,
   NotifyChannelConfig,
@@ -14,7 +15,10 @@ import {
   NotifyEscalation,
   NotifyRecipient,
   NotifySilenceWindow,
+  REPORT_RANGE_PRESETS,
   ReportCodeEntry,
+  ReportScheduleConfig,
+  ReportsConfig,
   RuleScope,
   Severity,
   mergeCodebook,
@@ -43,6 +47,7 @@ const SCENES_FILE = runtimePaths.scenesFilePath;
 const RULES_FILE = runtimePaths.rulesFilePath;
 const CODEBOOK_FILE = runtimePaths.codebookFilePath;
 const NOTIFY_FILE = runtimePaths.notifyFilePath;
+const REPORTS_FILE = runtimePaths.reportsFilePath;
 
 const DEFAULT_FLEET_CONFIG: FleetConfig = {
   fleetName: "智能车队",
@@ -63,6 +68,7 @@ interface LoadedConfigSnapshot {
   alertRules: AlertRulesConfig;
   codebook: ReportCodeEntry[];
   notifyConfig: NotifyConfig;
+  reportsConfig: ReportsConfig;
 }
 
 const deriveBounds = (scene: SceneMapDefinition): NonNullable<SceneMapDefinition["bounds"]> => ({
@@ -482,6 +488,100 @@ const parseNotifyConfig = (raw: unknown): NotifyConfig => {
   return groups ? { channels, groups } : { channels };
 };
 
+/** `HH:MM`, 24-hour. The scheduler compares this to the wall clock in the deployment timezone. */
+const TIME_OF_DAY = /^([01]\d|2[0-3]):[0-5]\d$/;
+
+const parseReportSchedule = (raw: unknown, index: number): ReportScheduleConfig => {
+  const label = `reports.schedules[${index}]`;
+  if (!isRecord(raw)) {
+    throw new Error(`${label} must be a JSON object: ${REPORTS_FILE}`);
+  }
+  const id = parseOptionalString(raw.id, `${label}.id`);
+  if (!id) {
+    throw new Error(`${label} must set an id: ${REPORTS_FILE}`);
+  }
+  const range = raw.range;
+  if (!REPORT_RANGE_PRESETS.includes(range as (typeof REPORT_RANGE_PRESETS)[number])) {
+    throw new Error(
+      `${label}.range must be one of ${REPORT_RANGE_PRESETS.join(", ")}: ${REPORTS_FILE}`,
+    );
+  }
+  if (typeof raw.time !== "string" || !TIME_OF_DAY.test(raw.time)) {
+    throw new Error(`${label}.time must be "HH:MM" (24-hour): ${REPORTS_FILE}`);
+  }
+  let weekday: number | undefined;
+  if (raw.weekday !== undefined && raw.weekday !== null) {
+    if (
+      typeof raw.weekday !== "number" ||
+      !Number.isInteger(raw.weekday) ||
+      raw.weekday < 0 ||
+      raw.weekday > 6
+    ) {
+      throw new Error(`${label}.weekday must be an integer 0-6 (0=Sun): ${REPORTS_FILE}`);
+    }
+    weekday = raw.weekday;
+  }
+  const smtpEnv = parseOptionalString(raw.smtpEnv, `${label}.smtpEnv`);
+  if (!smtpEnv) {
+    throw new Error(
+      `${label} must set smtpEnv (env var name holding the SMTP URL): ${REPORTS_FILE}`,
+    );
+  }
+  const from = parseOptionalString(raw.from, `${label}.from`);
+  if (!from) {
+    throw new Error(`${label} must set from (sender address): ${REPORTS_FILE}`);
+  }
+  const recipients = parseRecipients(raw.recipients, `${label}.recipients`);
+  let groups: string[] | undefined;
+  if (raw.groups !== undefined && raw.groups !== null) {
+    if (!Array.isArray(raw.groups) || raw.groups.some((name) => typeof name !== "string")) {
+      throw new Error(`${label}.groups must be an array of group names: ${REPORTS_FILE}`);
+    }
+    groups = raw.groups as string[];
+  }
+  return {
+    id,
+    enabled: parseBoolean(raw.enabled, true, `${label}.enabled`, REPORTS_FILE),
+    range: range as ReportScheduleConfig["range"],
+    time: raw.time,
+    weekday,
+    smtpEnv,
+    from,
+    recipients,
+    groups,
+  };
+};
+
+/**
+ * Merge a deployment's (partial, untrusted) `reports.json` into a validated `ReportsConfig`.
+ * A missing file → `DEFAULT_REPORTS_CONFIG` (no schedules, so nothing is ever sent — the same
+ * zero-config red line as notify.json). Malformed → throw so `reload` keeps the previous snapshot.
+ * Schedule ids must be unique. The SMTP URL lives only in the env var `smtpEnv` names, never here.
+ */
+const parseReportsConfig = (raw: unknown): ReportsConfig => {
+  if (raw === null) {
+    return DEFAULT_REPORTS_CONFIG;
+  }
+  if (!isRecord(raw)) {
+    throw new Error(`reports.json must be a JSON object: ${REPORTS_FILE}`);
+  }
+  const schedulesRaw = raw.schedules;
+  if (schedulesRaw === undefined) {
+    return { schedules: [] };
+  }
+  const records = ensureArray(schedulesRaw, REPORTS_FILE, "reports.schedules");
+  const seenIds = new Set<string>();
+  const schedules = records.map((entry, index) => {
+    const schedule = parseReportSchedule(entry, index);
+    if (seenIds.has(schedule.id)) {
+      throw new Error(`Duplicate schedule id in reports.json: ${schedule.id}`);
+    }
+    seenIds.add(schedule.id);
+    return schedule;
+  });
+  return { schedules };
+};
+
 export class ConfigRegistry {
   private fleetConfig: FleetConfig = { ...DEFAULT_FLEET_CONFIG };
   private deviceConfigs = new Map<string, DeviceConfig>();
@@ -492,6 +592,7 @@ export class ConfigRegistry {
   private alertRules: AlertRulesConfig = DEFAULT_ALERT_RULES;
   private codebook: ReportCodeEntry[] = [...DEFAULT_REPORT_CODES];
   private notifyConfig: NotifyConfig = DEFAULT_NOTIFY_CONFIG;
+  private reportsConfig: ReportsConfig = DEFAULT_REPORTS_CONFIG;
   private loaded = false;
   private watcher: FSWatcher | null = null;
   private reloadTimer: NodeJS.Timeout | null = null;
@@ -499,16 +600,25 @@ export class ConfigRegistry {
   private pendingReloadReason = "startup";
 
   private async loadSnapshot(): Promise<LoadedConfigSnapshot> {
-    const [fleetRaw, vehiclesRaw, formationsRaw, scenesRaw, rulesRaw, codebookRaw, notifyRaw] =
-      await Promise.all([
-        readJsonFile<unknown>(FLEET_FILE),
-        readJsonFile<unknown>(VEHICLES_FILE),
-        readJsonFile<unknown>(FORMATIONS_FILE),
-        readJsonFile<unknown>(SCENES_FILE),
-        readOptionalJsonFile<unknown>(RULES_FILE),
-        readOptionalJsonFile<unknown>(CODEBOOK_FILE),
-        readOptionalJsonFile<unknown>(NOTIFY_FILE),
-      ]);
+    const [
+      fleetRaw,
+      vehiclesRaw,
+      formationsRaw,
+      scenesRaw,
+      rulesRaw,
+      codebookRaw,
+      notifyRaw,
+      reportsRaw,
+    ] = await Promise.all([
+      readJsonFile<unknown>(FLEET_FILE),
+      readJsonFile<unknown>(VEHICLES_FILE),
+      readJsonFile<unknown>(FORMATIONS_FILE),
+      readJsonFile<unknown>(SCENES_FILE),
+      readOptionalJsonFile<unknown>(RULES_FILE),
+      readOptionalJsonFile<unknown>(CODEBOOK_FILE),
+      readOptionalJsonFile<unknown>(NOTIFY_FILE),
+      readOptionalJsonFile<unknown>(REPORTS_FILE),
+    ]);
 
     const alertRules = parseAlertRules(rulesRaw);
     // A deployment's codebook.json (if any) is validated then layered over the built-in
@@ -519,6 +629,8 @@ export class ConfigRegistry {
     );
     // Missing notify.json = no channels = nothing is ever sent (the zero-config red line).
     const notifyConfig = parseNotifyConfig(notifyRaw);
+    // Missing reports.json = no schedules = no scheduled email (same red line, Phase 17B-2).
+    const reportsConfig = parseReportsConfig(reportsRaw);
 
     const fleetConfig = ensureObject(fleetRaw, FLEET_FILE, "fleet.json") as Partial<FleetConfig>;
     const vehicleRecords = ensureArray(vehiclesRaw, VEHICLES_FILE, "vehicles.json") as Array<
@@ -673,6 +785,7 @@ export class ConfigRegistry {
       alertRules,
       codebook,
       notifyConfig,
+      reportsConfig,
     };
   }
 
@@ -686,6 +799,7 @@ export class ConfigRegistry {
     this.alertRules = snapshot.alertRules;
     this.codebook = snapshot.codebook;
     this.notifyConfig = snapshot.notifyConfig;
+    this.reportsConfig = snapshot.reportsConfig;
     this.loaded = true;
   }
 
@@ -751,6 +865,7 @@ export class ConfigRegistry {
         RULES_FILE,
         CODEBOOK_FILE,
         NOTIFY_FILE,
+        REPORTS_FILE,
         path.join(runtimePaths.sceneMapsPath, "**/*.osm"),
       ],
       {
@@ -865,6 +980,15 @@ export class ConfigRegistry {
    */
   getNotifyConfig(): NotifyConfig {
     return this.notifyConfig;
+  }
+
+  /**
+   * The effective scheduled-report config (Phase 17B-2). Safe default before `load()`: no
+   * schedules, so nothing is ever sent — the zero-config red line, same as `getNotifyConfig`.
+   * Returns the live reference; a reload swaps the whole object atomically.
+   */
+  getReportsConfig(): ReportsConfig {
+    return this.reportsConfig;
   }
 
   /**

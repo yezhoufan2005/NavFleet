@@ -22,16 +22,16 @@ CI 全绿 → `--no-ff` 合并 → 回写本文件并记录自检结果。
 > 下挂了 12 个子批次，「下线」一个词在不同段落里有三种意思。往下所有小节都是**执行记录**
 > （按发生顺序，不再重排），要知道现在怎么样，只看这一节。
 
-| 项目           | 现状                                                                                                                                                                                                                                                 |
-| -------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| **已发布版本** | **1.3.0**（2026-09-19 发布，tag `v1.3.0`；Phase 16 告警体系深化：确认落库 / 历史统计 / 可配置规则引擎与报码字典 / 告警外发）。上一版 1.2.0 @ `v1.2.0`（用户体系与真 RBAC），再上 1.1.0 @ `a404680`（前端焕新基准）                                   |
-| **部署的前端** | `frontend-next/`（workspace `navfleet-console`），compose 服务名 `web`                                                                                                                                                                               |
-| **旧前端**     | `frontend/` **已冻结**：代码全留、不再改动，`--legacy` / 回滚 overlay 可启用                                                                                                                                                                         |
-| **发布的镜像** | `navfleet-backend:1.3.0`、`navfleet-console:1.3.0`。`navfleet-frontend` 停在 1.0.x                                                                                                                                                                   |
-| **CI**         | 9 个 job：deploy-wiring、backend+shared×2（node 22/24）、frozen frontend×2、console×2、e2e、GitGuardian                                                                                                                                              |
-| **工程门禁**   | **P0-f 六批全部完成**（14X–14AB）。lint 全部 `--max-warnings 0` + type-aware；四份 tsconfig 严格开关对齐；eslint 10 / vitest 5；四个覆盖率门槛按 vitest 5 重定                                                                                       |
-| **实测基线**   | 四个覆盖率门槛全部通过，余量一致地留 2–3 个百分点；E2E `retries: 0`                                                                                                                                                                                  |
-| **下一步**     | **Phase 17 进行中（报表与数据价值，发版 1.4.0）**：17A 聚合层（`/reports/alerts` + `/reports/availability`）+ 17B-1 报表页（`/reports`，KPI 带 + 两栏 + CSV 导出）均合入 main。下一步 **17B-2 定时报表**（调度器 + 复用 16D 邮件渠道）→ 17C 大屏值班 |
+| 项目           | 现状                                                                                                                                                                                                                                                                    |
+| -------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **已发布版本** | **1.3.0**（2026-09-19 发布，tag `v1.3.0`；Phase 16 告警体系深化：确认落库 / 历史统计 / 可配置规则引擎与报码字典 / 告警外发）。上一版 1.2.0 @ `v1.2.0`（用户体系与真 RBAC），再上 1.1.0 @ `a404680`（前端焕新基准）                                                      |
+| **部署的前端** | `frontend-next/`（workspace `navfleet-console`），compose 服务名 `web`                                                                                                                                                                                                  |
+| **旧前端**     | `frontend/` **已冻结**：代码全留、不再改动，`--legacy` / 回滚 overlay 可启用                                                                                                                                                                                            |
+| **发布的镜像** | `navfleet-backend:1.3.0`、`navfleet-console:1.3.0`。`navfleet-frontend` 停在 1.0.x                                                                                                                                                                                      |
+| **CI**         | 9 个 job：deploy-wiring、backend+shared×2（node 22/24）、frozen frontend×2、console×2、e2e、GitGuardian                                                                                                                                                                 |
+| **工程门禁**   | **P0-f 六批全部完成**（14X–14AB）。lint 全部 `--max-warnings 0` + type-aware；四份 tsconfig 严格开关对齐；eslint 10 / vitest 5；四个覆盖率门槛按 vitest 5 重定                                                                                                          |
+| **实测基线**   | 四个覆盖率门槛全部通过，余量一致地留 2–3 个百分点；E2E `retries: 0`                                                                                                                                                                                                     |
+| **下一步**     | **Phase 17 进行中（报表与数据价值，发版 1.4.0）**：17A 聚合层 + 17B 报表页与导出（17B-1 报表页 `/reports` + 17B-2 定时邮件报表 `reports.json`）均合入 main。下一步 **17C 大屏值班模式**（免交互看板 + kiosk 账号），随后收口发版 1.4.0（负责人手动合 release PR + tag） |
 
 **术语（此前混用过，以此为准）**：
 
@@ -1695,10 +1695,17 @@ mapper（各自单测——一条 `$group` key 写错、median 取错元素、�
 链 系统状态。纯逻辑在 `lib/reportsView.ts`（KPI 汇总按样本加权、时序序列、CSV 转义）单测；视图/纯函数
 两层测 + e2e 导航与空态。
 
-**17B-2 定时报表（邮件，待做）**：
+**17B-2 定时报表（邮件）✅（合入 main）**：盘上 `reports.json`（configRegistry，同 notify.json/rules.json
+「无 UI、盘上手改」先例）声明周期报表——每天/每周某时（部署时区 `HH:MM` + 可选 `weekday`）按回看窗口
+（24h/7d/30d）生成，用 17A 聚合 + 16B/17B 的 KPI 汇总拼 HTML 摘要 + 可用率 CSV 附件，经**复用 16D 的
+邮件发送（`sendEmail`）与收件人解析（`resolveRecipients`，引用 notify.json 用户组/用户邮箱）**推送。
+调度**无新依赖**：index.ts 一个 60s 轮询调 `ReportScheduler.tick`（同 16D digest 轮询先例），判据是
+「本地过点即发、每天一次」（对 tick 抖动免疫），首个 tick 把启动前已过点的当天标为已处理**不补发**
+（重启不重发）。纯 builder（`reportEmail.ts`）+ 调度器各自单测。
 
-- [ ] 定时报表：调度器（cron 式）生成周期报表，复用 16D 邮件渠道推送给收件方用户组
-- [ ] 报表内容与频率走盘上配置（沿用 notify.json/rules.json「无 UI、盘上手改」先例）
+- **红线**：出厂零配置（无 reports.json）= 无 schedule = 不发。SMTP 串（含凭据）走 env（schedule 只记
+  `smtpEnv`），绝不落 reports.json；收件人为空 / SMTP env 缺失 ⇒ 该条静默跳过（记一次日志，不发、不
+  编造成功）。`email.ts` 的 `EmailMessage` 加了可选 `html`/`attachments`（告警邮件仍是纯文本）。
 
 ### PR 17C — 大屏值班模式
 
