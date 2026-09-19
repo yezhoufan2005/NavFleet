@@ -91,6 +91,18 @@ describe("AuditView", () => {
     );
   });
 
+  it("constrains 起/止 so an inverted range cannot be picked", async () => {
+    const wrapper = await mountView([entry()]);
+    const dates = wrapper.findAll("input[type=date]");
+    const from = dates[0]!;
+    const to = dates[1]!;
+    await from.setValue("2026-03-05");
+    await to.setValue("2026-03-10");
+    // 止 cannot go before the chosen 起, and 起 cannot go past the chosen 止.
+    expect(to.attributes("min")).toBe("2026-03-05");
+    expect(from.attributes("max")).toBe("2026-03-10");
+  });
+
   it("paginates client-side past the page size", async () => {
     const many = Array.from({ length: 25 }, (_, i) =>
       entry({ actor: `u${i}` }),
