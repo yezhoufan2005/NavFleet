@@ -348,41 +348,44 @@ const alertRows = computed(() =>
         </p>
 
         <!--
-          Every abnormal vehicle is listed; the list flexes to fill the card and scrolls
-          past that. `flex-1 min-h-0` grows it to the panel's height and `overflow-y-auto`
-          scrolls a long one instead of growing the page. Paired with `mt-auto` on 编队
-          情况 in the column beside it (which pins that card to the column's bottom), this
-          card's bottom lines up with 编队's whichever column is taller — the equal-height
-          the alignment asks for. `gap-2` rows, `-mx-2 px-2` for the scrollbar/focus rings.
+          待处理项 must line its bottom up with 编队情况 in the column beside it, without the
+          right column being touched. The trick is the wrapper: it is the growable part of the
+          card (`flex-1 min-h-0`), and the list inside is `absolute inset-0`, so the list's
+          length no longer feeds back into the card's height. That is what was wrong before —
+          in a document-scroll grid the row grows to a cell's content, so a long 待处理项 drove
+          the row taller than the right column and nothing lined up. Taken out of flow, the
+          card's height is set by the right column instead; the list then fills that height and
+          scrolls past it. `gap-2` rows; `px-2` keeps the scrollbar and focus rings off the text.
         -->
-        <ul
-          v-else
-          class="attention-list m-0 -mx-2 flex min-h-0 flex-1 list-none flex-col gap-2 overflow-y-auto px-2 py-0"
-        >
-          <li v-for="row in attention" :key="row.device.deviceId">
-            <RouterLink
-              :to="`/devices/${row.device.deviceId}`"
-              class="flex items-center gap-3 rounded-sm px-2 py-2 transition-colors duration-150 ease-standard hover:bg-surface-sunken"
-            >
-              <span
-                class="size-2.5 shrink-0 rounded-full"
-                :class="TONE_DOT[row.tone]"
-                aria-hidden="true"
-              />
-              <span class="w-10 shrink-0 font-mono text-2xs text-ink-muted">{{
-                row.label
-              }}</span>
-              <span class="min-w-0 flex-1">
-                <strong class="block truncate text-sm text-ink">{{
-                  row.device.deviceName || row.device.deviceId
-                }}</strong>
-                <span class="block truncate text-xs text-ink-muted">{{
-                  row.detail
+        <div v-else class="relative min-h-0 flex-1">
+          <ul
+            class="attention-list absolute inset-0 m-0 flex list-none flex-col gap-2 overflow-y-auto px-2 py-0"
+          >
+            <li v-for="row in attention" :key="row.device.deviceId">
+              <RouterLink
+                :to="`/devices/${row.device.deviceId}`"
+                class="flex items-center gap-3 rounded-sm px-2 py-2 transition-colors duration-150 ease-standard hover:bg-surface-sunken"
+              >
+                <span
+                  class="size-2.5 shrink-0 rounded-full"
+                  :class="TONE_DOT[row.tone]"
+                  aria-hidden="true"
+                />
+                <span class="w-10 shrink-0 font-mono text-2xs text-ink-muted">{{
+                  row.label
                 }}</span>
-              </span>
-            </RouterLink>
-          </li>
-        </ul>
+                <span class="min-w-0 flex-1">
+                  <strong class="block truncate text-sm text-ink">{{
+                    row.device.deviceName || row.device.deviceId
+                  }}</strong>
+                  <span class="block truncate text-xs text-ink-muted">{{
+                    row.detail
+                  }}</span>
+                </span>
+              </RouterLink>
+            </li>
+          </ul>
+        </div>
       </section>
 
       <div class="flex min-h-0 flex-col gap-4">
@@ -418,7 +421,7 @@ const alertRows = computed(() =>
 
         <section
           v-if="fleet.formations.length"
-          class="mt-auto flex min-h-0 flex-col gap-3 rounded-md border border-border bg-surface-raised p-4"
+          class="flex min-h-0 flex-col gap-3 rounded-md border border-border bg-surface-raised p-4"
           aria-labelledby="formations-heading"
         >
           <h3 id="formations-heading" class="text-md font-semibold text-ink">

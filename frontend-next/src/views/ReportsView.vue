@@ -16,6 +16,7 @@ import { RouterLink, useRoute, useRouter } from "vue-router";
 import PageHeader from "@/components/PageHeader.vue";
 import UiButton from "@/components/ui/UiButton.vue";
 import UiInput from "@/components/ui/UiInput.vue";
+import UiSegmented from "@/components/ui/UiSegmented.vue";
 import UiSelect from "@/components/ui/UiSelect.vue";
 import TimeSeriesChart from "@/components/charts/TimeSeriesChart.vue";
 import CategoryBarChart from "@/components/charts/CategoryBarChart.vue";
@@ -253,27 +254,14 @@ const exportCsv = (): void => {
     <div class="flex flex-wrap items-end gap-3">
       <div class="flex flex-col gap-1">
         <span class="text-2xs text-ink-muted">范围</span>
-        <div
-          class="flex h-8 overflow-hidden rounded-sm border border-border-strong"
-          role="group"
+        <UiSegmented
+          :model-value="isCustom ? '' : range"
+          :options="RANGES"
           aria-label="时间范围"
-        >
-          <button
-            v-for="option in RANGES"
-            :key="option.value"
-            type="button"
-            class="flex items-center px-3 text-sm transition-colors duration-150 ease-standard"
-            :class="
-              !isCustom && range === option.value
-                ? 'bg-brand text-brand-contrast'
-                : 'bg-surface-raised text-ink-muted hover:text-ink'
-            "
-            :aria-pressed="!isCustom && range === option.value"
-            @click="setFilter({ range: option.value, from: null, to: null })"
-          >
-            {{ option.label }}
-          </button>
-        </div>
+          @update:model-value="
+            (value) => setFilter({ range: value, from: null, to: null })
+          "
+        />
       </div>
 
       <!-- 自定义起止：与预设是同一控件的两种形态，选日期即接管，选预设即清空。起 ≤ 止 由
