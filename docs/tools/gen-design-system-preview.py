@@ -24,15 +24,20 @@ ORDER = [25, 50, 100, 200, 300, 400, 500, 600, 700, 800, 900, 950]
 #
 # 为什么不再自己生成：过去用「明度阶梯 + 彩度向 500 收敛」的公式凑色阶，好处是均匀，
 # 坏处是它永远只是「像」某个成熟系统，深浅两端的表面/文字/边框始终对不齐真实产品的手感
-# —— 反复微调仍停在「差一点」。本轮按用户要求**完全照 GitHub Primer 的 Light default /
-# Dark default 重来**：色阶与语义值都取 Primer 的字面量（primer/primitives），语义层再把
-# 它们映射到本项目的 token 名。
+# —— 反复微调仍停在「差一点」。本轮按用户要求**照 GitHub Primer 重来**：浅色取 Light
+# default，深色取 **dark_dimmed（GitHub 外观里的「Soft dark / 暗淡」）**，色阶与语义值都取
+# Primer 的字面量（primer/primitives），语义层再把它们映射到本项目的 token 名。
 #
 # **slate 是一条跨主题的中性阶**：浅色端（25–300）是 Primer 浅色的 canvas/border 灰，
-# 深色端（600–950）是 Primer **深色主题**的 canvas/border（#0d1117…#30363d，比浅色灰的
-# 暗端更黑）。这行得通是因为语义层里浅色 surface/border 只引用浅端、深色只引用深端，两组
-# 步值**互不重叠**（见 tokens.test 的 border≠surface 判定，它比对的是引用的步名）。
+# 深色端（600–950）是 Primer **dark_dimmed** 的 canvas/border（#22272e…#444c56，比 Dark
+# default 更柔、不是纯黑）。这行得通是因为语义层里浅色 surface/border 只引用浅端、深色只引用
+# 深端，两组步值**互不重叠**（见 tokens.test 的 border≠surface 判定，它比对的是引用的步名）。
 # 需要跨主题冲突的那些（正文/品牌/状态色）在 SEMANTIC 里直接写**字面量**，不走 slate。
+#
+# 一处必要的偏离：dark_dimmed 的 fg.muted/subtle 本就是低对比（在 canvas.overlay 上仅
+# ~3.3:1 / ~2.4:1），扛不住本项目「文字在最亮的深色表面 raised 上也要 ≥4.5」的审计。
+# 所以深色正文三级改用 dark_dimmed 的 gray.0/1/2（比 Primer 默认的 1/3/4 各提一档）——
+# 仍是 Primer 的真实取值，只是映射更亮，柔和观感来自 #22272e 系的**背景**而非压低文字。
 #
 # 其余 5 条（indigo/blue/amber/rose/zinc）现在只作预览页的参考色板 —— 语义层已改字面量，
 # 不再 var() 引用它们；保留是为了在预览页展示 Primer 的 accent/success/attention/danger 阶。
@@ -42,9 +47,9 @@ RAMPS = [
                 700: "#033d8b", 800: "#0a3069", 900: "#002155", 950: "#001129"},
      "品牌 / accent（GitHub blue）"),
     ("slate", {25: "#f6f8fa", 50: "#eaeef2", 100: "#d8dee4", 200: "#d1d9e0",
-               300: "#afb8c1", 400: "#8c959f", 500: "#6e7681", 600: "#484f58",
-               700: "#30363d", 800: "#161b22", 900: "#0d1117", 950: "#010409"},
-     "中性（浅端=Primer light 灰，深端=Primer dark canvas/border）"),
+               300: "#afb8c1", 400: "#8c959f", 500: "#636e7b", 600: "#545d68",
+               700: "#444c56", 800: "#2d333b", 900: "#22272e", 950: "#1c2128"},
+     "中性（浅端=Primer light 灰，深端=Primer dark_dimmed / Soft dark）"),
     ("blue", {25: "#f2f8ff", 50: "#ddf4ff", 100: "#b6e3ff", 200: "#80ccff",
               300: "#54aeff", 400: "#218bff", 500: "#0969da", 600: "#0550ae",
               700: "#033d8b", 800: "#0a3069", 900: "#002155", 950: "#001129"},
@@ -65,50 +70,53 @@ RAMPS = [
 
 SEMANTIC = [
     # 表面与边框走 slate 阶（var 引用）：浅色引浅端、深色引深端，两组步值不重叠，
-    # 所以 tokens.test 的 border≠surface（比对步名）恒成立。取值＝Primer 的
-    # canvas.default/subtle/inset 与 border.default，深色即 Primer Dark default。
-    ("surface", "slate-25", "slate-900"),  # canvas.subtle / dark canvas.default
-    ("surface-raised", "white", "slate-800"),  # 白卡浮起 / dark overlay(#161b22)
-    ("surface-sunken", "slate-50", "slate-950"),  # inset 灰 / dark canvas.inset
-    # 正文三级写字面量（不走 slate）：浅深两主题的文字明度需求相反，且与 border 共步会冲突。
-    # 浅色＝Primer fg.default 与两级更柔的灰；深色为满足本项目「subtle 落在 raised 上也要
-    # ≥4.5」比 Primer fg.muted/subtle 略提亮（subtle on raised：浅 5.67 / 深 5.09）。
-    ("ink", "#1f2328", "#e6edf3"),  # fg.default
-    ("ink-muted", "#424a53", "#9198a1"),
-    ("ink-subtle", "#59636e", "#848d97"),
-    ("border", "slate-200", "slate-700"),  # border.default / dark #30363d
+    # 所以 tokens.test 的 border≠surface（比对步名）恒成立。浅色＝Primer canvas.default/
+    # subtle/inset；深色＝dark_dimmed canvas.default(#22272e)/overlay(#2d333b)/inset(#1c2128)。
+    ("surface", "slate-25", "slate-900"),
+    ("surface-raised", "white", "slate-800"),
+    ("surface-sunken", "slate-50", "slate-950"),
+    # 交互态填充（hover / 选中）：半透明中性，浮在任意表面上都成立，且与 sunken(表头)、
+    # raised(卡片) 都不同色 —— 修的正是用户点名的「表头和悬停行同色」那类组合错误。
+    ("surface-hover", "rgba(31, 35, 40, 0.06)", "rgba(144, 157, 171, 0.10)"),
+    # 正文三级写字面量。浅色＝Primer fg.default 与两级更柔的灰；深色用 dark_dimmed 的
+    # gray.0/1/2（见色阶层注释里的偏离说明）：subtle 落在最亮的 raised 上仍 ≥4.5。
+    ("ink", "#1f2328", "#cdd9e5"),
+    ("ink-muted", "#424a53", "#adbac7"),
+    ("ink-subtle", "#59636e", "#909dab"),
+    ("border", "slate-200", "slate-700"),  # border.default / dark_dimmed #444c56
     ("border-strong", "slate-300", "slate-600"),
-    # 遮罩：两个主题故意同值（压暗下层），带透明度使用，不进 4.5:1 审计表。
+    # 更弱的分隔线（列表内的行线），比 border 更隐；不进 border≠surface 判定（只判 border/strong）。
+    ("border-muted", "#e4e8ec", "#373e47"),
+    # 遮罩：两主题同值的近黑，带透明度使用（压暗下层），不进 4.5:1 审计表。
     ("scrim", "#010409", "#010409"),
     # 焦点环：非文本 UI（WCAG 1.4.11 只要 3:1），不进 4.5:1 审计表。accent.emphasis / dark accent.fg
-    ("border-focus", "#0969da", "#58a6ff"),
+    ("border-focus", "#0969da", "#539bf5"),
     # 品牌＝GitHub accent（蓝）。实心用 emphasis（白字），链接/淡底文字用 fg。
-    ("brand", "#0969da", "#1f6feb"),  # accent.emphasis
-    ("brand-hover", "#0550ae", "#388bfd"),
+    ("brand", "#0969da", "#316dca"),  # accent.emphasis / dark_dimmed accent.emphasis
+    ("brand-hover", "#0550ae", "#4184e4"),
     ("brand-contrast", "#ffffff", "#ffffff"),
-    ("brand-ink", "#0969da", "#58a6ff"),  # accent.fg（链接）
-    ("brand-wash", "#ddf4ff", "#101d2e"),  # accent.subtle
+    ("brand-ink", "#0969da", "#539bf5"),  # accent.fg（链接）
+    ("brand-wash", "#ddf4ff", "#212d40"),  # accent.subtle（深色实心化以过对比）
     # notice＝同一支 accent 蓝（GitHub 的信息态即 accent）。
-    ("notice", "#0969da", "#1f6feb"),
+    ("notice", "#0969da", "#316dca"),
     ("notice-contrast", "#ffffff", "#ffffff"),
-    ("notice-ink", "#0969da", "#58a6ff"),
-    ("notice-wash", "#ddf4ff", "#101d2e"),
-    # warning＝attention（金）。金色扛不住白字，所以深色实心用亮金 + 深字（warning-contrast
-    # 深色＝#1f2328），浅色实心用暗金 + 白字。这与旧设计「深色 warning 用浅底深字」同构。
-    ("warning", "#9a6700", "#d29922"),  # attention.fg / dark attention.fg
-    ("warning-contrast", "#ffffff", "#1f2328"),
-    ("warning-ink", "#9a6700", "#d29922"),
-    ("warning-wash", "#fff8c5", "#2a2009"),  # attention.subtle
+    ("notice-ink", "#0969da", "#539bf5"),
+    ("notice-wash", "#ddf4ff", "#212d40"),
+    # warning＝attention（金）。dark_dimmed 的 emphasis(#966600) 能扛白字（5.0:1），两主题白字。
+    ("warning", "#9a6700", "#966600"),
+    ("warning-contrast", "#ffffff", "#ffffff"),
+    ("warning-ink", "#9a6700", "#c69026"),  # attention.fg
+    ("warning-wash", "#fff8c5", "#2b2517"),
     # critical＝danger（红）。红能扛白字，两主题 contrast 都用白。
-    ("critical", "#cf222e", "#da3633"),  # danger.emphasis / dark danger.emphasis
+    ("critical", "#cf222e", "#c93c37"),  # danger.emphasis / dark_dimmed danger.emphasis
     ("critical-contrast", "#ffffff", "#ffffff"),
-    ("critical-ink", "#d1242f", "#f85149"),  # danger.fg / dark danger.fg
-    ("critical-wash", "#ffebe9", "#2b1416"),  # danger.subtle
-    # offline＝中性灰（neutral.emphasis）。
-    ("offline", "#6e7781", "#6e7681"),
+    ("critical-ink", "#d1242f", "#f47067"),  # danger.fg（深色用更亮的 red.3 以过 wash 对比）
+    ("critical-wash", "#ffebe9", "#2e2124"),
+    # offline＝中性灰。深色实心用 gray.5(#545d68) 才扛得住白字。
+    ("offline", "#6e7781", "#545d68"),
     ("offline-contrast", "#ffffff", "#ffffff"),
-    ("offline-ink", "#59636e", "#9198a1"),
-    ("offline-wash", "#eaeef2", "#21262d"),
+    ("offline-ink", "#59636e", "#909dab"),
+    ("offline-wash", "#eaeef2", "#2d333b"),
 ]
 
 # ---------------------------------------------------------------------------
@@ -194,9 +202,9 @@ MAP_CLOUD_ALPHA = [
 # 改用 docs/tools/check-map-contrast.mjs 单独机检，两者判定标准不同（比例尺是内容，按
 # WCAG 1.4.11 的 3:1；网格是装饰参考线，只保 1.3:1 的可见性下限，理由见该脚本文件头）。
 #
-# 实测（该脚本输出，GitHub Primer 取值后重算）：grid 浅 1.72:1 / 深 1.85:1，
-# scale 浅 7.10:1 / 深 9.47:1。深色网格若沿用 slate-800（Primer dark 的 #161b22）会贴着
-# canvas(#071119) 只有 1.10:1、跌破 1.3 下限，故上移到 slate-600（#484f58）与浅色齐平。
+# 实测（该脚本输出，GitHub Primer / dark_dimmed 取值后重算）：grid 浅 1.72:1 / 深 2.85:1，
+# scale 浅 5.73:1 / 深 9.47:1。深色网格用 slate-600（dark_dimmed #545d68），在软深底
+# canvas(#071119) 上清晰可见且远过 1.3 下限。
 # **这条是机检抓出来的，不是看出来的。**
 MAP_FRAME = [
     ("map-grid", "slate-300", "slate-600"),

@@ -39,12 +39,12 @@
         --color-slate-200: #d1d9e0;
         --color-slate-300: #afb8c1;
         --color-slate-400: #8c959f;
-        --color-slate-500: #6e7681;
-        --color-slate-600: #484f58;
-        --color-slate-700: #30363d;
-        --color-slate-800: #161b22;
-        --color-slate-900: #0d1117;
-        --color-slate-950: #010409;
+        --color-slate-500: #636e7b;
+        --color-slate-600: #545d68;
+        --color-slate-700: #444c56;
+        --color-slate-800: #2d333b;
+        --color-slate-900: #22272e;
+        --color-slate-950: #1c2128;
 
         --color-blue-25: #f2f8ff;
         --color-blue-50: #ddf4ff;
@@ -121,11 +121,13 @@
         --color-surface: var(--color-slate-25);
         --color-surface-raised: var(--color-white);
         --color-surface-sunken: var(--color-slate-50);
+        --color-surface-hover: rgba(31, 35, 40, 0.06);
         --color-ink: #1f2328;
         --color-ink-muted: #424a53;
         --color-ink-subtle: #59636e;
         --color-border: var(--color-slate-200);
         --color-border-strong: var(--color-slate-300);
+        --color-border-muted: #e4e8ec;
         --color-scrim: #010409;
         --color-border-focus: #0969da;
         --color-brand: #0969da;
@@ -193,34 +195,36 @@
           --color-surface: var(--color-slate-900);
           --color-surface-raised: var(--color-slate-800);
           --color-surface-sunken: var(--color-slate-950);
-          --color-ink: #e6edf3;
-          --color-ink-muted: #9198a1;
-          --color-ink-subtle: #848d97;
+          --color-surface-hover: rgba(144, 157, 171, 0.1);
+          --color-ink: #cdd9e5;
+          --color-ink-muted: #adbac7;
+          --color-ink-subtle: #909dab;
           --color-border: var(--color-slate-700);
           --color-border-strong: var(--color-slate-600);
+          --color-border-muted: #373e47;
           --color-scrim: #010409;
-          --color-border-focus: #58a6ff;
-          --color-brand: #1f6feb;
-          --color-brand-hover: #388bfd;
+          --color-border-focus: #539bf5;
+          --color-brand: #316dca;
+          --color-brand-hover: #4184e4;
           --color-brand-contrast: #ffffff;
-          --color-brand-ink: #58a6ff;
-          --color-brand-wash: #101d2e;
-          --color-notice: #1f6feb;
+          --color-brand-ink: #539bf5;
+          --color-brand-wash: #212d40;
+          --color-notice: #316dca;
           --color-notice-contrast: #ffffff;
-          --color-notice-ink: #58a6ff;
-          --color-notice-wash: #101d2e;
-          --color-warning: #d29922;
-          --color-warning-contrast: #1f2328;
-          --color-warning-ink: #d29922;
-          --color-warning-wash: #2a2009;
-          --color-critical: #da3633;
+          --color-notice-ink: #539bf5;
+          --color-notice-wash: #212d40;
+          --color-warning: #966600;
+          --color-warning-contrast: #ffffff;
+          --color-warning-ink: #c69026;
+          --color-warning-wash: #2b2517;
+          --color-critical: #c93c37;
           --color-critical-contrast: #ffffff;
-          --color-critical-ink: #f85149;
-          --color-critical-wash: #2b1416;
-          --color-offline: #6e7681;
+          --color-critical-ink: #f47067;
+          --color-critical-wash: #2e2124;
+          --color-offline: #545d68;
           --color-offline-contrast: #ffffff;
-          --color-offline-ink: #9198a1;
-          --color-offline-wash: #21262d;
+          --color-offline-ink: #909dab;
+          --color-offline-wash: #2d333b;
 
           /* 图表：系列色为字面值，坐标轴/网格取自 ramp。 */
           --color-chart-1: #3987e5;
@@ -263,34 +267,36 @@
         --color-surface: var(--color-slate-900);
         --color-surface-raised: var(--color-slate-800);
         --color-surface-sunken: var(--color-slate-950);
-        --color-ink: #e6edf3;
-        --color-ink-muted: #9198a1;
-        --color-ink-subtle: #848d97;
+        --color-surface-hover: rgba(144, 157, 171, 0.1);
+        --color-ink: #cdd9e5;
+        --color-ink-muted: #adbac7;
+        --color-ink-subtle: #909dab;
         --color-border: var(--color-slate-700);
         --color-border-strong: var(--color-slate-600);
+        --color-border-muted: #373e47;
         --color-scrim: #010409;
-        --color-border-focus: #58a6ff;
-        --color-brand: #1f6feb;
-        --color-brand-hover: #388bfd;
+        --color-border-focus: #539bf5;
+        --color-brand: #316dca;
+        --color-brand-hover: #4184e4;
         --color-brand-contrast: #ffffff;
-        --color-brand-ink: #58a6ff;
-        --color-brand-wash: #101d2e;
-        --color-notice: #1f6feb;
+        --color-brand-ink: #539bf5;
+        --color-brand-wash: #212d40;
+        --color-notice: #316dca;
         --color-notice-contrast: #ffffff;
-        --color-notice-ink: #58a6ff;
-        --color-notice-wash: #101d2e;
-        --color-warning: #d29922;
-        --color-warning-contrast: #1f2328;
-        --color-warning-ink: #d29922;
-        --color-warning-wash: #2a2009;
-        --color-critical: #da3633;
+        --color-notice-ink: #539bf5;
+        --color-notice-wash: #212d40;
+        --color-warning: #966600;
+        --color-warning-contrast: #ffffff;
+        --color-warning-ink: #c69026;
+        --color-warning-wash: #2b2517;
+        --color-critical: #c93c37;
         --color-critical-contrast: #ffffff;
-        --color-critical-ink: #f85149;
-        --color-critical-wash: #2b1416;
-        --color-offline: #6e7681;
+        --color-critical-ink: #f47067;
+        --color-critical-wash: #2e2124;
+        --color-offline: #545d68;
         --color-offline-contrast: #ffffff;
-        --color-offline-ink: #9198a1;
-        --color-offline-wash: #21262d;
+        --color-offline-ink: #909dab;
+        --color-offline-wash: #2d333b;
 
         /* 图表：系列色为字面值，坐标轴/网格取自 ramp。 */
         --color-chart-1: #3987e5;
@@ -656,8 +662,8 @@
             <div class="ramp-label">
               <b>slate</b
               ><span
-                >中性（浅端=Primer light 灰，深端=Primer dark
-                canvas/border）</span
+                >中性（浅端=Primer light 灰，深端=Primer dark_dimmed / Soft
+                dark）</span
               >
             </div>
             <div class="ramp-strip">
@@ -942,7 +948,7 @@
         <div>
           <p class="eyebrow">② 语义层 · 机检</p>
           <h2 style="margin-top: calc(var(--spacing) * 2)">
-            对比度审计（31 个 token）
+            对比度审计（33 个 token）
           </h2>
         </div>
         <div class="audit-summary" data-role="summary"></div>
