@@ -12,6 +12,7 @@ import { onMounted, ref } from "vue";
 import type { SessionRecordView } from "@navfleet/fleet-core";
 import PageHeader from "@/components/PageHeader.vue";
 import UiButton from "@/components/ui/UiButton.vue";
+import UiCard from "@/components/ui/UiCard.vue";
 import UiConfirmDialog from "@/components/ui/UiConfirmDialog.vue";
 import { tableClasses } from "@/lib/uiClasses";
 import { useAuth } from "@/composables/useAuth";
@@ -118,16 +119,15 @@ const formatTime = (iso: string): string =>
 
 <template>
   <PageHeader title="个人中心" scroll-content>
-    <section
-      class="rounded-md border border-border bg-surface-raised p-4"
-      aria-labelledby="profile-password-heading"
-    >
-      <h3
-        id="profile-password-heading"
-        class="mb-3 text-md font-semibold text-ink"
-      >
-        修改密码
-      </h3>
+    <UiCard as="section" aria-labelledby="profile-password-heading">
+      <template #header>
+        <h3
+          id="profile-password-heading"
+          class="text-md font-semibold text-ink"
+        >
+          修改密码
+        </h3>
+      </template>
       <form
         class="flex max-w-96 flex-col gap-4"
         :aria-busy="changing"
@@ -178,19 +178,21 @@ const formatTime = (iso: string): string =>
           {{ changing ? "提交中…" : "修改密码" }}
         </UiButton>
       </form>
-    </section>
+    </UiCard>
     <!-- SESSIONS_PLACEHOLDER -->
-    <section
-      class="rounded-md border border-border bg-surface-raised p-4"
+    <UiCard
+      as="section"
       aria-labelledby="profile-sessions-heading"
       :aria-busy="status === 'loading'"
     >
-      <h3
-        id="profile-sessions-heading"
-        class="mb-3 text-md font-semibold text-ink"
-      >
-        我的会话
-      </h3>
+      <template #header>
+        <h3
+          id="profile-sessions-heading"
+          class="text-md font-semibold text-ink"
+        >
+          我的会话
+        </h3>
+      </template>
       <p v-if="status === 'loading'" class="text-sm text-ink-muted">加载中…</p>
       <p
         v-else-if="status === 'error'"
@@ -258,7 +260,7 @@ const formatTime = (iso: string): string =>
           </tbody>
         </table>
       </div>
-    </section>
+    </UiCard>
 
     <UiConfirmDialog
       :open="confirmTarget !== null"

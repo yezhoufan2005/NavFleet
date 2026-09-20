@@ -25,6 +25,9 @@ export const tableClasses = {
   tableNumeric: "w-full border-collapse text-left text-sm tabular-nums",
   /** The header strip. */
   thead: "bg-surface-sunken text-2xs text-ink-muted uppercase",
-  /** A body row; `last:border-0` drops the trailing rule so it never doubles the wrapper. */
-  row: "border-b border-border last:border-0",
+  /**
+   * A body row; `last:border-0` drops the trailing rule so it never doubles the wrapper,
+   * and a quiet hover tint gives the row an interactive feel (rows are scannable records).
+   */
+  row: "border-b border-border last:border-0 transition-colors duration-150 ease-standard hover:bg-surface-sunken",
 } as const;
