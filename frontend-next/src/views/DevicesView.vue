@@ -750,7 +750,7 @@ watch(
       aria-label="分页"
     >
       <label class="flex items-center gap-2 text-xs text-ink-muted">
-        <span>每页</span>
+        <span>每页条数</span>
         <UiSelect
           :model-value="String(pageSize)"
           :options="PAGE_SIZE_OPTIONS"

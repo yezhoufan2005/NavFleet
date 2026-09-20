@@ -39,8 +39,6 @@ import type { DeviceSnapshot } from "@navfleet/shared";
  * One second, and no 刚刚 band. The cost is one text node per second.
  */
 const AGE_TICK_MS = 1_000;
-/** Rows in the attention list before it defers to 设备. */
-const ATTENTION_LIMIT = 5;
 
 const fleet = useFleetStore();
 
@@ -178,14 +176,14 @@ interface AttentionRow {
 /**
  * The vehicles worth walking over to, worst first.
  *
- * Healthy vehicles are excluded rather than ranked last: a list that always has the
- * same forty rows is a list nobody reads. When everything is fine the page says so in
- * one line, which is the useful answer.
+ * Healthy vehicles are excluded rather than ranked last: a list that always has the same
+ * forty rows is a list nobody reads. When everything is fine the page says so in one line.
+ * Every abnormal vehicle is listed — the panel scrolls rather than capping the count, so
+ * nothing needing attention is hidden; 查看全部设备 still leads to the full fleet.
  */
 const attention = computed<AttentionRow[]>(() =>
   fleet.devicesByAttention
     .filter((device) => getDeviceTone(device) !== "normal")
-    .slice(0, ATTENTION_LIMIT)
     .map((device) => {
       const tone = getDeviceTone(device);
       const code =
@@ -349,7 +347,16 @@ const alertRows = computed(() =>
           {{ fleet.summary.totalCount }} 台设备状态正常，没有需要处理的车辆
         </p>
 
-        <ul v-else class="m-0 flex list-none flex-col gap-1 p-0">
+        <!--
+          Every abnormal vehicle is listed; the list scrolls within a max-height so it
+          never grows the page. Rows keep their natural height and `gap-1` (no `min-height`
+          pin), so nothing gains trailing blank; `-mx-2 px-2` gives the scrollbar and focus
+          rings room without shifting the rows.
+        -->
+        <ul
+          v-else
+          class="attention-list m-0 -mx-2 flex list-none flex-col gap-1 overflow-y-auto px-2 py-0"
+        >
           <li v-for="row in attention" :key="row.device.deviceId">
             <RouterLink
               :to="`/devices/${row.device.deviceId}`"
@@ -572,5 +579,16 @@ const alertRows = computed(() =>
 
 .formation-list > li {
   min-height: var(--formation-row);
+}
+
+/*
+ * 待处理项 lists every abnormal vehicle and scrolls, so a bad shift never hides a row and
+ * never grows the page. The rows keep their natural height and `gap-1` spacing — no pinned
+ * row and no `min-height`, which is what「保留之前的上下距」asks and what stops a short row
+ * carrying trailing blank. Only a max-height and overflow are added; with few rows the list
+ * is simply that tall, so there is no reserved empty space beneath them.
+ */
+.attention-list {
+  max-height: 16rem;
 }
 </style>

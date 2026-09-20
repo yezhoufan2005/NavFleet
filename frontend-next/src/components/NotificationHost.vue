@@ -11,9 +11,12 @@
  * an assertive region interrupts mid-sentence. Anything that genuinely must
  * interrupt belongs in a dialog, not here.
  *
- * Positioned bottom-right rather than v1.0.0's top-right. The top-right corner is
- * where the session menu opens from, and a toast landing there covered the menu it
- * was often telling you about.
+ * Positioned top-centre. v1.0.0 used top-right (over the session menu) and the port
+ * moved it bottom-right, but a toast in the bottom-right corner sat over the content an
+ * operator was working in. Top-centre clears both the session menu (top-right) and the
+ * working area, and the toast slides down from the top edge and retracts back up — a
+ * "pull-out / retract" motion that reads as coming from the app chrome rather than the
+ * canvas.
  */
 import {
   useNotifications,
@@ -44,14 +47,14 @@ const TONES: Record<NotificationType, string> = {
 
 <template>
   <div
-    class="pointer-events-none fixed inset-x-0 bottom-0 z-50 flex flex-col items-end gap-2 p-4"
+    class="pointer-events-none fixed inset-x-0 top-0 z-50 flex flex-col items-center gap-2 p-4"
     aria-live="polite"
   >
     <TransitionGroup
       enter-active-class="transition duration-200 ease-entrance"
-      enter-from-class="translate-y-2 opacity-0"
+      enter-from-class="-translate-y-4 opacity-0"
       leave-active-class="transition duration-150 ease-exit"
-      leave-to-class="translate-y-1 opacity-0"
+      leave-to-class="-translate-y-4 opacity-0"
     >
       <!-- items-center so the ✕ close button (and the undo) sit centred against the
            toast rather than pinned to the top edge; messages here are short. -->

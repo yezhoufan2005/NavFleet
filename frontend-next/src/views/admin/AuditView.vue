@@ -239,7 +239,7 @@ const formatTime = (iso: string): string =>
       </div>
       <div class="flex items-center justify-between gap-3 text-sm">
         <label class="flex items-center gap-2">
-          <span class="text-ink-muted">每页</span>
+          <span class="text-ink-muted">每页条数</span>
           <UiSelect
             :model-value="String(pageSize)"
             :options="PAGE_SIZE_OPTIONS"
