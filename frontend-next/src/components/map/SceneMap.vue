@@ -44,11 +44,24 @@ type Pose = { x?: number | null; y?: number | null; yaw?: number | null };
  */
 type Trail = readonly { x: number; y: number }[];
 
-const { selectedDevice, sceneDefinition, sceneDevices, trails } = defineProps<{
+const {
+  selectedDevice,
+  sceneDefinition,
+  sceneDevices,
+  trails,
+  initialView = "auto",
+} = defineProps<{
   selectedDevice: DeviceSnapshot | null;
   sceneDefinition: ScenePart | null;
   sceneDevices: DeviceSnapshot[];
   trails: Record<string, Trail>;
+  /**
+   * Which view the map opens with. "auto" (live default) restores the tab's last
+   * view, else locates the vehicle, else fits the scene. "fit" always opens on
+   * 适应场景 — what playback wants, where you are inspecting a whole recorded run
+   * rather than resuming a live watch.
+   */
+  initialView?: "auto" | "fit";
 }>();
 
 const hasBounds = (bounds: Partial<WorldBounds> | null | undefined): boolean =>
@@ -394,6 +407,7 @@ const {
   backgroundLayerDefinition,
   formationPeerDevices,
   deviceExtentBounds,
+  preferFitView: computed(() => initialView === "fit"),
 });
 
 /**

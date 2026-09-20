@@ -37,6 +37,7 @@ interface HarnessOptions {
   peers?: unknown[];
   extent?: WorldBounds | null;
   sceneId?: string;
+  preferFit?: boolean;
 }
 
 const mountViewport = (options: HarnessOptions = {}) => {
@@ -73,6 +74,7 @@ const mountViewport = (options: HarnessOptions = {}) => {
         formationPeerDevices: peers as unknown as ComputedRef<unknown[]>,
         deviceExtentBounds:
           extent as unknown as ComputedRef<WorldBounds | null>,
+        preferFitView: computed(() => options.preferFit ?? false),
       });
       // Both refs point at the same element; jsdom has no layout, so the rect is
       // stubbed for every element anyway.
@@ -163,6 +165,19 @@ describe("the first view", () => {
     expect(api.viewport.width).toBe(1000);
     expect(api.viewport.height).toBe(620);
     expect(sessionStorage.getItem(ROS_VIEW_STORAGE_KEY)).toBeNull();
+  });
+
+  it("fits the whole scene on entry when preferFitView is set, even with a vehicle to focus", () => {
+    // Playback passes preferFitView so entering a recorded run frames the scene
+    // instead of the live default (which would locate the vehicle close-up). The
+    // device has a pose that would otherwise trigger a 45 m focus.
+    const { api } = mountViewport({
+      preferFit: true,
+      device: { deviceId: "agv-01", fusionLoc: { x: 10, y: 25 } },
+    });
+
+    expect(api.viewport.scale).toBeCloseTo(BASE_SCALE, 5);
+    expect(centreOf(api.viewport)).toMatchObject({ x: 50, y: 25 });
   });
 
   it("honours the scene's own default view when it declares one", () => {

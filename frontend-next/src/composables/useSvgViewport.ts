@@ -89,6 +89,12 @@ export interface UseSvgViewportOptions {
   backgroundLayerDefinition: ComputedRef<BackgroundLayerLike | null>;
   formationPeerDevices: ComputedRef<unknown[]>;
   deviceExtentBounds: ComputedRef<WorldBounds | null>;
+  /**
+   * When true, the scene opens fitted to its whole extent (适应场景) instead of the
+   * live default (restore last view → locate vehicle → fit). Playback sets this so
+   * entering a recorded run always frames the scene.
+   */
+  preferFitView?: ComputedRef<boolean>;
 }
 
 export function useSvgViewport(options: UseSvgViewportOptions) {
@@ -104,6 +110,7 @@ export function useSvgViewport(options: UseSvgViewportOptions) {
     backgroundLayerDefinition,
     formationPeerDevices,
     deviceExtentBounds,
+    preferFitView,
   } = options;
 
   const { readSavedSceneViews, writeSavedSceneViews, flushSavedSceneViews } =
@@ -463,7 +470,13 @@ export function useSvgViewport(options: UseSvgViewportOptions) {
     // is what makes the first view correct.
     if (!sceneId || !sceneReady.value || !hasMeasuredPanel) return;
 
-    if (!restoreViewportState(sceneId) && !focusSelectedDevice()) {
+    // Playback opens fitted to the scene regardless of any saved view or the
+    // vehicle's position: entering a recorded run, you want the whole scene in
+    // frame first, not the live "resume where I left off / hunt for the vehicle"
+    // behaviour.
+    if (preferFitView?.value) {
+      resetView();
+    } else if (!restoreViewportState(sceneId) && !focusSelectedDevice()) {
       resetView();
     }
 

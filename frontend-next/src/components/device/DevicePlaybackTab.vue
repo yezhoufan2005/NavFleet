@@ -427,6 +427,7 @@ const onScrub = (event: Event): void => {
           :scene-definition="sceneDefinition"
           :scene-devices="[]"
           :trails="trailsForMap"
+          initial-view="fit"
         />
 
         <div
