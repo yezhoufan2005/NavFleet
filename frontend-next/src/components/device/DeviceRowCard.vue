@@ -19,6 +19,7 @@
  */
 import { computed } from "vue";
 import { RouterLink } from "vue-router";
+import UiButton from "@/components/ui/UiButton.vue";
 import {
   controlModeMap,
   describeEnum,
@@ -174,13 +175,13 @@ const hiddenAlertCount = computed(() =>
         `selectedDeviceId`, so this is how someone lines up a vehicle in the list and
         then switches to the map to watch it move.
       -->
-      <button
-        type="button"
-        class="rounded-sm border border-border-strong px-2.5 py-1 text-xs text-ink-muted transition-colors duration-150 ease-standard hover:text-ink"
+      <UiButton
+        variant="secondary"
+        size="sm"
         @click="$emit('focus-on-map', device.deviceId)"
       >
         在地图上选中
-      </button>
+      </UiButton>
     </div>
   </div>
 </template>
