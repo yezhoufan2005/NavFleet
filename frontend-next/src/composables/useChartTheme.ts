@@ -40,13 +40,13 @@ export interface ChartPalette {
 
 const FALLBACK: ChartPalette = {
   series: ["#2a78d6", "#eb6834", "#1baf7a", "#eda100"],
-  grid: "#dbe5e6",
-  axis: "#95a5a7",
-  ink: "#182021",
-  inkMuted: "#4b5859",
+  grid: "#d1d9e0",
+  axis: "#8c959f",
+  ink: "#1f2328",
+  inkMuted: "#424a53",
   surface: "#ffffff",
-  tooltipBorder: "#dbe5e6",
-  status: { critical: "#b4232b", warning: "#a15c07", notice: "#1f5fbf" },
+  tooltipBorder: "#d1d9e0",
+  status: { critical: "#cf222e", warning: "#9a6700", notice: "#0969da" },
 };
 
 let probe: CanvasRenderingContext2D | null = null;

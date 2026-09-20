@@ -1,9 +1,10 @@
 #!/usr/bin/env python3
 """生成 Phase 11D 的设计系统预览页（docs/frontend-design-system-preview.html）。
 
-为什么生成而不是手写：72 个色阶值手写必然出现不均匀的台阶，而生成规则本身
-（明度阶梯固定、彩度向 500 阶两端线性收敛）就是这套色阶的设计说明 —— 改一个参数
-就能重算整条 ramp。语义层成对定义，所以深浅两套**不可能漏 key**。
+为什么仍由脚本产出而不是手写 CSS：预览页与线上 `ramp.css`/`semantic.css` 由**同一份数据**
+生成，所以预览页里那张对比度审计审的就是线上真正用的值，两者结构上无法漂移；语义层深浅
+成对定义，**不可能漏 key**。色阶值本身现在是字面量（照 GitHub Primer 的 Light/Dark default
+取值，见下方 RAMPS/SEMANTIC 注释），不再由 oklch 公式推导。
 
 模板用 __PLACEHOLDER__ 占位而不是 str.format：CSS 满是花括号，转义成 {{ }} 是上一版
 连续失败两次的原因。
@@ -17,78 +18,97 @@
 import subprocess
 from pathlib import Path
 
-STEPS = {
-    25: 0.985, 50: 0.970, 100: 0.940, 200: 0.880, 300: 0.800, 400: 0.710,
-    500: 0.630, 600: 0.550, 700: 0.460, 800: 0.300, 900: 0.220, 950: 0.150,
-}
-ORDER = list(STEPS)
+ORDER = [25, 50, 100, 200, 300, 400, 500, 600, 700, 800, 900, 950]
 
-# 焕新（Phase 现代化）：深色端整体压深，让 surface/sunken 更接近现代控制台的近黑，
-# 同时 raised 仍明显浮起。原值 800/900/950 = 0.37/0.28/0.20，改为 0.30/0.22/0.15：
-#   深色 surface(900) 0.28→0.22、sunken(950) 0.20→0.15、raised(800) 0.37→0.30。
-#   浅色仅 ink(900) 随之更黑（0.28→0.22，≈ #0F1A1E），文字对比只增不减；浅色表面不受影响。
-# 深色端压深只会抬高「浅字压深底」的对比，不会跌破 —— 预览页的 PAIRS 审计据此复核。
-
+# ── 色阶层：直接采用 GitHub Primer 的实际取值，不再用 oklch 公式推导 ──────────────
+#
+# 为什么不再自己生成：过去用「明度阶梯 + 彩度向 500 收敛」的公式凑色阶，好处是均匀，
+# 坏处是它永远只是「像」某个成熟系统，深浅两端的表面/文字/边框始终对不齐真实产品的手感
+# —— 反复微调仍停在「差一点」。本轮按用户要求**完全照 GitHub Primer 的 Light default /
+# Dark default 重来**：色阶与语义值都取 Primer 的字面量（primer/primitives），语义层再把
+# 它们映射到本项目的 token 名。
+#
+# **slate 是一条跨主题的中性阶**：浅色端（25–300）是 Primer 浅色的 canvas/border 灰，
+# 深色端（600–950）是 Primer **深色主题**的 canvas/border（#0d1117…#30363d，比浅色灰的
+# 暗端更黑）。这行得通是因为语义层里浅色 surface/border 只引用浅端、深色只引用深端，两组
+# 步值**互不重叠**（见 tokens.test 的 border≠surface 判定，它比对的是引用的步名）。
+# 需要跨主题冲突的那些（正文/品牌/状态色）在 SEMANTIC 里直接写**字面量**，不走 slate。
+#
+# 其余 5 条（indigo/blue/amber/rose/zinc）现在只作预览页的参考色板 —— 语义层已改字面量，
+# 不再 var() 引用它们；保留是为了在预览页展示 Primer 的 accent/success/attention/danger 阶。
 RAMPS = [
-    ("indigo", 255, 0.060, "品牌（克制蓝灰，非高饱和）"),
-    ("slate", 205, 0.020, "中性（带青绿偏色，不是纯灰）"),
-    ("blue", 250, 0.150, "notice"),
-    ("amber", 72, 0.140, "warning"),
-    ("rose", 16, 0.170, "critical"),
-    ("zinc", 235, 0.008, "offline / 禁用"),
+    ("indigo", {25: "#f2f8ff", 50: "#ddf4ff", 100: "#b6e3ff", 200: "#80ccff",
+                300: "#54aeff", 400: "#218bff", 500: "#0969da", 600: "#0550ae",
+                700: "#033d8b", 800: "#0a3069", 900: "#002155", 950: "#001129"},
+     "品牌 / accent（GitHub blue）"),
+    ("slate", {25: "#f6f8fa", 50: "#eaeef2", 100: "#d8dee4", 200: "#d1d9e0",
+               300: "#afb8c1", 400: "#8c959f", 500: "#6e7681", 600: "#484f58",
+               700: "#30363d", 800: "#161b22", 900: "#0d1117", 950: "#010409"},
+     "中性（浅端=Primer light 灰，深端=Primer dark canvas/border）"),
+    ("blue", {25: "#f2f8ff", 50: "#ddf4ff", 100: "#b6e3ff", 200: "#80ccff",
+              300: "#54aeff", 400: "#218bff", 500: "#0969da", 600: "#0550ae",
+              700: "#033d8b", 800: "#0a3069", 900: "#002155", 950: "#001129"},
+     "notice（同 accent，GitHub 信息蓝）"),
+    ("amber", {25: "#fffbe6", 50: "#fff8c5", 100: "#fae17d", 200: "#eac54f",
+               300: "#d4a72c", 400: "#bf8700", 500: "#9a6700", 600: "#7d4e00",
+               700: "#633c01", 800: "#4d2d00", 900: "#3b2300", 950: "#2a1800"},
+     "warning（GitHub attention/yellow）"),
+    ("rose", {25: "#fff5f4", 50: "#ffebe9", 100: "#ffcecb", 200: "#ffaba8",
+              300: "#ff8182", 400: "#fa4549", 500: "#cf222e", 600: "#a40e26",
+              700: "#82071e", 800: "#660018", 900: "#4c0014", 950: "#37000d"},
+     "critical（GitHub danger/red）"),
+    ("zinc", {25: "#f6f8fa", 50: "#eaeef2", 100: "#e4e8ec", 200: "#d0d7de",
+              300: "#afb8c1", 400: "#8c959f", 500: "#6e7781", 600: "#57606a",
+              700: "#424a53", 800: "#32383f", 900: "#24292f", 950: "#1c2128"},
+     "offline / 禁用（GitHub neutral 灰）"),
 ]
 
 SEMANTIC = [
-    ("surface", "slate-25", "slate-900"),
-    ("surface-raised", "white", "slate-800"),
-    ("surface-sunken", "slate-50", "slate-950"),
-    # 浅色正文用 slate-800（L0.30）而非 slate-900（L0.22）：焕新第 1 步把 900 压深以让
-    # 深色 surface 更黑，副作用是浅色正文变成近黑、偏硬。正文改指 800 与深色解耦——浅色
-    # 更柔和（深灰而非纯黑，对 surface 仍约 9:1），深色 surface 保持压深不变。
-    ("ink", "slate-800", "slate-50"),
-    # 深色侧原来是 300 / 400，被 12C 的 axe 审计打回：ink-subtle(slate-400) 落在
-    # surface-raised(slate-800) 上只有 4.06:1。整体上移一档 —— muted 300→200、
-    # subtle 400→300 —— 之后最差一组是 subtle on raised 5.58:1。
-    ("ink-muted", "slate-700", "slate-200"),
-    ("ink-subtle", "slate-600", "slate-300"),
-    # 深色侧原来是 800 / 700，而 surface-raised 也是 slate-800 —— border 与它所画在的
-    # 那层表面**同色**，对比度 1.00:1。人工检查报的是「深色模式下顶栏那条竖线看不到」，
-    # 而那条线只是最明显的症状：全站每一处 `border-border` + `bg-surface-raised` 的卡片
-    # 边框在深色下都是隐形的，只不过卡片还能靠自身填充（slate-800）与页面（slate-900）
-    # 的差别勉强分辨，画在同一层表面上的分隔线就彻底消失。
-    # 整体上移一档：border 800→700（对 raised 1.47:1）、strong 700→600（2.15:1）。
-    # 判定标准取 check-map-contrast.mjs 给装饰性参考线用的那条 ≥1.3:1 —— 边框正是这一类
-    # 结构性图形，不是文本。浅色侧 border 对 white 是 1.43:1，改完两个主题基本对称。
-    ("border", "slate-200", "slate-700"),
+    # 表面与边框走 slate 阶（var 引用）：浅色引浅端、深色引深端，两组步值不重叠，
+    # 所以 tokens.test 的 border≠surface（比对步名）恒成立。取值＝Primer 的
+    # canvas.default/subtle/inset 与 border.default，深色即 Primer Dark default。
+    ("surface", "slate-25", "slate-900"),  # canvas.subtle / dark canvas.default
+    ("surface-raised", "white", "slate-800"),  # 白卡浮起 / dark overlay(#161b22)
+    ("surface-sunken", "slate-50", "slate-950"),  # inset 灰 / dark canvas.inset
+    # 正文三级写字面量（不走 slate）：浅深两主题的文字明度需求相反，且与 border 共步会冲突。
+    # 浅色＝Primer fg.default 与两级更柔的灰；深色为满足本项目「subtle 落在 raised 上也要
+    # ≥4.5」比 Primer fg.muted/subtle 略提亮（subtle on raised：浅 5.67 / 深 5.09）。
+    ("ink", "#1f2328", "#e6edf3"),  # fg.default
+    ("ink-muted", "#424a53", "#9198a1"),
+    ("ink-subtle", "#59636e", "#848d97"),
+    ("border", "slate-200", "slate-700"),  # border.default / dark #30363d
     ("border-strong", "slate-300", "slate-600"),
-    # 遮罩。两个主题**故意取同一个值**：遮罩的作用是压暗下层，浅色主题下压暗、深色主题下
-    # 压亮是把它的语义反过来了 —— 12C 里第一版抽屉就是这么做的，深色下整块内容被"洗白"。
-    # 它总是带透明度使用（bg-scrim/55），所以不进按 4.5:1 判定的审计表。
-    ("scrim", "slate-950", "slate-950"),
-    # 焦点环。它是非文本 UI 组件，WCAG 1.4.11 要求 3:1 而不是 4.5:1，所以不进
-    # 下面那张按 4.5:1 判定的审计表 —— 混进去会用错的标准误报。
-    ("border-focus", "indigo-600", "indigo-400"),
-    ("brand", "indigo-700", "indigo-300"),
-    ("brand-hover", "indigo-800", "indigo-200"),
-    ("brand-contrast", "indigo-25", "indigo-950"),
-    ("brand-ink", "indigo-800", "indigo-200"),
-    ("brand-wash", "indigo-50", "indigo-900"),
-    ("notice", "blue-700", "blue-300"),
-    ("notice-contrast", "blue-25", "blue-950"),
-    ("notice-ink", "blue-800", "blue-200"),
-    ("notice-wash", "blue-50", "blue-900"),
-    ("warning", "amber-700", "amber-300"),
-    ("warning-contrast", "amber-25", "amber-950"),
-    ("warning-ink", "amber-800", "amber-200"),
-    ("warning-wash", "amber-50", "amber-900"),
-    ("critical", "rose-700", "rose-300"),
-    ("critical-contrast", "rose-25", "rose-950"),
-    ("critical-ink", "rose-800", "rose-200"),
-    ("critical-wash", "rose-50", "rose-900"),
-    ("offline", "zinc-600", "zinc-400"),
-    ("offline-contrast", "zinc-25", "zinc-950"),
-    ("offline-ink", "zinc-700", "zinc-300"),
-    ("offline-wash", "zinc-100", "zinc-800"),
+    # 遮罩：两个主题故意同值（压暗下层），带透明度使用，不进 4.5:1 审计表。
+    ("scrim", "#010409", "#010409"),
+    # 焦点环：非文本 UI（WCAG 1.4.11 只要 3:1），不进 4.5:1 审计表。accent.emphasis / dark accent.fg
+    ("border-focus", "#0969da", "#58a6ff"),
+    # 品牌＝GitHub accent（蓝）。实心用 emphasis（白字），链接/淡底文字用 fg。
+    ("brand", "#0969da", "#1f6feb"),  # accent.emphasis
+    ("brand-hover", "#0550ae", "#388bfd"),
+    ("brand-contrast", "#ffffff", "#ffffff"),
+    ("brand-ink", "#0969da", "#58a6ff"),  # accent.fg（链接）
+    ("brand-wash", "#ddf4ff", "#101d2e"),  # accent.subtle
+    # notice＝同一支 accent 蓝（GitHub 的信息态即 accent）。
+    ("notice", "#0969da", "#1f6feb"),
+    ("notice-contrast", "#ffffff", "#ffffff"),
+    ("notice-ink", "#0969da", "#58a6ff"),
+    ("notice-wash", "#ddf4ff", "#101d2e"),
+    # warning＝attention（金）。金色扛不住白字，所以深色实心用亮金 + 深字（warning-contrast
+    # 深色＝#1f2328），浅色实心用暗金 + 白字。这与旧设计「深色 warning 用浅底深字」同构。
+    ("warning", "#9a6700", "#d29922"),  # attention.fg / dark attention.fg
+    ("warning-contrast", "#ffffff", "#1f2328"),
+    ("warning-ink", "#9a6700", "#d29922"),
+    ("warning-wash", "#fff8c5", "#2a2009"),  # attention.subtle
+    # critical＝danger（红）。红能扛白字，两主题 contrast 都用白。
+    ("critical", "#cf222e", "#da3633"),  # danger.emphasis / dark danger.emphasis
+    ("critical-contrast", "#ffffff", "#ffffff"),
+    ("critical-ink", "#d1242f", "#f85149"),  # danger.fg / dark danger.fg
+    ("critical-wash", "#ffebe9", "#2b1416"),  # danger.subtle
+    # offline＝中性灰（neutral.emphasis）。
+    ("offline", "#6e7781", "#6e7681"),
+    ("offline-contrast", "#ffffff", "#ffffff"),
+    ("offline-ink", "#59636e", "#9198a1"),
+    ("offline-wash", "#eaeef2", "#21262d"),
 ]
 
 # ---------------------------------------------------------------------------
@@ -174,11 +194,12 @@ MAP_CLOUD_ALPHA = [
 # 改用 docs/tools/check-map-contrast.mjs 单独机检，两者判定标准不同（比例尺是内容，按
 # WCAG 1.4.11 的 3:1；网格是装饰参考线，只保 1.3:1 的可见性下限，理由见该脚本文件头）。
 #
-# 实测（该脚本输出）：grid 浅 1.59:1 / 深 1.84:1，scale 浅 4.12:1 / 深 10.26:1。
-# 深色网格原写 slate-700，实测 2.70:1 —— 比浅色显眼近一倍，同一元素在两套主题里轻重
-# 不一致。改 slate-800 后齐平。**这条是机检抓出来的，不是看出来的。**
+# 实测（该脚本输出，GitHub Primer 取值后重算）：grid 浅 1.72:1 / 深 1.85:1，
+# scale 浅 7.10:1 / 深 9.47:1。深色网格若沿用 slate-800（Primer dark 的 #161b22）会贴着
+# canvas(#071119) 只有 1.10:1、跌破 1.3 下限，故上移到 slate-600（#484f58）与浅色齐平。
+# **这条是机检抓出来的，不是看出来的。**
 MAP_FRAME = [
-    ("map-grid", "slate-300", "slate-800"),
+    ("map-grid", "slate-300", "slate-600"),
     ("map-scale", "slate-600", "slate-300"),
 ]
 
@@ -237,23 +258,29 @@ WALL_SCALE = [
 SPACING_STEPS = (1, 2, 3, 4, 5, 6, 8, 10, 12, 16)
 
 
-def chroma(peak, step):
-    """彩度在 500 阶达峰，向两端线性收敛 —— 浅色端不发灰、深色端不糊成一团。"""
-    return round(peak * (1 - 0.11 * abs(ORDER.index(step) - ORDER.index(500))), 4)
+def _is_literal(value):
+    """字面值（hex / rgb / oklch）直接输出；否则当作 ramp token 走 var()。"""
+    return value.startswith(("#", "rgb", "oklch", "hsl"))
+
+
+def _color_decl(token, value):
+    if _is_literal(value):
+        return f"    --color-{token}: {value};"
+    return f"    --color-{token}: var(--color-{value});"
 
 
 def ramp_css():
     out = []
-    for name, hue, peak, _ in RAMPS:
-        for step, light in STEPS.items():
-            out.append(f"    --color-{name}-{step}: oklch({light} {chroma(peak, step)} {hue});")
+    for name, scale, _ in RAMPS:
+        for step in ORDER:
+            out.append(f"    --color-{name}-{step}: {scale[step]};")
         out.append("")
     return "\n".join(out).rstrip()
 
 
 def semantic_css(index):
-    """语义层 + 图表层 + 地图层。前者引用 ramp token，字面值的那些见各自注释。"""
-    lines = [f"    --color-{r[0]}: var(--color-{r[index]});" for r in SEMANTIC]
+    """语义层 + 图表层 + 地图层。表面/边框走 ramp（var 引用），文字/品牌/状态色写字面量。"""
+    lines = [_color_decl(r[0], r[index]) for r in SEMANTIC]
     lines.append("")
     lines.append("    /* 图表：系列色为字面值，坐标轴/网格取自 ramp。 */")
     lines += [f"    --color-{r[0]}: {r[index]};" for r in CHART]
@@ -288,10 +315,10 @@ def map_chips():
 
 def ramp_rows():
     rows = []
-    for name, _, _, use in RAMPS:
+    for name, _, use in RAMPS:
         chips = "".join(
             f'<i style="background: var(--color-{name}-{s})" title="{name}-{s}"><em>{s}</em></i>'
-            for s in STEPS
+            for s in ORDER
         )
         rows.append(
             f'<div class="ramp"><div class="ramp-label"><b>{name}</b>'
@@ -365,7 +392,7 @@ def main():
         ("__WALL_ROWS__", wall_rows()),
         ("__SPACING_ROWS__", spacing_rows()),
         ("__RAMP_COUNT__", str(len(RAMPS))),
-        ("__STEP_COUNT__", str(len(STEPS))),
+        ("__STEP_COUNT__", str(len(ORDER))),
         ("__PAIR_COUNT__", str(len(PAIRS))),
         ("__SEMANTIC_COUNT__", str(len(SEMANTIC))),
     ):
@@ -383,7 +410,7 @@ def main():
     )
     html = OUTPUT.read_text(encoding="utf-8")
     print(f"已写出 {OUTPUT.relative_to(HERE.parent.parent)}（{len(html)} 字节，已 prettier 定型）")
-    print(f"  色阶 {len(RAMPS)} × {len(STEPS)} = {len(RAMPS) * len(STEPS)} 个值")
+    print(f"  色阶 {len(RAMPS)} × {len(ORDER)} = {len(RAMPS) * len(ORDER)} 个值")
     print(f"  语义 token {len(SEMANTIC)} 个 + 图表 {len(CHART) + len(CHART_FRAME)} 个"
           f" + 地图 {len(MAP) + len(MAP_FRAME)} 个 × 双主题成对定义")
     print(f"  待机检的对比度配对 {len(PAIRS)} 组")
@@ -408,9 +435,10 @@ RAMP_FILE = '''/* 由 docs/tools/gen-design-system-preview.py 生成，不要手
  * 原始层：与主题无关的刻度。进 @theme 所以 Tailwind 为它们生成工具类
  * （bg-indigo-600 / text-lg / p-4 / rounded-md / shadow-raised / ease-standard / 3xl:）。
  *
- * 色阶用 oklch 而非 hex，为的是明度阶梯在感知上均匀。注意一条 11D 用机检才发现的事：
- * 感知均匀**不等于** WCAG 亮度比达标 —— L 0.55 对 L 0.20 看着差很多，实测只有约 3.7:1。
- * 所以语义层的前景/背景配对必须单独验证，见 docs/frontend-design-system-preview.html。
+ * 色阶取 GitHub Primer（Light default 的浅端灰 + Dark default 的深端 canvas/border）的
+ * 字面量 hex，不再用 oklch 公式。感知是否均匀不再是这层的目标——目标是照抄成熟系统的手感；
+ * 而「明度差不等于 WCAG 亮度比达标」这条老教训仍然成立，所以语义层的前景/背景配对必须单独
+ * 验证，见 docs/frontend-design-system-preview.html 里那张实时算出的对比度审计。
  */
 @theme {
 __RAMPS__
