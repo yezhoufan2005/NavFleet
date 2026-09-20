@@ -148,6 +148,13 @@ export class Persistence {
    */
   private mongoWrites = 0;
   private mongoWriteFailures = 0;
+  /**
+   * Latency sink for successful Mongo writes (Phase 18). Late-bound: the metrics
+   * registry is built after this class in the composition root, so `createApp`
+   * calls `setWriteObserver(metrics.observeMongoWrite)` — the same wiring the
+   * notify-send histogram uses. Null until then (and in tests that do not set it).
+   */
+  private writeObserver: ((durationSeconds: number) => void) | null = null;
   // Bounded in-memory telemetry ring buffer, kept per device so history playback
   // and the /history endpoint work in local/dev runs where MongoDB is absent
   // (fulfils the "in-memory history fallback" the connect path already advertises).
@@ -847,11 +854,13 @@ export class Persistence {
 
   async writeLatestSnapshot(snapshot: DeviceSnapshot): Promise<void> {
     if (this.db) {
+      const start = Date.now();
       try {
         await this.db
           .collection<DeviceSnapshot>("device_latest")
           .updateOne({ deviceId: snapshot.deviceId }, { $set: snapshot }, { upsert: true });
         this.mongoWrites += 1;
+        this.writeObserver?.((Date.now() - start) / 1000);
       } catch (error) {
         this.mongoWriteFailures += 1;
         logger.warn(
@@ -902,8 +911,10 @@ export class Persistence {
     }
 
     try {
+      const start = Date.now();
       await this.db.collection<TelemetryDocument>("telemetry_ts").insertOne(document);
       this.mongoWrites += 1;
+      this.writeObserver?.((Date.now() - start) / 1000);
       if (this.pendingTelemetry.length) {
         await this.flushPendingTelemetry();
       }
@@ -945,6 +956,11 @@ export class Persistence {
     return { writes: this.mongoWrites, failures: this.mongoWriteFailures };
   }
 
+  /** Late-bind the successful-write latency sink (composition root, Phase 18). */
+  setWriteObserver(observe: (durationSeconds: number) => void): void {
+    this.writeObserver = observe;
+  }
+
   /**
    * Push whatever is buffered at MongoDB now. Public so the shutdown path can drain
    * before closing the connection, and so a timer can retry while a reconnect is
@@ -962,10 +978,12 @@ export class Persistence {
     const copy = [...this.pendingTelemetry];
     this.pendingTelemetry = [];
     try {
+      const start = Date.now();
       await this.db
         .collection<TelemetryDocument>("telemetry_ts")
         .insertMany(copy, { ordered: false });
       this.mongoWrites += 1;
+      this.writeObserver?.((Date.now() - start) / 1000);
     } catch (error) {
       this.mongoWriteFailures += 1;
       logger.warn({ err: error }, "Failed to flush buffered telemetry");
