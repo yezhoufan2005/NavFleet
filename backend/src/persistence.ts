@@ -138,6 +138,16 @@ export class Persistence {
    * must never take quietly. Exposed on `/metrics` and in the buffer's own warn line.
    */
   private droppedTelemetry = 0;
+  /**
+   * Mongo write operations that succeeded / failed against the driver (Phase 18).
+   * Counted per *operation* (one upsert, one insert, one flush batch), not per
+   * document. Until now a write that threw was warn-logged and — for telemetry —
+   * buffered, but nothing counted it: a database that accepts connections yet
+   * rejects every write (bad auth, disk full, a broken index) looked identical to
+   * a healthy one on `/metrics`. `navfleet_mongo_write_failures_total` is that gap.
+   */
+  private mongoWrites = 0;
+  private mongoWriteFailures = 0;
   // Bounded in-memory telemetry ring buffer, kept per device so history playback
   // and the /history endpoint work in local/dev runs where MongoDB is absent
   // (fulfils the "in-memory history fallback" the connect path already advertises).
@@ -841,7 +851,9 @@ export class Persistence {
         await this.db
           .collection<DeviceSnapshot>("device_latest")
           .updateOne({ deviceId: snapshot.deviceId }, { $set: snapshot }, { upsert: true });
+        this.mongoWrites += 1;
       } catch (error) {
+        this.mongoWriteFailures += 1;
         logger.warn(
           { err: error, deviceId: snapshot.deviceId },
           "Failed to upsert latest device snapshot",
@@ -891,10 +903,12 @@ export class Persistence {
 
     try {
       await this.db.collection<TelemetryDocument>("telemetry_ts").insertOne(document);
+      this.mongoWrites += 1;
       if (this.pendingTelemetry.length) {
         await this.flushPendingTelemetry();
       }
     } catch (error) {
+      this.mongoWriteFailures += 1;
       logger.warn(
         { err: error, deviceId: snapshot.deviceId },
         "Failed to write telemetry to MongoDB; buffering",
@@ -926,6 +940,11 @@ export class Persistence {
     };
   }
 
+  /** Cumulative Mongo write operations and failures, for `/metrics`. */
+  mongoWriteStats(): { writes: number; failures: number } {
+    return { writes: this.mongoWrites, failures: this.mongoWriteFailures };
+  }
+
   /**
    * Push whatever is buffered at MongoDB now. Public so the shutdown path can drain
    * before closing the connection, and so a timer can retry while a reconnect is
@@ -946,7 +965,9 @@ export class Persistence {
       await this.db
         .collection<TelemetryDocument>("telemetry_ts")
         .insertMany(copy, { ordered: false });
+      this.mongoWrites += 1;
     } catch (error) {
+      this.mongoWriteFailures += 1;
       logger.warn({ err: error }, "Failed to flush buffered telemetry");
       this.pendingTelemetry = [
         ...copy.slice(-config.mongoBufferLimit),

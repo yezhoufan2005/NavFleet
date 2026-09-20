@@ -64,6 +64,7 @@ store.on("event", (event: SocketEvent) => {
 });
 
 let wsClientCount = (): number => 0;
+let wsSlowBroadcasts = (): number => 0;
 const app = createApp({
   store,
   persistence,
@@ -73,6 +74,7 @@ const app = createApp({
   config,
   state,
   wsClientCount: () => wsClientCount(),
+  wsSlowBroadcasts: () => wsSlowBroadcasts(),
   collectDefaultMetrics: true,
 });
 
@@ -85,6 +87,7 @@ const wsBridge = createWebSocketBridge(
   (username, sessionId) => authService.isSessionActive(username, sessionId),
 );
 wsClientCount = wsBridge.clientCount;
+wsSlowBroadcasts = wsBridge.slowBroadcastCount;
 
 let shuttingDown = false;
 /**

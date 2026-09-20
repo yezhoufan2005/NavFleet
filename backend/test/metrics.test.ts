@@ -65,9 +65,12 @@ describe("metric exposition", () => {
       "navfleet_devices_online",
       "navfleet_alerts_active",
       "navfleet_ws_connections",
+      "navfleet_ws_broadcast_slow_total",
       "navfleet_mongo_connected",
       "navfleet_mongo_buffer_pending",
       "navfleet_mongo_buffer_dropped_total",
+      "navfleet_mongo_writes_total",
+      "navfleet_mongo_write_failures_total",
       "navfleet_mqtt_connected",
       "navfleet_mqtt_messages_total",
       "navfleet_mqtt_messages_rejected_total",
@@ -87,6 +90,8 @@ describe("metric exposition", () => {
     expect(body).toContain("# TYPE navfleet_mqtt_messages_rejected_total counter");
     expect(body).toContain("# TYPE navfleet_ingest_queue_dropped_total counter");
     expect(body).toContain("# TYPE navfleet_devices_evicted_total counter");
+    expect(body).toContain("# TYPE navfleet_mongo_write_failures_total counter");
+    expect(body).toContain("# TYPE navfleet_ws_broadcast_slow_total counter");
     expect(body).toContain("# TYPE navfleet_ingest_queue_depth gauge");
     expect(body).toContain("# TYPE navfleet_ws_connections gauge");
 
@@ -94,6 +99,24 @@ describe("metric exposition", () => {
     expect(samplesFor(body, "navfleet_ws_connections")).toEqual(["navfleet_ws_connections 3"]);
     expect(samplesFor(body, "navfleet_devices_total")).toEqual(["navfleet_devices_total 1"]);
     expect(samplesFor(body, "navfleet_mongo_connected")).toEqual(["navfleet_mongo_connected 0"]);
+  });
+
+  it("exposes the Phase 18 write-failure and slow-broadcast counters from live state", async () => {
+    // A database that is up but rejecting writes, and a WebSocket consumer that cannot
+    // keep up — both were invisible before these counters.
+    const { app, persistence } = createTestApp({ wsSlowBroadcasts: () => 4 });
+    persistence.mongoWriteStats.mockReturnValue({ writes: 128, failures: 7 });
+
+    const body = await scrape(app);
+    expect(samplesFor(body, "navfleet_mongo_writes_total")).toEqual([
+      "navfleet_mongo_writes_total 128",
+    ]);
+    expect(samplesFor(body, "navfleet_mongo_write_failures_total")).toEqual([
+      "navfleet_mongo_write_failures_total 7",
+    ]);
+    expect(samplesFor(body, "navfleet_ws_broadcast_slow_total")).toEqual([
+      "navfleet_ws_broadcast_slow_total 4",
+    ]);
   });
 
   it("reads live collaborator state at scrape time, not at startup", async () => {

@@ -193,6 +193,28 @@ beforeEach(() => {
   vi.restoreAllMocks();
 });
 
+describe("Mongo 写入计数（Phase 18）", () => {
+  it("成功写入累加 writes，抛错累加 failures", async () => {
+    const ok = createFakeDb();
+    persistence.__setDbForTests(ok.db);
+
+    await persistence.writeLatestSnapshot(snapshot("agv-1"));
+    await persistence.writeTelemetry(snapshot("agv-1"));
+    // One upsert + one insert, both accepted.
+    expect(persistence.mongoWriteStats()).toEqual({ writes: 2, failures: 0 });
+
+    // A database that accepts connections but rejects every write — the case the
+    // failure counter exists for. `navfleet_mongo_connected` would still read 1.
+    const bad = createFakeDb({}, { updateOne: true, insertOne: true });
+    persistence.__setDbForTests(bad.db);
+
+    await persistence.writeLatestSnapshot(snapshot("agv-2"));
+    await persistence.writeTelemetry(snapshot("agv-2"));
+    // Successes carry over unchanged; two new failures, both swallowed (telemetry buffered).
+    expect(persistence.mongoWriteStats()).toEqual({ writes: 2, failures: 2 });
+  });
+});
+
 describe("users 集合", () => {
   it("按 username 查询并把 _id 投影掉", async () => {
     const { db, calls } = createFakeDb({

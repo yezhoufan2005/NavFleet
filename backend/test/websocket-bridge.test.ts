@@ -317,6 +317,22 @@ describe("WebSocket broadcast", () => {
 
     expect(await received).toEqual(event);
   });
+
+  it("does not count a healthy, draining client as a slow broadcast", async () => {
+    // The slow-consumer counter (navfleet_ws_broadcast_slow_total) must not fire for a
+    // client that is keeping up — otherwise the signal is noise. A client whose buffer is
+    // over 1 MiB at send time is the only thing that trips it, which does not happen here.
+    const harness = await startBridge();
+    const client = authedConnect(harness);
+    await nextMessage(client);
+    expect(harness.bridge.slowBroadcastCount()).toBe(0);
+
+    const received = nextMessage(client);
+    harness.bridge.broadcast(event);
+    await received;
+
+    expect(harness.bridge.slowBroadcastCount()).toBe(0);
+  });
 });
 
 describe("WebSocket heartbeat", () => {

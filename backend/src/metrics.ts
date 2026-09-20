@@ -26,6 +26,8 @@ export interface MetricsDeps {
   persistence: Persistence;
   state: RuntimeState;
   wsClientCount: () => number;
+  /** Cumulative broadcasts that met a client with a backed-up send buffer. */
+  wsSlowBroadcasts: () => number;
   /**
    * Register `prom-client`'s process metrics (heap, event-loop lag, GC, fds).
    * Off by default: each call installs process-wide hooks (including a GC
@@ -108,6 +110,7 @@ export const createMetrics = ({
   persistence,
   state,
   wsClientCount,
+  wsSlowBroadcasts,
   collectDefault = false,
 }: MetricsDeps): Metrics => {
   const registry = new Registry();
@@ -161,6 +164,14 @@ export const createMetrics = ({
     numeric(store.buildSummary().alertCount),
   );
   gauge("navfleet_ws_connections", "Open WebSocket client connections", () => wsClientCount());
+  // A slow WebSocket consumer does not error — `ws` just queues frames in memory. This
+  // counter is the only signal that fan-out is outrunning a client before that queue
+  // becomes a memory problem. Observability only; the frame is still sent.
+  mirroredCounter(
+    "navfleet_ws_broadcast_slow_total",
+    "Broadcasts that met a client whose send buffer was over the slow threshold",
+    () => wsSlowBroadcasts(),
+  );
   gauge("navfleet_mongo_connected", "1 if MongoDB is connected", () =>
     persistence.isMongoConnected() ? 1 : 0,
   );
@@ -179,6 +190,19 @@ export const createMetrics = ({
     "navfleet_mongo_buffer_dropped_total",
     "Telemetry docs dropped because the write-behind buffer was full",
     () => persistence.telemetryBufferStats().dropped,
+  );
+  // Phase 18: writes that reached the driver, and the ones that threw. A failure rate
+  // climbing while `navfleet_mongo_connected` stays 1 is the signature of a database
+  // that is up but rejecting writes — invisible before these two existed.
+  mirroredCounter(
+    "navfleet_mongo_writes_total",
+    "MongoDB write operations that succeeded (upsert / insert / flush batch)",
+    () => persistence.mongoWriteStats().writes,
+  );
+  mirroredCounter(
+    "navfleet_mongo_write_failures_total",
+    "MongoDB write operations that threw against the driver",
+    () => persistence.mongoWriteStats().failures,
   );
   gauge("navfleet_mqtt_connected", "1 if the MQTT broker is connected", () =>
     state.mqttConnected ? 1 : 0,
