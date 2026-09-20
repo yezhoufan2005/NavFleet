@@ -239,22 +239,38 @@ describe("who needs attention", () => {
     expect(wrapper.text()).not.toContain("健康车");
   });
 
-  it("bounds the list to whole rows and scrolls the rest, like the formation panel", () => {
-    // 待处理项 must not stretch the page when several vehicles need attention: the list
-    // scrolls within a pinned height. Asserted against the source for the same reason the
-    // formation panel is — jsdom lays nothing out — and it uses a pinned row var rather
-    // than a round `max-h-*`, so the cap is a whole number of rows whatever a row holds.
+  it("lists every abnormal vehicle and scrolls, without capping the count", async () => {
+    // 待处理项 must not hide a vehicle that needs attention: every abnormal one is listed
+    // and the panel scrolls (查看全部设备 still leads to the full fleet). Six abnormal
+    // vehicles all appear — there is no five-row cap.
+    store.ingestPayload(
+      snapshot(
+        Array.from({ length: 6 }, (_unused, index) =>
+          device({
+            deviceId: `agv-${index + 1}`,
+            deviceName: `告警车 ${index + 1}`,
+            error_code: code(5102, "路径规划超时"),
+          }),
+        ),
+      ),
+      "api",
+    );
+    const wrapper = await mountPage();
+
+    const list = wrapper.find(
+      "section[aria-labelledby='attention-heading'] ul",
+    );
+    expect(list.findAll("li")).toHaveLength(6);
+    expect(list.classes()).toContain("overflow-y-auto");
+
+    // The height is capped in scoped CSS (jsdom lays nothing out), and rows keep their
+    // natural height — no `min-height` pin that would add trailing blank to a short row.
     const source = readFileSync(
       resolve(__dirname, "../src/views/OverviewView.vue"),
       "utf8",
     );
-    expect(source).toMatch(/class="attention-list[^"]*overflow-y-auto/);
-    expect(source).toMatch(
-      /\.attention-list \{[^}]*max-height:\s*calc\(4 \* var\(--attention-row\)/,
-    );
-    expect(source).toMatch(
-      /\.attention-list > li \{\s*min-height:\s*var\(--attention-row\)/,
-    );
+    expect(source).toMatch(/\.attention-list \{\s*max-height:/);
+    expect(source).not.toMatch(/\.attention-list > li \{\s*min-height/);
   });
 
   it("shows the reported code rather than a bare severity", async () => {
@@ -351,7 +367,7 @@ describe("who needs attention", () => {
     }
   });
 
-  it("caps the list and defers to the devices page", async () => {
+  it("lists all abnormal vehicles and still links to the full device page", async () => {
     store.ingestPayload(
       snapshot(
         Array.from({ length: 9 }, (_unused, index) =>
@@ -365,11 +381,13 @@ describe("who needs attention", () => {
     );
     const wrapper = await mountPage();
 
+    // No cap: every one of the nine abnormal vehicles is a row (the panel scrolls).
     expect(
       wrapper
         .find("section[aria-labelledby='attention-heading']")
         .findAll("li"),
-    ).toHaveLength(5);
+    ).toHaveLength(9);
+    // 查看全部设备 still leads to the whole fleet, including the healthy ones this omits.
     expect(wrapper.find("a[href='/devices']").exists()).toBe(true);
   });
 });
@@ -444,9 +462,9 @@ describe("formations", () => {
 
   it("keeps every formation on the list and scrolls, rather than capping the count", async () => {
     /*
-     * The distinction 14H drew, in the owner's words: 待处理项 caps at five *because* it has
-     * a 查看全部设备 link to defer to, and this panel has none — a formation that did not fit
-     * would simply be unreachable. So the cap is on the panel's height, not on the list.
+     * Both panels list everything and scroll rather than capping the count: a formation or
+     * an abnormal vehicle that did not fit would simply be unreachable. The cap is on each
+     * panel's height, not on its list.
      *
      * The height itself is asserted against the stylesheet below, because jsdom computes
      * no layout; what is behavioural, and therefore checked here, is that nothing is
