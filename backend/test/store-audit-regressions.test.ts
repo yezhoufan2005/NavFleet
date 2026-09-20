@@ -16,7 +16,6 @@ import { DEFAULT_ALERT_RULES } from "@navfleet/shared";
 const FLEET_CONFIG: FleetConfig = {
   fleetName: "audit-fleet",
   topicPattern: "/fleet/{deviceId}/vehicle_info",
-  defaultMapProfile: "lanelet",
   defaultGpsEnabled: true,
   defaultRosMapEnabled: true,
 };

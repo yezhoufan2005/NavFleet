@@ -53,7 +53,6 @@ const DEFAULT_FLEET_CONFIG: FleetConfig = {
   fleetName: "智能车队",
   topicPattern: "/fleet/{deviceId}/vehicle_info",
   defaultSceneId: "",
-  defaultMapProfile: "lanelet",
   defaultGpsEnabled: true,
   defaultRosMapEnabled: true,
 };
@@ -744,9 +743,6 @@ export class ConfigRegistry {
           y: Number(value.origin?.y),
           yaw: Number(value.origin?.yaw),
         },
-        occupiedThresh: value.occupiedThresh ?? 0.65,
-        freeThresh: value.freeThresh ?? 0.2,
-        negate: value.negate ?? 0,
         width: Number(value.width),
         height: Number(value.height),
         overlayType: value.overlayType ?? (value.overlayUrl ? "lanelet2" : undefined),
@@ -1087,7 +1083,6 @@ export class ConfigRegistry {
       defaultSceneId,
       runtimeSceneId,
       sceneId,
-      mapProfile: deviceConfig?.mapProfile || snapshot.mapProfile || fleetConfig.defaultMapProfile,
       gpsEnabled: deviceConfig?.gpsEnabled ?? snapshot.gpsEnabled ?? fleetConfig.defaultGpsEnabled,
       rosMapEnabled:
         deviceConfig?.rosMapEnabled ?? snapshot.rosMapEnabled ?? fleetConfig.defaultRosMapEnabled,

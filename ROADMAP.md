@@ -31,7 +31,7 @@ CI 全绿 → `--no-ff` 合并 → 回写本文件并记录自检结果。
 | **CI**         | 9 个 job：deploy-wiring、backend+shared×2（node 22/24）、frozen frontend×2、console×2、e2e、GitGuardian                                                                                                                                                                                                   |
 | **工程门禁**   | **P0-f 六批全部完成**（14X–14AB）。lint 全部 `--max-warnings 0` + type-aware；四份 tsconfig 严格开关对齐；eslint 10 / vitest 5；四个覆盖率门槛按 vitest 5 重定                                                                                                                                            |
 | **实测基线**   | 四个覆盖率门槛全部通过，余量一致地留 2–3 个百分点；E2E `retries: 0`                                                                                                                                                                                                                                       |
-| **下一步**     | **Phase 17D（象限 B 收尾 / 数据利用清零）已开工**，见下「剩余未完成任务总览」与 Phase 17D 小节。其后是 **Phase 18（交付成熟度收尾）**；按负责人 2026-09-09 定的顺序推进                                                                                                                                   |
+| **下一步**     | **Phase 17D（象限 B 收尾 / 数据利用清零）已完成**（2026-09-21，见 Phase 17D 小节，未单独发版）。下一步 **Phase 18（交付成熟度收尾）**；按负责人 2026-09-09 定的顺序推进                                                                                                                                   |
 
 **前端焕新已随 `v1.5.0` 发出（2026-09-21，tag `v1.5.0`）。** 它是负责人在 v1.4.0 之后临时点的题，实质是「最后三项」中「主题样式（P2）」的收口，外加一轮组件一致性与体感修复：
 
@@ -89,10 +89,6 @@ CI 全绿 → `--no-ff` 合并 → 回写本文件并记录自检结果。
 
 一处集中索引所有「已规划、未完成」的任务与后续规划；每项的细节仍在下方各阶段小节，这里只做汇总与排序，避免散在两千行里。
 
-### 正在进行
-
-- **Phase 17D — 象限 B 收尾（数据利用清零）**：v1.5.0 发版后按顺序推进的第一项，已开工。见下方 Phase 17D 小节。
-
 ### 已规划、未开工（按负责人 2026-09-09 定的顺序）
 
 - **Phase 18 — 交付成熟度收尾**（不单独发版，按需并入某个 minor）：设备接入向导（config 改文件 → UI + 校验 +
@@ -102,6 +98,9 @@ CI 全绿 → `--no-ff` 合并 → 回写本文件并记录自检结果。
 
 ### 已收口 / 已发版
 
+- ~~**Phase 17D — 象限 B 收尾（数据利用清零）**~~ → **已完成**（2026-09-21，未单独发版）。删掉 occupancy 三项 /
+  pointCloudMode / cell_values·counts / mapProfile 全链路 / extra.temperature·networkQuality；保留 vehicleModel（P1 种子）、
+  已消费字段与 metadataUrl（冻结前端仍读）。详见 Phase 17D 小节。
 - ~~**前端焕新 `v1.5.0`**~~ → **已发版**（2026-09-21，tag `v1.5.0`，PR #230 + README 重写 PR #231）。收口了「最后三项」里的「主题样式（P2）」。
 - ~~**「最后三项」（总览四张卡、主题样式、演示数据）**~~ → 已全部收口（2026-09-20，做完或定为不做），详见下面「最后三项 —— 已收口」一节。
 
@@ -121,7 +120,7 @@ CI 全绿 → `--no-ff` 合并 → 回写本文件并记录自检结果。
 ### 建议推进顺序
 
 1. ~~**`v1.5.0` 焕新**验收 → 合并 → 发版~~ ✅ **已发版（2026-09-21）**。
-2. **Phase 17D**（范围小，清一批「数据接了没人读」的欠账，收尾干净）—— **当前进行中**。
+2. ~~**Phase 17D**（范围小，清一批「数据接了没人读」的欠账，收尾干净）~~ ✅ **已完成（2026-09-21）**。
 3. **Phase 18**（交付成熟度，按生产 / 海外交付需求择要并入 minor）。
 4. **长期搁置四项**（P1 / 改名 / 告警区布局 / P0-f 那条），按负责人逐一点题再启动。
 
@@ -1777,16 +1776,35 @@ mapper（各自单测——一条 `$group` key 写错、median 取错元素、�
   勾选即钉 viewer、`submitForm` 再钉一次防漂移）。四视口×双主题 axe 全绿（含一处 `.wall-alert-meta` 在
   sunken 底上 ink-subtle 4.42:1 不达标 → 改 ink-muted）；first-load 未涨（未引入 ECharts，图表仍在懒 chunk）。
 
-### PR 17D — 象限 B 收尾
+### PR 17D — 象限 B 收尾 ✅ 完成（2026-09-21，未单独发版）
 
-- [ ] 把 Phase 13 未接完的"已有数据未利用"项清零，逐项对照第 2 条起点结论核销
-- [ ] 场景侧未消费配置的去留：`occupiedThresh` / `freeThresh` / `negate` / `mapFrame`（前后端各 0 消费点）、
-      `pointCloudMode`、点云 meta 的 `cell_values` / `counts`、`metadataUrl`（有消费代码但没有场景配置它）
-- [ ] `mapProfile` 的处置：解析→合并→下发后**无任何读取方**，且 `vehicles.json` 里写的 `"rosRaster"`
-      既不在 `MapProfile` 字面量内也不影响渲染（渲染实际由 scene 的 imageUrl/osmUrl/pointCloudUrl 决定）
-      —— 要么真正消费，要么删掉，不留半截
-- [x] ~~发版 **1.4.0**~~ —— **1.4.0 已随 17A–C 发出（2026-09-19）**，17D 未参与，故不再绑版本号；
-      本节剩余项在开工后按需并入某个 minor（同 Phase 18 的处理）
+> 先用子代理在全仓（backend / shared / fleet-core / frontend-next / config-runtime，排除冻结前端与测试）
+> 精确摸清每个字段的**生产方 vs 消费方**，再逐项决断——因为原清单写于一段时间前，部分字段已被接上或漂移，
+> 决断必须基于当前真相。负责人 2026-09-21 定「彻底清零」。
+
+- [x] **场景侧死配置删除**：`occupiedThresh` / `freeThresh` / `negate`（前后端各 0 消费点）与 `pointCloudMode`
+      （仅 `...value` 透传、无读取方）从 `SceneMapDefinition` 类型、`configRegistry` 归一化、`scenes.json` 全部 5 个
+      场景移除；点云 meta 的 `cell_values` / `counts`（连 `PointCloudMeta` 类型里都没有）从
+      `zhuangyi_indoor_map.json` 移除
+- [x] **`mapProfile` 全链路删除**：`MapProfile` 类型、`DeviceSnapshot.mapProfile`、`FleetConfig.defaultMapProfile`、
+      `DeviceConfig.mapProfile` 从 shared 移除；`normalize.ts` / `fleetNormalize.ts` 的解析+默认、`configRegistry`
+      的默认+合并、`fleet.json` 的 `defaultMapProfile`、`vehicles.json` 全部 23 台车的 `mapProfile` 一并删除。
+      渲染本就只看 scene 的 `imageUrl`/`osmUrl`/`pointCloudUrl`，删后行为零变化
+- [x] **遥测死透传删除**：`normalize.ts` 里 `extra.temperature` / `extra.networkQuality` 两处写入（均无读取方）删除
+- [x] **保留并记录的例外**：- `mapFrame`（管理/场景页有展示消费）、`tags`（后端告警 scope 路由 `alertRules.ts` 消费）、
+      `formation.description`（总览页展示）、`summary.gpsCount`（总览/大屏展示）—— 均**已被消费**，保留 - `vehicleModel`（持久化但未读）—— **保留**：ROADMAP P1-e 明确它是「多厂商/多车型适配」的天然入口，
+      是有意的种子，不在 17D 删除 - `metadataUrl`（DEAD-CONFIG：v3 有消费代码、无场景配置它）—— **本轮不动**：**冻结的 v1.0.0 前端仍在读它**
+      （`frontend/` 的 scene overlay），而冻结口径禁止改冻结代码；从 shared 删掉会打红冻结前端的 typecheck 门禁。
+      字段上加了注释说明，待冻结前端最终删除时一并清掉
+- [x] 文档同步：`deploy/docs/config-reference.md`（fleet/vehicle/scene 三处示例+字段表、pointCloudMode 说明）、
+      `ARCHITECTURE.md` §8 两处字段清单
+- [x] 自检：四 workspace typecheck（含 vue-tsc）/ lint / format 全过；backend 612 · fleet-core 168 · console 701
+      单测全绿；三份覆盖率门槛全过（删死码后不降）；build（首屏预算未破）；check:map-contrast · check:deploy 35/0；
+      **e2e 87/87 本机全过**
+
+> **一个开工时才浮现的约束，值得记**：原计划把 `metadataUrl` 也清掉，动手后 typecheck 立刻在**冻结前端**
+> 报红——它自己的 `useSceneOverlay` 仍读 `scene.metadataUrl`。冻结口径是「不改冻结代码」，所以 shared 里这个
+> 字段动不得。这正是「删一个共享字段前先问谁还在读」的实例：一个退役产物的 kept 门禁，反过来约束了共享层能删什么。
 
 ## Phase 18 — 交付成熟度收尾
 

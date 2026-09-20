@@ -39,7 +39,6 @@ class SlowPersistence {
 const FLEET_CONFIG: FleetConfig = {
   fleetName: "concurrency-fleet",
   topicPattern: "/fleet/{deviceId}/vehicle_info",
-  defaultMapProfile: "lanelet",
   defaultGpsEnabled: true,
   defaultRosMapEnabled: true,
 };

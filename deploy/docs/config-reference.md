@@ -64,7 +64,6 @@ config-runtime/
   "fleetName": "NavFleet",
   "topicPattern": "/fleet/{deviceId}/vehicle_info",
   "defaultSceneId": "kangcheng-airy",
-  "defaultMapProfile": "lanelet",
   "defaultGpsEnabled": true,
   "defaultRosMapEnabled": true
 }
@@ -77,23 +76,8 @@ config-runtime/
 | `fleetName`            | `string`  | 是   | 页面显示的车队名称         |
 | `topicPattern`         | `string`  | 是   | 页面展示用 MQTT topic 模板 |
 | `defaultSceneId`       | `string`  | 否   | 默认场景 ID                |
-| `defaultMapProfile`    | `string`  | 是   | 默认地图类型               |
 | `defaultGpsEnabled`    | `boolean` | 是   | 默认是否启用 GPS 视图      |
 | `defaultRosMapEnabled` | `boolean` | 是   | 默认是否启用场景地图       |
-
-常见 `defaultMapProfile`：
-
-- `lanelet`
-- `rosRaster`
-- `pointCloud`
-
-**这个字段目前没有任何读取方。** 场景渲染成什么，实际由该场景带的是 `imageUrl` /
-`osmUrl` / 还是 `pointCloudUrl` 决定；`mapProfile` 一路解析、合并、下发，然后没人读。
-留着是因为它已经在客户的 `vehicles.json` 里，删或者真正消费它是后续版本的决定。
-配了词表以外的值也不会报错 —— 会原样透传。
-
-（此前这里写的第三项是 `rosRaster+lanelet`，那个值在系统里**不存在**，而真正在用的
-`rosRaster` 反而没列。类型定义里犯了同一个错，且因为末尾有 `| string`，编译器从来指不出来。）
 
 ## 4. `vehicles.json`
 
@@ -107,7 +91,6 @@ config-runtime/
     "deviceId": "agv-a01",
     "deviceName": "A01 巡检车",
     "defaultSceneId": "kangcheng-airy",
-    "mapProfile": "lanelet",
     "gpsEnabled": true,
     "rosMapEnabled": true,
     "tags": ["巡检"]
@@ -122,7 +105,6 @@ config-runtime/
 | `deviceId`       | `string`   | 是   | 设备唯一 ID，必须和 MQTT topic 中的 `{deviceId}` 一致 |
 | `deviceName`     | `string`   | 是   | 页面显示名称                                          |
 | `defaultSceneId` | `string`   | 否   | 设备未上报场景时使用的场景                            |
-| `mapProfile`     | `string`   | 否   | 设备地图类型                                          |
 | `gpsEnabled`     | `boolean`  | 否   | 是否在 GPS 地图中显示                                 |
 | `rosMapEnabled`  | `boolean`  | 否   | 是否在场景地图中显示                                  |
 | `tags`           | `string[]` | 否   | 页面展示标签                                          |
@@ -185,9 +167,6 @@ config-runtime/
     "mapFrame": "map",
     "resolution": 1,
     "origin": { "x": 0, "y": 0, "yaw": 0 },
-    "occupiedThresh": 0.65,
-    "freeThresh": 0.2,
-    "negate": 0,
     "width": 1000,
     "height": 620,
     "bounds": { "minX": 0, "maxX": 74.007, "minY": 0, "maxY": 88.082 },
@@ -200,22 +179,19 @@ config-runtime/
 
 ### 6.2 通用字段
 
-| 字段             | 类型       | 必填 | 说明                             |
-| ---------------- | ---------- | ---- | -------------------------------- |
-| `sceneId`        | `string`   | 是   | 场景唯一 ID                      |
-| `sceneName`      | `string`   | 是   | 页面显示名称                     |
-| `mapFrame`       | `string`   | 是   | 坐标系名称，通常为 `map`         |
-| `resolution`     | `number`   | 是   | 地图分辨率                       |
-| `origin`         | `object`   | 是   | 世界坐标原点，含 `x`、`y`、`yaw` |
-| `occupiedThresh` | `number`   | 否   | ROS 栅格占用阈值                 |
-| `freeThresh`     | `number`   | 否   | ROS 栅格空闲阈值                 |
-| `negate`         | `0` 或 `1` | 否   | ROS 地图是否反色                 |
-| `width`          | `number`   | 是   | 地图画布宽度                     |
-| `height`         | `number`   | 是   | 地图画布高度                     |
-| `bounds`         | `object`   | 否   | 世界坐标边界                     |
-| `defaultView`    | `object`   | 否   | 默认视角                         |
-| `minZoom`        | `number`   | 否   | 最小缩放                         |
-| `maxZoom`        | `number`   | 否   | 最大缩放                         |
+| 字段          | 类型     | 必填 | 说明                             |
+| ------------- | -------- | ---- | -------------------------------- |
+| `sceneId`     | `string` | 是   | 场景唯一 ID                      |
+| `sceneName`   | `string` | 是   | 页面显示名称                     |
+| `mapFrame`    | `string` | 是   | 坐标系名称，通常为 `map`         |
+| `resolution`  | `number` | 是   | 地图分辨率                       |
+| `origin`      | `object` | 是   | 世界坐标原点，含 `x`、`y`、`yaw` |
+| `width`       | `number` | 是   | 地图画布宽度                     |
+| `height`      | `number` | 是   | 地图画布高度                     |
+| `bounds`      | `object` | 否   | 世界坐标边界                     |
+| `defaultView` | `object` | 否   | 默认视角                         |
+| `minZoom`     | `number` | 否   | 最小缩放                         |
+| `maxZoom`     | `number` | 否   | 最大缩放                         |
 
 `origin`：
 
@@ -294,7 +270,6 @@ config-runtime/scene-maps/kangcheng-airy/kangcheng_airy.osm
   "sceneName": "CloudPoint 点云地图示例",
   "pointCloudUrl": "/scene-maps/cloudpoint-demo/zhuangyi.pcd",
   "pointCloudMetaUrl": "/scene-maps/cloudpoint-demo/zhuangyi_indoor_map.json",
-  "pointCloudMode": "topdown",
   "mapFrame": "map",
   "resolution": 0.2,
   "origin": { "x": -106.62, "y": -59.16, "yaw": 0 },
@@ -307,7 +282,6 @@ config-runtime/scene-maps/kangcheng-airy/kangcheng_airy.osm
 
 - `pointCloudUrl`：PCD 文件路径。
 - `pointCloudMetaUrl`：点云元数据路径。
-- `pointCloudMode`：当前推荐 `topdown`。
 
 ### 6.6 从 CloudPoint 离线成果导入栅格场景
 
@@ -579,7 +553,6 @@ broker 已关闭匿名访问，所以这一组是**唯一没有安全默认值�
   "deviceId": "agv-x01",
   "deviceName": "X01 巡检车",
   "defaultSceneId": "kangcheng-airy",
-  "mapProfile": "lanelet",
   "gpsEnabled": true,
   "rosMapEnabled": true,
   "tags": ["巡检"]

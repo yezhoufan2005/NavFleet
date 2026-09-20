@@ -141,7 +141,6 @@ const snapshot = (deviceId: string, overrides: Partial<DeviceSnapshot> = {}): De
   sceneId: "scene-a",
   runtimeSceneId: "scene-a",
   defaultSceneId: "scene-a",
-  mapProfile: "lanelet",
   gpsEnabled: true,
   rosMapEnabled: true,
   tags: [],
