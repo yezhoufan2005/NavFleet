@@ -224,6 +224,28 @@ describe("installGlobalErrorHandlers", () => {
     expect(handled).toBe(false);
   });
 
+  it("does not raise a toast for the benign ResizeObserver loop notice", () => {
+    // Switching between 消息 and 告警史 re-measures ECharts/the map and the browser fires
+    // "ResizeObserver loop completed with undelivered notifications" — benign, nothing
+    // broken. It must not surface as「页面出现异常」. It arrives as the message string with
+    // no Error object, which is how the browser delivers this particular notice.
+    const { items } = useNotifications();
+    installGlobalErrorHandlers();
+
+    const handled = window.onerror?.call(
+      window,
+      "ResizeObserver loop completed with undelivered notifications.",
+      "app.js",
+      0,
+      0,
+      undefined,
+    );
+
+    expect(items).toHaveLength(0);
+    // Still "not handled", so the browser's own reporting is left untouched.
+    expect(handled).toBe(false);
+  });
+
   it("chains to a handler that was already installed", () => {
     const previous = vi.fn();
     window.onerror = previous;
