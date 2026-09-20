@@ -256,6 +256,9 @@ const MARKER = {
   arrowHeight: 30,
   arrowHalfWidth: 10,
   peerCore: 7,
+  // Laser localization is demoted to a small companion dot beside the primary puck,
+  // rather than a second full marker that read as a duplicate at high zoom.
+  lidarDot: 5,
 } as const;
 
 /**
@@ -357,9 +360,22 @@ const headingOf = (pose: Pose | null): number =>
 const selectedFusionAngle = computed(() =>
   headingOf(selectedDevice?.fusionLoc ?? null),
 );
-const selectedLidarAngle = computed(() =>
-  headingOf(selectedDevice?.lidarLoc ?? null),
+
+/** The selected vehicle's label, and a screen-px width estimate for its name pill. */
+const selectedDeviceName = computed(
+  () => selectedDevice?.deviceName || selectedDevice?.deviceId || "",
 );
+const selectedLabelWidth = computed(() => {
+  // No text metrics in an SVG attribute, so estimate: CJK glyphs are ~full-width at the
+  // label's 12px, latin/digits ~half. Good enough to size a pill that never clips.
+  let width = 0;
+  for (const char of selectedDeviceName.value) {
+    // Glyphs from U+3000 up (CJK ideographs and full-width punctuation) render about
+    // full-width at the label's 12px; latin letters and digits about half.
+    width += char.charCodeAt(0) >= 0x3000 ? 13 : 7.2;
+  }
+  return Math.ceil(width) + 20; // horizontal padding
+});
 
 const connectorPath = computed(() =>
   selectedFusionPoint.value && selectedLidarPoint.value
@@ -634,29 +650,19 @@ const screenInvariantTransform = computed(() => {
           )})`"
         >
           <g :transform="screenInvariantTransform">
+            <!--
+              A single navigation-style puck: one soft halo, a heading arrow, and the core
+              body. The pulse is a **sibling** of the core, not an ancestor —
+              `.ros-marker-core`'s screen box is an e2e contract (two specs measure its
+              centre against the panel centre) and SVG siblings do not affect each other's
+              boxes, whereas an animated transform on a wrapping `<g>` would scale it.
+              The second static ring is gone: with the halo it read as two overlapping
+              circles, which is the "两个圆重叠" report.
+            -->
             <g :transform="`rotate(${selectedFusionAngle})`">
-              <!--
-                The pulse, as a **sibling** of the core rather than anything wrapping it.
-                `.ros-marker-core`'s screen box is an e2e contract (two specs measure its
-                centre against the panel centre), and SVG siblings do not affect each
-                other's bounding boxes — whereas a `transform` animation on any ancestor
-                `<g>` would scale the core's box too. v1.0.0 pulsed `.ros-marker-ring`
-                with a keyframe that included `transform: scale(1.12)`, so porting it
-                verbatim onto a group is exactly the mistake available here.
-              -->
               <circle
                 class="ros-marker-pulse"
                 :r="MARKER.fusionRing"
-                vector-effect="non-scaling-stroke"
-              />
-              <circle
-                class="ros-marker-ring"
-                :r="MARKER.fusionRing"
-                vector-effect="non-scaling-stroke"
-              />
-              <circle
-                class="ros-marker-core"
-                :r="MARKER.fusionCore"
                 vector-effect="non-scaling-stroke"
               />
               <path
@@ -664,10 +670,40 @@ const screenInvariantTransform = computed(() => {
                 :d="buildArrowPath(MARKER.arrowHeight, MARKER.arrowHalfWidth)"
                 vector-effect="non-scaling-stroke"
               />
+              <circle
+                class="ros-marker-core"
+                :r="MARKER.fusionCore"
+                vector-effect="non-scaling-stroke"
+              />
+            </g>
+            <!--
+              Name pill, kept **upright** (outside the rotate group) so it never spins with
+              the heading — the way a navigation app labels the vehicle it is following.
+            -->
+            <g v-if="selectedDeviceName" class="ros-marker-label-group">
+              <rect
+                class="ros-marker-label-bg"
+                :x="-selectedLabelWidth / 2"
+                y="-56"
+                :width="selectedLabelWidth"
+                height="20"
+                rx="10"
+                ry="10"
+                vector-effect="non-scaling-stroke"
+              />
+              <text class="ros-marker-label" x="0" y="-46">
+                {{ selectedDeviceName }}
+              </text>
             </g>
           </g>
         </g>
 
+        <!--
+          Laser localization: a small companion dot beside the primary puck, tied to it by
+          the connector line above. It used to be a second full marker (ring + rotated
+          diamond + arrow) offset a few cm away, which at high zoom looked like a duplicate
+          vehicle rather than a second fix.
+        -->
         <g
           v-if="selectedLidarPoint"
           class="ros-marker lidar"
@@ -677,34 +713,11 @@ const screenInvariantTransform = computed(() => {
           )})`"
         >
           <g :transform="screenInvariantTransform">
-            <g :transform="`rotate(${selectedLidarAngle})`">
-              <circle
-                class="ros-marker-ring"
-                :r="MARKER.lidarRing"
-                vector-effect="non-scaling-stroke"
-              />
-              <rect
-                class="ros-marker-core"
-                :x="-MARKER.lidarCore"
-                :y="-MARKER.lidarCore"
-                :width="MARKER.lidarCore * 2"
-                :height="MARKER.lidarCore * 2"
-                rx="3"
-                ry="3"
-                transform="rotate(45)"
-                vector-effect="non-scaling-stroke"
-              />
-              <path
-                class="ros-marker-arrow"
-                :d="
-                  buildArrowPath(
-                    MARKER.arrowHeight * 0.92,
-                    MARKER.arrowHalfWidth * 0.92,
-                  )
-                "
-                vector-effect="non-scaling-stroke"
-              />
-            </g>
+            <circle
+              class="ros-marker-core"
+              :r="MARKER.lidarDot"
+              vector-effect="non-scaling-stroke"
+            />
           </g>
         </g>
       </g>
@@ -939,20 +952,12 @@ const screenInvariantTransform = computed(() => {
   border-bottom: 1px solid var(--color-map-scale);
 }
 
-.ros-marker-ring {
-  fill: none;
-  stroke: var(--color-brand);
-  stroke-width: 1.5;
-  opacity: 0.55;
-}
-
 /*
  * "This is the vehicle you picked, and it is live."
  *
- * The ROS map is the surface that needed this most: it has no per-vehicle selected style
- * at all beyond size and the arrow, so with the pulse gone the selection was carried by
- * geometry alone. Animating `r` and `opacity` on a dedicated circle keeps every other
- * shape's box untouched.
+ * One animated halo carries the selection now — the static ring beside it read as a second
+ * circle ("两个圆重叠"). Animating `r`/`opacity` on a dedicated circle keeps every other
+ * shape's box untouched (the core's screen box is an e2e contract).
  *
  * No `prefers-reduced-motion` block of its own — `styles/base.css:67-78` holds a global
  * `!important` kill switch inside `@layer base`, which outranks unlayered component
@@ -963,9 +968,6 @@ const screenInvariantTransform = computed(() => {
   stroke: var(--color-brand);
   stroke-width: 2;
   animation: ros-pulse 2.2s ease-in-out infinite;
-}
-.ros-marker.lidar .ros-marker-pulse {
-  stroke: var(--color-notice);
 }
 
 @keyframes ros-pulse {
@@ -984,20 +986,40 @@ const screenInvariantTransform = computed(() => {
   stroke: var(--color-surface-raised);
   stroke-width: 2;
 }
+/*
+ * A white edge keeps the heading arrow legible on any backdrop — lanelet, point cloud or
+ * floor plan — the way a navigation app's vehicle arrow always carries a light outline.
+ */
 .ros-marker-arrow {
   fill: var(--color-brand);
-  opacity: 0.85;
+  stroke: var(--color-surface-raised);
+  stroke-width: 1.5;
+  stroke-linejoin: round;
+  paint-order: stroke;
 }
-.ros-marker.lidar .ros-marker-ring,
-.ros-marker.lidar .ros-marker-arrow {
-  stroke: var(--color-notice);
-  fill: none;
-}
-.ros-marker.lidar .ros-marker-arrow {
-  fill: var(--color-notice);
-}
+/* Laser fix: the demoted companion dot, in the notice hue with the same light edge. */
 .ros-marker.lidar .ros-marker-core {
   fill: var(--color-notice);
+}
+
+/*
+ * The name pill: an upright, screen-invariant label like a navigation app's, legible over
+ * any backdrop via a translucent raised-surface chip with a hairline border.
+ */
+.ros-marker-label-group {
+  pointer-events: none;
+}
+.ros-marker-label-bg {
+  fill: color-mix(in oklch, var(--color-surface-raised) 90%, transparent);
+  stroke: var(--color-border-strong);
+  stroke-width: 1;
+}
+.ros-marker-label {
+  fill: var(--color-ink);
+  font-size: 12px;
+  font-weight: 600;
+  text-anchor: middle;
+  dominant-baseline: middle;
 }
 
 /*
