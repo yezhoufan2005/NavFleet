@@ -28,6 +28,7 @@ import PageHeader from "@/components/PageHeader.vue";
 import UiButton from "@/components/ui/UiButton.vue";
 import UiSelect from "@/components/ui/UiSelect.vue";
 import UiConfirmDialog from "@/components/ui/UiConfirmDialog.vue";
+import { tableClasses } from "@/lib/uiClasses";
 import { notify } from "@/composables/useNotifications";
 
 const ROLE_LABELS: Record<UserRoleName, string> = {
@@ -306,16 +307,16 @@ const formatTime = (iso: string | null): string =>
     </p>
     <div
       v-else
-      class="overflow-auto rounded-sm border border-border"
+      :class="[tableClasses.wrapper, 'overflow-auto']"
       tabindex="0"
       role="region"
       aria-label="用户列表"
     >
-      <table class="w-full border-collapse text-left text-sm">
+      <table :class="tableClasses.table">
         <caption class="sr-only">
           账号、角色、状态与管理操作
         </caption>
-        <thead class="bg-surface-sunken text-2xs text-ink-muted uppercase">
+        <thead :class="tableClasses.thead">
           <tr>
             <th scope="col" class="px-3 py-2">用户名</th>
             <th scope="col" class="px-3 py-2">角色</th>
@@ -326,7 +327,7 @@ const formatTime = (iso: string | null): string =>
         </thead>
         <tbody>
           <template v-for="user in users" :key="user.username">
-            <tr class="border-t border-border">
+            <tr :class="tableClasses.row">
               <th scope="row" class="px-3 py-2 font-medium text-ink">
                 {{ user.username }}
                 <span
@@ -384,7 +385,7 @@ const formatTime = (iso: string | null): string =>
             <!-- USERS_SESSIONS_ROW_PLACEHOLDER -->
             <tr
               v-if="sessionsFor === user.username"
-              class="border-t border-border bg-surface-sunken"
+              :class="[tableClasses.row, 'bg-surface-sunken']"
             >
               <td colspan="5" class="px-3 py-3">
                 <p

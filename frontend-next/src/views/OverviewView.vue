@@ -313,9 +313,7 @@ const alertRows = computed(() =>
       </article>
     </div>
 
-    <div
-      class="grid min-h-0 items-start gap-4 xl:grid-cols-[minmax(0,2fr)_minmax(0,1fr)]"
-    >
+    <div class="grid min-h-0 gap-4 xl:grid-cols-[minmax(0,2fr)_minmax(0,1fr)]">
       <section
         class="flex min-h-0 flex-col gap-3 rounded-md border border-border bg-surface-raised p-4"
         aria-labelledby="attention-heading"
@@ -350,14 +348,16 @@ const alertRows = computed(() =>
         </p>
 
         <!--
-          Every abnormal vehicle is listed; the list scrolls within a max-height so it
-          never grows the page. Rows keep their natural height and `gap-1` (no `min-height`
-          pin), so nothing gains trailing blank; `-mx-2 px-2` gives the scrollbar and focus
-          rings room without shifting the rows.
+          Every abnormal vehicle is listed; the list flexes to fill the card and scrolls
+          past that. `flex-1 min-h-0` makes it grow to the panel's height so this card's
+          bottom lines up with 编队情况 beside it (equal-height columns), while `min-h-0` +
+          `overflow-y-auto` let a long list scroll instead of growing the page. Rows keep
+          their natural height and `gap-1` (no `min-height` pin), so nothing gains trailing
+          blank; `-mx-2 px-2` gives the scrollbar and focus rings room without shifting rows.
         -->
         <ul
           v-else
-          class="attention-list m-0 -mx-2 flex list-none flex-col gap-1 overflow-y-auto px-2 py-0"
+          class="attention-list m-0 -mx-2 flex min-h-0 flex-1 list-none flex-col gap-1 overflow-y-auto px-2 py-0"
         >
           <li v-for="row in attention" :key="row.device.deviceId">
             <RouterLink
@@ -581,16 +581,5 @@ const alertRows = computed(() =>
 
 .formation-list > li {
   min-height: var(--formation-row);
-}
-
-/*
- * 待处理项 lists every abnormal vehicle and scrolls, so a bad shift never hides a row and
- * never grows the page. The rows keep their natural height and `gap-1` spacing — no pinned
- * row and no `min-height`, which is what「保留之前的上下距」asks and what stops a short row
- * carrying trailing blank. Only a max-height and overflow are added; with few rows the list
- * is simply that tall, so there is no reserved empty space beneath them.
- */
-.attention-list {
-  max-height: 16rem;
 }
 </style>

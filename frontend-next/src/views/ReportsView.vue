@@ -14,6 +14,8 @@
 import { computed, onMounted, ref, watch } from "vue";
 import { RouterLink, useRoute, useRouter } from "vue-router";
 import PageHeader from "@/components/PageHeader.vue";
+import UiButton from "@/components/ui/UiButton.vue";
+import UiInput from "@/components/ui/UiInput.vue";
 import UiSelect from "@/components/ui/UiSelect.vue";
 import TimeSeriesChart from "@/components/charts/TimeSeriesChart.vue";
 import CategoryBarChart from "@/components/charts/CategoryBarChart.vue";
@@ -46,9 +48,6 @@ const BUCKETS: readonly { value: ReportBucketUnit; label: string }[] = [
   { value: "day", label: "按天" },
   { value: "month", label: "按月" },
 ];
-/** Date inputs share the audit page's field styling so the controls line up across pages. */
-const DATE_INPUT_CLASS =
-  "h-7 rounded-sm border border-border-strong bg-surface px-2 text-xs text-ink";
 const SEVERITY_LABELS = {
   critical: "告警",
   warning: "预警",
@@ -277,32 +276,28 @@ const exportCsv = (): void => {
       <!-- 自定义起止：与预设是同一控件的两种形态，选日期即接管，选预设即清空。起 ≤ 止 由
            原生 min/max 约束，另在 isCustom 里兜底。 -->
       <label class="flex flex-col gap-1">
-        <span class="font-mono text-2xs text-ink-subtle">起</span>
-        <input
+        <span class="text-2xs text-ink-muted">起</span>
+        <UiInput
           type="date"
-          :class="DATE_INPUT_CLASS"
-          :value="customFrom"
+          :model-value="customFrom"
           :max="customTo || undefined"
           aria-label="自定义起始日期"
-          @change="
-            setCustom({ from: ($event.target as HTMLInputElement).value })
-          "
+          @update:model-value="(value) => setCustom({ from: value })"
         />
       </label>
       <label class="flex flex-col gap-1">
-        <span class="font-mono text-2xs text-ink-subtle">止</span>
-        <input
+        <span class="text-2xs text-ink-muted">止</span>
+        <UiInput
           type="date"
-          :class="DATE_INPUT_CLASS"
-          :value="customTo"
+          :model-value="customTo"
           :min="customFrom || undefined"
           aria-label="自定义结束日期"
-          @change="setCustom({ to: ($event.target as HTMLInputElement).value })"
+          @update:model-value="(value) => setCustom({ to: value })"
         />
       </label>
 
       <label class="flex flex-col gap-1">
-        <span class="font-mono text-2xs text-ink-subtle">粒度</span>
+        <span class="text-2xs text-ink-muted">粒度</span>
         <UiSelect
           :model-value="bucket"
           :options="BUCKETS"
@@ -312,7 +307,7 @@ const exportCsv = (): void => {
       </label>
 
       <label class="flex flex-col gap-1">
-        <span class="font-mono text-2xs text-ink-subtle">设备</span>
+        <span class="text-2xs text-ink-muted">设备</span>
         <UiSelect
           :model-value="deviceFilter"
           :options="[{ value: '', label: '全部设备' }, ...deviceOptions]"
@@ -321,14 +316,15 @@ const exportCsv = (): void => {
         />
       </label>
 
-      <button
-        type="button"
-        class="ml-auto rounded-sm border border-border-strong bg-surface-raised px-3 py-1 text-xs text-ink-muted transition-colors duration-150 ease-standard hover:text-ink disabled:cursor-not-allowed disabled:opacity-50"
+      <UiButton
+        variant="secondary"
+        size="sm"
+        class="ml-auto"
         :disabled="status !== 'ready' || !hasAvailabilityData"
         @click="exportCsv"
       >
         导出 CSV ↗
-      </button>
+      </UiButton>
     </div>
 
     <!-- Loading: a skeleton in the shape of the result (KPI band + two chart columns) rather

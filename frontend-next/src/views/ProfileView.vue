@@ -13,6 +13,7 @@ import type { SessionRecordView } from "@navfleet/fleet-core";
 import PageHeader from "@/components/PageHeader.vue";
 import UiButton from "@/components/ui/UiButton.vue";
 import UiConfirmDialog from "@/components/ui/UiConfirmDialog.vue";
+import { tableClasses } from "@/lib/uiClasses";
 import { useAuth } from "@/composables/useAuth";
 import { notify } from "@/composables/useNotifications";
 
@@ -207,16 +208,16 @@ const formatTime = (iso: string): string =>
       </p>
       <div
         v-else
-        class="overflow-auto rounded-sm border border-border"
+        :class="[tableClasses.wrapper, 'overflow-auto']"
         tabindex="0"
         role="region"
         aria-label="我的会话列表"
       >
-        <table class="w-full border-collapse text-left text-sm">
+        <table :class="tableClasses.table">
           <caption class="sr-only">
             当前账号的活跃登录会话
           </caption>
-          <thead class="bg-surface-sunken text-2xs text-ink-muted uppercase">
+          <thead :class="tableClasses.thead">
             <tr>
               <th scope="col" class="px-3 py-2">设备</th>
               <th scope="col" class="px-3 py-2">IP</th>
@@ -229,7 +230,7 @@ const formatTime = (iso: string): string =>
             <tr
               v-for="s in sessions"
               :key="s.sessionId"
-              class="border-t border-border"
+              :class="tableClasses.row"
             >
               <td class="px-3 py-2 text-ink">
                 <span class="block max-w-64 truncate">{{

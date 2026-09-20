@@ -31,6 +31,7 @@
 import { computed, onMounted, ref } from "vue";
 import PageHeader from "@/components/PageHeader.vue";
 import UiButton from "@/components/ui/UiButton.vue";
+import { tableClasses } from "@/lib/uiClasses";
 import { useFleetStore } from "@/stores/fleet";
 import { formatDateTime } from "@navfleet/fleet-core";
 import {
@@ -433,12 +434,12 @@ const AREA_LABELS: Record<StoredEntry["area"], string> = {
            reached from a keyboard at all. -->
       <div
         v-else
-        class="overflow-auto rounded-sm border border-border"
+        :class="[tableClasses.wrapper, 'overflow-auto']"
         tabindex="0"
         role="region"
         aria-label="本浏览器留存的数据"
       >
-        <table class="w-full border-collapse text-left text-sm">
+        <table :class="tableClasses.table">
           <caption class="sr-only">
             本浏览器留存的 NavFleet 数据，共
             {{
@@ -446,12 +447,12 @@ const AREA_LABELS: Record<StoredEntry["area"], string> = {
             }}
             项
           </caption>
-          <thead class="bg-surface-sunken text-2xs text-ink-muted uppercase">
+          <thead :class="tableClasses.thead">
             <tr>
-              <th scope="col" class="px-3 py-2 font-medium">项目</th>
-              <th scope="col" class="px-3 py-2 font-medium">存续</th>
-              <th scope="col" class="px-3 py-2 font-medium">值</th>
-              <th scope="col" class="px-3 py-2 font-medium">
+              <th scope="col" class="px-3 py-2">项目</th>
+              <th scope="col" class="px-3 py-2">存续</th>
+              <th scope="col" class="px-3 py-2">值</th>
+              <th scope="col" class="px-3 py-2">
                 <span class="sr-only">操作</span>
               </th>
             </tr>
@@ -460,7 +461,7 @@ const AREA_LABELS: Record<StoredEntry["area"], string> = {
             <tr
               v-for="entry in stored"
               :key="entry.key"
-              class="border-t border-border"
+              :class="tableClasses.row"
             >
               <th scope="row" class="px-3 py-1.5 font-normal">
                 <span class="block text-sm text-ink">{{ entry.label }}</span>
