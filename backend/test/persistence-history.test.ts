@@ -12,7 +12,6 @@ function sample(deviceId: string, stamp: string, x: number): DeviceSnapshot {
     sceneId: "",
     runtimeSceneId: "",
     defaultSceneId: "",
-    mapProfile: "lanelet",
     gpsEnabled: true,
     rosMapEnabled: true,
     tags: [],

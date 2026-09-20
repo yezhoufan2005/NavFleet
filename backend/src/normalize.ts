@@ -173,7 +173,6 @@ const createDefaultDevice = (deviceId: string): DeviceSnapshot => ({
   sceneId: "",
   runtimeSceneId: "",
   defaultSceneId: "",
-  mapProfile: "lanelet",
   gpsEnabled: true,
   rosMapEnabled: true,
   tags: [],
@@ -363,7 +362,6 @@ export const normalizeDevice = (
     sceneId: runtimeSceneId || existingDevice?.sceneId || "",
     runtimeSceneId,
     defaultSceneId: asText(raw.defaultSceneId || existingDevice?.defaultSceneId || ""),
-    mapProfile: asText(raw.mapProfile || existingDevice?.mapProfile || "lanelet"),
     gpsEnabled:
       typeof raw.gpsEnabled === "boolean" ? raw.gpsEnabled : (existingDevice?.gpsEnabled ?? true),
     rosMapEnabled:
@@ -444,12 +442,6 @@ export const normalizeDevice = (
     snapshot.fusionLoc = { ...snapshot.lidarLoc };
   }
 
-  if (raw.temperature !== undefined) {
-    snapshot.extra.temperature = raw.temperature;
-  }
-  if (raw.networkQuality !== undefined) {
-    snapshot.extra.networkQuality = raw.networkQuality;
-  }
   if (raw.vehicleModel !== undefined) {
     snapshot.extra.vehicleModel = raw.vehicleModel;
   }

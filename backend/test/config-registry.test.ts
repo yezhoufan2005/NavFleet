@@ -19,11 +19,6 @@ const DEFAULT_FLEET: FleetConfig = {
   fleetName: "临时车队",
   topicPattern: "/tmp/{deviceId}/vehicle_info",
   defaultSceneId: "scene-a",
-  // Deliberately **not** one of `MapProfile`'s named values: the registry passes any
-  // string through, and this asserts that. If it ever gets "corrected" to `rosRaster`,
-  // the open-endedness stops being covered — which is how the value ended up in the
-  // union itself, where it did not belong.
-  defaultMapProfile: "rosRaster+lanelet",
   defaultGpsEnabled: false,
   defaultRosMapEnabled: true,
 };
@@ -34,7 +29,6 @@ const DEFAULT_VEHICLES = [
     deviceName: "临时车 1",
     tags: ["a", "b"],
     gpsEnabled: false,
-    mapProfile: "pointCloud",
   },
   { deviceId: "agv-2" },
 ];
@@ -176,7 +170,6 @@ describe("ConfigRegistry.load", () => {
       ...sampleDevice(),
       deviceId: "agv-1",
       deviceName: "",
-      mapProfile: "",
       tags: [],
       formationIds: [],
       runtimeSceneId: "",
@@ -194,10 +187,6 @@ describe("ConfigRegistry.load", () => {
     // Device config wins over the reported snapshot value, which in turn wins
     // over the fleet-wide default.
     expect(applied.gpsEnabled).toBe(false);
-    expect(applied.mapProfile).toBe("pointCloud");
-    expect(registry.applyDeviceConfig({ ...raw, deviceId: "agv-2" }).mapProfile).toBe(
-      "rosRaster+lanelet",
-    );
 
     const [formation] = registry.buildFormationSnapshots([applied]);
     expect(formation).toMatchObject({

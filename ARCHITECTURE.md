@@ -465,7 +465,6 @@ config-runtime/
 - `fleetName`
 - `topicPattern`
 - `defaultSceneId`
-- `defaultMapProfile`
 - `defaultGpsEnabled`
 - `defaultRosMapEnabled`
 
@@ -476,7 +475,6 @@ config-runtime/
 - `deviceId`
 - `deviceName`
 - `defaultSceneId`
-- `mapProfile`
 - `gpsEnabled`
 - `rosMapEnabled`
 - `tags`

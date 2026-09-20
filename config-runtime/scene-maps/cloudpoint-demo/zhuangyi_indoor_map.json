@@ -16,17 +16,5 @@
   "obstacle_band": {
     "min_z": 0.9260469950735569,
     "max_z": 2.326046995073557
-  },
-  "cell_values": {
-    "free": 0,
-    "unknown": 50,
-    "occupied": 100,
-    "unseen": -1
-  },
-  "counts": {
-    "free": 12869,
-    "unknown": 23855,
-    "occupied": 20116,
-    "unseen": 336868
   }
 }

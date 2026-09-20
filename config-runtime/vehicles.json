@@ -3,7 +3,6 @@
     "deviceId": "agv-a01",
     "deviceName": "A01 巡检车",
     "defaultSceneId": "kangcheng-airy",
-    "mapProfile": "lanelet",
     "gpsEnabled": true,
     "rosMapEnabled": true,
     "tags": ["巡检", "室外"]
@@ -12,7 +11,6 @@
     "deviceId": "agv-a02",
     "deviceName": "A02 巡检车",
     "defaultSceneId": "kangcheng-airy",
-    "mapProfile": "lanelet",
     "gpsEnabled": true,
     "rosMapEnabled": true,
     "tags": ["巡检", "室外"]
@@ -21,7 +19,6 @@
     "deviceId": "agv-a03",
     "deviceName": "A03 巡检车",
     "defaultSceneId": "kangcheng-airy",
-    "mapProfile": "lanelet",
     "gpsEnabled": true,
     "rosMapEnabled": true,
     "tags": ["巡检", "室外"]
@@ -30,7 +27,6 @@
     "deviceId": "agv-a04",
     "deviceName": "A04 巡检车",
     "defaultSceneId": "kangcheng-airy",
-    "mapProfile": "lanelet",
     "gpsEnabled": true,
     "rosMapEnabled": true,
     "tags": ["巡检", "室外"]
@@ -39,7 +35,6 @@
     "deviceId": "agv-a05",
     "deviceName": "A05 巡检车",
     "defaultSceneId": "kangcheng-airy",
-    "mapProfile": "lanelet",
     "gpsEnabled": true,
     "rosMapEnabled": true,
     "tags": ["巡检", "室外"]
@@ -48,7 +43,6 @@
     "deviceId": "agv-a06",
     "deviceName": "A06 巡检车",
     "defaultSceneId": "kangcheng-airy",
-    "mapProfile": "lanelet",
     "gpsEnabled": true,
     "rosMapEnabled": true,
     "tags": ["巡检", "室外"]
@@ -57,7 +51,6 @@
     "deviceId": "agv-w01",
     "deviceName": "W01 搬运车",
     "defaultSceneId": "warehouse-a",
-    "mapProfile": "rosRaster",
     "gpsEnabled": false,
     "rosMapEnabled": true,
     "tags": ["仓储", "室内"]
@@ -66,7 +59,6 @@
     "deviceId": "agv-w02",
     "deviceName": "W02 搬运车",
     "defaultSceneId": "warehouse-a",
-    "mapProfile": "rosRaster",
     "gpsEnabled": false,
     "rosMapEnabled": true,
     "tags": ["仓储", "室内"]
@@ -75,7 +67,6 @@
     "deviceId": "agv-w03",
     "deviceName": "W03 搬运车",
     "defaultSceneId": "warehouse-a",
-    "mapProfile": "rosRaster",
     "gpsEnabled": false,
     "rosMapEnabled": true,
     "tags": ["仓储", "室内"]
@@ -84,7 +75,6 @@
     "deviceId": "agv-w04",
     "deviceName": "W04 搬运车",
     "defaultSceneId": "warehouse-a",
-    "mapProfile": "rosRaster",
     "gpsEnabled": false,
     "rosMapEnabled": true,
     "tags": ["仓储", "室内"]
@@ -93,7 +83,6 @@
     "deviceId": "agv-w05",
     "deviceName": "W05 搬运车",
     "defaultSceneId": "warehouse-a",
-    "mapProfile": "rosRaster",
     "gpsEnabled": false,
     "rosMapEnabled": true,
     "tags": ["仓储", "室内"]
@@ -102,7 +91,6 @@
     "deviceId": "agv-w06",
     "deviceName": "W06 搬运车",
     "defaultSceneId": "warehouse-a",
-    "mapProfile": "rosRaster",
     "gpsEnabled": false,
     "rosMapEnabled": true,
     "tags": ["仓储", "室内"]
@@ -111,7 +99,6 @@
     "deviceId": "agv-y01",
     "deviceName": "Y01 牵引车",
     "defaultSceneId": "yard-north",
-    "mapProfile": "rosRaster",
     "gpsEnabled": true,
     "rosMapEnabled": true,
     "tags": ["装卸", "室外"]
@@ -120,7 +107,6 @@
     "deviceId": "agv-y02",
     "deviceName": "Y02 牵引车",
     "defaultSceneId": "yard-north",
-    "mapProfile": "rosRaster",
     "gpsEnabled": true,
     "rosMapEnabled": true,
     "tags": ["装卸", "室外"]
@@ -129,7 +115,6 @@
     "deviceId": "agv-y03",
     "deviceName": "Y03 牵引车",
     "defaultSceneId": "yard-north",
-    "mapProfile": "rosRaster",
     "gpsEnabled": true,
     "rosMapEnabled": true,
     "tags": ["装卸", "室外"]
@@ -138,7 +123,6 @@
     "deviceId": "agv-y04",
     "deviceName": "Y04 牵引车",
     "defaultSceneId": "yard-north",
-    "mapProfile": "rosRaster",
     "gpsEnabled": true,
     "rosMapEnabled": true,
     "tags": ["装卸", "室外"]
@@ -147,7 +131,6 @@
     "deviceId": "agv-y05",
     "deviceName": "Y05 牵引车",
     "defaultSceneId": "yard-north",
-    "mapProfile": "rosRaster",
     "gpsEnabled": true,
     "rosMapEnabled": true,
     "tags": ["装卸", "室外"]
@@ -156,7 +139,6 @@
     "deviceId": "agv-p01",
     "deviceName": "P01 配料车",
     "defaultSceneId": "assembly-line",
-    "mapProfile": "rosRaster",
     "gpsEnabled": false,
     "rosMapEnabled": true,
     "tags": ["产线", "室内"]
@@ -165,7 +147,6 @@
     "deviceId": "agv-p02",
     "deviceName": "P02 配料车",
     "defaultSceneId": "assembly-line",
-    "mapProfile": "rosRaster",
     "gpsEnabled": false,
     "rosMapEnabled": true,
     "tags": ["产线", "室内"]
@@ -174,7 +155,6 @@
     "deviceId": "agv-p03",
     "deviceName": "P03 配料车",
     "defaultSceneId": "assembly-line",
-    "mapProfile": "rosRaster",
     "gpsEnabled": false,
     "rosMapEnabled": true,
     "tags": ["产线", "室内"]
@@ -183,7 +163,6 @@
     "deviceId": "agv-p04",
     "deviceName": "P04 配料车",
     "defaultSceneId": "assembly-line",
-    "mapProfile": "rosRaster",
     "gpsEnabled": false,
     "rosMapEnabled": true,
     "tags": ["产线", "室内"]
@@ -192,7 +171,6 @@
     "deviceId": "agv-r01",
     "deviceName": "R01 点云示例车",
     "defaultSceneId": "cloudpoint-demo",
-    "mapProfile": "pointCloud",
     "gpsEnabled": true,
     "rosMapEnabled": true,
     "tags": ["点云示例", "室内"]
@@ -201,7 +179,6 @@
     "deviceId": "agv-r02",
     "deviceName": "R02 点云示例车",
     "defaultSceneId": "cloudpoint-demo",
-    "mapProfile": "pointCloud",
     "gpsEnabled": true,
     "rosMapEnabled": true,
     "tags": ["点云示例", "室内"]
