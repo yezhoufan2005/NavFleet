@@ -375,7 +375,7 @@ watch(
       -->
       <div
         v-if="layout === 'map'"
-        class="flex overflow-hidden rounded-sm border border-border-strong"
+        class="flex h-8 overflow-hidden rounded-sm border border-border-strong"
         role="group"
         aria-label="底图"
       >
@@ -383,7 +383,7 @@ watch(
           v-for="option in SURFACE_OPTIONS"
           :key="option.value"
           type="button"
-          class="px-2.5 py-1 text-xs transition-colors duration-150 ease-standard"
+          class="flex items-center px-3 text-sm transition-colors duration-150 ease-standard"
           :class="
             surface === option.value
               ? 'bg-brand text-brand-contrast'
@@ -399,7 +399,7 @@ watch(
       <!-- Buttons with `aria-pressed` rather than a select: three options that are
            all worth showing, and the current one has to be visible at a glance. -->
       <div
-        class="flex overflow-hidden rounded-sm border border-border-strong"
+        class="flex h-8 overflow-hidden rounded-sm border border-border-strong"
         role="group"
         aria-label="视图"
       >
@@ -407,7 +407,7 @@ watch(
           v-for="option in LAYOUT_OPTIONS"
           :key="option.value"
           type="button"
-          class="px-2.5 py-1 text-xs transition-colors duration-150 ease-standard"
+          class="flex items-center px-3 text-sm transition-colors duration-150 ease-standard"
           :class="
             layoutPreference === option.value
               ? 'bg-brand text-brand-contrast'

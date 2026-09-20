@@ -349,15 +349,15 @@ const alertRows = computed(() =>
 
         <!--
           Every abnormal vehicle is listed; the list flexes to fill the card and scrolls
-          past that. `flex-1 min-h-0` makes it grow to the panel's height so this card's
-          bottom lines up with 编队情况 beside it (equal-height columns), while `min-h-0` +
-          `overflow-y-auto` let a long list scroll instead of growing the page. Rows keep
-          their natural height and `gap-1` (no `min-height` pin), so nothing gains trailing
-          blank; `-mx-2 px-2` gives the scrollbar and focus rings room without shifting rows.
+          past that. `flex-1 min-h-0` grows it to the panel's height and `overflow-y-auto`
+          scrolls a long one instead of growing the page. Paired with `mt-auto` on 编队
+          情况 in the column beside it (which pins that card to the column's bottom), this
+          card's bottom lines up with 编队's whichever column is taller — the equal-height
+          the alignment asks for. `gap-2` rows, `-mx-2 px-2` for the scrollbar/focus rings.
         -->
         <ul
           v-else
-          class="attention-list m-0 -mx-2 flex min-h-0 flex-1 list-none flex-col gap-1 overflow-y-auto px-2 py-0"
+          class="attention-list m-0 -mx-2 flex min-h-0 flex-1 list-none flex-col gap-2 overflow-y-auto px-2 py-0"
         >
           <li v-for="row in attention" :key="row.device.deviceId">
             <RouterLink
@@ -418,7 +418,7 @@ const alertRows = computed(() =>
 
         <section
           v-if="fleet.formations.length"
-          class="flex min-h-0 flex-col gap-3 rounded-md border border-border bg-surface-raised p-4"
+          class="mt-auto flex min-h-0 flex-col gap-3 rounded-md border border-border bg-surface-raised p-4"
           aria-labelledby="formations-heading"
         >
           <h3 id="formations-heading" class="text-md font-semibold text-ink">

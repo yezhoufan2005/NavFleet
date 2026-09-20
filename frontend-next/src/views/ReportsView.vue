@@ -251,26 +251,29 @@ const exportCsv = (): void => {
   <PageHeader title="报表" scroll-content>
     <!-- Filters in one row above the charts (data-viz convention), export at the end. -->
     <div class="flex flex-wrap items-end gap-3">
-      <div
-        class="flex overflow-hidden rounded-sm border border-border-strong"
-        role="group"
-        aria-label="时间范围"
-      >
-        <button
-          v-for="option in RANGES"
-          :key="option.value"
-          type="button"
-          class="px-2.5 py-1 text-xs transition-colors duration-150 ease-standard"
-          :class="
-            !isCustom && range === option.value
-              ? 'bg-brand text-brand-contrast'
-              : 'bg-surface-raised text-ink-muted hover:text-ink'
-          "
-          :aria-pressed="!isCustom && range === option.value"
-          @click="setFilter({ range: option.value, from: null, to: null })"
+      <div class="flex flex-col gap-1">
+        <span class="text-2xs text-ink-muted">范围</span>
+        <div
+          class="flex h-8 overflow-hidden rounded-sm border border-border-strong"
+          role="group"
+          aria-label="时间范围"
         >
-          {{ option.label }}
-        </button>
+          <button
+            v-for="option in RANGES"
+            :key="option.value"
+            type="button"
+            class="flex items-center px-3 text-sm transition-colors duration-150 ease-standard"
+            :class="
+              !isCustom && range === option.value
+                ? 'bg-brand text-brand-contrast'
+                : 'bg-surface-raised text-ink-muted hover:text-ink'
+            "
+            :aria-pressed="!isCustom && range === option.value"
+            @click="setFilter({ range: option.value, from: null, to: null })"
+          >
+            {{ option.label }}
+          </button>
+        </div>
       </div>
 
       <!-- 自定义起止：与预设是同一控件的两种形态，选日期即接管，选预设即清空。起 ≤ 止 由
