@@ -2,25 +2,25 @@
 
 /*
  * 原始层：与主题无关的刻度。进 @theme 所以 Tailwind 为它们生成工具类
- * （bg-teal-600 / text-lg / p-4 / rounded-md / shadow-raised / ease-standard / 3xl:）。
+ * （bg-indigo-600 / text-lg / p-4 / rounded-md / shadow-raised / ease-standard / 3xl:）。
  *
  * 色阶用 oklch 而非 hex，为的是明度阶梯在感知上均匀。注意一条 11D 用机检才发现的事：
  * 感知均匀**不等于** WCAG 亮度比达标 —— L 0.55 对 L 0.20 看着差很多，实测只有约 3.7:1。
  * 所以语义层的前景/背景配对必须单独验证，见 docs/frontend-design-system-preview.html。
  */
 @theme {
-  --color-teal-25: oklch(0.985 0.0374 178);
-  --color-teal-50: oklch(0.97 0.0495 178);
-  --color-teal-100: oklch(0.94 0.0616 178);
-  --color-teal-200: oklch(0.88 0.0737 178);
-  --color-teal-300: oklch(0.8 0.0858 178);
-  --color-teal-400: oklch(0.71 0.0979 178);
-  --color-teal-500: oklch(0.63 0.11 178);
-  --color-teal-600: oklch(0.55 0.0979 178);
-  --color-teal-700: oklch(0.46 0.0858 178);
-  --color-teal-800: oklch(0.3 0.0737 178);
-  --color-teal-900: oklch(0.22 0.0616 178);
-  --color-teal-950: oklch(0.15 0.0495 178);
+  --color-indigo-25: oklch(0.985 0.0204 255);
+  --color-indigo-50: oklch(0.97 0.027 255);
+  --color-indigo-100: oklch(0.94 0.0336 255);
+  --color-indigo-200: oklch(0.88 0.0402 255);
+  --color-indigo-300: oklch(0.8 0.0468 255);
+  --color-indigo-400: oklch(0.71 0.0534 255);
+  --color-indigo-500: oklch(0.63 0.06 255);
+  --color-indigo-600: oklch(0.55 0.0534 255);
+  --color-indigo-700: oklch(0.46 0.0468 255);
+  --color-indigo-800: oklch(0.3 0.0402 255);
+  --color-indigo-900: oklch(0.22 0.0336 255);
+  --color-indigo-950: oklch(0.15 0.027 255);
 
   --color-slate-25: oklch(0.985 0.0068 205);
   --color-slate-50: oklch(0.97 0.009 205);

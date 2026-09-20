@@ -20,18 +20,18 @@
     <style>
       /* ── 原始层：色阶（生成）。实际项目里这一块进 @theme ── */
       :root {
-        --color-teal-25: oklch(0.985 0.0374 178);
-        --color-teal-50: oklch(0.97 0.0495 178);
-        --color-teal-100: oklch(0.94 0.0616 178);
-        --color-teal-200: oklch(0.88 0.0737 178);
-        --color-teal-300: oklch(0.8 0.0858 178);
-        --color-teal-400: oklch(0.71 0.0979 178);
-        --color-teal-500: oklch(0.63 0.11 178);
-        --color-teal-600: oklch(0.55 0.0979 178);
-        --color-teal-700: oklch(0.46 0.0858 178);
-        --color-teal-800: oklch(0.3 0.0737 178);
-        --color-teal-900: oklch(0.22 0.0616 178);
-        --color-teal-950: oklch(0.15 0.0495 178);
+        --color-indigo-25: oklch(0.985 0.0204 255);
+        --color-indigo-50: oklch(0.97 0.027 255);
+        --color-indigo-100: oklch(0.94 0.0336 255);
+        --color-indigo-200: oklch(0.88 0.0402 255);
+        --color-indigo-300: oklch(0.8 0.0468 255);
+        --color-indigo-400: oklch(0.71 0.0534 255);
+        --color-indigo-500: oklch(0.63 0.06 255);
+        --color-indigo-600: oklch(0.55 0.0534 255);
+        --color-indigo-700: oklch(0.46 0.0468 255);
+        --color-indigo-800: oklch(0.3 0.0402 255);
+        --color-indigo-900: oklch(0.22 0.0336 255);
+        --color-indigo-950: oklch(0.15 0.027 255);
 
         --color-slate-25: oklch(0.985 0.0068 205);
         --color-slate-50: oklch(0.97 0.009 205);
@@ -127,12 +127,12 @@
         --color-border: var(--color-slate-200);
         --color-border-strong: var(--color-slate-300);
         --color-scrim: var(--color-slate-950);
-        --color-border-focus: var(--color-teal-600);
-        --color-brand: var(--color-teal-700);
-        --color-brand-hover: var(--color-teal-800);
-        --color-brand-contrast: var(--color-teal-25);
-        --color-brand-ink: var(--color-teal-800);
-        --color-brand-wash: var(--color-teal-50);
+        --color-border-focus: var(--color-indigo-600);
+        --color-brand: var(--color-indigo-700);
+        --color-brand-hover: var(--color-indigo-800);
+        --color-brand-contrast: var(--color-indigo-25);
+        --color-brand-ink: var(--color-indigo-800);
+        --color-brand-wash: var(--color-indigo-50);
         --color-notice: var(--color-blue-700);
         --color-notice-contrast: var(--color-blue-25);
         --color-notice-ink: var(--color-blue-800);
@@ -199,12 +199,12 @@
           --color-border: var(--color-slate-700);
           --color-border-strong: var(--color-slate-600);
           --color-scrim: var(--color-slate-950);
-          --color-border-focus: var(--color-teal-400);
-          --color-brand: var(--color-teal-300);
-          --color-brand-hover: var(--color-teal-200);
-          --color-brand-contrast: var(--color-teal-950);
-          --color-brand-ink: var(--color-teal-200);
-          --color-brand-wash: var(--color-teal-900);
+          --color-border-focus: var(--color-indigo-400);
+          --color-brand: var(--color-indigo-300);
+          --color-brand-hover: var(--color-indigo-200);
+          --color-brand-contrast: var(--color-indigo-950);
+          --color-brand-ink: var(--color-indigo-200);
+          --color-brand-wash: var(--color-indigo-900);
           --color-notice: var(--color-blue-300);
           --color-notice-contrast: var(--color-blue-950);
           --color-notice-ink: var(--color-blue-200);
@@ -269,12 +269,12 @@
         --color-border: var(--color-slate-700);
         --color-border-strong: var(--color-slate-600);
         --color-scrim: var(--color-slate-950);
-        --color-border-focus: var(--color-teal-400);
-        --color-brand: var(--color-teal-300);
-        --color-brand-hover: var(--color-teal-200);
-        --color-brand-contrast: var(--color-teal-950);
-        --color-brand-ink: var(--color-teal-200);
-        --color-brand-wash: var(--color-teal-900);
+        --color-border-focus: var(--color-indigo-400);
+        --color-brand: var(--color-indigo-300);
+        --color-brand-hover: var(--color-indigo-200);
+        --color-brand-contrast: var(--color-indigo-950);
+        --color-brand-ink: var(--color-indigo-200);
+        --color-brand-wash: var(--color-indigo-900);
         --color-notice: var(--color-blue-300);
         --color-notice-contrast: var(--color-blue-950);
         --color-notice-ink: var(--color-blue-200);
@@ -621,31 +621,33 @@
           "
         >
           <div class="ramp">
-            <div class="ramp-label"><b>teal</b><span>品牌</span></div>
+            <div class="ramp-label">
+              <b>indigo</b><span>品牌（克制蓝灰，非高饱和）</span>
+            </div>
             <div class="ramp-strip">
-              <i style="background: var(--color-teal-25)" title="teal-25"
+              <i style="background: var(--color-indigo-25)" title="indigo-25"
                 ><em>25</em></i
-              ><i style="background: var(--color-teal-50)" title="teal-50"
+              ><i style="background: var(--color-indigo-50)" title="indigo-50"
                 ><em>50</em></i
-              ><i style="background: var(--color-teal-100)" title="teal-100"
+              ><i style="background: var(--color-indigo-100)" title="indigo-100"
                 ><em>100</em></i
-              ><i style="background: var(--color-teal-200)" title="teal-200"
+              ><i style="background: var(--color-indigo-200)" title="indigo-200"
                 ><em>200</em></i
-              ><i style="background: var(--color-teal-300)" title="teal-300"
+              ><i style="background: var(--color-indigo-300)" title="indigo-300"
                 ><em>300</em></i
-              ><i style="background: var(--color-teal-400)" title="teal-400"
+              ><i style="background: var(--color-indigo-400)" title="indigo-400"
                 ><em>400</em></i
-              ><i style="background: var(--color-teal-500)" title="teal-500"
+              ><i style="background: var(--color-indigo-500)" title="indigo-500"
                 ><em>500</em></i
-              ><i style="background: var(--color-teal-600)" title="teal-600"
+              ><i style="background: var(--color-indigo-600)" title="indigo-600"
                 ><em>600</em></i
-              ><i style="background: var(--color-teal-700)" title="teal-700"
+              ><i style="background: var(--color-indigo-700)" title="indigo-700"
                 ><em>700</em></i
-              ><i style="background: var(--color-teal-800)" title="teal-800"
+              ><i style="background: var(--color-indigo-800)" title="indigo-800"
                 ><em>800</em></i
-              ><i style="background: var(--color-teal-900)" title="teal-900"
+              ><i style="background: var(--color-indigo-900)" title="indigo-900"
                 ><em>900</em></i
-              ><i style="background: var(--color-teal-950)" title="teal-950"
+              ><i style="background: var(--color-indigo-950)" title="indigo-950"
                 ><em>950</em></i
               >
             </div>

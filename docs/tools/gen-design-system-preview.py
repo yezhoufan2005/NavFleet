@@ -30,7 +30,7 @@ ORDER = list(STEPS)
 # 深色端压深只会抬高「浅字压深底」的对比，不会跌破 —— 预览页的 PAIRS 审计据此复核。
 
 RAMPS = [
-    ("teal", 178, 0.110, "品牌"),
+    ("indigo", 255, 0.060, "品牌（克制蓝灰，非高饱和）"),
     ("slate", 205, 0.020, "中性（带青绿偏色，不是纯灰）"),
     ("blue", 250, 0.150, "notice"),
     ("amber", 72, 0.140, "warning"),
@@ -67,12 +67,12 @@ SEMANTIC = [
     ("scrim", "slate-950", "slate-950"),
     # 焦点环。它是非文本 UI 组件，WCAG 1.4.11 要求 3:1 而不是 4.5:1，所以不进
     # 下面那张按 4.5:1 判定的审计表 —— 混进去会用错的标准误报。
-    ("border-focus", "teal-600", "teal-400"),
-    ("brand", "teal-700", "teal-300"),
-    ("brand-hover", "teal-800", "teal-200"),
-    ("brand-contrast", "teal-25", "teal-950"),
-    ("brand-ink", "teal-800", "teal-200"),
-    ("brand-wash", "teal-50", "teal-900"),
+    ("border-focus", "indigo-600", "indigo-400"),
+    ("brand", "indigo-700", "indigo-300"),
+    ("brand-hover", "indigo-800", "indigo-200"),
+    ("brand-contrast", "indigo-25", "indigo-950"),
+    ("brand-ink", "indigo-800", "indigo-200"),
+    ("brand-wash", "indigo-50", "indigo-900"),
     ("notice", "blue-700", "blue-300"),
     ("notice-contrast", "blue-25", "blue-950"),
     ("notice-ink", "blue-800", "blue-200"),
@@ -96,7 +96,7 @@ SEMANTIC = [
 # ---------------------------------------------------------------------------
 #
 # **刻意不从上面那 6 条 ramp 里取。** 分类色靠的是色相彼此可分，而这套 ramp 只有 4 条
-# 有彩色相（teal / blue / amber / rose），凑 8 个系列必然出现"同色相两档"的配对 ——
+# 有彩色相（indigo / blue / amber / rose），凑 8 个系列必然出现"同色相两档"的配对 ——
 # 而同色相配对恰好是分类编码最不该有的东西：第 1 与第 5 条曲线看起来像同一条。
 # 所以系列色是独立的一层，与状态色分开（11D §2.2 已经这么定了）。
 #
@@ -406,7 +406,7 @@ RAMP_FILE = '''/* 由 docs/tools/gen-design-system-preview.py 生成，不要手
 
 /*
  * 原始层：与主题无关的刻度。进 @theme 所以 Tailwind 为它们生成工具类
- * （bg-teal-600 / text-lg / p-4 / rounded-md / shadow-raised / ease-standard / 3xl:）。
+ * （bg-indigo-600 / text-lg / p-4 / rounded-md / shadow-raised / ease-standard / 3xl:）。
  *
  * 色阶用 oklch 而非 hex，为的是明度阶梯在感知上均匀。注意一条 11D 用机检才发现的事：
  * 感知均匀**不等于** WCAG 亮度比达标 —— L 0.55 对 L 0.20 看着差很多，实测只有约 3.7:1。
