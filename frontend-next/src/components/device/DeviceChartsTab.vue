@@ -138,12 +138,14 @@ const hasHistory = computed(
         unit="m/s"
         label="速度历史"
         :height="200"
+        :table-max-rows="6"
       />
       <TimeSeriesChart
         :series="socSeries"
         unit="%"
         label="电量历史"
         :height="200"
+        :table-max-rows="6"
       />
     </template>
   </section>

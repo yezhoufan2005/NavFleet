@@ -135,14 +135,15 @@ NavFleet/
 │  └─ Dockerfile
 ├─ frontend-next/            # v3 控制台（navfleet-console）—— 默认部署的这一套
 │  ├─ src/
-│  │  ├─ views/              # Overview / Devices / DeviceDetail / Alerts / Reports
-│  │  │                      # Wall / NotFound + admin/（Admin / SystemStatus / Scenes）
-│  │  ├─ components/         # shell/ ui/ map/ device/ charts/ 五组 + 根上五个通用件
-│  │  ├─ composables/        # 16 个：useAuth / useTheme / useSvgViewport /
+│  │  ├─ views/              # Overview / Devices / DeviceDetail / Alerts / AlertHistory
+│  │  │                      # Reports / Wall / Profile / NotFound + admin/（Admin /
+│  │  │                      # SystemStatus / Scenes / Users / Codebook / Notify / Audit）
+│  │  ├─ components/         # shell/ ui/ map/ device/ charts/ 五组 + 根上若干通用件
+│  │  ├─ composables/        # 17 个：useAuth / useTheme / useSvgViewport /
 │  │  │                      # useSceneOverlay / useHistoryPlayback / useAlertSound …
 │  │  ├─ stores/fleet.ts     # 唯一的 Pinia store（单例，跨路由共享）
 │  │  ├─ lib/                # realtimeLink（WS 韧性层）/ amap / pointCloudBackdrop /
-│  │  │                      # localState / globalErrorHandlers
+│  │  │                      # localState / globalErrorHandlers / uiClasses / reportsView …
 │  │  ├─ router/             # index.ts + guards.ts（鉴权守卫）
 │  │  └─ styles/             # ramp.css / semantic.css（由生成器产出，勿手改）
 │  ├─ scripts/               # 构建期门禁：dev-only chunk / 首屏体积
@@ -343,6 +344,10 @@ PR #28 按职责拆开：
 | `pointCloudBackdrop.ts`  | `.pcd` 解析为 topdown 底图（离屏 canvas → dataURL）            |
 | `localState.ts`          | 本机偏好的读写与「这台浏览器存了什么」的枚举（系统状态页读它） |
 | `globalErrorHandlers.ts` | 未捕获异常与 unhandledrejection 的兜底上报                     |
+| `uiClasses.ts`           | 表格等共享组件的 class 常量（一处方言，七张表引用）            |
+| `alertStats.ts`          | 告警统计的纯派生（报表页消费）                                 |
+| `reportsView.ts`         | 报表页的 KPI 汇总 / 时序序列 / CSV 的纯逻辑                    |
+| `wallView.ts`            | 大屏值班页的纯派生逻辑                                         |
 
 **跨前端共用的两块不在这里**：REST 访问层与纯归一化逻辑住在 `packages/fleet-core`
 （`fleetApi.ts` / `fleetNormalize.ts` / `deviceTone.ts` / `reportCodes.ts` …），两套控制台共同
@@ -350,35 +355,38 @@ PR #28 按职责拆开：
 
 ### `src/router/` 与 `src/views/`
 
-九条产品路由：`/` 总览 · `/devices` 设备（列表 ⇄ 地图两个视图）· `/devices/:deviceId` 设备详情
-（实时 / 曲线 / 历史回放 / 告警史四个 tab）· `/alerts` 消息 · `/reports` 报表 · `/admin` 管理，
-下挂 `/admin/system` 系统状态与 `/admin/scenes` 场景 · `/wall` 大屏值班 · 其余落 404。
+产品路由：`/` 总览 · `/devices` 设备（列表 ⇄ 地图两个视图）· `/devices/:deviceId` 设备详情
+（实时 / 曲线 / 历史回放 / 告警史四个 tab）· `/alerts` 消息 · `/alert-history` 消息史 · `/reports`
+报表 · `/admin` 管理（下挂 `/admin/system`·`scenes`·`users`·`codebook`·`notify`·`audit` 六个子页）·
+`/profile` 个人中心 · `/wall` 大屏值班 · 其余落 404。（另有开发专用的 `/__charts-perf`。）
 
 `guards.ts` 是鉴权守卫，在 import 时注册 —— 所以它读的会话状态必须能在 Pinia 实例之外使用，
 这正是 `useAuth` 用模块级 `reactive` 单例而不是 store 的原因。
 
-`/reports` 与 `/wall` 目前是**诚实的占位页**（写明「施工中」与对应的 PR 号），不是空白页。
+`/reports` 与 `/wall` 已是**实装页**：报表页（KPI + 时序 + CSV 导出，Phase 17B）与大屏值班页
+（KPI + 地图 + 滚动告警，Phase 17C），均随 v1.4.0 发出，不再是占位页。
 
 ### `src/components/`
 
-| 分组      | 内容                                                                      |
-| --------- | ------------------------------------------------------------------------- |
-| `shell/`  | `AppShell` / `AppTopBar` / `AppSidebarNav` / `AppBreadcrumbs` / 会话菜单  |
-| `ui/`     | `UiButton` / `UiSelect` / `UiSkeleton` / `UiSoundIcon` 等基元             |
-| `map/`    | `GpsMap.vue`（高德）与 `SceneMap.vue`（栅格 / 点云 / Lanelet2 三合一）    |
-| `device/` | 设备详情的四个 tab 与设备行卡片                                           |
-| `charts/` | ECharts 封装与 `timeSeriesOption`，**懒加载**：只有曲线/回放两个 tab 会取 |
+| 分组      | 内容                                                                                                                                 |
+| --------- | ------------------------------------------------------------------------------------------------------------------------------------ |
+| `shell/`  | `AppShell` / `AppTopBar` / `AppSidebarNav` / `AppBreadcrumbs` / 会话菜单                                                             |
+| `ui/`     | `UiButton` / `UiSelect` / `UiInput` / `UiCard` / `UiPager` / `UiSegmented` / `UiConfirmDialog` / `UiSkeleton` / `UiSoundIcon` 等基元 |
+| `map/`    | `GpsMap.vue`（高德）与 `SceneMap.vue`（栅格 / 点云 / Lanelet2 三合一）                                                               |
+| `device/` | 设备详情的四个 tab 与设备行卡片                                                                                                      |
+| `charts/` | ECharts 封装与 `timeSeriesOption`，**懒加载**：只有曲线/回放两个 tab 会取                                                            |
 
 `SceneMap.vue` 是 v1.0.0 `RosSceneMap.vue` 的继任者，改名是因为它现在同时承担三类场景底图，
 不只是 ROS 栅格。缩放 / 拖拽 / 视角持久化抽在 `useSvgViewport` 与
 `useSceneViewportPersistence`。
 
-### `src/composables/`（16 个）
+### `src/composables/`（17 个）
 
 值得单独知道的几个：`useAuth`（模块级单例，见上）、`useTheme`（明暗双主题）、
 `useSvgViewport`（场景图的视口数学）、`useSceneOverlay`（场景资源加载与降级）、
 `useHistoryPlayback`（时间轴回放）、`useAlertSound`（告警声，含浏览器自动播放策略的处理）、
-`useAlertAck`（告警确认，**仅 localStorage**，不落库 —— 页面上明说了这一点）。
+`useAlertAck`（告警确认，**服务端落库**——Phase 16A 起薄封装 `POST /api/alerts/(un)ack`，
+localStorage 仅作一次性迁移）。
 
 ### 冻结的 v1.0.0（`frontend/`）差在哪
 

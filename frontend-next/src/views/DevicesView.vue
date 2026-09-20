@@ -181,31 +181,29 @@ const setPageSize = (next: string): void => {
 };
 
 /**
- * Which rows are expanded. A Set rather than a single id, because comparing two
- * vehicles side by side is a real thing to want and closing one to open another would
- * make it impossible.
+ * The one expanded row, or null. An accordion: opening a row closes the previous one, so
+ * at most one card is open at a time (a per-row request — a stack of open cards turns the
+ * scannable list into a wall). The expand/collapse is animated as a slide, see the
+ * `dev-expand` transition in the scoped styles.
  *
- * Not in the URL, unlike the sort: an expanded row is a glance, not a view worth
- * sending to someone. Ids that leave the fleet are dropped so the set cannot grow for
- * the lifetime of the tab — the same pruning-on-clear rule the trail map follows.
+ * Not in the URL, unlike the sort: an expanded row is a glance, not a view worth sending
+ * to someone. An id that leaves the fleet is dropped, so a stale id cannot keep a ghost
+ * row open — the same pruning-on-clear rule the trail map follows.
  */
-const expandedIds = ref(new Set<string>());
+const expandedId = ref<string | null>(null);
 
 const toggleExpanded = (deviceId: string): void => {
-  const next = new Set(expandedIds.value);
-  if (!next.delete(deviceId)) next.add(deviceId);
-  expandedIds.value = next;
+  expandedId.value = expandedId.value === deviceId ? null : deviceId;
 };
 
 watch(
   () => rows.value.map((row) => row.device.deviceId).join(","),
   () => {
-    if (!expandedIds.value.size) return;
-    const present = new Set(rows.value.map((row) => row.device.deviceId));
-    const kept = [...expandedIds.value].filter((id) => present.has(id));
-    if (kept.length !== expandedIds.value.size) {
-      expandedIds.value = new Set(kept);
-    }
+    if (expandedId.value === null) return;
+    const present = rows.value.some(
+      (row) => row.device.deviceId === expandedId.value,
+    );
+    if (!present) expandedId.value = null;
   },
 );
 
@@ -267,6 +265,17 @@ const selectedTrailLength = computed(() => {
 const clearSelectedTrail = (): void => {
   const deviceId = fleet.selectedDevice?.deviceId;
   if (deviceId) fleet.clearTrail(deviceId);
+};
+
+/**
+ * 在地图上选中 — select the vehicle *and* switch to the GPS map, so the button lands you
+ * looking at it rather than just marking it in a list you are still reading. The layout
+ * preference is remembered, which is fine: the operator asked to see this on the map.
+ */
+const focusOnMap = (deviceId: string): void => {
+  fleet.selectDevice(deviceId);
+  setSurface("gps");
+  setLayout("map");
 };
 
 /**
@@ -471,64 +480,70 @@ watch(
       </div>
 
       <aside
-        class="hidden w-64 shrink-0 flex-col overflow-y-auto rounded-md border border-border bg-surface-raised p-2 xl:flex"
+        class="hidden w-64 shrink-0 flex-col overflow-hidden rounded-md border border-border bg-surface-raised xl:flex"
         aria-label="设备列表"
       >
-        <button
-          v-for="row in rows"
-          :key="row.device.deviceId"
-          type="button"
-          class="flex items-center gap-2 rounded-sm px-2 py-2 text-left text-sm transition-colors duration-150 ease-standard"
-          :class="
-            row.device.deviceId === state.selectedDeviceId
-              ? 'bg-brand-wash text-brand-ink'
-              : 'text-ink-muted hover:bg-surface-sunken hover:text-ink'
-          "
-          @click="fleet.selectDevice(row.device.deviceId)"
-        >
-          <span
-            class="size-2 shrink-0 rounded-full"
-            :class="TONE_DOT[row.tone]"
-            aria-hidden="true"
-          />
-          <span class="min-w-0 flex-1 truncate">{{
-            row.device.deviceName || row.device.deviceId
-          }}</span>
-          <span class="shrink-0 font-mono text-2xs">{{ row.label }}</span>
-        </button>
+        <!-- Only the roster scrolls; the actions below stay pinned to the bottom. -->
+        <div class="min-h-0 flex-1 overflow-y-auto p-2">
+          <button
+            v-for="row in rows"
+            :key="row.device.deviceId"
+            type="button"
+            class="flex w-full items-center gap-2 rounded-sm px-2 py-2 text-left text-sm transition-colors duration-150 ease-standard"
+            :class="
+              row.device.deviceId === state.selectedDeviceId
+                ? 'bg-brand-wash text-brand-ink'
+                : 'text-ink-muted hover:bg-surface-sunken hover:text-ink'
+            "
+            @click="fleet.selectDevice(row.device.deviceId)"
+          >
+            <span
+              class="size-2 shrink-0 rounded-full"
+              :class="TONE_DOT[row.tone]"
+              aria-hidden="true"
+            />
+            <span class="min-w-0 flex-1 truncate">{{
+              row.device.deviceName || row.device.deviceId
+            }}</span>
+            <span class="shrink-0 font-mono text-2xs">{{ row.label }}</span>
+          </button>
+        </div>
 
         <!--
-          Clicking a row here *selects* — that is this panel's job, because the map has
+          The actions, pinned to the bottom of the panel (a fixed footer, not the tail of
+          the scrolling list). Present only when there is something to act on.
+
+          Clicking a row above *selects* — that is this panel's job, because the map has
           to be told which vehicle to centre on. But the detail page has to be reachable
           from the map too (`frontend-ia.md`: from the list, the map or an alert), so the
           selected vehicle gets one link rather than every row getting a second control.
+          清除轨迹 only appears when there is a trail to clear — a permanently disabled
+          button teaches people to stop reading the toolbar.
         -->
-        <RouterLink
-          v-if="fleet.selectedDevice"
-          :to="`/devices/${fleet.selectedDevice.deviceId}`"
-          class="mt-2 flex h-8 shrink-0 items-center justify-center rounded-sm border border-border-strong text-sm text-brand-ink transition-colors duration-150 ease-standard hover:bg-surface-sunken"
+        <div
+          v-if="fleet.selectedDevice || selectedTrailLength"
+          class="flex shrink-0 flex-col gap-1 border-t border-border p-2"
         >
-          打开详情 →
-        </RouterLink>
-
-        <!--
-          The control for `clearTrail`, which the store has exported since 12B with no
-          caller. A trail accumulates for as long as a vehicle is watched, so after a
-          shift the selected vehicle's path is a scribble over the whole site and there
-          was no way to start it again short of a reload.
-
-          Only shown when there is something to clear — a permanently disabled button
-          teaches people to stop reading the toolbar.
-        -->
-        <UiButton
-          v-if="selectedTrailLength"
-          variant="secondary"
-          size="sm"
-          class="mt-1 w-full"
-          @click="clearSelectedTrail"
-        >
-          清除轨迹（{{ selectedTrailLength }} 点）
-        </UiButton>
+          <UiButton
+            v-if="fleet.selectedDevice"
+            :as="RouterLink"
+            :to="`/devices/${fleet.selectedDevice.deviceId}`"
+            variant="secondary"
+            size="sm"
+            class="w-full"
+          >
+            打开详情 →
+          </UiButton>
+          <UiButton
+            v-if="selectedTrailLength"
+            variant="secondary"
+            size="sm"
+            class="w-full"
+            @click="clearSelectedTrail"
+          >
+            清除轨迹（{{ selectedTrailLength }} 点）
+          </UiButton>
+        </div>
       </aside>
     </div>
 
@@ -635,20 +650,20 @@ watch(
             <tr
               class="device-row border-b border-border last:border-0"
               :data-tone="row.tone"
-              :data-expanded="expandedIds.has(row.device.deviceId) || undefined"
+              :data-expanded="expandedId === row.device.deviceId || undefined"
               @click="toggleExpanded(row.device.deviceId)"
             >
               <td class="px-1 py-2">
                 <button
                   type="button"
                   class="grid size-6 place-content-center rounded-sm text-ink-subtle transition-colors duration-150 ease-standard hover:text-ink"
-                  :aria-expanded="expandedIds.has(row.device.deviceId)"
+                  :aria-expanded="expandedId === row.device.deviceId"
                   :aria-controls="`device-card-${row.device.deviceId}`"
                   :aria-label="`${row.device.deviceName || row.device.deviceId} 详情`"
                   @click.stop="toggleExpanded(row.device.deviceId)"
                 >
                   <span aria-hidden="true" class="text-2xs">
-                    {{ expandedIds.has(row.device.deviceId) ? "▾" : "▸" }}
+                    {{ expandedId === row.device.deviceId ? "▾" : "▸" }}
                   </span>
                 </button>
               </td>
@@ -697,20 +712,24 @@ watch(
                 <span class="soc-value">{{ row.soc }}</span>
               </td>
             </tr>
-            <tr
-              v-if="expandedIds.has(row.device.deviceId)"
-              :id="`device-card-${row.device.deviceId}`"
-              class="border-b border-border last:border-0"
-            >
-              <td :colspan="COLUMNS.length + 1" class="p-0">
-                <DeviceRowCard
-                  :device="row.device"
-                  :scene-label="row.sceneLabel"
-                  :formation-names="row.formationNames"
-                  @focus-on-map="fleet.selectDevice"
-                />
-              </td>
-            </tr>
+            <Transition name="dev-expand">
+              <tr
+                v-if="expandedId === row.device.deviceId"
+                :id="`device-card-${row.device.deviceId}`"
+                class="dev-expand-row border-b border-border last:border-0"
+              >
+                <td :colspan="COLUMNS.length + 1" class="p-0">
+                  <div class="dev-card-clip">
+                    <DeviceRowCard
+                      :device="row.device"
+                      :scene-label="row.sceneLabel"
+                      :formation-names="row.formationNames"
+                      @focus-on-map="focusOnMap"
+                    />
+                  </div>
+                </td>
+              </tr>
+            </Transition>
           </template>
         </tbody>
       </table>
@@ -768,13 +787,14 @@ watch(
 }
 
 .device-row:hover {
-  background: var(--color-surface-sunken);
+  background: color-mix(in oklab, var(--color-ink) 6%, transparent);
 }
 
-/* The open row and its card read as one block. Without this the card looks like a
-   separate panel that happens to be underneath, rather than this row's own detail. */
+/* The open row and its card read as one block, tinted with the brand wash so an opened
+   row also reads as the selected one. Without this the card looks like a separate panel
+   that happens to be underneath, rather than this row's own detail. */
 .device-row[data-expanded] {
-  background: var(--color-surface-sunken);
+  background: var(--color-brand-wash);
 }
 
 .device-row[data-tone="critical"] {
@@ -796,5 +816,49 @@ watch(
    open. It recedes so the live ones read first. */
 .device-row[data-tone="offline"] {
   opacity: 0.74;
+}
+
+/*
+ * Expand/collapse as a slide (the "推出收回" request). The detail row is a real
+ * `<tr v-if>`, so the animated property lives on an inner grid whose single row runs
+ * `0fr → 1fr`; the clipped child collapses to nothing without the content reflowing.
+ *
+ * Why the empty-looking `transition` on the row itself: Vue reads the transition
+ * duration off the transitioned element (the `<tr>`) to know how long to keep it in the
+ * DOM during leave. The `<tr>` is not a grid so that declaration paints nothing — it
+ * only tells Vue "wait 220ms". The global `prefers-reduced-motion` rule in base.css
+ * zeroes both, so a reduced-motion viewer gets an instant open with no timer.
+ */
+.dev-expand-enter-active,
+.dev-expand-leave-active {
+  transition: grid-template-rows 200ms var(--ease-standard);
+}
+
+/*
+ * `will-change` only while animating (the enter/leave window), and `contain` on the card
+ * so its inner grid re-layout does not invalidate the whole table each frame — that
+ * table-wide reflow was the jank. `content` = layout + paint + style, but not size, so
+ * the row is still free to change height.
+ */
+.dev-expand-enter-active .dev-card-clip,
+.dev-expand-leave-active .dev-card-clip {
+  will-change: grid-template-rows;
+}
+
+.dev-card-clip {
+  display: grid;
+  grid-template-rows: 1fr;
+  transition: grid-template-rows 200ms var(--ease-standard);
+}
+
+.dev-expand-enter-from .dev-card-clip,
+.dev-expand-leave-to .dev-card-clip {
+  grid-template-rows: 0fr;
+}
+
+.dev-card-clip > * {
+  min-height: 0;
+  overflow: hidden;
+  contain: content;
 }
 </style>

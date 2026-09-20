@@ -115,7 +115,7 @@ const severitiesLabel = (severities: string[]): string =>
 </script>
 
 <template>
-  <PageHeader title="外发" scroll-content>
+  <PageHeader title="外发">
     <template #actions>
       <UiButton variant="secondary" size="sm" @click="load">刷新</UiButton>
     </template>
@@ -185,7 +185,10 @@ const severitiesLabel = (severities: string[]): string =>
         />
       </label>
       <UiButton size="sm" @click="applyFilters">查询</UiButton>
-      <UiButton variant="ghost" size="sm" @click="resetFilters">重置</UiButton>
+      <!-- 重置 uses the outlined secondary button (a framed control), matching 审计. -->
+      <UiButton variant="secondary" size="sm" @click="resetFilters"
+        >重置</UiButton
+      >
     </section>
     <!-- NOTIFY_TABLE_PLACEHOLDER -->
     <p v-if="status === 'loading'" class="text-sm text-ink-muted">加载中…</p>

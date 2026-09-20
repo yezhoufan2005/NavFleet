@@ -76,36 +76,83 @@ export const summarizeAvailability = (
 /** 一个 ISO 桶起点 → epoch ms；无法解析时返回 NaN（调用方过滤掉）。 */
 const bucketMs = (iso: string): number => Date.parse(iso);
 
-/** 在线率时序（百分比 0–100），每设备一条线，旧点在前。 */
+interface BucketFold {
+  online: number;
+  total: number;
+  socWeighted: number;
+  socWeight: number;
+}
+
+/**
+ * 把（设备 × 桶）折叠成「每个时间桶一格」的车队汇总。
+ *
+ * 为什么折叠成一条线：原来每设备一条线，车队一多，图例挤成一片、数据表被压成竖排完全没法读
+ * （17B 验收原话）。而这两张图的标题本就是「趋势 / 均值」——要的是车队层面的一条曲线，不是
+ * N 条设备线。筛选到单台设备时 report 只有一台，汇总即那台本身，语义不变。
+ */
+const foldByBucket = (report: AvailabilityReport): Map<number, BucketFold> => {
+  const byBucket = new Map<number, BucketFold>();
+  for (const device of report.devices) {
+    for (const bucket of device.buckets) {
+      const ms = bucketMs(bucket.bucketStart);
+      if (!Number.isFinite(ms)) continue;
+      const fold = byBucket.get(ms) ?? {
+        online: 0,
+        total: 0,
+        socWeighted: 0,
+        socWeight: 0,
+      };
+      fold.online += bucket.onlineSamples;
+      fold.total += bucket.totalSamples;
+      // 电量按帧数加权，null 桶不参与（不画成 0）。
+      if (bucket.socMean !== null && bucket.totalSamples > 0) {
+        fold.socWeighted += bucket.socMean * bucket.totalSamples;
+        fold.socWeight += bucket.totalSamples;
+      }
+      byBucket.set(ms, fold);
+    }
+  }
+  return byBucket;
+};
+
+/** 单台时用设备名，多台时是车队均值——一条线，图例与数据表都清爽。 */
+const seriesName = (
+  report: AvailabilityReport,
+  nameOf: DeviceNameOf,
+): string =>
+  report.devices.length === 1
+    ? nameOf(report.devices[0]!.deviceId)
+    : "全部设备均值";
+
+/** 在线率时序（百分比 0–100）：车队按帧加权的一条均值线，旧点在前。 */
 export const onlineRatioSeries = (
   report: AvailabilityReport,
   nameOf: DeviceNameOf,
-): TimeSeries[] =>
-  report.devices.map((device) => ({
-    name: nameOf(device.deviceId),
-    points: device.buckets
-      .map(
-        (bucket) =>
-          [bucketMs(bucket.bucketStart), bucket.onlineRatio * 100] as const,
-      )
-      .filter((point) => Number.isFinite(point[0])),
-  }));
+): TimeSeries[] => {
+  const points = [...foldByBucket(report).entries()]
+    .filter(([, fold]) => fold.total > 0)
+    .sort((left, right) => left[0] - right[0])
+    .map(
+      ([ms, fold]) =>
+        [ms, (fold.online / fold.total) * 100] as [number, number],
+    );
+  return points.length ? [{ name: seriesName(report, nameOf), points }] : [];
+};
 
-/** 电量 soc 均值时序，每设备一条线；socMean 为 null 的桶跳过（不画成 0）。 */
+/** 电量 soc 均值时序：车队按帧加权的一条均值线；无 soc 的桶跳过（不画成 0）。 */
 export const socSeries = (
   report: AvailabilityReport,
   nameOf: DeviceNameOf,
-): TimeSeries[] =>
-  report.devices.map((device) => ({
-    name: nameOf(device.deviceId),
-    points: device.buckets
-      .filter((bucket) => bucket.socMean !== null)
-      .map(
-        (bucket) =>
-          [bucketMs(bucket.bucketStart), bucket.socMean as number] as const,
-      )
-      .filter((point) => Number.isFinite(point[0])),
-  }));
+): TimeSeries[] => {
+  const points = [...foldByBucket(report).entries()]
+    .filter(([, fold]) => fold.socWeight > 0)
+    .sort((left, right) => left[0] - right[0])
+    .map(
+      ([ms, fold]) =>
+        [ms, fold.socWeighted / fold.socWeight] as [number, number],
+    );
+  return points.length ? [{ name: seriesName(report, nameOf), points }] : [];
+};
 
 /** RFC-4180 转义：含逗号/引号/换行的字段用引号包起来，内部引号翻倍。 */
 const csvField = (value: string | number): string => {

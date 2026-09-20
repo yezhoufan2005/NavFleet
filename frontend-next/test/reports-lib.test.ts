@@ -126,8 +126,11 @@ describe("onlineRatioSeries / socSeries", () => {
   ]);
   const nameOf = (id: string) => (id === "agv-1" ? "A01 巡检车" : id);
 
-  it("emits online ratio as a percentage, one series per device, named", () => {
+  it("emits online ratio as a percentage in a single named series", () => {
+    // One device in the report → the series is named after it, and the aggregate over one
+    // device is that device.
     const [series] = onlineRatioSeries(built, nameOf);
+    expect(onlineRatioSeries(built, nameOf)).toHaveLength(1);
     expect(series!.name).toBe("A01 巡检车");
     expect(series!.points).toEqual([
       [Date.parse(iso(0)), 80],
@@ -139,6 +142,50 @@ describe("onlineRatioSeries / socSeries", () => {
     const [series] = socSeries(built, nameOf);
     // Only the first bucket had a soc; the null one is skipped, not charted as 0.
     expect(series!.points).toEqual([[Date.parse(iso(0)), 80]]);
+  });
+
+  it("folds many devices into one frame-weighted fleet-mean line", () => {
+    // Two devices sharing a bucket: online is Σonline/Σtotal (frame-weighted, not the mean
+    // of ratios), and soc is frame-weighted too. This is the fix for «图例太多 / 数据表堆叠».
+    const fleet = report([
+      {
+        deviceId: "agv-1",
+        buckets: [
+          {
+            bucketStart: iso(0),
+            onlineSamples: 8,
+            totalSamples: 10,
+            onlineRatio: 0.8,
+            socMean: 80,
+            socMin: 60,
+          },
+        ],
+      },
+      {
+        deviceId: "agv-2",
+        buckets: [
+          {
+            bucketStart: iso(0),
+            onlineSamples: 6,
+            totalSamples: 30,
+            onlineRatio: 0.2,
+            socMean: 40,
+            socMin: 20,
+          },
+        ],
+      },
+    ]);
+    const nameOfFleet = (id: string) => id;
+
+    const online = onlineRatioSeries(fleet, nameOfFleet);
+    expect(online).toHaveLength(1);
+    expect(online[0]!.name).toBe("全部设备均值");
+    // (8+6)/(10+30) = 0.35 → 35%
+    expect(online[0]!.points).toEqual([[Date.parse(iso(0)), 35]]);
+
+    // (80*10 + 40*30) / (10+30) = 2000/40 = 50
+    const soc = socSeries(fleet, nameOfFleet);
+    expect(soc[0]!.points).toEqual([[Date.parse(iso(0)), 50]]);
   });
 });
 

@@ -10,7 +10,7 @@ MQTT 接入 → 归一化 → 内存快照 → MongoDB 持久化 → REST + WebS
 [![CI](https://github.com/yezhoufan2005/NavFleet/actions/workflows/ci.yml/badge.svg)](https://github.com/yezhoufan2005/NavFleet/actions/workflows/ci.yml)
 [![Release](https://img.shields.io/github/v/release/yezhoufan2005/NavFleet?sort=semver)](https://github.com/yezhoufan2005/NavFleet/releases)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
-[![Node](https://img.shields.io/badge/node-%3E%3D20-brightgreen.svg)](package.json)
+[![Node](https://img.shields.io/badge/node-%3E%3D22-brightgreen.svg)](package.json)
 
 </div>
 <!-- prettier-ignore-end -->
@@ -51,26 +51,26 @@ NavFleet 把设备接入、实时展示、历史追踪、地图资源和运行�
 >   **调试注入**（`/api/debug/ingest`，且需 `DEBUG_INGEST_ENABLED`）、以及控制台的**管理区**
 >   （`/admin/*`）。
 >
-> **`operator` 目前 ≡ `viewer`**：这是只读监控系统，配置走文件监听不走 API，所以暂无 operator
-> 专属的操作接口；它的专属操作面（如告警确认）随 Phase 16 到来。登出 / 改密 / 禁用 / 改角色会
-> **立即失效**已签发的 token（每请求校验 `tokenVersion` 与 `enabled`）。
+> **`operator` 现已有专属操作接口**：自 Phase 16A（v1.3.0）起，`operator` 可确认 / 取消确认告警
+> （`POST /api/alerts/ack`·`/unack`），`viewer` 不能——两者不再等价。配置仍走文件监听不走 API。
+> 登出 / 改密 / 禁用 / 改角色会 **立即失效**已签发的 token（每请求校验 `tokenVersion` 与 `enabled`）。
 
 **目标场景**是内网单实例部署：一台主机、Docker Compose、几十到数百台车。不做水平扩展与
 跨实例 pub/sub。
 
 ## 核心能力
 
-| 能力           | 说明                                                                                         |
-| -------------- | -------------------------------------------------------------------------------------------- |
-| **MQTT 接入**  | 主题模板可配置；snake_case / camelCase 双写兼容；zod 校验后入库，被拒消息计入指标            |
-| **状态归一化** | 增量上报自动与历史值合并，避免字段丢失；`lidar` 定位在 `fusion` 缺失时回退                   |
-| **告警派生**   | 提示 / 预警 / 告警报码 + 低电量、离线等规则；确认状态本地持久化                              |
-| **三类地图**   | GPS（高德）、栅格 / 点云场景图、Lanelet2 路网（服务端解析 `.osm`）                           |
-| **历史回放**   | 基于 `telemetry_ts` 的时间轴回放，可变速、可拖拽进度                                         |
-| **鉴权**       | JWT access + refresh（refresh cookie 限定在 `/api/auth` 路径）、限流；角色分权见上面那段说明 |
-| **可观测性**   | 分级健康探针、Prometheus 指标、request-id 贯穿日志、预置 Grafana 面板与告警规则              |
-| **运行期配置** | `config-runtime/*.json` 热加载，改车队 / 编队 / 场景无需重启或重建镜像                       |
-| **无障碍**     | WCAG 2.1 A + AA，axe-core 在 CI 中审计 **12 条路由 × 4 个视口 × 明暗两套主题**               |
+| 能力           | 说明                                                                                           |
+| -------------- | ---------------------------------------------------------------------------------------------- |
+| **MQTT 接入**  | 主题模板可配置；snake_case / camelCase 双写兼容；zod 校验后入库，被拒消息计入指标              |
+| **状态归一化** | 增量上报自动与历史值合并，避免字段丢失；`lidar` 定位在 `fusion` 缺失时回退                     |
+| **告警派生**   | 提示 / 预警 / 告警报码 + 低电量、离线等规则；确认状态服务端落库（Phase 16A 起，记录 who/when） |
+| **三类地图**   | GPS（高德）、栅格 / 点云场景图、Lanelet2 路网（服务端解析 `.osm`）                             |
+| **历史回放**   | 基于 `telemetry_ts` 的时间轴回放，可变速、可拖拽进度                                           |
+| **鉴权**       | JWT access + refresh（refresh cookie 限定在 `/api/auth` 路径）、限流；角色分权见上面那段说明   |
+| **可观测性**   | 分级健康探针、Prometheus 指标、request-id 贯穿日志、预置 Grafana 面板与告警规则                |
+| **运行期配置** | `config-runtime/*.json` 热加载，改车队 / 编队 / 场景无需重启或重建镜像                         |
+| **无障碍**     | WCAG 2.1 A + AA，axe-core 在 CI 中审计 **12 条路由 × 4 个视口 × 明暗两套主题**                 |
 
 ## 系统架构
 
@@ -97,7 +97,7 @@ flowchart LR
 
 ### 环境要求
 
-- Node.js **>= 20**（CI 在 20 / 22 上跑）
+- Node.js **>= 22**（CI 在 22 / 24 上跑）
 - Docker + Docker Compose（容器化部署）
 - MongoDB 与 MQTT broker（compose 编排已包含；本地开发也可只跑其中之一）
 
@@ -152,7 +152,7 @@ scripts/dev.sh
 
 ## 演示数据
 
-`config-runtime/` 里预置了 6 台车、3 个编队、5 个场景（栅格 SVG、CloudPoint 点云、
+`config-runtime/` 里预置了 23 台车、5 个编队、5 个场景（栅格 SVG、CloudPoint 点云、
 Lanelet2 路网各有实例）。演示发布器沿 lanelet 车道中心线行驶，而不是绕一个与路网无关的
 矩形跑：
 
@@ -191,7 +191,7 @@ NavFleet/
 │  │  └─ lib/            # 纯归一化函数，无 Vue 依赖
 │  └─ test/              # Vitest + jsdom + @vue/test-utils
 ├─ frontend-next/        # v3 控制台（navfleet-console）—— **默认部署的这一套**
-│  ├─ src/               # 9 条产品路由、web history、Tailwind v4 双主题、Reka UI
+│  ├─ src/               # 15 条产品路由（含 /admin 下 6 个子页）、web history、Tailwind v4 双主题、Reka UI
 │  └─ test/              # Vitest + jsdom + @vue/test-utils
 ├─ packages/shared/      # @navfleet/shared —— 领域类型单一来源
 ├─ packages/fleet-core/  # @navfleet/fleet-core —— 两个前端共用的归一化与派生逻辑
@@ -361,12 +361,12 @@ scripts/verify-stack.sh --down       # 跑完自动停栈并删掉它自己建�
 
 断言全过才返回 0，所以可以直接当验收门禁或 cron 用。
 
-| 门禁     | 数量    | 说明                                                                        |
-| -------- | ------- | --------------------------------------------------------------------------- |
-| 后端测试 | **279** | Vitest + supertest：路由、鉴权、校验、404、错误中间件、WS、配置注册表       |
-| 前端测试 | **161** | Vitest + jsdom：store、实时链路、视图交互、composable                       |
-| E2E      | **17**  | Playwright：登录、仪表盘、地图、告警、历史回放、404，含 axe-core 无障碍审计 |
-| 覆盖率   | ratchet | 前后端各有阈值，只许上调，不许为了让红变绿而下调                            |
+| 门禁     | 数量    | 说明                                                                                                          |
+| -------- | ------- | ------------------------------------------------------------------------------------------------------------- |
+| 后端测试 | **612** | Vitest + supertest：路由、鉴权、校验、404、错误中间件、WS、配置注册表                                         |
+| 前端测试 | **701** | Vitest + jsdom：store、实时链路、视图交互、composable（`navfleet-console`）                                   |
+| E2E      | **87**  | Playwright：登录、总览、地图、告警、历史回放、报表、大屏、404，含 axe-core 无障碍审计（新旧两套前端各跑一遍） |
+| 覆盖率   | ratchet | 前后端各有阈值，只许上调，不许为了让红变绿而下调                                                              |
 
 CI 在 Node 22 / 24 上跑全部门禁，E2E 单独一个 job。提交前 husky + lint-staged 会对暂存
 文件跑 prettier；完整门禁仍在 CI。约定式提交 + release-please 自动出 CHANGELOG 与 GHCR

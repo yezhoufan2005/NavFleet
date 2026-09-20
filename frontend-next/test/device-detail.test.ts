@@ -268,15 +268,18 @@ describe("遥测面板", () => {
     expect(wrapper.text()).toContain("yard");
   });
 
-  it("omits a panel the vehicle has no data for", async () => {
-    // A panel of `--` reads as lost data. GPS is configured per device, so "no fix"
-    // and "no receiver" are different answers.
+  it("still shows every panel, with 缺失 where the vehicle has no data", async () => {
+    // Reversed by request: a card that disappears reads as "this vehicle is different"
+    // while scanning several. GPS with no receiver keeps its panel and says 缺失.
     seed({ gpsEnabled: false });
     const wrapper = await mountDetail();
 
     const titles = wrapper.findAll("h3").map((heading) => heading.text());
-    expect(titles).not.toContain("GPS");
+    expect(titles).toContain("GPS");
     expect(titles).toContain("位姿");
+    // The GPS panel's 经纬度/航向 rows are present as placeholders, not dropped.
+    expect(wrapper.text()).toContain("经纬度");
+    expect(wrapper.text()).toContain("缺失");
   });
 
   it("shows the GPS panel when there is a fix", async () => {

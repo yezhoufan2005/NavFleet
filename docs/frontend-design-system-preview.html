@@ -20,83 +20,83 @@
     <style>
       /* ── 原始层：色阶（生成）。实际项目里这一块进 @theme ── */
       :root {
-        --color-teal-25: oklch(0.985 0.0374 178);
-        --color-teal-50: oklch(0.97 0.0495 178);
-        --color-teal-100: oklch(0.94 0.0616 178);
-        --color-teal-200: oklch(0.88 0.0737 178);
-        --color-teal-300: oklch(0.8 0.0858 178);
-        --color-teal-400: oklch(0.71 0.0979 178);
-        --color-teal-500: oklch(0.63 0.11 178);
-        --color-teal-600: oklch(0.55 0.0979 178);
-        --color-teal-700: oklch(0.46 0.0858 178);
-        --color-teal-800: oklch(0.3 0.0737 178);
-        --color-teal-900: oklch(0.22 0.0616 178);
-        --color-teal-950: oklch(0.15 0.0495 178);
+        --color-indigo-25: #f2f8ff;
+        --color-indigo-50: #ddf4ff;
+        --color-indigo-100: #b6e3ff;
+        --color-indigo-200: #80ccff;
+        --color-indigo-300: #54aeff;
+        --color-indigo-400: #218bff;
+        --color-indigo-500: #0969da;
+        --color-indigo-600: #0550ae;
+        --color-indigo-700: #033d8b;
+        --color-indigo-800: #0a3069;
+        --color-indigo-900: #002155;
+        --color-indigo-950: #001129;
 
-        --color-slate-25: oklch(0.985 0.0068 205);
-        --color-slate-50: oklch(0.97 0.009 205);
-        --color-slate-100: oklch(0.94 0.0112 205);
-        --color-slate-200: oklch(0.88 0.0134 205);
-        --color-slate-300: oklch(0.8 0.0156 205);
-        --color-slate-400: oklch(0.71 0.0178 205);
-        --color-slate-500: oklch(0.63 0.02 205);
-        --color-slate-600: oklch(0.55 0.0178 205);
-        --color-slate-700: oklch(0.46 0.0156 205);
-        --color-slate-800: oklch(0.3 0.0134 205);
-        --color-slate-900: oklch(0.22 0.0112 205);
-        --color-slate-950: oklch(0.15 0.009 205);
+        --color-slate-25: #f6f8fa;
+        --color-slate-50: #eaeef2;
+        --color-slate-100: #d8dee4;
+        --color-slate-200: #d1d9e0;
+        --color-slate-300: #afb8c1;
+        --color-slate-400: #8c959f;
+        --color-slate-500: #636e7b;
+        --color-slate-600: #545d68;
+        --color-slate-700: #444c56;
+        --color-slate-800: #2d333b;
+        --color-slate-900: #22272e;
+        --color-slate-950: #1c2128;
 
-        --color-blue-25: oklch(0.985 0.051 250);
-        --color-blue-50: oklch(0.97 0.0675 250);
-        --color-blue-100: oklch(0.94 0.084 250);
-        --color-blue-200: oklch(0.88 0.1005 250);
-        --color-blue-300: oklch(0.8 0.117 250);
-        --color-blue-400: oklch(0.71 0.1335 250);
-        --color-blue-500: oklch(0.63 0.15 250);
-        --color-blue-600: oklch(0.55 0.1335 250);
-        --color-blue-700: oklch(0.46 0.117 250);
-        --color-blue-800: oklch(0.3 0.1005 250);
-        --color-blue-900: oklch(0.22 0.084 250);
-        --color-blue-950: oklch(0.15 0.0675 250);
+        --color-blue-25: #f2f8ff;
+        --color-blue-50: #ddf4ff;
+        --color-blue-100: #b6e3ff;
+        --color-blue-200: #80ccff;
+        --color-blue-300: #54aeff;
+        --color-blue-400: #218bff;
+        --color-blue-500: #0969da;
+        --color-blue-600: #0550ae;
+        --color-blue-700: #033d8b;
+        --color-blue-800: #0a3069;
+        --color-blue-900: #002155;
+        --color-blue-950: #001129;
 
-        --color-amber-25: oklch(0.985 0.0476 72);
-        --color-amber-50: oklch(0.97 0.063 72);
-        --color-amber-100: oklch(0.94 0.0784 72);
-        --color-amber-200: oklch(0.88 0.0938 72);
-        --color-amber-300: oklch(0.8 0.1092 72);
-        --color-amber-400: oklch(0.71 0.1246 72);
-        --color-amber-500: oklch(0.63 0.14 72);
-        --color-amber-600: oklch(0.55 0.1246 72);
-        --color-amber-700: oklch(0.46 0.1092 72);
-        --color-amber-800: oklch(0.3 0.0938 72);
-        --color-amber-900: oklch(0.22 0.0784 72);
-        --color-amber-950: oklch(0.15 0.063 72);
+        --color-amber-25: #fffbe6;
+        --color-amber-50: #fff8c5;
+        --color-amber-100: #fae17d;
+        --color-amber-200: #eac54f;
+        --color-amber-300: #d4a72c;
+        --color-amber-400: #bf8700;
+        --color-amber-500: #9a6700;
+        --color-amber-600: #7d4e00;
+        --color-amber-700: #633c01;
+        --color-amber-800: #4d2d00;
+        --color-amber-900: #3b2300;
+        --color-amber-950: #2a1800;
 
-        --color-rose-25: oklch(0.985 0.0578 16);
-        --color-rose-50: oklch(0.97 0.0765 16);
-        --color-rose-100: oklch(0.94 0.0952 16);
-        --color-rose-200: oklch(0.88 0.1139 16);
-        --color-rose-300: oklch(0.8 0.1326 16);
-        --color-rose-400: oklch(0.71 0.1513 16);
-        --color-rose-500: oklch(0.63 0.17 16);
-        --color-rose-600: oklch(0.55 0.1513 16);
-        --color-rose-700: oklch(0.46 0.1326 16);
-        --color-rose-800: oklch(0.3 0.1139 16);
-        --color-rose-900: oklch(0.22 0.0952 16);
-        --color-rose-950: oklch(0.15 0.0765 16);
+        --color-rose-25: #fff5f4;
+        --color-rose-50: #ffebe9;
+        --color-rose-100: #ffcecb;
+        --color-rose-200: #ffaba8;
+        --color-rose-300: #ff8182;
+        --color-rose-400: #fa4549;
+        --color-rose-500: #cf222e;
+        --color-rose-600: #a40e26;
+        --color-rose-700: #82071e;
+        --color-rose-800: #660018;
+        --color-rose-900: #4c0014;
+        --color-rose-950: #37000d;
 
-        --color-zinc-25: oklch(0.985 0.0027 235);
-        --color-zinc-50: oklch(0.97 0.0036 235);
-        --color-zinc-100: oklch(0.94 0.0045 235);
-        --color-zinc-200: oklch(0.88 0.0054 235);
-        --color-zinc-300: oklch(0.8 0.0062 235);
-        --color-zinc-400: oklch(0.71 0.0071 235);
-        --color-zinc-500: oklch(0.63 0.008 235);
-        --color-zinc-600: oklch(0.55 0.0071 235);
-        --color-zinc-700: oklch(0.46 0.0062 235);
-        --color-zinc-800: oklch(0.3 0.0054 235);
-        --color-zinc-900: oklch(0.22 0.0045 235);
-        --color-zinc-950: oklch(0.15 0.0036 235);
+        --color-zinc-25: #f6f8fa;
+        --color-zinc-50: #eaeef2;
+        --color-zinc-100: #e4e8ec;
+        --color-zinc-200: #d0d7de;
+        --color-zinc-300: #afb8c1;
+        --color-zinc-400: #8c959f;
+        --color-zinc-500: #6e7781;
+        --color-zinc-600: #57606a;
+        --color-zinc-700: #424a53;
+        --color-zinc-800: #32383f;
+        --color-zinc-900: #24292f;
+        --color-zinc-950: #1c2128;
 
         --color-white: oklch(1 0 0);
         --spacing: 4px;
@@ -121,34 +121,36 @@
         --color-surface: var(--color-slate-25);
         --color-surface-raised: var(--color-white);
         --color-surface-sunken: var(--color-slate-50);
-        --color-ink: var(--color-slate-900);
-        --color-ink-muted: var(--color-slate-700);
-        --color-ink-subtle: var(--color-slate-600);
+        --color-surface-hover: rgba(31, 35, 40, 0.06);
+        --color-ink: #1f2328;
+        --color-ink-muted: #424a53;
+        --color-ink-subtle: #59636e;
         --color-border: var(--color-slate-200);
         --color-border-strong: var(--color-slate-300);
-        --color-scrim: var(--color-slate-950);
-        --color-border-focus: var(--color-teal-600);
-        --color-brand: var(--color-teal-700);
-        --color-brand-hover: var(--color-teal-800);
-        --color-brand-contrast: var(--color-teal-25);
-        --color-brand-ink: var(--color-teal-800);
-        --color-brand-wash: var(--color-teal-50);
-        --color-notice: var(--color-blue-700);
-        --color-notice-contrast: var(--color-blue-25);
-        --color-notice-ink: var(--color-blue-800);
-        --color-notice-wash: var(--color-blue-50);
-        --color-warning: var(--color-amber-700);
-        --color-warning-contrast: var(--color-amber-25);
-        --color-warning-ink: var(--color-amber-800);
-        --color-warning-wash: var(--color-amber-50);
-        --color-critical: var(--color-rose-700);
-        --color-critical-contrast: var(--color-rose-25);
-        --color-critical-ink: var(--color-rose-800);
-        --color-critical-wash: var(--color-rose-50);
-        --color-offline: var(--color-zinc-600);
-        --color-offline-contrast: var(--color-zinc-25);
-        --color-offline-ink: var(--color-zinc-700);
-        --color-offline-wash: var(--color-zinc-100);
+        --color-border-muted: #e4e8ec;
+        --color-scrim: #010409;
+        --color-border-focus: #0969da;
+        --color-brand: #0969da;
+        --color-brand-hover: #0550ae;
+        --color-brand-contrast: #ffffff;
+        --color-brand-ink: #0969da;
+        --color-brand-wash: #ddf4ff;
+        --color-notice: #0969da;
+        --color-notice-contrast: #ffffff;
+        --color-notice-ink: #0969da;
+        --color-notice-wash: #ddf4ff;
+        --color-warning: #9a6700;
+        --color-warning-contrast: #ffffff;
+        --color-warning-ink: #9a6700;
+        --color-warning-wash: #fff8c5;
+        --color-critical: #cf222e;
+        --color-critical-contrast: #ffffff;
+        --color-critical-ink: #d1242f;
+        --color-critical-wash: #ffebe9;
+        --color-offline: #6e7781;
+        --color-offline-contrast: #ffffff;
+        --color-offline-ink: #59636e;
+        --color-offline-wash: #eaeef2;
 
         /* 图表：系列色为字面值，坐标轴/网格取自 ramp。 */
         --color-chart-1: #2a78d6;
@@ -193,34 +195,36 @@
           --color-surface: var(--color-slate-900);
           --color-surface-raised: var(--color-slate-800);
           --color-surface-sunken: var(--color-slate-950);
-          --color-ink: var(--color-slate-50);
-          --color-ink-muted: var(--color-slate-200);
-          --color-ink-subtle: var(--color-slate-300);
+          --color-surface-hover: rgba(144, 157, 171, 0.1);
+          --color-ink: #cdd9e5;
+          --color-ink-muted: #adbac7;
+          --color-ink-subtle: #909dab;
           --color-border: var(--color-slate-700);
           --color-border-strong: var(--color-slate-600);
-          --color-scrim: var(--color-slate-950);
-          --color-border-focus: var(--color-teal-400);
-          --color-brand: var(--color-teal-300);
-          --color-brand-hover: var(--color-teal-200);
-          --color-brand-contrast: var(--color-teal-950);
-          --color-brand-ink: var(--color-teal-200);
-          --color-brand-wash: var(--color-teal-900);
-          --color-notice: var(--color-blue-300);
-          --color-notice-contrast: var(--color-blue-950);
-          --color-notice-ink: var(--color-blue-200);
-          --color-notice-wash: var(--color-blue-900);
-          --color-warning: var(--color-amber-300);
-          --color-warning-contrast: var(--color-amber-950);
-          --color-warning-ink: var(--color-amber-200);
-          --color-warning-wash: var(--color-amber-900);
-          --color-critical: var(--color-rose-300);
-          --color-critical-contrast: var(--color-rose-950);
-          --color-critical-ink: var(--color-rose-200);
-          --color-critical-wash: var(--color-rose-900);
-          --color-offline: var(--color-zinc-400);
-          --color-offline-contrast: var(--color-zinc-950);
-          --color-offline-ink: var(--color-zinc-300);
-          --color-offline-wash: var(--color-zinc-800);
+          --color-border-muted: #373e47;
+          --color-scrim: #010409;
+          --color-border-focus: #539bf5;
+          --color-brand: #316dca;
+          --color-brand-hover: #4184e4;
+          --color-brand-contrast: #ffffff;
+          --color-brand-ink: #58a6ff;
+          --color-brand-wash: #212d40;
+          --color-notice: #316dca;
+          --color-notice-contrast: #ffffff;
+          --color-notice-ink: #58a6ff;
+          --color-notice-wash: #212d40;
+          --color-warning: #966600;
+          --color-warning-contrast: #ffffff;
+          --color-warning-ink: #c69026;
+          --color-warning-wash: #2b2517;
+          --color-critical: #c93c37;
+          --color-critical-contrast: #ffffff;
+          --color-critical-ink: #f47067;
+          --color-critical-wash: #2e2124;
+          --color-offline: #545d68;
+          --color-offline-contrast: #ffffff;
+          --color-offline-ink: #909dab;
+          --color-offline-wash: #2d333b;
 
           /* 图表：系列色为字面值，坐标轴/网格取自 ramp。 */
           --color-chart-1: #3987e5;
@@ -243,7 +247,7 @@
           --color-ros-link: rgba(255, 255, 255, 0.72);
           --color-ros-cloud-obstacle: #b6edff;
           --color-ros-cloud-floor: #6c8494;
-          --color-map-grid: var(--color-slate-800);
+          --color-map-grid: var(--color-slate-600);
           --color-map-scale: var(--color-slate-300);
 
           /* 点云 alpha 下限：不是颜色，所以不带 --color- 前缀。 */
@@ -263,34 +267,36 @@
         --color-surface: var(--color-slate-900);
         --color-surface-raised: var(--color-slate-800);
         --color-surface-sunken: var(--color-slate-950);
-        --color-ink: var(--color-slate-50);
-        --color-ink-muted: var(--color-slate-200);
-        --color-ink-subtle: var(--color-slate-300);
+        --color-surface-hover: rgba(144, 157, 171, 0.1);
+        --color-ink: #cdd9e5;
+        --color-ink-muted: #adbac7;
+        --color-ink-subtle: #909dab;
         --color-border: var(--color-slate-700);
         --color-border-strong: var(--color-slate-600);
-        --color-scrim: var(--color-slate-950);
-        --color-border-focus: var(--color-teal-400);
-        --color-brand: var(--color-teal-300);
-        --color-brand-hover: var(--color-teal-200);
-        --color-brand-contrast: var(--color-teal-950);
-        --color-brand-ink: var(--color-teal-200);
-        --color-brand-wash: var(--color-teal-900);
-        --color-notice: var(--color-blue-300);
-        --color-notice-contrast: var(--color-blue-950);
-        --color-notice-ink: var(--color-blue-200);
-        --color-notice-wash: var(--color-blue-900);
-        --color-warning: var(--color-amber-300);
-        --color-warning-contrast: var(--color-amber-950);
-        --color-warning-ink: var(--color-amber-200);
-        --color-warning-wash: var(--color-amber-900);
-        --color-critical: var(--color-rose-300);
-        --color-critical-contrast: var(--color-rose-950);
-        --color-critical-ink: var(--color-rose-200);
-        --color-critical-wash: var(--color-rose-900);
-        --color-offline: var(--color-zinc-400);
-        --color-offline-contrast: var(--color-zinc-950);
-        --color-offline-ink: var(--color-zinc-300);
-        --color-offline-wash: var(--color-zinc-800);
+        --color-border-muted: #373e47;
+        --color-scrim: #010409;
+        --color-border-focus: #539bf5;
+        --color-brand: #316dca;
+        --color-brand-hover: #4184e4;
+        --color-brand-contrast: #ffffff;
+        --color-brand-ink: #58a6ff;
+        --color-brand-wash: #212d40;
+        --color-notice: #316dca;
+        --color-notice-contrast: #ffffff;
+        --color-notice-ink: #58a6ff;
+        --color-notice-wash: #212d40;
+        --color-warning: #966600;
+        --color-warning-contrast: #ffffff;
+        --color-warning-ink: #c69026;
+        --color-warning-wash: #2b2517;
+        --color-critical: #c93c37;
+        --color-critical-contrast: #ffffff;
+        --color-critical-ink: #f47067;
+        --color-critical-wash: #2e2124;
+        --color-offline: #545d68;
+        --color-offline-contrast: #ffffff;
+        --color-offline-ink: #909dab;
+        --color-offline-wash: #2d333b;
 
         /* 图表：系列色为字面值，坐标轴/网格取自 ramp。 */
         --color-chart-1: #3987e5;
@@ -313,7 +319,7 @@
         --color-ros-link: rgba(255, 255, 255, 0.72);
         --color-ros-cloud-obstacle: #b6edff;
         --color-ros-cloud-floor: #6c8494;
-        --color-map-grid: var(--color-slate-800);
+        --color-map-grid: var(--color-slate-600);
         --color-map-scale: var(--color-slate-300);
 
         /* 点云 alpha 下限：不是颜色，所以不带 --color- 前缀。 */
@@ -601,16 +607,18 @@
         <div>
           <p class="eyebrow">① 原始层</p>
           <h2 style="margin-top: calc(var(--spacing) * 2)">
-            色阶 —— 6 × 12 阶，oklch 生成
+            色阶 —— 6 × 12 阶，取自 GitHub Primer
           </h2>
         </div>
         <p style="color: var(--color-ink-muted); max-width: 66ch">
-          用 <code>oklch()</code> 而不是
-          hex，是为了让明度阶梯在感知上均匀：同一个 L 值在不同色相下看起来
-          一样亮。彩度在 500
-          阶达峰、向两端线性收敛，避免浅色端发灰、深色端糊成一团。中性色
-          <code>slate</code> 刻意带一点青绿偏色而不是纯灰 ——
-          纯中灰在品牌色旁边会显脏。
+          v1.5.0 起，色阶直接采用 GitHub Primer 的字面量 hex：浅色取
+          <code>Light default</code>，深色取
+          <code>dark_dimmed</code>（外观里的「Soft dark」）。不再用
+          <code>oklch()</code>
+          公式生成——目标从"感知均匀"变为"照抄成熟系统的手感"。 品牌与 notice 用
+          Primer 的 accent 蓝，中性
+          <code>slate</code> 是一条跨主题阶（浅端浅灰、深端 dark_dimmed
+          的近黑面）。
         </p>
         <div
           class="card"
@@ -621,38 +629,44 @@
           "
         >
           <div class="ramp">
-            <div class="ramp-label"><b>teal</b><span>品牌</span></div>
+            <div class="ramp-label">
+              <b>indigo</b><span>品牌 / accent（GitHub blue）</span>
+            </div>
             <div class="ramp-strip">
-              <i style="background: var(--color-teal-25)" title="teal-25"
+              <i style="background: var(--color-indigo-25)" title="indigo-25"
                 ><em>25</em></i
-              ><i style="background: var(--color-teal-50)" title="teal-50"
+              ><i style="background: var(--color-indigo-50)" title="indigo-50"
                 ><em>50</em></i
-              ><i style="background: var(--color-teal-100)" title="teal-100"
+              ><i style="background: var(--color-indigo-100)" title="indigo-100"
                 ><em>100</em></i
-              ><i style="background: var(--color-teal-200)" title="teal-200"
+              ><i style="background: var(--color-indigo-200)" title="indigo-200"
                 ><em>200</em></i
-              ><i style="background: var(--color-teal-300)" title="teal-300"
+              ><i style="background: var(--color-indigo-300)" title="indigo-300"
                 ><em>300</em></i
-              ><i style="background: var(--color-teal-400)" title="teal-400"
+              ><i style="background: var(--color-indigo-400)" title="indigo-400"
                 ><em>400</em></i
-              ><i style="background: var(--color-teal-500)" title="teal-500"
+              ><i style="background: var(--color-indigo-500)" title="indigo-500"
                 ><em>500</em></i
-              ><i style="background: var(--color-teal-600)" title="teal-600"
+              ><i style="background: var(--color-indigo-600)" title="indigo-600"
                 ><em>600</em></i
-              ><i style="background: var(--color-teal-700)" title="teal-700"
+              ><i style="background: var(--color-indigo-700)" title="indigo-700"
                 ><em>700</em></i
-              ><i style="background: var(--color-teal-800)" title="teal-800"
+              ><i style="background: var(--color-indigo-800)" title="indigo-800"
                 ><em>800</em></i
-              ><i style="background: var(--color-teal-900)" title="teal-900"
+              ><i style="background: var(--color-indigo-900)" title="indigo-900"
                 ><em>900</em></i
-              ><i style="background: var(--color-teal-950)" title="teal-950"
+              ><i style="background: var(--color-indigo-950)" title="indigo-950"
                 ><em>950</em></i
               >
             </div>
           </div>
           <div class="ramp">
             <div class="ramp-label">
-              <b>slate</b><span>中性（带青绿偏色，不是纯灰）</span>
+              <b>slate</b
+              ><span
+                >中性（浅端=Primer light 灰，深端=Primer dark_dimmed / Soft
+                dark）</span
+              >
             </div>
             <div class="ramp-strip">
               <i style="background: var(--color-slate-25)" title="slate-25"
@@ -683,7 +697,9 @@
             </div>
           </div>
           <div class="ramp">
-            <div class="ramp-label"><b>blue</b><span>notice</span></div>
+            <div class="ramp-label">
+              <b>blue</b><span>notice（同 accent，GitHub 信息蓝）</span>
+            </div>
             <div class="ramp-strip">
               <i style="background: var(--color-blue-25)" title="blue-25"
                 ><em>25</em></i
@@ -713,7 +729,9 @@
             </div>
           </div>
           <div class="ramp">
-            <div class="ramp-label"><b>amber</b><span>warning</span></div>
+            <div class="ramp-label">
+              <b>amber</b><span>warning（GitHub attention/yellow）</span>
+            </div>
             <div class="ramp-strip">
               <i style="background: var(--color-amber-25)" title="amber-25"
                 ><em>25</em></i
@@ -743,7 +761,9 @@
             </div>
           </div>
           <div class="ramp">
-            <div class="ramp-label"><b>rose</b><span>critical</span></div>
+            <div class="ramp-label">
+              <b>rose</b><span>critical（GitHub danger/red）</span>
+            </div>
             <div class="ramp-strip">
               <i style="background: var(--color-rose-25)" title="rose-25"
                 ><em>25</em></i
@@ -773,7 +793,9 @@
             </div>
           </div>
           <div class="ramp">
-            <div class="ramp-label"><b>zinc</b><span>offline / 禁用</span></div>
+            <div class="ramp-label">
+              <b>zinc</b><span>offline / 禁用（GitHub neutral 灰）</span>
+            </div>
             <div class="ramp-strip">
               <i style="background: var(--color-zinc-25)" title="zinc-25"
                 ><em>25</em></i
@@ -928,7 +950,7 @@
         <div>
           <p class="eyebrow">② 语义层 · 机检</p>
           <h2 style="margin-top: calc(var(--spacing) * 2)">
-            对比度审计（31 个 token）
+            对比度审计（33 个 token）
           </h2>
         </div>
         <div class="audit-summary" data-role="summary"></div>

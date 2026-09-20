@@ -28,6 +28,8 @@ export const tableClasses = {
   /**
    * A body row; `last:border-0` drops the trailing rule so it never doubles the wrapper,
    * and a quiet hover tint gives the row an interactive feel (rows are scannable records).
+   * Hover uses `surface-hover` (a translucent neutral), NOT `surface-sunken` — the head strip
+   * is `surface-sunken`, so hovering a row must not repaint it to the header's colour.
    */
-  row: "border-b border-border last:border-0 transition-colors duration-150 ease-standard hover:bg-surface-sunken",
+  row: "border-b border-border last:border-0 transition-colors duration-150 ease-standard hover:bg-surface-hover",
 } as const;

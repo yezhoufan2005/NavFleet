@@ -249,7 +249,7 @@ const exportCsv = (): void => {
 </script>
 
 <template>
-  <PageHeader title="报表" scroll-content>
+  <PageHeader title="报表">
     <!-- Filters in one row above the charts (data-viz convention), export at the end. -->
     <div class="flex flex-wrap items-end gap-3">
       <div class="flex flex-col gap-1">
@@ -267,7 +267,7 @@ const exportCsv = (): void => {
       <!-- 自定义起止：与预设是同一控件的两种形态，选日期即接管，选预设即清空。起 ≤ 止 由
            原生 min/max 约束，另在 isCustom 里兜底。 -->
       <label class="flex flex-col gap-1">
-        <span class="text-2xs text-ink-muted">起</span>
+        <span class="text-2xs text-ink-muted">起始时间</span>
         <UiInput
           type="date"
           :model-value="customFrom"
@@ -277,7 +277,7 @@ const exportCsv = (): void => {
         />
       </label>
       <label class="flex flex-col gap-1">
-        <span class="text-2xs text-ink-muted">止</span>
+        <span class="text-2xs text-ink-muted">结束时间</span>
         <UiInput
           type="date"
           :model-value="customTo"
@@ -359,13 +359,13 @@ const exportCsv = (): void => {
       class="m-0 max-w-prose rounded-md border border-border bg-surface-raised p-8 text-center text-sm text-ink-muted"
       role="status"
     >
-      暂无历史可聚合；报表依赖后端连接 MongoDB ——
+      暂无历史可聚合：报表依赖后端连接MongoDB——
       <RouterLink
         to="/admin/system"
         class="text-brand-ink underline underline-offset-2"
         >管理 / 系统状态</RouterLink
       >
-      会说明它此刻连上了没有
+      说明连接情况
     </p>
 
     <template v-else>

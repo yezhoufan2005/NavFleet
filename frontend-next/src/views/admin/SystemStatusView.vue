@@ -252,7 +252,7 @@ const AREA_LABELS: Record<StoredEntry["area"], string> = {
 </script>
 
 <template>
-  <PageHeader title="系统状态" scroll-content>
+  <PageHeader title="系统状态">
     <template #actions>
       <UiButton
         variant="secondary"
@@ -270,14 +270,8 @@ const AREA_LABELS: Record<StoredEntry["area"], string> = {
     >
       <div class="flex flex-col gap-1">
         <h3 id="backend-heading" class="text-md font-semibold text-ink">
-          后端与它的依赖
+          后端与依赖
         </h3>
-        <p class="m-0 max-w-prose text-sm text-ink-muted">
-          来自
-          <code class="font-mono text-xs">/health/ready</code
-          >，也就是后端对自己的报告；它与下一节合起来才能分清"我连不上后端"和"后端连不上
-          broker"
-        </p>
       </div>
 
       <!--
@@ -316,11 +310,8 @@ const AREA_LABELS: Record<StoredEntry["area"], string> = {
     >
       <div class="flex flex-col gap-1">
         <h3 id="link-heading" class="text-md font-semibold text-ink">
-          这个标签页的链路
+          标签页链路
         </h3>
-        <p class="m-0 max-w-prose text-sm text-ink-muted">
-          本页面自己持有的 WebSocket 与引导结果
-        </p>
       </div>
 
       <ul class="m-0 flex list-none flex-col gap-2 p-0">
@@ -392,11 +383,6 @@ const AREA_LABELS: Record<StoredEntry["area"], string> = {
             </dd>
           </div>
         </dl>
-        <!-- Both clocks are shown because a skewed browser otherwise reads as a
-             stale fleet — the mistake the top bar's relative time used to make. -->
-        <p class="m-0 text-xs text-ink-muted">
-          两者持续拉大说明本机时钟偏了，而不是车队不再上报
-        </p>
       </section>
     </div>
 
@@ -407,13 +393,8 @@ const AREA_LABELS: Record<StoredEntry["area"], string> = {
       <div class="flex flex-wrap items-start justify-between gap-3">
         <div class="flex flex-col gap-1">
           <h3 id="local-heading" class="text-md font-semibold text-ink">
-            本浏览器留存的数据
+            浏览器留存数据
           </h3>
-          <p class="m-0 max-w-prose text-sm text-ink-muted">
-            按 <code class="font-mono text-xs">navfleet:</code>
-            前缀扫描得出，不是写死的清单 ——
-            这一页要说的是实情，而写死的清单会过期
-          </p>
         </div>
         <UiButton
           variant="secondary"
@@ -493,10 +474,6 @@ const AREA_LABELS: Record<StoredEntry["area"], string> = {
           </tbody>
         </table>
       </div>
-
-      <p class="m-0 text-xs text-ink-muted">
-        清除后页面会重新加载：写入这些键的模块只在加载时读一次，不重载的话旧偏好会继续生效
-      </p>
     </section>
   </PageHeader>
 </template>

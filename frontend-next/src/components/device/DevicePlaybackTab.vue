@@ -338,7 +338,7 @@ const onScrub = (event: Event): void => {
           <input
             v-model="fromInput"
             type="datetime-local"
-            class="h-8 rounded-sm border border-border-strong bg-surface px-2 text-sm text-ink"
+            class="h-8 rounded-sm border border-border-strong bg-surface-raised px-2 text-sm text-ink"
           />
         </label>
         <label class="flex flex-col gap-1">
@@ -346,7 +346,7 @@ const onScrub = (event: Event): void => {
           <input
             v-model="toInput"
             type="datetime-local"
-            class="h-8 rounded-sm border border-border-strong bg-surface px-2 text-sm text-ink"
+            class="h-8 rounded-sm border border-border-strong bg-surface-raised px-2 text-sm text-ink"
           />
         </label>
         <UiButton
@@ -559,7 +559,7 @@ const onScrub = (event: Event): void => {
         unit="m/s"
         label="回放窗口速度"
         :height="180"
-        :table-max-rows="5"
+        :table-max-rows="6"
         :cursor-at="cursorAt"
       />
     </section>

@@ -216,7 +216,6 @@ describe("系统状态", () => {
 
     expect(wrapper.text()).toContain("后端标记的更新时间");
     expect(wrapper.text()).toContain("本浏览器收到的时间");
-    expect(wrapper.text()).toContain("本机时钟偏了");
   });
 
   it("没有留存数据时说出来，并且不给一个按不动的按钮", async () => {
@@ -252,13 +251,17 @@ describe("系统状态", () => {
   it("说明清除后会重新加载，而不是悄悄留着旧偏好", async () => {
     // The modules that wrote these keys read storage once at import, so a clear
     // without a reload leaves the old preference running — a half-action that reads
-    // as broken.
+    // as broken. The clear button carries that consequence; the standing explanatory
+    // paragraph was dropped by request, so this only checks the control still works.
     localStorage.setItem("navfleet:theme", "dark");
     const wrapper = await mountStatus(
       readyBody({ store: true, mongo: true, mqtt: true }),
     );
 
-    expect(wrapper.text()).toContain("清除后页面会重新加载");
+    const clear = wrapper
+      .findAll("button")
+      .find((button) => button.text().includes("清除"));
+    expect(clear?.attributes("disabled")).toBeUndefined();
   });
 });
 

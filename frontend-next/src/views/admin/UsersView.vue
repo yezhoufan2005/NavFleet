@@ -291,7 +291,7 @@ const formatTime = (iso: string | null): string =>
 </script>
 
 <template>
-  <PageHeader title="用户" scroll-content>
+  <PageHeader title="用户">
     <template #actions>
       <UiButton variant="secondary" size="sm" @click="load">刷新</UiButton>
       <UiButton size="sm" @click="openCreate">新建用户</UiButton>
