@@ -258,12 +258,15 @@ test.describe("console devices", () => {
     );
     await expect(page.getByRole("tab", { name: "实时" })).toBeVisible();
 
-    // Selection still follows, so coming back to the map lands on that vehicle.
+    // Selection still follows, so the map lands with that vehicle as its subject. The
+    // default view frames the whole scene, so 定位车辆 is what brings the remembered
+    // vehicle to the centre — and that it can proves the selection survived.
     await page.goBack();
     await page.getByRole("button", { name: "地图", exact: true }).click();
     await page.getByRole("button", { name: "ROS", exact: true }).click();
     await expect(page.getByRole("img", { name: "ROS 场景地图" })).toBeVisible();
 
+    await page.getByRole("button", { name: "定位车辆" }).click();
     expect(await markerOffsetFromCentre(page)).toBeLessThan(24);
   });
 
