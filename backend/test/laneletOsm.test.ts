@@ -50,10 +50,12 @@ describe("parseLaneletOsmText", () => {
     expect(() => parseLaneletOsmText("<osm></osm>", "empty.osm", "s")).toThrow();
   });
 
-  it("skips lanelets tombstoned with delete=true rather than drawing them", () => {
-    // Lanelet2 keeps a superseded lanelet in the file, tagged delete=true, instead of
-    // removing it. Such a relation is history, not a live lane — it must not be drawn, and
-    // must not count towards laneletCount.
+  it("hides a delete=true lanelet that only shadows live geometry", () => {
+    // A genuine Lanelet2 tombstone re-declares the geometry its live replacement now owns:
+    // every way it names also appears on a non-deleted lanelet. Such a relation is history,
+    // not a live lane — it must not be drawn, and must not count towards laneletCount. Here
+    // relation 200 names the very ways (10, 11) that live relation 100 uses, so it is a true
+    // tombstone and is hidden.
     const withDeleted = `<?xml version="1.0" encoding="UTF-8"?>
 <osm version="0.6">
   <node id="1" lat="31.2300" lon="121.4700"/>
@@ -79,13 +81,14 @@ describe("parseLaneletOsmText", () => {
     expect(overlay.lanelets.map((lanelet) => lanelet.id)).toEqual(["100"]);
   });
 
-  it("frames bounds around live lanelets only, not tombstone-only nodes", () => {
-    // A delete=true lanelet can reference nodes that no live lane touches. Those tombstone
-    // nodes must not stretch the overlay bounds, or the drawn network sits off-centre in an
-    // oversized frame (the post-Phase-18 "地图渲染不对" regression). Here relation 300 is
-    // tombstoned and its way 12 pulls in nodes 5/6 ~1113m north of the live lane; bounds
-    // must ignore them.
-    const withFarTombstone = `<?xml version="1.0" encoding="UTF-8"?>
+  it("draws a delete=true lanelet that carries geometry no live lane uses", () => {
+    // The 康城 Airy fix: this map's delete=true relations are not tombstones but a disjoint
+    // half of the real road network — they name ways that no live lanelet touches. Phase 18's
+    // blanket skip dropped them and left the network as scattered fragments. A deleted lanelet
+    // whose ways are its own must be drawn (and counted). Here relation 300 uses way 12, which
+    // no live lane references, so it survives onto the overlay and stretches bounds to include
+    // its geometry (~1113m north).
+    const withDisjointDeleted = `<?xml version="1.0" encoding="UTF-8"?>
 <osm version="0.6">
   <node id="1" lat="31.2300" lon="121.4700"/>
   <node id="2" lat="31.2301" lon="121.4700"/>
@@ -108,15 +111,14 @@ describe("parseLaneletOsmText", () => {
     <member type="way" ref="12" role="right"/>
   </relation>
 </osm>`;
-    const overlay = parseLaneletOsmText(withFarTombstone, "far-tombstone.osm", "scene-x", {
+    const overlay = parseLaneletOsmText(withDisjointDeleted, "disjoint.osm", "scene-x", {
       lat: 31.23,
       lng: 121.47,
     });
-    expect(overlay.stats.laneletCount).toBe(1);
-    // Live lane spans ~11m north (node 2), far tombstone would be ~1113m north (node 5).
-    expect(overlay.bounds.maxY).toBeLessThan(100);
-    expect(overlay.bounds.maxY).toBeCloseTo(11.132, 2);
-    expect(overlay.bounds.minY).toBeCloseTo(0, 3);
+    expect(overlay.stats.laneletCount).toBe(2);
+    expect(overlay.lanelets.map((lanelet) => lanelet.id).sort()).toEqual(["100", "300"]);
+    // Bounds now include the previously-dropped geometry rather than framing only the live lane.
+    expect(overlay.bounds.maxY).toBeGreaterThan(1000);
   });
 
   it("falls back to node bounds when nothing is drawable", () => {
