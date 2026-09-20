@@ -92,10 +92,11 @@ test.describe("console overview", () => {
      */
     const list = page.locator(".formation-list");
     const rows = list.locator("li");
-    // Three, because that is what `config-runtime/formations.json` declares — the
-    // count comes from the file (see `CONFIGURED_FORMATION_COUNT`) so a fourth
-    // formation fails here with a reason instead of a bare number mismatch.
-    expect(CONFIGURED_FORMATION_COUNT).toBe(3);
+    // Five, because that is what `config-runtime/formations.json` declares — the count
+    // comes from the file (see `CONFIGURED_FORMATION_COUNT`) so a change to the deployment
+    // config fails here with a reason instead of a bare number mismatch. All rows render;
+    // the panel caps its height at three and scrolls the rest (asserted below).
+    expect(CONFIGURED_FORMATION_COUNT).toBe(5);
     await expect(rows).toHaveCount(CONFIGURED_FORMATION_COUNT);
 
     const heights = await Promise.all(
@@ -103,15 +104,16 @@ test.describe("console overview", () => {
     );
     expect(heights.every((height) => height === 50)).toBe(true);
 
-    // 3 × 50px of row plus 2 × 8px of `gap-2`.
+    // 3 × 50px of row plus 2 × 8px of `gap-2`: the panel stays three rows tall.
     await expect(list).toHaveCSS("max-height", "166px");
 
-    // Three fit exactly, so there is nothing to scroll yet — the bar arrives with a fourth.
+    // With more than three formations the rest scroll rather than stretch the panel, so
+    // the content is taller than the box — a scrollbar is present by design.
     expect(
       await list.evaluate(
         (element) => element.scrollHeight - element.clientHeight,
       ),
-    ).toBe(0);
+    ).toBeGreaterThan(0);
   });
 
   test("reaches the message centre from the summary", async ({ page }) => {

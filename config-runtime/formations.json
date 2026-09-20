@@ -2,7 +2,14 @@
   {
     "formationId": "inspection-alpha",
     "formationName": "巡检编队 Alpha",
-    "deviceIds": ["agv-a01", "agv-b07", "agv-c12"],
+    "deviceIds": [
+      "agv-a01",
+      "agv-a02",
+      "agv-a03",
+      "agv-a04",
+      "agv-a05",
+      "agv-a06"
+    ],
     "sceneId": "kangcheng-airy",
     "description": "康城 Airy 路网室外巡检编队",
     "color": "#46d7c3"
@@ -10,17 +17,40 @@
   {
     "formationId": "warehouse-beta",
     "formationName": "仓储编队 Beta",
-    "deviceIds": ["agv-w05", "agv-w09"],
+    "deviceIds": [
+      "agv-w01",
+      "agv-w02",
+      "agv-w03",
+      "agv-w04",
+      "agv-w05",
+      "agv-w06"
+    ],
     "sceneId": "warehouse-a",
     "description": "一号仓储区室内搬运编队",
     "color": "#ffb35a"
   },
   {
+    "formationId": "yard-gamma",
+    "formationName": "装卸编队 Gamma",
+    "deviceIds": ["agv-y01", "agv-y02", "agv-y03", "agv-y04", "agv-y05"],
+    "sceneId": "yard-north",
+    "description": "北区装卸场室外牵引编队",
+    "color": "#86b8ff"
+  },
+  {
+    "formationId": "assembly-delta",
+    "formationName": "产线编队 Delta",
+    "deviceIds": ["agv-p01", "agv-p02", "agv-p03", "agv-p04"],
+    "sceneId": "assembly-line",
+    "description": "总装产线室内配料编队",
+    "color": "#b18cf0"
+  },
+  {
     "formationId": "cloudpoint-demo-team",
     "formationName": "点云示例编队",
-    "deviceIds": ["agv-r01"],
+    "deviceIds": ["agv-r01", "agv-r02"],
     "sceneId": "cloudpoint-demo",
     "description": "点云地图示例编队",
-    "color": "#86b8ff"
+    "color": "#7bd88f"
   }
 ]
