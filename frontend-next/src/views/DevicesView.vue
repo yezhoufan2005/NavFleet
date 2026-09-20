@@ -503,13 +503,16 @@ watch(
           from the map too (`frontend-ia.md`: from the list, the map or an alert), so the
           selected vehicle gets one link rather than every row getting a second control.
         -->
-        <RouterLink
+        <UiButton
           v-if="fleet.selectedDevice"
+          :as="RouterLink"
           :to="`/devices/${fleet.selectedDevice.deviceId}`"
-          class="mt-2 flex h-8 shrink-0 items-center justify-center rounded-sm border border-border-strong text-sm text-brand-ink transition-colors duration-150 ease-standard hover:bg-surface-sunken"
+          variant="secondary"
+          size="sm"
+          class="mt-2 w-full"
         >
           打开详情 →
-        </RouterLink>
+        </UiButton>
 
         <!--
           The control for `clearTrail`, which the store has exported since 12B with no
@@ -768,13 +771,14 @@ watch(
 }
 
 .device-row:hover {
-  background: var(--color-surface-sunken);
+  background: color-mix(in oklab, var(--color-ink) 6%, transparent);
 }
 
-/* The open row and its card read as one block. Without this the card looks like a
-   separate panel that happens to be underneath, rather than this row's own detail. */
+/* The open row and its card read as one block, tinted with the brand wash so an opened
+   row also reads as the selected one. Without this the card looks like a separate panel
+   that happens to be underneath, rather than this row's own detail. */
 .device-row[data-expanded] {
-  background: var(--color-surface-sunken);
+  background: var(--color-brand-wash);
 }
 
 .device-row[data-tone="critical"] {

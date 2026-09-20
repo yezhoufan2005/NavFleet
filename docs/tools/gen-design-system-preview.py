@@ -42,7 +42,10 @@ SEMANTIC = [
     ("surface", "slate-25", "slate-900"),
     ("surface-raised", "white", "slate-800"),
     ("surface-sunken", "slate-50", "slate-950"),
-    ("ink", "slate-900", "slate-50"),
+    # 浅色正文用 slate-800（L0.30）而非 slate-900（L0.22）：焕新第 1 步把 900 压深以让
+    # 深色 surface 更黑，副作用是浅色正文变成近黑、偏硬。正文改指 800 与深色解耦——浅色
+    # 更柔和（深灰而非纯黑，对 surface 仍约 9:1），深色 surface 保持压深不变。
+    ("ink", "slate-800", "slate-50"),
     # 深色侧原来是 300 / 400，被 12C 的 axe 审计打回：ink-subtle(slate-400) 落在
     # surface-raised(slate-800) 上只有 4.06:1。整体上移一档 —— muted 300→200、
     # subtle 400→300 —— 之后最差一组是 subtle on raised 5.58:1。

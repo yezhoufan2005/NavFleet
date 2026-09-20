@@ -30,6 +30,7 @@
  * genuinely irreversible action, never as a louder primary.
  */
 import { computed } from "vue";
+import type { Component } from "vue";
 import { Primitive } from "reka-ui";
 
 type Variant = "primary" | "secondary" | "ghost" | "danger";
@@ -51,7 +52,12 @@ const {
    * would leave a form that does nothing on Enter.
    */
   type?: "button" | "submit" | "reset";
-  as?: "button" | "a";
+  /**
+   * `"button"` (default) or `"a"`, or a component such as `RouterLink` for a control
+   * that is really navigation — `Primitive` renders it and forwards `to`/`href`, so a
+   * "打开详情 →" link gets the exact button styling without a hand-rolled copy of it.
+   */
+  as?: "button" | "a" | Component;
   disabled?: boolean;
 }>();
 
