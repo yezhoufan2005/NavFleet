@@ -158,7 +158,7 @@ const overrideHint = computed(() =>
             <tr>
               <th scope="col" class="px-3 py-2">报码</th>
               <th scope="col" class="px-3 py-2">名称</th>
-              <th scope="col" class="px-3 py-2">通道</th>
+              <th scope="col" class="px-4 py-2 whitespace-nowrap">通道</th>
               <th scope="col" class="px-3 py-2">等级</th>
               <th scope="col" class="px-3 py-2">子系统</th>
               <th scope="col" class="px-3 py-2">说明与处理建议</th>
@@ -172,7 +172,7 @@ const overrideHint = computed(() =>
             >
               <td class="px-3 py-2 font-mono text-ink">{{ entry.code }}</td>
               <td class="px-3 py-2 text-ink">{{ entry.label }}</td>
-              <td class="px-3 py-2 text-ink-muted">
+              <td class="px-4 py-2 whitespace-nowrap text-ink-muted">
                 {{ CHANNEL_LABELS[entry.channel] }}
               </td>
               <td class="px-3 py-2 text-ink-muted">

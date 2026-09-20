@@ -559,7 +559,7 @@ const onScrub = (event: Event): void => {
         unit="m/s"
         label="回放窗口速度"
         :height="180"
-        :table-max-rows="5"
+        :table-max-rows="6"
         :cursor-at="cursorAt"
       />
     </section>

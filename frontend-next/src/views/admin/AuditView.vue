@@ -120,7 +120,7 @@ const formatTime = (iso: string): string =>
 </script>
 
 <template>
-  <PageHeader title="审计" scroll-content>
+  <PageHeader title="审计">
     <template #actions>
       <UiButton variant="secondary" size="sm" @click="load">刷新</UiButton>
     </template>
@@ -153,9 +153,11 @@ const formatTime = (iso: string): string =>
         <UiInput v-model="to" type="date" :min="from || undefined" />
       </label>
       <UiButton size="sm" @click="applyFilters">查询</UiButton>
-      <!-- 重置 is quieter than 查询: a ghost button, so the reset never reads as a
-           second primary action beside the query. -->
-      <UiButton variant="ghost" size="sm" @click="resetFilters">重置</UiButton>
+      <!-- 重置 reuses the outlined secondary button (same frame as 刷新), a step quieter
+           than the solid 查询 primary beside it. -->
+      <UiButton variant="secondary" size="sm" @click="resetFilters"
+        >重置</UiButton
+      >
     </section>
 
     <!-- AUDIT_TABLE_PLACEHOLDER -->
@@ -175,12 +177,9 @@ const formatTime = (iso: string): string =>
       没有符合条件的记录
     </p>
     <template v-else>
-      <div
-        :class="[tableClasses.wrapper, 'overflow-auto']"
-        tabindex="0"
-        role="region"
-        aria-label="审计日志"
-      >
+      <!-- Same shell as the device list: the table itself does not scroll (`overflow-hidden`
+           clips its corners), the page scrolls. -->
+      <div :class="[tableClasses.wrapper, 'overflow-hidden']">
         <table :class="tableClasses.table">
           <caption class="sr-only">
             鉴权与用户管理事件，最新在前

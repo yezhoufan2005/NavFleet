@@ -63,7 +63,7 @@ test.describe("console admin", () => {
 
     // The backend is up in this suite, and that answer has to come from the endpoint
     // rather than from the console's own socket.
-    const backend = page.locator("section", { hasText: "后端与它的依赖" });
+    const backend = page.locator("section", { hasText: "后端与依赖" });
     await expect(backend).toContainText("可访问");
     await expect(backend).toContainText("就绪");
     // Mongo and the broker are informational here — the suite drives telemetry over
@@ -72,7 +72,7 @@ test.describe("console admin", () => {
     await expect(backend).toContainText("MongoDB");
     await expect(backend).toContainText("MQTT broker");
 
-    const link = page.locator("section", { hasText: "这个标签页的链路" });
+    const link = page.locator("section", { hasText: "标签页链路" });
     await expect(link).toContainText("实时");
     await expect(link).toContainText("已取得");
   });

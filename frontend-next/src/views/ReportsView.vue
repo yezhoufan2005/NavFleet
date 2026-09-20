@@ -359,13 +359,13 @@ const exportCsv = (): void => {
       class="m-0 max-w-prose rounded-md border border-border bg-surface-raised p-8 text-center text-sm text-ink-muted"
       role="status"
     >
-      暂无历史可聚合；报表依赖后端连接 MongoDB ——
+      暂无历史可聚合：报表依赖后端连接MongoDB——
       <RouterLink
         to="/admin/system"
         class="text-brand-ink underline underline-offset-2"
         >管理 / 系统状态</RouterLink
       >
-      会说明它此刻连上了没有
+      说明连接情况
     </p>
 
     <template v-else>
