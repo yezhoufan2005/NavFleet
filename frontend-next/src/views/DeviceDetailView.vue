@@ -413,7 +413,7 @@ const panels = computed(() =>
                     on a non-interactive element is not reliably announced.
                   -->
                   <dd
-                    class="m-0 truncate text-right text-sm text-ink"
+                    class="m-0 truncate text-right text-sm text-ink tabular-nums"
                     :class="
                       row.title
                         ? 'decoration-dotted underline-offset-4 hover:underline'

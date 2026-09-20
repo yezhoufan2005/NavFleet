@@ -22,6 +22,8 @@ interface RawLanelet {
   left: string;
   right: string;
   centerline: string;
+  /** `<tag k="delete" v="true"/>` — a superseded/edited relation kept in-file. */
+  deleted: boolean;
 }
 
 interface ProjectionOrigin {
@@ -136,17 +138,12 @@ const extractLanelets = (xmlText: string): RawLanelet[] => {
       continue;
     }
 
-    // Lanelet2 marks a superseded lanelet with `<tag k="delete" v="true"/>` rather than
-    // removing the relation, so an editor can keep the history in the same file. Those are
-    // tombstones, not geometry: drawing them put 46 of this map's 88 lanelets on screen as
-    // live lanes. Skip them here so they never reach the overlay (and `laneletCount` counts
-    // only what is drawn).
-    if (tags.delete === "true") {
-      continue;
-    }
-
     const members = elementsOf(body, MEMBER_PATTERN).map((member) => member.attributes);
 
+    // `delete=true` relations are kept here with a flag rather than dropped: whether one
+    // is a genuine tombstone (safe to hide) or distinct geometry (must be drawn) can only
+    // be told by comparing its ways against the live lanelets, which `parseLaneletOsmText`
+    // does once it has the whole set. See the filter there.
     lanelets.push({
       id: attributes.id || `${lanelets.length + 1}`,
       subtype: tags.subtype || "road",
@@ -154,6 +151,7 @@ const extractLanelets = (xmlText: string): RawLanelet[] => {
       left: members.find((item) => item.role === "left")?.ref || "",
       right: members.find((item) => item.role === "right")?.ref || "",
       centerline: members.find((item) => item.role === "centerline")?.ref || "",
+      deleted: tags.delete === "true",
     });
   }
 
@@ -204,7 +202,34 @@ export const parseLaneletOsmText = (
       .map(normalizePoint);
   };
 
-  const overlayLanelets = lanelets
+  // Decide which `delete=true` relations are real tombstones. A genuine tombstone
+  // re-declares geometry its live replacement now owns, so every way it names also
+  // appears on a non-deleted lanelet — hiding it removes a duplicate. But this map's 46
+  // delete=true relations name ways that NO live lanelet uses: they are a disjoint half
+  // of the actual road network, and Phase 18's blanket skip dropped them, leaving 42
+  // disconnected fragments on screen (the "康城 Airy 路网散乱" report). So skip a deleted
+  // lanelet only when all of its ways are already owned by a live lanelet; keep any that
+  // carries geometry nothing else draws.
+  const liveWayRefs = new Set<string>();
+  for (const lanelet of lanelets) {
+    if (lanelet.deleted) {
+      continue;
+    }
+    for (const ref of [lanelet.left, lanelet.right, lanelet.centerline]) {
+      if (ref) {
+        liveWayRefs.add(ref);
+      }
+    }
+  }
+  const drawnLanelets = lanelets.filter((lanelet) => {
+    if (!lanelet.deleted) {
+      return true;
+    }
+    const refs = [lanelet.left, lanelet.right, lanelet.centerline].filter(Boolean);
+    return refs.length === 0 || !refs.every((ref) => liveWayRefs.has(ref));
+  });
+
+  const overlayLanelets = drawnLanelets
     .map((lanelet) => ({
       id: lanelet.id,
       subtype: lanelet.subtype,
@@ -215,12 +240,11 @@ export const parseLaneletOsmText = (
     }))
     .filter((lanelet) => lanelet.left.length || lanelet.right.length || lanelet.centerline.length);
 
-  // Frame only what is drawn. Iterating *every* node would fold in the tombstone-only
-  // nodes of delete=true lanelets (this map carries 46 such relations against 42 live
-  // ones), leaving the live network sitting off-centre in an oversized frame with a
-  // ~10m band of empty space — the "过滤后地图渲染不对" report after Phase 18 started
-  // skipping tombstones. Compute bounds from the points that actually survived into the
-  // drawn lanelets; fall back to all nodes only if nothing is drawable at all.
+  // Frame only what is drawn. Compute bounds from the points that survived into the drawn
+  // lanelets (live lanelets plus any delete=true relation carrying its own geometry), not
+  // from every node: iterating all nodes would fold in the nodes of true tombstones we
+  // hid, leaving the drawn network sitting off-centre in an oversized frame. Fall back to
+  // all nodes only if nothing is drawable at all.
   const boundsPoints = overlayLanelets.length
     ? overlayLanelets.flatMap((lanelet) => [
         ...lanelet.left,

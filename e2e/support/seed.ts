@@ -73,16 +73,16 @@ export const SEEDED_DEVICES: readonly [
     infoCode: { code: 1101, info: "定位稳定" },
   },
   {
-    deviceId: "agv-b07",
-    deviceName: "B07 巡检车",
+    deviceId: "agv-a02",
+    deviceName: "A02 巡检车",
     statusLabel: "预警",
     soc: 58.5,
     start: { x: -20, y: 2 },
     warningCode: { code: 2203, info: "前方限速区，已降速通行" },
   },
   {
-    deviceId: "agv-c12",
-    deviceName: "C12 巡检车",
+    deviceId: "agv-a03",
+    deviceName: "A03 巡检车",
     statusLabel: "告警",
     soc: 41.5,
     start: { x: -8, y: 14 },
@@ -125,7 +125,7 @@ const findAlerting = (): SeededDevice => {
   return alerting;
 };
 
-/** The faulted vehicle (`agv-c12`, code 5102). */
+/** The faulted vehicle (`agv-a03`, code 5102). */
 export const SEEDED_FAULTED: SeededDevice = findFaulted();
 
 /** A vehicle with something to report, for the alert-centre specs. */
@@ -141,9 +141,11 @@ export const SEEDED_ALERTING: SeededDevice = findAlerting();
  * pointing at the coupling — so adding a fourth formation to the *deployment* config
  * broke a spec whose failure message said nothing about why.
  *
- * If this ever exceeds 3, the panel's own rule changes rather than the number: three
- * rows stay visible and the rest become scrollable. That is a deliberate assertion to
- * revisit, not a constant to bump.
+ * The deployment now declares five formations, more than the panel's three-row cap, so
+ * three rows stay visible and the rest scroll. `console-overview.spec.ts` asserts exactly
+ * that (row count from this constant, the pinned 166px height, and a present scrollbar),
+ * so the coupling to `config-runtime/formations.json` stays visible rather than hidden in
+ * bare literals.
  */
 export const CONFIGURED_FORMATION_COUNT: number = (
   JSON.parse(

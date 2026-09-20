@@ -558,7 +558,15 @@ watch(
       v-else
       class="overflow-hidden rounded-md border border-border bg-surface-raised"
     >
-      <table class="w-full border-collapse text-sm">
+      <!--
+        `tabular-nums`: the 最近上报 column re-renders every second with a fresh
+        timestamp, and this is an auto-layout table (`w-full`, no `table-fixed`), so
+        proportional digits of different widths ("1" vs "8") re-measured the column
+        each tick and nudged the right-aligned 电量 value a pixel sideways — the
+        "电量在抖动" report. Tabular figures give every digit the same advance width,
+        so the value is stable and no column reflows on a data tick.
+      -->
+      <table class="w-full border-collapse text-sm tabular-nums">
         <caption class="sr-only">
           设备列表，共
           {{

@@ -102,49 +102,66 @@ function sceneGpsOrigin(sceneIndex: number): GpsOrigin {
   };
 }
 
-// Assigned round-robin by vehicle index so a full fleet covers the whole surface.
-const SCENARIO_RING: readonly [Scenario, ...Scenario[]] = [
-  "cruising",
-  "speed-limited",
-  "charging",
-  "hauling",
-  "fault-offline",
-  "teleop",
-];
-
-/**
- * Round-robin pick, wrapping.
- *
- * `ring[index % ring.length]` is provably in range, and the compiler types it
- * `T | undefined` anyway — `noUncheckedIndexedAccess` keeps only a *known* index
- * definite, and a modulo is not one. Demanding a non-empty tuple is what makes the
- * fallback both expressible and correct: for a ring of length ≥ 1 the modulo cannot be
- * out of range, and `ring[0]` is definite precisely because the type forbids emptiness.
- *
- * Worth one helper because the scenario picked here indexes two more tables
- * (`SCENARIO_SPEED`, `SCENARIO_INITIAL_SOC`), so a `Scenario | undefined` here became
- * four errors downstream.
- */
-const pickFromRing = <T>(ring: readonly [T, ...T[]], index: number): T =>
-  ring[((index % ring.length) + ring.length) % ring.length] ?? ring[0];
-
-// Per-scenario cruising speed (m/s) and initial battery (%). Deterministic.
-const SCENARIO_SPEED: Record<Scenario, number> = {
-  cruising: 1.3,
-  "speed-limited": 0.7,
-  // Starts parked on the charger (low SOC); once topped up it patrols like the rest.
-  charging: 1.0,
-  hauling: 1.0,
-  "fault-offline": 1.1,
-  teleop: 0.9,
+// Per-scene base cruising speed (m/s), by vehicle role. Deterministic.
+const SCENE_BASE_SPEED: Record<string, number> = {
+  "kangcheng-airy": 1.3, // 巡检车
+  "warehouse-a": 1.0, // 仓储搬运车
+  "yard-north": 0.8, // 装卸牵引车
+  "assembly-line": 0.6, // 产线配料车
+  "cloudpoint-demo": 0.9, // 点云示例车
 };
-const SCENARIO_INITIAL_SOC: Record<Scenario, number> = {
-  cruising: 82,
-  "speed-limited": 66,
-  charging: 16,
-  hauling: 73,
-  "fault-offline": 55,
-  teleop: 60,
+const DEFAULT_SPEED = 1.0;
+
+// The demo tells a "平稳运营 + 少量事件" story: almost every vehicle patrols/hauls
+// normally, and exactly four carry a scripted event. Assigning events by deviceId (not a
+// round-robin over the whole fleet) fixes the event count at four however large the fleet
+// grows — a 23-vehicle round-robin over the six scenarios would otherwise manufacture
+// several faults and several charging vehicles at once.
+const EVENT_SCENARIOS: Record<string, Scenario> = {
+  "agv-a03": "speed-limited", // 巡检 A03：限速区降速通行
+  "agv-a05": "teleop", // 巡检 A05：远程接管中
+  "agv-w04": "charging", // 仓储 W04：低电回桩充电
+  "agv-y03": "fault-offline", // 装卸 Y03：故障停车后离线
+};
+
+// The normal (non-event) scenario for a scene: outdoor patrol vs indoor/yard material
+// handling. Only affects the reported status frame (info text, task/gear, speed limit).
+const normalScenarioFor = (sceneId: string): Scenario =>
+  sceneId === "kangcheng-airy" || sceneId === "cloudpoint-demo" ? "cruising" : "hauling";
+
+// Hand-authored patrol loops (scene metres) for scenes with no Lanelet2 road network to
+// drive. Each is a closed rectangle laid in the scene's *drivable* space — the aisle band
+// around the racks, the maneuvering apron, the lane around the conveyor, the mapped core
+// of the point cloud — so demo vehicles run believable routes on the map instead of a
+// generic box that clips through shelves or lands off the point cloud. Vehicles sharing a
+// scene are spaced out as beads along the loop (see buildStates). Lanelet scenes ignore
+// this and drive parsed centrelines. Coordinates come from each SVG's geometry mapped
+// through its resolution (world_x = px·res, world_y = (heightPx − px_y)·res, map is y-up).
+const DEMO_ROUTES: Record<string, Point[]> = {
+  "warehouse-a": [
+    { x: 6, y: 6 },
+    { x: 114, y: 6 },
+    { x: 114, y: 68 },
+    { x: 6, y: 68 },
+  ],
+  "yard-north": [
+    { x: 82, y: 22 },
+    { x: 132, y: 22 },
+    { x: 132, y: 70 },
+    { x: 82, y: 70 },
+  ],
+  "assembly-line": [
+    { x: 9, y: 25.5 },
+    { x: 76, y: 25.5 },
+    { x: 76, y: 33 },
+    { x: 9, y: 33 },
+  ],
+  "cloudpoint-demo": [
+    { x: -48, y: -2 },
+    { x: -12, y: -2 },
+    { x: -12, y: 24 },
+    { x: -48, y: 24 },
+  ],
 };
 
 let intervalSeconds = DEFAULT_INTERVAL / 1000;
@@ -510,26 +527,48 @@ async function buildStates(count: number): Promise<DeviceState[]> {
     drivingLinesByScene.set(scene.sceneId, await loadSceneDrivingLines(root, scene));
   }
 
+  // How many vehicles share each scene, to space co-located vehicles along a demo loop.
+  const sceneCounts = new Map<string, number>();
+  for (const vehicle of vehicles.slice(0, limit)) {
+    const sceneId = vehicle.defaultSceneId || "";
+    sceneCounts.set(sceneId, (sceneCounts.get(sceneId) ?? 0) + 1);
+  }
+  const sceneSeen = new Map<string, number>();
+
   let laneletVehicles = 0;
   const states: DeviceState[] = vehicles.slice(0, limit).map((vehicle, index) => {
     const sceneId = vehicle.defaultSceneId || "";
     const bounds = findBounds(scenes, sceneId);
-    const scenario = pickFromRing(SCENARIO_RING, index);
-    const synthetic = buildRoute(bounds, index);
+    const scenario = EVENT_SCENARIOS[vehicle.deviceId] ?? normalScenarioFor(sceneId);
 
-    // Prefer the real road network: a demo whose vehicles drive across blank
-    // space beside the road tells you nothing about whether the map is right.
-    // Each vehicle starts from a different lanelet so they patrol different
-    // stretches rather than convoying along one.
+    const ordinal = sceneSeen.get(sceneId) ?? 0;
+    sceneSeen.set(sceneId, ordinal + 1);
+    const countInScene = sceneCounts.get(sceneId) ?? 1;
+
+    // Prefer the real road network; then a hand-authored demo loop for scenes without one;
+    // then a generic box only as a last resort. A demo whose vehicles drive across blank
+    // space beside the map tells you nothing about whether the map is right.
+    const fallback = buildRoute(bounds, index);
     const lines = drivingLinesByScene.get(sceneId) ?? [];
     const laneletRoute = lines.length
       ? buildLaneletRoute(lines, index * 7 + Math.floor(index / 2))
       : [];
-    const route = laneletRoute.length >= 2 ? laneletRoute : synthetic.route;
-    const station = route[0] ?? synthetic.station;
-    if (laneletRoute.length >= 2) {
+    const demoRoute = DEMO_ROUTES[sceneId] ?? [];
+    const usingLanelet = laneletRoute.length >= 2;
+    const route = usingLanelet ? laneletRoute : demoRoute.length >= 2 ? demoRoute : fallback.route;
+    const station = route[0] ?? fallback.station;
+    if (usingLanelet) {
       laneletVehicles += 1;
     }
+
+    // Lanelet vehicles each start from a different lanelet, so they are already spread.
+    // Vehicles sharing one demo loop are spaced as beads at staggered arc-length offsets,
+    // so they neither stack up at t=0 nor move in lockstep (identical speed on one loop).
+    const startDistance = usingLanelet ? 0 : (ordinal / countInScene) * routePerimeter(route);
+
+    const baseSpeed = SCENE_BASE_SPEED[sceneId] ?? DEFAULT_SPEED;
+    const cruiseSpeed = scenario === "speed-limited" ? baseSpeed * 0.5 : baseSpeed;
+
     return {
       deviceId: vehicle.deviceId,
       sceneId,
@@ -537,11 +576,14 @@ async function buildStates(count: number): Promise<DeviceState[]> {
       gpsOrigin: sceneGpsOrigin(scenes.findIndex((scene) => scene.sceneId === sceneId)),
       scenario,
       route,
-      cruiseSpeed: SCENARIO_SPEED[scenario],
+      cruiseSpeed,
       station,
-      soc: SCENARIO_INITIAL_SOC[scenario],
+      // Battery is spread across the fleet so the 电量 column reads like a real fleet
+      // rather than every vehicle starting equal; the charging vehicle starts low so its
+      // 回桩 story is visible from t=0.
+      soc: scenario === "charging" ? 16 : 58 + ((index * 17) % 38),
       mode: scenario === "charging" ? "charging" : "route",
-      distance: 0,
+      distance: startDistance,
       frozenAt: null,
       tick: 0,
       active: true,
@@ -842,7 +884,17 @@ async function main() {
   }
 
   const client = mqtt.connect(options.broker, {
-    clientId: `fleet-mock-${Math.random().toString(16).slice(2, 10)}`,
+    // A FIXED client id is the airtight single-publisher guarantee. The PID lock above
+    // only covers this host, and it fails when a previous publisher is orphaned (npm does
+    // not forward Ctrl+C to the tsx grandchild) or wedged (a hung `client.end` never
+    // exits). Two publishers each run the deterministic sim at a different age, so the
+    // backend sees battery/position/state flip between two timelines every tick — the
+    // "C12/W05 一直在 定位/电量低/充电 之间跳、电量在两个数字之间跳" report. With one id the
+    // broker performs MQTT session takeover: the newer publisher's connect disconnects the
+    // older one, so only one timeline ever reaches the broker. MQTT 5 is requested so that
+    // takeover arrives as a DISCONNECT with a reason code we can act on (see below).
+    clientId: "navfleet-demo-publisher",
+    protocolVersion: 5,
     // The bundled broker no longer allows anonymous clients. Prefer the
     // publisher account (write-only on the fleet topics); fall back to the
     // backend's own credentials so a single-account external broker works too.
@@ -852,6 +904,7 @@ async function main() {
   });
 
   let timer: NodeJS.Timeout | null = null;
+  let superseded = false;
 
   const publishStatus = (deviceId: string, online: boolean) =>
     client.publish(`/fleet/${deviceId}/status`, JSON.stringify({ online, ts: Date.now() }));
@@ -897,6 +950,21 @@ async function main() {
     }, options.interval);
   });
 
+  // MQTT 5 server-initiated DISCONNECT. Reason code 142 (0x8E) is "Session taken over":
+  // a newer publisher connected with our fixed client id, so we are the stale timeline —
+  // stand down instead of letting `reconnectPeriod` reconnect and kick the newcomer back
+  // (a kick-war that would flicker the demo worse than a single stale publisher). Other
+  // reason codes (e.g. a transient server shutdown) fall through to normal reconnect.
+  client.on("disconnect", (packet) => {
+    if (packet?.reasonCode === 142 && !superseded) {
+      superseded = true;
+      console.log(
+        "[mock-mqtt] superseded by a newer publisher (session taken over); standing down",
+      );
+      shutdown();
+    }
+  });
+
   client.on("error", (error) => {
     console.error("[mock-mqtt] broker error:", error.message);
     // mqtt.js surfaces CONNACK 4/5 as a "Connection refused" error. Anonymous
@@ -912,8 +980,14 @@ async function main() {
   const shutdown = () => {
     if (timer) {
       clearInterval(timer);
+      timer = null;
     }
     releaseSingleInstanceLock();
+    // Force-exit fallback: a wedged broker connection can leave `client.end`'s callback
+    // pending forever, which is exactly how a publisher survives SIGTERM and becomes the
+    // orphan the next run collides with. Never let this process outlive its stop signal.
+    const force = setTimeout(() => process.exit(0), 1500);
+    force.unref?.();
     client.end(true, () => {
       console.log("[mock-mqtt] stopped");
       process.exit(0);
