@@ -117,3 +117,10 @@ export const frontendEnv: Record<string, string> = {
   VITE_AMAP_SECURITY_JS_CODE: "",
   BACKEND_ORIGIN: BACKEND_URL,
 };
+
+/**
+ * The console's theme-preference localStorage key (mirrors
+ * `frontend-next/src/composables/useTheme.ts`'s `STORAGE_KEY`). Only the
+ * README screenshot run reads it, to capture the dark_dimmed theme.
+ */
+export const THEME_KEY = "navfleet:theme";
