@@ -26,6 +26,20 @@ const summarize = (value: unknown): string => {
   return "未知错误";
 };
 
+/**
+ * The ResizeObserver "loop completed with undelivered notifications" notice (and the
+ * older "loop limit exceeded") is not an error: the browser fires it when observer
+ * callbacks schedule work that spills past a single animation frame — ECharts and the
+ * map viewport re-measuring as a tab mounts/unmounts, which is exactly what happens
+ * switching between 消息 and 告警史. Nothing is broken and the layout settles on the next
+ * frame; the W3C spec calls it benign. Surfacing it as「页面出现异常」only alarms the
+ * operator, so this one message never raises a toast.
+ */
+const isBenignResizeObserverError = (summary: string): boolean =>
+  /ResizeObserver loop (completed with undelivered notifications|limit exceeded)/i.test(
+    summary,
+  );
+
 export const installGlobalErrorHandlers = (): void => {
   if (installed) return;
   installed = true;
@@ -33,6 +47,11 @@ export const installGlobalErrorHandlers = (): void => {
   const previousOnError = window.onerror;
   window.onerror = (event, source, lineno, colno, error) => {
     const summary = summarize(error ?? event);
+    // Leave the default reporting in place, but do not alarm the operator with a toast
+    // for the benign ResizeObserver loop notice.
+    if (isBenignResizeObserverError(summary)) {
+      return false;
+    }
     notify(`页面出现异常：${summary}`, {
       type: "error",
       dedupeKey: `window-error:${summary}`,
