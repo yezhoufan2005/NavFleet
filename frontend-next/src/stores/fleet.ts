@@ -598,7 +598,6 @@ export const useFleetStore = defineStore("fleet", () => {
   const recordTrails = (
     incomingDevices: DeviceSnapshot[],
     mergedById: Record<string, DeviceSnapshot>,
-    replace: boolean,
   ): void => {
     const nextTrails: Record<string, TrailPoint[]> = {
       ...state.trailsByDeviceId,
@@ -618,11 +617,17 @@ export const useFleetStore = defineStore("fleet", () => {
           ? appended.slice(appended.length - TRAIL_MAX_POINTS)
           : appended;
     });
-    if (replace) {
-      Object.keys(nextTrails).forEach((deviceId) => {
-        if (!mergedById[deviceId]) delete nextTrails[deviceId];
-      });
-    }
+    // Drop the trail of any device that has left the fleet or gone offline, on every
+    // ingest (not just full snapshots). Deltas never remove a device, so without this a
+    // straggler — or a device that simply stopped reporting, e.g. a stale duplicate
+    // publisher's ghost — would keep a frozen or jumping line on the map long after it
+    // stopped being real. A device that comes back online just starts a fresh trail.
+    Object.keys(nextTrails).forEach((deviceId) => {
+      const device = mergedById[deviceId];
+      if (!device || device.online === false) {
+        delete nextTrails[deviceId];
+      }
+    });
     state.trailsByDeviceId = nextTrails;
   };
 
@@ -806,7 +811,7 @@ export const useFleetStore = defineStore("fleet", () => {
 
     state.devicesById = nextDevicesById;
     recordAlertOnsets(nextDevicesById);
-    recordTrails(normalized.devices, nextDevicesById, normalized.replace);
+    recordTrails(normalized.devices, nextDevicesById);
     state.fleetName = normalized.fleetName;
     state.topicPattern = normalized.topicPattern;
     state.lastSource = source;
