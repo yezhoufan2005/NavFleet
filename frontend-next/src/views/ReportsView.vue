@@ -44,6 +44,7 @@ const RANGE_VALUES: readonly RangePreset[] = ["12h", "24h", "7d", "30d"];
 const BUCKETS: readonly { value: ReportBucketUnit; label: string }[] = [
   { value: "hour", label: "按小时" },
   { value: "day", label: "按天" },
+  { value: "month", label: "按月" },
 ];
 /** Date inputs share the audit page's field styling so the controls line up across pages. */
 const DATE_INPUT_CLASS =
@@ -76,9 +77,10 @@ const range = computed<RangePreset>(() => {
     ? (value as RangePreset)
     : "12h";
 });
-const bucket = computed<ReportBucketUnit>(() =>
-  readParam("bucket") === "hour" ? "hour" : "day",
-);
+const bucket = computed<ReportBucketUnit>(() => {
+  const value = readParam("bucket");
+  return value === "hour" || value === "month" ? value : "day";
+});
 const deviceFilter = computed(() => readParam("device"));
 
 /**

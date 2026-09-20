@@ -72,8 +72,12 @@ export const emptyAlertStatsReport = (
 });
 
 /** 可用率/电量时序的分桶粒度（Phase 17A-2）。时序库按此 `$dateTrunc` 降采样。 */
-export type ReportBucketUnit = "hour" | "day";
-export const REPORT_BUCKET_UNITS: readonly ReportBucketUnit[] = ["hour", "day"];
+export type ReportBucketUnit = "hour" | "day" | "month";
+export const REPORT_BUCKET_UNITS: readonly ReportBucketUnit[] = [
+  "hour",
+  "day",
+  "month",
+];
 
 /**
  * 一个时间桶内、单台设备的可用率与电量（Phase 17A-2）。

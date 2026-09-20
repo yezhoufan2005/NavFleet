@@ -353,7 +353,7 @@ export const openApiDocument = {
           "可用率/电量时序（Phase 17A-2，telemetry_ts 按时/日 $dateTrunc 降采样）。" +
           "available:false 表示无 Mongo、无历史可聚合。",
         properties: {
-          bucket: { type: "string", enum: ["hour", "day"] },
+          bucket: { type: "string", enum: ["hour", "day", "month"] },
           devices: {
             type: "array",
             items: {
@@ -695,7 +695,7 @@ const apiWideResponses = { "429": tooManyRequests, "500": serverError } as const
         from: "ISO-8601 或 epoch，按 ts 过滤下界",
         to: "ISO-8601 或 epoch，上界",
         deviceId: "只看这一台；缺省为全车队",
-        bucket: "分桶粒度（hour/day），缺省 day",
+        bucket: "分桶粒度（hour/day/month），缺省 day",
       }),
       responses: {
         "200": {
