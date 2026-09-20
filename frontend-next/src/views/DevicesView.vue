@@ -360,7 +360,7 @@ watch(
         v-if="fleet.sortedFormations.length"
         class="flex items-center gap-2"
       >
-        <span class="font-mono text-2xs text-ink-subtle">编队</span>
+        <span class="text-2xs text-ink-muted">编队</span>
         <UiSelect
           :model-value="state.selectedFormationId"
           :options="formationOptions"

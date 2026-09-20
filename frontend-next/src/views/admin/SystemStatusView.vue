@@ -269,7 +269,7 @@ const AREA_LABELS: Record<StoredEntry["area"], string> = {
       aria-labelledby="backend-heading"
     >
       <div class="flex flex-col gap-1">
-        <h3 id="backend-heading" class="text-lg font-semibold text-ink">
+        <h3 id="backend-heading" class="text-md font-semibold text-ink">
           后端与它的依赖
         </h3>
         <p class="m-0 max-w-prose text-sm text-ink-muted">
@@ -315,7 +315,7 @@ const AREA_LABELS: Record<StoredEntry["area"], string> = {
       aria-labelledby="link-heading"
     >
       <div class="flex flex-col gap-1">
-        <h3 id="link-heading" class="text-lg font-semibold text-ink">
+        <h3 id="link-heading" class="text-md font-semibold text-ink">
           这个标签页的链路
         </h3>
         <p class="m-0 max-w-prose text-sm text-ink-muted">
@@ -406,7 +406,7 @@ const AREA_LABELS: Record<StoredEntry["area"], string> = {
     >
       <div class="flex flex-wrap items-start justify-between gap-3">
         <div class="flex flex-col gap-1">
-          <h3 id="local-heading" class="text-lg font-semibold text-ink">
+          <h3 id="local-heading" class="text-md font-semibold text-ink">
             本浏览器留存的数据
           </h3>
           <p class="m-0 max-w-prose text-sm text-ink-muted">

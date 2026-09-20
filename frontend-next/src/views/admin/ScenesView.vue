@@ -229,7 +229,7 @@ const missingCount = computed(
         class="flex flex-col gap-3 rounded-md border border-border bg-surface-raised p-4"
       >
         <header class="flex flex-wrap items-baseline gap-2">
-          <h3 class="text-lg font-semibold text-ink">
+          <h3 class="text-md font-semibold text-ink">
             {{ scene.sceneName || scene.sceneId }}
           </h3>
           <span class="font-mono text-2xs text-ink-subtle">{{

@@ -57,7 +57,7 @@ watch(() => resetKey, retry);
       aria-hidden="true"
       >!</span
     >
-    <h2 class="text-lg font-semibold text-ink">页面渲染失败</h2>
+    <h2 class="text-md font-semibold text-ink">页面渲染失败</h2>
     <p class="text-ink-muted">
       当前页面在渲染时出现异常，其他页面仍可正常使用；可先点击「重试」重新加载，若反复失败请联系值班工程师
     </p>
