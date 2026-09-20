@@ -18,6 +18,7 @@ import { computed, ref, watch } from "vue";
 import { storeToRefs } from "pinia";
 import { RouterLink, useRoute, useRouter } from "vue-router";
 import PageHeader from "@/components/PageHeader.vue";
+import UiButton from "@/components/ui/UiButton.vue";
 import UiSkeleton from "@/components/ui/UiSkeleton.vue";
 import GpsMap from "@/components/map/GpsMap.vue";
 import SceneMap from "@/components/map/SceneMap.vue";
@@ -505,7 +506,7 @@ watch(
         <RouterLink
           v-if="fleet.selectedDevice"
           :to="`/devices/${fleet.selectedDevice.deviceId}`"
-          class="mt-2 shrink-0 rounded-sm border border-border-strong px-2 py-2 text-center text-xs text-brand-ink transition-colors duration-150 ease-standard hover:bg-surface-sunken"
+          class="mt-2 flex h-8 shrink-0 items-center justify-center rounded-sm border border-border-strong text-sm text-brand-ink transition-colors duration-150 ease-standard hover:bg-surface-sunken"
         >
           打开详情 →
         </RouterLink>
@@ -519,14 +520,15 @@ watch(
           Only shown when there is something to clear — a permanently disabled button
           teaches people to stop reading the toolbar.
         -->
-        <button
+        <UiButton
           v-if="selectedTrailLength"
-          type="button"
-          class="mt-1 shrink-0 rounded-sm border border-border-strong px-2 py-2 text-center text-xs text-ink-muted transition-colors duration-150 ease-standard hover:text-ink"
+          variant="secondary"
+          size="sm"
+          class="mt-1 w-full"
           @click="clearSelectedTrail"
         >
           清除轨迹（{{ selectedTrailLength }} 点）
-        </button>
+        </UiButton>
       </aside>
     </div>
 

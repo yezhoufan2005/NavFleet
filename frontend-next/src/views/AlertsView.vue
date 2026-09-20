@@ -24,6 +24,9 @@
 import { computed, onMounted, watch } from "vue";
 import { RouterLink, useRoute, useRouter } from "vue-router";
 import PageHeader from "@/components/PageHeader.vue";
+import UiButton from "@/components/ui/UiButton.vue";
+import UiInput from "@/components/ui/UiInput.vue";
+import UiSegmented from "@/components/ui/UiSegmented.vue";
 import UiSelect from "@/components/ui/UiSelect.vue";
 import UiPager from "@/components/ui/UiPager.vue";
 import AlertHistoryPanel from "@/components/alerts/AlertHistoryPanel.vue";
@@ -376,57 +379,43 @@ watch(() => canAck.value && fleet.state.realtime.apiReady, runLegacyMigration);
         scope to one page was not part of it, and on sixty active alerts it turns one
         action into four rounds of pagination.
       -->
-      <button
+      <UiButton
         v-if="isLive && canAck && unacknowledgedFiltered.length"
-        type="button"
-        class="rounded-sm border border-border-strong bg-surface-raised px-2.5 py-1 text-xs text-ink-muted transition-colors duration-150 ease-standard hover:text-ink"
+        variant="secondary"
+        size="sm"
         @click="acknowledgeFiltered"
       >
         确认当前筛选 {{ unacknowledgedFiltered.length }} 条
-      </button>
+      </UiButton>
 
       <!-- The counterpart v1.0.0 had beside it (`frontend/src/views/AlertsView.vue:195-202`)
            and the port dropped. The admin page's 清除本地数据 is not an equivalent: it
            takes theme, sidebar, map mode and sound preferences with it. -->
-      <button
+      <UiButton
         v-if="isLive && canAck && acknowledgedPresent"
-        type="button"
-        class="rounded-sm border border-border-strong bg-surface-raised px-2.5 py-1 text-xs text-ink-muted transition-colors duration-150 ease-standard hover:text-ink"
+        variant="secondary"
+        size="sm"
         @click="clearAcknowledged"
       >
         清除已经确认 {{ acknowledgedPresent }} 条
-      </button>
+      </UiButton>
     </template>
 
     <div class="flex flex-wrap items-end gap-3">
-      <div
-        class="flex overflow-hidden rounded-sm border border-border-strong"
-        role="group"
-        aria-label="严重度"
-      >
-        <button
-          v-for="option in SEVERITIES"
-          :key="option.value"
-          type="button"
-          class="px-2.5 py-1 text-xs transition-colors duration-150 ease-standard"
-          :class="
-            severity === option.value
-              ? 'bg-brand text-brand-contrast'
-              : 'bg-surface-raised text-ink-muted hover:text-ink'
+      <label class="flex flex-col gap-1">
+        <span class="text-2xs text-ink-muted">严重度</span>
+        <UiSegmented
+          :model-value="severity"
+          :options="SEVERITIES"
+          aria-label="严重度"
+          @update:model-value="
+            (value) => setFilter({ severity: value === 'all' ? null : value })
           "
-          :aria-pressed="severity === option.value"
-          @click="
-            setFilter({
-              severity: option.value === 'all' ? null : option.value,
-            })
-          "
-        >
-          {{ option.label }}
-        </button>
-      </div>
+        />
+      </label>
 
       <label class="flex flex-col gap-1">
-        <span class="font-mono text-2xs text-ink-subtle">设备</span>
+        <span class="text-2xs text-ink-muted">设备</span>
         <UiSelect
           :model-value="deviceFilter"
           :options="[{ value: '', label: '全部设备' }, ...deviceOptions]"
@@ -436,7 +425,7 @@ watch(() => canAck.value && fleet.state.realtime.apiReady, runLegacyMigration);
       </label>
 
       <label class="flex flex-col gap-1">
-        <span class="font-mono text-2xs text-ink-subtle">搜索</span>
+        <span class="text-2xs text-ink-muted">搜索</span>
         <!--
           Bound to the local draft, committed on a timer. Bound to `search` it would read
           from the URL it is about to rewrite, and every keystroke was a navigation.
@@ -444,12 +433,11 @@ watch(() => canAck.value && fleet.state.realtime.apiReady, runLegacyMigration);
           "now" — and `search` inputs get a native clear button, whose `input` event goes
           through the same debounce.
         -->
-        <input
+        <UiInput
           type="search"
-          class="rounded-sm border border-border-strong bg-surface-raised px-2 py-1 text-xs text-ink"
           placeholder="标题/详情/设备/来源"
-          :value="searchDraft"
-          @input="onSearchInput(($event.target as HTMLInputElement).value)"
+          :model-value="searchDraft"
+          @update:model-value="onSearchInput"
           @keydown.enter.prevent="flushSearch"
         />
       </label>
@@ -486,14 +474,15 @@ watch(() => canAck.value && fleet.state.realtime.apiReady, runLegacyMigration);
         tabs feels like part of it. `ml-auto` keeps it right-aligned whether or not the
         live-only 显示已确认 control is present, so the bar reads the same across both tabs.
       -->
-      <button
-        type="button"
-        class="ml-auto self-end rounded-sm border border-border-strong bg-surface-raised px-2.5 py-1 text-xs text-ink-muted transition-colors duration-150 ease-standard hover:text-ink"
+      <UiButton
+        variant="secondary"
+        size="sm"
+        class="ml-auto self-end"
         :aria-pressed="!isLive"
         @click="toggleView"
       >
         {{ isLive ? "告警史" : "消息页" }}
-      </button>
+      </UiButton>
     </div>
 
     <AlertHistoryPanel v-if="!isLive" />

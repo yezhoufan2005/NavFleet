@@ -479,15 +479,15 @@ const AREA_LABELS: Record<StoredEntry["area"], string> = {
                 >
               </td>
               <td class="px-3 py-1.5 text-right whitespace-nowrap">
-                <button
-                  type="button"
-                  class="rounded-sm border border-border-strong px-2 py-0.5 text-xs text-ink-muted transition-colors duration-150 ease-standard hover:text-ink"
+                <UiButton
+                  variant="ghost"
+                  size="sm"
                   :disabled="clearing"
                   :aria-label="`清除 ${entry.label}`"
                   @click="clearOne(entry)"
                 >
                   清除
-                </button>
+                </UiButton>
               </td>
             </tr>
           </tbody>
