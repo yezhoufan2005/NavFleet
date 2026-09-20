@@ -102,7 +102,7 @@ test.describe("chart performance baseline", () => {
     await openHarness(page);
     await page.evaluate(() => window.__chartPerf?.load(2, 20));
 
-    await page.getByRole("button", { name: "看数据表" }).click();
+    await page.getByRole("button", { name: "数据表" }).click();
 
     // The data table splits the header out of the scroll box, so it is two <table>s (a
     // header table and a scrolling body table) over one colgroup — same shape 历史回放 uses.

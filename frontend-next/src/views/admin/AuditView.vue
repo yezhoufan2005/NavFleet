@@ -145,11 +145,11 @@ const formatTime = (iso: string): string =>
       </label>
       <!-- 起 ≤ 止 enforced with native min/max so an inverted range cannot be picked at all. -->
       <label class="flex flex-col gap-1">
-        <span class="text-2xs text-ink-muted">起</span>
+        <span class="text-2xs text-ink-muted">起始时间</span>
         <UiInput v-model="from" type="date" :max="to || undefined" />
       </label>
       <label class="flex flex-col gap-1">
-        <span class="text-2xs text-ink-muted">止</span>
+        <span class="text-2xs text-ink-muted">结束时间</span>
         <UiInput v-model="to" type="date" :min="from || undefined" />
       </label>
       <UiButton size="sm" @click="applyFilters">查询</UiButton>

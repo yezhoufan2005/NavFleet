@@ -115,7 +115,7 @@ const severitiesLabel = (severities: string[]): string =>
 </script>
 
 <template>
-  <PageHeader title="外发" scroll-content>
+  <PageHeader title="外发">
     <template #actions>
       <UiButton variant="secondary" size="sm" @click="load">刷新</UiButton>
     </template>

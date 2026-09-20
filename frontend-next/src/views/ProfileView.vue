@@ -118,7 +118,7 @@ const formatTime = (iso: string): string =>
 </script>
 
 <template>
-  <PageHeader title="个人中心" scroll-content>
+  <PageHeader title="个人中心">
     <UiCard as="section" aria-labelledby="profile-password-heading">
       <template #header>
         <h3

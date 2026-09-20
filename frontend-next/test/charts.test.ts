@@ -328,7 +328,7 @@ describe("TimeSeriesChart", () => {
 
     expect(surface.attributes("role")).toBe("img");
     expect(surface.attributes("aria-label")).toContain("电量");
-    expect(wrapper.get("button").text()).toBe("看数据表");
+    expect(wrapper.get("button").text()).toBe("数据表");
   });
 
   it("switches to a real table, which is what makes the palette compliant", async () => {
@@ -390,7 +390,7 @@ describe("TimeSeriesChart", () => {
     const toggle = wrapper.get("button");
 
     await toggle.trigger("click");
-    expect(toggle.text()).toBe("看图表");
+    expect(toggle.text()).toBe("图表");
     expect(toggle.attributes("aria-pressed")).toBe("true");
 
     await toggle.trigger("click");
@@ -492,7 +492,7 @@ describe("CategoryBarChart", () => {
     const surface = wrapper.get("[data-testid='bar-surface']");
     expect(surface.attributes("role")).toBe("img");
     expect(surface.attributes("aria-label")).toContain("分布");
-    expect(wrapper.get("button").text()).toBe("看数据表");
+    expect(wrapper.get("button").text()).toBe("数据表");
   });
 
   it("switches to a real table of label/value pairs", async () => {

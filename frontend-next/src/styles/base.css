@@ -29,6 +29,11 @@
     font-size: var(--text-base);
     line-height: var(--text-base--line-height);
     -webkit-font-smoothing: antialiased;
+    /* The app shell (`h-dvh`) owns scrolling through its `<main>` region; the document
+       itself must never scroll. Without this a page whose content outgrows the viewport
+       hands the operator a second, outermost scrollbar on top of the content region's —
+       reported on 历史回放 as "三个滚动条，最外面那个不该有". */
+    overflow: hidden;
   }
 
   /* A visible focus ring everywhere, because the v1.0.0 frontend has almost none

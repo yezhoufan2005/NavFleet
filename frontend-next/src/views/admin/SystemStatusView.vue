@@ -252,7 +252,7 @@ const AREA_LABELS: Record<StoredEntry["area"], string> = {
 </script>
 
 <template>
-  <PageHeader title="系统状态" scroll-content>
+  <PageHeader title="系统状态">
     <template #actions>
       <UiButton
         variant="secondary"

@@ -121,7 +121,7 @@ onBeforeUnmount(disposeChart);
         :aria-pressed="showTable"
         @click="showTable = !showTable"
       >
-        {{ showTable ? "看图表" : "看数据表" }}
+        {{ showTable ? "图表" : "数据表" }}
       </UiButton>
     </figcaption>
 

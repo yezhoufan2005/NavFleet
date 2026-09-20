@@ -40,7 +40,7 @@ const SIZES: Record<Size, string> = {
     :value="modelValue"
     v-bind="$attrs"
     :class="[
-      'rounded-sm border border-border-strong bg-surface text-ink',
+      'rounded-sm border border-border-strong bg-surface-raised text-ink',
       'placeholder:text-ink-subtle transition-colors duration-150 ease-standard',
       'hover:border-brand',
       'disabled:cursor-not-allowed disabled:opacity-55',
