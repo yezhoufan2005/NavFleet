@@ -263,14 +263,16 @@ describe("who needs attention", () => {
     expect(list.findAll("li")).toHaveLength(6);
     expect(list.classes()).toContain("overflow-y-auto");
 
-    // The height is capped in scoped CSS (jsdom lays nothing out), and rows keep their
-    // natural height — no `min-height` pin that would add trailing blank to a short row.
+    // The list flexes to fill the card (so its bottom aligns with 编队情况 in the column
+    // beside it) and scrolls, rather than capping at a fixed max-height that left a gap.
+    // No `min-height` pin on rows, which would add trailing blank to a short row.
+    expect(list.classes()).toContain("flex-1");
     const source = readFileSync(
       resolve(__dirname, "../src/views/OverviewView.vue"),
       "utf8",
     );
-    expect(source).toMatch(/\.attention-list \{\s*max-height:/);
     expect(source).not.toMatch(/\.attention-list > li \{\s*min-height/);
+    expect(source).not.toMatch(/\.attention-list \{[^}]*max-height/);
   });
 
   it("shows the reported code rather than a bare severity", async () => {

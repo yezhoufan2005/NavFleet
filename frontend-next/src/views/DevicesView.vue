@@ -24,6 +24,7 @@ import SceneMap from "@/components/map/SceneMap.vue";
 import DeviceRowCard from "@/components/device/DeviceRowCard.vue";
 import UiSelect from "@/components/ui/UiSelect.vue";
 import UiPager from "@/components/ui/UiPager.vue";
+import { tableClasses } from "@/lib/uiClasses";
 import { useFleetStore } from "@/stores/fleet";
 import { useDeviceView } from "@/composables/useDeviceView";
 import { useDeviceSort } from "@/composables/useDeviceSort";
@@ -556,10 +557,7 @@ watch(
       </aside>
     </div>
 
-    <div
-      v-else
-      class="overflow-hidden rounded-md border border-border bg-surface-raised"
-    >
+    <div v-else :class="[tableClasses.wrapper, 'overflow-hidden']">
       <!--
         `tabular-nums`: the 最近上报 column re-renders every second with a fresh
         timestamp, and this is an auto-layout table (`w-full`, no `table-fixed`), so
@@ -568,7 +566,7 @@ watch(
         "电量在抖动" report. Tabular figures give every digit the same advance width,
         so the value is stable and no column reflows on a data tick.
       -->
-      <table class="w-full border-collapse text-sm tabular-nums">
+      <table :class="tableClasses.tableNumeric">
         <caption class="sr-only">
           设备列表，共
           {{
@@ -580,8 +578,8 @@ watch(
           }}
           页
         </caption>
-        <thead>
-          <tr class="border-b border-border text-left">
+        <thead :class="tableClasses.thead">
+          <tr class="text-left">
             <!--
               The expand column has no label, and `sr-only` text rather than an empty
               `th`: a blank header cell is announced as nothing at all, so the column's
@@ -598,7 +596,6 @@ watch(
             <th
               v-for="column in COLUMNS"
               :key="column.key"
-              class="font-mono text-2xs font-normal text-ink-subtle"
               :class="
                 column.numeric ? NUMERIC_HEAD_CLASS : 'px-3 py-2 text-left'
               "
@@ -612,7 +609,7 @@ watch(
               -->
               <button
                 type="button"
-                class="inline-flex items-center gap-1 font-mono text-2xs text-ink-subtle transition-colors duration-150 ease-standard hover:text-ink"
+                class="inline-flex items-center gap-1 transition-colors duration-150 ease-standard hover:text-ink"
                 :class="sortKey === column.key ? 'text-ink' : ''"
                 @click="toggleSort(column.key)"
               >

@@ -14,6 +14,7 @@ import UiButton from "@/components/ui/UiButton.vue";
 import UiInput from "@/components/ui/UiInput.vue";
 import UiPager from "@/components/ui/UiPager.vue";
 import UiSelect from "@/components/ui/UiSelect.vue";
+import { tableClasses } from "@/lib/uiClasses";
 
 const route = useRoute();
 const router = useRouter();
@@ -175,16 +176,16 @@ const formatTime = (iso: string): string =>
     </p>
     <template v-else>
       <div
-        class="overflow-auto rounded-sm border border-border"
+        :class="[tableClasses.wrapper, 'overflow-auto']"
         tabindex="0"
         role="region"
         aria-label="审计日志"
       >
-        <table class="w-full border-collapse text-left text-sm">
+        <table :class="tableClasses.table">
           <caption class="sr-only">
             鉴权与用户管理事件，最新在前
           </caption>
-          <thead class="bg-surface-sunken text-2xs text-ink-muted uppercase">
+          <thead :class="tableClasses.thead">
             <tr>
               <th scope="col" class="px-3 py-2">时间</th>
               <th scope="col" class="px-3 py-2">操作者</th>
@@ -197,7 +198,7 @@ const formatTime = (iso: string): string =>
             <tr
               v-for="(entry, index) in pageRows"
               :key="`${entry.ts}-${index}`"
-              class="border-t border-border"
+              :class="tableClasses.row"
             >
               <td class="px-3 py-2 whitespace-nowrap text-ink-muted">
                 {{ formatTime(entry.ts) }}

@@ -13,6 +13,7 @@
 import { computed, onMounted, ref } from "vue";
 import PageHeader from "@/components/PageHeader.vue";
 import UiButton from "@/components/ui/UiButton.vue";
+import { tableClasses } from "@/lib/uiClasses";
 import { notify } from "@/composables/useNotifications";
 import { useCodebook } from "@/composables/useCodebook";
 import {
@@ -148,26 +149,26 @@ const overrideHint = computed(() =>
     <template v-else>
       <p class="m-0 text-xs text-ink-subtle">{{ overrideHint }}</p>
 
-      <div class="overflow-x-auto rounded-md border border-border">
-        <table class="w-full border-collapse text-sm">
+      <div :class="[tableClasses.wrapper, 'overflow-x-auto']">
+        <table :class="tableClasses.table">
           <caption class="sr-only">
             生效的报码字典：报码、名称、通道、等级、子系统、说明与处理建议
           </caption>
-          <thead>
-            <tr class="bg-surface-sunken text-left text-xs text-ink-muted">
-              <th scope="col" class="px-3 py-2 font-medium">报码</th>
-              <th scope="col" class="px-3 py-2 font-medium">名称</th>
-              <th scope="col" class="px-3 py-2 font-medium">通道</th>
-              <th scope="col" class="px-3 py-2 font-medium">等级</th>
-              <th scope="col" class="px-3 py-2 font-medium">子系统</th>
-              <th scope="col" class="px-3 py-2 font-medium">说明与处理建议</th>
+          <thead :class="tableClasses.thead">
+            <tr>
+              <th scope="col" class="px-3 py-2">报码</th>
+              <th scope="col" class="px-3 py-2">名称</th>
+              <th scope="col" class="px-3 py-2">通道</th>
+              <th scope="col" class="px-3 py-2">等级</th>
+              <th scope="col" class="px-3 py-2">子系统</th>
+              <th scope="col" class="px-3 py-2">说明与处理建议</th>
             </tr>
           </thead>
           <tbody>
             <tr
               v-for="entry in entries"
               :key="entry.code"
-              class="border-t border-border align-top"
+              :class="[tableClasses.row, 'align-top']"
             >
               <td class="px-3 py-2 font-mono text-ink">{{ entry.code }}</td>
               <td class="px-3 py-2 text-ink">{{ entry.label }}</td>
