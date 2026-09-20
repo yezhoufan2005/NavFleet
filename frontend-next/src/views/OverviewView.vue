@@ -313,13 +313,15 @@ const alertRows = computed(() =>
       </article>
     </div>
 
-    <div class="grid min-h-0 gap-4 xl:grid-cols-[minmax(0,2fr)_minmax(0,1fr)]">
+    <div
+      class="grid min-h-0 items-start gap-4 xl:grid-cols-[minmax(0,2fr)_minmax(0,1fr)]"
+    >
       <section
         class="flex min-h-0 flex-col gap-3 rounded-md border border-border bg-surface-raised p-4"
         aria-labelledby="attention-heading"
       >
         <div class="flex items-baseline justify-between gap-3">
-          <h3 id="attention-heading" class="text-lg font-semibold text-ink">
+          <h3 id="attention-heading" class="text-md font-semibold text-ink">
             待处理项
           </h3>
           <RouterLink
@@ -385,11 +387,11 @@ const alertRows = computed(() =>
 
       <div class="flex min-h-0 flex-col gap-4">
         <section
-          class="flex flex-col gap-2 rounded-md border border-border bg-surface-raised p-4"
+          class="flex flex-col gap-3 rounded-md border border-border bg-surface-raised p-4"
           aria-labelledby="alerts-heading"
         >
           <div class="flex items-baseline justify-between gap-3">
-            <h3 id="alerts-heading" class="text-lg font-semibold text-ink">
+            <h3 id="alerts-heading" class="text-md font-semibold text-ink">
               消息摘要
             </h3>
             <RouterLink
@@ -416,10 +418,10 @@ const alertRows = computed(() =>
 
         <section
           v-if="fleet.formations.length"
-          class="flex min-h-0 flex-col gap-2 rounded-md border border-border bg-surface-raised p-4"
+          class="flex min-h-0 flex-col gap-3 rounded-md border border-border bg-surface-raised p-4"
           aria-labelledby="formations-heading"
         >
-          <h3 id="formations-heading" class="text-lg font-semibold text-ink">
+          <h3 id="formations-heading" class="text-md font-semibold text-ink">
             编队情况
           </h3>
           <!--

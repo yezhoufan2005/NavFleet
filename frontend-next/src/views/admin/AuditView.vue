@@ -11,6 +11,8 @@ import { useRoute, useRouter } from "vue-router";
 import { fleetApi, type AuditRecord } from "@navfleet/fleet-core";
 import PageHeader from "@/components/PageHeader.vue";
 import UiButton from "@/components/ui/UiButton.vue";
+import UiInput from "@/components/ui/UiInput.vue";
+import UiPager from "@/components/ui/UiPager.vue";
 import UiSelect from "@/components/ui/UiSelect.vue";
 
 const route = useRoute();
@@ -35,9 +37,6 @@ const ACTION_OPTIONS = [
   { value: "", label: "全部动作" },
   ...Object.entries(ACTION_LABELS).map(([value, label]) => ({ value, label })),
 ];
-
-const INPUT_CLASS =
-  "h-8 rounded-sm border border-border-strong bg-surface px-2 text-sm text-ink placeholder:text-ink-subtle";
 
 const readParam = (key: string): string => {
   const value = route.query[key];
@@ -128,11 +127,10 @@ const formatTime = (iso: string): string =>
     <section class="flex flex-wrap items-end gap-3" aria-label="筛选">
       <label class="flex flex-col gap-1">
         <span class="text-2xs text-ink-muted">操作者</span>
-        <input
+        <UiInput
           v-model="actor"
           type="search"
           placeholder="用户名"
-          :class="INPUT_CLASS"
           @keyup.enter="applyFilters"
         />
       </label>
@@ -147,28 +145,16 @@ const formatTime = (iso: string): string =>
       <!-- 起 ≤ 止 enforced with native min/max so an inverted range cannot be picked at all. -->
       <label class="flex flex-col gap-1">
         <span class="text-2xs text-ink-muted">起</span>
-        <input
-          v-model="from"
-          type="date"
-          :max="to || undefined"
-          :class="INPUT_CLASS"
-        />
+        <UiInput v-model="from" type="date" :max="to || undefined" />
       </label>
       <label class="flex flex-col gap-1">
         <span class="text-2xs text-ink-muted">止</span>
-        <input
-          v-model="to"
-          type="date"
-          :min="from || undefined"
-          :class="INPUT_CLASS"
-        />
+        <UiInput v-model="to" type="date" :min="from || undefined" />
       </label>
       <UiButton size="sm" @click="applyFilters">查询</UiButton>
-      <!-- 重置 carries a border like 查询, but a quieter secondary fill so it does not read as
-           a second primary action. -->
-      <UiButton variant="secondary" size="sm" @click="resetFilters"
-        >重置</UiButton
-      >
+      <!-- 重置 is quieter than 查询: a ghost button, so the reset never reads as a
+           second primary action beside the query. -->
+      <UiButton variant="ghost" size="sm" @click="resetFilters">重置</UiButton>
     </section>
 
     <!-- AUDIT_TABLE_PLACEHOLDER -->
@@ -247,25 +233,7 @@ const formatTime = (iso: string): string =>
             @update:model-value="setPageSize"
           />
         </label>
-        <div v-if="pageCount > 1" class="flex items-center gap-3">
-          <UiButton
-            variant="ghost"
-            size="sm"
-            :disabled="page <= 1"
-            @click="page -= 1"
-          >
-            上一页
-          </UiButton>
-          <span class="text-ink-muted">第 {{ page }} / {{ pageCount }} 页</span>
-          <UiButton
-            variant="ghost"
-            size="sm"
-            :disabled="page >= pageCount"
-            @click="page += 1"
-          >
-            下一页
-          </UiButton>
-        </div>
+        <UiPager v-model:page="page" :page-count="pageCount" />
       </div>
     </template>
   </PageHeader>
