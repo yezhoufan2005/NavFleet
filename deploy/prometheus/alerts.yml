@@ -70,6 +70,33 @@ groups:
             are being discarded. Unlike a backlog this is not recoverable: those
             samples are gone from history. Fix MongoDB or raise the limit.
 
+      - alert: NavFleetMongoWritesFailing
+        expr: rate(navfleet_mongo_write_failures_total[5m]) > 0 and navfleet_mongo_connected == 1
+        for: 5m
+        labels:
+          severity: critical
+        annotations:
+          summary: MongoDB is connected but rejecting writes
+          description: >-
+            navfleet_mongo_connected is 1, yet writes are throwing against the
+            driver (bad auth, a broken index, disk full). The connection gauge
+            alone would call this healthy — this rule is why "up but failing" is
+            no longer invisible. Telemetry is being buffered; latest snapshots and
+            alerts are not persisting.
+
+      - alert: NavFleetWsBroadcastSlow
+        expr: rate(navfleet_ws_broadcast_slow_total[5m]) > 0
+        for: 10m
+        labels:
+          severity: warning
+        annotations:
+          summary: A WebSocket consumer is not keeping up with the broadcast feed
+          description: >-
+            A client's outbound buffer was over the slow threshold at broadcast
+            time, so `ws` is queuing frames for it in memory. Usually a stuck or
+            wedged browser tab; sustained, it is a per-connection memory leak.
+            The frame is still sent — the client recovers on its next reconnect.
+
       - alert: NavFleetIngestQueueBacklog
         expr: >-
           navfleet_ingest_queue_depth

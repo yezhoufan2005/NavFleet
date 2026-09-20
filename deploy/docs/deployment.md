@@ -524,10 +524,11 @@ docker compose --env-file deploy/.env \
 三者与 backend 同处一个 `monitoring` 网段，**够不到 mongo 和 mosquitto**。Prometheus
 在网络内抓 `backend:3000/metrics` —— 这正是 Phase 9C 里边缘 nginx 不再代理 `/metrics` 的原因。
 
-告警规则在 `deploy/prometheus/alerts.yml`，**13 条**，全部写在本项目**真实暴露**的指标上：
-后端失联、Mongo/MQTT 断开、遥测写入积压、摄入队列积压、摄入削峰、设备数触顶、摄入校验持续
-拒绝、「连着 broker 但十分钟没消息」、过半车辆离线、5xx 比例 >5%、p95 延迟 >1s。`for:` 都不
-为零 —— MQTT 与 Mongo 本身带有界退避重连，几秒钟的断开是正常运行而不是该叫人起床的事。
+告警规则在 `deploy/prometheus/alerts.yml`，**15 条**，全部写在本项目**真实暴露**的指标上：
+后端失联、Mongo/MQTT 断开、遥测写入积压、遥测被丢弃、**Mongo 连着却写失败**、摄入队列积压、
+摄入削峰、摄入校验持续拒绝、设备数触顶、「连着 broker 但十分钟没消息」、过半车辆离线、
+**WebSocket 消费端跟不上广播**、5xx 比例 >5%、p95 延迟 >1s。`for:` 都不为零 —— MQTT 与 Mongo
+本身带有界退避重连，几秒钟的断开是正常运行而不是该叫人起床的事。
 
 #### 告警去哪：出厂接收器是空的
 

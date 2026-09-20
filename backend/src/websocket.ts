@@ -49,9 +49,22 @@ interface LiveSocket {
  */
 export const WS_MAX_PAYLOAD_BYTES = 64 * 1024;
 
+/**
+ * A client is "slow" when its outbound buffer has grown past this at broadcast
+ * time (Phase 18). `ws` queues `send()` in memory when the socket cannot drain
+ * fast enough, so a stuck consumer shows up here before it shows up as an OOM.
+ * This drives `navfleet_ws_broadcast_slow_total` — an observability signal only;
+ * the frame is still sent (the client recovers via the next snapshot/reconnect).
+ * 1 MiB is ~hundreds of queued deltas: comfortably above a momentary blip, well
+ * below the per-connection memory that would matter on a single-host deployment.
+ */
+export const WS_SLOW_CLIENT_BYTES = 1024 * 1024;
+
 export interface WebSocketBridge {
   broadcast: (event: SocketEvent) => void;
   clientCount: () => number;
+  /** Times a broadcast met a client whose send buffer was over the slow threshold. */
+  slowBroadcastCount: () => number;
   close: () => void;
 }
 
@@ -210,10 +223,14 @@ export const createWebSocketBridge = (
   heartbeat.unref();
   wsServer.on("close", () => clearInterval(heartbeat));
 
+  let slowBroadcasts = 0;
   const broadcast = (event: SocketEvent): void => {
     const message = JSON.stringify(event);
     wsServer.clients.forEach((client) => {
       if (client.readyState === client.OPEN) {
+        if (client.bufferedAmount > WS_SLOW_CLIENT_BYTES) {
+          slowBroadcasts += 1;
+        }
         client.send(message);
       }
     });
@@ -224,6 +241,7 @@ export const createWebSocketBridge = (
   return {
     broadcast,
     clientCount: () => wsServer.clients.size,
+    slowBroadcastCount: () => slowBroadcasts,
     close: () => {
       wsServer.clients.forEach((client) => {
         try {

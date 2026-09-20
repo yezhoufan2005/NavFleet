@@ -42,6 +42,8 @@ export interface AppDeps {
   config: AppConfig;
   state: RuntimeState;
   wsClientCount: () => number;
+  /** Cumulative slow-consumer broadcasts; see MetricsDeps.wsSlowBroadcasts. */
+  wsSlowBroadcasts: () => number;
   /** Register process-level metrics (heap/GC/event loop). See MetricsDeps. */
   collectDefaultMetrics?: boolean;
 }
@@ -61,6 +63,7 @@ export const createApp = ({
   config,
   state,
   wsClientCount,
+  wsSlowBroadcasts,
   collectDefaultMetrics = false,
 }: AppDeps): express.Express => {
   const app = express();
@@ -69,6 +72,7 @@ export const createApp = ({
     persistence,
     state,
     wsClientCount,
+    wsSlowBroadcasts,
     collectDefault: collectDefaultMetrics,
   });
   // Feed each outbound send into the Prometheus counters/histogram now that the registry exists
