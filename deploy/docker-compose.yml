@@ -207,19 +207,15 @@ services:
     volumes:
       - mongo-data:/data/db
     healthcheck:
+      # Double-dollar `$$VAR` (a literal `$` to compose, not an interpolation): the mongo
+      # container's shell expands the credentials from its own environment at run time.
+      # This keeps the password OUT of the command baked into the compose config /
+      # `docker inspect` — matching how the backup/restore scripts pass it (via container
+      # env, never a literal on the stored command line).
       test:
         [
-          "CMD",
-          "mongosh",
-          "--quiet",
-          "-u",
-          "${MONGO_INITDB_ROOT_USERNAME:-root}",
-          "-p",
-          "${MONGO_INITDB_ROOT_PASSWORD:-example}",
-          "--authenticationDatabase",
-          "admin",
-          "--eval",
-          "db.adminCommand('ping').ok",
+          "CMD-SHELL",
+          'mongosh --quiet -u "$$MONGO_INITDB_ROOT_USERNAME" -p "$$MONGO_INITDB_ROOT_PASSWORD" --authenticationDatabase admin --eval "db.adminCommand(''ping'').ok"',
         ]
       interval: 10s
       timeout: 10s

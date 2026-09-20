@@ -1823,8 +1823,9 @@ mapper（各自单测——一条 `$group` key 写错、median 取错元素、�
       mongo / mosquitto / nginx 的 exporter（Prometheus 现在只有 backend 与自身两个 job）
 - [ ] 安全余项：~~`Permissions-Policy` 与其他 location 的安全头~~ ✅（抽出 `security-headers.conf`
       片段，每个 location `include`，补 `Permissions-Policy`；`check-deploy-wiring` 加「include 的文件
-      必须被挂载」一条守住）；**剩** mongo healthcheck 的口令传递方式与备份脚本不一致（后者刻意避开
-      命令行参数，前者没有）；MQTT over TLS
+      必须被挂载」一条守住）；~~mongo healthcheck 的口令传递方式与备份脚本不一致~~ ✅（2026-09-21：
+      healthcheck 改用 `CMD-SHELL` + `$$MONGO_INITDB_ROOT_*`，由容器内 shell 在运行时展开，口令不再被
+      compose 插值进 `docker inspect` 的命令定义——与备份/恢复脚本一致）；**剩** MQTT over TLS
 - [ ] i18n（v2 两次排除，若确有海外交付需求再启动）
 - [ ] axe `incomplete` 桶的人工审阅流程（半透明/渐变表面落进该桶而不产生违规，Phase 10 已确认
       这类缺陷 suite 抓不到）
