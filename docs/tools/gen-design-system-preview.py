@@ -92,15 +92,17 @@ SEMANTIC = [
     # 焦点环：非文本 UI（WCAG 1.4.11 只要 3:1），不进 4.5:1 审计表。accent.emphasis / dark accent.fg
     ("border-focus", "#0969da", "#539bf5"),
     # 品牌＝GitHub accent（蓝）。实心用 emphasis（白字），链接/淡底文字用 fg。
+    # 深色 brand-ink 用 #58a6ff 而非 dark_dimmed 的 accent.fg(#539bf5)：正文内联链接会落在
+    # 最亮的深色表面 raised(#2d333b) 上，#539bf5 在那儿只有 4.47:1（axe 判 serious），#58a6ff 达 5.0。
     ("brand", "#0969da", "#316dca"),  # accent.emphasis / dark_dimmed accent.emphasis
     ("brand-hover", "#0550ae", "#4184e4"),
     ("brand-contrast", "#ffffff", "#ffffff"),
-    ("brand-ink", "#0969da", "#539bf5"),  # accent.fg（链接）
+    ("brand-ink", "#0969da", "#58a6ff"),  # accent.fg（链接）：深色用更亮的蓝，见下方说明
     ("brand-wash", "#ddf4ff", "#212d40"),  # accent.subtle（深色实心化以过对比）
     # notice＝同一支 accent 蓝（GitHub 的信息态即 accent）。
     ("notice", "#0969da", "#316dca"),
     ("notice-contrast", "#ffffff", "#ffffff"),
-    ("notice-ink", "#0969da", "#539bf5"),
+    ("notice-ink", "#0969da", "#58a6ff"),
     ("notice-wash", "#ddf4ff", "#212d40"),
     # warning＝attention（金）。dark_dimmed 的 emphasis(#966600) 能扛白字（5.0:1），两主题白字。
     ("warning", "#9a6700", "#966600"),

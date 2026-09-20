@@ -181,31 +181,29 @@ const setPageSize = (next: string): void => {
 };
 
 /**
- * Which rows are expanded. A Set rather than a single id, because comparing two
- * vehicles side by side is a real thing to want and closing one to open another would
- * make it impossible.
+ * The one expanded row, or null. An accordion: opening a row closes the previous one, so
+ * at most one card is open at a time (a per-row request — a stack of open cards turns the
+ * scannable list into a wall). The expand/collapse is animated as a slide, see the
+ * `dev-expand` transition in the scoped styles.
  *
- * Not in the URL, unlike the sort: an expanded row is a glance, not a view worth
- * sending to someone. Ids that leave the fleet are dropped so the set cannot grow for
- * the lifetime of the tab — the same pruning-on-clear rule the trail map follows.
+ * Not in the URL, unlike the sort: an expanded row is a glance, not a view worth sending
+ * to someone. An id that leaves the fleet is dropped, so a stale id cannot keep a ghost
+ * row open — the same pruning-on-clear rule the trail map follows.
  */
-const expandedIds = ref(new Set<string>());
+const expandedId = ref<string | null>(null);
 
 const toggleExpanded = (deviceId: string): void => {
-  const next = new Set(expandedIds.value);
-  if (!next.delete(deviceId)) next.add(deviceId);
-  expandedIds.value = next;
+  expandedId.value = expandedId.value === deviceId ? null : deviceId;
 };
 
 watch(
   () => rows.value.map((row) => row.device.deviceId).join(","),
   () => {
-    if (!expandedIds.value.size) return;
-    const present = new Set(rows.value.map((row) => row.device.deviceId));
-    const kept = [...expandedIds.value].filter((id) => present.has(id));
-    if (kept.length !== expandedIds.value.size) {
-      expandedIds.value = new Set(kept);
-    }
+    if (expandedId.value === null) return;
+    const present = rows.value.some(
+      (row) => row.device.deviceId === expandedId.value,
+    );
+    if (!present) expandedId.value = null;
   },
 );
 
@@ -638,20 +636,20 @@ watch(
             <tr
               class="device-row border-b border-border last:border-0"
               :data-tone="row.tone"
-              :data-expanded="expandedIds.has(row.device.deviceId) || undefined"
+              :data-expanded="expandedId === row.device.deviceId || undefined"
               @click="toggleExpanded(row.device.deviceId)"
             >
               <td class="px-1 py-2">
                 <button
                   type="button"
                   class="grid size-6 place-content-center rounded-sm text-ink-subtle transition-colors duration-150 ease-standard hover:text-ink"
-                  :aria-expanded="expandedIds.has(row.device.deviceId)"
+                  :aria-expanded="expandedId === row.device.deviceId"
                   :aria-controls="`device-card-${row.device.deviceId}`"
                   :aria-label="`${row.device.deviceName || row.device.deviceId} 详情`"
                   @click.stop="toggleExpanded(row.device.deviceId)"
                 >
                   <span aria-hidden="true" class="text-2xs">
-                    {{ expandedIds.has(row.device.deviceId) ? "▾" : "▸" }}
+                    {{ expandedId === row.device.deviceId ? "▾" : "▸" }}
                   </span>
                 </button>
               </td>
@@ -700,20 +698,24 @@ watch(
                 <span class="soc-value">{{ row.soc }}</span>
               </td>
             </tr>
-            <tr
-              v-if="expandedIds.has(row.device.deviceId)"
-              :id="`device-card-${row.device.deviceId}`"
-              class="border-b border-border last:border-0"
-            >
-              <td :colspan="COLUMNS.length + 1" class="p-0">
-                <DeviceRowCard
-                  :device="row.device"
-                  :scene-label="row.sceneLabel"
-                  :formation-names="row.formationNames"
-                  @focus-on-map="fleet.selectDevice"
-                />
-              </td>
-            </tr>
+            <Transition name="dev-expand">
+              <tr
+                v-if="expandedId === row.device.deviceId"
+                :id="`device-card-${row.device.deviceId}`"
+                class="dev-expand-row border-b border-border last:border-0"
+              >
+                <td :colspan="COLUMNS.length + 1" class="p-0">
+                  <div class="dev-card-clip">
+                    <DeviceRowCard
+                      :device="row.device"
+                      :scene-label="row.sceneLabel"
+                      :formation-names="row.formationNames"
+                      @focus-on-map="fleet.selectDevice"
+                    />
+                  </div>
+                </td>
+              </tr>
+            </Transition>
           </template>
         </tbody>
       </table>
@@ -800,5 +802,37 @@ watch(
    open. It recedes so the live ones read first. */
 .device-row[data-tone="offline"] {
   opacity: 0.74;
+}
+
+/*
+ * Expand/collapse as a slide (the "推出收回" request). The detail row is a real
+ * `<tr v-if>`, so the animated property lives on an inner grid whose single row runs
+ * `0fr → 1fr`; the clipped child collapses to nothing without the content reflowing.
+ *
+ * Why the empty-looking `transition` on the row itself: Vue reads the transition
+ * duration off the transitioned element (the `<tr>`) to know how long to keep it in the
+ * DOM during leave. The `<tr>` is not a grid so that declaration paints nothing — it
+ * only tells Vue "wait 220ms". The global `prefers-reduced-motion` rule in base.css
+ * zeroes both, so a reduced-motion viewer gets an instant open with no timer.
+ */
+.dev-expand-enter-active,
+.dev-expand-leave-active {
+  transition: grid-template-rows 220ms var(--ease-standard);
+}
+
+.dev-card-clip {
+  display: grid;
+  grid-template-rows: 1fr;
+  transition: grid-template-rows 220ms var(--ease-standard);
+}
+
+.dev-expand-enter-from .dev-card-clip,
+.dev-expand-leave-to .dev-card-clip {
+  grid-template-rows: 0fr;
+}
+
+.dev-card-clip > * {
+  min-height: 0;
+  overflow: hidden;
 }
 </style>

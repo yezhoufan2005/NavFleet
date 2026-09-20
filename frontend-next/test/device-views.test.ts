@@ -1237,17 +1237,25 @@ describe("expanding a device row", () => {
     expect(document.getElementById(id)).not.toBeNull();
   });
 
-  it("opens two rows at once, because comparing two vehicles is the point", async () => {
+  it("opens one row at a time — opening another closes the first", async () => {
+    // An accordion, by request: a stack of open cards turns the scannable list into a
+    // wall, so opening a second row collapses the first.
     const wrapper = await mountList([{}, {}]);
     const rows = wrapper.findAll("tbody tr.device-row");
 
     await rows[0]!.trigger("click");
+    await flushPromises();
+    expect(wrapper.findAll("tbody button[aria-expanded='true']")).toHaveLength(
+      1,
+    );
+
     await rows[1]!.trigger("click");
     await flushPromises();
 
-    expect(wrapper.findAll("tbody button[aria-expanded='true']")).toHaveLength(
-      2,
-    );
+    const open = wrapper.findAll("tbody button[aria-expanded='true']");
+    expect(open).toHaveLength(1);
+    // …and it is the second row's toggle that is now open, not the first.
+    expect(open[0]!.attributes("aria-controls")).toContain("agv-02");
   });
 
   it("lets the device link navigate instead of expanding the row", async () => {
