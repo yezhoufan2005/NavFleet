@@ -490,6 +490,7 @@ watch(
           :scene-definition="sceneDefinition"
           :scene-devices="fleet.sceneDevices"
           :trails="fleet.trailsByDeviceId"
+          initial-view="fit"
         />
       </div>
 
