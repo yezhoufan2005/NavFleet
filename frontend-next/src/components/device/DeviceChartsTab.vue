@@ -114,7 +114,7 @@ const hasHistory = computed(
     class="flex flex-col gap-3 rounded-md border border-border bg-surface-raised p-4"
     aria-labelledby="history-heading"
   >
-    <h3 id="history-heading" class="text-lg font-semibold text-ink">
+    <h3 id="history-heading" class="text-md font-semibold text-ink">
       历史曲线
     </h3>
 

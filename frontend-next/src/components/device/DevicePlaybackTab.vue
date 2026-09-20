@@ -358,7 +358,7 @@ const onScrub = (event: Event): void => {
         </UiButton>
 
         <span class="ml-auto flex flex-wrap items-center gap-1.5">
-          <span class="font-mono text-2xs text-ink-subtle">快捷范围</span>
+          <span class="text-2xs text-ink-muted">快捷范围</span>
           <UiButton
             v-for="hours in PRESET_HOURS"
             :key="hours"

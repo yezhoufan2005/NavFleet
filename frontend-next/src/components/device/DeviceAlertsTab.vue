@@ -147,7 +147,7 @@ const activeCount = computed(
     aria-labelledby="alert-history-heading"
   >
     <header class="flex flex-wrap items-baseline gap-2">
-      <h3 id="alert-history-heading" class="text-lg font-semibold text-ink">
+      <h3 id="alert-history-heading" class="text-md font-semibold text-ink">
         告警史
       </h3>
       <span

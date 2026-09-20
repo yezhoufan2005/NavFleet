@@ -318,7 +318,7 @@ const panels = computed(() =>
             class="flex flex-col gap-3 rounded-md border border-border bg-surface-raised p-4"
             aria-labelledby="codes-heading"
           >
-            <h3 id="codes-heading" class="text-lg font-semibold text-ink">
+            <h3 id="codes-heading" class="text-md font-semibold text-ink">
               报码解读
             </h3>
 
