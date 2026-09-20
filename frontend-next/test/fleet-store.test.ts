@@ -141,6 +141,25 @@ describe("trails", () => {
     expect(Object.keys(store.trailsByDeviceId)).toEqual(["agv-01"]);
   });
 
+  it("forgets the trail of a device that goes offline, even on a delta", () => {
+    store.ingestPayload(
+      snapshot([device({ fusion_loc: { x: 0, y: 0 } })]),
+      "api",
+    );
+    store.ingestPayload(device({ fusion_loc: { x: 0, y: 5 } }), "mqtt");
+    expect(store.trailsByDeviceId["agv-01"]).toHaveLength(2);
+
+    // A device that stops reporting must not leave a frozen or jumping line behind —
+    // a straggler, or a stale duplicate publisher's ghost, is dropped the moment it is
+    // marked offline (deltas never remove it from the fleet, so the trail alone would
+    // otherwise persist until a full snapshot).
+    store.ingestPayload(
+      device({ online: false, fusion_loc: { x: 0, y: 6 } }),
+      "mqtt",
+    );
+    expect(store.trailsByDeviceId["agv-01"]).toBeUndefined();
+  });
+
   it("clears one device's trail on request", () => {
     store.ingestPayload(snapshot([device()]), "api");
     store.clearTrail("agv-01");

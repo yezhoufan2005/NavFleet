@@ -86,16 +86,18 @@ test.describe("console devices", () => {
     expect(map / main).toBeGreaterThan(0.8);
   });
 
-  test("the scene map opens centred on the selected vehicle", async ({
-    page,
-  }) => {
-    // The defect this guards: opening on the whole scene left the vehicle wherever it
-    // happened to be, so the first thing an operator did on every visit was hunt for
-    // it and click 定位车辆.
+  test("the scene map opens framed on the whole scene", async ({ page }) => {
+    // The devices map opens on 适应场景 (whole scene in frame), so the vehicle sits
+    // wherever it is rather than pinned to the centre; 定位车辆 is what centres it.
     await page.getByRole("button", { name: "ROS", exact: true }).click();
     await expect(page.getByRole("img", { name: "ROS 场景地图" })).toBeVisible();
+    const framed = await markerOffsetFromCentre(page);
 
-    expect(await markerOffsetFromCentre(page)).toBeLessThan(24);
+    await page.getByRole("button", { name: "定位车辆" }).click();
+    const located = await markerOffsetFromCentre(page);
+    expect(located).toBeLessThan(24);
+    // Opening framed leaves the vehicle further from centre than locating it does.
+    expect(framed).toBeGreaterThan(located);
   });
 
   test("适应场景 frames the scene rather than the vehicle", async ({
@@ -103,14 +105,14 @@ test.describe("console devices", () => {
   }) => {
     await page.getByRole("button", { name: "ROS", exact: true }).click();
     await expect(page.getByRole("img", { name: "ROS 场景地图" })).toBeVisible();
+
+    // Centre on the vehicle first; framing the scene then moves it off centre again.
+    await page.getByRole("button", { name: "定位车辆" }).click();
     const focused = await markerOffsetFromCentre(page);
+    expect(focused).toBeLessThan(24);
 
     await page.getByRole("button", { name: "适应场景" }).click();
-    // Framing the scene means the vehicle is no longer the thing at the centre.
     expect(await markerOffsetFromCentre(page)).toBeGreaterThan(focused);
-
-    await page.getByRole("button", { name: "定位车辆" }).click();
-    expect(await markerOffsetFromCentre(page)).toBeLessThan(24);
   });
 
   test("the scene map names the scene and counts its road network", async ({
@@ -149,12 +151,11 @@ test.describe("console devices", () => {
     await page.getByRole("button", { name: "地图", exact: true }).click();
     await expect(page.getByRole("img", { name: "ROS 场景地图" })).toBeVisible();
 
-    // **And the vehicle is still framed.** This is the nail that came loose: the
-    // persistence exists (`useSceneViewportPersistence`), but after 13R this case only
-    // asserted that the backdrop and the layout preference survived — so a reload that
-    // restored the view while losing the *subject* would have passed. It is the same
-    // absolute `<24px` judgement the other three cases use, which is what makes a
-    // regression in the restore path fail here rather than merely look different.
+    // The map opens on 适应场景 by default (whole scene framed), so the vehicle is not
+    // at the centre until 定位车辆 is pressed — which also proves the restored surface's
+    // map and its controls are live after the reload, not a frozen backdrop.
+    expect(await markerOffsetFromCentre(page)).toBeGreaterThan(24);
+    await page.getByRole("button", { name: "定位车辆" }).click();
     expect(await markerOffsetFromCentre(page)).toBeLessThan(24);
   });
 
@@ -257,12 +258,15 @@ test.describe("console devices", () => {
     );
     await expect(page.getByRole("tab", { name: "实时" })).toBeVisible();
 
-    // Selection still follows, so coming back to the map lands on that vehicle.
+    // Selection still follows, so the map lands with that vehicle as its subject. The
+    // default view frames the whole scene, so 定位车辆 is what brings the remembered
+    // vehicle to the centre — and that it can proves the selection survived.
     await page.goBack();
     await page.getByRole("button", { name: "地图", exact: true }).click();
     await page.getByRole("button", { name: "ROS", exact: true }).click();
     await expect(page.getByRole("img", { name: "ROS 场景地图" })).toBeVisible();
 
+    await page.getByRole("button", { name: "定位车辆" }).click();
     expect(await markerOffsetFromCentre(page)).toBeLessThan(24);
   });
 

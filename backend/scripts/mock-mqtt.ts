@@ -820,10 +820,15 @@ function buildTelemetry(state: DeviceState) {
     },
   };
 }
-// Single-instance guard: two demo publishers driving the same deviceIds make
-// telemetry (e.g. battery %) visibly flip between their two timelines every
-// tick. A PID file lets a fresh run evict any previous publisher so exactly one
-// is ever publishing — the deterministic sim then resets cleanly from t=0.
+// Single-instance guard, in two layers, because two publishers driving the same deviceIds
+// make telemetry (battery %, position, alert state) flip between their two timelines every
+// tick. (1) A fixed MQTT client id (see mqtt.connect) makes the broker evict any publisher —
+// past or future — that connects with the same id, so at most one is ever attached to the
+// broker; a superseded one stands down on the takeover DISCONNECT. (2) This PID file is the
+// fast same-host path that also evicts a predecessor before it can connect. The deterministic
+// sim then resets cleanly from t=0. (A pre-existing orphan from *before* the fixed id shipped
+// used a random id the broker will not dedup — kill it once by hand; every launch after that
+// is deduped by the broker.)
 const PID_FILE = path.join(os.tmpdir(), "navfleet-mock-mqtt.pid");
 
 const isProcessAlive = (pid: number): boolean => {
