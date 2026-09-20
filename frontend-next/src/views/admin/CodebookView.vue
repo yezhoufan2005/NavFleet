@@ -125,16 +125,6 @@ const overrideHint = computed(() =>
       />
     </template>
 
-    <!--
-      The table is read-only reference data; the one write is import, which replaces the
-      whole deployment layer from a file. Stated up front so the flow (导出→编辑→导入) is
-      obvious and nobody looks for a per-row editor that deliberately is not here.
-    -->
-    <p class="m-0 text-sm text-ink-muted">
-      内置表叠加部署侧码表后的生效结果；表为只读参考，改动请导出后编辑 JSON
-      再导入替换部署码表（无 Mongo 也可用，改动即时热加载）
-    </p>
-
     <p
       v-if="importError"
       class="m-0 rounded-sm border border-critical bg-critical-wash px-3 py-2 text-sm text-critical-ink"

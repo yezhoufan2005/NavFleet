@@ -406,9 +406,10 @@ describe("场景", () => {
 });
 
 describe("管理落地页", () => {
-  it("做好的分区是链接，没做的不是", async () => {
+  it("每个分区都是可导航的链接", async () => {
     // A card that looks clickable and is not would make this page worse than a plain
-    // list. Navigation stays an anchor so ⌘-click and "copy link address" work.
+    // list. Navigation stays an anchor so ⌘-click and "copy link address" work. Since
+    // Phase 18 there are no unbuilt placeholders — every card is a real area.
     const wrapper = await mountAt(AdminView, "/admin");
     const links = wrapper.findAll("a");
 
@@ -420,9 +421,8 @@ describe("管理落地页", () => {
       "/admin/system",
       "/admin/users",
     ]);
-    // The unbuilt ones still say which PR brings them, rather than going quiet.
-    expect(wrapper.text()).toContain("PR 15C");
-    expect(wrapper.text()).toContain("PR 16C");
+    // No dashed "not built" placeholders remain, so no "PR xx" marker is left.
+    expect(wrapper.text()).not.toContain("PR ");
   });
 
   it("不把未实现的分区说成已就绪", async () => {

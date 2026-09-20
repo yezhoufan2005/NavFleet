@@ -196,18 +196,6 @@ const missingCount = computed(
       </UiButton>
     </template>
 
-    <!--
-      Body text rather than a page lede, because it is not a description of the page —
-      it is the red line. Scenes are what a vehicle localises against, so this console
-      never writes them, and `console-admin.spec.ts` asserts the word 「只读」 is visible
-      here alongside "there is no form and no input on this page". Placed before the
-      status branches so it renders in every state, including while loading and when the
-      fleet has no scenes at all.
-    -->
-    <p class="m-0 text-sm text-ink-muted">
-      只读页：场景是车辆定位的依据，不由监控台改写
-    </p>
-
     <p v-if="status === 'loading'" class="text-sm text-ink-muted" role="status">
       正在读取场景配置…
     </p>
