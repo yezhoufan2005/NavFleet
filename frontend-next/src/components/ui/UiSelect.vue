@@ -112,7 +112,7 @@ const onUpdate = (next: unknown): void => {
   >
     <SelectTrigger
       :aria-label="ariaLabel"
-      class="flex items-center justify-between gap-2 rounded-sm border border-border-strong bg-surface-raised px-2 py-1 text-xs text-ink transition-colors duration-150 ease-standard hover:border-brand disabled:opacity-50 data-[state=open]:border-brand"
+      class="flex h-8 items-center justify-between gap-2 rounded-sm border border-border-strong bg-surface-raised px-2 text-sm text-ink transition-colors duration-150 ease-standard hover:border-brand disabled:opacity-50 data-[state=open]:border-brand"
     >
       <!--
         Our own text rather than `SelectValue`. Reka resolves the selected label from the

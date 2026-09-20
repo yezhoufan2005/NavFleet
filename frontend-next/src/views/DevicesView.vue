@@ -23,6 +23,7 @@ import GpsMap from "@/components/map/GpsMap.vue";
 import SceneMap from "@/components/map/SceneMap.vue";
 import DeviceRowCard from "@/components/device/DeviceRowCard.vue";
 import UiSelect from "@/components/ui/UiSelect.vue";
+import UiPager from "@/components/ui/UiPager.vue";
 import { useFleetStore } from "@/stores/fleet";
 import { useDeviceView } from "@/composables/useDeviceView";
 import { useDeviceSort } from "@/composables/useDeviceSort";
@@ -758,28 +759,10 @@ watch(
           @update:model-value="setPageSize"
         />
       </label>
-      <div v-if="pageCount > 1" class="flex items-center gap-3">
-        <button
-          type="button"
-          class="rounded-sm border border-border-strong bg-surface-raised px-2.5 py-1 text-xs text-ink-muted transition-colors duration-150 ease-standard hover:text-ink disabled:opacity-50"
-          :disabled="page <= 1"
-          @click="setPage(page - 1)"
-        >
-          上一页
-        </button>
-        <span class="font-mono text-2xs text-ink-muted">
-          第 {{ Math.min(page, pageCount) }} / {{ pageCount }} 页 · 共
-          {{ rows.length }} 台
-        </span>
-        <button
-          type="button"
-          class="rounded-sm border border-border-strong bg-surface-raised px-2.5 py-1 text-xs text-ink-muted transition-colors duration-150 ease-standard hover:text-ink disabled:opacity-50"
-          :disabled="page >= pageCount"
-          @click="setPage(page + 1)"
-        >
-          下一页
-        </button>
-      </div>
+      <UiPager :page="page" :page-count="pageCount" @update:page="setPage">
+        第 {{ Math.min(page, pageCount) }} / {{ pageCount }} 页 · 共
+        {{ rows.length }} 台
+      </UiPager>
     </nav>
   </PageHeader>
 </template>

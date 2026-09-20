@@ -25,6 +25,7 @@ import { computed, onMounted, watch } from "vue";
 import { RouterLink, useRoute, useRouter } from "vue-router";
 import PageHeader from "@/components/PageHeader.vue";
 import UiSelect from "@/components/ui/UiSelect.vue";
+import UiPager from "@/components/ui/UiPager.vue";
 import AlertHistoryPanel from "@/components/alerts/AlertHistoryPanel.vue";
 import { useFleetStore } from "@/stores/fleet";
 import { useAlertAck } from "@/composables/useAlertAck";
@@ -621,29 +622,17 @@ watch(() => canAck.value && fleet.state.realtime.apiReady, runLegacyMigration);
 
       <nav
         v-if="pageCount > 1"
-        class="flex items-center justify-between gap-3"
+        class="flex items-center justify-end gap-3"
         aria-label="分页"
       >
-        <button
-          type="button"
-          class="rounded-sm border border-border-strong bg-surface-raised px-2.5 py-1 text-xs text-ink-muted disabled:opacity-50"
-          :disabled="page <= 1"
-          @click="setQuery({ page: page > 2 ? String(page - 1) : null })"
+        <UiPager
+          :page="page"
+          :page-count="pageCount"
+          @update:page="(p) => setQuery({ page: p <= 1 ? null : String(p) })"
         >
-          上一页
-        </button>
-        <span class="font-mono text-2xs text-ink-muted"
-          >第 {{ Math.min(page, pageCount) }} / {{ pageCount }} 页 · 共
-          {{ filtered.length }} 条</span
-        >
-        <button
-          type="button"
-          class="rounded-sm border border-border-strong bg-surface-raised px-2.5 py-1 text-xs text-ink-muted disabled:opacity-50"
-          :disabled="page >= pageCount"
-          @click="setQuery({ page: String(Math.min(page + 1, pageCount)) })"
-        >
-          下一页
-        </button>
+          第 {{ Math.min(page, pageCount) }} / {{ pageCount }} 页 · 共
+          {{ filtered.length }} 条
+        </UiPager>
       </nav>
     </template>
   </PageHeader>

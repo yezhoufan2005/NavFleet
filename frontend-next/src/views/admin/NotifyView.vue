@@ -16,6 +16,8 @@ import { fleetApi } from "@navfleet/fleet-core";
 import type { NotifyChannelView, NotifySendRecord } from "@navfleet/shared";
 import PageHeader from "@/components/PageHeader.vue";
 import UiButton from "@/components/ui/UiButton.vue";
+import UiInput from "@/components/ui/UiInput.vue";
+import UiPager from "@/components/ui/UiPager.vue";
 import UiSelect from "@/components/ui/UiSelect.vue";
 
 const route = useRoute();
@@ -39,9 +41,6 @@ const STATUS_OPTIONS = [
   { value: "sent", label: "成功" },
   { value: "failed", label: "失败" },
 ];
-
-const INPUT_CLASS =
-  "h-8 rounded-sm border border-border-strong bg-surface px-2 text-sm text-ink placeholder:text-ink-subtle";
 
 const readParam = (key: string): string => {
   const value = route.query[key];
@@ -160,21 +159,19 @@ const severitiesLabel = (severities: string[]): string =>
     <section class="flex flex-wrap items-end gap-3" aria-label="筛选">
       <label class="flex flex-col gap-1">
         <span class="text-2xs text-ink-muted">设备</span>
-        <input
+        <UiInput
           v-model="deviceId"
           type="search"
           placeholder="设备 ID"
-          :class="INPUT_CLASS"
           @keyup.enter="applyFilters"
         />
       </label>
       <label class="flex flex-col gap-1">
         <span class="text-2xs text-ink-muted">渠道</span>
-        <input
+        <UiInput
           v-model="channelId"
           type="search"
           placeholder="渠道 ID"
-          :class="INPUT_CLASS"
           @keyup.enter="applyFilters"
         />
       </label>
@@ -274,23 +271,7 @@ const severitiesLabel = (severities: string[]): string =>
         v-if="pageCount > 1"
         class="flex items-center justify-end gap-3 text-sm"
       >
-        <UiButton
-          variant="ghost"
-          size="sm"
-          :disabled="page <= 1"
-          @click="page -= 1"
-        >
-          上一页
-        </UiButton>
-        <span class="text-ink-muted">第 {{ page }} / {{ pageCount }} 页</span>
-        <UiButton
-          variant="ghost"
-          size="sm"
-          :disabled="page >= pageCount"
-          @click="page += 1"
-        >
-          下一页
-        </UiButton>
+        <UiPager v-model:page="page" :page-count="pageCount" />
       </div>
     </template>
   </PageHeader>
