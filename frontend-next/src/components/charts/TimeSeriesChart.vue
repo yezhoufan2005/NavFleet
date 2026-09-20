@@ -206,13 +206,15 @@ const sampled = computed(() => stamps.value.length > TABLE_ROW_LIMIT);
 const formatStamp = (stamp: number): string =>
   new Date(stamp).toLocaleString(undefined, { hour12: false });
 
-/** When a row cap is asked for, the header leaves the scroll box and only the body scrolls. */
+/** When a row cap is asked for, the body height is that many rows; otherwise it is capped at 24rem. */
 const fixedRows = computed(
   () => typeof tableMaxRows === "number" && tableMaxRows > 0,
 );
 /** One body row is `py-1.5` + a text-xs line ≈ 29px; the header is rendered separately. */
 const BODY_ROW_PX = 29;
-const bodyMaxHeight = computed(() => `${(tableMaxRows ?? 0) * BODY_ROW_PX}px`);
+const bodyMaxHeight = computed(() =>
+  fixedRows.value ? `${(tableMaxRows ?? 0) * BODY_ROW_PX}px` : "24rem",
+);
 </script>
 
 <template>
@@ -241,14 +243,14 @@ const bodyMaxHeight = computed(() => `${(tableMaxRows ?? 0) * BODY_ROW_PX}px`);
     />
 
     <!--
-      Row-capped variant (回放窗口速度): the header is its own table outside the scroll box, so
-      the scrollbar runs beside the records only — not up through the 时间/速度 header row. Both
-      tables are `table-fixed` over the same colgroup, so the columns line up despite the split.
+      Data table. The header is its own table outside the scroll box, so the scrollbar runs
+      beside the records only — never up through the 时间/值 header row (the shape 曲线 and
+      历史回放 now share). Both tables are `table-fixed` over the same colgroup, so the columns
+      line up despite the split. The body scrolls on the y-axis only: `overflow-auto` used to
+      let a stray horizontal scrollbar appear when the vertical one claimed the corner — that
+      extra groove is what pushed the scroll track off the bottom.
     -->
-    <div
-      v-else-if="fixedRows"
-      class="overflow-hidden rounded-sm border border-border"
-    >
+    <div v-else class="overflow-hidden rounded-sm border border-border">
       <table class="w-full table-fixed border-collapse text-left text-sm">
         <caption class="sr-only">
           {{
@@ -277,7 +279,7 @@ const bodyMaxHeight = computed(() => `${(tableMaxRows ?? 0) * BODY_ROW_PX}px`);
       </table>
       <!-- Only the body scrolls, and it is the focusable region (WCAG 2.1.1). -->
       <div
-        class="overflow-auto border-t border-border"
+        class="overflow-x-hidden overflow-y-auto border-t border-border"
         tabindex="0"
         role="region"
         :aria-label="`${label} 数据表`"
@@ -311,68 +313,6 @@ const bodyMaxHeight = computed(() => `${(tableMaxRows ?? 0) * BODY_ROW_PX}px`);
           </tbody>
         </table>
       </div>
-    </div>
-
-    <!--
-      Focusable, and that is a keyboard requirement rather than a nicety: the box is
-      capped at 24rem and the table runs to 500 rows, so without a tab stop there is
-      no way to scroll it without a pointer (WCAG 2.1.1; axe calls it
-      `scrollable-region-focusable`). A named region is what makes the stop
-      announceable instead of a mystery landing spot.
-    -->
-    <div
-      v-else
-      class="max-h-96 overflow-auto rounded-sm border border-border"
-      tabindex="0"
-      role="region"
-      :aria-label="`${label} 数据表`"
-    >
-      <table class="w-full border-collapse text-left text-sm">
-        <caption class="sr-only">
-          {{
-            label
-          }}
-          <template v-if="sampled"
-            >（等距抽样后的 {{ rows.length }} 行）</template
-          >
-        </caption>
-        <thead
-          class="sticky top-0 bg-surface-sunken text-2xs text-ink-muted uppercase"
-        >
-          <tr>
-            <th scope="col" class="px-3 py-2 font-medium">时间</th>
-            <th
-              v-for="entry in series"
-              :key="entry.name"
-              scope="col"
-              class="px-3 py-2 font-medium"
-            >
-              {{ entry.name }}<template v-if="unit"> ({{ unit }})</template>
-            </th>
-          </tr>
-        </thead>
-        <tbody>
-          <tr
-            v-for="row in rows"
-            :key="row.stamp"
-            class="border-t border-border"
-          >
-            <th
-              scope="row"
-              class="px-3 py-1.5 font-mono text-xs font-normal whitespace-nowrap text-ink-muted"
-            >
-              {{ formatStamp(row.stamp) }}
-            </th>
-            <td
-              v-for="(value, index) in row.values"
-              :key="index"
-              class="px-3 py-1.5 font-mono text-xs text-ink"
-            >
-              {{ value === undefined ? "--" : value.toFixed(2) }}
-            </td>
-          </tr>
-        </tbody>
-      </table>
     </div>
   </figure>
 </template>

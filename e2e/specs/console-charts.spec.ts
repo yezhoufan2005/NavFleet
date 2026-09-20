@@ -104,7 +104,9 @@ test.describe("chart performance baseline", () => {
 
     await page.getByRole("button", { name: "看数据表" }).click();
 
-    await expect(page.getByRole("table")).toBeVisible();
+    // The data table splits the header out of the scroll box, so it is two <table>s (a
+    // header table and a scrolling body table) over one colgroup — same shape 历史回放 uses.
+    await expect(page.getByRole("table").first()).toBeVisible();
     await expect(
       page.getByRole("columnheader", { name: "设备 1 (%)" }),
     ).toBeVisible();

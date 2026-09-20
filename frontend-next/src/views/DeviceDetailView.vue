@@ -14,9 +14,11 @@
  * in `@navfleet/fleet-core` turns it into 含义 + 成因 + 处理建议 + **车辆还能做什么** —
  * that last one is VDA 5050's model, and it is the part a dispatcher can act on.
  *
- * Panels render only when the vehicle actually has that data. Not a capability system
- * — that is P1-b and deliberately not built here — just the ordinary rule that a
- * panel of `--` is worse than no panel, because it reads as lost data.
+ * Every panel is always rendered, and a field the vehicle has no value for reads 缺失
+ * rather than the panel disappearing. This reverses the earlier "drop an all-`--` panel"
+ * rule by request: across several devices a card that vanishes reads as "this one is
+ * different", so a fixed set of placeholder-filled cards is easier to scan than a set
+ * whose shape changes per vehicle.
  *
  * ## Why tabs, and why the tab is in the URL
  *
@@ -145,100 +147,118 @@ interface Row {
   title?: string;
 }
 
-/** Pose, both fixes — the gap between them is the information. */
+/**
+ * Missing readings are shown as this word, and every panel is always rendered — the
+ * earlier rule (drop a panel with no data, because a panel of `--` reads as lost data)
+ * was reversed by request: a card that silently disappears reads as "this vehicle is
+ * different" while scanning several devices, so an absent card now stays put and says
+ * 缺失. `formatEnum`/`formatNumber` return "--" for absent data; normalise that here.
+ */
+const MISSING = "缺失";
+const orMissing = (value: string): string =>
+  value === "--" || value === "" ? MISSING : value;
+
+/** Pose, both fixes — the gap between them is the information; absent fixes read 缺失. */
 const poseRows = computed<Row[]>(() => {
-  const rows: Row[] = [];
   const fusion = device.value?.fusionLoc;
   const lidar = device.value?.lidarLoc;
-  if (hasPose(fusion)) {
-    rows.push({
+  return [
+    {
       label: "融合定位",
-      value: `x ${formatNumber(fusion?.x, 2)} · y ${formatNumber(fusion?.y, 2)} · yaw ${formatNumber(fusion?.yaw, 3)}`,
-    });
-  }
-  if (hasPose(lidar)) {
-    rows.push({
+      value: hasPose(fusion)
+        ? `x ${formatNumber(fusion?.x, 2)} · y ${formatNumber(fusion?.y, 2)} · yaw ${formatNumber(fusion?.yaw, 3)}`
+        : MISSING,
+    },
+    {
       label: "激光定位",
-      value: `x ${formatNumber(lidar?.x, 2)} · y ${formatNumber(lidar?.y, 2)} · yaw ${formatNumber(lidar?.yaw, 3)}`,
-    });
-  }
-  return rows;
+      value: hasPose(lidar)
+        ? `x ${formatNumber(lidar?.x, 2)} · y ${formatNumber(lidar?.y, 2)} · yaw ${formatNumber(lidar?.yaw, 3)}`
+        : MISSING,
+    },
+  ];
 });
 
 const vehicleRows = computed<Row[]>(() => {
   const info = device.value?.vehicleInfo;
-  if (!info) return [];
   return [
     // The enum maps are the ones v1.0.0 lost in its own Vue migration: before Phase 1
     // these three rendered as bare numbers.
     {
       label: "控制模式",
-      value: formatEnum(info.controlMode, controlModeMap),
-      title: describeEnum(info.controlMode, controlModeMap),
+      value: orMissing(formatEnum(info?.controlMode, controlModeMap)),
+      title: describeEnum(info?.controlMode, controlModeMap),
     },
     {
       label: "挡位",
-      value: formatEnum(info.gear, gearMap),
-      title: describeEnum(info.gear, gearMap),
+      value: orMissing(formatEnum(info?.gear, gearMap)),
+      title: describeEnum(info?.gear, gearMap),
     },
-    { label: "速度", value: formatNumber(info.speed, 2, " m/s") },
-    { label: "角速度", value: formatNumber(info.omega, 3, " rad/s") },
+    { label: "速度", value: orMissing(formatNumber(info?.speed, 2, " m/s")) },
+    {
+      label: "角速度",
+      value: orMissing(formatNumber(info?.omega, 3, " rad/s")),
+    },
     // `"%"` without the leading space its neighbours have: a percent sign is not a unit
-    // symbol. 0 digits because SOC telemetry to 0.1% is false precision — and the
-    // playback tab used to say `1`, so the same vehicle read differently on two tabs of
-    // the same page.
-    { label: "电量", value: formatNumber(info.soc, 0, "%") },
+    // symbol. 0 digits because SOC telemetry to 0.1% is false precision.
+    { label: "电量", value: orMissing(formatNumber(info?.soc, 0, "%")) },
   ];
 });
 
-const taskRows = computed<Row[]>(() => {
-  if (!device.value) return [];
-  return [
-    {
-      label: "车端任务",
-      value: formatEnum(device.value.taskStatus, taskStatusMap),
-      title: describeEnum(device.value.taskStatus, taskStatusMap),
-    },
-    {
-      label: "平台任务",
-      value: formatEnum(device.value.platformTaskStatus, taskStatusMap),
-      title: describeEnum(device.value.platformTaskStatus, taskStatusMap),
-    },
-  ];
-});
+const taskRows = computed<Row[]>(() => [
+  {
+    label: "车端任务",
+    value: orMissing(formatEnum(device.value?.taskStatus, taskStatusMap)),
+    title: describeEnum(device.value?.taskStatus, taskStatusMap),
+  },
+  {
+    label: "平台任务",
+    value: orMissing(
+      formatEnum(device.value?.platformTaskStatus, taskStatusMap),
+    ),
+    title: describeEnum(device.value?.platformTaskStatus, taskStatusMap),
+  },
+]);
 
 const speedLimitRows = computed<Row[]>(() => {
   const limit = device.value?.speedLimit;
-  if (!limit) return [];
   return [
-    { label: "限速值", value: formatNumber(limit.limit, 2, " m/s") },
-    { label: "减速时间", value: formatNumber(limit.slowdownTime, 2, " s") },
-    { label: "限速来源", value: limit.moduleName || "--" },
-    // Without this a standing limit is indistinguishable from one just issued — the
-    // normalizer even carries the stamp forward across snapshots
-    // (`fleetNormalize.ts:474-476`), so "刚下发的还是一小时前的残留" had an answer in
-    // the data the whole time and no reader.
-    { label: "更新时间", value: formatStamp(limit.stamp) },
+    {
+      label: "限速值",
+      value: orMissing(formatNumber(limit?.limit, 2, " m/s")),
+    },
+    {
+      label: "减速时间",
+      value: orMissing(formatNumber(limit?.slowdownTime, 2, " s")),
+    },
+    { label: "限速来源", value: limit?.moduleName || MISSING },
+    {
+      label: "更新时间",
+      value: limit?.stamp ? formatStamp(limit.stamp) : MISSING,
+    },
   ];
 });
 
 const gpsRows = computed<Row[]>(() => {
   const gps = device.value?.gps;
-  // The panel is absent rather than empty when the vehicle has no GPS at all —
-  // `gpsEnabled` is configured per device, so "no fix" and "no receiver" differ.
-  if (device.value?.gpsEnabled === false || !hasGps(gps)) return [];
+  // `gpsEnabled` is configured per device, so "no fix" and "no receiver" both read 缺失
+  // here; the panel stays rather than vanishing.
+  const present = device.value?.gpsEnabled !== false && hasGps(gps);
   return [
     {
       label: "经纬度",
-      value: `${formatNumber(gps?.lng, 6)}, ${formatNumber(gps?.lat, 6)}`,
+      value: present
+        ? `${formatNumber(gps?.lng, 6)}, ${formatNumber(gps?.lat, 6)}`
+        : MISSING,
     },
-    { label: "航向", value: formatNumber(gps?.heading, 1, "°") },
+    {
+      label: "航向",
+      value: present ? formatNumber(gps?.heading, 1, "°") : MISSING,
+    },
   ];
 });
 
 const sceneRows = computed<Row[]>(() => {
-  if (!device.value) return [];
-  const sceneId = device.value.sceneId;
+  const sceneId = device.value?.sceneId;
   const definition = sceneId ? fleet.getSceneDefinition(sceneId) : null;
   return [
     {
@@ -250,22 +270,24 @@ const sceneRows = computed<Row[]>(() => {
         ? (definition?.sceneName as string) || sceneId
         : "未配置场景",
     },
-    { label: "最后上报", value: formatStamp(device.value.stamp) },
+    {
+      label: "最后上报",
+      value: device.value?.stamp ? formatStamp(device.value.stamp) : MISSING,
+    },
   ];
 });
 
-const panels = computed(() =>
-  [
-    // `key: "pose"` — it read `"codes"` until now, a copy-paste artefact that `:key`
-    // actually consumes, so the pose panel was keyed as if it were the code panel.
-    { key: "pose", title: "位姿", rows: poseRows.value },
-    { key: "vehicle", title: "车辆状态", rows: vehicleRows.value },
-    { key: "task", title: "任务", rows: taskRows.value },
-    { key: "limit", title: "限速", rows: speedLimitRows.value },
-    { key: "gps", title: "GPS", rows: gpsRows.value },
-    { key: "scene", title: "场景", rows: sceneRows.value },
-  ].filter((panel) => panel.rows.length),
-);
+// Every panel, always — an absent one is placeholder, not dropped (see MISSING above).
+const panels = computed(() => [
+  // `key: "pose"` — it read `"codes"` until now, a copy-paste artefact that `:key`
+  // actually consumes, so the pose panel was keyed as if it were the code panel.
+  { key: "pose", title: "位姿", rows: poseRows.value },
+  { key: "vehicle", title: "车辆状态", rows: vehicleRows.value },
+  { key: "task", title: "任务", rows: taskRows.value },
+  { key: "limit", title: "限速", rows: speedLimitRows.value },
+  { key: "gps", title: "GPS", rows: gpsRows.value },
+  { key: "scene", title: "场景", rows: sceneRows.value },
+]);
 </script>
 
 <template>
