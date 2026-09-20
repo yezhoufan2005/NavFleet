@@ -607,16 +607,18 @@
         <div>
           <p class="eyebrow">① 原始层</p>
           <h2 style="margin-top: calc(var(--spacing) * 2)">
-            色阶 —— 6 × 12 阶，oklch 生成
+            色阶 —— 6 × 12 阶，取自 GitHub Primer
           </h2>
         </div>
         <p style="color: var(--color-ink-muted); max-width: 66ch">
-          用 <code>oklch()</code> 而不是
-          hex，是为了让明度阶梯在感知上均匀：同一个 L 值在不同色相下看起来
-          一样亮。彩度在 500
-          阶达峰、向两端线性收敛，避免浅色端发灰、深色端糊成一团。中性色
-          <code>slate</code> 刻意带一点青绿偏色而不是纯灰 ——
-          纯中灰在品牌色旁边会显脏。
+          v1.5.0 起，色阶直接采用 GitHub Primer 的字面量 hex：浅色取
+          <code>Light default</code>，深色取
+          <code>dark_dimmed</code>（外观里的「Soft dark」）。不再用
+          <code>oklch()</code>
+          公式生成——目标从"感知均匀"变为"照抄成熟系统的手感"。 品牌与 notice 用
+          Primer 的 accent 蓝，中性
+          <code>slate</code> 是一条跨主题阶（浅端浅灰、深端 dark_dimmed
+          的近黑面）。
         </p>
         <div
           class="card"

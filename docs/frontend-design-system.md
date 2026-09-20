@@ -7,6 +7,32 @@
 输入：[frontend-ia.md](frontend-ia.md)（已定稿的 IA，候选 B）+
 [frontend-parity.md](frontend-parity.md)（338 条现状清单）。
 
+> ## 更新（v1.5.0）：调色板改采 GitHub Primer
+>
+> 本文档下半部分（尤其 §2.1 / §2.2 / §3.3）里"品牌用 teal 青绿、色阶用 `oklch()` 公式生成"
+> 的描述是 **Phase 11D 的历史设计**，已被 v1.5.0 的焕新取代。**当前真相如下，其余章节的
+> 结构性结论（三层 token、`@theme` 不 inline、深浅成对、`-contrast`/`-ink` 区分）仍然成立。**
+>
+> - **浅色 = GitHub Primer「Light default」，深色 = GitHub Primer「dark_dimmed / Soft dark」。**
+>   两套都取 Primer 的**字面量 hex**，不再用 oklch 公式推导；深浅按同一套语义 token 成对定义，
+>   **划分细度一致**（同样的表面三级 / 文字三级 / 边框两级 / 状态四色，各取所属主题在 Primer 里
+>   的对应档）。当前 token→取值的具体映射**暂定**，见生成器 `docs/tools/gen-design-system-preview.py`。
+> - **品牌与 notice = Primer accent（蓝）**：实心用 `accent.emphasis`（浅 `#0969da` / 深 `#316dca`），
+>   链接/淡底文字用 `accent.fg`（浅 `#0969da` / 深 `#58a6ff`）。绿色（success/teal）已移除，
+>   只保留 GitHub 语义色：warning=attention 金、critical=danger 红、offline=neutral 灰。
+> - **中性 `slate` 是一条跨主题阶**：浅端（25–300）是 Light default 的 canvas/border 灰，深端
+>   （600–950）是 dark_dimmed 的 canvas `#22272e` / overlay `#2d333b` / inset `#1c2128` /
+>   border `#444c56`。语义里浅色只引浅端、深色只引深端，两组步值不重叠——`tokens.test` 的
+>   border≠surface 判定据此成立。表面/边框走 `var(--color-slate-*)`，文字/品牌/状态色写字面量
+>   （深浅明度需求相反、与 border 共步会冲突）。
+> - **较 Primer 的一处偏离**：dark_dimmed 的 `fg.muted/subtle` 本是低对比（在 `canvas.overlay`
+>   上仅约 3.3:1 / 2.4:1），扛不住本项目"文字在最亮的深色表面 raised 上也要 ≥4.5"的审计，
+>   故深色正文三级改用 dark_dimmed 的 `gray.0/1/2`（比 Primer 默认映射各提一档）；柔和观感来自
+>   `#22272e` 系的**背景**而非压低文字。
+> - **新增两个 token**：`surface-hover`（hover/选中的半透明中性填充，与 sunken/raised 都不同色）、
+>   `border-muted`（比 `border` 更弱的列表内分隔线）。
+> - 对比度仍按 §6.1 由预览页实时机检，浅深两套 18 组配对全部 ≥4.5。
+
 ## 0. 三条本轮定下来的技术结论
 
 写在最前面，因为它们决定了后面所有代码怎么写：
@@ -51,26 +77,26 @@
 
 ### 2.1 原始层
 
-| 组       | 设计                                                                                                                                                                                                                                                                                        |
-| -------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| 色阶     | 6 条 ramp × 各 **12 阶**（25 / 50 / 100 / 200 … 900 / 950）：`teal`（品牌）、`slate`（中性，**带青绿偏色**而不是纯灰）、`blue`（notice）、`amber`（warning）、`rose`（critical）、`zinc`（offline / 禁用）。用 `oklch()` 定义以保证明度阶梯感知均匀 —— **但注意这不等于对比度达标，见 3.3** |
-| 字阶     | `2xs 11 / xs 12 / sm 13 / base 14 / md 15 / lg 17 / xl 20 / 2xl 24 / 3xl 30 / 4xl 38`（px），各自带 `--leading-*`。**基准 14px 而非 16px** —— 这是控制台密度，不是文章                                                                                                                      |
-| 大屏字阶 | `wall` 断点下另一套：`wall-sm 20 / wall-base 26 / wall-lg 34 / wall-xl 48 / wall-2xl 72`。两米外可读是硬要求                                                                                                                                                                                |
-| 间距     | `--spacing: 4px` 基准，用 Tailwind 的乘数刻度（`p-2` = 8px…）。保留 `--panel-pad` / `--view-gap` 作为**语义**间距，值取自刻度                                                                                                                                                               |
-| 圆角     | `xs 6 / sm 10 / md 14 / lg 22 / full`（沿用现值）                                                                                                                                                                                                                                           |
-| 层级     | `--shadow-raised`（卡片）/ `--shadow-overlay`（popover、dropdown）/ `--shadow-drawer` / `--shadow-modal`，每档双主题两套值                                                                                                                                                                  |
-| 动效     | `--ease-standard`（状态切换 160ms）/ `--ease-entrance`（进场 220ms，减速）/ `--ease-exit`（出场 140ms，加速）。全部包在 `prefers-reduced-motion` 之下                                                                                                                                       |
-| 断点     | `md 768 / lg 1024 / xl 1280 / 2xl 1536 / 3xl 1920 / wall 2560`（IA 决定）                                                                                                                                                                                                                   |
+| 组       | 设计                                                                                                                                                                                                                                                                                                                                                                                                           |
+| -------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 色阶     | 6 条 ramp × 各 **12 阶**（25 / 50 / 100 / 200 … 900 / 950）：`indigo`（品牌 / accent 蓝）、`slate`（中性）、`blue`（notice）、`amber`（warning）、`rose`（critical）、`zinc`（offline / 禁用）。**v1.5.0 起取值为 GitHub Primer 的字面量 hex**（浅端 Light default、深端 dark_dimmed），不再用 `oklch()` 公式——见顶部「更新（v1.5.0）」。感知均匀不再是这层目标，但"明度差 ≠ 对比度达标"这条教训仍成立，见 3.3 |
+| 字阶     | `2xs 11 / xs 12 / sm 13 / base 14 / md 15 / lg 17 / xl 20 / 2xl 24 / 3xl 30 / 4xl 38`（px），各自带 `--leading-*`。**基准 14px 而非 16px** —— 这是控制台密度，不是文章                                                                                                                                                                                                                                         |
+| 大屏字阶 | `wall` 断点下另一套：`wall-sm 20 / wall-base 26 / wall-lg 34 / wall-xl 48 / wall-2xl 72`。两米外可读是硬要求                                                                                                                                                                                                                                                                                                   |
+| 间距     | `--spacing: 4px` 基准，用 Tailwind 的乘数刻度（`p-2` = 8px…）。保留 `--panel-pad` / `--view-gap` 作为**语义**间距，值取自刻度                                                                                                                                                                                                                                                                                  |
+| 圆角     | `xs 6 / sm 10 / md 14 / lg 22 / full`（沿用现值）                                                                                                                                                                                                                                                                                                                                                              |
+| 层级     | `--shadow-raised`（卡片）/ `--shadow-overlay`（popover、dropdown）/ `--shadow-drawer` / `--shadow-modal`，每档双主题两套值                                                                                                                                                                                                                                                                                     |
+| 动效     | `--ease-standard`（状态切换 160ms）/ `--ease-entrance`（进场 220ms，减速）/ `--ease-exit`（出场 140ms，加速）。全部包在 `prefers-reduced-motion` 之下                                                                                                                                                                                                                                                          |
+| 断点     | `md 768 / lg 1024 / xl 1280 / 2xl 1536 / 3xl 1920 / wall 2560`（IA 决定）                                                                                                                                                                                                                                                                                                                                      |
 
 ### 2.2 语义层
 
-保留现有 29 个的**命名思路**（它们的名字已经是语义而非表象），补齐缺口：
+语义 token 一组，深浅成对定义（当前取值见顶部「更新（v1.5.0）」，映射暂定）：
 
-- 表面：`surface` / `surface-raised` / `surface-sunken` / `surface-overlay`
-- 文本：`ink` / `ink-muted` / `ink-subtle` / `ink-inverse`
-- 边框：`border` / `border-strong` / `border-focus`
+- 表面：`surface` / `surface-raised` / `surface-sunken` / `surface-hover`（hover/选中的半透明填充，v1.5.0 补）
+- 文本：`ink` / `ink-muted` / `ink-subtle`（`-contrast` 由各状态色单独提供，见 3.3）
+- 边框：`border` / `border-strong` / `border-muted`（比 border 更弱的分隔线，v1.5.0 补） / `border-focus`
 - 品牌：`brand` / `brand-hover` / `brand-contrast` / `brand-ink` / `brand-wash`
-- 状态四色各三档：`notice|warning|critical|offline` × `{base, ink, wash}`
+- 状态四色各三档：`notice|warning|critical|offline` × `{base, contrast, ink, wash}`
 - 图表：`chart-1…8`（ECharts 系列色，**与状态色分开** —— 状态色有语义，系列色没有）
 - 地图：沿用现有 6 个 `--ros-*`，补 `--map-grid` / `--map-scale`
 - 遮罩：`scrim`（12C 补）
@@ -90,8 +116,8 @@
 
 | token       | 定位                             | 下限             | 实测（浅 / 深） |
 | ----------- | -------------------------------- | ---------------- | --------------- |
-| `map-scale` | 内容图形（读距离的全部依据）     | **3:1**          | 4.12 / 10.26    |
-| `map-grid`  | 装饰参考线（整条消失也不丢信息） | 1.3:1 可见性下限 | 1.59 / 1.84     |
+| `map-scale` | 内容图形（读距离的全部依据）     | **3:1**          | 5.73 / 9.47     |
+| `map-grid`  | 装饰参考线（整条消失也不丢信息） | 1.3:1 可见性下限 | 1.72 / 2.85     |
 
 给网格套 3:1 只会得到一张吵到盖住小标记的底图，而车辆必须是最跳的那一层；它究竟该多淡，
 等 13A-2 地图真在屏幕上再判。
@@ -116,9 +142,10 @@ obstacle 的 alpha 下限提到 220。alpha 因此也是 token（`--ros-cloud-*-
 前缀，因为它们不是颜色），机检直接读它们 —— 抄一遍只是在验证抄得对，读一遍验的才是真正会画
 出来的那个组合。
 
-**这一节的数字有一半是机检改出来的**：深色网格原取 `slate-700`，实测 2.70:1，比浅色的 1.59:1
-显眼近一倍 —— 同一个元素在两套主题里轻重不一致。我写在注释里的估计值（3.2 / 3.5）也是错的。
-挑完看着都行，但 oklch 的明度是感知量、对比度是亮度比，两者不是一回事。
+**这一节的数字有一半是机检改出来的**：v1.5.0 改用 Primer 取值后，深色网格若沿用深端的
+`slate-800`（`#161b22`）会贴着 `ros-canvas` 只有 1.10:1、跌破 1.3 下限，故上移到 `slate-600`
+（实测 2.85:1，与浅色的 1.72:1 同量级）。**这条是机检抓出来的，不是看出来的** —— 明度差是
+感知量、对比度是亮度比，两者不是一回事。
 
 ### 2.3 图表系列色：独立一层，不从 ramp 取（12D 落地）
 
