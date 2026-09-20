@@ -638,9 +638,34 @@ const screenInvariantTransform = computed(() => {
           </g>
         </g>
 
+        <!--
+          Laser localization: a small companion dot, drawn BEFORE the fusion puck so the
+          puck sits on top and covers it when the two fixes coincide — a dot peeking out
+          from under the selected icon reads as a leftover point. It used to be a second
+          full marker (ring + rotated diamond + arrow); the connector line above still ties
+          it to the puck, so the second fix stays visible only when it is genuinely apart.
+        -->
+        <g
+          v-if="selectedLidarPoint"
+          class="ros-marker lidar"
+          :transform="`translate(${round(selectedLidarPoint.x, 2)} ${round(
+            selectedLidarPoint.y,
+            2,
+          )})`"
+        >
+          <g :transform="screenInvariantTransform">
+            <circle
+              class="ros-marker-core"
+              :r="MARKER.lidarDot"
+              vector-effect="non-scaling-stroke"
+            />
+          </g>
+        </g>
+
         <!-- `.ros-marker.fusion .ros-marker-core` is an e2e contract: the suite reads
              its screen box to prove the map opened on the selected vehicle. It has to
-             stay a shape centred on 0,0 inside the pose-translated group. -->
+             stay a shape centred on 0,0 inside the pose-translated group. Drawn last so
+             the selected puck covers the unselected/companion point beneath it. -->
         <g
           v-if="selectedFusionPoint"
           class="ros-marker fusion"
@@ -695,29 +720,6 @@ const screenInvariantTransform = computed(() => {
                 {{ selectedDeviceName }}
               </text>
             </g>
-          </g>
-        </g>
-
-        <!--
-          Laser localization: a small companion dot beside the primary puck, tied to it by
-          the connector line above. It used to be a second full marker (ring + rotated
-          diamond + arrow) offset a few cm away, which at high zoom looked like a duplicate
-          vehicle rather than a second fix.
-        -->
-        <g
-          v-if="selectedLidarPoint"
-          class="ros-marker lidar"
-          :transform="`translate(${round(selectedLidarPoint.x, 2)} ${round(
-            selectedLidarPoint.y,
-            2,
-          )})`"
-        >
-          <g :transform="screenInvariantTransform">
-            <circle
-              class="ros-marker-core"
-              :r="MARKER.lidarDot"
-              vector-effect="non-scaling-stroke"
-            />
           </g>
         </g>
       </g>

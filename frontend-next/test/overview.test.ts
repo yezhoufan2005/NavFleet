@@ -239,6 +239,24 @@ describe("who needs attention", () => {
     expect(wrapper.text()).not.toContain("健康车");
   });
 
+  it("bounds the list to whole rows and scrolls the rest, like the formation panel", () => {
+    // 待处理项 must not stretch the page when several vehicles need attention: the list
+    // scrolls within a pinned height. Asserted against the source for the same reason the
+    // formation panel is — jsdom lays nothing out — and it uses a pinned row var rather
+    // than a round `max-h-*`, so the cap is a whole number of rows whatever a row holds.
+    const source = readFileSync(
+      resolve(__dirname, "../src/views/OverviewView.vue"),
+      "utf8",
+    );
+    expect(source).toMatch(/class="attention-list[^"]*overflow-y-auto/);
+    expect(source).toMatch(
+      /\.attention-list \{[^}]*max-height:\s*calc\(4 \* var\(--attention-row\)/,
+    );
+    expect(source).toMatch(
+      /\.attention-list > li \{\s*min-height:\s*var\(--attention-row\)/,
+    );
+  });
+
   it("shows the reported code rather than a bare severity", async () => {
     store.ingestPayload(
       snapshot([device({ error_code: code(5102, "路径规划超时") })]),

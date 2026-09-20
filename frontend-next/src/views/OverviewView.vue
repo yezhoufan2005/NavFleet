@@ -349,7 +349,17 @@ const alertRows = computed(() =>
           {{ fleet.summary.totalCount }} 台设备状态正常，没有需要处理的车辆
         </p>
 
-        <ul v-else class="m-0 flex list-none flex-col gap-1 p-0">
+        <!--
+          Bounded and scrollable like 编队情况 below, so a run of abnormal vehicles never
+          grows the panel and pushes the page — the rest scroll into view. The item gap
+          (`gap-1`) is unchanged; the height is pinned to whole rows in scoped CSS (not a
+          round `max-h-*` utility, for the same reason 编队情况 avoids one), with `-mx-2
+          px-2` giving the scrollbar and focus rings room without shifting the rows.
+        -->
+        <ul
+          v-else
+          class="attention-list m-0 -mx-2 flex list-none flex-col gap-1 overflow-y-auto px-2 py-0"
+        >
           <li v-for="row in attention" :key="row.device.deviceId">
             <RouterLink
               :to="`/devices/${row.device.deviceId}`"
@@ -572,5 +582,21 @@ const alertRows = computed(() =>
 
 .formation-list > li {
   min-height: var(--formation-row);
+}
+
+/*
+ * 待处理项 gets the same "whole rows, then scroll" treatment as 编队情况, so a burst of
+ * abnormal vehicles never stretches the panel. The row is taller here — two text lines
+ * (name + detail) inside `py-2` — so it pins its own height rather than borrowing the
+ * formation one, and the cap is four rows. Pinned so the cap means a whole number of rows
+ * whatever a row's content, the same reason the formation list avoids a round `max-h-*`.
+ */
+.attention-list {
+  --attention-row: 3.25rem;
+  max-height: calc(4 * var(--attention-row) + 3 * 0.25rem);
+}
+
+.attention-list > li {
+  min-height: var(--attention-row);
 }
 </style>
