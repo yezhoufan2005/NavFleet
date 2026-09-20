@@ -213,6 +213,29 @@ describe("Mongo 写入计数（Phase 18）", () => {
     // Successes carry over unchanged; two new failures, both swallowed (telemetry buffered).
     expect(persistence.mongoWriteStats()).toEqual({ writes: 2, failures: 2 });
   });
+
+  it("把成功写入的耗时（秒）上报给 writeObserver，失败的不报", async () => {
+    const durations: number[] = [];
+    persistence.setWriteObserver((seconds) => durations.push(seconds));
+
+    const ok = createFakeDb();
+    persistence.__setDbForTests(ok.db);
+    await persistence.writeLatestSnapshot(snapshot("agv-1"));
+    await persistence.writeTelemetry(snapshot("agv-1"));
+
+    // One upsert + one insert reported; each a finite, non-negative second count.
+    expect(durations).toHaveLength(2);
+    for (const seconds of durations) {
+      expect(Number.isFinite(seconds)).toBe(true);
+      expect(seconds).toBeGreaterThanOrEqual(0);
+    }
+
+    // A failed write must not observe a latency (it did not happen).
+    const bad = createFakeDb({}, { updateOne: true });
+    persistence.__setDbForTests(bad.db);
+    await persistence.writeLatestSnapshot(snapshot("agv-2"));
+    expect(durations).toHaveLength(2);
+  });
 });
 
 describe("users 集合", () => {

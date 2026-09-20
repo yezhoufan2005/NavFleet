@@ -78,6 +78,9 @@ export const createApp = ({
   // Feed each outbound send into the Prometheus counters/histogram now that the registry exists
   // (Phase 16D-2b). NotifyService is built before the app, so the observer is wired here.
   notifyService.setSendObserver(metrics.observeNotifySend);
+  // Feed successful Mongo write latency into the histogram (Phase 18). Persistence is
+  // built before the app, so — like the notify observer above — the observer is wired here.
+  persistence.setWriteObserver(metrics.observeMongoWrite);
 
   // How many reverse-proxy hops may set X-Forwarded-For. Without this the rate
   // limiters below key every request behind nginx to the proxy's own address, so

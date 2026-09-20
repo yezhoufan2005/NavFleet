@@ -1821,9 +1821,10 @@ mapper（各自单测——一条 `$group` key 写错、median 取错元素、�
       也只计已绘制的
 - [~] 运维盲区补齐：**应用侧指标已补齐（2026-09-21）** —— 缓冲溢出丢弃计数（`navfleet_mongo_buffer_dropped_total`，
   P0-c 已有）、**Mongo 写入/写失败计数**（`navfleet_mongo_writes_total` / `_write_failures_total`：连着却写失败
-  的盲区）、**WS 广播背压**（`navfleet_ws_broadcast_slow_total`：慢消费端 send 缓冲堆积）；各配 Prometheus 告警
-  规则（15 条）。**剩**：Mongo 写入延迟直方图（需把 metrics 观察者回注 persistence，权衡后本批未做）、
-  mongo / mosquitto / nginx 的 exporter（Prometheus 现在只有 backend 与自身两个 job）
+  的盲区）、**Mongo 写入延迟直方图**（`navfleet_mongo_write_latency_seconds`：metrics 观察者回注 persistence，与
+  notify 延迟同一模式）、**WS 广播背压**（`navfleet_ws_broadcast_slow_total`：慢消费端 send 缓冲堆积）；各配
+  Prometheus 告警规则（15 条）。**剩**：mongo / mosquitto / nginx 的 exporter（Prometheus 现在只有 backend
+  与自身两个 job）—— 属容器侧监控叠加、需 Docker 验证，单独一批。
 - [ ] 安全余项：~~`Permissions-Policy` 与其他 location 的安全头~~ ✅（抽出 `security-headers.conf`
       片段，每个 location `include`，补 `Permissions-Policy`；`check-deploy-wiring` 加「include 的文件
       必须被挂载」一条守住）；~~mongo healthcheck 的口令传递方式与备份脚本不一致~~ ✅（2026-09-21：

@@ -46,6 +46,8 @@ export interface Metrics {
   observeHttpRequest: (request: Request, response: Response, durationSeconds: number) => void;
   /** Record one outbound notification send (Phase 16D-2b): count by channel type + outcome, and latency. */
   observeNotifySend: (channelType: string, status: string, latencyMs: number | null) => void;
+  /** Record one successful MongoDB write's latency in seconds (Phase 18). */
+  observeMongoWrite: (durationSeconds: number) => void;
 }
 
 /**
@@ -288,6 +290,16 @@ export const createMetrics = ({
     buckets: [0.05, 0.1, 0.25, 0.5, 1, 2.5, 5, 10, 30],
     registers: [registry],
   });
+  // Mongo write latency (Phase 18). Buckets span an in-memory-fast local write (~1ms)
+  // through a struggling database (seconds); the counters say whether writes succeed,
+  // this says how slowly — and a p95 climbing is the early warning before the ingest
+  // queue backs up (every ingest awaits these on the same serial chain).
+  const mongoWriteDuration = new Histogram({
+    name: "navfleet_mongo_write_latency_seconds",
+    help: "MongoDB write operation latency (upsert / insert / flush batch)",
+    buckets: [0.001, 0.005, 0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1, 2.5, 5],
+    registers: [registry],
+  });
 
   return {
     render: () => registry.metrics(),
@@ -306,6 +318,11 @@ export const createMetrics = ({
       notifySends.inc({ channel_type: channelType, status });
       if (latencyMs !== null && latencyMs >= 0) {
         notifyDuration.observe({ channel_type: channelType }, latencyMs / 1000);
+      }
+    },
+    observeMongoWrite: (durationSeconds: number) => {
+      if (durationSeconds >= 0) {
+        mongoWriteDuration.observe(durationSeconds);
       }
     },
   };

@@ -71,6 +71,7 @@ describe("metric exposition", () => {
       "navfleet_mongo_buffer_dropped_total",
       "navfleet_mongo_writes_total",
       "navfleet_mongo_write_failures_total",
+      "navfleet_mongo_write_latency_seconds",
       "navfleet_mqtt_connected",
       "navfleet_mqtt_messages_total",
       "navfleet_mqtt_messages_rejected_total",
@@ -92,6 +93,7 @@ describe("metric exposition", () => {
     expect(body).toContain("# TYPE navfleet_devices_evicted_total counter");
     expect(body).toContain("# TYPE navfleet_mongo_write_failures_total counter");
     expect(body).toContain("# TYPE navfleet_ws_broadcast_slow_total counter");
+    expect(body).toContain("# TYPE navfleet_mongo_write_latency_seconds histogram");
     expect(body).toContain("# TYPE navfleet_ingest_queue_depth gauge");
     expect(body).toContain("# TYPE navfleet_ws_connections gauge");
 

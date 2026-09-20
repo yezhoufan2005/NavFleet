@@ -120,6 +120,7 @@ export interface PersistenceStub {
   isMongoConnected: Mock<() => boolean>;
   telemetryBufferStats: Mock<() => { pending: number; dropped: number; limit: number }>;
   mongoWriteStats: Mock<() => { writes: number; failures: number }>;
+  setWriteObserver: Mock<(observe: (durationSeconds: number) => void) => void>;
   ackAlert: Mock<
     (eventKey: string, ackedBy: string, comment: string | null, at: Date) => Promise<boolean>
   >;
@@ -130,6 +131,7 @@ export const createPersistenceStub = (): PersistenceStub => ({
   isMongoConnected: vi.fn(() => false),
   telemetryBufferStats: vi.fn(() => ({ pending: 0, dropped: 0, limit: 2000 })),
   mongoWriteStats: vi.fn(() => ({ writes: 0, failures: 0 })),
+  setWriteObserver: vi.fn(),
   // Default to "no such active alert" (→ 404); the ack behaviour tests override to true.
   ackAlert: vi.fn(() => Promise.resolve(false)),
   unackAlert: vi.fn(() => Promise.resolve(false)),
