@@ -250,10 +250,6 @@ const exportCsv = (): void => {
 
 <template>
   <PageHeader title="报表" scroll-content>
-    <p class="max-w-prose text-xs text-ink-muted">
-      车队可用率、电量与消息的聚合视图，可导出交班/汇报
-    </p>
-
     <!-- Filters in one row above the charts (data-viz convention), export at the end. -->
     <div class="flex flex-wrap items-end gap-3">
       <div

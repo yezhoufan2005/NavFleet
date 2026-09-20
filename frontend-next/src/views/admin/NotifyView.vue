@@ -120,10 +120,6 @@ const severitiesLabel = (severities: string[]): string =>
       <UiButton variant="secondary" size="sm" @click="load">刷新</UiButton>
     </template>
 
-    <p class="text-sm text-ink-muted">
-      渠道与分级路由在部署侧 notify.json 配置，密钥走环境变量，这里只读
-    </p>
-
     <section aria-label="生效渠道" class="flex flex-col gap-2">
       <h2 class="text-2xs text-ink-muted uppercase">生效渠道</h2>
       <p
