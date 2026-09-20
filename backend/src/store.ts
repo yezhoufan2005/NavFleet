@@ -423,8 +423,17 @@ export class DashboardStore extends EventEmitter {
     const restored = await this.persistence.restoreLatestDevices();
     if (restored.length) {
       const now = Date.now();
+      // Restore only devices the current roster still configures. A restored row is a
+      // historical snapshot, not a live report: resurrecting one whose id has since left
+      // vehicles.json seeds an off-roster ghost into the fleet that nothing prunes until
+      // DEVICE_RETENTION_SECONDS of silence (evictSilentDevices exempts configured ids and
+      // only reaps the rest after that window) — the "设备列表里多出几台" report. A device
+      // that is genuinely still publishing reappears on its next report and is shown like
+      // any live unconfigured device; this filter drops only the stale ones a roster change
+      // left behind in device_latest.
       restored
         .map((device) => normalizeDevice(device as unknown as Record<string, unknown>, null))
+        .filter((device) => this.configRegistry.hasDeviceConfig(device.deviceId))
         .forEach((device) => {
           this.rawDevices.set(device.deviceId, device);
           // Seed the eviction clock from the persisted stamp, clamped to now so a
