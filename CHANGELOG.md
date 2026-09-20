@@ -1,5 +1,64 @@
 # Changelog
 
+## [1.5.0](https://github.com/yezhoufan2005/NavFleet/compare/v1.4.0...v1.5.0) (2026-09-20)
+
+
+### Features
+
+* **console:** 七张表统一为一种方言，报表筛选框对齐，待处理项与编队等高 ([9f30064](https://github.com/yezhoufan2005/NavFleet/commit/9f30064a40a4c6eed695f310a7cc3cce5348f2ee))
+* **console:** 七张表统一方言 + 报表筛选框对齐 + 待处理项等高 ([789e101](https://github.com/yezhoufan2005/NavFleet/commit/789e101b756c85737f2907085df210eb889a63ff))
+* **console:** 主题完全照 GitHub Primer 重做（Light/Dark default） ([a83d402](https://github.com/yezhoufan2005/NavFleet/commit/a83d402c159c5f6afe61a36db674542e8f37934e))
+* **console:** 告警史并入消息页作为子 tab ([eb2ec7c](https://github.com/yezhoufan2005/NavFleet/commit/eb2ec7ccf96884ff035ff647ac84ba41b2af13fb))
+* **console:** 品牌去绿改克制蓝灰（黑白灰主题 + 低饱和 indigo 强调） ([9e495bf](https://github.com/yezhoufan2005/NavFleet/commit/9e495bf601edf674164c6b9b54e3930163269cce))
+* **console:** 回放窗口速度表限 5 行、表头移出滚动区 ([b486811](https://github.com/yezhoufan2005/NavFleet/commit/b4868116241e0326049e808af62883c8d9b0b67e))
+* **console:** 回放进入默认适应场景 ([9c2e6c1](https://github.com/yezhoufan2005/NavFleet/commit/9c2e6c12ac26e12e9061a160c683ba4df6fcba9b))
+* **console:** 审计与设备列表支持每页条数选择（10/20/50，默认20） ([bcd4208](https://github.com/yezhoufan2005/NavFleet/commit/bcd4208b5fd2842880db4b997e6f55594199c7a4))
+* **console:** 报表页时间控件、去「告警」化文案、图例右置、骨架屏 ([40ed774](https://github.com/yezhoufan2005/NavFleet/commit/40ed774e0bb544b875f18b19fc254d330a5dcba6))
+* **console:** 深色改用 GitHub dark_dimmed（Soft dark）+ 细分交互/分隔 token ([9d88617](https://github.com/yezhoufan2005/NavFleet/commit/9d88617410edca16204172641e957d1c20f8539c))
+* **console:** 焕新第1步 设计 token 基座（深色压深/圆角收紧/品牌提彩度） ([b790e52](https://github.com/yezhoufan2005/NavFleet/commit/b790e52d954187ce602478209af3c325fae71161))
+* **console:** 焕新第1步——设计 token 基座（深色压深、圆角收紧、品牌微提彩度） ([58f003b](https://github.com/yezhoufan2005/NavFleet/commit/58f003b087d936e98f69aef766d2665386270b53))
+* **console:** 焕新第2步 UiCard 组件 + 表格行 hover ([5a8c3d8](https://github.com/yezhoufan2005/NavFleet/commit/5a8c3d83b68f481c3c311321bc3918904806deac))
+* **console:** 焕新第2步——新增 UiCard 组件，表格行加 hover 态 ([f19cf2c](https://github.com/yezhoufan2005/NavFleet/commit/f19cf2c8f94da9867d8c4551495f173f8ac2769f))
+* **console:** 焕新第3步 排版规则统一（区块标题 text-md + 控件标签去 mono） ([ae26775](https://github.com/yezhoufan2005/NavFleet/commit/ae26775d913692ba546706ecfe0596140ee14e1a))
+* **console:** 焕新第3步——排版规则统一（区块标题 text-md、控件标签去 mono） ([862b940](https://github.com/yezhoufan2005/NavFleet/commit/862b9404e1577f31f774d0be52e50463c0a36c90))
+* **console:** 管理页收敛为已建 6 项，删两段只读说明文字 ([3bd2c64](https://github.com/yezhoufan2005/NavFleet/commit/3bd2c64c5b9627ccefc44c2e821ab28774d30916))
+* **console:** 统一筛选输入框与分页器，修复待处理项底部空白 ([dd7185a](https://github.com/yezhoufan2005/NavFleet/commit/dd7185aec6c963c34b0958137eb9df686f4f6bdc))
+* **console:** 统一筛选输入框与分页器为共享组件，修复待处理项底部空白 ([a161152](https://github.com/yezhoufan2005/NavFleet/commit/a1611527eec7bdad0d3158e134c0db1592005fb1))
+* **console:** 设备列表细修——单条手风琴展开(滑动)、展开卡按钮化与右对齐、九项恒显 ([1876fe5](https://github.com/yezhoufan2005/NavFleet/commit/1876fe5afcf61c17ca140ff91835bfc905cae865))
+* **console:** 设备离线或离场即清除其轨迹，不留残影 ([6b869de](https://github.com/yezhoufan2005/NavFleet/commit/6b869de902f8b8a0045356528d7341b9be1255ab))
+* **console:** 设备页地图也默认适应场景 ([f821b20](https://github.com/yezhoufan2005/NavFleet/commit/f821b200325b661ddfc191fb07dd6ebea4df7a71))
+* **console:** 选中车标改成导航风格单一定位标 + 车名气泡 ([c44e9ae](https://github.com/yezhoufan2005/NavFleet/commit/c44e9aec3aa853d1b00df5fbeebc41430280d4ca))
+* **console:** 选中车标覆盖旧点 + 待处理项可滚动 + 提醒移到正上方 + 每页条数 ([1234e9d](https://github.com/yezhoufan2005/NavFleet/commit/1234e9d3ad409d06ca1be8de20740b41e4455a96))
+* **demo:** 演示数据大改——23 车/5 编队/5 场景，真实轨迹与单发布器可靠性 ([4538724](https://github.com/yezhoufan2005/NavFleet/commit/4538724030bf88a918c58554dfa933d511fc7116))
+* **deploy:** 安全头覆盖所有 location + Permissions-Policy（Phase 18） ([ba6ce38](https://github.com/yezhoufan2005/NavFleet/commit/ba6ce38b409a9913d3c041c8c9e3bc855a61ec1f))
+* **reports:** 报表支持「按月」分桶粒度 ([900eabb](https://github.com/yezhoufan2005/NavFleet/commit/900eabb667dc90884f1ba435e87df8464676408f))
+
+
+### Bug Fixes
+
+* **backend:** 恢复设备时按当前花名册剪枝，修复设备列表 26≠23 ([b11e466](https://github.com/yezhoufan2005/NavFleet/commit/b11e4662e7bef5f5b81dc8237ae089ceafa148ed))
+* **backend:** 恢复设备时按当前花名册剪枝，去掉离线旧设备 ([a64c90b](https://github.com/yezhoufan2005/NavFleet/commit/a64c90bcc78736e58ee5bfe9d4b9c46ba4193a79))
+* **backend:** 打包时 bundle @navfleet/shared，修复生产镜像启动即崩 ([524d6f6](https://github.com/yezhoufan2005/NavFleet/commit/524d6f683e6aba1927268521317ef892d5479a2c))
+* **console:** 「清除已确认」按钮文案改为「清除已经确认」 ([80a71cb](https://github.com/yezhoufan2005/NavFleet/commit/80a71cba8394068b1eea2e75cb53d30dab6cbefc))
+* **console:** v1.5.0 收尾——滚动收敛/术语统一/报表聚合/控件底色 ([458e382](https://github.com/yezhoufan2005/NavFleet/commit/458e382ea9e5d80a255a4f344090c87f4ff39221))
+* **console:** 下拉列表面板最多约 10 行、超出滚动 ([8c7bb42](https://github.com/yezhoufan2005/NavFleet/commit/8c7bb42e55634620b65f045253f097ac8e49f973))
+* **console:** 全站按钮清扫，操作按钮统一到 UiButton/UiSegmented/UiInput ([d3d7b86](https://github.com/yezhoufan2005/NavFleet/commit/d3d7b86b377f556a6fd97d37c9ed88cf24fe13a5))
+* **console:** 全站按钮清扫，操作控件统一到 UiButton/UiSegmented/UiInput ([920e612](https://github.com/yezhoufan2005/NavFleet/commit/920e612cef3797525fb696a949673cb78cd94947))
+* **console:** 审计起止日期校验 + 重置按钮加边框 ([a99af79](https://github.com/yezhoufan2005/NavFleet/commit/a99af79fe590740129f5b611b867b94f05c3784f))
+* **console:** 待处理项与编队情况底部对齐，分段控件与输入框同高 ([80fe22b](https://github.com/yezhoufan2005/NavFleet/commit/80fe22b36a4c82b8d96a2555a502eb6e871f5b86))
+* **console:** 待处理项用绝对定位填充对齐(不动右栏)，分段控件抽成 UiSegmented ([c20a363](https://github.com/yezhoufan2005/NavFleet/commit/c20a3637cbfdb19c2ee0434fd67d4891b2e66efa))
+* **console:** 待处理项绝对定位填充对齐(不动右栏) + 分段控件抽成 UiSegmented ([a02f32f](https://github.com/yezhoufan2005/NavFleet/commit/a02f32f79c836eab452cd018e2b4d00ae71f5b5c))
+* **console:** 数据表 6 行、审计表外滚、重置按钮描边、管理文案精简 ([2534520](https://github.com/yezhoufan2005/NavFleet/commit/25345204b99299724f60f29f4d8f1593d0bbfa64))
+* **console:** 良性 ResizeObserver loop 提示不再弹成「页面出现异常」 ([80e06fb](https://github.com/yezhoufan2005/NavFleet/commit/80e06fb69b1a4ffa775a3e6f8d03ec0c7c680407))
+* **console:** 设备/详情/曲线/管理 五处体感问题 ([5a81872](https://github.com/yezhoufan2005/NavFleet/commit/5a81872a865150ee663123278c8dbcb8985f3350))
+* **console:** 设备列表细修 + 浅色正文柔和 ([de32ec7](https://github.com/yezhoufan2005/NavFleet/commit/de32ec7c2b9eaba978a245b0b12f7e7d9b1eadc1))
+* **console:** 设备表与详情用 tabular-nums 消除每秒回流的电量抖动 ([309c710](https://github.com/yezhoufan2005/NavFleet/commit/309c7108bcb73f77f72c76f57eadce32a79debdd))
+* **console:** 通知 toast 关闭 × 垂直居中 ([3e01dd1](https://github.com/yezhoufan2005/NavFleet/commit/3e01dd1da235db1ab3df15f7697e3f3c1a392653))
+* **demo:** 回充阈值下移至 15% 形成迟滞，消除低电告警边界抖动 ([2f71355](https://github.com/yezhoufan2005/NavFleet/commit/2f71355f6fdb0100f86c37d1ebd4e860d1db1df1))
+* **map:** lanelet delete=true 只隐藏影子墓碑，恢复连贯路网 ([98be04b](https://github.com/yezhoufan2005/NavFleet/commit/98be04b248b1e645e920c030a673ded37841cb68))
+* **map:** lanelet 叠加层 bounds 只按 live 车道节点计算 ([30a9a0e](https://github.com/yezhoufan2005/NavFleet/commit/30a9a0e039fd66cc654022ff42c9737d5c510ba4))
+* **map:** Lanelet2 delete=true 过滤——不画墓碑 lanelet ([1d83780](https://github.com/yezhoufan2005/NavFleet/commit/1d837805db802e2fbfab4462e0b99e32af76145f))
+
 ## [1.4.0](https://github.com/yezhoufan2005/NavFleet/compare/v1.3.0...v1.4.0) (2026-09-19)
 
 
