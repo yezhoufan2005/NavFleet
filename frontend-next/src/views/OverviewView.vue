@@ -348,41 +348,44 @@ const alertRows = computed(() =>
         </p>
 
         <!--
-          Every abnormal vehicle is listed; the list flexes to fill the card and scrolls
-          past that. `flex-1 min-h-0` makes it grow to the panel's height so this card's
-          bottom lines up with 编队情况 beside it (equal-height columns), while `min-h-0` +
-          `overflow-y-auto` let a long list scroll instead of growing the page. Rows keep
-          their natural height and `gap-1` (no `min-height` pin), so nothing gains trailing
-          blank; `-mx-2 px-2` gives the scrollbar and focus rings room without shifting rows.
+          待处理项 must line its bottom up with 编队情况 in the column beside it, without the
+          right column being touched. The trick is the wrapper: it is the growable part of the
+          card (`flex-1 min-h-0`), and the list inside is `absolute inset-0`, so the list's
+          length no longer feeds back into the card's height. That is what was wrong before —
+          in a document-scroll grid the row grows to a cell's content, so a long 待处理项 drove
+          the row taller than the right column and nothing lined up. Taken out of flow, the
+          card's height is set by the right column instead; the list then fills that height and
+          scrolls past it. `gap-2` rows; `px-2` keeps the scrollbar and focus rings off the text.
         -->
-        <ul
-          v-else
-          class="attention-list m-0 -mx-2 flex min-h-0 flex-1 list-none flex-col gap-1 overflow-y-auto px-2 py-0"
-        >
-          <li v-for="row in attention" :key="row.device.deviceId">
-            <RouterLink
-              :to="`/devices/${row.device.deviceId}`"
-              class="flex items-center gap-3 rounded-sm px-2 py-2 transition-colors duration-150 ease-standard hover:bg-surface-sunken"
-            >
-              <span
-                class="size-2.5 shrink-0 rounded-full"
-                :class="TONE_DOT[row.tone]"
-                aria-hidden="true"
-              />
-              <span class="w-10 shrink-0 font-mono text-2xs text-ink-muted">{{
-                row.label
-              }}</span>
-              <span class="min-w-0 flex-1">
-                <strong class="block truncate text-sm text-ink">{{
-                  row.device.deviceName || row.device.deviceId
-                }}</strong>
-                <span class="block truncate text-xs text-ink-muted">{{
-                  row.detail
+        <div v-else class="relative min-h-0 flex-1">
+          <ul
+            class="attention-list absolute inset-0 m-0 flex list-none flex-col gap-2 overflow-y-auto px-2 py-0"
+          >
+            <li v-for="row in attention" :key="row.device.deviceId">
+              <RouterLink
+                :to="`/devices/${row.device.deviceId}`"
+                class="flex items-center gap-3 rounded-sm px-2 py-2 transition-colors duration-150 ease-standard hover:bg-surface-sunken"
+              >
+                <span
+                  class="size-2.5 shrink-0 rounded-full"
+                  :class="TONE_DOT[row.tone]"
+                  aria-hidden="true"
+                />
+                <span class="w-10 shrink-0 font-mono text-2xs text-ink-muted">{{
+                  row.label
                 }}</span>
-              </span>
-            </RouterLink>
-          </li>
-        </ul>
+                <span class="min-w-0 flex-1">
+                  <strong class="block truncate text-sm text-ink">{{
+                    row.device.deviceName || row.device.deviceId
+                  }}</strong>
+                  <span class="block truncate text-xs text-ink-muted">{{
+                    row.detail
+                  }}</span>
+                </span>
+              </RouterLink>
+            </li>
+          </ul>
+        </div>
       </section>
 
       <div class="flex min-h-0 flex-col gap-4">

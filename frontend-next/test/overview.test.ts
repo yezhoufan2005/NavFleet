@@ -263,10 +263,11 @@ describe("who needs attention", () => {
     expect(list.findAll("li")).toHaveLength(6);
     expect(list.classes()).toContain("overflow-y-auto");
 
-    // The list flexes to fill the card (so its bottom aligns with 编队情况 in the column
-    // beside it) and scrolls, rather than capping at a fixed max-height that left a gap.
-    // No `min-height` pin on rows, which would add trailing blank to a short row.
-    expect(list.classes()).toContain("flex-1");
+    // The list is taken out of flow (`absolute inset-0`) inside a `flex-1` wrapper, so its
+    // length no longer drives the card's height — the card matches 编队情况 in the column
+    // beside it and the list scrolls within it. No fixed max-height, no `min-height` row pin.
+    expect(list.classes()).toContain("absolute");
+    expect(list.element.parentElement?.className).toContain("flex-1");
     const source = readFileSync(
       resolve(__dirname, "../src/views/OverviewView.vue"),
       "utf8",

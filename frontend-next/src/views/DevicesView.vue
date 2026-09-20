@@ -23,6 +23,7 @@ import GpsMap from "@/components/map/GpsMap.vue";
 import SceneMap from "@/components/map/SceneMap.vue";
 import DeviceRowCard from "@/components/device/DeviceRowCard.vue";
 import UiSelect from "@/components/ui/UiSelect.vue";
+import UiSegmented from "@/components/ui/UiSegmented.vue";
 import UiPager from "@/components/ui/UiPager.vue";
 import { tableClasses } from "@/lib/uiClasses";
 import { useFleetStore } from "@/stores/fleet";
@@ -373,52 +374,24 @@ watch(
         disappears on the *right* shoves the permanent one sideways every time you
         switch to the map — the buttons move out from under the pointer.
       -->
-      <div
+      <UiSegmented
         v-if="layout === 'map'"
-        class="flex overflow-hidden rounded-sm border border-border-strong"
-        role="group"
+        :model-value="surface"
+        :options="SURFACE_OPTIONS"
         aria-label="底图"
-      >
-        <button
-          v-for="option in SURFACE_OPTIONS"
-          :key="option.value"
-          type="button"
-          class="px-2.5 py-1 text-xs transition-colors duration-150 ease-standard"
-          :class="
-            surface === option.value
-              ? 'bg-brand text-brand-contrast'
-              : 'bg-surface-raised text-ink-muted hover:text-ink'
-          "
-          :aria-pressed="surface === option.value"
-          @click="setSurface(option.value)"
-        >
-          {{ option.label }}
-        </button>
-      </div>
+        @update:model-value="(value) => setSurface(value as MapSurface)"
+      />
 
       <!-- Buttons with `aria-pressed` rather than a select: three options that are
            all worth showing, and the current one has to be visible at a glance. -->
-      <div
-        class="flex overflow-hidden rounded-sm border border-border-strong"
-        role="group"
+      <UiSegmented
+        :model-value="layoutPreference"
+        :options="LAYOUT_OPTIONS"
         aria-label="视图"
-      >
-        <button
-          v-for="option in LAYOUT_OPTIONS"
-          :key="option.value"
-          type="button"
-          class="px-2.5 py-1 text-xs transition-colors duration-150 ease-standard"
-          :class="
-            layoutPreference === option.value
-              ? 'bg-brand text-brand-contrast'
-              : 'bg-surface-raised text-ink-muted hover:text-ink'
-          "
-          :aria-pressed="layoutPreference === option.value"
-          @click="setLayout(option.value)"
-        >
-          {{ option.label }}
-        </button>
-      </div>
+        @update:model-value="
+          (value) => setLayout(value as DeviceLayoutPreference)
+        "
+      />
     </template>
 
     <p v-if="layoutIsAutomatic" class="text-xs text-ink-muted">
