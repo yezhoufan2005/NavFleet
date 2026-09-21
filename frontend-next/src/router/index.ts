@@ -120,6 +120,12 @@ const routes: RouteRecordRaw[] = [
         meta: { title: "用户", roles: ["admin"] },
       },
       {
+        path: "onboarding",
+        name: "admin-onboarding",
+        component: () => import("@/views/admin/DevicesOnboardingView.vue"),
+        meta: { title: "设备接入", roles: ["admin"] },
+      },
+      {
         path: "codebook",
         name: "admin-codebook",
         component: () => import("@/views/admin/CodebookView.vue"),

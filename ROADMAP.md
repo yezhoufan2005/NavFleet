@@ -1810,10 +1810,14 @@ mapper（各自单测——一条 `$group` key 写错、median 取错元素、�
 
 > 不设发版号；按需并入前面某个 minor。这里放的是"给别人用"才会暴露的问题。
 
-- [ ] **设备接入向导**：把改 `config-runtime/*.json` 变成 UI 操作（校验 + 预览 + 热重载反馈）。
-      现在实施工程师必须登服务器改文件，且 `.pcd` 与 SVG 底图**不在 chokidar watch 列表**
-      （只监听 `**/*.osm` 与 4 个 JSON）
-- [ ] 场景地图上传与管理（含越权路径防护复核）
+- [x] **设备接入向导**（2026-09-21，负责人拍板「API 写盘（真向导）+ 范围车辆/编队」）：把改
+      `vehicles.json` / `formations.json` 变成 admin UI 操作（`/admin/onboarding`）——表单 → 校验 →
+      **原子写（temp+rename）** → chokidar 热重载。后端 `PUT /api/v1/vehicles` · `/api/v1/formation-config`
+      （admin-only，PR #241）；shared `parseVehicles`/`parseFormations`；双向编队↔车辆引用完整性；前端
+      车辆/编队增改删页（PR-2）。写配置属运维域、非向车辆下发，只读红线未破；反转了当初把「设备接入」卡片
+      当「部署侧配置不该写」删掉的决定。**剩**：`.pcd` / SVG 底图仍不在 chokidar watch 列表——属下一项
+      「场景地图上传」，本次未动 watch。
+- [ ] 场景地图上传与管理（含越权路径防护复核；并把 `.pcd` / SVG 底图补进 chokidar watch）
 - [ ] 多平台镜像（当前 amd64-only）+ 镜像 SBOM / 签名（v2 的 PR 6C 已延后一次）
 - [ ] `prom-client` → `@prometheus-io/client`（上游已 deprecated，v2 因新包采用度不足暂留）
 - [x] Lanelet2 `delete="true"` 过滤（88 条 lanelet 中 46 条带删除标记仍被绘制）—— `laneletOsm.ts`
