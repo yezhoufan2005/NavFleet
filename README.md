@@ -323,6 +323,8 @@ NavFleet/
 | `GET`  | `/api/v1/scenes` · `/:id` · `/:id/overlay` | 需登录      | 场景定义与 Lanelet2 overlay                  |
 | `GET`  | `/api/v1/reports/*`                        | 需登录      | 服务端聚合的报表数据                         |
 | `*`    | `/api/v1/users*`                           | admin       | 用户 CRUD、重置密码、启禁用、会话            |
+| `GET`  | `/api/v1/vehicles` · `PUT`                 | admin       | 设备接入向导：读 / 写 `vehicles.json` 配置   |
+| `GET`  | `/api/v1/formation-config` · `PUT`         | admin       | 设备接入向导：读 / 写 `formations.json` 配置 |
 | `POST` | `/api/v1/debug/ingest`                     | admin       | 注入状态，**默认不挂载**                     |
 | `GET`  | `/openapi.json` · `/docs`                  | 需登录      | OpenAPI 3.1 + 同源 Swagger UI                |
 

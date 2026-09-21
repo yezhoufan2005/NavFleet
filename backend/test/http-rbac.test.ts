@@ -59,6 +59,11 @@ const ADMIN_ROUTES: Array<{ method: "get" | "post" | "patch" | "delete" | "put";
   // 告警外发 read API (Phase 16D-1): send log + effective channels are admin-only, like audit.
   { method: "get", path: "/api/notify/log" },
   { method: "get", path: "/api/notify/config" },
+  // 设备接入向导 config API (Phase 18): read + write vehicles/formations are all admin-only.
+  { method: "get", path: "/api/vehicles" },
+  { method: "put", path: "/api/vehicles" },
+  { method: "get", path: "/api/formation-config" },
+  { method: "put", path: "/api/formation-config" },
 ];
 
 const ALL_ROLES: UserRole[] = ["viewer", "operator", "admin"];

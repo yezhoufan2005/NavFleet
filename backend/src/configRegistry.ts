@@ -23,6 +23,8 @@ import {
   Severity,
   mergeCodebook,
   parseCodebook,
+  parseFormations,
+  parseVehicles,
 } from "@navfleet/shared";
 import { config, runtimePaths } from "./config";
 import { parseLaneletOsmFile } from "./laneletOsm";
@@ -998,6 +1000,75 @@ export class ConfigRegistry {
     await fs.writeFile(CODEBOOK_FILE, `${JSON.stringify(entries, null, 2)}\n`, "utf8");
     await this.reload("codebook-import");
     return this.getCodebook();
+  }
+
+  /**
+   * Atomically write JSON config: write a sibling temp file then rename over the target, so
+   * a crash mid-write can never leave a half-written config that the next load rejects. (The
+   * codebook path predates this and overwrites in place; multi-file cross-referenced config
+   * earns the stronger guarantee.)
+   */
+  private async writeConfigFileAtomic(filePath: string, value: unknown): Promise<void> {
+    const tmp = `${filePath}.${process.pid}.${Date.now()}.tmp`;
+    await fs.writeFile(tmp, `${JSON.stringify(value, null, 2)}\n`, "utf8");
+    await fs.rename(tmp, filePath);
+  }
+
+  /** All configured vehicles, for the onboarding wizard's read side (Phase 18). */
+  listVehicleConfigs(): DeviceConfig[] {
+    this.ensureLoaded();
+    return [...this.deviceConfigs.values()].map((vehicle) => ({
+      ...vehicle,
+      tags: [...(vehicle.tags || [])],
+    }));
+  }
+
+  /**
+   * Persist `vehicles.json` from the onboarding wizard, then reload. Validates shape first
+   * (`parseVehicles`); then refuses to remove a vehicle a formation still references, because
+   * that would orphan `formations.json` and make the next load fail (the load enforces
+   * formation→vehicle integrity). Writing config is operator-domain, not vehicle control —
+   * the read-only red line (no command dispatch) holds. The config volume must be writable.
+   */
+  async writeVehicles(raw: unknown): Promise<DeviceConfig[]> {
+    const vehicles = parseVehicles(raw);
+    this.ensureLoaded();
+    const nextIds = new Set(vehicles.map((vehicle) => vehicle.deviceId));
+    for (const formation of this.formationConfigs.values()) {
+      for (const deviceId of formation.deviceIds) {
+        if (!nextIds.has(deviceId)) {
+          throw new Error(
+            `deviceId ${deviceId} is still referenced by formation ${formation.formationId}`,
+          );
+        }
+      }
+    }
+    await this.writeConfigFileAtomic(VEHICLES_FILE, vehicles);
+    await this.reload("vehicles-write");
+    return this.listVehicleConfigs();
+  }
+
+  /**
+   * Persist `formations.json` from the wizard, then reload. Validates shape, then enforces
+   * referential integrity against the **currently configured** vehicles — every `deviceId` a
+   * formation names must be a known vehicle — *before* writing, so a bad reference can never
+   * reach disk (a cold start would otherwise fail to load it). Mirrors the load-time check.
+   */
+  async writeFormations(raw: unknown): Promise<FormationConfig[]> {
+    const formations = parseFormations(raw);
+    this.ensureLoaded();
+    for (const formation of formations) {
+      for (const deviceId of formation.deviceIds) {
+        if (!this.deviceConfigs.has(deviceId)) {
+          throw new Error(
+            `formation ${formation.formationId} references unknown deviceId ${deviceId}`,
+          );
+        }
+      }
+    }
+    await this.writeConfigFileAtomic(FORMATIONS_FILE, formations);
+    await this.reload("formations-write");
+    return this.listFormations();
   }
 
   getDeviceConfig(deviceId: string): DeviceConfig | null {

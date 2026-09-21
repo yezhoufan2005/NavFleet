@@ -18,6 +18,7 @@ import { buildDocsRouter } from "./routes/docs";
 import { buildFleetRouter } from "./routes/fleet";
 import { buildAlertsRouter } from "./routes/alerts";
 import { buildCodebookRouter } from "./routes/codebook";
+import { buildDeviceConfigRouter } from "./routes/deviceConfig";
 import { buildScenesRouter } from "./routes/scenes";
 import { buildDebugRouter } from "./routes/debug";
 import { buildUsersRouter } from "./routes/users";
@@ -221,6 +222,7 @@ export const createApp = ({
     app.use(prefix, captureRouteMount, buildAlertsRouter(store, persistence, auditService));
     app.use(prefix, captureRouteMount, buildScenesRouter(store));
     app.use(prefix, captureRouteMount, buildCodebookRouter(store, auditService));
+    app.use(prefix, captureRouteMount, buildDeviceConfigRouter(store, auditService));
     app.use(prefix, captureRouteMount, buildDebugRouter(store, config));
     app.use(prefix, captureRouteMount, buildUsersRouter(authService, auditService));
     app.use(prefix, captureRouteMount, buildAuditRouter(auditService));

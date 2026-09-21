@@ -130,7 +130,10 @@ export type AuditAction =
   | "alert_ack"
   | "alert_unack"
   // Report-code dictionary import (Phase 16C-2).
-  | "codebook_import";
+  | "codebook_import"
+  // Device-onboarding wizard config writes (Phase 18).
+  | "vehicles_write"
+  | "formations_write";
 
 /** One row of the `audit_log` collection. `ts` is a BSON Date so the TTL index can expire it. */
 export interface AuditEntry {
