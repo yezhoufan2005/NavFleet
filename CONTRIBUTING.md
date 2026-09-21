@@ -3,6 +3,10 @@
 NavFleet 是一个只读的实时车队监控平台（MQTT → 归一化 → 内存快照 → MongoDB →
 REST/WebSocket → Vue）。范围严格锁定**只读监控**：不做控制下发、不做多租户。
 
+> **「只读」指的是不向车辆下发控制指令。** 运维域的配置落盘是另一回事：报码字典（Phase 16C）
+> 与设备接入向导（Phase 18，车辆 / 编队配置）都经 admin API 校验后写 `config-runtime/*.json`
+> 并热重载。写配置文件不等于给车发指令，红线未破。
+
 ## 仓库结构（npm workspaces monorepo）
 
 ```
@@ -69,6 +73,7 @@ npm run typecheck               # 所有 workspace + e2e 类型检查
 npm test                        # 所有 workspace 单测
 npm run build                   # shared → backend(tsc) → frontend(vite) → console(vite)
 npm run check:map-contrast      # 地图栅格/比例尺的对比度门禁（画在 canvas 上，逃出无障碍审计）
+npm run check:deploy            # 部署接线：nginx 上游 / 叠加文件 / 镜像钉版 / .env.example 齐全
 
 npm run e2e                     # Playwright 端到端（自动拉起 backend + 两个 vite，
                                 # 无需 MongoDB / MQTT；首次先 npx playwright install chromium）
@@ -77,13 +82,14 @@ npm run dev:backend             # 后端 dev（tsx watch）
 npm run dev:console             # 新前端 dev（vite，:5273）—— 默认部署的这一套
 npm run dev:frontend            # 旧前端 dev（vite，:5173）—— 已冻结，仅回滚验证用
 npm run mock:mqtt               # 发布确定性演示遥测
+npm run screenshots             # 逐页截图到 docs/screenshots/（独立 Playwright 配置，不进 CI）
 ```
 
 一键起前后端用 `scripts/dev.sh`（默认起 v3 控制台，`--legacy` 起旧那套）。
 
 **`npm test` 不等于 CI。** CI 跑的是各 workspace 的 `test:coverage`（带覆盖率阈值）外加
-`check:map-contrast`，而根 `npm test` 两样都不含 —— 只跑 `npm test` 就交 PR，会在 CI 上
-撞见本地从没见过的红。提 PR 前的完整口径见下面「提 PR 前自检」。
+`check:map-contrast` 与 `check:deploy`，而根 `npm test` 三样都不含 —— 只跑 `npm test` 就交 PR，
+会在 CI 上撞见本地从没见过的红。提 PR 前的完整口径见下面「提 PR 前自检」。
 
 `npm run e2e` 使用独立端口 3199（后端）与 5299（vite dev），并且**始终自己拉起服务**、
 不复用已有进程 —— 因为每次运行的登录口令是临时生成的，只有它自己启动的后端才认。
@@ -106,12 +112,12 @@ npm run mock:mqtt               # 发布确定性演示遥测
 
 ## 提 PR 前自检
 
-跑这一串 —— **和 CI 的命令集对齐**，注意其中的 `test:coverage` 与 `check:map-contrast`
-都不在根 `npm test` 里：
+跑这一串 —— **和 CI 的命令集对齐**，注意其中的 `test:coverage`、`check:map-contrast` 与
+`check:deploy` 都不在根 `npm test` 里：
 
 ```bash
 npm run lint && npm run format:check && npm run typecheck && npm run build
-npm run check:map-contrast
+npm run check:map-contrast && npm run check:deploy
 for w in navfleet-backend @navfleet/fleet-core navfleet-console; do
     npm run test:coverage -w "$w" || break
 done

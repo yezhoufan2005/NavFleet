@@ -18,25 +18,25 @@
 ## 界面一览
 
 登录后是一个多页工作台：实时监控、设备详情、消息中心、报表、大屏值班、管理区共享同一份状态与同一条
-WebSocket。以下截图由端到端测试（`npm run screenshots`）在真实后端 + 真实前端上自动生成，明暗两套主题
-均为 GitHub Primer 配色（浅 Light default / 深 dark_dimmed）。
+WebSocket。以下截图取自一套播种了完整演示车队（**23 台车 / 5 编队 / 5 场景**）的运行实例，明暗两套
+主题均为 GitHub Primer 配色（浅 Light default / 深 dark_dimmed）。
 
 <table>
   <tr>
-    <td width="50%"><img src="docs/screenshots/overview.png" alt="总览（浅色）" width="100%"><br><sub><b>总览</b> · 四张统计卡 + 待处理项 + 消息摘要 + 编队情况</sub></td>
+    <td width="50%"><img src="docs/screenshots/overview.png" alt="总览（浅色）" width="100%"><br><sub><b>总览</b> · 在线 / 消息 / GPS 覆盖 / 编队四张卡 + 待处理项 + 消息摘要 + 编队情况</sub></td>
     <td width="50%"><img src="docs/screenshots/overview-dark.png" alt="总览（深色）" width="100%"><br><sub><b>总览 · 深色主题</b> · 同一页面的 dark_dimmed 渲染</sub></td>
   </tr>
   <tr>
-    <td width="50%"><img src="docs/screenshots/devices-map.png" alt="设备地图" width="100%"><br><sub><b>设备 · 场景地图</b> · Lanelet2 路网叠加，车辆按定位实时落点</sub></td>
-    <td width="50%"><img src="docs/screenshots/devices-list.png" alt="设备列表" width="100%"><br><sub><b>设备 · 列表</b> · 可排序，状态按严重度着色</sub></td>
+    <td width="50%"><img src="docs/screenshots/devices-map.png" alt="设备地图" width="100%"><br><sub><b>设备 · 场景地图</b> · Lanelet2 路网叠加，车辆按定位实时落点，可按编队筛选</sub></td>
+    <td width="50%"><img src="docs/screenshots/devices-list.png" alt="设备列表" width="100%"><br><sub><b>设备 · 列表</b> · 可排序，展开行给出控制模式 / 挡位 / 速度 / 定位 / 编队</sub></td>
   </tr>
   <tr>
-    <td width="50%"><img src="docs/screenshots/device-detail.png" alt="设备详情" width="100%"><br><sub><b>设备详情 · 实时</b> · 报码解读 + 位姿 / 状态 / 任务 / 限速 / GPS / 场景</sub></td>
-    <td width="50%"><img src="docs/screenshots/device-charts.png" alt="历史曲线" width="100%"><br><sub><b>设备详情 · 曲线</b> · 速度与电量分双图，绝不共轴</sub></td>
+    <td width="50%"><img src="docs/screenshots/device-history.png" alt="历史回放" width="100%"><br><sub><b>设备详情 · 历史回放</b> · 沿场景底图重放轨迹，可选时间范围、可变速拖拽</sub></td>
+    <td width="50%"><img src="docs/screenshots/alerts.png" alt="消息中心" width="100%"><br><sub><b>消息</b> · KPI（已清除 / 确认率 / 时长）+ 严重度 / 设备 / 时间分布，可筛选、确认</sub></td>
   </tr>
   <tr>
-    <td width="50%"><img src="docs/screenshots/alerts.png" alt="消息中心" width="100%"><br><sub><b>消息</b> · 按严重度分档，可筛选、确认</sub></td>
-    <td width="50%"><img src="docs/screenshots/admin-codebook.png" alt="报码字典" width="100%"><br><sub><b>管理 · 报码字典</b> · 可导入 / 导出的报码释义表</sub></td>
+    <td width="50%"><img src="docs/screenshots/reports.png" alt="报表" width="100%"><br><sub><b>报表</b> · 服务端聚合的在线率 / 电量趋势 + 消息分布，可导出 CSV</sub></td>
+    <td width="50%"><img src="docs/screenshots/admin-onboarding.png" alt="设备接入" width="100%"><br><sub><b>管理 · 设备接入</b> · 车辆 / 编队配置增删改，落盘 <code>vehicles.json</code> / <code>formations.json</code> 后热重载</sub></td>
   </tr>
 </table>
 
@@ -218,8 +218,8 @@ GPS 面板显示「未配置 Key」、其余功能正常；`dev.sh` 会在文件
 
 ### 生成界面截图
 
-顶部「界面一览」的图由一个独立的 Playwright 配置驱动（不在 CI 的 e2e 套件里），复用同一个内存态后端，
-**不需要 Docker / MongoDB / MQTT**：
+除了手动截图，还有一个独立的 Playwright 配置可以快速生成一组页面截图（不在 CI 的 e2e 套件里），
+复用同一个内存态后端，**不需要 Docker / MongoDB / MQTT**：
 
 ```bash
 npm run screenshots   # 启后端 + 控制台 → 播种演示车队 → 逐页截图到 docs/screenshots/
@@ -237,8 +237,8 @@ npm run mock:mqtt -- --count 4 --interval 1000
 它会连到 `MQTT_URL`（默认 `mqtt://127.0.0.1:1883`），按 `config-runtime/vehicles.json` 里的车辆发布
 遥测。压测用 `backend/scripts/load-ingest.ts`。
 
-> 说明：车辆配置**不会凭空创建车辆**——页面里出现的车来自 MQTT、调试注入或 MongoDB 恢复。所以顶部
-> 截图里只有 3 台车（端到端测试注入的最小集），而完整演示数据是 23 台。
+> 说明：车辆配置**不会凭空创建车辆**——页面里出现的车来自 MQTT、调试注入或 MongoDB 恢复。上方
+> 「界面一览」的截图就是演示发布器把这 23 台车全部喂进来后的样子。
 
 ## 项目结构
 
