@@ -256,3 +256,43 @@ describe("fleetApi", () => {
     expect(calls.at(-1)?.url).toBe("/api/v1/reports/availability");
   });
 });
+
+describe("设备接入向导 config (Phase 18)", () => {
+  it("reads vehicles and formations config", async () => {
+    stubFetch(200, { vehicles: [{ deviceId: "agv-1", deviceName: "一号" }] });
+    await expect(fleetApi.getVehicleConfig()).resolves.toEqual({
+      vehicles: [{ deviceId: "agv-1", deviceName: "一号" }],
+    });
+    expect(calls.at(-1)?.url).toBe("/api/v1/vehicles");
+
+    stubFetch(200, { formations: [] });
+    await expect(fleetApi.getFormationConfig()).resolves.toEqual({
+      formations: [],
+    });
+    expect(calls.at(-1)?.url).toBe("/api/v1/formation-config");
+  });
+
+  it("PUTs the whole array in a keyed body", async () => {
+    stubFetch(200, { vehicles: [] });
+    await fleetApi.putVehicleConfig([
+      { deviceId: "agv-1", deviceName: "一号" },
+    ]);
+    expect(calls.at(-1)?.url).toBe("/api/v1/vehicles");
+    expect(calls.at(-1)?.init.method).toBe("PUT");
+    expect(JSON.parse(calls.at(-1)?.init.body as string)).toEqual({
+      vehicles: [{ deviceId: "agv-1", deviceName: "一号" }],
+    });
+
+    stubFetch(200, { formations: [] });
+    await fleetApi.putFormationConfig([
+      { formationId: "f", formationName: "F", deviceIds: ["agv-1"] },
+    ]);
+    expect(calls.at(-1)?.url).toBe("/api/v1/formation-config");
+    expect(calls.at(-1)?.init.method).toBe("PUT");
+    expect(JSON.parse(calls.at(-1)?.init.body as string)).toEqual({
+      formations: [
+        { formationId: "f", formationName: "F", deviceIds: ["agv-1"] },
+      ],
+    });
+  });
+});
