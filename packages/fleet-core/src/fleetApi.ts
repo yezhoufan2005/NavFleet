@@ -11,7 +11,9 @@
 import type {
   AlertStatsReport,
   AvailabilityReport,
+  DeviceConfig,
   DeviceSnapshot,
+  FormationConfig,
   NotifyChannelView,
   NotifySendRecord,
   ReportBucketUnit,
@@ -434,6 +436,39 @@ export const fleetApi = {
   getNotifyConfig(): Promise<{ channels: NotifyChannelView[] }> {
     return requestJson<{ channels: NotifyChannelView[] }>(
       "/api/v1/notify/config",
+    );
+  },
+
+  // ── 设备接入向导 config (admin, Phase 18) ─────────────────────────────────────
+  // Read + write vehicles.json / formations.json. Writing config is operator-domain (not
+  // vehicle control); the backend validates, writes atomically, and hot-reloads. A refused
+  // write surfaces as `error.message` = a stable code (invalid_vehicles / invalid_formations /
+  // unknown_device_in_formation / vehicle_referenced_by_formation) for the view to map.
+  getVehicleConfig(): Promise<{ vehicles: DeviceConfig[] }> {
+    return requestJson<{ vehicles: DeviceConfig[] }>("/api/v1/vehicles");
+  },
+
+  putVehicleConfig(
+    vehicles: DeviceConfig[],
+  ): Promise<{ vehicles: DeviceConfig[] }> {
+    return requestJson<{ vehicles: DeviceConfig[] }>(
+      "/api/v1/vehicles",
+      jsonBody("PUT", { vehicles }),
+    );
+  },
+
+  getFormationConfig(): Promise<{ formations: FormationConfig[] }> {
+    return requestJson<{ formations: FormationConfig[] }>(
+      "/api/v1/formation-config",
+    );
+  },
+
+  putFormationConfig(
+    formations: FormationConfig[],
+  ): Promise<{ formations: FormationConfig[] }> {
+    return requestJson<{ formations: FormationConfig[] }>(
+      "/api/v1/formation-config",
+      jsonBody("PUT", { formations }),
     );
   },
 };

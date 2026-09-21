@@ -420,6 +420,7 @@ describe("管理落地页", () => {
       "/admin/audit",
       "/admin/codebook",
       "/admin/notify",
+      "/admin/onboarding",
       "/admin/scenes",
       "/admin/system",
       "/admin/users",
@@ -434,6 +435,6 @@ describe("管理落地页", () => {
       .findAll("span")
       .filter((span) => span.text() === "已就绪");
 
-    expect(readyBadges).toHaveLength(6);
+    expect(readyBadges).toHaveLength(7);
   });
 });

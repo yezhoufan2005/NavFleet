@@ -27,10 +27,9 @@ test.describe("console admin", () => {
     await expect(page.getByRole("link", { name: /场景/ })).toBeVisible();
     await expect(page.getByRole("link", { name: /用户/ })).toBeVisible();
     await expect(page.getByRole("link", { name: /审计/ })).toBeVisible();
-    // The dashed "not built yet" placeholders (用户组 / 设备接入) were dropped in Phase 18,
-    // so there is no inert card and no "PR xx" marker left on the page.
+    // 设备接入 is a real area since Phase 18 (the onboarding wizard). 用户组 stays dropped.
+    await expect(page.getByRole("link", { name: /设备接入/ })).toBeVisible();
     await expect(page.getByText("用户组")).toHaveCount(0);
-    await expect(page.getByText("设备接入")).toHaveCount(0);
     await expect(page.getByText(/^PR /)).toHaveCount(0);
   });
 

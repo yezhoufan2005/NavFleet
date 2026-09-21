@@ -137,7 +137,8 @@ NavFleet/
 │  ├─ src/
 │  │  ├─ views/              # Overview / Devices / DeviceDetail / Alerts / AlertHistory
 │  │  │                      # Reports / Wall / Profile / NotFound + admin/（Admin /
-│  │  │                      # SystemStatus / Scenes / Users / Codebook / Notify / Audit）
+│  │  │                      # SystemStatus / Scenes / Users / Codebook / Notify / Audit /
+│  │  │                      # DevicesOnboarding）
 │  │  ├─ components/         # shell/ ui/ map/ device/ charts/ 五组 + 根上若干通用件
 │  │  ├─ composables/        # 17 个：useAuth / useTheme / useSvgViewport /
 │  │  │                      # useSceneOverlay / useHistoryPlayback / useAlertSound …
@@ -357,7 +358,7 @@ PR #28 按职责拆开：
 
 产品路由：`/` 总览 · `/devices` 设备（列表 ⇄ 地图两个视图）· `/devices/:deviceId` 设备详情
 （实时 / 曲线 / 历史回放 / 告警史四个 tab）· `/alerts` 消息 · `/alert-history` 消息史 · `/reports`
-报表 · `/admin` 管理（下挂 `/admin/system`·`scenes`·`users`·`codebook`·`notify`·`audit` 六个子页）·
+报表 · `/admin` 管理（下挂 `/admin/onboarding`·`system`·`scenes`·`users`·`codebook`·`notify`·`audit` 七个子页）·
 `/profile` 个人中心 · `/wall` 大屏值班 · 其余落 404。（另有开发专用的 `/__charts-perf`。）
 
 `guards.ts` 是鉴权守卫，在 import 时注册 —— 所以它读的会话状态必须能在 Pinia 实例之外使用，
