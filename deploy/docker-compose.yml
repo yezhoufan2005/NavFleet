@@ -133,10 +133,12 @@ services:
       - type: bind
         source: ${CONFIG_RUNTIME_HOST_PATH:-../config-runtime}
         target: /runtime-config
-        # Writable so the admin 报码字典 import (PUT /api/v1/codebook, Phase 16C-2) can
-        # persist codebook.json here. The other config files (fleet/vehicles/formations/
-        # scenes/rules) remain operator-edited on the host; the backend only writes the
-        # codebook. read_only was the previous posture, when nothing wrote config from the API.
+        # Writable so the admin console can persist config it is allowed to edit: the 报码字典
+        # import (PUT /api/v1/codebook, Phase 16C-2) writes codebook.json, and the 设备接入向导
+        # (Phase 18) writes vehicles.json / formations.json. The rest (fleet/scenes/rules) stay
+        # operator-edited on the host. Writing config files is operator-domain, not vehicle
+        # control — the read-only red line (no command dispatch) holds. read_only was the
+        # previous posture, when nothing wrote config from the API.
         read_only: false
     depends_on:
       mongo:

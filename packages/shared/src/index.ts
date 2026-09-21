@@ -259,3 +259,7 @@ export * from "./notify";
 // 报表聚合的共享契约（Phase 17A）——后端算、前端渲染的聚合结果形状（告警统计等）。
 // 聚合管道的构造/执行等后端独有逻辑不在这里。
 export * from "./reports";
+
+// 车辆 / 编队配置文件的校验器（Phase 18 设备接入向导）——admin 经 API 写 vehicles.json /
+// formations.json 时先校验；客户端先校验、后端为权威（同 parseCodebook）。
+export * from "./fleetConfig";

@@ -20,8 +20,10 @@ import { moduleLogger } from "./logger";
 import { isIngestableDeviceId } from "./validation";
 import {
   DeviceAlert,
+  DeviceConfig,
   DeviceSnapshot,
   FleetSnapshot,
+  FormationConfig,
   FormationSnapshot,
   LaneletOverlay,
   ReportCodeEntry,
@@ -778,6 +780,27 @@ export class DashboardStore extends EventEmitter {
   /** Validate + persist a deployment codebook, reload, and return the merged table. */
   importCodebook(rawEntries: unknown): Promise<ReportCodeEntry[]> {
     return this.configRegistry.importCodebook(rawEntries);
+  }
+
+  // ── Device-onboarding wizard config (Phase 18): read + write vehicles/formations ──
+  /** All configured vehicles (`vehicles.json` entries). */
+  listVehicleConfigs(): DeviceConfig[] {
+    return this.configRegistry.listVehicleConfigs();
+  }
+
+  /** Validate + persist `vehicles.json`, reload, and return the configured vehicles. */
+  writeVehicles(raw: unknown): Promise<DeviceConfig[]> {
+    return this.configRegistry.writeVehicles(raw);
+  }
+
+  /** All configured formations (`formations.json` entries). */
+  listFormationConfigs(): FormationConfig[] {
+    return this.configRegistry.listFormations();
+  }
+
+  /** Validate (incl. device references) + persist `formations.json`, reload, return them. */
+  writeFormations(raw: unknown): Promise<FormationConfig[]> {
+    return this.configRegistry.writeFormations(raw);
   }
 
   async getHistory(

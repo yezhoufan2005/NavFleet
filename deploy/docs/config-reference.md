@@ -115,6 +115,9 @@ config-runtime/
 - `vehicles.json` 只提供配置覆盖，不会自动创建车辆。
 - 车辆至少收到一次 MQTT 上报、调试注入或从 MongoDB 恢复后，才会出现在页面。
 - 设备名称优先使用 `vehicles.json`，不会被 MQTT payload 中的名称覆盖。
+- 自 Phase 18 起，`vehicles.json` 与 `formations.json` 也可由管理员经**设备接入向导**（`/admin/onboarding`，
+  `PUT /api/v1/vehicles` · `/api/v1/formation-config`，admin-only）写入：先校验后原子落盘、chokidar 热重载。
+  仍可在宿主机手改文件——两条路径写的是同一份配置。写配置属运维域，不涉及向车辆下发指令。
 
 ## 5. `formations.json`
 

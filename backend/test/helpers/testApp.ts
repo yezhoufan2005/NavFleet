@@ -25,6 +25,8 @@ import type {
   UserRecord,
   UserRole,
   ReportCodeEntry,
+  DeviceConfig,
+  FormationConfig,
 } from "../../src/types";
 import {
   SCENE_ID,
@@ -57,6 +59,10 @@ export interface StoreStub {
   getSceneOverlay: Mock<(sceneId: string) => LaneletOverlay | null>;
   getCodebook: Mock<() => ReportCodeEntry[]>;
   importCodebook: Mock<(rawEntries: unknown) => Promise<ReportCodeEntry[]>>;
+  listVehicleConfigs: Mock<() => DeviceConfig[]>;
+  writeVehicles: Mock<(raw: unknown) => Promise<DeviceConfig[]>>;
+  listFormationConfigs: Mock<() => FormationConfig[]>;
+  writeFormations: Mock<(raw: unknown) => Promise<FormationConfig[]>>;
   getHistory: Mock<
     (deviceId: string, from?: string, to?: string, limit?: number) => Promise<unknown[]>
   >;
@@ -105,6 +111,10 @@ export const createStoreStub = (): StoreStub => ({
   getSceneOverlay: vi.fn((sceneId: string) => (sceneId === SCENE_ID ? sampleOverlay() : null)),
   getCodebook: vi.fn(() => [...DEFAULT_REPORT_CODES]),
   importCodebook: vi.fn(() => Promise.resolve([...DEFAULT_REPORT_CODES])),
+  listVehicleConfigs: vi.fn(() => []),
+  writeVehicles: vi.fn(() => Promise.resolve([])),
+  listFormationConfigs: vi.fn(() => []),
+  writeFormations: vi.fn(() => Promise.resolve([])),
   getHistory: vi.fn(() => Promise.resolve([sampleHistoryPoint()])),
   getAlerts: vi.fn(() => Promise.resolve([sampleAlert()])),
   getAlertStats: vi.fn(() => Promise.resolve(sampleAlertStatsReport())),

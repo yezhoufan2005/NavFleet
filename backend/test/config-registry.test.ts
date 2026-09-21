@@ -724,3 +724,60 @@ describe("ConfigRegistry.getReportsConfig (Phase 17B-2)", () => {
     );
   });
 });
+
+describe("ConfigRegistry 写入（Phase 18 设备接入向导）", () => {
+  it("writeVehicles 落盘 + 重载，写出的文件能被再次读回", async () => {
+    const registry = new ConfigRegistry();
+    await registry.load();
+    // Clear the seed formations first — they reference agv-1/agv-2, and writeVehicles refuses
+    // to orphan a formation (that would break the next load).
+    await registry.writeFormations([]);
+
+    const saved = await registry.writeVehicles([
+      { deviceId: "agv-9", deviceName: "九号车", tags: ["新"] },
+    ]);
+    expect(saved.map((v) => v.deviceId)).toEqual(["agv-9"]);
+    expect(registry.getDeviceConfig("agv-9")?.deviceName).toBe("九号车");
+
+    // The file on disk is valid JSON that parses back to what we wrote.
+    const onDisk: unknown = JSON.parse(
+      await fs.readFile(path.join(configRoot, "vehicles.json"), "utf8"),
+    );
+    expect(onDisk).toEqual([{ deviceId: "agv-9", deviceName: "九号车", tags: ["新"] }]);
+  });
+
+  it("writeFormations 校验编队→车辆引用完整性，未知车辆时拒绝且不落盘", async () => {
+    const registry = new ConfigRegistry();
+    await registry.load();
+    await registry.writeFormations([]); // clear seed formations
+    await registry.writeVehicles([{ deviceId: "agv-1", deviceName: "一号" }]);
+
+    // A formation referencing a device that is not configured must throw before writing.
+    await expect(
+      registry.writeFormations([{ formationId: "f1", formationName: "F1", deviceIds: ["ghost"] }]),
+    ).rejects.toThrow(/unknown deviceId ghost/);
+
+    // A formation over the configured device succeeds.
+    const saved = await registry.writeFormations([
+      { formationId: "f1", formationName: "F1", deviceIds: ["agv-1"] },
+    ]);
+    expect(saved.map((f) => f.formationId)).toEqual(["f1"]);
+  });
+
+  it("writeVehicles 拒绝移除仍被编队引用的车辆", async () => {
+    const registry = new ConfigRegistry();
+    await registry.load();
+    // Seed formation-a references agv-1/agv-2; dropping agv-2 would orphan it.
+    await expect(
+      registry.writeVehicles([{ deviceId: "agv-1", deviceName: "一号" }]),
+    ).rejects.toThrow(/still referenced by formation formation-a/);
+  });
+
+  it("writeVehicles 拒绝非法载荷（校验先行），不写坏文件", async () => {
+    const registry = new ConfigRegistry();
+    await registry.load();
+    await expect(registry.writeVehicles([{ deviceId: "" }])).rejects.toThrow(
+      /deviceId must be a non-empty string/,
+    );
+  });
+});
