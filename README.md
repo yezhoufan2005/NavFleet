@@ -23,20 +23,20 @@ WebSocket。以下截图取自一套播种了完整演示车队（**23 台车 / 
 
 <table>
   <tr>
-    <td width="50%"><img src="docs/screenshots/overview.png" alt="总览（浅色）" width="100%"><br><sub><b>总览</b> · 在线 / 消息 / GPS 覆盖 / 编队四张卡 + 待处理项 + 消息摘要 + 编队情况</sub></td>
-    <td width="50%"><img src="docs/screenshots/overview-dark.png" alt="总览（深色）" width="100%"><br><sub><b>总览 · 深色主题</b> · 同一页面的 dark_dimmed 渲染</sub></td>
+    <td width="50%"><img src="docs/screenshots/overview.png" alt="总览（浅色）" width="100%"><br><sub><b>总览</b> · 在线 / 消息 / 覆盖 / 编队 + 待处理项 + 消息摘要 + 编队情况</sub></td>
+    <td width="50%"><img src="docs/screenshots/overview-dark.png" alt="总览（深色）" width="100%"><br><sub><b>总览 · 深色主题</b> · 同一页面 dark_dimmed 渲染</sub></td>
   </tr>
   <tr>
-    <td width="50%"><img src="docs/screenshots/devices-map.png" alt="设备地图" width="100%"><br><sub><b>设备 · 场景地图</b> · Lanelet2 路网叠加，车辆按定位实时落点，可按编队筛选</sub></td>
-    <td width="50%"><img src="docs/screenshots/devices-list.png" alt="设备列表" width="100%"><br><sub><b>设备 · 列表</b> · 可排序，展开行给出控制模式 / 挡位 / 速度 / 定位 / 编队</sub></td>
+    <td width="50%"><img src="docs/screenshots/devices-map.png" alt="设备地图" width="100%"><br><sub><b>设备 · 地图</b> · Lanelet2 路网叠加，车辆按定位实时落点，可按编队筛选</sub></td>
+    <td width="50%"><img src="docs/screenshots/devices-list.png" alt="设备列表" width="100%"><br><sub><b>设备 · 列表</b> · 展开行给出控制模式 / 挡位 / 速度 / 定位 / 编队</sub></td>
   </tr>
   <tr>
-    <td width="50%"><img src="docs/screenshots/device-history.png" alt="历史回放" width="100%"><br><sub><b>设备详情 · 历史回放</b> · 沿场景底图重放轨迹，可选时间范围、可变速拖拽</sub></td>
-    <td width="50%"><img src="docs/screenshots/alerts.png" alt="消息中心" width="100%"><br><sub><b>消息</b> · KPI（已清除 / 确认率 / 时长）+ 严重度 / 设备 / 时间分布，可筛选、确认</sub></td>
+    <td width="50%"><img src="docs/screenshots/devices-history.png" alt="历史回放" width="100%"><br><sub><b>设备详情 · 回放</b> · 沿场景底图重放轨迹，可限定范围、变速拖拽</sub></td>
+    <td width="50%"><img src="docs/screenshots/alerts.png" alt="消息中心" width="100%"><br><sub><b>消息</b> · 已清除 / 确认率 / 时长+ 严重度 / 设备 / 时间分布，可筛选确认</sub></td>
   </tr>
   <tr>
-    <td width="50%"><img src="docs/screenshots/reports.png" alt="报表" width="100%"><br><sub><b>报表</b> · 服务端聚合的在线率 / 电量趋势 + 消息分布，可导出 CSV</sub></td>
-    <td width="50%"><img src="docs/screenshots/admin-onboarding.png" alt="设备接入" width="100%"><br><sub><b>管理 · 设备接入</b> · 车辆 / 编队配置增删改，落盘 <code>vehicles.json</code> / <code>formations.json</code> 后热重载</sub></td>
+    <td width="50%"><img src="docs/screenshots/reports.png" alt="报表" width="100%"><br><sub><b>报表</b> · 服务端聚合在线率 / 电量趋势 + 消息分布，可导出 CSV</sub></td>
+    <td width="50%"><img src="docs/screenshots/admin.png" alt="设备接入" width="100%"><br><sub><b>管理 · 设备接入</b> · 车辆 / 编队配置增删改，落盘 JSON 后热重载</sub></td>
   </tr>
 </table>
 
