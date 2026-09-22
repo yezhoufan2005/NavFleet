@@ -1,5 +1,19 @@
 # Changelog
 
+## [1.6.0](https://github.com/yezhoufan2005/NavFleet/compare/v1.5.0...v1.6.0) (2026-09-22)
+
+
+### Features
+
+* **observability:** Mongo 写入延迟直方图（Phase 18 收尾） ([0aac463](https://github.com/yezhoufan2005/NavFleet/commit/0aac46313bebe54a7e83ff35a81c710885a3ec7b))
+* **observability:** Mongo 写失败与 WS 广播背压指标（Phase 18） ([6f3df79](https://github.com/yezhoufan2005/NavFleet/commit/6f3df797d83655ad90e371257c83c8c79d435145))
+* **observability:** 补 Mongo 写入延迟直方图（Phase 18 运维盲区收尾） ([392b0c5](https://github.com/yezhoufan2005/NavFleet/commit/392b0c53276a7005562e7a002f3978cb74d0b93e))
+* **observability:** 补齐 Mongo 写失败与 WS 广播背压指标（Phase 18 运维盲区） ([3a30276](https://github.com/yezhoufan2005/NavFleet/commit/3a3027662c587650e0b60aaa3e873b3d32a0c4eb))
+* **onboarding:** 设备接入向导前端页（Phase 18 PR-2） ([7094ccd](https://github.com/yezhoufan2005/NavFleet/commit/7094ccd64450aa97204440f11320b9184608d7e9))
+* **onboarding:** 设备接入向导前端页（Phase 18 PR-2） ([ff3dbe5](https://github.com/yezhoufan2005/NavFleet/commit/ff3dbe52443b2bc6f3b6e84a83aaf64138d67009))
+* **onboarding:** 车辆/编队配置校验+写入 API（Phase 18 设备接入向导后端） ([d667caf](https://github.com/yezhoufan2005/NavFleet/commit/d667cafca1ec72e78b38c75d190adda700c95bca))
+* **onboarding:** 车辆/编队配置的校验 + 写入 API（Phase 18 设备接入向导后端） ([66d7c4d](https://github.com/yezhoufan2005/NavFleet/commit/66d7c4dae3431e1b7db769abeb12771d874ed46f))
+
 ## [1.5.0](https://github.com/yezhoufan2005/NavFleet/compare/v1.4.0...v1.5.0) (2026-09-20)
 
 
