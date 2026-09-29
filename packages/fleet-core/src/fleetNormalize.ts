@@ -171,6 +171,17 @@ export const toTimestampMsOrNow = (value: unknown): number =>
 export const toIsoString = (value: unknown): string =>
   new Date(toTimestampMsOrNow(value)).toISOString();
 
+/**
+ * Reader-side ISO string for a field typed `string | null`: an absent **or unparseable**
+ * stamp stays `null` rather than being fabricated as now. `toIsoString` (now-fallback) is for
+ * receivers stamping their own arrival; a code or speed-limit stamp read back off the wire is
+ * a reader, so a truthy-but-garbage value like `"n/a"` must not sort to this instant (9.19).
+ */
+export const toIsoStringOrNull = (value: unknown): string | null => {
+  const ms = parseTimestampMs(value);
+  return ms === null ? null : new Date(ms).toISOString();
+};
+
 /** Localised timestamp, or the placeholder when there is no time to show. */
 export const formatDateTime = (value: unknown): string => {
   const at = parseTimestampMs(value);
@@ -259,7 +270,7 @@ export const normalizeCode = (rawCode: unknown): CodeState => {
   return {
     code: toNumeric(raw?.code, 0) ?? 0,
     info: asText(raw?.info),
-    stamp: raw?.stamp ? toIsoString(raw.stamp) : null,
+    stamp: toIsoStringOrNull(raw?.stamp),
   };
 };
 export const normalizeFormation = (
@@ -290,12 +301,12 @@ export const normalizeFormation = (
       formationId,
     ),
     deviceIds,
-    deviceCount: Number.isFinite(Number(raw.deviceCount))
-      ? Number(raw.deviceCount)
-      : deviceIds.length,
-    onlineCount: Number.isFinite(Number(raw.onlineCount))
-      ? Number(raw.onlineCount)
-      : existingFormation?.onlineCount || 0,
+    deviceCount:
+      toNumeric(raw.deviceCount, deviceIds.length) ?? deviceIds.length,
+    onlineCount:
+      toNumeric(raw.onlineCount, existingFormation?.onlineCount ?? 0) ??
+      existingFormation?.onlineCount ??
+      0,
     sceneId: asText(raw.sceneId || existingFormation?.sceneId || ""),
     description: asText(
       raw.description || existingFormation?.description || "",
@@ -593,9 +604,10 @@ export const normalizeDevice = (
         speedLimit.slowdown_time ?? speedLimit.slowdownTime,
         existingDevice?.speedLimit?.slowdownTime ?? null,
       ),
-      stamp: speedLimit.stamp
-        ? toIsoString(speedLimit.stamp)
-        : (existingDevice?.speedLimit?.stamp ?? null),
+      stamp:
+        toIsoStringOrNull(speedLimit.stamp) ??
+        existingDevice?.speedLimit?.stamp ??
+        null,
       moduleName: asText(
         speedLimit.module_name ||
           speedLimit.moduleName ||
@@ -645,6 +657,11 @@ export const normalizeDevice = (
           code: toNumeric(alert.code, 0) ?? 0,
           info: asText(alert.info),
           ts: asText(alert.ts) || normalizedDevice.stamp,
+          // Preserve the backend's `active` flag: this branch reads a snapshot the backend
+          // already derived, where every alert carries `active`, so dropping it here made a
+          // live alert read as inactive. Default true (mirrors the vendor branch) but keep an
+          // explicit `false` (a cleared alert still present in the array).
+          active: typeof alert.active === "boolean" ? alert.active : true,
         };
       }),
     );

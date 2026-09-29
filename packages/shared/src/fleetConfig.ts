@@ -28,9 +28,11 @@ const nonEmptyString = (value: unknown, label: string): string => {
 };
 
 const optionalString = (value: unknown, label: string): string | undefined => {
-  if (value === undefined || value === null || value === "") return undefined;
+  if (value === undefined || value === null) return undefined;
   if (typeof value !== "string") throw new Error(`${label} must be a string`);
-  return value;
+  // Whitespace-only is empty, matching `nonEmptyString`: otherwise a "   " name survived
+  // instead of defaulting to the id, leaving a blank-looking label.
+  return value.trim() === "" ? undefined : value;
 };
 
 const optionalBoolean = (

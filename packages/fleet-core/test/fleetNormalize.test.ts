@@ -2,6 +2,7 @@ import { describe, it, expect } from "vitest";
 import {
   normalizeDevice,
   normalizeFormation,
+  normalizeCode,
   dedupeAlerts,
   mergeDevice,
   normalizePathPoint,
@@ -114,6 +115,44 @@ describe("normalizeFormation", () => {
     expect(formation.formationName).toBe("产线A");
     expect(formation.deviceIds).toEqual(["a", "b", "a"]);
     expect(formation.deviceCount).toBe(3);
+  });
+
+  it("falls back to the membership length when deviceCount is null/empty, not to 0", () => {
+    // `Number(null)` / `Number("")` / `Number([])` are all a finite 0, so the old
+    // `Number.isFinite(Number(x))` guard took an explicit null as a real count of 0 instead
+    // of the intended `deviceIds.length` fallback.
+    for (const bad of [null, "", undefined]) {
+      const formation = normalizeFormation({
+        formationId: "fm",
+        deviceIds: ["a", "b"],
+        deviceCount: bad,
+      });
+      expect(formation.deviceCount, `deviceCount=${JSON.stringify(bad)}`).toBe(
+        2,
+      );
+    }
+    // A real number is still honoured.
+    expect(
+      normalizeFormation({
+        formationId: "fm",
+        deviceIds: ["a"],
+        deviceCount: 7,
+      }).deviceCount,
+    ).toBe(7);
+  });
+});
+
+describe("normalizeCode", () => {
+  it("keeps stamp null for an absent or unparseable value rather than fabricating now", () => {
+    expect(normalizeCode({ code: 5102, info: "x" }).stamp).toBeNull();
+    // Truthy garbage must not sort to this instant (the 9.19 reader-fabrication class).
+    expect(
+      normalizeCode({ code: 5102, info: "x", stamp: "not-a-date" }).stamp,
+    ).toBeNull();
+    // A real stamp still passes through.
+    expect(
+      normalizeCode({ code: 5102, stamp: "2026-01-01T00:00:00Z" }).stamp,
+    ).toBe("2026-01-01T00:00:00.000Z");
   });
 });
 
@@ -286,5 +325,45 @@ describe("厂商自带的 alerts 数组", () => {
     expect(filled?.severity).toBe("notice");
     // ts 缺失时用设备自己的 stamp，而不是另造一个时间。
     expect(filled?.ts).toBe(device.stamp);
+  });
+});
+
+describe("后端已归一化快照里的 alerts", () => {
+  // `runtimeSceneId` present ⇒ `isNormalizedSnapshot` ⇒ the backend-snapshot branch, whose
+  // job is to re-type alerts the backend already derived. Those alerts carry `active`.
+  const backendSnapshot = (alerts: unknown[]) => ({
+    deviceId: "agv-be",
+    runtimeSceneId: "yard",
+    alerts,
+  });
+
+  it("保留后端下发的 active 标志，而不是把已归一化的告警重置", () => {
+    const device = normalizeDevice(
+      backendSnapshot([
+        { id: "a-live", severity: "critical", title: "急停", active: true },
+        {
+          id: "a-cleared",
+          severity: "warning",
+          title: "低电量",
+          active: false,
+        },
+      ]),
+    );
+    expect(device.alerts.find((alert) => alert.id === "a-live")?.active).toBe(
+      true,
+    );
+    // An explicit cleared flag must survive too, not be flipped back to active.
+    expect(
+      device.alerts.find((alert) => alert.id === "a-cleared")?.active,
+    ).toBe(false);
+  });
+
+  it("active 缺失时默认为 true（与厂商分支一致），不再留 undefined", () => {
+    const device = normalizeDevice(
+      backendSnapshot([{ id: "a-1", severity: "notice", title: "提示" }]),
+    );
+    expect(device.alerts.find((alert) => alert.id === "a-1")?.active).toBe(
+      true,
+    );
   });
 });
