@@ -1,8 +1,23 @@
 import { createRouter, createWebHistory } from "vue-router";
 import type { RouteRecordRaw, RouterHistory } from "vue-router";
-import type { UserRole } from "@navfleet/shared";
+import type { Capability } from "@navfleet/shared";
 import { useAuth } from "@/composables/useAuth";
 import { createAuthGuard } from "./guards";
+
+/**
+ * Capabilities that grant access to the 管理 area (1.6.1 RBAC). Holding ANY of them shows the 管理
+ * nav entry and admits the /admin landing + 系统状态; each functional admin page then gates on its
+ * own capability. `alerts:ack` / `debug:ingest` are absent — they gate no admin page.
+ */
+export const ADMIN_AREA_CAPABILITIES: readonly Capability[] = [
+  "users:manage",
+  "audit:read",
+  "scenes:write",
+  "vehicles:write",
+  "formations:write",
+  "codebook:write",
+  "notify:read",
+];
 
 /**
  * Application router.
@@ -35,10 +50,15 @@ declare module "vue-router" {
      */
     bare?: boolean;
     /**
-     * Roles allowed on this route (Phase 15C). Absent = any authenticated user (viewer+).
-     * The auth guard bounces an authenticated user outside the list to the landing page.
+     * Capability required on this route (1.6.1 RBAC). Absent = any authenticated user (viewer+).
+     * The auth guard bounces an authenticated user who lacks it to the landing page.
      */
-    roles?: readonly UserRole[];
+    capability?: Capability;
+    /**
+     * Capabilities, any-of (1.6.1 RBAC): admitted if the user holds ANY of them. Used for the 管理
+     * area shell (parent, landing, 系统状态), which admits anyone holding any ADMIN_AREA_CAPABILITIES.
+     */
+    capabilities?: readonly Capability[];
   }
 }
 
@@ -93,55 +113,61 @@ const routes: RouteRecordRaw[] = [
     // 13F; the rest (用户 / 用户组 / 审计 / 设备接入 / 报码字典) come with Phase 15–17,
     // and registering empty ones now would put dead entries in the navigation.
     path: "/admin",
-    meta: { title: "管理", roles: ["admin"] },
+    meta: { title: "管理", capabilities: ADMIN_AREA_CAPABILITIES },
     children: [
       {
         path: "",
         name: "admin",
         component: () => import("@/views/AdminView.vue"),
-        meta: { roles: ["admin"] },
+        meta: { capabilities: ADMIN_AREA_CAPABILITIES },
       },
       {
         path: "system",
         name: "admin-system",
         component: () => import("@/views/admin/SystemStatusView.vue"),
-        meta: { title: "系统状态", roles: ["admin"] },
+        meta: { title: "系统状态", capabilities: ADMIN_AREA_CAPABILITIES },
       },
       {
         path: "scenes",
         name: "admin-scenes",
         component: () => import("@/views/admin/ScenesView.vue"),
-        meta: { title: "场景", roles: ["admin"] },
+        meta: { title: "场景", capability: "scenes:write" },
       },
       {
         path: "users",
         name: "admin-users",
         component: () => import("@/views/admin/UsersView.vue"),
-        meta: { title: "用户", roles: ["admin"] },
+        meta: { title: "用户", capability: "users:manage" },
+      },
+      {
+        path: "roles",
+        name: "admin-roles",
+        component: () => import("@/views/admin/RolesView.vue"),
+        meta: { title: "角色与用户组", capability: "users:manage" },
       },
       {
         path: "onboarding",
         name: "admin-onboarding",
         component: () => import("@/views/admin/DevicesOnboardingView.vue"),
-        meta: { title: "设备接入", roles: ["admin"] },
+        meta: { title: "设备接入", capability: "vehicles:write" },
       },
       {
         path: "codebook",
         name: "admin-codebook",
         component: () => import("@/views/admin/CodebookView.vue"),
-        meta: { title: "报码字典", roles: ["admin"] },
+        meta: { title: "报码字典", capability: "codebook:write" },
       },
       {
         path: "notify",
         name: "admin-notify",
         component: () => import("@/views/admin/NotifyView.vue"),
-        meta: { title: "外发", roles: ["admin"] },
+        meta: { title: "外发", capability: "notify:read" },
       },
       {
         path: "audit",
         name: "admin-audit",
         component: () => import("@/views/admin/AuditView.vue"),
-        meta: { title: "审计", roles: ["admin"] },
+        meta: { title: "审计", capability: "audit:read" },
       },
     ],
   },
@@ -200,8 +226,8 @@ export interface NavSection {
   routeName: string;
   label: string;
   icon: NavIconName;
-  /** Roles that may see this entry (Phase 15C). Absent = everyone authenticated. */
-  roles?: readonly UserRole[];
+  /** Capabilities that may see this entry, any-of (1.6.1 RBAC). Absent = everyone authenticated. */
+  capabilities?: readonly Capability[];
 }
 
 export type NavIconName =
@@ -212,7 +238,12 @@ export const NAV_SECTIONS: readonly NavSection[] = [
   { routeName: "devices", label: "设备", icon: "devices" },
   { routeName: "alerts", label: "消息", icon: "alerts" },
   { routeName: "reports", label: "报表", icon: "reports" },
-  { routeName: "admin", label: "管理", icon: "admin", roles: ["admin"] },
+  {
+    routeName: "admin",
+    label: "管理",
+    icon: "admin",
+    capabilities: ADMIN_AREA_CAPABILITIES,
+  },
 ];
 
 /**

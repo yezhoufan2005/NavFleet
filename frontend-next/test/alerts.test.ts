@@ -4,7 +4,7 @@ import { createMemoryHistory, createRouter } from "vue-router";
 import type { Router } from "vue-router";
 import { enableAutoUnmount, flushPromises, mount } from "@vue/test-utils";
 import { fleetApi } from "@navfleet/fleet-core";
-import type { UserRole } from "@navfleet/shared";
+import { capabilitiesForRole, type UserRole } from "@navfleet/shared";
 import AlertsView from "@/views/AlertsView.vue";
 import UiSelect from "@/components/ui/UiSelect.vue";
 import NotificationHost from "@/components/NotificationHost.vue";
@@ -55,6 +55,8 @@ const signIn = (role: UserRole = "operator"): void => {
   const auth = useAuth();
   auth.state.status = "authenticated";
   auth.state.user = { username: "op", role };
+  // Ack visibility is capability-based (1.6.1): seed the role's preset so operator/admin can ack.
+  auth.state.capabilities = [...capabilitiesForRole(role)];
 };
 
 const mountAlerts = async (query = "") => {

@@ -54,6 +54,30 @@ describe("fetchMe", () => {
     expect(auth.state.user).toEqual(ADMIN);
   });
 
+  it("stores the effective capabilities and exposes them via can() (1.6.1)", async () => {
+    // A viewer whose group grants alerts:ack; an unknown capability is filtered out rather than
+    // failing the whole session (forward-compatible with a backend that adds one).
+    fetchMock.mockResolvedValue(
+      jsonResponse({
+        user: { username: "bob", role: "viewer" },
+        capabilities: ["alerts:ack", "not:a:real:cap"],
+      }),
+    );
+    const auth = useAuth();
+    await auth.fetchMe();
+    expect(auth.state.capabilities).toEqual(["alerts:ack"]);
+    expect(auth.can("alerts:ack")).toBe(true);
+    expect(auth.can("users:manage")).toBe(false);
+  });
+
+  it("defaults capabilities to none when the body omits them", async () => {
+    fetchMock.mockResolvedValue(jsonResponse({ user: ADMIN }));
+    const auth = useAuth();
+    await auth.fetchMe();
+    expect(auth.state.capabilities).toEqual([]);
+    expect(auth.can("users:manage")).toBe(false);
+  });
+
   it("sends the cookie and never an Authorization header", async () => {
     // Tokens are httpOnly, so JavaScript cannot see them; a header here would mean
     // someone had moved them somewhere reachable.

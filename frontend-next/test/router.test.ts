@@ -2,7 +2,7 @@ import { describe, it, expect, afterEach } from "vitest";
 import { createMemoryHistory } from "vue-router";
 import { mount } from "@vue/test-utils";
 import { createPinia, setActivePinia } from "pinia";
-import type { UserRole } from "@navfleet/shared";
+import { capabilitiesForRole, type UserRole } from "@navfleet/shared";
 import { createAppRouter, NAV_SECTIONS, routes } from "@/router";
 import { useAuth, __resetAuth } from "@/composables/useAuth";
 import AppSidebarNav from "@/components/shell/AppSidebarNav.vue";
@@ -56,6 +56,7 @@ describe("route table", () => {
       { path: "/admin/system", name: "admin-system", title: "系统状态" },
       { path: "/admin/scenes", name: "admin-scenes", title: "场景" },
       { path: "/admin/users", name: "admin-users", title: "用户" },
+      { path: "/admin/roles", name: "admin-roles", title: "角色与用户组" },
       {
         path: "/admin/onboarding",
         name: "admin-onboarding",
@@ -139,6 +140,9 @@ describe("primary navigation", () => {
     const auth = useAuth();
     auth.state.status = "authenticated";
     auth.state.user = { username: "tester", role };
+    // Nav visibility is now capability-based (1.6.1): seed the role's preset capabilities so the
+    // 管理 entry (any admin-area capability) shows for admin and hides for viewer/operator.
+    auth.state.capabilities = [...capabilitiesForRole(role)];
     const router = createAppRouter(createMemoryHistory());
     await router.push(path);
     await router.isReady();

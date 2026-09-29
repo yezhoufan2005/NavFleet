@@ -11,11 +11,14 @@
 import type {
   AlertStatsReport,
   AvailabilityReport,
+  Capability,
   DeviceConfig,
   DeviceSnapshot,
   FormationConfig,
   NotifyChannelView,
   NotifySendRecord,
+  RbacGroup,
+  RbacRole,
   ReportBucketUnit,
   ReportCodeEntry,
   SceneMapDefinition,
@@ -461,6 +464,74 @@ export const fleetApi = {
       `/api/v1/users/${encodeURIComponent(username)}/sessions/${encodeURIComponent(sessionId)}`,
       { method: "DELETE" },
     );
+  },
+
+  // ── RBAC custom roles + user groups (admin, 1.6.1) ──────────────────────────
+  getRbacRoles(): Promise<{ roles: RbacRole[] }> {
+    return requestJson<{ roles: RbacRole[] }>("/api/v1/rbac/roles");
+  },
+
+  createRbacRole(payload: {
+    name: string;
+    capabilities: Capability[];
+  }): Promise<{ role: RbacRole }> {
+    return requestJson<{ role: RbacRole }>(
+      "/api/v1/rbac/roles",
+      jsonBody("POST", payload),
+    );
+  },
+
+  updateRbacRole(
+    id: string,
+    payload: { name: string; capabilities: Capability[] },
+  ): Promise<{ role: RbacRole }> {
+    return requestJson<{ role: RbacRole }>(
+      `/api/v1/rbac/roles/${encodeURIComponent(id)}`,
+      jsonBody("PATCH", payload),
+    );
+  },
+
+  deleteRbacRole(id: string): Promise<void> {
+    return requestVoid(`/api/v1/rbac/roles/${encodeURIComponent(id)}`, {
+      method: "DELETE",
+    });
+  },
+
+  getRbacGroups(): Promise<{ groups: RbacGroup[] }> {
+    return requestJson<{ groups: RbacGroup[] }>("/api/v1/rbac/groups");
+  },
+
+  createRbacGroup(payload: {
+    name: string;
+    description?: string;
+    roleIds: string[];
+    memberUsernames: string[];
+  }): Promise<{ group: RbacGroup }> {
+    return requestJson<{ group: RbacGroup }>(
+      "/api/v1/rbac/groups",
+      jsonBody("POST", payload),
+    );
+  },
+
+  updateRbacGroup(
+    id: string,
+    payload: {
+      name: string;
+      description?: string;
+      roleIds: string[];
+      memberUsernames: string[];
+    },
+  ): Promise<{ group: RbacGroup }> {
+    return requestJson<{ group: RbacGroup }>(
+      `/api/v1/rbac/groups/${encodeURIComponent(id)}`,
+      jsonBody("PATCH", payload),
+    );
+  },
+
+  deleteRbacGroup(id: string): Promise<void> {
+    return requestVoid(`/api/v1/rbac/groups/${encodeURIComponent(id)}`, {
+      method: "DELETE",
+    });
   },
 
   // ── Audit log (admin, Phase 15E-2) ──────────────────────────────────────────

@@ -42,20 +42,20 @@ const { labelled = true } = defineProps<{
   labelled?: boolean;
 }>();
 
-const { state: authState } = useAuth();
+const { can } = useAuth();
 
 /**
- * Nav entries the current user may see (Phase 15C). A section with `roles` is shown only to
- * those roles — the 管理 entry is admin-only. Hiding the entry is UX; the route guard is the
- * real gate, so a viewer typing `/admin` is still bounced. An entry with no `roles` is shown
- * to everyone authenticated.
+ * Nav entries the current user may see (1.6.1 RBAC). A section with `capabilities` is shown only
+ * when the user holds ANY of them — the 管理 entry needs any admin-area capability. Hiding the
+ * entry is UX; the route guard is the real gate, so a user typing `/admin` who holds none is still
+ * bounced. An entry with no `capabilities` is shown to everyone authenticated.
  */
 const visibleSections = computed(() =>
-  NAV_SECTIONS.filter((section) => {
-    if (!section.roles) return true;
-    const role = authState.user?.role;
-    return role !== undefined && section.roles.includes(role);
-  }),
+  NAV_SECTIONS.filter(
+    (section) =>
+      !section.capabilities ||
+      section.capabilities.some((capability) => can(capability)),
+  ),
 );
 
 const fleet = useFleetStore();

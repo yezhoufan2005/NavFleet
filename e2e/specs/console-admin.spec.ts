@@ -25,11 +25,15 @@ test.describe("console admin", () => {
 
     await expect(page.getByRole("link", { name: /系统状态/ })).toBeVisible();
     await expect(page.getByRole("link", { name: /场景/ })).toBeVisible();
-    await expect(page.getByRole("link", { name: /用户/ })).toBeVisible();
+    await expect(page.getByRole("link", { name: /^用户/ })).toBeVisible();
     await expect(page.getByRole("link", { name: /审计/ })).toBeVisible();
-    // 设备接入 is a real area since Phase 18 (the onboarding wizard). 用户组 stays dropped.
+    // 设备接入 is a real area since Phase 18 (the onboarding wizard).
     await expect(page.getByRole("link", { name: /设备接入/ })).toBeVisible();
-    await expect(page.getByText("用户组")).toHaveCount(0);
+    // 用户组 was dropped in the original read-only console; 1.6.1's fine-grained RBAC un-drops it
+    // as the 角色与用户组 area.
+    await expect(
+      page.getByRole("link", { name: /角色与用户组/ }),
+    ).toBeVisible();
     await expect(page.getByText(/^PR /)).toHaveCount(0);
   });
 

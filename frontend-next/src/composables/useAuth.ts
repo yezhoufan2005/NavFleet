@@ -1,5 +1,10 @@
 import { reactive } from "vue";
-import type { PublicUser, UserRole } from "@navfleet/shared";
+import {
+  CAPABILITIES,
+  type Capability,
+  type PublicUser,
+  type UserRole,
+} from "@navfleet/shared";
 import type { SessionRecordView } from "@navfleet/fleet-core";
 import { notify } from "@/composables/useNotifications";
 
@@ -38,6 +43,12 @@ export type AuthStatus = "unknown" | "authenticated" | "anonymous";
 interface AuthState {
   status: AuthStatus;
   user: PublicUser | null;
+  /**
+   * Effective capabilities of the signed-in user (1.6.1 RBAC), as the backend resolved them
+   * (base role preset ∪ group grants). Kept a sibling of `user`, not folded into it, so `user`
+   * stays the minimal `PublicUser` contract. Empty when anonymous or when the body omits it.
+   */
+  capabilities: Capability[];
   error: string;
   pending: boolean;
 }
@@ -55,6 +66,7 @@ const RETRY_DELAYS_MS = [15_000, 45_000, 120_000] as const;
 const state = reactive<AuthState>({
   status: "unknown",
   user: null,
+  capabilities: [],
   error: "",
   pending: false,
 });
@@ -95,12 +107,26 @@ const isPublicUser = (value: unknown): value is PublicUser => {
   );
 };
 
-/** `{ user }` or nothing — a malformed body must not read as a valid session. */
-const readUser = async (response: Response): Promise<PublicUser | null> => {
+/**
+ * A valid session body is `{ user, capabilities }` — or nothing. `user` must pass `isPublicUser`;
+ * `capabilities` is filtered to the known catalog (an unknown/missing value degrades to none rather
+ * than failing the session, so an older client keeps working when the backend adds a capability).
+ */
+const readCapabilities = (body: unknown): Capability[] => {
+  const raw = (body as { capabilities?: unknown } | null)?.capabilities;
+  if (!Array.isArray(raw)) return [];
+  return CAPABILITIES.filter((capability) => raw.includes(capability));
+};
+
+const readSession = async (
+  response: Response,
+): Promise<{ user: PublicUser; capabilities: Capability[] } | null> => {
   try {
     const body: unknown = await response.json();
     const user = (body as { user?: unknown } | null)?.user;
-    return isPublicUser(user) ? user : null;
+    return isPublicUser(user)
+      ? { user, capabilities: readCapabilities(body) }
+      : null;
   } catch {
     return null;
   }
@@ -124,13 +150,18 @@ const setAnonymous = (): void => {
   stopRefreshTimer();
   failedRefreshes = 0;
   state.user = null;
+  state.capabilities = [];
   state.status = "anonymous";
   // `state.error` is left alone on purpose: a failed login sets it and then calls
   // through to here, and clearing it would wipe the message the person needs.
 };
 
-const setAuthenticated = (user: PublicUser): void => {
+const setAuthenticated = (
+  user: PublicUser,
+  capabilities: Capability[],
+): void => {
   state.user = user;
+  state.capabilities = capabilities;
   state.status = "authenticated";
   state.error = "";
   failedRefreshes = 0;
@@ -147,8 +178,11 @@ const runRefresh = async (): Promise<void> => {
   }
 
   if (response.ok) {
-    const user = await readUser(response);
-    if (user) state.user = user;
+    const session = await readSession(response);
+    if (session) {
+      state.user = session.user;
+      state.capabilities = session.capabilities;
+    }
     failedRefreshes = 0;
     scheduleRefresh(REFRESH_INTERVAL_MS);
     return;
@@ -197,9 +231,9 @@ export const useAuth = () => {
     try {
       const response = await request("/api/auth/me");
       if (response.ok) {
-        const user = await readUser(response);
-        if (user) {
-          setAuthenticated(user);
+        const session = await readSession(response);
+        if (session) {
+          setAuthenticated(session.user, session.capabilities);
           return true;
         }
       }
@@ -228,9 +262,9 @@ export const useAuth = () => {
       });
 
       if (response.ok) {
-        const user = await readUser(response);
-        if (user) {
-          setAuthenticated(user);
+        const session = await readSession(response);
+        if (session) {
+          setAuthenticated(session.user, session.capabilities);
           return true;
         }
         state.error = "登录失败，请稍后重试";
@@ -321,8 +355,13 @@ export const useAuth = () => {
     return response.ok;
   };
 
+  /** Whether the signed-in user holds a capability (1.6.1 RBAC). False when anonymous. */
+  const can = (capability: Capability): boolean =>
+    state.capabilities.includes(capability);
+
   return {
     state,
+    can,
     fetchMe,
     login,
     logout,
@@ -338,6 +377,7 @@ export const __resetAuth = (): void => {
   failedRefreshes = 0;
   state.status = "unknown";
   state.user = null;
+  state.capabilities = [];
   state.error = "";
   state.pending = false;
 };

@@ -1,7 +1,7 @@
 import { describe, it, expect, vi } from "vitest";
 import { reactive } from "vue";
 import type { RouteMeta } from "vue-router";
-import type { UserRole } from "@navfleet/shared";
+import type { Capability } from "@navfleet/shared";
 import {
   createAuthGuard,
   AUTH_FALLBACK_ROUTE_NAME,
@@ -17,8 +17,10 @@ import type { AuthStatus } from "@/composables/useAuth";
  * State is passed in rather than imported, which is the seam that makes this
  * testable without a running app or a real session.
  */
-const stateWith = (status: AuthStatus, role?: UserRole): AuthGuardState =>
-  reactive({ status, user: role ? { username: "tester", role } : null });
+const stateWith = (
+  status: AuthStatus,
+  capabilities: Capability[] = [],
+): AuthGuardState => reactive({ status, user: null, capabilities });
 
 const target = (name: string, fullPath = `/${name}`, meta: RouteMeta = {}) => ({
   name,
@@ -114,30 +116,43 @@ describe("createAuthGuard", () => {
     await expect(pending).resolves.toBe(true);
   });
 
-  // ── Role gate (Phase 15C) ───────────────────────────────────────────────────
-  const adminOnly: RouteMeta = { roles: ["admin"] };
+  // ── Capability gate (1.6.1 RBAC) ────────────────────────────────────────────
+  const codebookOnly: RouteMeta = { capability: "codebook:write" };
+  const adminArea: RouteMeta = { capabilities: ["users:manage", "audit:read"] };
 
-  it("lets an admin into a route restricted to admin", async () => {
-    const guard = createAuthGuard(stateWith("authenticated", "admin"));
-    await expect(guard(target("admin", "/admin", adminOnly))).resolves.toBe(
+  it("lets a capability holder into a route that requires it", async () => {
+    const guard = createAuthGuard(
+      stateWith("authenticated", ["codebook:write"]),
+    );
+    await expect(
+      guard(target("admin-codebook", "/admin/codebook", codebookOnly)),
+    ).resolves.toBe(true);
+  });
+
+  it("bounces an authenticated user lacking the required capability", async () => {
+    const guard = createAuthGuard(stateWith("authenticated", ["audit:read"]));
+    await expect(
+      guard(target("admin-codebook", "/admin/codebook", codebookOnly)),
+    ).resolves.toEqual({ name: AUTH_FALLBACK_ROUTE_NAME, replace: true });
+  });
+
+  it("admits an any-of (admin-area) route when the user holds any listed capability", async () => {
+    const guard = createAuthGuard(stateWith("authenticated", ["audit:read"]));
+    await expect(guard(target("admin", "/admin", adminArea))).resolves.toBe(
       true,
     );
   });
 
-  it("bounces a viewer or operator off an admin-only route to the landing page", async () => {
-    for (const role of ["viewer", "operator"] as const) {
-      const guard = createAuthGuard(stateWith("authenticated", role));
-      await expect(
-        guard(target("admin", "/admin", adminOnly)),
-      ).resolves.toEqual({
-        name: AUTH_FALLBACK_ROUTE_NAME,
-        replace: true,
-      });
-    }
+  it("bounces an any-of route when the user holds none of the listed capabilities", async () => {
+    const guard = createAuthGuard(stateWith("authenticated", ["alerts:ack"]));
+    await expect(guard(target("admin", "/admin", adminArea))).resolves.toEqual({
+      name: AUTH_FALLBACK_ROUTE_NAME,
+      replace: true,
+    });
   });
 
-  it("lets any authenticated role through a route with no roles restriction", async () => {
-    const guard = createAuthGuard(stateWith("authenticated", "viewer"));
+  it("lets any authenticated user through a route with no capability restriction", async () => {
+    const guard = createAuthGuard(stateWith("authenticated"));
     await expect(guard(target("alerts"))).resolves.toBe(true);
   });
 });
