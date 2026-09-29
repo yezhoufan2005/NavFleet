@@ -547,16 +547,20 @@ watch(
       </aside>
     </div>
 
-    <div v-else :class="[tableClasses.wrapper, 'overflow-hidden']">
+    <div v-else :class="[tableClasses.wrapper, 'overflow-x-auto']">
       <!--
-        `tabular-nums`: the 最近上报 column re-renders every second with a fresh
-        timestamp, and this is an auto-layout table (`w-full`, no `table-fixed`), so
-        proportional digits of different widths ("1" vs "8") re-measured the column
-        each tick and nudged the right-aligned 电量 value a pixel sideways — the
-        "电量在抖动" report. Tabular figures give every digit the same advance width,
-        so the value is stable and no column reflows on a data tick.
+        `table-fixed` + `<colgroup>`: column widths are pinned by the colgroup, not by
+        content, so nothing reflows when you sort. This is the fix for two reports:
+        re-sorting changed which rows are on the page, which changed each column's widest
+        cell and shifted every column; and 最近上报 in particular varies in length
+        (`2026/9/9 8:05:03` vs `2026/12/21 20:49:50` — the date is not zero-padded), so the
+        page that sorted a long stamp into view widened that column and pushed 电量 sideways.
+        With fixed widths the geometry is constant. `tabular-nums` stays as well, so a value
+        that ticks every second (a fresh timestamp, a changing SOC) never jitters within its
+        own now-fixed cell; overflowing text in the flexible columns truncates rather than
+        wrapping.
       -->
-      <table :class="tableClasses.tableNumeric">
+      <table :class="[tableClasses.tableNumeric, 'table-fixed']">
         <caption class="sr-only">
           设备列表，共
           {{
@@ -568,6 +572,20 @@ watch(
           }}
           页
         </caption>
+        <!--
+          Widths in render order: expand · 状态 · 设备 · 编号 · 场景 · 最近上报 · 电量.
+          设备 carries no width so it absorbs the slack and never clips a name at usual
+          widths; the rest are pinned. 最近上报 is sized for the longest localised stamp.
+        -->
+        <colgroup>
+          <col class="w-8" />
+          <col class="w-24" />
+          <col />
+          <col class="w-32" />
+          <col class="w-40" />
+          <col class="w-48" />
+          <col class="w-20" />
+        </colgroup>
         <thead :class="tableClasses.thead">
           <tr class="text-left">
             <!--
@@ -677,7 +695,7 @@ watch(
                   {{ row.label }}
                 </span>
               </td>
-              <td class="px-3 py-2">
+              <td class="truncate px-3 py-2">
                 <!--
                   A link to the device, not a button that only moves the map's selection.
                   Until this changed, a healthy vehicle's detail page — and therefore the
@@ -696,10 +714,10 @@ watch(
                   {{ row.device.deviceName || row.device.deviceId }}
                 </RouterLink>
               </td>
-              <td class="px-3 py-2 font-mono text-xs text-ink-muted">
+              <td class="truncate px-3 py-2 font-mono text-xs text-ink-muted">
                 {{ row.device.deviceId }}
               </td>
-              <td class="px-3 py-2 text-ink-muted">
+              <td class="truncate px-3 py-2 text-ink-muted">
                 {{ row.sceneLabel }}
               </td>
               <td class="px-3 py-2 text-ink-muted">
