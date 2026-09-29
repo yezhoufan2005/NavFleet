@@ -94,14 +94,12 @@ const auth = useAuth();
 const { notify } = useNotifications();
 
 /**
- * Acknowledging is operator+ (Phase 16A) — the first capability that separates operator from
- * viewer. Viewers still read the list and see who confirmed what; they just cannot confirm, so
- * every mutating control is hidden from them (the backend enforces it regardless).
+ * Acknowledging is the `alerts:ack` capability (1.6.1 RBAC) — held by operator/admin presets, and
+ * grantable to any user through a custom role + group. Viewers without it still read the list and
+ * see who confirmed what; they just cannot confirm, so every mutating control is hidden from them
+ * (the backend enforces it regardless).
  */
-const canAck = computed(() => {
-  const role = auth.state.user?.role;
-  return role === "operator" || role === "admin";
-});
+const canAck = computed(() => auth.can("alerts:ack"));
 
 /**
  * Filters read from the URL and written back to it.

@@ -339,3 +339,69 @@ describe("场景地图管理 (Phase 18)", () => {
     expect(calls.at(-1)?.url).toBe("/api/v1/scenes/a%20b/asset/image");
   });
 });
+
+describe("fleetApi — RBAC roles & groups (1.6.1)", () => {
+  it("reads roles and groups from the versioned prefix", async () => {
+    stubFetch(200, { roles: [] });
+    await fleetApi.getRbacRoles();
+    expect(calls.at(-1)?.url).toBe("/api/v1/rbac/roles");
+    stubFetch(200, { groups: [] });
+    await fleetApi.getRbacGroups();
+    expect(calls.at(-1)?.url).toBe("/api/v1/rbac/groups");
+  });
+
+  it("POSTs a new role with its capabilities", async () => {
+    stubFetch(201, { role: { id: "r1" } });
+    await fleetApi.createRbacRole({
+      name: "Ops",
+      capabilities: ["codebook:write"],
+    });
+    const call = calls.at(-1);
+    expect(call?.url).toBe("/api/v1/rbac/roles");
+    expect(call?.init.method).toBe("POST");
+    expect(JSON.parse(call?.init.body as string)).toEqual({
+      name: "Ops",
+      capabilities: ["codebook:write"],
+    });
+  });
+
+  it("PATCHes a role and DELETEs one by (encoded) id", async () => {
+    stubFetch(200, { role: { id: "r1" } });
+    await fleetApi.updateRbacRole("r 1", { name: "Ops", capabilities: [] });
+    expect(calls.at(-1)?.url).toBe("/api/v1/rbac/roles/r%201");
+    expect(calls.at(-1)?.init.method).toBe("PATCH");
+    stubFetch(204, {});
+    await fleetApi.deleteRbacRole("r 1");
+    expect(calls.at(-1)?.url).toBe("/api/v1/rbac/roles/r%201");
+    expect(calls.at(-1)?.init.method).toBe("DELETE");
+  });
+
+  it("POSTs / PATCHes / DELETEs a group with its roles and members", async () => {
+    stubFetch(201, { group: { id: "g1" } });
+    await fleetApi.createRbacGroup({
+      name: "Shift",
+      description: "夜班",
+      roleIds: ["r1"],
+      memberUsernames: ["bob"],
+    });
+    const created = calls.at(-1);
+    expect(created?.url).toBe("/api/v1/rbac/groups");
+    expect(JSON.parse(created?.init.body as string)).toEqual({
+      name: "Shift",
+      description: "夜班",
+      roleIds: ["r1"],
+      memberUsernames: ["bob"],
+    });
+    stubFetch(200, { group: { id: "g1" } });
+    await fleetApi.updateRbacGroup("g1", {
+      name: "Shift",
+      roleIds: [],
+      memberUsernames: [],
+    });
+    expect(calls.at(-1)?.init.method).toBe("PATCH");
+    stubFetch(204, {});
+    await fleetApi.deleteRbacGroup("g1");
+    expect(calls.at(-1)?.url).toBe("/api/v1/rbac/groups/g1");
+    expect(calls.at(-1)?.init.method).toBe("DELETE");
+  });
+});

@@ -5,31 +5,71 @@
  * Constraint C2: clicking an aggregate must not drop you into whichever child happens to be
  * first. This page is the map of the section — one card per built admin area.
  *
- * It once also carried dashed "not built yet" placeholders for planned areas (用户组 / 设备
- * 接入). 用户组 stays dropped — full RBAC groups are heavy for a read-only intranet console
- * whose three roles are near-identical. **设备接入 was un-dropped in Phase 18**: writing
- * config files (vehicles/formations) is operator-domain, not vehicle control, so it does not
- * breach the read-only red line, and it extends the codebook-import precedent. Every card
- * here is a real, navigable area.
+ * Cards are filtered by capability (1.6.1 RBAC): a user reaching this landing holds at least one
+ * admin-area capability, and sees only the areas they can actually enter. 用户组 — dropped in the
+ * original read-only console as "heavy for three near-identical roles" — is **un-dropped here**:
+ * the 角色与用户组 card lands with fine-grained capabilities + groups. 系统状态 has no dedicated
+ * capability, so it shows to anyone who can reach this landing.
  */
+import { computed } from "vue";
 import { RouterLink } from "vue-router";
+import type { Capability } from "@navfleet/shared";
 import PageHeader from "@/components/PageHeader.vue";
+import { useAuth } from "@/composables/useAuth";
 
 interface Area {
   label: string;
   plan: string;
   to: string;
+  /** Capability that gates the area; absent = shown to anyone on the landing (系统状态). */
+  capability?: Capability;
 }
 
 const AREAS: readonly Area[] = [
-  { label: "设备接入", plan: "18", to: "/admin/onboarding" },
-  { label: "用户", plan: "15E", to: "/admin/users" },
-  { label: "审计", plan: "15E", to: "/admin/audit" },
-  { label: "场景", plan: "13F", to: "/admin/scenes" },
-  { label: "报码字典", plan: "16C", to: "/admin/codebook" },
-  { label: "外发", plan: "16D", to: "/admin/notify" },
+  {
+    label: "设备接入",
+    plan: "18",
+    to: "/admin/onboarding",
+    capability: "vehicles:write",
+  },
+  {
+    label: "用户",
+    plan: "15E",
+    to: "/admin/users",
+    capability: "users:manage",
+  },
+  {
+    label: "角色与用户组",
+    plan: "1.6.1",
+    to: "/admin/roles",
+    capability: "users:manage",
+  },
+  { label: "审计", plan: "15E", to: "/admin/audit", capability: "audit:read" },
+  {
+    label: "场景",
+    plan: "13F",
+    to: "/admin/scenes",
+    capability: "scenes:write",
+  },
+  {
+    label: "报码字典",
+    plan: "16C",
+    to: "/admin/codebook",
+    capability: "codebook:write",
+  },
+  {
+    label: "外发",
+    plan: "16D",
+    to: "/admin/notify",
+    capability: "notify:read",
+  },
   { label: "系统状态", plan: "13F", to: "/admin/system" },
 ];
+
+const { can } = useAuth();
+const areas = computed(() =>
+  AREAS.filter((area) => !area.capability || can(area.capability)),
+);
 
 const CARD_BASE =
   "flex h-full flex-col gap-1 rounded-md bg-surface-raised p-4 transition-colors duration-150 ease-standard";
@@ -38,7 +78,7 @@ const CARD_BASE =
 <template>
   <PageHeader title="管理">
     <ul class="grid list-none gap-3 p-0 md:grid-cols-2 3xl:grid-cols-3">
-      <li v-for="area in AREAS" :key="area.label">
+      <li v-for="area in areas" :key="area.label">
         <!-- A link, because it is navigation — so ⌘-click and "copy link address"
              keep working. -->
         <RouterLink

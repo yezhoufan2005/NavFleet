@@ -5,7 +5,7 @@ import type {
   RouteMeta,
 } from "vue-router";
 import type { AuthStatus } from "@/composables/useAuth";
-import type { PublicUser, UserRole } from "@navfleet/shared";
+import type { Capability, PublicUser } from "@navfleet/shared";
 
 /**
  * Route guard for the authenticated area.
@@ -26,8 +26,10 @@ import type { PublicUser, UserRole } from "@navfleet/shared";
  */
 export interface AuthGuardState {
   status: AuthStatus;
-  /** The signed-in user, for role checks. Optional/null keeps anonymous and older callers valid. */
+  /** The signed-in user. Optional/null keeps anonymous and older callers valid. */
   user?: PublicUser | null;
+  /** Effective capabilities (1.6.1 RBAC), for the capability gate. Absent/empty = none held. */
+  capabilities?: readonly Capability[];
 }
 
 export type AuthGuardTarget = Pick<
@@ -103,17 +105,25 @@ export const createAuthGuard = (
       console.warn("[router] 会话状态在超时前仍未确定，放行导航", to.fullPath);
     }
 
-    // Role gate. `meta.roles`, when present, lists the roles allowed on that route; an
-    // authenticated user outside it is bounced to the landing page (same fallback as
-    // anonymous, and unconditionally allowed, so no redirect loop). This is defence in
-    // depth behind the nav hiding the entry — a deep link must not be an open door.
-    const roles = (to.meta as { roles?: readonly UserRole[] } | undefined)
-      ?.roles;
-    if (roles && roles.length > 0) {
-      const role = state.user?.role;
-      if (!role || !roles.includes(role)) {
-        return { name: AUTH_FALLBACK_ROUTE_NAME, replace: true };
-      }
+    // Capability gate (1.6.1 RBAC). `meta.capability` requires that one capability; `meta.capabilities`
+    // requires ANY of them (the 管理 area shell — parent / landing / 系统状态). An authenticated user
+    // who lacks it is bounced to the landing page (same fallback as anonymous, unconditionally
+    // allowed, so no redirect loop). Defence in depth behind the nav hiding the entry.
+    const held = state.capabilities ?? [];
+    const meta = to.meta as
+      | { capability?: Capability; capabilities?: readonly Capability[] }
+      | undefined;
+    const required = meta?.capability;
+    if (required && !held.includes(required)) {
+      return { name: AUTH_FALLBACK_ROUTE_NAME, replace: true };
+    }
+    const anyOf = meta?.capabilities;
+    if (
+      anyOf &&
+      anyOf.length > 0 &&
+      !anyOf.some((capability) => held.includes(capability))
+    ) {
+      return { name: AUTH_FALLBACK_ROUTE_NAME, replace: true };
     }
 
     return true;

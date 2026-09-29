@@ -13,6 +13,8 @@ import {
   VALUE_PREVIEW_LIMIT,
 } from "@/lib/localState";
 import { useFleetStore } from "@/stores/fleet";
+import { useAuth, __resetAuth } from "@/composables/useAuth";
+import { CAPABILITIES } from "@navfleet/shared";
 import { requestUrl } from "./helpers/requestUrl";
 
 /**
@@ -50,11 +52,18 @@ const mountAt = async (component: unknown, path: string) => {
 
 beforeEach(() => {
   setActivePinia(createPinia());
+  // AdminView filters its cards by capability (1.6.1); seed a full-capability admin so every card
+  // shows. Harmless for the other views mounted here, which do not read capabilities.
+  const auth = useAuth();
+  auth.state.status = "authenticated";
+  auth.state.user = { username: "admin", role: "admin" };
+  auth.state.capabilities = [...CAPABILITIES];
   localStorage.clear();
   sessionStorage.clear();
 });
 
 afterEach(() => {
+  __resetAuth();
   vi.restoreAllMocks();
   vi.unstubAllGlobals();
   localStorage.clear();
@@ -565,6 +574,7 @@ describe("管理落地页", () => {
       "/admin/codebook",
       "/admin/notify",
       "/admin/onboarding",
+      "/admin/roles",
       "/admin/scenes",
       "/admin/system",
       "/admin/users",
@@ -579,6 +589,6 @@ describe("管理落地页", () => {
       .findAll("span")
       .filter((span) => span.text() === "已就绪");
 
-    expect(readyBadges).toHaveLength(7);
+    expect(readyBadges).toHaveLength(8);
   });
 });
