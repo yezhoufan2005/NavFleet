@@ -12,7 +12,7 @@
  * Read-only. Without MongoDB a `cleared` query returns nothing, so the empty state links to
  * 管理 / 系统状态, the page that can say whether Mongo is connected.
  */
-import { computed, onMounted, ref } from "vue";
+import { computed, onMounted, ref, watch } from "vue";
 import { RouterLink, useRoute } from "vue-router";
 import CategoryBarChart from "@/components/charts/CategoryBarChart.vue";
 import { useChartTheme } from "@/composables/useChartTheme";
@@ -64,7 +64,10 @@ const load = async (): Promise<void> => {
   status.value = "loading";
   errorMessage.value = "";
   try {
-    const payload = await fleetApi.getAlerts({ status: "cleared" });
+    const payload = await fleetApi.getAlerts({
+      status: "cleared",
+      ...queryWindow.value,
+    });
     if (request !== requestId) return;
     records.value = [...(payload.items ?? [])].sort(
       (left, right) => clearedMs(right) - clearedMs(left),
@@ -94,6 +97,25 @@ const severity = computed<Severity | "all">(() => {
 });
 const deviceFilter = computed(() => readParam("device"));
 const search = computed(() => readParam("q"));
+
+/**
+ * Onset window (`from`/`to`, `YYYY-MM-DD`) — the one filter applied **server-side**, unlike
+ * severity/device/search which narrow the fetched page in the browser. Without it the query
+ * returns the most-recent `RESULT_CAP` cleared alerts, so a window is the only way to reach a
+ * past period whose rows are older than that page. Bounds are independent (either or both) and
+ * expanded to day edges; the bar's native min/max keeps 起 ≤ 止. Changing it re-queries (below).
+ */
+const fromParam = computed(() => readParam("from"));
+const toParam = computed(() => readParam("to"));
+const queryWindow = computed<{ from?: string; to?: string }>(() => {
+  const result: { from?: string; to?: string } = {};
+  if (fromParam.value)
+    result.from = new Date(`${fromParam.value}T00:00:00`).toISOString();
+  if (toParam.value)
+    result.to = new Date(`${toParam.value}T23:59:59.999`).toISOString();
+  return result;
+});
+watch([fromParam, toParam], () => void load());
 
 /** Prefer the fleet's current name for a device, then the record's, then the raw id. */
 const deviceNameOf = (id: string, fallback?: string): string => {

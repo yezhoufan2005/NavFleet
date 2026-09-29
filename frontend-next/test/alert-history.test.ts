@@ -65,6 +65,37 @@ afterEach(() => {
 });
 // PLACEHOLDER_TESTS
 
+describe("the onset window (server-side, 1.6.1)", () => {
+  it("passes from/to as day-boundary ISO bounds to the endpoint", async () => {
+    const spy = vi
+      .spyOn(fleetApi, "getAlerts")
+      .mockResolvedValue({ items: [] });
+    await mountPanel("?from=2026-03-01&to=2026-03-02");
+    // The bar's YYYY-MM-DD is expanded to local day edges (same as ReportsView); asserting with
+    // the identical construction keeps this timezone-agnostic.
+    expect(spy).toHaveBeenCalledWith({
+      status: "cleared",
+      from: new Date("2026-03-01T00:00:00").toISOString(),
+      to: new Date("2026-03-02T23:59:59.999").toISOString(),
+    });
+  });
+
+  it("re-queries the endpoint when the window changes", async () => {
+    const spy = vi
+      .spyOn(fleetApi, "getAlerts")
+      .mockResolvedValue({ items: [] });
+    await mountPanel();
+    spy.mockClear();
+    await router.push("/?from=2026-03-05");
+    await flushPromises();
+    // A one-sided bound is honoured; only `from` is sent.
+    expect(spy).toHaveBeenCalledWith({
+      status: "cleared",
+      from: new Date("2026-03-05T00:00:00").toISOString(),
+    });
+  });
+});
+
 describe("loading and failure", () => {
   it("reads only cleared alerts from the endpoint", async () => {
     const spy = vi

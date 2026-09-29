@@ -29,6 +29,7 @@ import type {
   ReportBucketUnit,
 } from "@navfleet/shared";
 import {
+  buildAlertStatsCsv,
   buildAvailabilityCsv,
   onlineRatioSeries,
   socSeries,
@@ -246,6 +247,19 @@ const exportCsv = (): void => {
   anchor.click();
   URL.revokeObjectURL(url);
 };
+
+/** 消息统计导出，与可用率对等（1.6.1）——聚合报表用长表装下页面显示的一切。 */
+const exportAlertsCsv = (): void => {
+  if (!alertStats.value) return;
+  const csv = buildAlertStatsCsv(alertStats.value, nameOf);
+  const blob = new Blob(["﻿", csv], { type: "text/csv;charset=utf-8" });
+  const url = URL.createObjectURL(blob);
+  const anchor = document.createElement("a");
+  anchor.href = url;
+  anchor.download = `navfleet-消息统计-${range.value}.csv`;
+  anchor.click();
+  URL.revokeObjectURL(url);
+};
 </script>
 
 <template>
@@ -307,15 +321,24 @@ const exportCsv = (): void => {
         />
       </label>
 
-      <UiButton
-        variant="secondary"
-        size="sm"
-        class="ml-auto"
-        :disabled="status !== 'ready' || !hasAvailabilityData"
-        @click="exportCsv"
-      >
-        导出 CSV ↗
-      </UiButton>
+      <div class="ml-auto flex flex-wrap items-end gap-2">
+        <UiButton
+          variant="secondary"
+          size="sm"
+          :disabled="status !== 'ready' || !hasAvailabilityData"
+          @click="exportCsv"
+        >
+          导出可用率 CSV ↗
+        </UiButton>
+        <UiButton
+          variant="secondary"
+          size="sm"
+          :disabled="status !== 'ready' || !hasAlertData"
+          @click="exportAlertsCsv"
+        >
+          导出消息 CSV ↗
+        </UiButton>
+      </div>
     </div>
 
     <!-- Loading: a skeleton in the shape of the result (KPI band + two chart columns) rather

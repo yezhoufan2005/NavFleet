@@ -123,6 +123,14 @@ const severity = computed<Severity | "all">(() => {
 });
 const deviceFilter = computed(() => readParam("device"));
 const search = computed(() => readParam("q"));
+/**
+ * Onset window for 告警史 (history tab only). Server-side (see `AlertHistoryPanel`), so it reaches
+ * cleared alerts older than the endpoint's most-recent page — the live tab reads the store and has
+ * no history to window, hence these inputs show only when `!isLive`. Independent bounds; native
+ * min/max keeps 起 ≤ 止.
+ */
+const fromDate = computed(() => readParam("from"));
+const toDate = computed(() => readParam("to"));
 const showAcknowledged = computed(() => readParam("acked") === "1");
 const page = computed(() => {
   const value = Number(readParam("page"));
@@ -439,6 +447,31 @@ watch(() => canAck.value && fleet.state.realtime.apiReady, runLegacyMigration);
           :model-value="searchDraft"
           @update:model-value="onSearchInput"
           @keydown.enter.prevent="flushSearch"
+        />
+      </label>
+
+      <!--
+        起止时间：仅 告警史 有（实时页读 store、没有历史可窗）。服务端过滤，能取到最近一页之外的
+        旧记录。起 ≤ 止 由原生 min/max 约束；两端独立可选。
+      -->
+      <label v-if="!isLive" class="flex flex-col gap-1">
+        <span class="text-2xs text-ink-muted">起始时间</span>
+        <UiInput
+          type="date"
+          :model-value="fromDate"
+          :max="toDate || undefined"
+          aria-label="起始日期"
+          @update:model-value="(value) => setFilter({ from: value || null })"
+        />
+      </label>
+      <label v-if="!isLive" class="flex flex-col gap-1">
+        <span class="text-2xs text-ink-muted">结束时间</span>
+        <UiInput
+          type="date"
+          :model-value="toDate"
+          :min="fromDate || undefined"
+          aria-label="结束日期"
+          @update:model-value="(value) => setFilter({ to: value || null })"
         />
       </label>
 

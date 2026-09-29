@@ -827,6 +827,8 @@ export class DashboardStore extends EventEmitter {
     severity?: string;
     deviceId?: string;
     status?: string;
+    from?: string;
+    to?: string;
   }): Promise<unknown[]> {
     return this.persistence.queryAlerts(filters);
   }

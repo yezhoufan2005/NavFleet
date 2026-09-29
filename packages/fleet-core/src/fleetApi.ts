@@ -99,6 +99,10 @@ export interface AlertsQueryParams {
   severity?: "critical" | "warning" | "notice";
   deviceId?: string;
   status?: "active" | "cleared";
+  /** Onset window (`firstSeenAt`), ISO-8601 or epoch. Lets 告警史 reach a past period beyond the
+   * server's most-recent page (the query is row-capped). */
+  from?: string;
+  to?: string;
 }
 
 /** Range for the server-side report aggregation (Phase 17A). Both optional; the aggregate spans

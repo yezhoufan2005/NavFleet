@@ -1,6 +1,7 @@
 import { describe, it, expect } from "vitest";
-import type { AvailabilityReport } from "@navfleet/shared";
+import type { AlertStatsReport, AvailabilityReport } from "@navfleet/shared";
 import {
+  buildAlertStatsCsv,
   buildAvailabilityCsv,
   onlineRatioSeries,
   socSeries,
@@ -228,5 +229,51 @@ describe("buildAvailabilityCsv", () => {
   it("quotes a field containing a comma and doubles inner quotes (RFC-4180)", () => {
     const csv = buildAvailabilityCsv(built, () => 'A01, "巡检"');
     expect(csv.split("\n")[1]).toContain('"A01, ""巡检"""');
+  });
+});
+
+describe("buildAlertStatsCsv (1.6.1 export parity)", () => {
+  const alertReport = (
+    over: Partial<AlertStatsReport> = {},
+  ): AlertStatsReport => ({
+    total: 5,
+    bySeverity: { critical: 2, warning: 2, notice: 1 },
+    topDevices: [
+      { deviceId: "agv-1", count: 3 },
+      { deviceId: "agv-2", count: 2 },
+    ],
+    daily: [
+      { day: "2026-03-01", count: 2 },
+      { day: "2026-03-02", count: 3 },
+    ],
+    ackRate: 0.5,
+    duration: { count: 4, meanMs: 3_600_000, p50Ms: 1_800_000 },
+    available: true,
+    ...over,
+  });
+
+  const nameOf = (id: string) => (id === "agv-1" ? "A01 巡检车" : id);
+
+  it("packs summary, severity, device (named) and daily rows into one long-format table", () => {
+    const lines = buildAlertStatsCsv(alertReport(), nameOf).split("\n");
+    expect(lines[0]).toBe("分组,项,数值");
+    expect(lines).toContain("汇总,消息总数,5");
+    expect(lines).toContain("汇总,确认率,0.5");
+    expect(lines).toContain("汇总,平均处理时长(ms),3600000");
+    expect(lines).toContain("严重度,告警,2");
+    expect(lines).toContain("严重度,提示,1");
+    // topDevices carry only an id; the name is resolved through the live fleet.
+    expect(lines).toContain("设备,A01 巡检车,3");
+    expect(lines).toContain("设备,agv-2,2");
+    expect(lines).toContain("按天,2026-03-01,2");
+  });
+
+  it("leaves 确认率 blank (not 0) when there are no records to rate", () => {
+    const lines = buildAlertStatsCsv(
+      alertReport({ ackRate: null, total: 0 }),
+      nameOf,
+    ).split("\n");
+    // A blank cell is "no sample to compute a rate"; 0 would read as "nothing was acknowledged".
+    expect(lines).toContain("汇总,确认率,");
   });
 });
