@@ -225,7 +225,7 @@ const formatTime = (iso: string): string =>
               <th scope="col" class="px-3 py-2">IP</th>
               <th scope="col" class="px-3 py-2">登录时间</th>
               <th scope="col" class="px-3 py-2">最近活跃</th>
-              <th scope="col" class="px-3 py-2 text-right">操作</th>
+              <th scope="col" class="py-2 pr-6 pl-3 text-right">操作</th>
             </tr>
           </thead>
           <tbody>
