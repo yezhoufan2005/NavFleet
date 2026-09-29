@@ -7,7 +7,12 @@ import { capabilitiesForRole } from "@navfleet/shared";
 import type { AuthService } from "./service";
 import { toPublicUser } from "./service";
 import type { AuditService } from "../audit/service";
-import { ACCESS_COOKIE, REFRESH_COOKIE, createAuthenticate } from "./middleware";
+import {
+  ACCESS_COOKIE,
+  REFRESH_COOKIE,
+  createAuthenticate,
+  type CapabilityResolver,
+} from "./middleware";
 import { durationToMs, signAccessToken, signRefreshToken, verifyToken } from "./tokens";
 
 const baseCookie = (): CookieOptions => ({
@@ -51,11 +56,21 @@ const clearSessionCookies = (response: Response): void => {
   response.clearCookie(REFRESH_COOKIE, { ...baseCookie(), path: "/api/auth" });
 };
 
-export const buildAuthRouter = (authService: AuthService, audit: AuditService): Router => {
+export const buildAuthRouter = (
+  authService: AuthService,
+  audit: AuditService,
+  resolveCapabilities?: CapabilityResolver,
+): Router => {
   const router = Router();
+  // Effective-capability resolver, threaded into the /me gate and the login/refresh responses so
+  // the client's capabilities include group grants, not just the base role preset. Defaults to the
+  // role preset when the app wires none (keeps tests and the base case working).
+  const resolveCaps: CapabilityResolver =
+    resolveCapabilities ?? ((user) => capabilitiesForRole(user.role));
   const authenticate = createAuthenticate(
     (username) => authService.findByUsername(username),
     (username, sessionId) => authService.isSessionActive(username, sessionId),
+    resolveCapabilities,
   );
 
   /** The device context recorded on a session, from the request that created it. */
@@ -116,7 +131,7 @@ export const buildAuthRouter = (authService: AuthService, audit: AuditService): 
         ...(user.kiosk ? { detail: { kiosk: true } } : {}),
       });
       issueSessionCookies(response, user, sessionId);
-      response.json({ user: toPublicUser(user), capabilities: capabilitiesForRole(user.role) });
+      response.json({ user: toPublicUser(user), capabilities: resolveCaps(user) });
     } catch (error) {
       next(error);
     }
@@ -162,7 +177,7 @@ export const buildAuthRouter = (authService: AuthService, audit: AuditService): 
       // Rotate both cookies, not just the access token: a refresh that only re-minted access
       // left the same refresh token valid for its full 7 days regardless of activity.
       issueSessionCookies(response, user, sessionId);
-      response.json({ user: toPublicUser(user), capabilities: capabilitiesForRole(user.role) });
+      response.json({ user: toPublicUser(user), capabilities: resolveCaps(user) });
     } catch (error) {
       next(error);
     }

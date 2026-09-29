@@ -41,3 +41,59 @@ export const ROLE_CAPABILITIES: Record<UserRole, readonly Capability[]> = {
 /** 某内置角色的能力集合（`admin` 恒为全集）。未知角色回退为空集，永不抛。 */
 export const capabilitiesForRole = (role: UserRole): readonly Capability[] =>
   ROLE_CAPABILITIES[role] ?? [];
+
+/**
+ * 自定义角色（1.6.1 RBAC）：一个具名的能力子集，由 admin 定义、被用户组引用。**不**作为用户的
+ * `role` 字段值——用户的基础角色仍是内置三值之一，自定义角色只透过所属用户组叠加能力，这样
+ * `UserRole` 闭合枚举（前后端两处运行时校验）无需改动。
+ */
+export interface RbacRole {
+  id: string;
+  name: string;
+  capabilities: Capability[];
+  createdAt: string;
+  updatedAt: string;
+}
+
+/**
+ * 用户组（1.6.1 RBAC）：把一批用户绑到若干自定义角色。成员的有效能力 = 自身基础角色预设 ∪
+ * 所在各组引用的各自定义角色的能力（见 `resolveEffectiveCapabilities`）。
+ */
+export interface RbacGroup {
+  id: string;
+  name: string;
+  description: string;
+  roleIds: string[];
+  memberUsernames: string[];
+  createdAt: string;
+  updatedAt: string;
+}
+
+/**
+ * 纯解析器：一个用户的**有效能力** = 基础角色预设 ∪（非 kiosk 时）其所属用户组引用的自定义角色的能力。
+ *
+ * - **kiosk 账号只读不受组提权**：长期只读墙屏凭证按构造只读，忽略一切组能力叠加——否则把它加进某组
+ *   就能破掉「只读」约束。
+ * - 输出按 `CAPABILITIES` 顺序去重排序，令响应与断言确定。
+ *
+ * 后端每请求调用（缓存喂入 roles/groups），前端也可用它预览。
+ */
+export const resolveEffectiveCapabilities = (
+  user: { username: string; role: UserRole; kiosk?: boolean },
+  roles: readonly RbacRole[],
+  groups: readonly RbacGroup[],
+): Capability[] => {
+  const caps = new Set<Capability>(capabilitiesForRole(user.role));
+  if (!user.kiosk) {
+    const roleById = new Map(roles.map((role) => [role.id, role]));
+    for (const group of groups) {
+      if (!group.memberUsernames.includes(user.username)) continue;
+      for (const roleId of group.roleIds) {
+        for (const capability of roleById.get(roleId)?.capabilities ?? []) {
+          caps.add(capability);
+        }
+      }
+    }
+  }
+  return CAPABILITIES.filter((capability) => caps.has(capability));
+};

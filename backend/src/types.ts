@@ -141,6 +141,13 @@ export const AUDIT_ACTIONS = [
   "formations_write",
   "scenes_write",
   "scene_asset_upload",
+  // Custom roles + user groups (1.6.1 RBAC).
+  "role_create",
+  "role_update",
+  "role_delete",
+  "group_create",
+  "group_update",
+  "group_delete",
 ] as const;
 
 export type AuditAction = (typeof AUDIT_ACTIONS)[number];

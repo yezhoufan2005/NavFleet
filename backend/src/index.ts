@@ -7,6 +7,7 @@ import { ConfigRegistry } from "./configRegistry";
 import { Persistence } from "./persistence";
 import { DashboardStore } from "./store";
 import { AuthService } from "./auth/service";
+import { RbacService } from "./rbac/service";
 import { AuditService } from "./audit/service";
 import { NotifyService, type AlertCreatedEvent } from "./notify/service";
 import { ReportScheduler } from "./reports/scheduler";
@@ -23,6 +24,7 @@ const persistence = new Persistence();
 const configRegistry = new ConfigRegistry();
 const store = new DashboardStore(persistence, configRegistry);
 const authService = new AuthService(persistence);
+const rbacService = new RbacService(persistence);
 const auditService = new AuditService(persistence);
 const notifyService = new NotifyService({
   persistence,
@@ -69,6 +71,7 @@ const app = createApp({
   store,
   persistence,
   authService,
+  rbacService,
   auditService,
   notifyService,
   config,
@@ -215,6 +218,9 @@ const start = async (): Promise<void> => {
   }
 
   await authService.initialize();
+  // Load the RBAC state (custom roles + user groups) into the service cache once Mongo is up, so
+  // the per-request capability resolver runs from memory. Empty on a fresh or Mongo-less run.
+  await rbacService.init();
   state.storeReady = true;
   try {
     configRegistry.startWatching(async () => {

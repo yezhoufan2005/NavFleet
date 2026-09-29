@@ -1,6 +1,7 @@
 import { z } from "zod";
 import { config } from "./config";
 import { AUDIT_ACTIONS } from "./types";
+import { CAPABILITIES } from "@navfleet/shared";
 
 /** A timestamp expressed as an ISO-8601 string or a numeric epoch (ms or s). */
 const timestampString = z
@@ -249,3 +250,22 @@ export const alertAckSchema = z.object({
 });
 
 export const alertUnackSchema = z.object(alertRefSchema);
+
+/**
+ * Custom-role + user-group write bodies (1.6.1 RBAC). `capabilities` is bounded to the known set
+ * (the `RbacService` orders/dedupes); `roleIds` reference custom roles (existence is a runtime
+ * check in the service, not something a static schema can assert). Free text is length-bounded.
+ */
+const capabilitySchema = z.enum(CAPABILITIES);
+
+export const rbacRoleSchema = z.object({
+  name: z.string().min(1).max(100),
+  capabilities: z.array(capabilitySchema).max(CAPABILITIES.length),
+});
+
+export const rbacGroupSchema = z.object({
+  name: z.string().min(1).max(100),
+  description: z.string().max(500).optional(),
+  roleIds: z.array(z.string().min(1).max(200)).max(200),
+  memberUsernames: z.array(z.string().min(1).max(200)).max(1000),
+});

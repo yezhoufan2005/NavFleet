@@ -67,6 +67,15 @@ const ADMIN_ROUTES: Array<{ method: "get" | "post" | "patch" | "delete" | "put";
   // 场景地图上传与管理 (Phase 18): scene reads stay viewer+, but the writes are admin-only.
   { method: "put", path: "/api/scenes" },
   { method: "put", path: `/api/scenes/${SCENE_ID}/asset/image` },
+  // 自定义角色 + 用户组管理 (1.6.1 RBAC): gated by users:manage, i.e. admin among the built-in roles.
+  { method: "get", path: "/api/rbac/roles" },
+  { method: "post", path: "/api/rbac/roles" },
+  { method: "patch", path: "/api/rbac/roles/r1" },
+  { method: "delete", path: "/api/rbac/roles/r1" },
+  { method: "get", path: "/api/rbac/groups" },
+  { method: "post", path: "/api/rbac/groups" },
+  { method: "patch", path: "/api/rbac/groups/g1" },
+  { method: "delete", path: "/api/rbac/groups/g1" },
 ];
 
 const ALL_ROLES: UserRole[] = ["viewer", "operator", "admin"];

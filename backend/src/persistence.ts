@@ -10,6 +10,8 @@ import {
   DeviceSnapshot,
   HistoryQuery,
   NotifySendRecord,
+  RbacGroup,
+  RbacRole,
   ReportBucketUnit,
   SessionRecord,
   UserRecord,
@@ -28,6 +30,14 @@ import { moduleLogger } from "./logger";
 import { asText } from "./normalize";
 import { runMigrations } from "./migrations/runner";
 import { reconcileTtls } from "./migrations/ttl";
+
+/** The single RBAC document (custom roles + user groups), addressed by a fixed string `_id`. */
+interface RbacStateDoc {
+  _id: string;
+  roles: RbacRole[];
+  groups: RbacGroup[];
+}
+const RBAC_STATE_ID = "state";
 import { MigrationError, type Migration } from "./migrations/types";
 
 const logger = moduleLogger("persistence");
@@ -165,6 +175,9 @@ export class Persistence {
   // In-memory session store for Mongo-less dev runs (mirrors the user fallback), keyed by
   // sessionId. A dev run without Mongo still tracks and revokes per-device sessions.
   private fallbackSessions = new Map<string, SessionRecord>();
+  // In-memory RBAC state (custom roles + user groups) for Mongo-less dev runs. Low-cardinality
+  // and read/written whole (like the codebook), so one field rather than per-entity maps.
+  private fallbackRbac: { roles: RbacRole[]; groups: RbacGroup[] } = { roles: [], groups: [] };
   // Current active alerts per device, always kept in memory so /api/alerts stays
   // useful in local/dev runs without MongoDB (mirrors the telemetry fallback).
   private activeAlerts = new Map<string, StoredAlert[]>();
@@ -300,6 +313,12 @@ export class Persistence {
     if (!names.has("sessions")) {
       await this.db.createCollection("sessions");
     }
+    // RBAC custom roles + user groups (1.6.1). One document (`_id: "state"`) holds both arrays —
+    // low-cardinality, single-instance, read/written whole like the codebook — so no per-entity
+    // collection or index is needed.
+    if (!names.has("rbac")) {
+      await this.db.createCollection("rbac");
+    }
 
     await this.db.collection("device_latest").createIndex({ deviceId: 1 }, { unique: true });
     await this.db.collection("device_latest").createIndex({ stamp: -1 });
@@ -422,6 +441,38 @@ export class Persistence {
       return this.fallbackUsers.size;
     }
     return this.db.collection("users").countDocuments();
+  }
+
+  /**
+   * Load the whole RBAC state (custom roles + user groups). Empty on a fresh deployment or a
+   * Mongo-less run. Read whole and cached by `RbacService`; the resolver never touches the DB.
+   */
+  async loadRbacState(): Promise<{ roles: RbacRole[]; groups: RbacGroup[] }> {
+    if (!this.db) {
+      return { roles: [...this.fallbackRbac.roles], groups: [...this.fallbackRbac.groups] };
+    }
+    const doc = await this.db
+      .collection<RbacStateDoc>("rbac")
+      .findOne({ _id: RBAC_STATE_ID }, { projection: { _id: 0 } });
+    return {
+      roles: (doc?.roles ?? []).map((role) => ({ ...role })),
+      groups: (doc?.groups ?? []).map((group) => ({ ...group })),
+    };
+  }
+
+  /** Replace the whole RBAC state (validated + mutated in `RbacService`, persisted here whole). */
+  async saveRbacState(state: { roles: RbacRole[]; groups: RbacGroup[] }): Promise<void> {
+    if (!this.db) {
+      this.fallbackRbac = { roles: [...state.roles], groups: [...state.groups] };
+      return;
+    }
+    await this.db
+      .collection<RbacStateDoc>("rbac")
+      .updateOne(
+        { _id: RBAC_STATE_ID },
+        { $set: { roles: state.roles, groups: state.groups } },
+        { upsert: true },
+      );
   }
 
   /** Every user, projected without `_id` (callers strip `passwordHash` for responses). */
