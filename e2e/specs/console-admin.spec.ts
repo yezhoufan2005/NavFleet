@@ -115,14 +115,20 @@ test.describe("console admin", () => {
     );
   });
 
-  test("scenes are read-only, because a map is what a vehicle localises against", async ({
+  test("scenes can be managed: the create control opens a geometry + upload form", async ({
     page,
   }) => {
-    // The red line, asserted rather than assumed: no form, no editing control. (The former
-    // 「只读」 lede was removed in Phase 18; the structural check below is the real guarantee.)
+    // Phase 18 reversed the read-only stance (same reasoning as the onboarding wizard): the
+    // console renders these backdrops, it does not push maps to vehicles, so editing scene
+    // config is operator/deployment domain and the red line (no command dispatch) holds. The
+    // page now offers 新增场景, and the dialog carries the geometry fields + a file upload.
     await page.goto("/admin/scenes");
 
-    await expect(page.locator("form")).toHaveCount(0);
-    await expect(page.locator("input, textarea, select")).toHaveCount(0);
+    await page.getByRole("button", { name: "新增场景" }).click();
+
+    const dialog = page.getByRole("dialog");
+    await expect(dialog).toBeVisible();
+    await expect(dialog.getByText("场景 ID")).toBeVisible();
+    await expect(dialog.locator('input[type="file"]')).toHaveCount(1);
   });
 });

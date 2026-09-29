@@ -1,11 +1,13 @@
 <script setup lang="ts">
 /**
- * 管理 / 场景 — what the deployment has configured, and whether it is actually there.
+ * 管理 / 场景 — what the deployment has configured, whether it is actually there, and (Phase 18)
+ * editing it: create / edit / delete scene entries and upload their backdrop files.
  *
- * Read-only, and that is a product decision rather than a missing feature: editing a
- * scene means editing the map a vehicle localises against, which is not something a
- * read-only monitoring console gets to do. The page's job is to explain a map, not to
- * change one.
+ * This was read-only on the stated ground that "editing a scene means editing the map a vehicle
+ * localises against". Phase 18 reverses that for the same reason the device-onboarding wizard
+ * did: the console renders these backdrops, it does not push maps to vehicles, so writing scene
+ * config is operator/deployment domain and the read-only red line (no command dispatch) holds.
+ * The backend re-validates every write and confines uploads to the scene-maps root.
  *
  * ## Why it checks the resources rather than just listing them
  *
@@ -23,11 +25,23 @@
  * for one byte tests the path the map itself will use, without paying for the file.
  */
 import { computed, onMounted, ref } from "vue";
+import {
+  DialogContent,
+  DialogDescription,
+  DialogOverlay,
+  DialogPortal,
+  DialogRoot,
+  DialogTitle,
+} from "reka-ui";
 import PageHeader from "@/components/PageHeader.vue";
 import UiButton from "@/components/ui/UiButton.vue";
+import UiSelect from "@/components/ui/UiSelect.vue";
+import UiConfirmDialog from "@/components/ui/UiConfirmDialog.vue";
+import { notify } from "@/composables/useNotifications";
 import { useFleetStore } from "@/stores/fleet";
 import { fleetApi, formatNumber } from "@navfleet/fleet-core";
-import type { SceneDefinition } from "@navfleet/fleet-core";
+import type { SceneAssetKind, SceneDefinition } from "@navfleet/fleet-core";
+import type { SceneMapDefinition } from "@navfleet/shared";
 
 const fleet = useFleetStore();
 
@@ -181,6 +195,214 @@ const missingCount = computed(
       rowsOf(scene).some((row) => row.state === false),
     ).length,
 );
+
+// ── Create / edit / delete (admin) ──────────────────────────────────────────
+/** Upload kinds offered in the form, with the scene URL field each fills. */
+const ASSET_KINDS: { value: SceneAssetKind; label: string; field: string }[] = [
+  { value: "image", label: "栅格底图（SVG/PNG/JPG）", field: "imageUrl" },
+  { value: "pointcloud", label: "点云（PCD）", field: "pointCloudUrl" },
+  { value: "osm", label: "路网源文件（OSM）", field: "osmUrl" },
+  {
+    value: "pointcloudmeta",
+    label: "点云元数据（JSON）",
+    field: "pointCloudMetaUrl",
+  },
+];
+const ASSET_KIND_OPTIONS = ASSET_KINDS.map(({ value, label }) => ({
+  value,
+  label,
+}));
+
+const INPUT_CLASS =
+  "h-9 rounded-sm border border-border-strong bg-surface px-2 text-sm text-ink placeholder:text-ink-subtle";
+
+const ERROR_MESSAGES: Record<string, string> = {
+  invalid_scenes: "场景配置不合法，请检查各字段",
+  invalid_asset: "上传的文件内容不合法",
+  invalid_asset_kind: "不支持的底图类型",
+  asset_too_large: "文件超过大小上限",
+  empty_upload: "文件为空",
+  forbidden: "需要管理员权限",
+};
+const messageFor = (error: unknown): string => {
+  const code = error instanceof Error ? error.message : "";
+  return ERROR_MESSAGES[code] ?? "保存失败，请稍后重试";
+};
+
+type Mode = "create" | "edit" | null;
+const mode = ref<Mode>(null);
+const saving = ref(false);
+const formError = ref("");
+const editingId = ref("");
+const fSceneId = ref("");
+const fSceneName = ref("");
+const fMapFrame = ref("map");
+const fResolution = ref("0.05");
+const fWidth = ref("");
+const fHeight = ref("");
+const fOriginX = ref("0");
+const fOriginY = ref("0");
+const fOriginYaw = ref("0");
+const fAssetKind = ref<SceneAssetKind>("image");
+const fAssetFile = ref<File | null>(null);
+
+const dialogTitle = computed(() =>
+  mode.value === "create" ? "新增场景" : "编辑场景",
+);
+
+const openCreate = (): void => {
+  mode.value = "create";
+  formError.value = "";
+  editingId.value = "";
+  fSceneId.value = "";
+  fSceneName.value = "";
+  fMapFrame.value = "map";
+  fResolution.value = "0.05";
+  fWidth.value = "";
+  fHeight.value = "";
+  fOriginX.value = "0";
+  fOriginY.value = "0";
+  fOriginYaw.value = "0";
+  fAssetKind.value = "image";
+  fAssetFile.value = null;
+};
+
+const openEdit = (scene: SceneDefinition): void => {
+  mode.value = "edit";
+  formError.value = "";
+  editingId.value = String(scene.sceneId);
+  fSceneId.value = String(scene.sceneId);
+  fSceneName.value = String(scene.sceneName ?? "");
+  fMapFrame.value = String(scene.mapFrame ?? "map");
+  fResolution.value = String(scene.resolution ?? "");
+  fWidth.value = String(scene.width ?? "");
+  fHeight.value = String(scene.height ?? "");
+  const origin = scene.origin as
+    { x?: number; y?: number; yaw?: number } | undefined;
+  fOriginX.value = String(origin?.x ?? 0);
+  fOriginY.value = String(origin?.y ?? 0);
+  fOriginYaw.value = String(origin?.yaw ?? 0);
+  fAssetKind.value = "image";
+  fAssetFile.value = null;
+};
+
+const close = (): void => {
+  mode.value = null;
+};
+
+const onFileChosen = (event: Event): void => {
+  const input = event.target as HTMLInputElement;
+  fAssetFile.value = input.files?.[0] ?? null;
+};
+
+const positive = (value: string): number | null => {
+  const n = Number(value);
+  return Number.isFinite(n) && n > 0 ? n : null;
+};
+
+const submit = async (): Promise<void> => {
+  formError.value = "";
+  const id = fSceneId.value.trim();
+  if (!id) {
+    formError.value = "请输入场景 ID";
+    return;
+  }
+  if (!/^[A-Za-z0-9._-]+$/.test(id) || /^\.+$/.test(id)) {
+    formError.value = "场景 ID 只能是字母、数字、点、下划线、连字符";
+    return;
+  }
+  if (mode.value === "create" && scenes.value.some((s) => s.sceneId === id)) {
+    formError.value = "场景 ID 已存在";
+    return;
+  }
+  const resolution = positive(fResolution.value);
+  const width = positive(fWidth.value);
+  const height = positive(fHeight.value);
+  if (resolution === null || width === null || height === null) {
+    formError.value = "分辨率、宽、高都必须是大于 0 的数";
+    return;
+  }
+  const originX = Number(fOriginX.value);
+  const originY = Number(fOriginY.value);
+  const originYaw = Number(fOriginYaw.value);
+  if (![originX, originY, originYaw].every(Number.isFinite)) {
+    formError.value = "原点坐标必须是数字";
+    return;
+  }
+
+  saving.value = true;
+  try {
+    const existing =
+      mode.value === "edit"
+        ? scenes.value.find((s) => s.sceneId === editingId.value)
+        : undefined;
+    const entry: Record<string, unknown> = {
+      ...(existing ?? {}),
+      sceneId: id,
+      sceneName: fSceneName.value.trim() || id,
+      mapFrame: fMapFrame.value.trim() || "map",
+      resolution,
+      width,
+      height,
+      origin: { x: originX, y: originY, yaw: originYaw },
+    };
+    // A chosen file uploads first; the returned /scene-maps/ URL goes onto the entry so the
+    // written scenes.json points at it (a new file) — an in-place replace returns the same URL.
+    if (fAssetFile.value) {
+      const field = ASSET_KINDS.find(
+        (k) => k.value === fAssetKind.value,
+      )!.field;
+      const { url } = await fleetApi.uploadSceneAsset(
+        id,
+        fAssetKind.value,
+        fAssetFile.value,
+      );
+      entry[field] = url;
+    }
+    const next = [
+      ...scenes.value.filter((s) => s.sceneId !== id),
+      entry,
+    ] as unknown as SceneMapDefinition[];
+    await fleetApi.putScenes(next);
+    notify(mode.value === "create" ? "已新增场景" : "已更新场景", {
+      type: "success",
+    });
+    close();
+    await load();
+  } catch (error) {
+    formError.value = messageFor(error);
+    notify(messageFor(error), {
+      type: "error",
+      dedupeKey: "scene-write-failed",
+    });
+  } finally {
+    saving.value = false;
+  }
+};
+
+const confirmDelete = ref<{ id: string; label: string } | null>(null);
+const deleting = ref(false);
+const runDelete = async (): Promise<void> => {
+  const target = confirmDelete.value;
+  if (!target) return;
+  deleting.value = true;
+  try {
+    const next = scenes.value.filter(
+      (s) => s.sceneId !== target.id,
+    ) as unknown as SceneMapDefinition[];
+    await fleetApi.putScenes(next);
+    notify("已删除场景", { type: "success" });
+    confirmDelete.value = null;
+    await load();
+  } catch (error) {
+    notify(messageFor(error), {
+      type: "error",
+      dedupeKey: "scene-delete-failed",
+    });
+  } finally {
+    deleting.value = false;
+  }
+};
 </script>
 
 <template>
@@ -193,6 +415,9 @@ const missingCount = computed(
         @click="load"
       >
         {{ status === "loading" ? "检查中…" : "重新检查" }}
+      </UiButton>
+      <UiButton size="sm" :disabled="status !== 'ready'" @click="openCreate">
+        新增场景
       </UiButton>
     </template>
 
@@ -235,6 +460,22 @@ const missingCount = computed(
           <span class="font-mono text-2xs text-ink-subtle">{{
             scene.sceneId
           }}</span>
+          <div class="ml-auto flex gap-1">
+            <UiButton variant="ghost" size="sm" @click="openEdit(scene)"
+              >编辑</UiButton
+            >
+            <UiButton
+              variant="ghost"
+              size="sm"
+              @click="
+                confirmDelete = {
+                  id: String(scene.sceneId),
+                  label: String(scene.sceneName || scene.sceneId),
+                }
+              "
+              >删除</UiButton
+            >
+          </div>
         </header>
 
         <dl class="m-0 grid gap-2 sm:grid-cols-2 xl:grid-cols-4">
@@ -319,4 +560,174 @@ const missingCount = computed(
       </section>
     </template>
   </PageHeader>
+
+  <!-- Create / edit scene -->
+  <DialogRoot
+    :open="mode !== null"
+    @update:open="
+      (o) => {
+        if (!o) close();
+      }
+    "
+  >
+    <DialogPortal>
+      <DialogOverlay class="fixed inset-0 z-50 bg-scrim/55" />
+      <DialogContent
+        class="fixed top-1/2 left-1/2 z-50 flex max-h-[85vh] w-full max-w-100 -translate-x-1/2 -translate-y-1/2 flex-col gap-3 overflow-auto rounded-md border border-border bg-surface-raised p-5 shadow-overlay"
+      >
+        <DialogTitle class="text-md font-semibold text-ink">{{
+          dialogTitle
+        }}</DialogTitle>
+        <DialogDescription class="sr-only"
+          >填写场景几何参数并可上传底图后提交</DialogDescription
+        >
+        <form
+          class="flex flex-col gap-3"
+          :aria-busy="saving"
+          @submit.prevent="submit"
+        >
+          <label class="flex flex-col gap-1">
+            <span class="text-sm font-medium text-ink">场景 ID</span>
+            <input
+              v-model="fSceneId"
+              type="text"
+              :disabled="mode === 'edit' || saving"
+              :class="INPUT_CLASS"
+            />
+          </label>
+          <label class="flex flex-col gap-1">
+            <span class="text-sm font-medium text-ink">名称</span>
+            <input
+              v-model="fSceneName"
+              type="text"
+              :disabled="saving"
+              :class="INPUT_CLASS"
+            />
+          </label>
+          <label class="flex flex-col gap-1">
+            <span class="text-sm font-medium text-ink">地图坐标系</span>
+            <input
+              v-model="fMapFrame"
+              type="text"
+              :disabled="saving"
+              :class="INPUT_CLASS"
+            />
+          </label>
+          <div class="grid grid-cols-3 gap-2">
+            <label class="flex flex-col gap-1">
+              <span class="text-sm font-medium text-ink">分辨率 m/px</span>
+              <input
+                v-model="fResolution"
+                type="text"
+                :disabled="saving"
+                :class="INPUT_CLASS"
+              />
+            </label>
+            <label class="flex flex-col gap-1">
+              <span class="text-sm font-medium text-ink">宽 px</span>
+              <input
+                v-model="fWidth"
+                type="text"
+                :disabled="saving"
+                :class="INPUT_CLASS"
+              />
+            </label>
+            <label class="flex flex-col gap-1">
+              <span class="text-sm font-medium text-ink">高 px</span>
+              <input
+                v-model="fHeight"
+                type="text"
+                :disabled="saving"
+                :class="INPUT_CLASS"
+              />
+            </label>
+          </div>
+          <!-- SCENE-FORM-REST -->
+          <div class="grid grid-cols-3 gap-2">
+            <label class="flex flex-col gap-1">
+              <span class="text-sm font-medium text-ink">原点 x</span>
+              <input
+                v-model="fOriginX"
+                type="text"
+                :disabled="saving"
+                :class="INPUT_CLASS"
+              />
+            </label>
+            <label class="flex flex-col gap-1">
+              <span class="text-sm font-medium text-ink">原点 y</span>
+              <input
+                v-model="fOriginY"
+                type="text"
+                :disabled="saving"
+                :class="INPUT_CLASS"
+              />
+            </label>
+            <label class="flex flex-col gap-1">
+              <span class="text-sm font-medium text-ink">原点 yaw</span>
+              <input
+                v-model="fOriginYaw"
+                type="text"
+                :disabled="saving"
+                :class="INPUT_CLASS"
+              />
+            </label>
+          </div>
+          <fieldset
+            class="flex flex-col gap-2 rounded-sm border border-border p-2"
+          >
+            <legend class="px-1 text-sm font-medium text-ink">
+              底图（可选）
+            </legend>
+            <p class="m-0 text-xs text-ink-muted">
+              选类型并上传文件；已引用同类底图时就地替换，否则落到 scene-maps 下
+            </p>
+            <UiSelect
+              v-model="fAssetKind"
+              :options="ASSET_KIND_OPTIONS"
+              aria-label="底图类型"
+            />
+            <input
+              type="file"
+              :disabled="saving"
+              class="text-sm text-ink"
+              @change="onFileChosen"
+            />
+          </fieldset>
+          <p
+            v-if="formError"
+            class="m-0 text-sm text-critical-ink"
+            role="alert"
+          >
+            {{ formError }}
+          </p>
+          <div class="mt-1 flex justify-end gap-2">
+            <UiButton
+              variant="secondary"
+              size="sm"
+              :disabled="saving"
+              @click="close"
+              >取消</UiButton
+            >
+            <UiButton type="submit" size="sm" :disabled="saving">
+              {{ saving ? "提交中…" : "保存" }}
+            </UiButton>
+          </div>
+        </form>
+      </DialogContent>
+    </DialogPortal>
+  </DialogRoot>
+
+  <UiConfirmDialog
+    :open="confirmDelete !== null"
+    :title="`删除场景 ${confirmDelete?.label ?? ''}？`"
+    description="仅从 scenes.json 移除该场景条目；已上传的底图文件不受影响；该场景上的车辆会退回 GPS 或空白地图"
+    confirm-label="删除"
+    :pending="deleting"
+    @update:open="
+      (o) => {
+        if (!o) confirmDelete = null;
+      }
+    "
+    @confirm="runDelete"
+  />
 </template>

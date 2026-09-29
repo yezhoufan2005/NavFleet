@@ -18,7 +18,11 @@ import type {
   NotifySendRecord,
   ReportBucketUnit,
   ReportCodeEntry,
+  SceneMapDefinition,
 } from "@navfleet/shared";
+
+/** Backdrop kinds the scene-management upload accepts (Phase 18). */
+export type SceneAssetKind = "image" | "pointcloud" | "osm" | "pointcloudmeta";
 
 export interface FleetSnapshotResponse {
   fleetName?: string;
@@ -241,6 +245,24 @@ async function requestVoid(
   }
 }
 
+/**
+ * PUT a raw binary body (a chosen File/Blob) and read a JSON reply. Used by the scene-map
+ * upload: the backend takes the file bytes verbatim (`express.raw`), so no JSON wrapper and no
+ * `Content-Type` we control — the browser sets one from the Blob, which the backend ignores.
+ */
+async function requestUpload<T>(path: string, file: Blob): Promise<T> {
+  const response = await fetch(path, {
+    method: "PUT",
+    credentials: "include",
+    cache: "no-store",
+    body: file,
+  });
+  if (!response.ok) {
+    throw await failureError(response);
+  }
+  return (await response.json()) as T;
+}
+
 /** JSON body + header for a write; spread into the `init` of a POST/PATCH. */
 function jsonBody(method: string, body: unknown): RequestInit {
   return {
@@ -270,6 +292,31 @@ export const fleetApi = {
 
   getScenes(): Promise<{ items: SceneDefinition[] }> {
     return requestJson<{ items: SceneDefinition[] }>("/api/v1/scenes");
+  },
+
+  // ── Scene-map management (admin, Phase 18) ──────────────────────────────────
+  // Full-array write of scenes.json (create / edit / remove entries); the backend re-validates
+  // and reloads, and returns the configured scenes.
+  putScenes(
+    scenes: SceneMapDefinition[],
+  ): Promise<{ items: SceneDefinition[] }> {
+    return requestJson<{ items: SceneDefinition[] }>(
+      "/api/v1/scenes",
+      jsonBody("PUT", { scenes }),
+    );
+  },
+
+  // Upload one backdrop file for a scene (raw bytes). Returns the /scene-maps/ URL it now lives
+  // at — the caller sets that on the scene entry (a new file) or ignores it (an in-place replace).
+  uploadSceneAsset(
+    sceneId: string,
+    kind: SceneAssetKind,
+    file: Blob,
+  ): Promise<{ url: string }> {
+    return requestUpload<{ url: string }>(
+      `/api/v1/scenes/${encodeURIComponent(sceneId)}/asset/${kind}`,
+      file,
+    );
   },
 
   // ── Report-code dictionary (Phase 16C-2) ────────────────────────────────────
