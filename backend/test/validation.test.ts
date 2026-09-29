@@ -2,6 +2,7 @@ import { describe, it, expect } from "vitest";
 import {
   historyQuerySchema,
   alertsQuerySchema,
+  auditQuerySchema,
   alertAckSchema,
   alertUnackSchema,
   ingestBodySchema,
@@ -10,6 +11,7 @@ import {
   deviceIdParamSchema,
   sceneIdParamSchema,
 } from "../src/validation";
+import { AUDIT_ACTIONS } from "../src/types";
 
 describe("historyQuerySchema", () => {
   it("coerces limit to a positive integer", () => {
@@ -42,6 +44,39 @@ describe("alertsQuerySchema", () => {
   it("rejects unknown severity or status values", () => {
     expect(alertsQuerySchema.safeParse({ severity: "fatal" }).success).toBe(false);
     expect(alertsQuerySchema.safeParse({ status: "open" }).success).toBe(false);
+  });
+
+  it("accepts an onset window (from/to), ISO or epoch (1.6.1)", () => {
+    expect(
+      alertsQuerySchema.safeParse({ from: "2026-03-01T00:00:00Z", to: "1712472000000" }).success,
+    ).toBe(true);
+    expect(alertsQuerySchema.safeParse({ from: "not-a-date" }).success).toBe(false);
+  });
+});
+
+describe("auditQuerySchema", () => {
+  it("accepts every action the backend can emit (enum derived from AUDIT_ACTIONS)", () => {
+    for (const action of AUDIT_ACTIONS) {
+      expect(auditQuerySchema.safeParse({ action }).success).toBe(true);
+    }
+  });
+
+  it("accepts the config-write actions that were unfilterable before 1.6.1", () => {
+    // These five are the regression this closes: emittable since Phase 16C/18 but missing from
+    // the query enum, so the audit filter 400'd on them.
+    for (const action of [
+      "codebook_import",
+      "vehicles_write",
+      "formations_write",
+      "scenes_write",
+      "scene_asset_upload",
+    ]) {
+      expect(auditQuerySchema.safeParse({ action }).success).toBe(true);
+    }
+  });
+
+  it("still rejects an unknown action", () => {
+    expect(auditQuerySchema.safeParse({ action: "made_up" }).success).toBe(false);
   });
 });
 

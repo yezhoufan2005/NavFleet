@@ -1260,6 +1260,8 @@ export class Persistence {
     severity?: string;
     deviceId?: string;
     status?: string;
+    from?: string;
+    to?: string;
   }): Promise<unknown[]> {
     if (!this.db) {
       return this.queryMemoryAlerts(filters);
@@ -1277,6 +1279,17 @@ export class Persistence {
     } else if (filters.status === "cleared") {
       query.active = false;
     }
+    // Onset window, bounds on `firstSeenAt` (a Mongo Date), matching the report aggregates. With a
+    // window the MAX_ALERTS_PER_QUERY cap applies within it, so 告警史 can reach a past period whose
+    // rows are older than the most-recent page.
+    const fromDate = toBoundDate(filters.from);
+    const toDate = toBoundDate(filters.to);
+    if (fromDate || toDate) {
+      const bound: Record<string, Date> = {};
+      if (fromDate) bound.$gte = fromDate;
+      if (toDate) bound.$lte = toDate;
+      query.firstSeenAt = bound;
+    }
 
     return this.db
       .collection("alerts")
@@ -1290,6 +1303,8 @@ export class Persistence {
     severity?: string;
     deviceId?: string;
     status?: string;
+    from?: string;
+    to?: string;
   }): StoredAlert[] {
     // Only active alerts are retained in memory; a "cleared" filter yields none.
     if (filters.status === "cleared") {
@@ -1301,6 +1316,19 @@ export class Persistence {
     }
     if (filters.deviceId) {
       items = items.filter((alert) => alert.deviceId === filters.deviceId);
+    }
+    // Same onset window as the Mongo path, kept in sync so the in-memory fallback filters the
+    // same way. `firstSeenAt` is an ISO string here; compare on epoch ms.
+    const fromMs = toBoundDate(filters.from)?.getTime();
+    const toMs = toBoundDate(filters.to)?.getTime();
+    if (fromMs !== undefined || toMs !== undefined) {
+      items = items.filter((alert) => {
+        const onset = Date.parse(alert.firstSeenAt ?? alert.ts);
+        if (!Number.isFinite(onset)) return false;
+        if (fromMs !== undefined && onset < fromMs) return false;
+        if (toMs !== undefined && onset > toMs) return false;
+        return true;
+      });
     }
     return items
       .sort((left, right) => Date.parse(right.ts) - Date.parse(left.ts))

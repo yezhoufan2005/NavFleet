@@ -19,7 +19,12 @@ import { tableClasses } from "@/lib/uiClasses";
 const route = useRoute();
 const router = useRouter();
 
-/** Chinese labels for the closed action vocabulary (backend `AuditAction`). */
+/**
+ * Chinese labels for the closed action vocabulary (backend `AuditAction` / `AUDIT_ACTIONS`).
+ * Keep in step with that tuple: every action the backend can emit needs a label, or the 动作
+ * dropdown cannot select it and the row falls back to the raw key. The five config-write actions
+ * and the two alert actions were missing until 1.6.1.
+ */
 const ACTION_LABELS: Record<string, string> = {
   login: "登录",
   login_failed: "登录失败",
@@ -32,6 +37,13 @@ const ACTION_LABELS: Record<string, string> = {
   session_revoke: "下线会话",
   force_logout: "强制下线",
   account_locked: "账号锁定",
+  alert_ack: "确认告警",
+  alert_unack: "取消确认",
+  codebook_import: "导入报码字典",
+  vehicles_write: "写入车辆配置",
+  formations_write: "写入编队配置",
+  scenes_write: "写入场景配置",
+  scene_asset_upload: "上传场景资源",
 };
 
 const ACTION_OPTIONS = [

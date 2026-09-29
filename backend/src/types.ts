@@ -108,34 +108,42 @@ export interface SessionView {
 export type AdminUserView = Omit<UserRecord, "passwordHash">;
 
 /**
- * The auditable actions (Phase 15D). A closed union rather than a free string so a typo at an
- * emit site fails to compile instead of silently writing an un-queryable action. Scoped to
- * auth + user management on purpose — a read-only monitoring system gains nothing from
- * auditing reads, and config reload has no actor (see `configRegistry` logging).
+ * The auditable actions (Phase 15D). A closed **tuple** (not just a union) so it is the single
+ * source of truth: `AuditAction` derives from it, and `auditQuerySchema.action` builds its
+ * `z.enum` from the same array — before 1.6.1 the two were maintained by hand and drifted, so
+ * the five Phase-16C/18 config writes were auditable but not filterable. Deriving both from one
+ * list makes that class of gap impossible: a new action added here is queryable by construction.
+ *
+ * Scoped to auth + user management + operator-domain config writes on purpose — a read-only
+ * monitoring system gains nothing from auditing reads, and config *reload* has no actor (see
+ * `configRegistry` logging).
  */
-export type AuditAction =
-  | "login"
-  | "login_failed"
-  | "logout"
-  | "password_change"
-  | "password_reset"
-  | "user_create"
-  | "user_update"
-  | "user_delete"
+export const AUDIT_ACTIONS = [
+  "login",
+  "login_failed",
+  "logout",
+  "password_change",
+  "password_reset",
+  "user_create",
+  "user_update",
+  "user_delete",
   // Session management (Phase 15E).
-  | "session_revoke"
-  | "force_logout"
-  | "account_locked"
+  "session_revoke",
+  "force_logout",
+  "account_locked",
   // Alert acknowledgement (Phase 16A).
-  | "alert_ack"
-  | "alert_unack"
+  "alert_ack",
+  "alert_unack",
   // Report-code dictionary import (Phase 16C-2).
-  | "codebook_import"
+  "codebook_import",
   // Device-onboarding wizard config writes (Phase 18).
-  | "vehicles_write"
-  | "formations_write"
-  | "scenes_write"
-  | "scene_asset_upload";
+  "vehicles_write",
+  "formations_write",
+  "scenes_write",
+  "scene_asset_upload",
+] as const;
+
+export type AuditAction = (typeof AUDIT_ACTIONS)[number];
 
 /** One row of the `audit_log` collection. `ts` is a BSON Date so the TTL index can expire it. */
 export interface AuditEntry {

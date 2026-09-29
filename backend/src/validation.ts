@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { config } from "./config";
+import { AUDIT_ACTIONS } from "./types";
 
 /** A timestamp expressed as an ISO-8601 string or a numeric epoch (ms or s). */
 const timestampString = z
@@ -32,6 +33,12 @@ export const alertsQuerySchema = z.object({
   severity: z.enum(["critical", "warning", "notice"]).optional(),
   deviceId: z.string().min(1).max(200).optional(),
   status: z.enum(["active", "cleared"]).optional(),
+  // Time window, bounds on `firstSeenAt` (onset) — the same field the report aggregates filter on,
+  // so a window means the same thing here and there. Added in 1.6.1 so 告警史 can reach a specific
+  // past period: the query is capped at MAX_ALERTS_PER_QUERY rows, and without a window that cap
+  // always returned the most-recent page, leaving older cleared alerts unreachable.
+  from: timestampString.optional(),
+  to: timestampString.optional(),
 });
 
 /**
@@ -196,23 +203,10 @@ export const resetPasswordSchema = z.object({
 /** Query filters for `GET /api/audit` (admin). All optional; unbounded result is capped server-side. */
 export const auditQuerySchema = z.object({
   actor: z.string().min(1).max(200).optional(),
-  action: z
-    .enum([
-      "login",
-      "login_failed",
-      "logout",
-      "password_change",
-      "password_reset",
-      "user_create",
-      "user_update",
-      "user_delete",
-      "session_revoke",
-      "force_logout",
-      "account_locked",
-      "alert_ack",
-      "alert_unack",
-    ])
-    .optional(),
+  // The action vocabulary is derived from the canonical `AUDIT_ACTIONS` tuple, so every emittable
+  // action is filterable by construction — see the tuple's note in `types.ts` for the drift this
+  // closes (config-write actions were auditable but not selectable before 1.6.1).
+  action: z.enum(AUDIT_ACTIONS).optional(),
   from: timestampString.optional(),
   to: timestampString.optional(),
 });
