@@ -322,7 +322,7 @@ const formatTime = (iso: string | null): string =>
             <th scope="col" class="px-3 py-2">角色</th>
             <th scope="col" class="px-3 py-2">状态</th>
             <th scope="col" class="px-3 py-2">最近登录</th>
-            <th scope="col" class="px-3 py-2 text-right">操作</th>
+            <th scope="col" class="py-2 pr-6 pl-3 text-right">操作</th>
           </tr>
         </thead>
         <tbody>

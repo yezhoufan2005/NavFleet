@@ -333,8 +333,7 @@ const gTitle = computed(() =>
   <PageHeader title="设备接入">
     <p class="m-0 text-sm text-ink-muted">
       配置车辆与编队并写入 <code>vehicles.json</code> /
-      <code>formations.json</code
-      >（保存即热重载）；配的是<strong>覆盖项</strong>：车辆需上报后才出现在监控里，也仍可在宿主机手改这两个文件
+      <code>formations.json</code>
     </p>
 
     <p v-if="status === 'loading'" class="mt-3 text-sm text-ink-muted">
@@ -367,7 +366,7 @@ const gTitle = computed(() =>
                 <th scope="col" class="px-3 py-2">默认场景</th>
                 <th scope="col" class="px-3 py-2">标签</th>
                 <th scope="col" class="px-3 py-2">GPS / 场景图</th>
-                <th scope="col" class="px-3 py-2 text-right">操作</th>
+                <th scope="col" class="py-2 pr-6 pl-3 text-right">操作</th>
               </tr>
             </thead>
             <tbody>
@@ -447,7 +446,7 @@ const gTitle = computed(() =>
                 <th scope="col" class="px-3 py-2">名称</th>
                 <th scope="col" class="px-3 py-2">车辆</th>
                 <th scope="col" class="px-3 py-2">场景</th>
-                <th scope="col" class="px-3 py-2 text-right">操作</th>
+                <th scope="col" class="py-2 pr-6 pl-3 text-right">操作</th>
               </tr>
             </thead>
             <tbody>

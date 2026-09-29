@@ -81,7 +81,7 @@ const TONES: Record<NotificationType, string> = {
         </button>
         <button
           type="button"
-          class="shrink-0 rounded-xs px-1 leading-none opacity-70 transition-opacity duration-150 ease-standard hover:opacity-100"
+          class="flex size-6 shrink-0 items-center justify-center rounded-xs text-lg leading-none opacity-70 transition-opacity duration-150 ease-standard hover:opacity-100"
           aria-label="关闭"
           @click="dismiss(item.id)"
         >
