@@ -199,15 +199,17 @@ jobs:
   e2e:
     # The suite is `workers: 1` on purpose — the specs share one seeded, server-side fleet, so
     # parallel workers race over it (see e2e/playwright.config.ts). It can't parallelise *within*
-    # a job, so it parallelises *across* jobs: Playwright `--shard=k/2` splits the specs over two
-    # runners, each booting its own backend + vite servers, halving the wall-clock of the one job
-    # that used to dominate CI (~6min → ~3-4min). The browser binary is cached between runs too.
-    name: E2E (playwright, shard ${{ matrix.shard }}/2)
+    # a job, so it parallelises *across* jobs: Playwright `--shard=k/3` splits the specs over three
+    # runners, each booting its own backend + vite servers. Three rather than two because the axe
+    # accessibility audits are far slower per test than the rest and count-based sharding does not
+    # know that — with two shards they clustered onto one (285s vs 120s); three spreads them so the
+    # slowest shard drops. The job that used to dominate CI (~6min) is now ~3min. Browser cached.
+    name: E2E (playwright, shard ${{ matrix.shard }}/3)
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
       matrix:
-        shard: [1, 2]
+        shard: [1, 2, 3]
     steps:
       - uses: actions/checkout@v7
       - uses: actions/setup-node@v7
@@ -239,7 +241,7 @@ jobs:
       # the frozen code still *runs* — and unlike lint or coverage, they never ask
       # it to change. Called directly (not `npm run e2e`) so `--shard` reaches
       # `playwright test`; the browser is already installed above.
-      - run: npx playwright test -c e2e --shard=${{ matrix.shard }}/2
+      - run: npx playwright test -c e2e --shard=${{ matrix.shard }}/3
       - if: failure()
         uses: actions/upload-artifact@v7
         with:
