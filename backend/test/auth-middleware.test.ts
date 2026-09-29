@@ -1,6 +1,6 @@
 import { describe, it, expect, vi } from "vitest";
 import type { Request, Response } from "express";
-import { createAuthenticate, requireRole, type UserLookup } from "../src/auth/middleware";
+import { createAuthenticate, requireCapability, type UserLookup } from "../src/auth/middleware";
 import { signAccessToken } from "../src/auth/tokens";
 import type { UserRecord } from "../src/types";
 
@@ -76,6 +76,16 @@ describe("createAuthenticate", () => {
     expect(req.user).toMatchObject({ username: "bob", role: "operator" });
   });
 
+  it("resolves the role's capabilities onto the request (1.6.1)", async () => {
+    const token = signAccessToken({ username: "bob", role: "operator" }, 0);
+    const req = bearer(token);
+    const next = vi.fn();
+    createAuthenticate(lookupReturning(storedUser({ role: "viewer" })))(req, mockResponse(), next);
+    await flush();
+    // operator's preset is exactly the ack capability; from the token's role, matching req.user.
+    expect(req.capabilities).toEqual(["alerts:ack"]);
+  });
+
   it("401s when the user no longer exists", async () => {
     const token = signAccessToken({ username: "bob", role: "viewer" }, 0);
     const res = mockResponse();
@@ -105,21 +115,28 @@ describe("createAuthenticate", () => {
   });
 });
 
-describe("requireRole", () => {
-  it("calls next when the role is permitted", () => {
-    const req = { user: { username: "a", role: "admin" } } as unknown as Request;
+describe("requireCapability", () => {
+  it("calls next when the capability is present", () => {
+    const req = {
+      user: { username: "a", role: "admin" },
+      capabilities: ["users:manage"],
+    } as unknown as Request;
     const res = mockResponse();
     const next = vi.fn();
-    requireRole("admin")(req, res, next);
+    requireCapability("users:manage")(req, res, next);
     expect(next).toHaveBeenCalledOnce();
   });
 
-  it("returns 403 when the role is not permitted", () => {
-    const req = { user: { username: "a", role: "viewer" } } as unknown as Request;
+  it("returns 403 (naming the capability) when it is absent", () => {
+    const req = {
+      user: { username: "a", role: "viewer" },
+      capabilities: [],
+    } as unknown as Request;
     const res = mockResponse();
     const next = vi.fn();
-    requireRole("admin")(req, res, next);
+    requireCapability("users:manage")(req, res, next);
     expect(res.statusCode).toBe(403);
+    expect(res.body).toEqual({ error: "forbidden", requiredCapability: "users:manage" });
     expect(next).not.toHaveBeenCalled();
   });
 
@@ -127,7 +144,7 @@ describe("requireRole", () => {
     const req = {} as unknown as Request;
     const res = mockResponse();
     const next = vi.fn();
-    requireRole("viewer")(req, res, next);
+    requireCapability("alerts:ack")(req, res, next);
     expect(res.statusCode).toBe(401);
   });
 });

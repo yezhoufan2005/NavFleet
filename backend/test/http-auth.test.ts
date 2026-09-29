@@ -1,5 +1,6 @@
 import { describe, it, expect } from "vitest";
 import request from "supertest";
+import { capabilitiesForRole } from "@navfleet/shared";
 import { REFRESH_COOKIE } from "../src/auth/middleware";
 import { signAccessToken, signRefreshToken } from "../src/auth/tokens";
 import {
@@ -123,7 +124,10 @@ describe("POST /api/auth/login", () => {
       .send({ username: "admin", password: "secret" });
 
     expect(response.status).toBe(200);
-    expect(response.body).toEqual({ user: { username: "admin", role: "admin" } });
+    expect(response.body).toEqual({
+      user: { username: "admin", role: "admin" },
+      capabilities: capabilitiesForRole("admin"),
+    });
     // Login opens a tracked session (Phase 15E).
     expect(context.authService.createSession).toHaveBeenCalledWith(
       expect.objectContaining({ username: "admin" }),
@@ -143,7 +147,10 @@ describe("POST /api/auth/login", () => {
       .get("/api/auth/me")
       .set("Cookie", `access_token=${token}`);
     expect(reuse.status).toBe(200);
-    expect(reuse.body).toEqual({ user: { username: "admin", role: "admin" } });
+    expect(reuse.body).toEqual({
+      user: { username: "admin", role: "admin" },
+      capabilities: capabilitiesForRole("admin"),
+    });
   });
 
   it("gives a kiosk login a long-lived refresh cookie and tags the audit (Phase 17C)", async () => {
@@ -200,7 +207,10 @@ describe("POST /api/auth/refresh", () => {
       .set("Cookie", `${REFRESH_COOKIE}=${token}`);
 
     expect(response.status).toBe(200);
-    expect(response.body).toEqual({ user: { username: "admin", role: "admin" } });
+    expect(response.body).toEqual({
+      user: { username: "admin", role: "admin" },
+      capabilities: capabilitiesForRole("admin"),
+    });
     const cookies = response.headers["set-cookie"] as unknown as string[];
     expect(cookies.some((cookie) => cookie.startsWith("access_token="))).toBe(true);
   });

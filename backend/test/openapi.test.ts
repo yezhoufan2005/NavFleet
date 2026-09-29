@@ -87,10 +87,10 @@ describe("openApiDocument", () => {
     const schemas = (openApiDocument.components as { schemas: Record<string, unknown> })
       .schemas as Record<string, { properties: Record<string, unknown> }>;
 
-    // `issues` on a validation 400, `requiredRoles` on an RBAC 403, `requestId` on a
+    // `issues` on a validation 400, `requiredCapability` on an RBAC 403, `requestId` on a
     // 500 — the last one exists precisely so a caller can quote it, and a client built
     // from the spec could not read any of the three.
-    for (const field of ["error", "message", "issues", "requiredRoles", "requestId"]) {
+    for (const field of ["error", "message", "issues", "requiredCapability", "requestId"]) {
       expect(schemas.Error?.properties[field], `Error.${field}`).toBeTruthy();
     }
   });

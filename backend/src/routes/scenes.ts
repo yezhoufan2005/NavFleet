@@ -1,6 +1,6 @@
 import express from "express";
 import { parseScenes } from "@navfleet/shared";
-import { requireRole } from "../auth/middleware";
+import { requireCapability } from "../auth/middleware";
 import type { DashboardStore } from "../store";
 import type { AuditService } from "../audit/service";
 import type { SceneAssetKind } from "../configRegistry";
@@ -75,7 +75,7 @@ export const buildScenesRouter = (store: DashboardStore, audit: AuditService): e
 
   // Full-array write of scenes.json (create / edit / remove entries), validate-first like the
   // codebook and device-config writes: an invalid body is a 400 that writes nothing.
-  router.put("/scenes", requireRole("admin"), async (request, response, next) => {
+  router.put("/scenes", requireCapability("scenes:write"), async (request, response, next) => {
     const body: unknown = request.body;
     const raw =
       body && typeof body === "object" && !Array.isArray(body) && "scenes" in body
@@ -108,7 +108,7 @@ export const buildScenesRouter = (store: DashboardStore, audit: AuditService): e
   // path and the filename is chosen server-side, so nothing client-supplied reaches the path.
   router.put(
     "/scenes/:sceneId/asset/:kind",
-    requireRole("admin"),
+    requireCapability("scenes:write"),
     express.raw({ type: () => true, limit: RAW_LIMIT }),
     async (request, response, next) => {
       const parsedId = sceneIdParamSchema.safeParse(request.params.sceneId);

@@ -82,13 +82,13 @@ const errorSchema = {
      *
      * - `issues` — the zod issue list, on every 400 that goes through
      *   `respondValidationError` (routes/helpers.ts).
-     * - `requiredRoles` — what the RBAC middleware answers a 403 with
-     *   (auth/middleware.ts), i.e. the only machine-readable hint about *why*.
+     * - `requiredCapability` — what the RBAC middleware answers a 403 with
+     *   (auth/middleware.ts `requireCapability`), i.e. the only machine-readable hint about *why*.
      * - `requestId` — on every 500 (app.ts), and the whole point of it is that a
      *   caller can quote it when reporting the failure.
      */
     issues: { type: "array", items: { type: "object", additionalProperties: true } },
-    requiredRoles: { type: "array", items: { type: "string" } },
+    requiredCapability: { type: "string" },
     requestId: { type: "string" },
   },
 } as const;
@@ -406,7 +406,7 @@ const badRequest = {
   content: { "application/json": { schema: { $ref: "#/components/schemas/Error" } } },
 };
 const forbidden = {
-  description: "权限不足（响应体带 requiredRoles）",
+  description: "权限不足（响应体带 requiredCapability）",
   content: { "application/json": { schema: { $ref: "#/components/schemas/Error" } } },
 };
 const notFound = {

@@ -1,5 +1,5 @@
 import express from "express";
-import { requireRole } from "../auth/middleware";
+import { requireCapability } from "../auth/middleware";
 import type { AuthService, AdminActionError } from "../auth/service";
 import type { AuditService } from "../audit/service";
 import { createUserSchema, resetPasswordSchema, updateUserSchema } from "../validation";
@@ -18,13 +18,13 @@ const respondActionError = (response: express.Response, error: AdminActionError)
 };
 
 /**
- * Admin user management API. Every route is admin-only (`requireRole("admin")`), on top of
- * the session gate already applied in `app.ts`. Lockout protection (last admin / self) lives
+ * Admin user management API. Every route is gated by `requireCapability("users:manage")`, on top
+ * of the session gate already applied in `app.ts`. Lockout protection (last admin / self) lives
  * in the service; the router only translates its result to a status code.
  */
 export const buildUsersRouter = (authService: AuthService, audit: AuditService): express.Router => {
   const router = express.Router();
-  router.use("/users", requireRole("admin"));
+  router.use("/users", requireCapability("users:manage"));
 
   router.get("/users", async (_request, response, next) => {
     try {
@@ -79,7 +79,7 @@ export const buildUsersRouter = (authService: AuthService, audit: AuditService):
         respondValidationError(response, parsed.error);
         return;
       }
-      // `requireRole` guarantees request.user.
+      // `requireCapability` guarantees request.user.
       const result = await authService.updateUser(
         request.user!.username,
         request.params.username,

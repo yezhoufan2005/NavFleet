@@ -1,5 +1,5 @@
 import express from "express";
-import { requireRole } from "../auth/middleware";
+import { requireCapability } from "../auth/middleware";
 import type { DashboardStore } from "../store";
 import type { Persistence } from "../persistence";
 import type { AuditService } from "../audit/service";
@@ -9,7 +9,7 @@ import { respondValidationError } from "./helpers";
 /**
  * Alert acknowledgement API (Phase 16A). Acknowledging a live alert is the first capability
  * that is `operator`+ rather than `admin`-only or read-for-everyone, so these routes gate on
- * `requireRole("operator", "admin")` on top of the session check already applied in `app.ts`.
+ * `requireCapability("alerts:ack")` on top of the session check already applied in `app.ts`.
  *
  * The eventKey is assembled here from `deviceId:alertId` in the body rather than taken from a
  * path segment, because a deviceId can carry arbitrary vendor characters. Persistence only
@@ -22,8 +22,8 @@ export const buildAlertsRouter = (
   audit: AuditService,
 ): express.Router => {
   const router = express.Router();
-  router.use("/alerts/ack", requireRole("operator", "admin"));
-  router.use("/alerts/unack", requireRole("operator", "admin"));
+  router.use("/alerts/ack", requireCapability("alerts:ack"));
+  router.use("/alerts/unack", requireCapability("alerts:ack"));
 
   router.post("/alerts/ack", async (request, response, next) => {
     try {
@@ -34,7 +34,7 @@ export const buildAlertsRouter = (
       }
       const { deviceId, alertId, comment } = parsed.data;
       const eventKey = `${deviceId}:${alertId}`;
-      // `requireRole` guarantees request.user.
+      // `requireCapability` guarantees request.user.
       const ackedBy = request.user!.username;
       const ackedAt = new Date();
       const ok = await persistence.ackAlert(eventKey, ackedBy, comment ?? null, ackedAt);

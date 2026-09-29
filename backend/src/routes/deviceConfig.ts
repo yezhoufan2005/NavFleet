@@ -1,6 +1,6 @@
 import express from "express";
 import { parseFormations, parseVehicles } from "@navfleet/shared";
-import { requireRole } from "../auth/middleware";
+import { requireCapability } from "../auth/middleware";
 import type { DashboardStore } from "../store";
 import type { AuditService } from "../audit/service";
 
@@ -31,11 +31,11 @@ export const buildDeviceConfigRouter = (
       ? (body as Record<string, unknown>)[key]
       : body;
 
-  router.get("/vehicles", requireRole("admin"), (_request, response) => {
+  router.get("/vehicles", requireCapability("vehicles:write"), (_request, response) => {
     response.json({ vehicles: store.listVehicleConfigs() });
   });
 
-  router.put("/vehicles", requireRole("admin"), async (request, response, next) => {
+  router.put("/vehicles", requireCapability("vehicles:write"), async (request, response, next) => {
     const raw = unwrap(request.body, "vehicles");
     let vehicles;
     try {
@@ -74,48 +74,52 @@ export const buildDeviceConfigRouter = (
     }
   });
 
-  router.get("/formation-config", requireRole("admin"), (_request, response) => {
+  router.get("/formation-config", requireCapability("formations:write"), (_request, response) => {
     response.json({ formations: store.listFormationConfigs() });
   });
 
-  router.put("/formation-config", requireRole("admin"), async (request, response, next) => {
-    const raw = unwrap(request.body, "formations");
-    let formations;
-    try {
-      formations = parseFormations(raw);
-    } catch (validationError) {
-      response.status(400).json({
-        error: "invalid_formations",
-        detail: validationError instanceof Error ? validationError.message : "invalid formations",
-      });
-      return;
-    }
-    // Referential integrity as a clean 400 (writeFormations re-checks as the authority): every
-    // deviceId a formation names must be a configured vehicle, or a cold start could not load it.
-    const knownDevices = new Set(store.listVehicleConfigs().map((vehicle) => vehicle.deviceId));
-    for (const formation of formations) {
-      const missing = formation.deviceIds.find((deviceId) => !knownDevices.has(deviceId));
-      if (missing !== undefined) {
+  router.put(
+    "/formation-config",
+    requireCapability("formations:write"),
+    async (request, response, next) => {
+      const raw = unwrap(request.body, "formations");
+      let formations;
+      try {
+        formations = parseFormations(raw);
+      } catch (validationError) {
         response.status(400).json({
-          error: "unknown_device_in_formation",
-          detail: `formation ${formation.formationId} references unknown deviceId ${missing}`,
+          error: "invalid_formations",
+          detail: validationError instanceof Error ? validationError.message : "invalid formations",
         });
         return;
       }
-    }
-    try {
-      const saved = await store.writeFormations(raw);
-      void audit.record({
-        actor: request.user!.username,
-        action: "formations_write",
-        requestId: request.requestId,
-        detail: { formationCount: saved.length },
-      });
-      response.json({ formations: saved });
-    } catch (error) {
-      next(error);
-    }
-  });
+      // Referential integrity as a clean 400 (writeFormations re-checks as the authority): every
+      // deviceId a formation names must be a configured vehicle, or a cold start could not load it.
+      const knownDevices = new Set(store.listVehicleConfigs().map((vehicle) => vehicle.deviceId));
+      for (const formation of formations) {
+        const missing = formation.deviceIds.find((deviceId) => !knownDevices.has(deviceId));
+        if (missing !== undefined) {
+          response.status(400).json({
+            error: "unknown_device_in_formation",
+            detail: `formation ${formation.formationId} references unknown deviceId ${missing}`,
+          });
+          return;
+        }
+      }
+      try {
+        const saved = await store.writeFormations(raw);
+        void audit.record({
+          actor: request.user!.username,
+          action: "formations_write",
+          requestId: request.requestId,
+          detail: { formationCount: saved.length },
+        });
+        response.json({ formations: saved });
+      } catch (error) {
+        next(error);
+      }
+    },
+  );
 
   return router;
 };

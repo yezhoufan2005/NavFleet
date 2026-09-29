@@ -1,6 +1,6 @@
 import express from "express";
 import { parseCodebook } from "@navfleet/shared";
-import { requireRole } from "../auth/middleware";
+import { requireCapability } from "../auth/middleware";
 import type { DashboardStore } from "../store";
 import type { AuditService } from "../audit/service";
 
@@ -25,7 +25,7 @@ export const buildCodebookRouter = (store: DashboardStore, audit: AuditService):
     response.json({ items: store.getCodebook() });
   });
 
-  router.put("/codebook", requireRole("admin"), async (request, response, next) => {
+  router.put("/codebook", requireCapability("codebook:write"), async (request, response, next) => {
     // The body may be a bare array or `{ items: [...] }`; `parseCodebook` wants the array.
     const body: unknown = request.body;
     const rawEntries =

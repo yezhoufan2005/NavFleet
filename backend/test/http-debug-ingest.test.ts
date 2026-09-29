@@ -28,14 +28,14 @@ describe("POST /api/debug/ingest", () => {
       const response = await ingest(context, role).send({ deviceId: DEVICE_ID });
 
       expect(response.status).toBe(403);
-      expect(response.body).toEqual({ error: "forbidden", requiredRoles: ["admin"] });
+      expect(response.body).toEqual({ error: "forbidden", requiredCapability: "debug:ingest" });
       expect(context.store.applyPayload).not.toHaveBeenCalled();
     },
   );
 
-  it("checks the role before the feature flag", async () => {
-    // requireRole runs as route middleware, ahead of the flag check in the
-    // handler, so a non-admin sees 403 rather than leaking that it is disabled.
+  it("checks the capability before the feature flag", async () => {
+    // requireCapability runs as route middleware, ahead of the flag check in the
+    // handler, so a caller without debug:ingest sees 403 rather than leaking that it is disabled.
     const context = createTestApp();
     const response = await ingest(context, "viewer").send({ deviceId: DEVICE_ID });
 
