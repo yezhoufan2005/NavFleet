@@ -220,7 +220,7 @@ export const createApp = ({
     app.use(prefix, captureRouteMount, buildFleetRouter(store));
     app.use(prefix, captureRouteMount, buildReportsRouter(store));
     app.use(prefix, captureRouteMount, buildAlertsRouter(store, persistence, auditService));
-    app.use(prefix, captureRouteMount, buildScenesRouter(store));
+    app.use(prefix, captureRouteMount, buildScenesRouter(store, auditService));
     app.use(prefix, captureRouteMount, buildCodebookRouter(store, auditService));
     app.use(prefix, captureRouteMount, buildDeviceConfigRouter(store, auditService));
     app.use(prefix, captureRouteMount, buildDebugRouter(store, config));

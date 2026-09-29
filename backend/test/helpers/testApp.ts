@@ -63,6 +63,8 @@ export interface StoreStub {
   writeVehicles: Mock<(raw: unknown) => Promise<DeviceConfig[]>>;
   listFormationConfigs: Mock<() => FormationConfig[]>;
   writeFormations: Mock<(raw: unknown) => Promise<FormationConfig[]>>;
+  writeScenes: Mock<(raw: unknown) => Promise<SceneMapDefinition[]>>;
+  writeSceneAsset: Mock<(sceneId: string, kind: string, buffer: Buffer) => Promise<string>>;
   getHistory: Mock<
     (deviceId: string, from?: string, to?: string, limit?: number) => Promise<unknown[]>
   >;
@@ -115,6 +117,8 @@ export const createStoreStub = (): StoreStub => ({
   writeVehicles: vi.fn(() => Promise.resolve([])),
   listFormationConfigs: vi.fn(() => []),
   writeFormations: vi.fn(() => Promise.resolve([])),
+  writeScenes: vi.fn(() => Promise.resolve([])),
+  writeSceneAsset: vi.fn(() => Promise.resolve("/scene-maps/s/image.svg")),
   getHistory: vi.fn(() => Promise.resolve([sampleHistoryPoint()])),
   getAlerts: vi.fn(() => Promise.resolve([sampleAlert()])),
   getAlertStats: vi.fn(() => Promise.resolve(sampleAlertStatsReport())),

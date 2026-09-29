@@ -263,3 +263,6 @@ export * from "./reports";
 // 车辆 / 编队配置文件的校验器（Phase 18 设备接入向导）——admin 经 API 写 vehicles.json /
 // formations.json 时先校验；客户端先校验、后端为权威（同 parseCodebook）。
 export * from "./fleetConfig";
+// scenes.json 校验（Phase 18 场景地图上传与管理）：几何 + 路径安全的 sceneId + 资源 URL 限定在
+// /scene-maps/ 下；overlayUrl/overlayType 由后端为 OSM 场景铸造，不从输入读取。
+export * from "./sceneConfig";

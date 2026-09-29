@@ -64,6 +64,9 @@ const ADMIN_ROUTES: Array<{ method: "get" | "post" | "patch" | "delete" | "put";
   { method: "put", path: "/api/vehicles" },
   { method: "get", path: "/api/formation-config" },
   { method: "put", path: "/api/formation-config" },
+  // 场景地图上传与管理 (Phase 18): scene reads stay viewer+, but the writes are admin-only.
+  { method: "put", path: "/api/scenes" },
+  { method: "put", path: `/api/scenes/${SCENE_ID}/asset/image` },
 ];
 
 const ALL_ROLES: UserRole[] = ["viewer", "operator", "admin"];
