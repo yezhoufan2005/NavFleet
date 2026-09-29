@@ -168,6 +168,13 @@ const setPage = (next: number): void => {
   });
 };
 
+// A filtered-down list can leave the page number past the end — the same correction 告警
+// makes (`AlertsView`). `pageRows` already clamps what it *shows*, but without this the URL
+// keeps a stale `page`: the pager highlights nothing, and clearing the filter jumps back to it.
+watch(pageCount, (count) => {
+  if (page.value > count) setPage(count);
+});
+
 /** Changing page size drops back to page 1 (offset would otherwise fall out of range). */
 const setPageSize = (next: string): void => {
   const size = Number(next);
