@@ -1,8 +1,20 @@
 import type { NextFunction, Request, Response } from "express";
 import { config } from "../config";
-import type { PublicUser, UserRecord } from "../types";
+import type { PublicUser, UserRecord, UserRole } from "../types";
 import { capabilitiesForRole, type Capability } from "@navfleet/shared";
 import { verifyToken } from "./tokens";
+
+/**
+ * Resolves a user's effective capabilities (1.6.1 RBAC). Takes only the fields the resolution
+ * needs — the username (group membership), the base role (preset), and the kiosk flag (kiosk
+ * accounts are never augmented by groups) — so both the JWT-derived identity and a full
+ * `UserRecord` satisfy it.
+ */
+export type CapabilityResolver = (user: {
+  username: string;
+  role: UserRole;
+  kiosk?: boolean;
+}) => readonly Capability[];
 
 declare module "express-serve-static-core" {
   interface Request {
@@ -60,8 +72,17 @@ const extractAccessToken = (request: Request): string => {
  * governed by `tokenVersion` alone, unchanged — so the upgrade forces no re-login.
  */
 export const createAuthenticate =
-  (lookupUser: UserLookup, isSessionActive?: SessionCheck) =>
+  (
+    lookupUser: UserLookup,
+    isSessionActive?: SessionCheck,
+    resolveCapabilities?: CapabilityResolver,
+  ) =>
   (request: Request, response: Response, next: NextFunction): void => {
+    // Effective-capability resolver. Defaults to the role preset alone (1.6.1 base); the app wires
+    // in a group-aware resolver (custom roles + user groups) so grants take effect on the next
+    // request without a re-login, mirroring the enabled/tokenVersion check already done here.
+    const resolve: CapabilityResolver =
+      resolveCapabilities ?? ((user) => capabilitiesForRole(user.role));
     if (!config.authEnabled) {
       request.user = { username: "anonymous", role: "admin" };
       request.capabilities = capabilitiesForRole("admin");
@@ -92,9 +113,14 @@ export const createAuthenticate =
         // lookup above only gates revocation (account gone / disabled / version bumped).
         request.user = { username: claims.sub, role: claims.role };
         request.sessionId = claims.sid;
-        // Effective capabilities for this request. For now the role preset alone; a role change
-        // already bumps tokenVersion (forcing re-login), so the token's role is current here.
-        request.capabilities = capabilitiesForRole(claims.role);
+        // Effective capabilities for this request (1.6.1): base role preset ∪ the user's groups'
+        // roles. Role + username come from the token (a role change bumps tokenVersion → re-login,
+        // so the token is authoritative here); kiosk comes from the reloaded record.
+        request.capabilities = resolve({
+          username: claims.sub,
+          role: claims.role,
+          kiosk: user.kiosk,
+        });
         next();
       })
       .catch(next);

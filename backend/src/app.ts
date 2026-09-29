@@ -6,12 +6,13 @@ import rateLimit from "express-rate-limit";
 import type { Persistence } from "./persistence";
 import type { DashboardStore } from "./store";
 import type { AuthService } from "./auth/service";
+import type { RbacService } from "./rbac/service";
 import type { AppConfig } from "./config";
 import type { RuntimeState } from "./runtimeState";
 import { runtimePaths } from "./config";
 import { createMetrics, captureRouteMount } from "./metrics";
 import { requestContext, requestLogger } from "./requestContext";
-import { createAuthenticate } from "./auth/middleware";
+import { createAuthenticate, type CapabilityResolver } from "./auth/middleware";
 import { buildAuthRouter } from "./auth/routes";
 import { buildOpsRouter, buildOpenApiRouter } from "./routes/ops";
 import { buildDocsRouter } from "./routes/docs";
@@ -24,6 +25,7 @@ import { buildDebugRouter } from "./routes/debug";
 import { buildUsersRouter } from "./routes/users";
 import { buildAuditRouter } from "./routes/audit";
 import { buildNotifyRouter } from "./routes/notify";
+import { buildRbacRouter } from "./routes/rbac";
 import { buildReportsRouter } from "./routes/reports";
 import type { AuditService } from "./audit/service";
 import type { NotifyService } from "./notify/service";
@@ -38,6 +40,7 @@ export interface AppDeps {
   store: DashboardStore;
   persistence: Persistence;
   authService: AuthService;
+  rbacService: RbacService;
   auditService: AuditService;
   notifyService: NotifyService;
   config: AppConfig;
@@ -59,6 +62,7 @@ export const createApp = ({
   store,
   persistence,
   authService,
+  rbacService,
   auditService,
   notifyService,
   config,
@@ -68,6 +72,10 @@ export const createApp = ({
   collectDefaultMetrics = false,
 }: AppDeps): express.Express => {
   const app = express();
+  // Group-aware effective-capability resolver (1.6.1 RBAC): base role preset ∪ the user's groups'
+  // custom-role capabilities. Threaded into both the auth router (login/refresh/me) and the global
+  // gate below so every capability check sees the same resolution.
+  const resolveCapabilities: CapabilityResolver = (user) => rbacService.resolveCapabilities(user);
   const metrics = createMetrics({
     store,
     persistence,
@@ -174,7 +182,12 @@ export const createApp = ({
     legacyHeaders: false,
     message: { error: "too_many_requests" },
   });
-  app.use("/api/auth", authLimiter, captureRouteMount, buildAuthRouter(authService, auditService));
+  app.use(
+    "/api/auth",
+    authLimiter,
+    captureRouteMount,
+    buildAuthRouter(authService, auditService, resolveCapabilities),
+  );
 
   // Everything below requires a valid session. The middleware verifies each token against
   // the stored user (enabled + tokenVersion) and, when the token names a session (Phase 15E),
@@ -184,6 +197,7 @@ export const createApp = ({
     createAuthenticate(
       (username) => authService.findByUsername(username),
       (username, sessionId) => authService.isSessionActive(username, sessionId),
+      resolveCapabilities,
     ),
   );
 
@@ -225,6 +239,7 @@ export const createApp = ({
     app.use(prefix, captureRouteMount, buildDeviceConfigRouter(store, auditService));
     app.use(prefix, captureRouteMount, buildDebugRouter(store, config));
     app.use(prefix, captureRouteMount, buildUsersRouter(authService, auditService));
+    app.use(prefix, captureRouteMount, buildRbacRouter(rbacService, auditService));
     app.use(prefix, captureRouteMount, buildAuditRouter(auditService));
     app.use(prefix, captureRouteMount, buildNotifyRouter(notifyService));
   }

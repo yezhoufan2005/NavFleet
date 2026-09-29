@@ -9,6 +9,8 @@ import { signAccessToken } from "../../src/auth/tokens";
 import type { AuthService, AdminActionResult, AuthResult } from "../../src/auth/service";
 import type { AuditService } from "../../src/audit/service";
 import type { NotifyService } from "../../src/notify/service";
+import { RbacService } from "../../src/rbac/service";
+import type { RbacGroup, RbacRole } from "@navfleet/shared";
 import type { Persistence } from "../../src/persistence";
 import type { DashboardStore } from "../../src/store";
 import { DEFAULT_REPORT_CODES } from "@navfleet/shared";
@@ -139,6 +141,8 @@ export interface PersistenceStub {
     (eventKey: string, ackedBy: string, comment: string | null, at: Date) => Promise<boolean>
   >;
   unackAlert: Mock<(eventKey: string) => Promise<boolean>>;
+  loadRbacState: Mock<() => Promise<{ roles: RbacRole[]; groups: RbacGroup[] }>>;
+  saveRbacState: Mock<(state: { roles: RbacRole[]; groups: RbacGroup[] }) => Promise<void>>;
 }
 
 export const createPersistenceStub = (): PersistenceStub => ({
@@ -149,6 +153,8 @@ export const createPersistenceStub = (): PersistenceStub => ({
   // Default to "no such active alert" (→ 404); the ack behaviour tests override to true.
   ackAlert: vi.fn(() => Promise.resolve(false)),
   unackAlert: vi.fn(() => Promise.resolve(false)),
+  loadRbacState: vi.fn(() => Promise.resolve({ roles: [], groups: [] })),
+  saveRbacState: vi.fn(() => Promise.resolve()),
 });
 
 export interface AuthServiceStub {
@@ -272,6 +278,7 @@ export interface TestAppOptions {
   store?: StoreStub;
   persistence?: PersistenceStub;
   authService?: AuthServiceStub;
+  rbacService?: RbacService;
   auditService?: AuditServiceStub;
   notifyService?: NotifyServiceStub;
   state?: RuntimeState;
@@ -301,6 +308,7 @@ export interface TestAppContext {
   store: StoreStub;
   persistence: PersistenceStub;
   authService: AuthServiceStub;
+  rbacService: RbacService;
   auditService: AuditServiceStub;
   notifyService: NotifyServiceStub;
   state: RuntimeState;
@@ -369,6 +377,10 @@ export const createTestApp = (options: TestAppOptions = {}): TestAppContext => {
   const store = options.store ?? createStoreStub();
   const persistence = options.persistence ?? createPersistenceStub();
   const authService = options.authService ?? createAuthServiceStub();
+  // A real RbacService over the (stub) persistence: init() is not called, so it starts with an
+  // empty cache (no custom roles/groups) — the resolver then returns the base role preset, keeping
+  // the RBAC matrix identical. RBAC-CRUD tests mutate this instance directly through the routes.
+  const rbacService = options.rbacService ?? new RbacService(persistence as unknown as Persistence);
   const auditService = options.auditService ?? createAuditServiceStub();
   const notifyService = options.notifyService ?? createNotifyServiceStub();
   const state = options.state ?? createRuntimeState();
@@ -383,6 +395,7 @@ export const createTestApp = (options: TestAppOptions = {}): TestAppContext => {
     store: store as unknown as DashboardStore,
     persistence: persistence as unknown as Persistence,
     authService: authService as unknown as AuthService,
+    rbacService,
     auditService: auditService as unknown as AuditService,
     notifyService: notifyService as unknown as NotifyService,
     config,
@@ -403,6 +416,7 @@ export const createTestApp = (options: TestAppOptions = {}): TestAppContext => {
     store,
     persistence,
     authService,
+    rbacService,
     auditService,
     notifyService,
     state,
