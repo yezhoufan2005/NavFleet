@@ -12,6 +12,7 @@
 #   scripts/verify-stack.sh --fresh      先删掉本脚本的 project 与卷，从空库重来
 #   scripts/verify-stack.sh --check-only 不碰 compose，只对已经在跑的栈跑断言
 #   scripts/verify-stack.sh --mqtt-tls   叠加 TLS broker（mqtts://8883），验证加密摄入链路
+#   scripts/verify-stack.sh --monitoring 叠加监控栈，断言三个 exporter 在 Prometheus 里 up
 #
 # 与另外两个脚本的分工：
 #   dev.sh    —— 开发用，不走 Docker，起 vite + tsx
@@ -36,6 +37,7 @@ DO_DOWN=0
 DO_FRESH=0
 CHECK_ONLY=0
 MQTT_TLS=0
+MONITORING=0
 while [[ $# -gt 0 ]]; do
   case "$1" in
     --down) DO_DOWN=1; shift ;;
@@ -43,9 +45,10 @@ while [[ $# -gt 0 ]]; do
     --fresh) DO_FRESH=1; shift ;;
     --check-only) CHECK_ONLY=1; shift ;;
     --mqtt-tls) MQTT_TLS=1; shift ;;
-    # 2,20 是上面那段注释的确切范围 —— 注释止于第 20 行，第 21 行是 `set -uo pipefail`。
+    --monitoring) MONITORING=1; shift ;;
+    # 2,21 是上面那段注释的确切范围 —— 注释止于第 21 行，第 22 行是 `set -uo pipefail`。
     # dev.sh 里踩过同一个off-by-one（--help 末尾多印一行代码），所以这里写死并核对过。
-    -h|--help) sed -n '2,20p' "$0"; exit 0 ;;
+    -h|--help) sed -n '2,21p' "$0"; exit 0 ;;
     *) echo "未知参数: $1"; exit 1 ;;
   esac
 done
@@ -90,6 +93,10 @@ COMPOSE_ARGS=(-f "$COMPOSE_FILE")
 if [[ "$MQTT_TLS" == "1" ]]; then
   COMPOSE_ARGS+=(-f "$ROOT/deploy/docker-compose.mqtt-tls.yml")
 fi
+if [[ "$MONITORING" == "1" ]]; then
+  COMPOSE_ARGS+=(-f "$ROOT/deploy/docker-compose.monitoring.yml")
+fi
+PROM_PORT="${PROMETHEUS_HOST_PORT:-9090}"
 
 # ---------------------------------------------------------------------------
 # 前置检查
@@ -120,6 +127,14 @@ if [[ "$MQTT_TLS" == "1" && "$CHECK_ONLY" == "0" ]]; then
     echo "生成 lab MQTT 证书（deploy/mosquitto/certs/）…"
     sh "$ROOT/deploy/tools/generate-mqtt-certs.sh" >/dev/null
   fi
+fi
+
+# --monitoring：叠加会因 `${VAR:?}` 在缺口令时直接让 up 失败，这里先给出可读的前置提示。
+if [[ "$MONITORING" == "1" ]]; then
+  [[ -n "$(deploy_var GRAFANA_ADMIN_PASSWORD)" ]] ||
+    { echo "deploy/.env 里没有 GRAFANA_ADMIN_PASSWORD，监控叠加会拒绝启动。"; exit 1; }
+  [[ -n "$(deploy_var MQTT_MONITOR_PASSWORD)" ]] ||
+    { echo "deploy/.env 里没有 MQTT_MONITOR_PASSWORD，mosquitto-exporter 无法连 broker。"; exit 1; }
 fi
 
 # ---------------------------------------------------------------------------
@@ -296,6 +311,29 @@ for route in / /devices /devices/agv-a01 /alerts /reports /admin /admin/system /
   [[ "$status" == "200" ]] && ok "控制台路由 ${route}" || bad "控制台路由 ${route} —— 期望 200 实得 ${status}"
 done
 eq "登出" 204 "$(code -b "$COOKIE" -X POST "$BASE/api/auth/logout")"
+
+# --- 监控 exporter（仅 --monitoring）------------------------------------
+# 三个容器侧 exporter 是叠加里另起的，Prometheus（绑 127.0.0.1:${PROM_PORT}）抓它们。
+# exporter 目标要一两个抓取周期（15s）才 up，所以每个 job 轮询等待。用 up{job=…} 而不是
+# exporter 内部指标名 —— up 是 Prometheus 为每个抓取目标合成的存活信号，最稳。
+if [[ "$MONITORING" == "1" ]]; then
+  echo
+  echo "断言（监控 exporter）:"
+  prom_up() {
+    curl -s "http://127.0.0.1:${PROM_PORT}/api/v1/query?query=up%7Bjob%3D%22$1%22%7D" |
+      python3 -c "import json,sys; r=json.load(sys.stdin).get('data',{}).get('result',[]); print(r[0]['value'][1] if r else 'none')" 2>/dev/null || echo none
+  }
+  eq "Prometheus 健康检查可达" 200 "$(code "http://127.0.0.1:${PROM_PORT}/-/healthy")"
+  for job in navfleet-backend mongodb mosquitto nginx; do
+    val=none
+    for _ in $(seq 1 15); do
+      val="$(prom_up "$job")"
+      [[ "$val" == "1" ]] && break
+      sleep 5
+    done
+    [[ "$val" == "1" ]] && ok "target ${job} 在 Prometheus 里 up" || bad "target ${job} 不 up（up=${val}）"
+  done
+fi
 
 # ---------------------------------------------------------------------------
 # 收口

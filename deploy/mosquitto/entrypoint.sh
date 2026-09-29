@@ -34,6 +34,15 @@ mkdir -p "$AUTH_DIR"
 mosquitto_passwd -c -b "$PASSWD_FILE" "$MQTT_SUBSCRIBER_USERNAME" "$MQTT_SUBSCRIBER_PASSWORD"
 mosquitto_passwd -b "$PASSWD_FILE" "$MQTT_PUBLISHER_USERNAME" "$MQTT_PUBLISHER_PASSWORD"
 
+# Optional read-only monitoring user for the $SYS-scraping exporter (mosquitto-exporter
+# in docker-compose.monitoring.yml). Added only when both vars are set — i.e. only
+# under the monitoring overlay — so a base broker without monitoring is byte-for-byte
+# unchanged. It can read $SYS/# and nothing else (see the ACL below).
+MONITOR_USER="${MQTT_MONITOR_USERNAME:-}"
+if [ -n "$MONITOR_USER" ] && [ -n "${MQTT_MONITOR_PASSWORD:-}" ]; then
+  mosquitto_passwd -b "$PASSWD_FILE" "$MONITOR_USER" "$MQTT_MONITOR_PASSWORD"
+fi
+
 # Least privilege in both directions: the backend only ever reads telemetry, and
 # a vehicle (or the demo publisher) only ever writes it. Neither can do the
 # other's job, so a leaked backend credential cannot inject fake telemetry and a
@@ -46,6 +55,16 @@ topic read $TOPIC_PATTERN
 user $MQTT_PUBLISHER_USERNAME
 topic write $TOPIC_PATTERN
 EOF
+
+# The monitor user reads broker statistics only. `\$SYS` is escaped so the shell
+# does not expand it — mosquitto needs the literal `$SYS/#` in the ACL.
+if [ -n "$MONITOR_USER" ]; then
+  cat >>"$ACL_FILE" <<EOF
+
+user $MONITOR_USER
+topic read \$SYS/#
+EOF
+fi
 
 # mosquitto refuses a group- or world-readable password file. Ownership matters
 # too: this script runs as root (the image declares no USER), while the broker
