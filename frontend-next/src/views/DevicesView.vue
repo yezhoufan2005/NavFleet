@@ -564,7 +564,7 @@ watch(
         page that sorted a long stamp into view widened that column and pushed 电量 sideways.
         With fixed widths the geometry is constant. `tabular-nums` stays as well, so a value
         that ticks every second (a fresh timestamp, a changing SOC) never jitters within its
-        own now-fixed cell; overflowing text in the flexible columns truncates rather than
+        own now-fixed cell; overflowing text in the 设备/编号/场景 columns truncates rather than
         wrapping.
       -->
       <table :class="[tableClasses.tableNumeric, 'table-fixed']">
@@ -581,15 +581,18 @@ watch(
         </caption>
         <!--
           Widths in render order: expand · 状态 · 设备 · 编号 · 场景 · 最近上报 · 电量.
-          设备 carries no width so it absorbs the slack and never clips a name at usual
-          widths; the rest are pinned. 最近上报 is sized for the longest localised stamp.
+          Every column is pinned (none is left width-less): a `w-full` fixed-layout table
+          distributes leftover width *proportionally* across the columns, so on a wide screen
+          they grow evenly — whereas an unsized column soaks up all the slack and blew 设备 far
+          from 编号. 设备/编号 stay tight to their content; 场景 (long scene names) carries the
+          most base so the slack lands there; 最近上报 fits the longest localised stamp.
         -->
         <colgroup>
           <col class="w-8" />
           <col class="w-24" />
-          <col />
-          <col class="w-32" />
-          <col class="w-40" />
+          <col class="w-36" />
+          <col class="w-28" />
+          <col class="w-44" />
           <col class="w-48" />
           <col class="w-20" />
         </colgroup>
