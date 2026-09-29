@@ -1,5 +1,41 @@
 # Changelog
 
+## [1.6.0](https://github.com/yezhoufan2005/NavFleet/compare/v1.5.0...v1.6.0) (2026-09-29)
+
+
+### Features
+
+* **ci:** 发布多平台镜像（arm64+amd64）+ 附 SBOM/provenance ([4595289](https://github.com/yezhoufan2005/NavFleet/commit/45952892973cd2c063c130bc703418d8cece3f11))
+* **ci:** 发布多平台镜像（arm64+amd64）+ 附 SBOM/provenance ([7f7b79f](https://github.com/yezhoufan2005/NavFleet/commit/7f7b79f99d9c9f03331a20b06e76034695ed34ba))
+* **observability:** Mongo 写入延迟直方图（Phase 18 收尾） ([0aac463](https://github.com/yezhoufan2005/NavFleet/commit/0aac46313bebe54a7e83ff35a81c710885a3ec7b))
+* **observability:** Mongo 写失败与 WS 广播背压指标（Phase 18） ([6f3df79](https://github.com/yezhoufan2005/NavFleet/commit/6f3df797d83655ad90e371257c83c8c79d435145))
+* **observability:** 补 Mongo 写入延迟直方图（Phase 18 运维盲区收尾） ([392b0c5](https://github.com/yezhoufan2005/NavFleet/commit/392b0c53276a7005562e7a002f3978cb74d0b93e))
+* **observability:** 补齐 Mongo 写失败与 WS 广播背压指标（Phase 18 运维盲区） ([3a30276](https://github.com/yezhoufan2005/NavFleet/commit/3a3027662c587650e0b60aaa3e873b3d32a0c4eb))
+* **onboarding:** 设备接入向导前端页（Phase 18 PR-2） ([7094ccd](https://github.com/yezhoufan2005/NavFleet/commit/7094ccd64450aa97204440f11320b9184608d7e9))
+* **onboarding:** 设备接入向导前端页（Phase 18 PR-2） ([ff3dbe5](https://github.com/yezhoufan2005/NavFleet/commit/ff3dbe52443b2bc6f3b6e84a83aaf64138d67009))
+* **onboarding:** 车辆/编队配置校验+写入 API（Phase 18 设备接入向导后端） ([d667caf](https://github.com/yezhoufan2005/NavFleet/commit/d667cafca1ec72e78b38c75d190adda700c95bca))
+* **onboarding:** 车辆/编队配置的校验 + 写入 API（Phase 18 设备接入向导后端） ([66d7c4d](https://github.com/yezhoufan2005/NavFleet/commit/66d7c4dae3431e1b7db769abeb12771d874ed46f))
+* **scenes:** 场景地图上传与管理前端页（Phase 18 PR-2） ([733a269](https://github.com/yezhoufan2005/NavFleet/commit/733a26982883813736f3bb553f5d1a6b9536d409))
+* **scenes:** 场景地图上传与管理前端页（Phase 18 PR-2） ([78cb2df](https://github.com/yezhoufan2005/NavFleet/commit/78cb2df3594bbcb99d2afd7386a10e249d6c1c3e))
+* **scenes:** 场景地图上传与管理后端（Phase 18 PR-1） ([67d8b94](https://github.com/yezhoufan2005/NavFleet/commit/67d8b940671997c3b53ce3434dddea7bfdad9280))
+* **scenes:** 场景地图上传与管理后端（Phase 18 PR-1） ([53c71b8](https://github.com/yezhoufan2005/NavFleet/commit/53c71b8ddf60430f72ed42329f103f863bd97d8e))
+
+
+### Bug Fixes
+
+* **backend:** 设备恢复上报即回在线 + notify_log TTL 协调 + flush 掉数计入 ([033191c](https://github.com/yezhoufan2005/NavFleet/commit/033191c121752aceabfa699a7c8aad9a0b65e59e))
+* **backend:** 设备恢复上报即回在线 + notify_log TTL 协调 + flush 掉数计入 ([0cd0128](https://github.com/yezhoufan2005/NavFleet/commit/0cd0128e267541bac5489d06341ce8ecc0bc7851))
+* **console:** 列表与提醒的四处界面细节 ([585d0ba](https://github.com/yezhoufan2005/NavFleet/commit/585d0baaeca2054fe8a75093b6ecff44155deb2e))
+* **console:** 列表与提醒的四处界面细节 ([bff4852](https://github.com/yezhoufan2005/NavFleet/commit/bff48524f10f255f8cd148506d47e24a0ceda4c2))
+* **console:** 批量确认失败只提示一次 + 设备列表分页越界回正 ([24977ec](https://github.com/yezhoufan2005/NavFleet/commit/24977ecc14893087e251c33c9b3b374e40b5167c))
+* **console:** 批量确认失败只提示一次 + 设备列表分页越界回正 ([10cb8b6](https://github.com/yezhoufan2005/NavFleet/commit/10cb8b6d9b14672b07d49fd22736b5ab8c62dfb2))
+* **console:** 设备列表各列改按比例分配，设备与编号不再拉开 ([516b4dd](https://github.com/yezhoufan2005/NavFleet/commit/516b4dd89fc200b3675aa29cf2b7655e18448d4f))
+* **console:** 设备列表改固定列宽，排序不再抖动列位置 ([54792bf](https://github.com/yezhoufan2005/NavFleet/commit/54792bfb461c96ab93c374d4a42b4e431d7fe8d4))
+* **console:** 设备列表改固定列宽，排序不再抖动列位置 ([598c676](https://github.com/yezhoufan2005/NavFleet/commit/598c676f95b1cf2fb6f3b85611b0b0bdc9fd04a5))
+* **fleet-core,shared:** 归一化的四处边界修正 ([eadbe5c](https://github.com/yezhoufan2005/NavFleet/commit/eadbe5cfddafa628d6192977dc2adbe468a80287))
+* **fleet-core,shared:** 归一化的四处边界修正 ([2620a03](https://github.com/yezhoufan2005/NavFleet/commit/2620a036834ff1007f0d440c14a84f91b37acfe8))
+* **scenes:** 修 CI 的 backend lint 报错 ([53ed883](https://github.com/yezhoufan2005/NavFleet/commit/53ed883a95943e1ed8d6d9dcf8d611cc46f1e03e))
+
 ## [1.5.0](https://github.com/yezhoufan2005/NavFleet/compare/v1.4.0...v1.5.0) (2026-09-20)
 
 
