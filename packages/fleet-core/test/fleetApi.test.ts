@@ -359,7 +359,7 @@ describe("fleetApi — RBAC roles & groups (1.6.1)", () => {
     const call = calls.at(-1);
     expect(call?.url).toBe("/api/v1/rbac/roles");
     expect(call?.init.method).toBe("POST");
-    expect(JSON.parse(String(call?.init.body))).toEqual({
+    expect(JSON.parse(call?.init.body as string)).toEqual({
       name: "Ops",
       capabilities: ["codebook:write"],
     });
@@ -386,7 +386,7 @@ describe("fleetApi — RBAC roles & groups (1.6.1)", () => {
     });
     const created = calls.at(-1);
     expect(created?.url).toBe("/api/v1/rbac/groups");
-    expect(JSON.parse(String(created?.init.body))).toEqual({
+    expect(JSON.parse(created?.init.body as string)).toEqual({
       name: "Shift",
       description: "夜班",
       roleIds: ["r1"],
