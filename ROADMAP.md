@@ -1829,11 +1829,15 @@ mapper（各自单测——一条 `$group` key 写错、median 取错元素、�
   notify 延迟同一模式）、**WS 广播背压**（`navfleet_ws_broadcast_slow_total`：慢消费端 send 缓冲堆积）；各配
   Prometheus 告警规则（15 条）。**剩**：mongo / mosquitto / nginx 的 exporter（Prometheus 现在只有 backend
   与自身两个 job）—— 属容器侧监控叠加、需 Docker 验证，单独一批。
-- [ ] 安全余项：~~`Permissions-Policy` 与其他 location 的安全头~~ ✅（抽出 `security-headers.conf`
+- [x] 安全余项：~~`Permissions-Policy` 与其他 location 的安全头~~ ✅（抽出 `security-headers.conf`
       片段，每个 location `include`，补 `Permissions-Policy`；`check-deploy-wiring` 加「include 的文件
       必须被挂载」一条守住）；~~mongo healthcheck 的口令传递方式与备份脚本不一致~~ ✅（2026-09-21：
       healthcheck 改用 `CMD-SHELL` + `$$MONGO_INITDB_ROOT_*`，由容器内 shell 在运行时展开，口令不再被
-      compose 插值进 `docker inspect` 的命令定义——与备份/恢复脚本一致）；**剩** MQTT over TLS
+      compose 插值进 `docker inspect` 的命令定义——与备份/恢复脚本一致）；~~MQTT over TLS~~ ✅（2026-09-29：
+      后端 `buildMqttTlsOptions` 按 URL 协议判 TLS、可选 `MQTT_CA_FILE` 信任私有 CA、`MQTT_TLS_REJECT_UNAUTHORIZED`
+      默认 true——纯函数单测覆盖；broker 侧 `mosquitto-tls.conf` 加 8883 TLS 监听器 + `docker-compose.mqtt-tls.yml`
+      叠加 + `generate-mqtt-certs.sh` 生 lab CA/服务端证书；`verify-stack.sh --mqtt-tls` 复用就绪 `mqtt:true`
+      作端到端证明。证书目录 gitignore，不进仓库）
 - [ ] i18n（v2 两次排除，若确有海外交付需求再启动）
 - [ ] axe `incomplete` 桶的人工审阅流程（半透明/渐变表面落进该桶而不产生违规，Phase 10 已确认
       这类缺陷 suite 抓不到）

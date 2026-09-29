@@ -1,0 +1,26 @@
+# MQTT-over-TLS overlay. Use alongside the base file:
+#
+#   sh deploy/tools/generate-mqtt-certs.sh            # once, for a lab CA + server cert
+#   docker compose --env-file deploy/.env \
+#     -f deploy/docker-compose.yml -f deploy/docker-compose.mqtt-tls.yml up -d
+#
+# It swaps mosquitto onto the TLS-enabled config (adds an 8883 listener) and points
+# the backend at it over mqtts://, trusting the CA that signed the broker cert.
+# An overlay rather than the default because TLS needs certificates provisioned
+# first, and the plaintext base must keep working for the local demo.
+services:
+  mosquitto:
+    volumes:
+      # Replaces the plaintext config by container path; adds the cert directory.
+      - ./mosquitto/mosquitto-tls.conf:/mosquitto/config/mosquitto.conf:ro
+      - ./mosquitto/certs:/mosquitto/certs:ro
+
+  backend:
+    environment:
+      # mqtts:// makes mqtt.js negotiate TLS; the CA below lets it trust a private
+      # or self-signed broker cert while keeping certificate verification on.
+      MQTT_URL: mqtts://mosquitto:8883
+      MQTT_CA_FILE: /mqtt-certs/ca.crt
+    volumes:
+      # Only the CA is needed client-side (not the server key). Mounted read-only.
+      - ./mosquitto/certs:/mqtt-certs:ro

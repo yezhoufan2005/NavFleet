@@ -11,6 +11,7 @@
 #   scripts/verify-stack.sh --no-mock    不推演示数据（断言里与数据量有关的几条会跳过）
 #   scripts/verify-stack.sh --fresh      先删掉本脚本的 project 与卷，从空库重来
 #   scripts/verify-stack.sh --check-only 不碰 compose，只对已经在跑的栈跑断言
+#   scripts/verify-stack.sh --mqtt-tls   叠加 TLS broker（mqtts://8883），验证加密摄入链路
 #
 # 与另外两个脚本的分工：
 #   dev.sh    —— 开发用，不走 Docker，起 vite + tsx
@@ -34,15 +35,17 @@ DO_MOCK=1
 DO_DOWN=0
 DO_FRESH=0
 CHECK_ONLY=0
+MQTT_TLS=0
 while [[ $# -gt 0 ]]; do
   case "$1" in
     --down) DO_DOWN=1; shift ;;
     --no-mock) DO_MOCK=0; shift ;;
     --fresh) DO_FRESH=1; shift ;;
     --check-only) CHECK_ONLY=1; shift ;;
-    # 2,19 是上面那段注释的确切范围 —— 注释止于第 19 行，第 20 行是 `set -uo pipefail`。
+    --mqtt-tls) MQTT_TLS=1; shift ;;
+    # 2,20 是上面那段注释的确切范围 —— 注释止于第 20 行，第 21 行是 `set -uo pipefail`。
     # dev.sh 里踩过同一个off-by-one（--help 末尾多印一行代码），所以这里写死并核对过。
-    -h|--help) sed -n '2,19p' "$0"; exit 0 ;;
+    -h|--help) sed -n '2,20p' "$0"; exit 0 ;;
     *) echo "未知参数: $1"; exit 1 ;;
   esac
 done
@@ -77,8 +80,16 @@ body() { curl -s "$@"; }
 deploy_var() { [[ -f "$ENV_FILE" ]] && sed -n "s/^$1=//p" "$ENV_FILE" | tail -1; }
 
 compose() {
-  docker compose --env-file "$ENV_FILE" -p "$PROJECT" -f "$COMPOSE_FILE" "$@"
+  docker compose --env-file "$ENV_FILE" -p "$PROJECT" "${COMPOSE_ARGS[@]}" "$@"
 }
+
+# Base file always; the TLS overlay is appended under --mqtt-tls. An array so the
+# `-f a -f b` argument pair is passed verbatim (a single string would word-split
+# wrong on the paths).
+COMPOSE_ARGS=(-f "$COMPOSE_FILE")
+if [[ "$MQTT_TLS" == "1" ]]; then
+  COMPOSE_ARGS+=(-f "$ROOT/deploy/docker-compose.mqtt-tls.yml")
+fi
 
 # ---------------------------------------------------------------------------
 # 前置检查
@@ -101,6 +112,15 @@ ADMIN_PASS="$(deploy_var ADMIN_PASSWORD)"
 # 那段代码已经删掉了 —— **compose 直接钉 mongo:7.0 了**（理由见 deployment.md 3.1：本项目一行
 # 代码都不需要 8.0，而 8.0 换来的只是「更新」，代价是一整类宿主起不来）。一个不再需要的
 # 变通比它解决的问题更容易误导人。
+
+# --mqtt-tls：确保 broker 证书就位（缺就用 lab 脚本现生成一套自签的）。overlay 把
+# ./mosquitto/certs 挂进 broker 与 backend，缺文件 docker 会静默建空目录、握手必失败。
+if [[ "$MQTT_TLS" == "1" && "$CHECK_ONLY" == "0" ]]; then
+  if [[ ! -f "$ROOT/deploy/mosquitto/certs/server.crt" ]]; then
+    echo "生成 lab MQTT 证书（deploy/mosquitto/certs/）…"
+    sh "$ROOT/deploy/tools/generate-mqtt-certs.sh" >/dev/null
+  fi
+fi
 
 # ---------------------------------------------------------------------------
 # 起栈
@@ -152,6 +172,16 @@ has "就绪探针 degraded=false"    '"degraded":false' "$READY"
 has "依赖 store 已就绪"          '"store":true'     "$READY"
 has "依赖 mongo 已连接"          '"mongo":true'     "$READY"
 has "依赖 mqtt 已连接"           '"mqtt":true'      "$READY"
+
+# --- MQTT over TLS（仅 --mqtt-tls）---------------------------------------
+# 上面那条 `mqtt:true` 在 TLS 叠加下就是端到端证明：backend 连的是 mqtts://mosquitto:8883，
+# 就绪 = TLS 握手 + CA 校验 + 账号鉴权全过。再补一条 broker 侧：日志里出现 8883 监听
+# 才说明 TLS 监听器真的起来了（而不是仅 1883）。
+if [[ "$MQTT_TLS" == "1" ]]; then
+  MOSQ_LOG="$(compose logs mosquitto 2>/dev/null)"
+  has "broker 起了 8883 TLS 监听器" 'port 8883' "$MOSQ_LOG"
+  has "backend 经 mqtts 连上（就绪即证明）" '"mqtt":true' "$READY"
+fi
 
 # --- 鉴权边界：未登录一律 401 --------------------------------------------
 for path in /api/fleet/snapshot /api/v1/alerts /api/scenes /openapi.json /docs /scene-maps/; do

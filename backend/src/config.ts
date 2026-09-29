@@ -128,6 +128,15 @@ const configSchema = z.object({
   MQTT_URL: envStr("mqtt://127.0.0.1:1883"),
   MQTT_USERNAME: envStr(""),
   MQTT_PASSWORD: envStr(""),
+  // MQTT over TLS: only consulted when MQTT_URL is a TLS scheme (mqtts:// / tls://
+  // / wss://). MQTT_CA_FILE points at a PEM the client should trust in addition to
+  // the system store — set it when the broker uses a private / self-signed CA, so
+  // the default `rejectUnauthorized: true` still holds. Leaving it empty with a
+  // public-CA broker just uses the system trust store. MQTT_TLS_REJECT_UNAUTHORIZED
+  // is an escape hatch for a lab with an untrusted cert; it defaults to true and
+  // should stay true anywhere real.
+  MQTT_CA_FILE: envStr(""),
+  MQTT_TLS_REJECT_UNAUTHORIZED: envBool(true),
   MQTT_CLIENT_ID: z
     .string()
     .optional()
@@ -231,6 +240,8 @@ export const parseConfig = (env: NodeJS.ProcessEnv) => {
     mqttUrl: e.MQTT_URL,
     mqttUsername: e.MQTT_USERNAME,
     mqttPassword: e.MQTT_PASSWORD,
+    mqttCaFile: e.MQTT_CA_FILE,
+    mqttTlsRejectUnauthorized: e.MQTT_TLS_REJECT_UNAUTHORIZED,
     mqttClientId: e.MQTT_CLIENT_ID,
     mongoUri: e.MONGO_URI,
     mongoDbName: e.MONGO_DB_NAME,
