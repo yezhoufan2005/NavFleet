@@ -406,6 +406,79 @@ describe("场景", () => {
 
     expect(wrapper.text()).toContain("HTTP 503");
   });
+
+  // ── 场景管理写入（Phase 18） ────────────────────────────────────────────────
+  // Reka dialogs teleport to <body>, so the create/edit form and the confirm dialog are
+  // queried there rather than through the wrapper (same as onboarding.test.ts).
+  const setInput = (el: HTMLInputElement, value: string): void => {
+    el.value = value;
+    el.dispatchEvent(new Event("input"));
+  };
+
+  it("新增场景：填几何后保存，把整份场景数组写回", async () => {
+    stubResources();
+    const put = vi
+      .spyOn(fleetApi, "putScenes")
+      .mockResolvedValue({ items: [] });
+    const wrapper = await mountScenes([scene({ sceneId: "yard" })]);
+
+    await wrapper
+      .findAll("button")
+      .find((b) => b.text() === "新增场景")!
+      .trigger("click");
+    const inputs = [
+      ...document.body.querySelectorAll<HTMLInputElement>("input[type='text']"),
+    ];
+    setInput(inputs[0]!, "new-scene"); // sceneId
+    setInput(inputs[4]!, "800"); // width
+    setInput(inputs[5]!, "600"); // height
+    document.body.querySelector("form")!.dispatchEvent(new Event("submit"));
+    await flushPromises();
+
+    expect(put).toHaveBeenCalled();
+    const arg = put.mock.calls.at(-1)![0];
+    expect(arg.some((s) => s.sceneId === "new-scene")).toBe(true);
+  });
+
+  it("空场景 ID 被前端拦下，不发写请求", async () => {
+    stubResources();
+    const put = vi
+      .spyOn(fleetApi, "putScenes")
+      .mockResolvedValue({ items: [] });
+    const wrapper = await mountScenes([scene({ sceneId: "yard" })]);
+
+    await wrapper
+      .findAll("button")
+      .find((b) => b.text() === "新增场景")!
+      .trigger("click");
+    document.body.querySelector("form")!.dispatchEvent(new Event("submit"));
+    await flushPromises();
+
+    expect(put).not.toHaveBeenCalled();
+  });
+
+  it("删除场景：确认后写回过滤掉它的数组", async () => {
+    stubResources();
+    const put = vi
+      .spyOn(fleetApi, "putScenes")
+      .mockResolvedValue({ items: [] });
+    const wrapper = await mountScenes([scene({ sceneId: "yard" })]);
+
+    await wrapper
+      .findAll("button")
+      .find((b) => b.text() === "删除")!
+      .trigger("click");
+    const confirmButton = [...document.body.querySelectorAll("button")].find(
+      (b) => b.textContent?.trim() === "删除",
+    );
+    confirmButton!.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+    await flushPromises();
+
+    expect(put).toHaveBeenCalled();
+    expect(put.mock.calls.at(-1)![0].some((s) => s.sceneId === "yard")).toBe(
+      false,
+    );
+  });
 });
 
 describe("管理落地页", () => {

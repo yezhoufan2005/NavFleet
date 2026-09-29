@@ -296,3 +296,46 @@ describe("设备接入向导 config (Phase 18)", () => {
     });
   });
 });
+
+describe("场景地图管理 (Phase 18)", () => {
+  it("PUTs the whole scenes array in a keyed body", async () => {
+    stubFetch(200, { items: [] });
+    await fleetApi.putScenes([
+      {
+        sceneId: "yard",
+        sceneName: "堆场",
+        mapFrame: "map",
+        resolution: 0.05,
+        origin: { x: 0, y: 0, yaw: 0 },
+        width: 800,
+        height: 600,
+      },
+    ]);
+    expect(calls.at(-1)?.url).toBe("/api/v1/scenes");
+    expect(calls.at(-1)?.init.method).toBe("PUT");
+    expect(JSON.parse(calls.at(-1)?.init.body as string)).toMatchObject({
+      scenes: [{ sceneId: "yard", width: 800 }],
+    });
+  });
+
+  it("uploads a backdrop as a raw PUT body and returns the URL", async () => {
+    stubFetch(200, { url: "/scene-maps/yard/image.svg" });
+    const file = new Blob(["<svg></svg>"], { type: "image/svg+xml" });
+    await expect(
+      fleetApi.uploadSceneAsset("yard", "image", file),
+    ).resolves.toEqual({
+      url: "/scene-maps/yard/image.svg",
+    });
+    expect(calls.at(-1)?.url).toBe("/api/v1/scenes/yard/asset/image");
+    expect(calls.at(-1)?.init.method).toBe("PUT");
+    // Raw body: the Blob itself, not a JSON string.
+    expect(calls.at(-1)?.init.body).toBe(file);
+    expect(calls.at(-1)?.init.credentials).toBe("include");
+  });
+
+  it("percent-encodes the sceneId in the upload path", async () => {
+    stubFetch(200, { url: "/scene-maps/a/image.svg" });
+    await fleetApi.uploadSceneAsset("a b", "image", new Blob(["x"]));
+    expect(calls.at(-1)?.url).toBe("/api/v1/scenes/a%20b/asset/image");
+  });
+});
