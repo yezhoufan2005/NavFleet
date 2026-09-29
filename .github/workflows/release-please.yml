@@ -38,6 +38,13 @@ jobs:
     permissions:
       contents: read
       packages: write
+      # publish-images signs the image index with cosign keyless, which needs an
+      # OIDC token. A reusable workflow (workflow_call) can never be granted MORE
+      # than its caller, so id-token: write MUST be set here too — omit it and the
+      # whole run fails at startup ("requesting 'id-token: write', but is only
+      # allowed 'id-token: none'"), which is exactly what stopped the v1.6.0
+      # release from cutting its tag / Release / images.
+      id-token: write
     uses: ./.github/workflows/publish-images.yml
     with:
       tag: ${{ needs.release-please.outputs.tag_name }}
