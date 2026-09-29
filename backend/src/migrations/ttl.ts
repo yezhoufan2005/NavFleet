@@ -63,6 +63,22 @@ export const reconcileTtls = async (db: Db, ttl: TtlConfig, logger: Logger): Pro
       "Reconciled audit_log TTL to configured retention",
     );
   }
+
+  // notify_log shares the alerts retention window (a send record is only meaningful next to the
+  // alert that triggered it) and its TTL was, like the others, only set in the create branch —
+  // so a changed ALERTS_RETENTION_SECONDS reconciled `alerts` but silently left `notify_log`
+  // behind. The TTL is on the dedicated `expireAt` Date, i.e. the `expireAt_1` index.
+  const notifyCurrent = await ttlIndexExpireSeconds(db, "notify_log", "expireAt_1");
+  if (notifyCurrent !== null && notifyCurrent !== ttl.alertsRetentionSeconds) {
+    await db.command({
+      collMod: "notify_log",
+      index: { keyPattern: { expireAt: 1 }, expireAfterSeconds: ttl.alertsRetentionSeconds },
+    });
+    logger.info(
+      { from: notifyCurrent, to: ttl.alertsRetentionSeconds },
+      "Reconciled notify_log TTL to configured retention",
+    );
+  }
 };
 
 /** The `expireAfterSeconds` set on the `telemetry_ts` timeseries collection, or null if absent/unset. */

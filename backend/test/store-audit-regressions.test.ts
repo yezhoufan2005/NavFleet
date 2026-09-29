@@ -115,6 +115,42 @@ describe("status frames: every shape mqttStatusSchema admits", () => {
   });
 });
 
+describe("a device the offline monitor marked offline comes back on the next telemetry frame", () => {
+  // A real vehicle_info frame carries no `online` field — the whole offline design infers
+  // liveness from `stamp` freshness — so telemetry resuming must clear the offline state the
+  // silence monitor set. Before the fix, normalize inherited the stale `online:false`, leaving a
+  // device that was actively reporting stuck offline (and re-raising its offline alert every
+  // frame) until it was evicted.
+  const vehicleInfo = (deviceId: string, stamp: string): Record<string, unknown> => ({
+    deviceId,
+    stamp,
+    vehicle_info: { soc: 80, speed: 1 },
+    fusion_loc: { x: 1, y: 2, yaw: 0 },
+  });
+  const offlineAlertPresent = (store: DashboardStore, deviceId: string): boolean =>
+    (store.snapshot().devices.find((device) => device.deviceId === deviceId)?.alerts ?? []).some(
+      (alert) => alert.id === `${deviceId}-offline`,
+    );
+
+  it("resets online:true (and clears the offline alert) without needing an explicit status frame", async () => {
+    const { store } = createStore(["agv-1"]);
+    // Present and online, but already older than the 60s silence window.
+    const stale = new Date(Date.now() - 120_000).toISOString();
+    await store.applyPayload({ ...vehicleInfo("agv-1", stale), online: true }, "seed");
+    expect(onlineOf(store, "agv-1")).toBe(true);
+
+    // The silence-based monitor marks it offline and raises the offline alert.
+    await store.evaluateOfflineDevices();
+    expect(onlineOf(store, "agv-1")).toBe(false);
+    expect(offlineAlertPresent(store, "agv-1")).toBe(true);
+
+    // A fresh vehicle_info frame (no `online` field) must bring it back.
+    await store.applyPayload(vehicleInfo("agv-1", new Date().toISOString()), "mqtt");
+    expect(onlineOf(store, "agv-1")).toBe(true);
+    expect(offlineAlertPresent(store, "agv-1")).toBe(false);
+  });
+});
+
 describe("MAX_DEVICES applies within a single payload", () => {
   const originalMax = config.maxDevices;
   afterEach(() => {

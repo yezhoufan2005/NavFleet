@@ -357,7 +357,14 @@ export const normalizeDevice = (
       deviceId,
     ),
     topic: topic || existingDevice?.topic || `/fleet/${deviceId}/vehicle_info`,
-    online: typeof raw.online === "boolean" ? raw.online : (existingDevice?.online ?? true),
+    // A frame arriving at all is liveness: unless it says otherwise, the device is online.
+    // Inheriting a stale `false` here left a device that had resumed reporting stuck offline —
+    // the silence-based offline monitor only ever *sets* `online:false` (never clears it), so a
+    // fresh telemetry frame is the only signal that can bring it back, and it carries no `online`
+    // field. Defaulting to `true` is the symmetric counterpart to "silence ⇒ offline". A restored
+    // snapshot carries an explicit boolean `online`, and a status frame is normalised with one
+    // too (`parseOnline`), so both take the first branch and are unaffected by this default.
+    online: typeof raw.online === "boolean" ? raw.online : true,
     stamp,
     sceneId: runtimeSceneId || existingDevice?.sceneId || "",
     runtimeSceneId,
