@@ -603,6 +603,11 @@ DRILL PASSED: 4 collection(s) restored, none empty.
 `publish-images.yml`，把 `navfleet-backend` 与 `navfleet-console` 推到
 `ghcr.io/<owner>/`，标签为 `<x.y.z>`、`<x.y>`、`latest` 与短 sha。
 
+镜像是**多平台**的（`linux/amd64` + `linux/arm64`，一个 image index，`docker pull` 按宿主机自动选），
+并附带每平台的 **SBOM + provenance** 证明（buildx 生成、随镜像存进 GHCR 的 OCI referrers），供供应链审计
+回答「镜像里装了什么」。**证明尚未签名**：签名需要先配 cosign 密钥或开 OIDC 信任，属单独一步，等密钥就绪再补。
+Dockerfile 改动会触发 `image-smoke.yml` 在 PR 上做一次 **arm64 build-only（不推送）**，把跨架构构建的失败挡在发版之前。
+
 **`navfleet-frontend` 不再发布，停在 1.0.x。** 它装的是 v1.0.0 那套控制台，而 1.1.0 起
 部署的是 v3；继续用同一个名字推 1.1.0 会让 registry 里的标签说谎 —— 名字承诺的是这一版
 的界面，内容是上一版的。回滚不依赖 registry：回滚 overlay 从源码本地构建（见 9.6）。

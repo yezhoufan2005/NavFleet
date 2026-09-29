@@ -59,6 +59,11 @@ jobs:
         with:
           ref: ${{ inputs.tag }}
 
+      # QEMU is what lets the amd64 runner emulate arm64 for the second platform below.
+      # The node/nginx base images are already multi-arch, and the builds are plain JS (no
+      # native compilation beyond esbuild/rollup, which ship arm64-musl prebuilds), so the
+      # emulated arm64 build is slower but not fragile.
+      - uses: docker/setup-qemu-action@v3
       - uses: docker/setup-buildx-action@v4
 
       - name: Log in to GHCR
@@ -88,8 +93,17 @@ jobs:
           context: .
           file: ${{ matrix.dockerfile }}
           push: true
+          # amd64 as before, plus arm64 for Apple-silicon / Graviton hosts. buildx pushes a
+          # single multi-arch image index; `docker pull` picks the right one per host.
+          platforms: linux/amd64,linux/arm64
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
+          # An SBOM + provenance attestation is generated per platform and attached to the image
+          # in GHCR (buildx / OCI referrers). It answers "what is inside this image" for a supply
+          # -chain audit without unpacking it. Signing the attestation is deferred until a cosign
+          # key (or OIDC trust) is provisioned — that is a separate, secret-bearing step.
+          sbom: true
+          provenance: mode=max
           # AMap key is a build-time (Vite) value; the console image works
           # without it (the GPS panel shows a config notice instead of a map).
           # Provide repo secrets to bake one in.
