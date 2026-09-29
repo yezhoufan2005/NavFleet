@@ -479,6 +479,77 @@ describe("场景", () => {
       false,
     );
   });
+
+  it("编辑场景：预填字段，改名后写回该场景", async () => {
+    stubResources();
+    const put = vi
+      .spyOn(fleetApi, "putScenes")
+      .mockResolvedValue({ items: [] });
+    const wrapper = await mountScenes([
+      scene({ sceneId: "yard", sceneName: "北区堆场" }),
+    ]);
+
+    await wrapper
+      .findAll("button")
+      .find((b) => b.text() === "编辑")!
+      .trigger("click");
+    // 名称输入框已用现有值预填。
+    const nameInput = [
+      ...document.body.querySelectorAll<HTMLInputElement>("input[type='text']"),
+    ].find((el) => el.value === "北区堆场");
+    expect(nameInput).toBeTruthy();
+    nameInput!.value = "北区堆场（改）";
+    nameInput!.dispatchEvent(new Event("input"));
+    document.body.querySelector("form")!.dispatchEvent(new Event("submit"));
+    await flushPromises();
+
+    expect(put).toHaveBeenCalled();
+    const saved = put.mock.calls.at(-1)![0].find((s) => s.sceneId === "yard");
+    expect(saved?.sceneName).toBe("北区堆场（改）");
+  });
+
+  it("选了底图文件：先上传拿 URL，再把它写进该场景条目", async () => {
+    stubResources();
+    const upload = vi
+      .spyOn(fleetApi, "uploadSceneAsset")
+      .mockResolvedValue({ url: "/scene-maps/new-scene/image.svg" });
+    const put = vi
+      .spyOn(fleetApi, "putScenes")
+      .mockResolvedValue({ items: [] });
+    const wrapper = await mountScenes([scene({ sceneId: "yard" })]);
+
+    await wrapper
+      .findAll("button")
+      .find((b) => b.text() === "新增场景")!
+      .trigger("click");
+    const inputs = [
+      ...document.body.querySelectorAll<HTMLInputElement>("input[type='text']"),
+    ];
+    const set = (el: HTMLInputElement, v: string) => {
+      el.value = v;
+      el.dispatchEvent(new Event("input"));
+    };
+    set(inputs[0]!, "new-scene");
+    set(inputs[4]!, "800");
+    set(inputs[5]!, "600");
+    // Attach a file to the (uncontrolled) file input, then fire change.
+    const fileInput =
+      document.body.querySelector<HTMLInputElement>("input[type='file']")!;
+    const file = new File(["<svg/>"], "map.svg", { type: "image/svg+xml" });
+    Object.defineProperty(fileInput, "files", {
+      value: [file],
+      configurable: true,
+    });
+    fileInput.dispatchEvent(new Event("change"));
+    document.body.querySelector("form")!.dispatchEvent(new Event("submit"));
+    await flushPromises();
+
+    expect(upload).toHaveBeenCalledWith("new-scene", "image", file);
+    const saved = put.mock.calls
+      .at(-1)![0]
+      .find((s) => s.sceneId === "new-scene");
+    expect(saved?.imageUrl).toBe("/scene-maps/new-scene/image.svg");
+  });
 });
 
 describe("管理落地页", () => {
