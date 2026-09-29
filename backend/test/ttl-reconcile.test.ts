@@ -18,6 +18,7 @@ const createFakeDb = (opts: {
   telemetryExpire?: number | null;
   alertsExpire?: number | null;
   auditExpire?: number | null;
+  notifyExpire?: number | null;
 }): { db: Db; commands: CommandCall[] } => {
   const commands: CommandCall[] = [];
   const db = {
@@ -36,6 +37,13 @@ const createFakeDb = (opts: {
             opts.auditExpire === null || opts.auditExpire === undefined
               ? [{ name: "_id_" }]
               : [{ name: "_id_" }, { name: "ts_-1", expireAfterSeconds: opts.auditExpire }],
+          );
+        }
+        if (name === "notify_log") {
+          return Promise.resolve(
+            opts.notifyExpire === null || opts.notifyExpire === undefined
+              ? [{ name: "_id_" }]
+              : [{ name: "_id_" }, { name: "expireAt_1", expireAfterSeconds: opts.notifyExpire }],
           );
         }
         return Promise.resolve(
@@ -105,6 +113,33 @@ describe("reconcileTtls", () => {
         },
       },
     ]);
+  });
+
+  it("notify_log 的 TTL 漂了 → 用 collMod 改 expireAt_1 索引（用 alerts 的保留期）", async () => {
+    const { db, commands } = createFakeDb({
+      telemetryExpire: 100,
+      alertsExpire: 200,
+      notifyExpire: 7,
+    });
+    await reconcileTtls(db, ttl, log);
+    expect(commands).toEqual([
+      {
+        spec: {
+          collMod: "notify_log",
+          index: { keyPattern: { expireAt: 1 }, expireAfterSeconds: 200 },
+        },
+      },
+    ]);
+  });
+
+  it("notify_log 的 TTL 已经和 alerts 保留期一致时不发 collMod", async () => {
+    const { db, commands } = createFakeDb({
+      telemetryExpire: 100,
+      alertsExpire: 200,
+      notifyExpire: 200,
+    });
+    await reconcileTtls(db, ttl, log);
+    expect(commands).toEqual([]);
   });
 
   it("集合还不存在（新库刚建好前）时两者都跳过", async () => {

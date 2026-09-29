@@ -987,10 +987,24 @@ export class Persistence {
     } catch (error) {
       this.mongoWriteFailures += 1;
       logger.warn({ err: error }, "Failed to flush buffered telemetry");
-      this.pendingTelemetry = [
-        ...copy.slice(-config.mongoBufferLimit),
-        ...this.pendingTelemetry,
-      ].slice(-config.mongoBufferLimit);
+      // Re-queue the failed batch (older) ahead of anything that arrived during the await
+      // (newer), then cap to the newest `mongoBufferLimit`. Count what the cap forces out, the
+      // same way `bufferTelemetry` does — otherwise a flush that keeps failing while new frames
+      // pile up drops the oldest silently and `navfleet_mongo_buffer_dropped_total` underreports.
+      const requeued = [...copy, ...this.pendingTelemetry];
+      const overflow = requeued.length - config.mongoBufferLimit;
+      if (overflow > 0) {
+        this.droppedTelemetry += overflow;
+        logger.warn(
+          {
+            dropped: overflow,
+            droppedTotal: this.droppedTelemetry,
+            limit: config.mongoBufferLimit,
+          },
+          "Telemetry buffer full after a failed flush; dropped the oldest documents",
+        );
+      }
+      this.pendingTelemetry = requeued.slice(-config.mongoBufferLimit);
     }
   }
 
