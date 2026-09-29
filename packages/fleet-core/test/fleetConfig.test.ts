@@ -33,6 +33,13 @@ describe("parseVehicles", () => {
     ]);
   });
 
+  it("treats a whitespace-only deviceName as empty and defaults it to the id", () => {
+    // `optionalString` used to only test `=== ""`, so a "   " name survived instead of
+    // defaulting to the id, leaving a blank-looking label.
+    const [vehicle] = parseVehicles([{ deviceId: "agv-1", deviceName: "   " }]);
+    expect(vehicle?.deviceName).toBe("agv-1");
+  });
+
   it("rejects a non-array, a missing/empty deviceId, a duplicate, and a bad field type", () => {
     expect(() => parseVehicles({})).toThrow(/must be a JSON array/);
     expect(() => parseVehicles([{ deviceId: "" }])).toThrow(
