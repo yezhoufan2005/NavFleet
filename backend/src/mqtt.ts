@@ -1,4 +1,5 @@
 import mqtt from "mqtt";
+import { readFileSync } from "node:fs";
 import type { ZodError } from "zod";
 import type { AppConfig } from "./config";
 import type { DashboardStore } from "./store";
@@ -10,6 +11,43 @@ import { logger } from "./logger";
 // `mqtt://user:pass@host:1883` into `mqtt://host:1883`. MQTT_URL can embed a password, and
 // logging it raw would put it in plaintext — the same leak `mongoUri` already avoids.
 import { redactMongoUri as redactUrlCredentials } from "./mongoConnection";
+
+// mqtt.js infers "use TLS" from the URL scheme, not from the options — these are the
+// schemes for which passing `ca` / `rejectUnauthorized` actually does anything.
+const TLS_URL = /^(mqtts|tls|ssl|wss|mqtt\+ssl):/i;
+
+export interface MqttTlsOptions {
+  ca?: Buffer;
+  rejectUnauthorized?: boolean;
+}
+
+/**
+ * Build the TLS-related connect options from config. Pure and injectable (the file
+ * reader is a parameter) so the CA-loading and scheme-gating logic can be unit
+ * tested without a broker or a real file. Returns `{}` for a plaintext URL, so a
+ * stray `MQTT_CA_FILE` on a `mqtt://` deployment is a no-op rather than a surprise.
+ */
+export const buildMqttTlsOptions = (
+  config: Pick<AppConfig, "mqttUrl" | "mqttCaFile" | "mqttTlsRejectUnauthorized">,
+  readFile: (path: string) => Buffer = readFileSync,
+): MqttTlsOptions => {
+  if (!TLS_URL.test(config.mqttUrl)) return {};
+  const options: MqttTlsOptions = { rejectUnauthorized: config.mqttTlsRejectUnauthorized };
+  if (config.mqttCaFile) {
+    try {
+      options.ca = readFile(config.mqttCaFile);
+    } catch (error) {
+      // Fail fast and legibly: a TLS URL with an unreadable CA is a misconfiguration,
+      // and silently dropping the CA would fall back to the system store and then
+      // reject the broker's private cert with a far more cryptic error at connect.
+      throw new Error(
+        `MQTT_CA_FILE could not be read (${config.mqttCaFile}): ${(error as Error).message}`,
+        { cause: error },
+      );
+    }
+  }
+  return options;
+};
 
 const safeJsonParse = (value: string): unknown => {
   try {
@@ -48,6 +86,9 @@ export const connectMqtt = ({ store, topicScheme, config, state }: MqttDeps): mq
     username: config.mqttUsername || undefined,
     password: config.mqttPassword || undefined,
     reconnectPeriod: 5000,
+    // Spreads to nothing for a plaintext URL, so this line is inert unless MQTT_URL
+    // is a TLS scheme. See buildMqttTlsOptions.
+    ...buildMqttTlsOptions(config),
   });
 
   client.on("connect", () => {

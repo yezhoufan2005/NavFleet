@@ -93,6 +93,11 @@ services:
       MQTT_URL: ${MQTT_URL:-mqtt://mosquitto:1883}
       MQTT_USERNAME: ${MQTT_SUBSCRIBER_USERNAME:-navfleet-backend}
       MQTT_PASSWORD: ${MQTT_SUBSCRIBER_PASSWORD:?MQTT_SUBSCRIBER_PASSWORD is required (the broker no longer allows anonymous clients)}
+      # TLS to the broker is opt-in via docker-compose.mqtt-tls.yml (which sets a
+      # mqtts:// URL and a CA path). Passed through here so the same knobs work
+      # without the overlay too, e.g. an external TLS broker reachable by URL alone.
+      MQTT_CA_FILE: ${MQTT_CA_FILE:-}
+      MQTT_TLS_REJECT_UNAUTHORIZED: ${MQTT_TLS_REJECT_UNAUTHORIZED:-true}
       MQTT_CLIENT_ID: ${MQTT_CLIENT_ID:-}
       MQTT_TOPIC_PATTERN: ${MQTT_TOPIC_PATTERN:-/fleet/{deviceId}/vehicle_info}
       MONGO_URI: ${MONGO_URI:-mongodb://root:example@mongo:27017/fleet_monitor?authSource=admin}

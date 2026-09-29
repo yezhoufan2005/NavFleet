@@ -505,6 +505,42 @@ HTTPS 宿主端口可用 `HTTPS_HOST_PORT` 覆盖。
 > CA 或 Let's Encrypt 签发的证书替换自签名文件 —— 自签名只提供加密、不提供身份
 > 认证，能中间人劫持的一方同样能拿出一张自签证书。
 
+#### 9.2.1 MQTT over TLS
+
+上面那段是**边缘 nginx** 的 TLS，保护浏览器到控制台这一跳。broker 那一跳（车辆/后端 ↔
+mosquitto）默认是明文 1883，只走内网 `bus` 段；要给它也加密，用另一个叠加文件：
+
+```bash
+# 1) 生成 lab CA + broker 服务端证书（deploy/mosquitto/certs/，已 gitignore）
+sh deploy/tools/generate-mqtt-certs.sh
+
+# 2) 带叠加文件启动
+docker compose --env-file deploy/.env \
+  -f deploy/docker-compose.yml -f deploy/docker-compose.mqtt-tls.yml up -d
+```
+
+叠加做两件事：把 mosquitto 换到带 **8883 TLS 监听器**的配置（`mosquitto-tls.conf`，1883
+保留给本机演示发布器），并让 backend 连 `mqtts://mosquitto:8883`、用 `MQTT_CA_FILE` 指向
+的 CA 校验 broker 证书。鉴权模型不变 —— 账号口令仍由 entrypoint 现场生成，只是这次走在
+加密信道里。
+
+| 键                             | 作用                                                                       |
+| ------------------------------ | -------------------------------------------------------------------------- |
+| `MQTT_CA_FILE`                 | 后端要额外信任的 CA（私有/自签 broker 用）；公共 CA 签发的留空走系统信任库 |
+| `MQTT_TLS_REJECT_UNAUTHORIZED` | 证书校验开关，默认 `true`，仅 lab 用不可信证书时临时设 `false`             |
+
+两个键仅在 `MQTT_URL` 是 TLS 协议（`mqtts://` / `tls://`）时生效；明文 URL 下即使设了
+`MQTT_CA_FILE` 也是空操作，不会半开一个 TLS。外接一台已有 TLS 的 broker 不必用这个叠加，
+直接把 `.env` 的 `MQTT_URL` 设成 `mqtts://…`（必要时配 `MQTT_CA_FILE`）即可。
+
+验证：`scripts/verify-stack.sh --mqtt-tls`（缺证书会自动生成一套 lab 的）。它复用就绪探针
+的 `mqtt:true` 作为端到端证明 —— 后端连的是 8883 TLS，就绪即代表握手 + CA 校验 + 鉴权全过；
+再断言 broker 日志里出现 8883 监听器。
+
+> 证书目录 `deploy/mosquitto/certs/` 同样已在 `.gitignore` 中。`generate-mqtt-certs.sh`
+> 出的是 lab 自签 CA（服务端证书 SAN 含 `mosquitto`，即容器内主机名）；生产用组织 CA
+> 签发的 broker 证书替换 `server.crt` / `server.key`，并把签发 CA 放进 `ca.crt`。
+
 ### 9.3 监控栈（Prometheus + Grafana）
 
 同样是叠加文件，默认不启动：

@@ -31,3 +31,6 @@ deploy/backups/
 
 # TLS material for the edge nginx — private keys never belong in the repo
 deploy/nginx/certs/
+
+# TLS material for the MQTT broker (docker-compose.mqtt-tls.yml) — same rule
+deploy/mosquitto/certs/
