@@ -91,10 +91,13 @@ CI 全绿 → `--no-ff` 合并 → 回写本文件并记录自检结果。
 
 ### 已规划、未开工（按负责人 2026-09-09 定的顺序）
 
-- **Phase 18 — 交付成熟度收尾**（不单独发版，按需并入某个 minor）：设备接入向导（config 改文件 → UI + 校验 +
-  热重载，且把 `.pcd` / SVG 底图补进 watch）、场景地图上传与管理、多平台镜像 + SBOM/签名、`prom-client`
-  迁移、运维盲区指标与 exporter、安全余项（mongo healthcheck 口令传递一致性、MQTT over TLS）、i18n（按需）、
-  axe `incomplete` 桶的人工审阅流程。（Lanelet2 `delete` 过滤、`Permissions-Policy` 已完成。）
+- **Phase 18 — 交付成熟度收尾**（不单独发版，按需并入某个 minor）：**非搁置项已全部收口**（2026-09-29）——
+  设备接入向导、场景地图上传与管理、多平台镜像 + SBOM + cosign 无密钥签名、运维盲区指标与容器侧
+  exporter（mongo/mosquitto/nginx）、安全余项（`Permissions-Policy` / mongo healthcheck 口令 / MQTT over TLS）、
+  axe `incomplete` 人工审阅流程、Lanelet2 `delete` 过滤，均已完成（详见下方 Phase 18 小节各条）。
+  **剩下的两项是明确搁置项，不主动开工**：`prom-client` 迁移（上游新包采用度不足）、i18n（若确有海外交付
+  需求再启动）。容器侧 exporter 与 MQTT over TLS 的部署侧验证走 `scripts/verify-stack.sh --monitoring` /
+  `--mqtt-tls`（需真起 Docker 栈）。
 
 ### 已收口 / 已发版
 
@@ -1817,8 +1820,12 @@ mapper（各自单测——一条 `$group` key 写错、median 取错元素、�
       车辆/编队增改删页（PR-2）。写配置属运维域、非向车辆下发，只读红线未破；反转了当初把「设备接入」卡片
       当「部署侧配置不该写」删掉的决定。**剩**：`.pcd` / SVG 底图仍不在 chokidar watch 列表——属下一项
       「场景地图上传」，本次未动 watch。
-- [ ] 场景地图上传与管理（含越权路径防护复核；并把 `.pcd` / SVG 底图补进 chokidar watch）
-- [ ] 多平台镜像（当前 amd64-only）+ 镜像 SBOM / 签名（v2 的 PR 6C 已延后一次）
+- [x] 场景地图上传与管理（含越权路径防护复核；并把 `.pcd` / SVG 底图补进 chokidar watch）—— 2026-09-29
+      合并（后端 #256 + 前端 #257）：admin 场景增改删 + 底图上传（`PUT /api/v1/scenes` · `/scenes/:id/asset/:kind`，
+      原子写 + 越权路径防护 + 素材魔数校验），watch 补 svg/png/jpg/pcd/json。
+- [x] 多平台镜像（当前 amd64-only）+ 镜像 SBOM / 签名（v2 的 PR 6C 已延后一次）—— 2026-09-29：多架构
+      `linux/amd64,linux/arm64` + SBOM/provenance（#261）；cosign **无密钥签名**（OIDC keyless，按 digest 签
+      image index，#262）；Dockerfile 改动经 `image-smoke.yml` 做 arm64 build-only 预检。
 - [ ] `prom-client` → `@prometheus-io/client`（上游已 deprecated，v2 因新包采用度不足暂留）
 - [x] Lanelet2 `delete="true"` 过滤（88 条 lanelet 中 46 条带删除标记仍被绘制）—— `laneletOsm.ts`
       在 `extractLanelets` 跳过带 `delete=true` tag 的 relation，不再画墓碑 lanelet，`laneletCount`
@@ -1842,8 +1849,12 @@ mapper（各自单测——一条 `$group` key 写错、median 取错元素、�
       叠加 + `generate-mqtt-certs.sh` 生 lab CA/服务端证书；`verify-stack.sh --mqtt-tls` 复用就绪 `mqtt:true`
       作端到端证明。证书目录 gitignore，不进仓库）
 - [ ] i18n（v2 两次排除，若确有海外交付需求再启动）
-- [ ] axe `incomplete` 桶的人工审阅流程（半透明/渐变表面落进该桶而不产生违规，Phase 10 已确认
-      这类缺陷 suite 抓不到）
+- [x] axe `incomplete` 桶的人工审阅流程（半透明/渐变表面落进该桶而不产生违规，Phase 10 已确认
+      这类缺陷 suite 抓不到）—— 2026-09-29：`support/axe.ts` 加 `collectIncomplete`，
+      `specs/console-axe-incomplete-review.spec.ts` 在 `AXE_REVIEW` 下遍历每个控制台界面（明暗×1440）
+      收集 incomplete 桶、写 `playwright-report/axe-incomplete.md`；CI 里整体 `test.skip`（零耗时、不拦）。
+      `npm run axe:incomplete` 触发，`docs/accessibility-incomplete-review.md` 写清何时跑、如何逐条量有效
+      对比度判定。**不进门禁**：断言 incomplete 只会误伤或橡皮图章（Phase 10 已排除）。
 
 ---
 

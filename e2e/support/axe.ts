@@ -27,6 +27,23 @@ export type AxeViolation = Awaited<
   ReturnType<AxeBuilder["analyze"]>
 >["violations"][number];
 
+/**
+ * An entry in axe's `incomplete` bucket, flattened to what a human reviewer needs.
+ * These are checks axe could not decide automatically — most often `color-contrast`
+ * against a semi-transparent, gradient or overlapping background whose effective
+ * colour it cannot compute. They are neither pass nor violation, so the gate above
+ * cannot assert on them; a real contrast defect can hide here. See
+ * `specs/axe-incomplete-review.spec.ts` and docs/accessibility-incomplete-review.md
+ * for the periodic human-review procedure this exists for.
+ */
+export interface IncompleteFinding {
+  view: string;
+  rule: string;
+  impact: string;
+  help: string;
+  selectors: string[];
+}
+
 /** Impacts that fail the run; anything lighter is reported only. */
 const BLOCKING_IMPACTS = new Set(["serious", "critical"]);
 
@@ -111,4 +128,27 @@ export const expectAccessible = async (
         formatViolations(violations),
     )
     .toEqual([]);
+};
+
+/**
+ * Analyse the current page and return its `incomplete` findings (does NOT assert).
+ * The review spec calls this across every surface and consolidates the result; the
+ * gate (`expectAccessible`) ignores this bucket by design because axe itself could
+ * not reach a verdict on it.
+ */
+export const collectIncomplete = async (
+  page: Page,
+  view: string,
+): Promise<IncompleteFinding[]> => {
+  await settleTransitions(page);
+  const { incomplete } = await new AxeBuilder({ page })
+    .withTags(TAGS)
+    .analyze();
+  return incomplete.map((result) => ({
+    view,
+    rule: result.id,
+    impact: result.impact ?? "unknown",
+    help: result.help,
+    selectors: result.nodes.map((node) => node.target.flat().join(" ")),
+  }));
 };

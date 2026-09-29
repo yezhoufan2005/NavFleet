@@ -165,6 +165,10 @@ export default defineConfig({
         /console-codebook\.spec\.ts$/,
         /console-notify\.spec\.ts$/,
         /console-reports\.spec\.ts$/,
+        // On-demand axe `incomplete` review surface. Every test in it skips unless
+        // AXE_REVIEW is set (npm run axe:incomplete), so it is inert in CI but can be
+        // driven against this project's servers when a human reviews the bucket.
+        /console-axe-incomplete-review\.spec\.ts$/,
       ],
       use: {
         ...devices["Desktop Chrome"],

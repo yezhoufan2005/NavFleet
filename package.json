@@ -26,6 +26,7 @@
     "check:map-contrast": "node docs/tools/check-map-contrast.mjs",
     "e2e": "npm run e2e:install && playwright test -c e2e",
     "e2e:ui": "npm run e2e:install && playwright test -c e2e --ui",
+    "axe:incomplete": "npm run e2e:install && AXE_REVIEW=1 playwright test -c e2e --project=console console-axe-incomplete-review.spec.ts",
     "build": "npm run build -w @navfleet/shared --if-present && npm run build -w navfleet-backend && npm run build -w navfleet-frontend && npm run build -w navfleet-console",
     "dev:backend": "npm run dev -w navfleet-backend",
     "dev:frontend": "npm run dev -w navfleet-frontend",
