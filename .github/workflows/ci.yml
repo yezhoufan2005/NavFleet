@@ -63,15 +63,26 @@ jobs:
           cache: npm
           cache-dependency-path: package-lock.json
       - run: npm ci
+      # lint / format:check / typecheck are deterministic in the Node version — the TS compiler,
+      # eslint and prettier produce the same verdict on 22 and 24 — so they run once, on the floor
+      # of the matrix, instead of twice. Only what can actually differ across runtimes stays on
+      # both legs: the tests and the build.
+      #
       # shared 是全仓唯一曾经没有 lint 与 format 门禁的 workspace —— 根配置 ignore 了
       # `packages/**`（那条是为 fleet-core 自带配置写的），于是它从两边同时漏了下去。
       # 而它恰好是最不该没门禁的那个：前后端共同引用的领域类型单一来源。
-      - run: npm run lint -w @navfleet/shared
-      - run: npm run format:check -w @navfleet/shared
-      - run: npm run typecheck -w @navfleet/shared
-      - run: npm run lint -w navfleet-backend
-      - run: npm run format:check -w navfleet-backend
-      - run: npm run typecheck -w navfleet-backend
+      - if: matrix.node == 22
+        run: npm run lint -w @navfleet/shared
+      - if: matrix.node == 22
+        run: npm run format:check -w @navfleet/shared
+      - if: matrix.node == 22
+        run: npm run typecheck -w @navfleet/shared
+      - if: matrix.node == 22
+        run: npm run lint -w navfleet-backend
+      - if: matrix.node == 22
+        run: npm run format:check -w navfleet-backend
+      - if: matrix.node == 22
+        run: npm run typecheck -w navfleet-backend
       - run: npm run test:coverage -w navfleet-backend
       - run: npm run build -w navfleet-backend
       - if: matrix.node == 22
@@ -119,9 +130,13 @@ jobs:
           cache: npm
           cache-dependency-path: package-lock.json
       - run: npm ci
-      - run: npm run lint -w navfleet-frontend
-      - run: npm run format:check -w navfleet-frontend
-      - run: npm run typecheck -w navfleet-frontend
+      # Static checks on the matrix floor only (see the backend job); test + build on both legs.
+      - if: matrix.node == 22
+        run: npm run lint -w navfleet-frontend
+      - if: matrix.node == 22
+        run: npm run format:check -w navfleet-frontend
+      - if: matrix.node == 22
+        run: npm run typecheck -w navfleet-frontend
       - run: npm run test -w navfleet-frontend
       - run: npm run build -w navfleet-frontend
 
@@ -140,27 +155,37 @@ jobs:
           cache: npm
           cache-dependency-path: package-lock.json
       - run: npm ci
+      # Static checks (lint / format:check / typecheck / check:map-contrast) are Node-version
+      # independent, so they run once on the matrix floor; tests and build stay on both legs.
+      #
       # `@navfleet/fleet-core` is the shared logic layer, and its gates run here —
       # with the console — rather than with the frozen frontend: this is the
       # workspace that keeps developing against it, so this is where breaking it
       # should show up. (Same reason `@navfleet/shared`'s gates run in the backend
       # job: finding out in the same run is cheaper than a second one.)
-      - run: npm run lint -w @navfleet/fleet-core
-      - run: npm run format:check -w @navfleet/fleet-core
-      - run: npm run typecheck -w @navfleet/fleet-core
+      - if: matrix.node == 22
+        run: npm run lint -w @navfleet/fleet-core
+      - if: matrix.node == 22
+        run: npm run format:check -w @navfleet/fleet-core
+      - if: matrix.node == 22
+        run: npm run typecheck -w @navfleet/fleet-core
       - run: npm run test:coverage -w @navfleet/fleet-core
       # A separate job from `frontend` rather than extra steps in it. The original
       # reason was that the two consoles were independent deliverables through
       # Phase 12-13; after the switch the reason inverts but still holds — this is
       # now the deployed half, and it should not go red because the frozen one did.
-      - run: npm run lint -w navfleet-console
-      - run: npm run format:check -w navfleet-console
-      - run: npm run typecheck -w navfleet-console
+      - if: matrix.node == 22
+        run: npm run lint -w navfleet-console
+      - if: matrix.node == 22
+        run: npm run format:check -w navfleet-console
+      - if: matrix.node == 22
+        run: npm run typecheck -w navfleet-console
       # The map's grid and scale bar are drawn on `ros-canvas`, which is not a
       # semantic surface token — so they are outside the preview page's 4.5:1 text
       # audit and need their own gate. A check nobody runs is not a gate: this one
       # already caught both a wrong estimate and a light/dark inconsistency.
-      - run: npm run check:map-contrast
+      - if: matrix.node == 22
+        run: npm run check:map-contrast
       - run: npm run test:coverage -w navfleet-console
       - run: npm run build -w navfleet-console
       - if: matrix.node == 22
@@ -172,8 +197,17 @@ jobs:
           retention-days: 14
 
   e2e:
-    name: E2E (playwright, node 22)
+    # The suite is `workers: 1` on purpose — the specs share one seeded, server-side fleet, so
+    # parallel workers race over it (see e2e/playwright.config.ts). It can't parallelise *within*
+    # a job, so it parallelises *across* jobs: Playwright `--shard=k/2` splits the specs over two
+    # runners, each booting its own backend + vite servers, halving the wall-clock of the one job
+    # that used to dominate CI (~6min → ~3-4min). The browser binary is cached between runs too.
+    name: E2E (playwright, shard ${{ matrix.shard }}/2)
     runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: [1, 2]
     steps:
       - uses: actions/checkout@v7
       - uses: actions/setup-node@v7
@@ -182,24 +216,34 @@ jobs:
           cache: npm
           cache-dependency-path: package-lock.json
       - run: npm ci
+      # Cache the downloaded browser (~/.cache/ms-playwright) keyed on the lockfile, which changes
+      # when the Playwright version does. On a hit the install below only pulls the apt system deps.
+      - uses: actions/cache@v4
+        with:
+          path: ~/.cache/ms-playwright
+          key: ${{ runner.os }}-playwright-${{ hashFiles('package-lock.json') }}
+          restore-keys: ${{ runner.os }}-playwright-
       - run: npx playwright install --with-deps chromium
-      # `e2e/` is the only source tree outside the npm workspaces, so the
-      # per-workspace gates in the other jobs never see it. Without these two
-      # steps its lint and type errors reach main unchallenged.
-      - run: npm run lint:e2e
-      - run: npm run typecheck:e2e
+      # `e2e/` is the only source tree outside the npm workspaces, so the per-workspace gates in the
+      # other jobs never see it — its lint/type errors would reach main unchallenged. Node-version
+      # and shard independent, so run them once, on the first shard.
+      - if: matrix.shard == 1
+        run: npm run lint:e2e
+      - if: matrix.shard == 1
+        run: npm run typecheck:e2e
       # Playwright starts the backend and both vite dev servers itself; the run
       # needs neither MongoDB nor an MQTT broker (see e2e/support/harness.ts).
       # Two browser projects share one seeded fleet: `console` is the deployed v3
       # one, `frontend` is the frozen v1.0.0 one kept as the rollback. The latter's
       # specs run here rather than in its own job because they are the only proof
       # the frozen code still *runs* — and unlike lint or coverage, they never ask
-      # it to change.
-      - run: npm run e2e
+      # it to change. Called directly (not `npm run e2e`) so `--shard` reaches
+      # `playwright test`; the browser is already installed above.
+      - run: npx playwright test -c e2e --shard=${{ matrix.shard }}/2
       - if: failure()
         uses: actions/upload-artifact@v7
         with:
-          name: playwright-report
+          name: playwright-report-shard-${{ matrix.shard }}
           path: playwright-report/
           if-no-files-found: ignore
           retention-days: 14
