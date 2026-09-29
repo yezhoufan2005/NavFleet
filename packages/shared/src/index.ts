@@ -266,3 +266,7 @@ export * from "./fleetConfig";
 // scenes.json 校验（Phase 18 场景地图上传与管理）：几何 + 路径安全的 sceneId + 资源 URL 限定在
 // /scene-maps/ 下；overlayUrl/overlayType 由后端为 OSM 场景铸造，不从输入读取。
 export * from "./sceneConfig";
+
+// 细粒度能力项与内置角色预设（1.6.1 RBAC 基座）——后端门禁、前端 can() 的单一来源。运行时值，
+// 故独立成文件（本 barrel 其余多为类型）。
+export * from "./rbac";

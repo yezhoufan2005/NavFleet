@@ -1,5 +1,5 @@
 import express from "express";
-import { requireRole } from "../auth/middleware";
+import { requireCapability } from "../auth/middleware";
 import type { AuditService } from "../audit/service";
 import { auditQuerySchema } from "../validation";
 import { respondValidationError } from "./helpers";
@@ -12,7 +12,7 @@ import { respondValidationError } from "./helpers";
 export const buildAuditRouter = (audit: AuditService): express.Router => {
   const router = express.Router();
 
-  router.get("/audit", requireRole("admin"), async (request, response, next) => {
+  router.get("/audit", requireCapability("audit:read"), async (request, response, next) => {
     try {
       const parsed = auditQuerySchema.safeParse(request.query);
       if (!parsed.success) {

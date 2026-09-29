@@ -1,5 +1,5 @@
 import express from "express";
-import { requireRole } from "../auth/middleware";
+import { requireCapability } from "../auth/middleware";
 import type { NotifyService } from "../notify/service";
 import { notifyLogQuerySchema } from "../validation";
 import { respondValidationError } from "./helpers";
@@ -21,7 +21,7 @@ import { respondValidationError } from "./helpers";
 export const buildNotifyRouter = (notify: NotifyService): express.Router => {
   const router = express.Router();
 
-  router.get("/notify/log", requireRole("admin"), async (request, response, next) => {
+  router.get("/notify/log", requireCapability("notify:read"), async (request, response, next) => {
     try {
       const parsed = notifyLogQuerySchema.safeParse(request.query);
       if (!parsed.success) {
@@ -34,7 +34,7 @@ export const buildNotifyRouter = (notify: NotifyService): express.Router => {
     }
   });
 
-  router.get("/notify/config", requireRole("admin"), (_request, response) => {
+  router.get("/notify/config", requireCapability("notify:read"), (_request, response) => {
     response.json({ channels: notify.effectiveConfig() });
   });
 

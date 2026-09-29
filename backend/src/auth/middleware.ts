@@ -1,6 +1,7 @@
 import type { NextFunction, Request, Response } from "express";
 import { config } from "../config";
-import type { PublicUser, UserRecord, UserRole } from "../types";
+import type { PublicUser, UserRecord } from "../types";
+import { capabilitiesForRole, type Capability } from "@navfleet/shared";
 import { verifyToken } from "./tokens";
 
 declare module "express-serve-static-core" {
@@ -8,6 +9,12 @@ declare module "express-serve-static-core" {
     user?: PublicUser;
     /** The `sid` of the token that authenticated this request (Phase 15E), when it carried one. */
     sessionId?: string;
+    /**
+     * Effective capabilities of the authenticated user (1.6.1 RBAC). Resolved once here in the
+     * auth gate — for now from the role preset; groups/custom-roles will fold in later — so
+     * `requireCapability` and `GET /me` read one already-computed set rather than each deriving it.
+     */
+    capabilities?: readonly Capability[];
   }
 }
 
@@ -57,6 +64,7 @@ export const createAuthenticate =
   (request: Request, response: Response, next: NextFunction): void => {
     if (!config.authEnabled) {
       request.user = { username: "anonymous", role: "admin" };
+      request.capabilities = capabilitiesForRole("admin");
       next();
       return;
     }
@@ -84,20 +92,23 @@ export const createAuthenticate =
         // lookup above only gates revocation (account gone / disabled / version bumped).
         request.user = { username: claims.sub, role: claims.role };
         request.sessionId = claims.sid;
+        // Effective capabilities for this request. For now the role preset alone; a role change
+        // already bumps tokenVersion (forcing re-login), so the token's role is current here.
+        request.capabilities = capabilitiesForRole(claims.role);
         next();
       })
       .catch(next);
   };
 
-export const requireRole =
-  (...roles: UserRole[]) =>
+export const requireCapability =
+  (capability: Capability) =>
   (request: Request, response: Response, next: NextFunction): void => {
     if (!request.user) {
       response.status(401).json({ error: "unauthorized" });
       return;
     }
-    if (!roles.includes(request.user.role)) {
-      response.status(403).json({ error: "forbidden", requiredRoles: roles });
+    if (!request.capabilities?.includes(capability)) {
+      response.status(403).json({ error: "forbidden", requiredCapability: capability });
       return;
     }
     next();

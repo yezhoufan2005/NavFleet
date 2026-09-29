@@ -3,6 +3,7 @@ import { randomUUID } from "node:crypto";
 import { config } from "../config";
 import { changePasswordSchema, loginSchema } from "../validation";
 import type { UserRecord } from "../types";
+import { capabilitiesForRole } from "@navfleet/shared";
 import type { AuthService } from "./service";
 import { toPublicUser } from "./service";
 import type { AuditService } from "../audit/service";
@@ -115,7 +116,7 @@ export const buildAuthRouter = (authService: AuthService, audit: AuditService): 
         ...(user.kiosk ? { detail: { kiosk: true } } : {}),
       });
       issueSessionCookies(response, user, sessionId);
-      response.json({ user: toPublicUser(user) });
+      response.json({ user: toPublicUser(user), capabilities: capabilitiesForRole(user.role) });
     } catch (error) {
       next(error);
     }
@@ -161,7 +162,7 @@ export const buildAuthRouter = (authService: AuthService, audit: AuditService): 
       // Rotate both cookies, not just the access token: a refresh that only re-minted access
       // left the same refresh token valid for its full 7 days regardless of activity.
       issueSessionCookies(response, user, sessionId);
-      response.json({ user: toPublicUser(user) });
+      response.json({ user: toPublicUser(user), capabilities: capabilitiesForRole(user.role) });
     } catch (error) {
       next(error);
     }
@@ -228,7 +229,9 @@ export const buildAuthRouter = (authService: AuthService, audit: AuditService): 
   });
 
   router.get("/me", authenticate, (request, response) => {
-    response.json({ user: request.user });
+    // `authenticate` resolved the effective capabilities (1.6.1); hand them to the client so it
+    // can gate controls with `can(...)` rather than re-deriving them from the role.
+    response.json({ user: request.user, capabilities: request.capabilities ?? [] });
   });
 
   // ── Own sessions (Phase 15E) ──────────────────────────────────────────────────

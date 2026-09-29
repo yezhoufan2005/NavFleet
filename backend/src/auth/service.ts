@@ -256,7 +256,7 @@ export class AuthService {
   }
 
   // ── Admin user management (15B-2) ──────────────────────────────────────────────
-  // All of these assume the caller is already gated to admin by `requireRole` at the route.
+  // All of these assume the caller is already gated by `requireCapability("users:manage")` at the route.
 
   async listUsers(): Promise<AdminUserView[]> {
     const users = await this.persistence.listUsers();
