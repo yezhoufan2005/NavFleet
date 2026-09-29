@@ -136,6 +136,108 @@ services:
           memory: 512M
     restart: unless-stopped
 
+  # ── Container-side exporters ────────────────────────────────────────────
+  # Prometheus already scrapes the backend (its own metrics). These three answer
+  # the blind spots the app cannot report on itself — the datastore, the broker
+  # and the edge proxy. Each joins the segment it needs to reach plus `monitoring`
+  # so Prometheus can scrape it; none is published to the host. They carry no
+  # healthcheck on purpose: `up{job=...}` in Prometheus is the liveness signal
+  # (see prometheus.yml), and guessing whether each third-party image ships wget
+  # for a container healthcheck would only add a flakier second answer.
+
+  mongodb-exporter:
+    image: percona/mongodb_exporter:0.44.0
+    # URI (with the root credential) via env, not a --mongodb.uri flag, so the
+    # password stays out of the command baked into `docker inspect` — same posture
+    # as the backend's MONGO_URI and the mongo healthcheck's $$-expansion.
+    environment:
+      MONGODB_URI: mongodb://${MONGO_INITDB_ROOT_USERNAME:-root}:${MONGO_INITDB_ROOT_PASSWORD:-example}@mongo:27017/admin?authSource=admin
+    command:
+      - --collect-all
+      - --compatible-mode
+    networks:
+      - data # reach mongo (the internal segment)
+      - monitoring # be scraped by Prometheus
+    depends_on:
+      - mongo
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+    deploy:
+      resources:
+        limits:
+          cpus: "0.25"
+          memory: 128M
+    restart: unless-stopped
+
+  # Reads the broker's $SYS/# tree. It needs a broker account that can *read* that
+  # subtree, which neither the backend (reads /fleet/#) nor a publisher (writes it)
+  # is allowed — so the base entrypoint adds a read-only monitor user, but only
+  # when MQTT_MONITOR_* are set (i.e. only under this overlay); without them the
+  # broker is byte-for-byte unchanged.
+  mosquitto-exporter:
+    image: sapcc/mosquitto-exporter:0.8.0
+    command:
+      - --endpoint=tcp://mosquitto:1883
+    environment:
+      MQTT_USER: ${MQTT_MONITOR_USERNAME:-navfleet-monitor}
+      MQTT_PASS: ${MQTT_MONITOR_PASSWORD:?MQTT_MONITOR_PASSWORD is required by the monitoring overlay (the broker no longer allows anonymous clients)}
+    networks:
+      - bus # reach the broker
+      - monitoring # be scraped
+    depends_on:
+      - mosquitto
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+    deploy:
+      resources:
+        limits:
+          cpus: "0.25"
+          memory: 128M
+    restart: unless-stopped
+
+  # Scrapes nginx's stub_status. That endpoint is served by stub-status.conf on an
+  # internal 8081 listener mounted below — not the edge port, so connection counts
+  # are never exposed to the host.
+  nginx-exporter:
+    image: nginx/nginx-prometheus-exporter:1.4.2
+    command:
+      - --nginx.scrape-uri=http://nginx:8081/stub_status
+    networks:
+      - edge # reach nginx
+      - monitoring # be scraped
+    depends_on:
+      - nginx
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+    deploy:
+      resources:
+        limits:
+          cpus: "0.25"
+          memory: 64M
+    restart: unless-stopped
+
+  # nginx itself: unchanged except for a read-only stub_status listener the
+  # exporter above reads. conf.d/*.conf is auto-included by the image's http block.
+  nginx:
+    volumes:
+      - ./nginx/stub-status.conf:/etc/nginx/conf.d/stub-status.conf:ro
+
+  # mosquitto itself: unchanged except for the monitor credentials the entrypoint
+  # turns into a read-only $SYS user (see mosquitto/entrypoint.sh).
+  mosquitto:
+    environment:
+      MQTT_MONITOR_USERNAME: ${MQTT_MONITOR_USERNAME:-navfleet-monitor}
+      MQTT_MONITOR_PASSWORD: ${MQTT_MONITOR_PASSWORD:?MQTT_MONITOR_PASSWORD is required by the monitoring overlay (the broker no longer allows anonymous clients)}
+
 volumes:
   prometheus-data:
   grafana-data:

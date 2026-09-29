@@ -30,6 +30,26 @@ scrape_configs:
         labels:
           service: backend
 
+  # Container-side exporters (docker-compose.monitoring.yml). These targets only
+  # exist when that overlay is up; on a plain monitoring stack without the exporters
+  # they simply show as `up == 0`, which is what the NavFleet*ExporterDown rules key
+  # off. Each covers a blind spot the backend cannot report on itself.
+  - job_name: mongodb
+    static_configs:
+      - targets: ["mongodb-exporter:9216"]
+        labels:
+          service: mongo
+  - job_name: mosquitto
+    static_configs:
+      - targets: ["mosquitto-exporter:9234"]
+        labels:
+          service: mosquitto
+  - job_name: nginx
+    static_configs:
+      - targets: ["nginx-exporter:9113"]
+        labels:
+          service: nginx
+
   # Prometheus scraping itself: cheap, and it makes "is the monitoring stack
   # actually running" answerable from inside Grafana.
   - job_name: prometheus

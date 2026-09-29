@@ -2,7 +2,10 @@
 #
 # Every expression here is written against a metric this project actually
 # exposes (see backend/src/metrics.ts) — no rule references a metric that does
-# not exist, which is the usual way an alert file rots into decoration.
+# not exist, which is the usual way an alert file rots into decoration. The one
+# exception is the navfleet-infra group at the bottom, which keys off `up{job=...}`
+# — the liveness signal Prometheus synthesises for each scrape target, present
+# whether or not the container-side exporters are deployed.
 #
 # `for:` durations are deliberately not zero: MQTT and MongoDB both reconnect on
 # their own with bounded backoff, so a few seconds of disconnection is normal
@@ -210,3 +213,45 @@ groups:
           description: >-
             Snapshot reads are served from memory and should be sub-millisecond,
             so this points at MongoDB-backed history or alert queries.
+
+  # Container-side exporters (docker-compose.monitoring.yml). `up{job=...}` is 1
+  # while Prometheus can scrape the target and 0 otherwise, so one rule per exporter
+  # catches both a dead exporter and the dependency behind it being unreachable from
+  # it. These fire only when the monitoring overlay is deployed — without the
+  # exporters the targets are absent and `up` has no series to evaluate.
+  - name: navfleet-infra
+    rules:
+      - alert: NavFleetMongoExporterDown
+        expr: up{job="mongodb"} == 0
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: MongoDB exporter is not scrapeable
+          description: >-
+            Prometheus cannot scrape mongodb-exporter:9216. Either the exporter is
+            down or it cannot reach MongoDB — either way the datastore's own metrics
+            (connections, replication, asserts) are blind. The backend's
+            navfleet_mongo_* gauges still cover the app's view of the database.
+      - alert: NavFleetMosquittoExporterDown
+        expr: up{job="mosquitto"} == 0
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: Mosquitto exporter is not scrapeable
+          description: >-
+            Prometheus cannot scrape mosquitto-exporter:9234. Broker-side stats
+            ($SYS: clients, messages, bytes) are blind. The backend's
+            navfleet_mqtt_connected still reports whether ingest has a broker link.
+      - alert: NavFleetNginxExporterDown
+        expr: up{job="nginx"} == 0
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: Nginx exporter is not scrapeable
+          description: >-
+            Prometheus cannot scrape nginx-exporter:9113, or nginx's stub_status
+            (internal :8081) is unreachable. Edge connection/request counts are
+            blind; the backend's own navfleet_http_* metrics are unaffected.
