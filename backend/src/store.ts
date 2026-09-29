@@ -4,7 +4,7 @@ import path from "node:path";
 import { config } from "./config";
 import { deviceMatchesScope, applyRuleDebounce } from "@navfleet/shared";
 import type { ReportBucketUnit } from "@navfleet/shared";
-import { ConfigRegistry } from "./configRegistry";
+import { ConfigRegistry, type SceneAssetKind } from "./configRegistry";
 import {
   buildFleetSnapshot,
   buildOfflineAlert,
@@ -770,6 +770,17 @@ export class DashboardStore extends EventEmitter {
 
   getSceneOverlay(sceneId: string): LaneletOverlay | null {
     return this.configRegistry.getSceneOverlay(sceneId);
+  }
+
+  // ── Scene-map upload & management (Phase 18): write scenes.json + upload backdrops ──
+  /** Validate + persist `scenes.json` (full array), reload, and return the configured scenes. */
+  writeScenes(raw: unknown): Promise<SceneMapDefinition[]> {
+    return this.configRegistry.writeScenes(raw);
+  }
+
+  /** Validate + store an uploaded backdrop for a scene, reload, and return its /scene-maps/ URL. */
+  writeSceneAsset(sceneId: string, kind: SceneAssetKind, buffer: Buffer): Promise<string> {
+    return this.configRegistry.writeSceneAsset(sceneId, kind, buffer);
   }
 
   /** The report-code dictionary in effect (built-in ⊕ deployment codebook). Phase 16C-2. */

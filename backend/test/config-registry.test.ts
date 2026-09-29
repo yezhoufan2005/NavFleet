@@ -781,3 +781,78 @@ describe("ConfigRegistry 写入（Phase 18 设备接入向导）", () => {
     );
   });
 });
+
+describe("ConfigRegistry.writeScenes / writeSceneAsset (Phase 18 场景地图上传)", () => {
+  const svg = Buffer.from('<svg xmlns="http://www.w3.org/2000/svg"></svg>', "utf8");
+  const assetPath = (rel: string): string => path.join(configRoot, "scene-maps", rel);
+
+  it("writeScenes 全量落盘 + 重载，返回配置的场景", async () => {
+    const registry = new ConfigRegistry();
+    await registry.load();
+    const saved = await registry.writeScenes([
+      { sceneId: "new-1", resolution: 0.1, width: 10, height: 20 },
+    ]);
+    expect(saved).toHaveLength(1);
+    expect(saved[0]?.sceneId).toBe("new-1");
+    // Full-array write replaced scene-a, and it survives a fresh load from disk.
+    const onDisk = JSON.parse(await fs.readFile(path.join(configRoot, "scenes.json"), "utf8"));
+    expect(onDisk).toEqual([expect.objectContaining({ sceneId: "new-1" })]);
+    expect(registry.listScenes().map((s) => s.sceneId)).toEqual(["new-1"]);
+  });
+
+  it("writeScenes 校验先行，非法几何直接抛不落盘", async () => {
+    const registry = new ConfigRegistry();
+    await registry.load();
+    await expect(
+      registry.writeScenes([{ sceneId: "x", resolution: 0, width: 1, height: 1 }]),
+    ).rejects.toThrow(/resolution must be greater than 0/);
+  });
+
+  it("writeSceneAsset 为无现有底图的场景落到 <sceneId>/<kind>.<ext>", async () => {
+    const registry = new ConfigRegistry();
+    await registry.load();
+    const url = await registry.writeSceneAsset("scene-a", "image", svg);
+    expect(url).toBe("/scene-maps/scene-a/image.svg");
+    expect(await fs.readFile(assetPath("scene-a/image.svg"))).toEqual(svg);
+  });
+
+  it("writeSceneAsset 就地覆盖场景已引用的底图路径（不产生孤儿）", async () => {
+    const registry = new ConfigRegistry();
+    await registry.load();
+    await registry.writeScenes([
+      {
+        sceneId: "s2",
+        resolution: 0.1,
+        width: 10,
+        height: 20,
+        imageUrl: "/scene-maps/s2/custom.svg",
+      },
+    ]);
+    const svg2 = Buffer.from('<svg id="v2"></svg>', "utf8");
+    const url = await registry.writeSceneAsset("s2", "image", svg2);
+    expect(url).toBe("/scene-maps/s2/custom.svg");
+    expect(await fs.readFile(assetPath("s2/custom.svg"))).toEqual(svg2);
+  });
+
+  it("writeSceneAsset 校验内容：不是图片的字节被拒", async () => {
+    const registry = new ConfigRegistry();
+    await registry.load();
+    await expect(
+      registry.writeSceneAsset("scene-a", "image", Buffer.from("definitely not an image")),
+    ).rejects.toThrow(/image must be/);
+  });
+
+  it("writeSceneAsset 接受有效 .osm 并落盘", async () => {
+    const registry = new ConfigRegistry();
+    await registry.load();
+    const url = await registry.writeSceneAsset("scene-a", "osm", Buffer.from(SAMPLE_OSM, "utf8"));
+    expect(url).toBe("/scene-maps/scene-a/osm.osm");
+    expect(await fs.readFile(assetPath("scene-a/osm.osm"), "utf8")).toBe(SAMPLE_OSM);
+  });
+
+  it("writeSceneAsset 拒绝路径不安全的 sceneId", async () => {
+    const registry = new ConfigRegistry();
+    await registry.load();
+    await expect(registry.writeSceneAsset("../x", "image", svg)).rejects.toThrow(/invalid sceneId/);
+  });
+});

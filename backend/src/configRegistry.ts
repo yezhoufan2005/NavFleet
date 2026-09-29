@@ -24,10 +24,11 @@ import {
   mergeCodebook,
   parseCodebook,
   parseFormations,
+  parseScenes,
   parseVehicles,
 } from "@navfleet/shared";
 import { config, runtimePaths } from "./config";
-import { parseLaneletOsmFile } from "./laneletOsm";
+import { parseLaneletOsmFile, parseLaneletOsmText } from "./laneletOsm";
 import { moduleLogger } from "./logger";
 import {
   DeviceConfig,
@@ -97,6 +98,63 @@ const resolveSceneMapsFilePath = (assetUrl: string): string => {
   }
 
   return resolvedPath;
+};
+
+/** The four uploadable scene backdrop kinds and which `SceneMapDefinition` URL field each fills. */
+export type SceneAssetKind = "image" | "pointcloud" | "osm" | "pointcloudmeta";
+const SCENE_ASSET_URL_FIELD: Record<SceneAssetKind, keyof SceneMapDefinition> = {
+  image: "imageUrl",
+  pointcloud: "pointCloudUrl",
+  osm: "osmUrl",
+  pointcloudmeta: "pointCloudMetaUrl",
+};
+
+/**
+ * Validate an uploaded backdrop's *content* (not just its declared kind) and return the file
+ * extension to store it under. Content sniffing is defence-in-depth: the upload is admin-only
+ * and the id/path are already guarded, but a file that is not what it claims would render as a
+ * broken map rather than fail loudly, so we reject it at the door.
+ */
+const validateSceneAsset = (kind: SceneAssetKind, buffer: Buffer): string => {
+  if (buffer.length === 0) throw new Error("uploaded file is empty");
+  const head = buffer.subarray(0, 512).toString("latin1");
+  switch (kind) {
+    case "image": {
+      const trimmed = head.replace(/^﻿/, "").trimStart();
+      if (trimmed.startsWith("<?xml") || trimmed.toLowerCase().startsWith("<svg")) return "svg";
+      if (
+        buffer.length >= 8 &&
+        buffer[0] === 0x89 &&
+        buffer[1] === 0x50 &&
+        buffer[2] === 0x4e &&
+        buffer[3] === 0x47
+      )
+        return "png";
+      if (buffer.length >= 3 && buffer[0] === 0xff && buffer[1] === 0xd8 && buffer[2] === 0xff)
+        return "jpg";
+      throw new Error("image must be an SVG, PNG, or JPEG");
+    }
+    case "pointcloud": {
+      // PCD text/binary files carry an ASCII header; the version/field lines are always near the top.
+      if (!/(^|\n)\s*#|VERSION|FIELDS/i.test(head)) {
+        throw new Error("point cloud does not look like a .pcd file");
+      }
+      return "pcd";
+    }
+    case "osm": {
+      // Feed the real parser: an .osm with no usable nodes throws, exactly as a load would.
+      parseLaneletOsmText(buffer.toString("utf8"), "upload", "upload");
+      return "osm";
+    }
+    case "pointcloudmeta": {
+      try {
+        JSON.parse(buffer.toString("utf8"));
+      } catch {
+        throw new Error("point-cloud metadata must be valid JSON");
+      }
+      return "json";
+    }
+  }
 };
 
 const isRecord = (value: unknown): value is Record<string, unknown> =>
@@ -864,7 +922,16 @@ export class ConfigRegistry {
         CODEBOOK_FILE,
         NOTIFY_FILE,
         REPORTS_FILE,
+        // Scene-map assets: `.osm` feeds the overlay parser, and (Phase 18) the raster / point-cloud
+        // / point-cloud-meta backdrops so a host-side swap or an API upload hot-reloads like the
+        // JSON config does. The upload endpoints also call `reload()` directly; this covers edits
+        // made outside the API too.
         path.join(runtimePaths.sceneMapsPath, "**/*.osm"),
+        path.join(runtimePaths.sceneMapsPath, "**/*.svg"),
+        path.join(runtimePaths.sceneMapsPath, "**/*.png"),
+        path.join(runtimePaths.sceneMapsPath, "**/*.jpg"),
+        path.join(runtimePaths.sceneMapsPath, "**/*.pcd"),
+        path.join(runtimePaths.sceneMapsPath, "**/*.json"),
       ],
       {
         ignoreInitial: true,
@@ -1069,6 +1136,50 @@ export class ConfigRegistry {
     await this.writeConfigFileAtomic(FORMATIONS_FILE, formations);
     await this.reload("formations-write");
     return this.listFormations();
+  }
+
+  /**
+   * Persist `scenes.json` from the scene-management page, then reload. Validates shape first
+   * (`parseScenes`): geometry finite, ids path-safe and unique, asset URLs confined to
+   * `/scene-maps/`. A full-array read-modify-write like the vehicles/codebook writes, so a
+   * removed entry is just an array without it. Writing scene config is operator/deployment
+   * domain — the console renders these backdrops, it does not push maps to vehicles — so the
+   * read-only red line holds. The config volume must be writable.
+   */
+  async writeScenes(raw: unknown): Promise<SceneMapDefinition[]> {
+    const scenes = parseScenes(raw);
+    await this.writeConfigFileAtomic(SCENES_FILE, scenes);
+    await this.reload("scenes-write");
+    return this.listScenes();
+  }
+
+  /**
+   * Store an uploaded backdrop file for a scene and return the `/scene-maps/…` URL it now lives
+   * at, then reload (an `.osm` swap re-parses its overlay; a raster/point-cloud is just re-served
+   * with `no-store`). Content is validated by kind. When the scene already references a file of
+   * this kind, the existing path is overwritten in place (no orphan, no `scenes.json` change);
+   * otherwise the file lands at a server-chosen `<sceneId>/<kind>.<ext>` — the filename is never
+   * taken from the client, and the resolved path is re-checked against the scene-maps root.
+   */
+  async writeSceneAsset(sceneId: string, kind: SceneAssetKind, buffer: Buffer): Promise<string> {
+    if (!/^[A-Za-z0-9._-]+$/.test(sceneId) || /^\.+$/.test(sceneId)) {
+      throw new Error(`invalid sceneId: ${sceneId}`);
+    }
+    const ext = validateSceneAsset(kind, buffer);
+    this.ensureLoaded();
+    const existing = this.sceneConfigs.get(sceneId);
+    const existingUrl = existing?.[SCENE_ASSET_URL_FIELD[kind]];
+    const url =
+      typeof existingUrl === "string" && existingUrl.startsWith("/scene-maps/")
+        ? existingUrl
+        : `/scene-maps/${sceneId}/${kind}.${ext}`;
+    const targetPath = resolveSceneMapsFilePath(url);
+    await fs.mkdir(path.dirname(targetPath), { recursive: true });
+    const tmp = `${targetPath}.${process.pid}.${Date.now()}.tmp`;
+    await fs.writeFile(tmp, buffer);
+    await fs.rename(tmp, targetPath);
+    await this.reload("scene-asset-upload");
+    return url;
   }
 
   getDeviceConfig(deviceId: string): DeviceConfig | null {
