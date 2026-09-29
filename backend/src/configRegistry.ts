@@ -120,7 +120,8 @@ const validateSceneAsset = (kind: SceneAssetKind, buffer: Buffer): string => {
   const head = buffer.subarray(0, 512).toString("latin1");
   switch (kind) {
     case "image": {
-      const trimmed = head.replace(/^﻿/, "").trimStart();
+      const withoutBom = head.charCodeAt(0) === 0xfeff ? head.slice(1) : head;
+      const trimmed = withoutBom.trimStart();
       if (trimmed.startsWith("<?xml") || trimmed.toLowerCase().startsWith("<svg")) return "svg";
       if (
         buffer.length >= 8 &&

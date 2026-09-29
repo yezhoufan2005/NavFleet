@@ -795,7 +795,9 @@ describe("ConfigRegistry.writeScenes / writeSceneAsset (Phase 18 场景地图上
     expect(saved).toHaveLength(1);
     expect(saved[0]?.sceneId).toBe("new-1");
     // Full-array write replaced scene-a, and it survives a fresh load from disk.
-    const onDisk = JSON.parse(await fs.readFile(path.join(configRoot, "scenes.json"), "utf8"));
+    const onDisk: unknown = JSON.parse(
+      await fs.readFile(path.join(configRoot, "scenes.json"), "utf8"),
+    );
     expect(onDisk).toEqual([expect.objectContaining({ sceneId: "new-1" })]);
     expect(registry.listScenes().map((s) => s.sceneId)).toEqual(["new-1"]);
   });

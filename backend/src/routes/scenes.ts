@@ -76,13 +76,11 @@ export const buildScenesRouter = (store: DashboardStore, audit: AuditService): e
   // Full-array write of scenes.json (create / edit / remove entries), validate-first like the
   // codebook and device-config writes: an invalid body is a 400 that writes nothing.
   router.put("/scenes", requireRole("admin"), async (request, response, next) => {
+    const body: unknown = request.body;
     const raw =
-      request.body &&
-      typeof request.body === "object" &&
-      !Array.isArray(request.body) &&
-      "scenes" in request.body
-        ? (request.body as Record<string, unknown>).scenes
-        : request.body;
+      body && typeof body === "object" && !Array.isArray(body) && "scenes" in body
+        ? (body as Record<string, unknown>).scenes
+        : body;
     try {
       parseScenes(raw);
     } catch (validationError) {
@@ -123,7 +121,7 @@ export const buildScenesRouter = (store: DashboardStore, audit: AuditService): e
         response.status(400).json({ error: "invalid_asset_kind" });
         return;
       }
-      const body = request.body;
+      const body: unknown = request.body;
       if (!Buffer.isBuffer(body) || body.length === 0) {
         response.status(400).json({ error: "empty_upload" });
         return;
