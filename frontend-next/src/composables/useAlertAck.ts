@@ -78,7 +78,13 @@ export const useAlertAck = () => {
       return true;
     } catch (error) {
       fleet.applyUnack(key);
-      notify(ackErrorMessage(error), { type: "error" });
+      // One toast per batch, not one per alert: `acknowledgeMany` fans out with `Promise.all`,
+      // so a whole-batch failure (backend down, session expired, permission lost) would
+      // otherwise stack N identical toasts across the screen.
+      notify(ackErrorMessage(error), {
+        type: "error",
+        dedupeKey: "alert-ack-failed",
+      });
       return false;
     }
   };
@@ -96,7 +102,10 @@ export const useAlertAck = () => {
       return true;
     } catch (error) {
       if (previous) fleet.applyAck(key, previous);
-      notify(ackErrorMessage(error), { type: "error" });
+      notify(ackErrorMessage(error), {
+        type: "error",
+        dedupeKey: "alert-unack-failed",
+      });
       return false;
     }
   };

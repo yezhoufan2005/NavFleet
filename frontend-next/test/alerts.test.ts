@@ -480,6 +480,28 @@ describe("acknowledging (server-backed, Phase 16A)", () => {
     expect(wrapper.findAll("li")).toHaveLength(3);
   });
 
+  it("collapses a whole-batch acknowledge failure into a single error toast", async () => {
+    // A bulk confirm fans out with `Promise.all`; if the backend is down, every ref fails.
+    // The operator must see one error, not one per alert stacked across the screen.
+    seedMixed();
+    const ackAlert = vi
+      .spyOn(fleetApi, "ackAlert")
+      .mockRejectedValue(new Error("HTTP 503"));
+    const wrapper = await mountAlerts();
+
+    await wrapper
+      .findAll("button")
+      .find((button) => button.text().includes("确认当前筛选"))
+      ?.trigger("click");
+    await flushPromises();
+
+    expect(ackAlert.mock.calls.length).toBeGreaterThan(1);
+    const errors = useNotifications().items.filter(
+      (item) => item.type === "error",
+    );
+    expect(errors).toHaveLength(1);
+  });
+
   it("raises no toast when there was nothing left to acknowledge", async () => {
     seedMixed();
     const wrapper = await mountAlerts();
