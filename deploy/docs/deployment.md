@@ -605,7 +605,17 @@ DRILL PASSED: 4 collection(s) restored, none empty.
 
 镜像是**多平台**的（`linux/amd64` + `linux/arm64`，一个 image index，`docker pull` 按宿主机自动选），
 并附带每平台的 **SBOM + provenance** 证明（buildx 生成、随镜像存进 GHCR 的 OCI referrers），供供应链审计
-回答「镜像里装了什么」。**证明尚未签名**：签名需要先配 cosign 密钥或开 OIDC 信任，属单独一步，等密钥就绪再补。
+回答「镜像里装了什么」。镜像 index 还经 **cosign 无密钥签名**（keyless / OIDC）：workflow 用自己的 GitHub
+OIDC 令牌向 Fulcio 换一张短期证书来签，签名进公开的 Rekor 透明日志，**仓库里不存任何长期密钥**，所以要
+配置、要轮转、会泄漏的密钥都不存在。验证时要钉的签名者身份是 **workflow 本身**，而不是某把密钥：
+
+```bash
+cosign verify \
+  --certificate-identity-regexp '^https://github.com/<owner>/NavFleet/\.github/workflows/publish-images\.yml@.*' \
+  --certificate-oidc-issuer https://token.actions.githubusercontent.com \
+  ghcr.io/<owner>/navfleet-backend:<x.y.z>
+```
+
 Dockerfile 改动会触发 `image-smoke.yml` 在 PR 上做一次 **arm64 build-only（不推送）**，把跨架构构建的失败挡在发版之前。
 
 **`navfleet-frontend` 不再发布，停在 1.0.x。** 它装的是 v1.0.0 那套控制台，而 1.1.0 起

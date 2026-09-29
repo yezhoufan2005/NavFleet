@@ -33,6 +33,10 @@ on:
 permissions:
   contents: read
   packages: write
+  # Keyless cosign signing exchanges this workflow's OIDC token with Fulcio for a
+  # short-lived signing certificate — no long-lived key is stored anywhere. Without
+  # `id-token: write` the token is never minted and `cosign sign` cannot run.
+  id-token: write
 
 jobs:
   images:
@@ -88,6 +92,7 @@ jobs:
             type=sha,format=short
 
       - name: Build and push
+        id: build
         uses: docker/build-push-action@v7
         with:
           context: .
@@ -100,8 +105,7 @@ jobs:
           labels: ${{ steps.meta.outputs.labels }}
           # An SBOM + provenance attestation is generated per platform and attached to the image
           # in GHCR (buildx / OCI referrers). It answers "what is inside this image" for a supply
-          # -chain audit without unpacking it. Signing the attestation is deferred until a cosign
-          # key (or OIDC trust) is provisioned — that is a separate, secret-bearing step.
+          # -chain audit without unpacking it. The index itself is signed below (cosign keyless).
           sbom: true
           provenance: mode=max
           # AMap key is a build-time (Vite) value; the console image works
@@ -112,3 +116,24 @@ jobs:
             VITE_AMAP_SECURITY_JS_CODE=${{ secrets.VITE_AMAP_SECURITY_JS_CODE }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
+
+      # Keyless signing: no COSIGN_PRIVATE_KEY, no secret to provision or rotate.
+      # cosign trades this run's GitHub OIDC token for a short-lived Fulcio cert,
+      # signs, and records the signature in the public Rekor transparency log. The
+      # signer identity that a verifier pins is therefore the workflow itself
+      # (`.github/workflows/publish-images.yml@<ref>`) + the Actions OIDC issuer,
+      # not a key that could leak — which is exactly why the earlier "signing
+      # deferred until a key is provisioned" note is now obsolete.
+      - name: Install cosign
+        uses: sigstore/cosign-installer@v3
+
+      # Sign the image *index* by digest, not by tag. buildx pushed one multi-arch
+      # index; signing its digest covers both platforms and cannot race a tag that
+      # a later run moves. `${{ steps.build.outputs.digest }}` is that index digest.
+      # The image ref is spelled exactly like metadata-action's `images:` input so
+      # the two cannot drift.
+      - name: Sign image (keyless)
+        env:
+          IMAGE: ghcr.io/${{ github.repository_owner }}/navfleet-${{ matrix.name }}
+          DIGEST: ${{ steps.build.outputs.digest }}
+        run: cosign sign --yes "${IMAGE}@${DIGEST}"
