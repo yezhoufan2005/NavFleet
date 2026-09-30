@@ -25,16 +25,48 @@ test.describe("console admin", () => {
 
     await expect(page.getByRole("link", { name: /系统状态/ })).toBeVisible();
     await expect(page.getByRole("link", { name: /场景/ })).toBeVisible();
-    await expect(page.getByRole("link", { name: /^用户/ })).toBeVisible();
     await expect(page.getByRole("link", { name: /审计/ })).toBeVisible();
     // 设备接入 is a real area since Phase 18 (the onboarding wizard).
     await expect(page.getByRole("link", { name: /设备接入/ })).toBeVisible();
-    // 用户组 was dropped in the original read-only console; 1.6.1's fine-grained RBAC un-drops it
-    // as the 角色与用户组 area.
+    // 用户 与 角色与用户组 left the 管理 hub for their own top-level 用户 section (1.6.2 IA), so the
+    // landing no longer offers them as cards — the main-content region has no card for either.
+    const content = page.getByRole("main");
     await expect(
-      page.getByRole("link", { name: /角色与用户组/ }),
-    ).toBeVisible();
+      content.getByRole("link", { name: /角色与用户组/ }),
+    ).toHaveCount(0);
     await expect(page.getByText(/^PR /)).toHaveCount(0);
+  });
+
+  test("用户 is its own section, reached from the primary nav and split into tabs", async ({
+    page,
+  }) => {
+    // 1.6.2 IA: 账号 and 角色与用户组 are tabs of a top-level 用户 section, addressed by real routes.
+    await page.goto("/");
+    await page
+      .getByRole("navigation", { name: "主导航" })
+      .getByRole("link", { name: "用户", exact: true })
+      .click();
+    await expect(page).toHaveURL(/\/access$/);
+
+    const tabs = page.getByRole("navigation", { name: "分区导航" });
+    await expect(tabs.getByRole("link", { name: "用户" })).toBeVisible();
+    await tabs.getByRole("link", { name: "角色与用户组" }).click();
+    await expect(page).toHaveURL(/\/access\/roles$/);
+    // The section item stays lit across the tab switch (nested-record active state).
+    const section = page
+      .getByRole("navigation", { name: "主导航" })
+      .getByRole("link", { name: "用户", exact: true });
+    await expect(section).toHaveAttribute("href", "/access");
+  });
+
+  test("the old /admin/users and /admin/roles deep links still land", async ({
+    page,
+  }) => {
+    // Kept as redirects so shared bookmarks survive the move to /access.
+    await page.goto("/admin/users");
+    await expect(page).toHaveURL(/\/access$/);
+    await page.goto("/admin/roles");
+    await expect(page).toHaveURL(/\/access\/roles$/);
   });
 
   test("a child keeps 管理 lit and shows up in the breadcrumb", async ({

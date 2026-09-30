@@ -623,11 +623,9 @@ describe("管理落地页", () => {
       "/admin/notify",
       "/admin/onboarding",
       "/admin/reports",
-      "/admin/roles",
       "/admin/rules",
       "/admin/scenes",
       "/admin/system",
-      "/admin/users",
     ]);
     // No dashed "not built" placeholders remain, so no "PR xx" marker is left.
     expect(wrapper.text()).not.toContain("PR ");
@@ -639,6 +637,6 @@ describe("管理落地页", () => {
       .findAll("span")
       .filter((span) => span.text() === "已就绪");
 
-    expect(readyBadges).toHaveLength(10);
+    expect(readyBadges).toHaveLength(8);
   });
 });

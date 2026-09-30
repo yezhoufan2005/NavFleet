@@ -1,6 +1,6 @@
 <script setup lang="ts">
 /**
- * The five primary-navigation glyphs, inline.
+ * The six primary-navigation glyphs, inline.
  *
  * Inline rather than an icon package: a handful of icons do not justify a dependency, and
  * a sprite or font would add a request on the critical path of a console whose
@@ -35,6 +35,10 @@ const PATHS: Record<NavIconName, string> = {
   alerts:
     "M9.5 18.5a2.5 2.5 0 0 0 5 0M6 15.5V10a6 6 0 1 1 12 0v5.5l1.6 2.5H4.4z",
   reports: "M4 20V4M4 20h16M8 17v-5M12.5 17V8M17 17v-7",
+  // A single person, head and shoulders: 用户 is access control, kept distinct from the
+  // 管理 sliders below and from the 设备 vehicle above.
+  users:
+    "M8.9 8.5a3.1 3.1 0 1 0 6.2 0a3.1 3.1 0 1 0-6.2 0M5.5 19a6.5 6.5 0 0 1 13 0",
   // Sliders: two tracks, one handle on each, at different positions.
   admin:
     "M4 8.5h4.4M11.6 8.5H20M4 15.5h9.4M16.6 15.5H20M8.4 8.5a1.6 1.6 0 1 0 3.2 0a1.6 1.6 0 1 0-3.2 0M13.4 15.5a1.6 1.6 0 1 0 3.2 0a1.6 1.6 0 1 0-3.2 0",
