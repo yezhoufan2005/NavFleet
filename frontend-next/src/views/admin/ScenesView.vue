@@ -38,6 +38,7 @@ import UiButton from "@/components/ui/UiButton.vue";
 import UiSelect from "@/components/ui/UiSelect.vue";
 import UiConfirmDialog from "@/components/ui/UiConfirmDialog.vue";
 import { notify } from "@/composables/useNotifications";
+import { useAutoRefresh } from "@/composables/useAutoRefresh";
 import { useFleetStore } from "@/stores/fleet";
 import { fleetApi, formatNumber } from "@navfleet/fleet-core";
 import type { SceneAssetKind, SceneDefinition } from "@navfleet/fleet-core";
@@ -382,6 +383,14 @@ const submit = async (): Promise<void> => {
 
 const confirmDelete = ref<{ id: string; label: string } | null>(null);
 const deleting = ref(false);
+
+// Re-read the scene list (and re-probe its resources) when the operator returns to the tab,
+// instead of a manual 重新检查 button — but never while a create/edit dialog or the delete
+// confirm is open, so a refresh cannot pull the form out from under an in-progress edit.
+useAutoRefresh(() => void load(), {
+  enabled: () => mode.value === null && confirmDelete.value === null,
+});
+
 const runDelete = async (): Promise<void> => {
   const target = confirmDelete.value;
   if (!target) return;
@@ -408,14 +417,6 @@ const runDelete = async (): Promise<void> => {
 <template>
   <PageHeader title="场景">
     <template #actions>
-      <UiButton
-        variant="secondary"
-        size="sm"
-        :disabled="status === 'loading'"
-        @click="load"
-      >
-        {{ status === "loading" ? "检查中…" : "重新检查" }}
-      </UiButton>
       <UiButton size="sm" :disabled="status !== 'ready'" @click="openCreate">
         新增场景
       </UiButton>
