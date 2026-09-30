@@ -76,3 +76,43 @@ describe("GET /api/notify/config", () => {
     expect(JSON.stringify(response.body)).not.toContain("urlEnv");
   });
 });
+
+describe("notify config write (1.6.1)", () => {
+  it("GET /api/notify/config/raw returns the full editable config from the store", async () => {
+    const context = createTestApp();
+    context.store.getNotifyConfig.mockReturnValue({ channels: [] });
+
+    const response = await request(context.app).get("/api/notify/config/raw").set("Cookie", ADMIN);
+
+    expect(response.status).toBe(200);
+    expect((response.body as { config: unknown }).config).toEqual({ channels: [] });
+  });
+
+  it("PUT /api/notify/config validates, writes, and audits", async () => {
+    const context = createTestApp();
+    context.store.writeNotifyConfig.mockResolvedValue({ channels: [] });
+
+    const response = await request(context.app)
+      .put("/api/notify/config")
+      .set("Cookie", ADMIN)
+      .send({ channels: [] });
+
+    expect(response.status).toBe(200);
+    expect(context.store.writeNotifyConfig).toHaveBeenCalledWith({ channels: [] });
+    expect(context.auditService.record).toHaveBeenCalledWith(
+      expect.objectContaining({ action: "notify_write" }),
+    );
+  });
+
+  it("rejects an invalid config with 400 invalid_notify and never writes", async () => {
+    const context = createTestApp();
+    const response = await request(context.app)
+      .put("/api/notify/config")
+      .set("Cookie", ADMIN)
+      .send({ channels: "not-an-array" });
+
+    expect(response.status).toBe(400);
+    expect((response.body as { error: string }).error).toBe("invalid_notify");
+    expect(context.store.writeNotifyConfig).not.toHaveBeenCalled();
+  });
+});

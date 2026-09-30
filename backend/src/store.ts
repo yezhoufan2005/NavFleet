@@ -26,6 +26,7 @@ import {
   FormationConfig,
   FormationSnapshot,
   LaneletOverlay,
+  NotifyConfig,
   ReportCodeEntry,
   SceneMapDefinition,
   SocketEvent,
@@ -812,6 +813,17 @@ export class DashboardStore extends EventEmitter {
   /** Validate (incl. device references) + persist `formations.json`, reload, return them. */
   writeFormations(raw: unknown): Promise<FormationConfig[]> {
     return this.configRegistry.writeFormations(raw);
+  }
+
+  // ── Outbound-notification config (1.6.1): read + write notify.json ──
+  /** The full outbound-notification config (`notify.json`), for the write editor's load side. */
+  getNotifyConfig(): NotifyConfig {
+    return this.configRegistry.getNotifyConfig();
+  }
+
+  /** Validate + persist `notify.json`, reload, and return the new config. */
+  writeNotifyConfig(raw: unknown): Promise<NotifyConfig> {
+    return this.configRegistry.writeNotifyConfig(raw);
   }
 
   async getHistory(

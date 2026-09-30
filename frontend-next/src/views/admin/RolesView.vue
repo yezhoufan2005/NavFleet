@@ -42,6 +42,7 @@ const CAP_LABELS: Record<Capability, string> = {
   "scenes:write": "场景配置",
   "codebook:write": "报码字典",
   "notify:read": "外发记录",
+  "notify:write": "外发配置",
   "audit:read": "审计日志",
   "users:manage": "用户管理",
   "debug:ingest": "调试注入",

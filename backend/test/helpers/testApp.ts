@@ -21,6 +21,7 @@ import type {
   FormationSnapshot,
   LaneletOverlay,
   NotifyChannelView,
+  NotifyConfig,
   NotifySendRecord,
   SceneMapDefinition,
   SessionRecord,
@@ -67,6 +68,8 @@ export interface StoreStub {
   writeFormations: Mock<(raw: unknown) => Promise<FormationConfig[]>>;
   writeScenes: Mock<(raw: unknown) => Promise<SceneMapDefinition[]>>;
   writeSceneAsset: Mock<(sceneId: string, kind: string, buffer: Buffer) => Promise<string>>;
+  getNotifyConfig: Mock<() => NotifyConfig>;
+  writeNotifyConfig: Mock<(raw: unknown) => Promise<NotifyConfig>>;
   getHistory: Mock<
     (deviceId: string, from?: string, to?: string, limit?: number) => Promise<unknown[]>
   >;
@@ -121,6 +124,8 @@ export const createStoreStub = (): StoreStub => ({
   writeFormations: vi.fn(() => Promise.resolve([])),
   writeScenes: vi.fn(() => Promise.resolve([])),
   writeSceneAsset: vi.fn(() => Promise.resolve("/scene-maps/s/image.svg")),
+  getNotifyConfig: vi.fn(() => ({ channels: [] })),
+  writeNotifyConfig: vi.fn(() => Promise.resolve({ channels: [] })),
   getHistory: vi.fn(() => Promise.resolve([sampleHistoryPoint()])),
   getAlerts: vi.fn(() => Promise.resolve([sampleAlert()])),
   getAlertStats: vi.fn(() => Promise.resolve(sampleAlertStatsReport())),
