@@ -136,6 +136,8 @@ export const AUDIT_ACTIONS = [
   "alert_unack",
   // Report-code dictionary import (Phase 16C-2).
   "codebook_import",
+  // Outbound-notification config write (1.6.1).
+  "notify_write",
   // Device-onboarding wizard config writes (Phase 18).
   "vehicles_write",
   "formations_write",

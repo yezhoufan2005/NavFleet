@@ -546,7 +546,8 @@ export const fleetApi = {
   // ── Outbound notifications (admin, Phase 16D) ───────────────────────────────
   // Recent send records (newest first, server-capped), and the effective channels with
   // secrets redacted (`configured` says whether each channel's endpoint env is set; the URL
-  // is never returned). Both are read-only — channels/routing are file-managed in notify.json.
+  // is never returned). The editable write side (getNotifyConfigRaw / writeNotifyConfig,
+  // notify:write) lands with the console editor in a follow-up.
   getNotifyLog(
     params: NotifyLogQueryParams = {},
   ): Promise<{ items: NotifySendRecord[] }> {

@@ -241,7 +241,7 @@ export const createApp = ({
     app.use(prefix, captureRouteMount, buildUsersRouter(authService, auditService));
     app.use(prefix, captureRouteMount, buildRbacRouter(rbacService, auditService));
     app.use(prefix, captureRouteMount, buildAuditRouter(auditService));
-    app.use(prefix, captureRouteMount, buildNotifyRouter(notifyService));
+    app.use(prefix, captureRouteMount, buildNotifyRouter(notifyService, store, auditService));
   }
 
   // JSON 404 for any unmatched route, keeping the error contract consistent

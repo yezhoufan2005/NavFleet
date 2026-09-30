@@ -508,8 +508,11 @@ const parseNotifyChannel = (raw: Record<string, unknown>, index: number): Notify
  * A missing file → `DEFAULT_NOTIFY_CONFIG` (no channels, so nothing is ever sent — the
  * zero-config red line). A present-but-malformed file throws, so `reload` keeps the previous
  * snapshot. Channel ids must be unique. Unknown top-level keys are ignored (forward-compat).
+ *
+ * Exported so the write route (1.6.1) can validate-first (parse → 400 before touching disk),
+ * mirroring how `routes/codebook.ts` uses `parseCodebook`.
  */
-const parseNotifyConfig = (raw: unknown): NotifyConfig => {
+export const parseNotifyConfig = (raw: unknown): NotifyConfig => {
   if (raw === null) {
     return DEFAULT_NOTIFY_CONFIG;
   }
@@ -1152,6 +1155,21 @@ export class ConfigRegistry {
     await this.writeConfigFileAtomic(SCENES_FILE, scenes);
     await this.reload("scenes-write");
     return this.listScenes();
+  }
+
+  /**
+   * Persist `notify.json` from the outbound-config editor (1.6.1), then reload. Validates shape
+   * first (`parseNotifyConfig`) — a full read-modify-write of `{ channels, groups }` like the
+   * codebook/vehicles writes, so a removed channel is just an array without it. Writing notify
+   * config is operator/deployment domain (channels + routing; endpoint secrets stay in env, only
+   * their `urlEnv` variable *names* live in the file), not vehicle control — the read-only red
+   * line (no command dispatch) holds. The config volume must be writable.
+   */
+  async writeNotifyConfig(raw: unknown): Promise<NotifyConfig> {
+    const config = parseNotifyConfig(raw);
+    await this.writeConfigFileAtomic(NOTIFY_FILE, config);
+    await this.reload("notify-write");
+    return this.getNotifyConfig();
   }
 
   /**
