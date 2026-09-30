@@ -6,6 +6,7 @@ import { fleetApi } from "@navfleet/fleet-core";
 import type { ReportCodeEntry } from "@navfleet/shared";
 import CodebookView from "@/views/admin/CodebookView.vue";
 import { useCodebook, __resetCodebook } from "@/composables/useCodebook";
+import { useAuth, __resetAuth } from "@/composables/useAuth";
 
 /**
  * 报码字典 — the admin page and the composable behind it (Phase 16C-2).
@@ -52,6 +53,7 @@ beforeEach(() => {
 
 afterEach(() => {
   vi.restoreAllMocks();
+  __resetAuth();
 });
 
 describe("useCodebook", () => {
@@ -167,5 +169,153 @@ describe("CodebookView", () => {
 
     expect(importSpy).not.toHaveBeenCalled();
     expect(wrapper.find('[role="alert"]').exists()).toBe(true);
+  });
+});
+
+describe("CodebookView — row editing (codebook:write)", () => {
+  const asWriter = (): void => {
+    const auth = useAuth();
+    auth.state.status = "authenticated";
+    auth.state.user = { username: "admin", role: "admin" };
+    auth.state.capabilities = ["codebook:write"];
+  };
+  const submitBodyForm = async () => {
+    document.body.querySelector("form")?.dispatchEvent(new Event("submit"));
+    await flushPromises();
+  };
+  const clickRowButton = async (
+    wrapper: Awaited<ReturnType<typeof mountView>>,
+    label: string,
+  ) => {
+    await wrapper
+      .findAll("button")
+      .find((button) => button.text().trim() === label)!
+      .trigger("click");
+    await flushPromises();
+  };
+
+  it("hides the row-edit affordances without codebook:write", async () => {
+    vi.spyOn(fleetApi, "getCodebook").mockResolvedValue({ items: [ENTRY] });
+    const wrapper = await mountView();
+    expect(
+      wrapper.findAll("button").some((b) => b.text().includes("新建报码")),
+    ).toBe(false);
+    expect(
+      wrapper.findAll("button").some((b) => b.text().trim() === "编辑"),
+    ).toBe(false);
+  });
+
+  it("creates a row and re-sends the whole table", async () => {
+    asWriter();
+    vi.spyOn(fleetApi, "getCodebook").mockResolvedValue({ items: [ENTRY] });
+    const put = vi
+      .spyOn(fleetApi, "importCodebook")
+      .mockResolvedValue({ items: [ENTRY] });
+    const wrapper = await mountView();
+    await clickRowButton(wrapper, "新建报码");
+
+    (
+      document.body.querySelector('input[type="number"]') as HTMLInputElement
+    ).value = "4200";
+    document.body
+      .querySelector('input[type="number"]')!
+      .dispatchEvent(new Event("input"));
+    (
+      document.body.querySelector('input[type="text"]') as HTMLInputElement
+    ).value = "新报码";
+    document.body
+      .querySelector('input[type="text"]')!
+      .dispatchEvent(new Event("input"));
+    const areas = document.body.querySelectorAll("textarea");
+    (areas[0] as HTMLTextAreaElement).value = "原因说明";
+    areas[0]!.dispatchEvent(new Event("input"));
+    (areas[1] as HTMLTextAreaElement).value = "处理建议";
+    areas[1]!.dispatchEvent(new Event("input"));
+    await flushPromises();
+    await submitBodyForm();
+
+    expect(put).toHaveBeenCalledTimes(1);
+    const sent = put.mock.calls[0]![0];
+    expect(sent).toHaveLength(2);
+    expect(sent[1]).toMatchObject({
+      code: 4200,
+      label: "新报码",
+      description: "原因说明",
+      hint: "处理建议",
+      channel: "error",
+      impact: "watch",
+      subsystem: "navigation",
+    });
+  });
+
+  it("blocks a duplicate code before writing", async () => {
+    asWriter();
+    vi.spyOn(fleetApi, "getCodebook").mockResolvedValue({ items: [ENTRY] });
+    const put = vi.spyOn(fleetApi, "importCodebook");
+    const wrapper = await mountView();
+    await clickRowButton(wrapper, "新建报码");
+    (
+      document.body.querySelector('input[type="number"]') as HTMLInputElement
+    ).value = String(ENTRY.code);
+    document.body
+      .querySelector('input[type="number"]')!
+      .dispatchEvent(new Event("input"));
+    await flushPromises();
+    await submitBodyForm();
+
+    expect(put).not.toHaveBeenCalled();
+    expect(document.body.textContent).toContain("已存在");
+  });
+
+  it("edits an existing row by code", async () => {
+    asWriter();
+    vi.spyOn(fleetApi, "getCodebook").mockResolvedValue({ items: [ENTRY] });
+    const put = vi
+      .spyOn(fleetApi, "importCodebook")
+      .mockResolvedValue({ items: [ENTRY] });
+    const wrapper = await mountView();
+    await clickRowButton(wrapper, "编辑");
+    const label = document.body.querySelector(
+      'input[type="text"]',
+    ) as HTMLInputElement;
+    expect(label.value).toBe(ENTRY.label);
+    label.value = "改名后";
+    label.dispatchEvent(new Event("input"));
+    await flushPromises();
+    await submitBodyForm();
+
+    const sent = put.mock.calls[0]![0];
+    expect(sent).toHaveLength(1);
+    expect(sent[0]).toMatchObject({ code: ENTRY.code, label: "改名后" });
+  });
+
+  it("deletes a row by rewriting the table without it", async () => {
+    asWriter();
+    vi.spyOn(fleetApi, "getCodebook").mockResolvedValue({ items: [ENTRY] });
+    const put = vi
+      .spyOn(fleetApi, "importCodebook")
+      .mockResolvedValue({ items: [] });
+    const wrapper = await mountView();
+    await clickRowButton(wrapper, "删除");
+    const confirm = [...document.body.querySelectorAll("button")].find(
+      (button) => button.textContent?.trim() === "删除",
+    );
+    confirm?.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+    await flushPromises();
+
+    expect(put).toHaveBeenCalledTimes(1);
+    expect(put.mock.calls[0]![0]).toEqual([]);
+  });
+
+  it("maps a backend rejection to an inline message and keeps the dialog open", async () => {
+    asWriter();
+    vi.spyOn(fleetApi, "getCodebook").mockResolvedValue({ items: [ENTRY] });
+    vi.spyOn(fleetApi, "importCodebook").mockRejectedValue(
+      new Error("invalid_codebook"),
+    );
+    const wrapper = await mountView();
+    await clickRowButton(wrapper, "编辑");
+    await submitBodyForm();
+    expect(document.body.textContent).toContain("后端拒绝了这份码表");
   });
 });

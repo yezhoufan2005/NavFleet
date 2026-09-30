@@ -1,28 +1,47 @@
 <script setup lang="ts">
 /**
- * 管理 / 报码字典 — the code→meaning table in effect, and how to replace it.
+ * 管理 / 报码字典 — the code→meaning table in effect, edited row by row or swapped as a file.
  *
- * The console describes a vehicle's report codes against the table **in effect**: the
- * built-in reference table with the deployment's `codebook.json` layered over it. This page
- * shows that merged table and lets an admin swap the deployment layer — export the current
- * table as a starting point, edit the JSON, and import it back. Import is the one place the
- * console writes config (`PUT /api/v1/codebook`, admin-only, audited); the file it writes
- * needs the config volume to be writable (see deploy/docker-compose.yml). Everything below
- * import is read-only: the table is reference data, edited as a file, not row by row here.
+ * The console describes a vehicle's report codes against the table **in effect**: the built-in
+ * reference table with the deployment's `codebook.json` layered over it. This page shows that
+ * merged table and lets an admin change it two ways, both writing `PUT /api/v1/codebook`
+ * (admin-only, audited, whole-table replace — the config volume must be writable):
+ * - **row-level** (1.6.1): 新建 / 编辑 / 删除 a single code through a form, then the whole table
+ *   is re-sent. The quick path for a one-off correction.
+ * - **file** (16C): export the current table as a starting point, edit the JSON, import it back.
+ *   The bulk path.
+ * Both go through the same shared `parseCodebook` (client-side for fast feedback, then the backend
+ * re-validates as the authority).
  */
 import { computed, onMounted, ref } from "vue";
+import {
+  DialogContent,
+  DialogDescription,
+  DialogOverlay,
+  DialogPortal,
+  DialogRoot,
+  DialogTitle,
+} from "reka-ui";
 import PageHeader from "@/components/PageHeader.vue";
 import UiButton from "@/components/ui/UiButton.vue";
+import UiConfirmDialog from "@/components/ui/UiConfirmDialog.vue";
+import UiSelect from "@/components/ui/UiSelect.vue";
 import { tableClasses } from "@/lib/uiClasses";
 import { notify } from "@/composables/useNotifications";
+import { useAuth } from "@/composables/useAuth";
 import { useCodebook } from "@/composables/useCodebook";
 import {
   CODE_IMPACTS,
   CODE_SUBSYSTEMS,
   parseCodebook,
   type CodeChannel,
+  type CodeImpact,
+  type CodeSubsystem,
   type ReportCodeEntry,
 } from "@navfleet/shared";
+
+const auth = useAuth();
+const canWrite = computed(() => auth.can("codebook:write"));
 
 const codebook = useCodebook();
 const entries = codebook.entries;
@@ -101,11 +120,158 @@ const onFileChosen = async (event: Event): Promise<void> => {
 const overrideHint = computed(() =>
   entries.value.length ? `共 ${entries.value.length} 条报码` : "",
 );
+
+// ── Row-level editing (codebook:write, 1.6.1) ─────────────────────────────────────
+const INPUT_CLASS =
+  "h-9 w-full rounded-sm border border-border-strong bg-surface px-2 text-sm text-ink placeholder:text-ink-subtle";
+
+const CHANNEL_OPTIONS = (["error", "warning", "info"] as CodeChannel[]).map(
+  (value) => ({ value, label: CHANNEL_LABELS[value] }),
+);
+const IMPACT_OPTIONS = (Object.keys(CODE_IMPACTS) as CodeImpact[]).map(
+  (value) => ({ value, label: CODE_IMPACTS[value].label }),
+);
+const SUBSYSTEM_OPTIONS = (Object.keys(CODE_SUBSYSTEMS) as CodeSubsystem[]).map(
+  (value) => ({ value, label: CODE_SUBSYSTEMS[value] }),
+);
+
+const writeError = (error: unknown): string => {
+  const code = error instanceof Error ? error.message : "";
+  return code === "invalid_codebook"
+    ? "后端拒绝了这份码表，请检查内容"
+    : code === "forbidden"
+      ? "没有编辑码表的权限"
+      : "保存失败，请稍后重试";
+};
+
+const mode = ref<"create" | "edit" | null>(null);
+const editingCode = ref<number | null>(null);
+const fCode = ref("");
+const fLabel = ref("");
+const fChannel = ref<CodeChannel>("error");
+const fImpact = ref<CodeImpact>("watch");
+const fSubsystem = ref<CodeSubsystem>("navigation");
+const fDescription = ref("");
+const fHint = ref("");
+const rowSaving = ref(false);
+const rowError = ref("");
+
+const openCreateRow = (): void => {
+  editingCode.value = null;
+  fCode.value = "";
+  fLabel.value = "";
+  fChannel.value = "error";
+  fImpact.value = "watch";
+  fSubsystem.value = "navigation";
+  fDescription.value = "";
+  fHint.value = "";
+  rowError.value = "";
+  mode.value = "create";
+};
+
+const openEditRow = (entry: ReportCodeEntry): void => {
+  editingCode.value = entry.code;
+  fCode.value = String(entry.code);
+  fLabel.value = entry.label;
+  fChannel.value = entry.channel;
+  fImpact.value = entry.impact;
+  fSubsystem.value = entry.subsystem;
+  fDescription.value = entry.description;
+  fHint.value = entry.hint;
+  rowError.value = "";
+  mode.value = "edit";
+};
+
+const closeRowDialog = (): void => {
+  mode.value = null;
+};
+
+/** Build the entry from the form, or return an error string for the first invalid field. */
+const buildEntry = (): { entry: ReportCodeEntry } | { error: string } => {
+  const code = Number(fCode.value);
+  if (!Number.isInteger(code) || code <= 0) {
+    return { error: "报码需为正整数" };
+  }
+  if (
+    entries.value.some((e) => e.code === code && e.code !== editingCode.value)
+  ) {
+    return { error: `报码 ${code} 已存在` };
+  }
+  const label = fLabel.value.trim();
+  const description = fDescription.value.trim();
+  const hint = fHint.value.trim();
+  if (!label || !description || !hint) {
+    return { error: "名称、说明与处理建议都不能为空" };
+  }
+  return {
+    entry: {
+      code,
+      channel: fChannel.value,
+      subsystem: fSubsystem.value,
+      label,
+      description,
+      hint,
+      impact: fImpact.value,
+    },
+  };
+};
+
+/** Re-send the whole table with `next` swapped in — the same whole-table write import uses. */
+const persistRows = async (next: ReportCodeEntry[]): Promise<void> => {
+  // Validate the whole table client-side (mirrors import) before the round-trip.
+  await codebook.importCodebook(parseCodebook(next));
+};
+
+const submitRow = async (): Promise<void> => {
+  const built = buildEntry();
+  if ("error" in built) {
+    rowError.value = built.error;
+    return;
+  }
+  const current = entries.value;
+  const next =
+    mode.value === "edit" && editingCode.value !== null
+      ? current.map((e) => (e.code === editingCode.value ? built.entry : e))
+      : [...current, built.entry];
+  rowSaving.value = true;
+  rowError.value = "";
+  try {
+    await persistRows(next);
+    notify("报码已保存", { type: "success" });
+    closeRowDialog();
+  } catch (error) {
+    rowError.value = writeError(error);
+  } finally {
+    rowSaving.value = false;
+  }
+};
+
+const confirmDelete = ref<ReportCodeEntry | null>(null);
+const deleteRow = async (): Promise<void> => {
+  const target = confirmDelete.value;
+  if (!target) return;
+  const next = entries.value.filter((e) => e.code !== target.code);
+  try {
+    await persistRows(next);
+    notify("报码已删除", { type: "success" });
+  } catch (error) {
+    notify(writeError(error), { type: "error" });
+  } finally {
+    confirmDelete.value = null;
+  }
+};
+
+const rowDialogTitle = computed(() =>
+  mode.value === "edit" ? "编辑报码" : "新建报码",
+);
 </script>
 
 <template>
   <PageHeader title="报码字典">
     <template #actions>
+      <UiButton v-if="canWrite" size="sm" @click="openCreateRow"
+        >新建报码</UiButton
+      >
       <UiButton
         variant="secondary"
         size="sm"
@@ -162,6 +328,7 @@ const overrideHint = computed(() =>
               <th scope="col" class="px-3 py-2 whitespace-nowrap">等级</th>
               <th scope="col" class="px-3 py-2 whitespace-nowrap">子系统</th>
               <th scope="col" class="px-3 py-2">说明与处理建议</th>
+              <th v-if="canWrite" scope="col" class="px-3 py-2">操作</th>
             </tr>
           </thead>
           <tbody>
@@ -188,10 +355,159 @@ const overrideHint = computed(() =>
                 <br />
                 {{ entry.hint }}
               </td>
+              <td v-if="canWrite" class="px-3 py-2 whitespace-nowrap">
+                <span class="flex gap-2">
+                  <UiButton
+                    variant="ghost"
+                    size="sm"
+                    @click="openEditRow(entry)"
+                    >编辑</UiButton
+                  >
+                  <UiButton
+                    variant="ghost"
+                    size="sm"
+                    @click="confirmDelete = entry"
+                    >删除</UiButton
+                  >
+                </span>
+              </td>
             </tr>
           </tbody>
         </table>
       </div>
     </template>
+
+    <!-- Row editor (codebook:write). -->
+    <DialogRoot
+      :open="mode !== null"
+      @update:open="
+        (open) => {
+          if (!open) closeRowDialog();
+        }
+      "
+    >
+      <DialogPortal>
+        <DialogOverlay class="fixed inset-0 z-50 bg-scrim/55" />
+        <DialogContent
+          class="fixed top-1/2 left-1/2 z-50 flex max-h-[85vh] w-full max-w-140 -translate-x-1/2 -translate-y-1/2 flex-col gap-3 overflow-auto rounded-md border border-border bg-surface-raised p-5 shadow-overlay"
+        >
+          <DialogTitle class="text-md font-semibold text-ink">{{
+            rowDialogTitle
+          }}</DialogTitle>
+          <DialogDescription class="sr-only"
+            >填写报码、名称、通道、等级、子系统与说明后提交</DialogDescription
+          >
+          <form
+            class="flex flex-col gap-3"
+            :aria-busy="rowSaving"
+            @submit.prevent="submitRow"
+          >
+            <div class="grid grid-cols-2 gap-3">
+              <label class="flex flex-col gap-1">
+                <span class="text-sm font-medium text-ink">报码</span>
+                <input
+                  v-model="fCode"
+                  type="number"
+                  min="1"
+                  :disabled="rowSaving"
+                  :class="[INPUT_CLASS, 'font-mono']"
+                />
+              </label>
+              <label class="flex flex-col gap-1">
+                <span class="text-sm font-medium text-ink">名称</span>
+                <input
+                  v-model="fLabel"
+                  type="text"
+                  :disabled="rowSaving"
+                  :class="INPUT_CLASS"
+                />
+              </label>
+            </div>
+            <div class="grid grid-cols-3 gap-3">
+              <label class="flex flex-col gap-1">
+                <span class="text-sm font-medium text-ink">通道</span>
+                <UiSelect
+                  :model-value="fChannel"
+                  :options="CHANNEL_OPTIONS"
+                  aria-label="通道"
+                  @update:model-value="(v) => (fChannel = v as CodeChannel)"
+                />
+              </label>
+              <label class="flex flex-col gap-1">
+                <span class="text-sm font-medium text-ink">等级</span>
+                <UiSelect
+                  :model-value="fImpact"
+                  :options="IMPACT_OPTIONS"
+                  aria-label="等级"
+                  @update:model-value="(v) => (fImpact = v as CodeImpact)"
+                />
+              </label>
+              <label class="flex flex-col gap-1">
+                <span class="text-sm font-medium text-ink">子系统</span>
+                <UiSelect
+                  :model-value="fSubsystem"
+                  :options="SUBSYSTEM_OPTIONS"
+                  aria-label="子系统"
+                  @update:model-value="(v) => (fSubsystem = v as CodeSubsystem)"
+                />
+              </label>
+            </div>
+            <label class="flex flex-col gap-1">
+              <span class="text-sm font-medium text-ink">说明（原因）</span>
+              <textarea
+                v-model="fDescription"
+                rows="2"
+                :disabled="rowSaving"
+                :class="[INPUT_CLASS, 'h-auto py-2 leading-5']"
+              ></textarea>
+            </label>
+            <label class="flex flex-col gap-1">
+              <span class="text-sm font-medium text-ink">处理建议</span>
+              <textarea
+                v-model="fHint"
+                rows="2"
+                :disabled="rowSaving"
+                :class="[INPUT_CLASS, 'h-auto py-2 leading-5']"
+              ></textarea>
+            </label>
+            <p
+              v-if="rowError"
+              class="m-0 text-sm text-critical-ink"
+              role="alert"
+            >
+              {{ rowError }}
+            </p>
+            <div class="flex justify-end gap-2">
+              <UiButton
+                variant="secondary"
+                size="sm"
+                type="button"
+                @click="closeRowDialog"
+                >取消</UiButton
+              >
+              <UiButton
+                size="sm"
+                type="submit"
+                :disabled="rowSaving || !String(fCode).trim()"
+                >保存</UiButton
+              >
+            </div>
+          </form>
+        </DialogContent>
+      </DialogPortal>
+    </DialogRoot>
+
+    <UiConfirmDialog
+      :open="confirmDelete !== null"
+      :title="`删除报码「${confirmDelete?.code ?? ''}」？`"
+      description="删除后该报码回退到内置含义（若内置有），此操作会重写 codebook.json"
+      confirm-label="删除"
+      @update:open="
+        (open) => {
+          if (!open) confirmDelete = null;
+        }
+      "
+      @confirm="deleteRow"
+    />
   </PageHeader>
 </template>
