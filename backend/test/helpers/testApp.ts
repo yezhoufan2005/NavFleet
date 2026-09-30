@@ -13,9 +13,10 @@ import { RbacService } from "../../src/rbac/service";
 import type { RbacGroup, RbacRole } from "@navfleet/shared";
 import type { Persistence } from "../../src/persistence";
 import type { DashboardStore } from "../../src/store";
-import { DEFAULT_REPORT_CODES } from "@navfleet/shared";
+import { DEFAULT_REPORT_CODES, DEFAULT_ALERT_RULES } from "@navfleet/shared";
 import type {
   AdminUserView,
+  AlertRulesConfig,
   AuditEntry,
   FleetSnapshot,
   FormationSnapshot,
@@ -70,6 +71,8 @@ export interface StoreStub {
   writeSceneAsset: Mock<(sceneId: string, kind: string, buffer: Buffer) => Promise<string>>;
   getNotifyConfig: Mock<() => NotifyConfig>;
   writeNotifyConfig: Mock<(raw: unknown) => Promise<NotifyConfig>>;
+  getAlertRules: Mock<() => AlertRulesConfig>;
+  writeAlertRules: Mock<(raw: unknown) => Promise<AlertRulesConfig>>;
   getHistory: Mock<
     (deviceId: string, from?: string, to?: string, limit?: number) => Promise<unknown[]>
   >;
@@ -126,6 +129,8 @@ export const createStoreStub = (): StoreStub => ({
   writeSceneAsset: vi.fn(() => Promise.resolve("/scene-maps/s/image.svg")),
   getNotifyConfig: vi.fn(() => ({ channels: [] })),
   writeNotifyConfig: vi.fn(() => Promise.resolve({ channels: [] })),
+  getAlertRules: vi.fn(() => DEFAULT_ALERT_RULES),
+  writeAlertRules: vi.fn(() => Promise.resolve(DEFAULT_ALERT_RULES)),
   getHistory: vi.fn(() => Promise.resolve([sampleHistoryPoint()])),
   getAlerts: vi.fn(() => Promise.resolve([sampleAlert()])),
   getAlertStats: vi.fn(() => Promise.resolve(sampleAlertStatsReport())),

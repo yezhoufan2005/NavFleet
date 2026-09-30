@@ -62,6 +62,9 @@ const ADMIN_ROUTES: Array<{ method: "get" | "post" | "patch" | "delete" | "put";
   // 外发配置写 (1.6.1): raw config read + whole-file write are notify:write (admin-only among presets).
   { method: "get", path: "/api/notify/config/raw" },
   { method: "put", path: "/api/notify/config" },
+  // 告警规则写 (1.6.1): read + whole-file write are rules:write (admin-only among presets).
+  { method: "get", path: "/api/rules/config" },
+  { method: "put", path: "/api/rules/config" },
   // 设备接入向导 config API (Phase 18): read + write vehicles/formations are all admin-only.
   { method: "get", path: "/api/vehicles" },
   { method: "put", path: "/api/vehicles" },
