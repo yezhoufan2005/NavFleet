@@ -227,6 +227,33 @@ describe("fleetApi", () => {
     expect(calls.at(-1)?.url).toBe("/api/v1/notify/config");
   });
 
+  it("reads the raw editable config and writes it back whole-file (1.6.1)", async () => {
+    stubFetch(200, { config: { channels: [] } });
+    await expect(fleetApi.getNotifyConfigRaw()).resolves.toEqual({
+      config: { channels: [] },
+    });
+    expect(calls.at(-1)?.url).toBe("/api/v1/notify/config/raw");
+
+    stubFetch(200, { config: { channels: [] } });
+    const config = {
+      channels: [
+        {
+          id: "ops",
+          type: "webhook" as const,
+          enabled: true,
+          urlEnv: "NOTIFY_OPS_URL",
+          severities: ["critical" as const],
+        },
+      ],
+    };
+    await fleetApi.putNotifyConfig(config);
+    const call = calls.at(-1)!;
+    expect(call.url).toBe("/api/v1/notify/config");
+    expect(call.init.method).toBe("PUT");
+    // The body is the config object itself (no wrapper) — the backend parses it directly.
+    expect(JSON.parse(call.init.body as string)).toEqual(config);
+  });
+
   it("reads the server-side alert-stats report, forwarding the range (Phase 17A)", async () => {
     stubFetch(200, { total: 0, available: true });
     await fleetApi.getAlertStatsReport({ from: "2026-09-01T00:00:00Z" });
