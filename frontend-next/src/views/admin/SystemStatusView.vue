@@ -32,6 +32,7 @@ import { computed, onMounted, ref } from "vue";
 import PageHeader from "@/components/PageHeader.vue";
 import UiButton from "@/components/ui/UiButton.vue";
 import { tableClasses } from "@/lib/uiClasses";
+import { useAutoRefresh } from "@/composables/useAutoRefresh";
 import { useFleetStore } from "@/stores/fleet";
 import { formatDateTime } from "@navfleet/fleet-core";
 import {
@@ -216,6 +217,15 @@ const refreshStored = (): void => {
 };
 
 onMounted(refreshStored);
+
+// Returning to the tab re-runs the health probe and re-scans stored keys, so the page is fresh
+// without a click. The manual 重新检查 button below stays: this is a diagnostics page, and an
+// operator watching a downed dependency recover sits on it without ever leaving — the case
+// focus-refresh cannot serve. There is no form here, so nothing to guard against.
+useAutoRefresh(() => {
+  void probe();
+  refreshStored();
+});
 
 /**
  * Clear, then reload. The composables that wrote these keys are module singletons

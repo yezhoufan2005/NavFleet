@@ -272,6 +272,28 @@ describe("系统状态", () => {
       .find((button) => button.text().includes("清除"));
     expect(clear?.attributes("disabled")).toBeUndefined();
   });
+
+  it("回到标签页时自动重新探测（诊断页仍保留手动「重新检查」）", async () => {
+    // The probe is a re-fetch, so returning to the tab re-runs it — same auto-refresh
+    // the list pages got. Unlike them, the manual button stays: an operator watching a
+    // downed dependency recover sits on this page without ever leaving it.
+    const wrapper = await mountStatus(
+      readyBody({ store: true, mongo: true, mqtt: true }),
+    );
+    const fetchMock = vi.mocked(globalThis.fetch);
+    const before = fetchMock.mock.calls.length;
+    Object.defineProperty(document, "visibilityState", {
+      value: "visible",
+      configurable: true,
+    });
+    window.dispatchEvent(new Event("focus"));
+    await flushPromises();
+
+    expect(fetchMock.mock.calls.length).toBe(before + 1);
+    expect(
+      wrapper.findAll("button").some((b) => b.text().includes("重新检查")),
+    ).toBe(true);
+  });
 });
 
 describe("场景", () => {
@@ -414,6 +436,32 @@ describe("场景", () => {
     const wrapper = await mountAt(ScenesView, "/admin/scenes");
 
     expect(wrapper.text()).toContain("HTTP 503");
+  });
+
+  it("不再提供手动「重新检查」按钮，改为焦点自动刷新", async () => {
+    stubResources();
+    const wrapper = await mountScenes([scene()]);
+
+    expect(
+      wrapper.findAll("button").some((b) => b.text().includes("重新检查")),
+    ).toBe(false);
+  });
+
+  it("回到标签页时自动重新拉取场景列表", async () => {
+    stubResources();
+    const spy = vi
+      .spyOn(fleetApi, "getScenes")
+      .mockResolvedValue({ items: [scene()] as never });
+    await mountAt(ScenesView, "/admin/scenes");
+    const before = spy.mock.calls.length;
+    Object.defineProperty(document, "visibilityState", {
+      value: "visible",
+      configurable: true,
+    });
+    window.dispatchEvent(new Event("focus"));
+    await flushPromises();
+
+    expect(spy.mock.calls.length).toBe(before + 1);
   });
 
   // ── 场景管理写入（Phase 18） ────────────────────────────────────────────────
