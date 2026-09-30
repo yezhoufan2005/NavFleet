@@ -278,7 +278,7 @@ const parsePositiveNumber = (
  * anything malformed throws, so `reload` keeps the previous snapshot. Unknown top-level keys
  * are ignored rather than rejected, so a newer file stays loadable by an older build.
  */
-const parseAlertRules = (raw: unknown): AlertRulesConfig => {
+export const parseAlertRules = (raw: unknown): AlertRulesConfig => {
   if (raw === null) {
     return DEFAULT_ALERT_RULES;
   }
@@ -1170,6 +1170,20 @@ export class ConfigRegistry {
     await this.writeConfigFileAtomic(NOTIFY_FILE, config);
     await this.reload("notify-write");
     return this.getNotifyConfig();
+  }
+
+  /**
+   * Persist `rules.json` from the 告警规则 editor (1.6.1), then reload. Validates shape first
+   * (`parseAlertRules`, which merges over `DEFAULT_ALERT_RULES` and throws on anything malformed),
+   * so a bad body never reaches disk and `reload` keeps the previous snapshot. Retuning thresholds
+   * / toggling a rule / scoping it is deployment-domain config, not vehicle control — the read-only
+   * red line holds. The config volume must be writable.
+   */
+  async writeAlertRules(raw: unknown): Promise<AlertRulesConfig> {
+    const config = parseAlertRules(raw);
+    await this.writeConfigFileAtomic(RULES_FILE, config);
+    await this.reload("rules-write");
+    return this.getAlertRules();
   }
 
   /**

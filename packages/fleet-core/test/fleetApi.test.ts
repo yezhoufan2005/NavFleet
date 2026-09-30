@@ -254,6 +254,23 @@ describe("fleetApi", () => {
     expect(JSON.parse(call.init.body as string)).toEqual(config);
   });
 
+  it("reads and writes the alert-rules config (1.6.1)", async () => {
+    stubFetch(200, { config: { lowBattery: {}, offline: {} } });
+    await fleetApi.getAlertRules();
+    expect(calls.at(-1)?.url).toBe("/api/v1/rules/config");
+
+    stubFetch(200, { config: { lowBattery: {}, offline: {} } });
+    const rules = {
+      lowBattery: { enabled: true, thresholdPct: 15, debounceSeconds: 30 },
+      offline: { enabled: true, afterSeconds: 90 },
+    };
+    await fleetApi.putAlertRules(rules);
+    const call = calls.at(-1)!;
+    expect(call.url).toBe("/api/v1/rules/config");
+    expect(call.init.method).toBe("PUT");
+    expect(JSON.parse(call.init.body as string)).toEqual(rules);
+  });
+
   it("reads the server-side alert-stats report, forwarding the range (Phase 17A)", async () => {
     stubFetch(200, { total: 0, available: true });
     await fleetApi.getAlertStatsReport({ from: "2026-09-01T00:00:00Z" });

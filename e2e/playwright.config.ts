@@ -164,6 +164,7 @@ export default defineConfig({
         /console-admin\.spec\.ts$/,
         /console-codebook\.spec\.ts$/,
         /console-notify\.spec\.ts$/,
+        /console-rules\.spec\.ts$/,
         /console-reports\.spec\.ts$/,
         // On-demand axe `incomplete` review surface. Every test in it skips unless
         // AXE_REVIEW is set (npm run axe:incomplete), so it is inert in CI but can be

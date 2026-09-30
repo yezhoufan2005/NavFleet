@@ -63,6 +63,12 @@ const AREAS: readonly Area[] = [
     to: "/admin/notify",
     capability: "notify:read",
   },
+  {
+    label: "告警规则",
+    plan: "1.6.1",
+    to: "/admin/rules",
+    capability: "rules:write",
+  },
   { label: "系统状态", plan: "13F", to: "/admin/system" },
 ];
 

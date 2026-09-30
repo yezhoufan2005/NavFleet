@@ -782,6 +782,37 @@ describe("ConfigRegistry 写入（Phase 18 设备接入向导）", () => {
   });
 });
 
+describe("ConfigRegistry.writeAlertRules (1.6.1 告警规则写)", () => {
+  it("writeAlertRules 校验先行 + 原子落盘 + 重载，写出的文件能再次读回", async () => {
+    const registry = new ConfigRegistry();
+    await registry.load();
+
+    const saved = await registry.writeAlertRules({
+      lowBattery: { enabled: true, thresholdPct: 15, debounceSeconds: 30 },
+      offline: { enabled: false, afterSeconds: 120 },
+    });
+    expect(saved.lowBattery.thresholdPct).toBe(15);
+    expect(saved.offline.enabled).toBe(false);
+    // The live getter reflects the write…
+    expect(registry.getAlertRules().offline.afterSeconds).toBe(120);
+    // …and the file on disk parses back to a config carrying what we wrote.
+    const onDisk = JSON.parse(await fs.readFile(path.join(configRoot, "rules.json"), "utf8")) as {
+      lowBattery: { thresholdPct: number };
+      offline: { enabled: boolean };
+    };
+    expect(onDisk.lowBattery.thresholdPct).toBe(15);
+    expect(onDisk.offline.enabled).toBe(false);
+  });
+
+  it("writeAlertRules 拒绝非法载荷（校验先行），不落坏文件", async () => {
+    const registry = new ConfigRegistry();
+    await registry.load();
+    await expect(registry.writeAlertRules({ lowBattery: { thresholdPct: "low" } })).rejects.toThrow(
+      /thresholdPct must be a finite number/,
+    );
+  });
+});
+
 describe("ConfigRegistry.writeScenes / writeSceneAsset (Phase 18 场景地图上传)", () => {
   const svg = Buffer.from('<svg xmlns="http://www.w3.org/2000/svg"></svg>', "utf8");
   const assetPath = (rel: string): string => path.join(configRoot, "scene-maps", rel);

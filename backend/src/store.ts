@@ -19,6 +19,7 @@ import { Persistence } from "./persistence";
 import { moduleLogger } from "./logger";
 import { isIngestableDeviceId } from "./validation";
 import {
+  AlertRulesConfig,
   DeviceAlert,
   DeviceConfig,
   DeviceSnapshot,
@@ -824,6 +825,17 @@ export class DashboardStore extends EventEmitter {
   /** Validate + persist `notify.json`, reload, and return the new config. */
   writeNotifyConfig(raw: unknown): Promise<NotifyConfig> {
     return this.configRegistry.writeNotifyConfig(raw);
+  }
+
+  // ── Alert-rule config (1.6.1): read + write rules.json ──
+  /** The effective alert rules (built-ins ⊕ `rules.json`), for the 告警规则 editor's load side. */
+  getAlertRules(): AlertRulesConfig {
+    return this.configRegistry.getAlertRules();
+  }
+
+  /** Validate + persist `rules.json`, reload, and return the new config. */
+  writeAlertRules(raw: unknown): Promise<AlertRulesConfig> {
+    return this.configRegistry.writeAlertRules(raw);
   }
 
   async getHistory(

@@ -10,6 +10,7 @@
 
 import type {
   AlertStatsReport,
+  AlertRulesConfig,
   AvailabilityReport,
   Capability,
   DeviceConfig,
@@ -572,6 +573,23 @@ export const fleetApi = {
   putNotifyConfig(config: NotifyConfig): Promise<{ config: NotifyConfig }> {
     return requestJson<{ config: NotifyConfig }>(
       "/api/v1/notify/config",
+      jsonBody("PUT", config),
+    );
+  },
+
+  // ── Alert rules (admin, 1.6.1) ──────────────────────────────────────────────
+  // The effective rules (built-in defaults ⊕ rules.json) for the editor, and a validate-first
+  // whole-file write. Retuning thresholds is deployment-domain config, not vehicle control; a
+  // refused write surfaces as `error.message` = `invalid_rules` for the view to map.
+  getAlertRules(): Promise<{ config: AlertRulesConfig }> {
+    return requestJson<{ config: AlertRulesConfig }>("/api/v1/rules/config");
+  },
+
+  putAlertRules(
+    config: AlertRulesConfig,
+  ): Promise<{ config: AlertRulesConfig }> {
+    return requestJson<{ config: AlertRulesConfig }>(
+      "/api/v1/rules/config",
       jsonBody("PUT", config),
     );
   },
