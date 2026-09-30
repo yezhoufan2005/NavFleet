@@ -10,8 +10,9 @@
  *
  * The strip is declared once on the section's parent route (`meta.tabs`) and read off the
  * matched ancestor here — a normalized matched record does not expose its own `children`, so the
- * list lives in meta instead of being derived from them. It renders nothing on a page that is not
- * part of a multi-tab section, so it can sit unconditionally in the shell above every page.
+ * list lives in meta instead of being derived from them. Each section page renders it just under
+ * its `PageHeader` title, so the section name sits above the strip and the tab switches the
+ * content below. It renders nothing on a page that is not part of a multi-tab section.
  *
  * Tabs the current user may not see are filtered out (same capability rule as the primary nav);
  * the route guard is still the real gate. A section that would show only one tab renders nothing —
@@ -40,10 +41,16 @@ const ACTIVE_CLASS = "border-brand text-ink";
 </script>
 
 <template>
+  <!--
+    No `overflow` here on purpose: `overflow-x: auto` forces the computed `overflow-y` to `auto`
+    too, and the tabs' `-mb-px` (which laps the bottom border onto the strip's own) then pokes one
+    pixel past the box and raises a spurious vertical scrollbar. The handful of short tabs never
+    need to scroll horizontally, so the safe fix is to not scroll at all.
+  -->
   <nav
     v-if="tabs.length > 1"
     aria-label="分区导航"
-    class="mb-4 flex gap-1 overflow-x-auto border-b border-border"
+    class="mb-4 flex gap-1 border-b border-border"
   >
     <RouterLink
       v-for="tab in tabs"

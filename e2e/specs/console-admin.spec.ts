@@ -40,7 +40,7 @@ test.describe("console admin", () => {
   test("用户 is its own section, reached from the primary nav and split into tabs", async ({
     page,
   }) => {
-    // 1.6.2 IA: 账号 and 角色与用户组 are tabs of a top-level 用户 section, addressed by real routes.
+    // 1.6.2 IA: 账号 / 角色 / 用户组 are tabs of a top-level 用户 section, addressed by real routes.
     await page.goto("/");
     await page
       .getByRole("navigation", { name: "主导航" })
@@ -49,9 +49,12 @@ test.describe("console admin", () => {
     await expect(page).toHaveURL(/\/access$/);
 
     const tabs = page.getByRole("navigation", { name: "分区导航" });
-    await expect(tabs.getByRole("link", { name: "用户" })).toBeVisible();
-    await tabs.getByRole("link", { name: "角色与用户组" }).click();
-    await expect(page).toHaveURL(/\/access\/roles$/);
+    // `exact` because 用户组 contains 用户 as a substring.
+    await expect(
+      tabs.getByRole("link", { name: "账号", exact: true }),
+    ).toBeVisible();
+    await tabs.getByRole("link", { name: "用户组", exact: true }).click();
+    await expect(page).toHaveURL(/\/access\/groups$/);
     // The section item stays lit across the tab switch (nested-record active state).
     const section = page
       .getByRole("navigation", { name: "主导航" })

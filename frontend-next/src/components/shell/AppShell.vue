@@ -37,7 +37,6 @@ import {
   VisuallyHidden,
 } from "reka-ui";
 import AppSidebarNav from "./AppSidebarNav.vue";
-import AppSectionTabs from "./AppSectionTabs.vue";
 import AppTopBar from "./AppTopBar.vue";
 import ErrorBoundary from "@/components/ErrorBoundary.vue";
 import type { PublicUser } from "@navfleet/shared";
@@ -164,7 +163,6 @@ onBeforeUnmount(stopNavigationFocus);
         tabindex="-1"
         class="min-w-0 flex-1 overflow-y-auto p-4 focus-visible:-outline-offset-2 3xl:p-6"
       >
-        <AppSectionTabs />
         <ErrorBoundary :reset-key="route.fullPath">
           <RouterView />
         </ErrorBoundary>

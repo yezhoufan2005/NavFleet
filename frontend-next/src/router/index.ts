@@ -62,12 +62,6 @@ declare module "vue-router" {
      */
     capabilities?: readonly Capability[];
     /**
-     * Secondary-navigation label for this route (1.6.2 IA). Present on the pages that are tabs of
-     * a section, so `AppSectionTabs` can label the tab independently of `title` — the section's
-     * first tab carries no `title` (its breadcrumb is the section's), but still needs a tab word.
-     */
-    tab?: string;
-    /**
      * The tab strip for a section, declared on its **parent** route (1.6.2 IA). `AppSectionTabs`
      * reads it off the matched ancestor and renders one link per entry the user may see. Kept here
      * rather than derived from `children`, because a normalized matched record does not expose them.
@@ -132,11 +126,12 @@ const routes: RouteRecordRaw[] = [
     meta: { title: "报表" },
   },
   {
-    // 用户 — access control, promoted to a top-level section (1.6.2 IA). Its two pages (账号 and
-    // 角色与用户组) were cards under 管理; they are now tabs of one section, addressed by real child
-    // routes so a pasted link, Back/Forward and `router-link-active` all work. `AppSectionTabs`
-    // reads the strip off this parent's `meta.tabs`. The first tab is the `""` child (renders at
-    // /access), so — as with /devices — the section nav item stays lit on either tab.
+    // 用户 — access control, promoted to a top-level section (1.6.2 IA). Its pages (账号 / 角色 /
+    // 用户组) were cards under 管理; they are now tabs of one section, addressed by real child routes
+    // so a pasted link, Back/Forward and `router-link-active` all work. `AppSectionTabs` reads the
+    // strip off this parent's `meta.tabs`. The first tab is the `""` child (renders at /access), so
+    // — as with /devices — the section nav item stays lit on any tab. The section is named 用户; its
+    // first tab is 账号 (the accounts page) to avoid a 用户/用户 collision in the strip.
     path: "/access",
     meta: {
       title: "用户",
@@ -144,12 +139,17 @@ const routes: RouteRecordRaw[] = [
       tabs: [
         {
           routeName: "access-users",
-          label: "用户",
+          label: "账号",
           capability: "users:manage",
         },
         {
           routeName: "access-roles",
-          label: "角色与用户组",
+          label: "角色",
+          capability: "users:manage",
+        },
+        {
+          routeName: "access-groups",
+          label: "用户组",
           capability: "users:manage",
         },
       ],
@@ -159,23 +159,25 @@ const routes: RouteRecordRaw[] = [
         path: "",
         name: "access-users",
         component: () => import("@/views/admin/UsersView.vue"),
-        // No `title`: the breadcrumb at the first tab is the section's own (用户), not 用户 › 用户.
-        meta: { tab: "用户", capability: "users:manage" },
+        // No `title`: the breadcrumb at the first tab is the section's own (用户).
+        meta: { capability: "users:manage" },
       },
       {
         path: "roles",
         name: "access-roles",
         component: () => import("@/views/admin/RolesView.vue"),
-        meta: {
-          title: "角色与用户组",
-          tab: "角色与用户组",
-          capability: "users:manage",
-        },
+        meta: { title: "角色", capability: "users:manage" },
+      },
+      {
+        path: "groups",
+        name: "access-groups",
+        component: () => import("@/views/admin/GroupsView.vue"),
+        meta: { title: "用户组", capability: "users:manage" },
       },
     ],
   },
-  // The 管理 deep links these two pages used to live at, kept as redirects so shared bookmarks
-  // still land — same courtesy as 告警史's old top-level path.
+  // The 管理 deep links these pages used to live at, kept as redirects so shared bookmarks still
+  // land — same courtesy as 告警史's old top-level path. /admin/roles now points at the 角色 tab.
   { path: "/admin/users", redirect: { name: "access-users" } },
   { path: "/admin/roles", redirect: { name: "access-roles" } },
   {
