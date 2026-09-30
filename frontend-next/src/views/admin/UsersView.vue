@@ -30,6 +30,7 @@ import UiSelect from "@/components/ui/UiSelect.vue";
 import UiConfirmDialog from "@/components/ui/UiConfirmDialog.vue";
 import { tableClasses } from "@/lib/uiClasses";
 import { notify } from "@/composables/useNotifications";
+import { useAutoRefresh } from "@/composables/useAutoRefresh";
 
 const ROLE_LABELS: Record<UserRoleName, string> = {
   admin: "管理员",
@@ -266,6 +267,13 @@ const sessionsFor = ref<string | null>(null);
 const sessionList = ref<SessionRecordView[]>([]);
 const sessionsStatus = ref<"loading" | "ready" | "error">("loading");
 
+// Re-fetch the user list when the operator returns to the tab (no manual 刷新 button), but not
+// while a dialog, a confirm, or an expanded sessions panel is open — a refresh must not yank them.
+useAutoRefresh(() => void load(), {
+  enabled: () =>
+    mode.value === null && confirm.value === null && sessionsFor.value === null,
+});
+
 const loadSessions = async (username: string): Promise<void> => {
   sessionsStatus.value = "loading";
   try {
@@ -293,7 +301,6 @@ const formatTime = (iso: string | null): string =>
 <template>
   <PageHeader title="用户">
     <template #actions>
-      <UiButton variant="secondary" size="sm" @click="load">刷新</UiButton>
       <UiButton size="sm" @click="openCreate">新建用户</UiButton>
     </template>
 

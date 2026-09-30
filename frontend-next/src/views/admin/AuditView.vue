@@ -15,6 +15,7 @@ import UiInput from "@/components/ui/UiInput.vue";
 import UiPager from "@/components/ui/UiPager.vue";
 import UiSelect from "@/components/ui/UiSelect.vue";
 import { tableClasses } from "@/lib/uiClasses";
+import { useAutoRefresh } from "@/composables/useAutoRefresh";
 
 const route = useRoute();
 const router = useRouter();
@@ -116,6 +117,8 @@ const resetFilters = (): void => {
 };
 
 onMounted(() => void load());
+// Re-fetch when the operator returns to the tab, rather than via a manual 刷新 button.
+useAutoRefresh(() => void load());
 
 const pageCount = computed(() =>
   Math.max(1, Math.ceil(entries.value.length / pageSize.value)),
@@ -133,10 +136,6 @@ const formatTime = (iso: string): string =>
 
 <template>
   <PageHeader title="审计">
-    <template #actions>
-      <UiButton variant="secondary" size="sm" @click="load">刷新</UiButton>
-    </template>
-
     <section class="flex flex-wrap items-end gap-3" aria-label="筛选">
       <label class="flex flex-col gap-1">
         <span class="text-2xs text-ink-muted">操作者</span>

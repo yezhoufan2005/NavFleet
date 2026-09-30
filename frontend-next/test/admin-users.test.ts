@@ -96,6 +96,28 @@ describe("UsersView — list", () => {
     expect(wrapper.text()).toContain("已锁定");
   });
 
+  it("auto-refreshes the list when the tab regains focus (no manual 刷新)", async () => {
+    const spy = vi
+      .spyOn(fleetApi, "getUsers")
+      .mockResolvedValue({ users: [user({ username: "alice" })] });
+    const router = routerFor();
+    await router.push("/admin/users");
+    await router.isReady();
+    mount(UsersView, {
+      global: { plugins: [router] },
+      attachTo: document.body,
+    });
+    await flushPromises();
+    const before = spy.mock.calls.length;
+    Object.defineProperty(document, "visibilityState", {
+      value: "visible",
+      configurable: true,
+    });
+    window.dispatchEvent(new Event("focus"));
+    await flushPromises();
+    expect(spy.mock.calls.length).toBe(before + 1);
+  });
+
   it("shows an error state when the list fails", async () => {
     vi.spyOn(fleetApi, "getUsers").mockRejectedValue(new Error("HTTP 503"));
     const router = routerFor();
