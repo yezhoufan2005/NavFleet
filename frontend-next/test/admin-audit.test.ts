@@ -63,6 +63,25 @@ describe("AuditView", () => {
     expect(wrapper.text()).toContain("没有符合条件的记录");
   });
 
+  it("auto-refreshes when the tab regains focus (no manual 刷新)", async () => {
+    const spy = vi
+      .spyOn(fleetApi, "getAuditLog")
+      .mockResolvedValue({ entries: [entry()] });
+    const router = routerFor();
+    await router.push("/admin/audit");
+    await router.isReady();
+    mount(AuditView, { global: { plugins: [router] } });
+    await flushPromises();
+    const before = spy.mock.calls.length;
+    Object.defineProperty(document, "visibilityState", {
+      value: "visible",
+      configurable: true,
+    });
+    window.dispatchEvent(new Event("focus"));
+    await flushPromises();
+    expect(spy.mock.calls.length).toBe(before + 1);
+  });
+
   it("shows an error state when the request fails", async () => {
     vi.spyOn(fleetApi, "getAuditLog").mockRejectedValue(new Error("HTTP 503"));
     const router = routerFor();

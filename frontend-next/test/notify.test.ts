@@ -107,6 +107,21 @@ describe("NotifyView", () => {
       expect.objectContaining({ status: "failed", deviceId: "agv-1" }),
     );
   });
+
+  it("auto-refreshes when the tab regains focus (no manual 刷新)", async () => {
+    const spy = vi.spyOn(fleetApi, "getNotifyLog").mockResolvedValue({
+      items: [RECORD],
+    });
+    await mountView();
+    const before = spy.mock.calls.length;
+    Object.defineProperty(document, "visibilityState", {
+      value: "visible",
+      configurable: true,
+    });
+    window.dispatchEvent(new Event("focus"));
+    await flushPromises();
+    expect(spy.mock.calls.length).toBe(before + 1);
+  });
 });
 
 // ── Channel editor (notify:write) ───────────────────────────────────────────────

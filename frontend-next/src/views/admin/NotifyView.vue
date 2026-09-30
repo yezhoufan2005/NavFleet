@@ -49,6 +49,7 @@ import UiSelect from "@/components/ui/UiSelect.vue";
 import { tableClasses } from "@/lib/uiClasses";
 import { useAuth } from "@/composables/useAuth";
 import { notify as toast } from "@/composables/useNotifications";
+import { useAutoRefresh } from "@/composables/useAutoRefresh";
 
 const route = useRoute();
 const router = useRouter();
@@ -403,14 +404,16 @@ const deleteChannel = async (): Promise<void> => {
 const channelDialogTitle = computed(() =>
   chMode.value === "edit" ? "编辑渠道" : "新建渠道",
 );
+
+// Re-fetch when the operator returns to the tab (no manual 刷新 button), but not while the channel
+// editor or a delete confirm is open — a refresh must not discard an in-progress edit.
+useAutoRefresh(() => void load(), {
+  enabled: () => chMode.value === null && confirmDelete.value === null,
+});
 </script>
 
 <template>
   <PageHeader title="外发">
-    <template #actions>
-      <UiButton variant="secondary" size="sm" @click="load">刷新</UiButton>
-    </template>
-
     <section aria-label="生效渠道" class="flex flex-col gap-2">
       <h2 class="text-2xs text-ink-muted uppercase">生效渠道</h2>
       <p
