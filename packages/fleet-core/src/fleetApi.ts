@@ -16,6 +16,7 @@ import type {
   DeviceSnapshot,
   FormationConfig,
   NotifyChannelView,
+  NotifyConfig,
   NotifySendRecord,
   RbacGroup,
   RbacRole,
@@ -546,8 +547,10 @@ export const fleetApi = {
   // ── Outbound notifications (admin, Phase 16D) ───────────────────────────────
   // Recent send records (newest first, server-capped), and the effective channels with
   // secrets redacted (`configured` says whether each channel's endpoint env is set; the URL
-  // is never returned). The editable write side (getNotifyConfigRaw / writeNotifyConfig,
-  // notify:write) lands with the console editor in a follow-up.
+  // is never returned). The editable write side (getNotifyConfigRaw / putNotifyConfig,
+  // notify:write) backs the console editor: raw carries each channel's `urlEnv` *name* (not
+  // the secret) plus routing/groups so the editor round-trips fields it does not surface, and
+  // the PUT is a validate-first whole-file write — endpoint secrets never leave env.
   getNotifyLog(
     params: NotifyLogQueryParams = {},
   ): Promise<{ items: NotifySendRecord[] }> {
@@ -559,6 +562,17 @@ export const fleetApi = {
   getNotifyConfig(): Promise<{ channels: NotifyChannelView[] }> {
     return requestJson<{ channels: NotifyChannelView[] }>(
       "/api/v1/notify/config",
+    );
+  },
+
+  getNotifyConfigRaw(): Promise<{ config: NotifyConfig }> {
+    return requestJson<{ config: NotifyConfig }>("/api/v1/notify/config/raw");
+  },
+
+  putNotifyConfig(config: NotifyConfig): Promise<{ config: NotifyConfig }> {
+    return requestJson<{ config: NotifyConfig }>(
+      "/api/v1/notify/config",
+      jsonBody("PUT", config),
     );
   },
 
