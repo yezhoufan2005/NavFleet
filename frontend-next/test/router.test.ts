@@ -47,6 +47,16 @@ describe("route table", () => {
       // stays as a redirect, so it has no name or title of its own.
       { path: "/alert-history", name: undefined, title: undefined },
       { path: "/reports", name: "reports", title: "报表" },
+      // 用户 promoted to a top-level section (1.6.2 IA): 账号 / 角色 / 用户组 are tabs behind real
+      // child routes. The first tab is the `""` child (renders at /access), so it shares the
+      // parent's path and carries no title of its own — its breadcrumb is the section's 用户.
+      { path: "/access", name: undefined, title: "用户" },
+      { path: "/access", name: "access-users", title: undefined },
+      { path: "/access/roles", name: "access-roles", title: "角色" },
+      { path: "/access/groups", name: "access-groups", title: "用户组" },
+      // The 管理 deep links the two pages used to live at, kept as redirects for old bookmarks.
+      { path: "/admin/users", name: undefined, title: undefined },
+      { path: "/admin/roles", name: undefined, title: undefined },
       // 管理 is nested for the same reason 设备 is: `router-link-active` follows
       // matched records, so a child page has to keep the section lit. Its landing
       // page is a real page rather than a redirect into the first child (C2), which
@@ -55,8 +65,6 @@ describe("route table", () => {
       { path: "/admin", name: "admin", title: undefined },
       { path: "/admin/system", name: "admin-system", title: "系统状态" },
       { path: "/admin/scenes", name: "admin-scenes", title: "场景" },
-      { path: "/admin/users", name: "admin-users", title: "用户" },
-      { path: "/admin/roles", name: "admin-roles", title: "角色与用户组" },
       {
         path: "/admin/onboarding",
         name: "admin-onboarding",
@@ -166,6 +174,17 @@ describe("primary navigation", () => {
     // The page an engineer spends the most time on must not look like nowhere.
     const wrapper = await mountNav("/devices/agv-c12");
     expect(link(wrapper, "设备")?.classes().join(" ")).toContain(ACTIVE);
+  });
+
+  it("keeps 用户 lit on any of its tabs (1.6.2 IA)", async () => {
+    // The section item stays the highlight while you switch between 账号 / 角色 / 用户组,
+    // for the same nested-record reason 设备 does.
+    for (const path of ["/access", "/access/roles", "/access/groups"]) {
+      const wrapper = await mountNav(path);
+      expect(link(wrapper, "用户")?.classes().join(" "), path).toContain(
+        ACTIVE,
+      );
+    }
   });
 
   it("does not claim the section is the current page on a sub-page", async () => {

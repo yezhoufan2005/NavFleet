@@ -6,10 +6,9 @@
  * first. This page is the map of the section — one card per built admin area.
  *
  * Cards are filtered by capability (1.6.1 RBAC): a user reaching this landing holds at least one
- * admin-area capability, and sees only the areas they can actually enter. 用户组 — dropped in the
- * original read-only console as "heavy for three near-identical roles" — is **un-dropped here**:
- * the 角色与用户组 card lands with fine-grained capabilities + groups. 系统状态 has no dedicated
- * capability, so it shows to anyone who can reach this landing.
+ * admin-area capability, and sees only the areas they can actually enter. 用户 与 角色与用户组 have
+ * moved out to their own top-level 用户 section (1.6.2 IA), so they are no longer cards here.
+ * 系统状态 has no dedicated capability, so it shows to anyone who can reach this landing.
  */
 import { computed } from "vue";
 import { RouterLink } from "vue-router";
@@ -31,18 +30,6 @@ const AREAS: readonly Area[] = [
     plan: "18",
     to: "/admin/onboarding",
     capability: "vehicles:write",
-  },
-  {
-    label: "用户",
-    plan: "15E",
-    to: "/admin/users",
-    capability: "users:manage",
-  },
-  {
-    label: "角色与用户组",
-    plan: "1.6.1",
-    to: "/admin/roles",
-    capability: "users:manage",
   },
   { label: "审计", plan: "15E", to: "/admin/audit", capability: "audit:read" },
   {

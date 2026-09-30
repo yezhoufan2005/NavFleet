@@ -25,6 +25,7 @@ import {
   type UserRoleName,
 } from "@navfleet/fleet-core";
 import PageHeader from "@/components/PageHeader.vue";
+import AppSectionTabs from "@/components/shell/AppSectionTabs.vue";
 import UiButton from "@/components/ui/UiButton.vue";
 import UiSelect from "@/components/ui/UiSelect.vue";
 import UiConfirmDialog from "@/components/ui/UiConfirmDialog.vue";
@@ -303,6 +304,8 @@ const formatTime = (iso: string | null): string =>
     <template #actions>
       <UiButton size="sm" @click="openCreate">新建用户</UiButton>
     </template>
+
+    <AppSectionTabs />
 
     <p v-if="status === 'loading'" class="text-sm text-ink-muted">加载中…</p>
     <p

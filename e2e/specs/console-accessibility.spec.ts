@@ -48,6 +48,9 @@ const ROUTES: readonly { path: string; heading: string | RegExp }[] = [
   // a list of cards and nothing else.
   { path: "/admin/system", heading: "系统状态" },
   { path: "/admin/scenes", heading: "场景" },
+  // 用户: its own top-level section (1.6.2 IA), and the first surface to carry the secondary
+  // tab strip — a second `nav` landmark that has to stay named and reachable.
+  { path: "/access", heading: "用户" },
   { path: "/no-such-page", heading: "页面不存在" },
   // 大屏值班: shell-less, non-interactive. Its h1 is the (deployment-defined) fleet name,
   // so the render proof targets the always-present 活跃告警 panel heading instead.
