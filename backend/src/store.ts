@@ -29,6 +29,7 @@ import {
   LaneletOverlay,
   NotifyConfig,
   ReportCodeEntry,
+  ReportsConfig,
   SceneMapDefinition,
   SocketEvent,
 } from "./types";
@@ -836,6 +837,17 @@ export class DashboardStore extends EventEmitter {
   /** Validate + persist `rules.json`, reload, and return the new config. */
   writeAlertRules(raw: unknown): Promise<AlertRulesConfig> {
     return this.configRegistry.writeAlertRules(raw);
+  }
+
+  // ── Scheduled-report config (1.6.1): read + write reports.json ──
+  /** The scheduled-report config (`reports.json`), for the 定时报表 editor's load side. */
+  getReportsConfig(): ReportsConfig {
+    return this.configRegistry.getReportsConfig();
+  }
+
+  /** Validate + persist `reports.json`, reload, and return the new config. */
+  writeReportsConfig(raw: unknown): Promise<ReportsConfig> {
+    return this.configRegistry.writeReportsConfig(raw);
   }
 
   async getHistory(

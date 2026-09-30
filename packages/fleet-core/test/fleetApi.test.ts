@@ -271,6 +271,31 @@ describe("fleetApi", () => {
     expect(JSON.parse(call.init.body as string)).toEqual(rules);
   });
 
+  it("reads and writes the scheduled-report config (1.6.1)", async () => {
+    stubFetch(200, { config: { schedules: [] } });
+    await fleetApi.getReportsConfig();
+    expect(calls.at(-1)?.url).toBe("/api/v1/reports/config");
+
+    stubFetch(200, { config: { schedules: [] } });
+    const config = {
+      schedules: [
+        {
+          id: "daily-ops",
+          enabled: true,
+          range: "24h" as const,
+          time: "08:00",
+          smtpEnv: "REPORTS_SMTP_URL",
+          from: "reports@fleet.local",
+        },
+      ],
+    };
+    await fleetApi.putReportsConfig(config);
+    const call = calls.at(-1)!;
+    expect(call.url).toBe("/api/v1/reports/config");
+    expect(call.init.method).toBe("PUT");
+    expect(JSON.parse(call.init.body as string)).toEqual(config);
+  });
+
   it("reads the server-side alert-stats report, forwarding the range (Phase 17A)", async () => {
     stubFetch(200, { total: 0, available: true });
     await fleetApi.getAlertStatsReport({ from: "2026-09-01T00:00:00Z" });

@@ -18,6 +18,7 @@ export const ADMIN_AREA_CAPABILITIES: readonly Capability[] = [
   "codebook:write",
   "notify:read",
   "rules:write",
+  "reports:write",
 ];
 
 /**
@@ -169,6 +170,12 @@ const routes: RouteRecordRaw[] = [
         name: "admin-rules",
         component: () => import("@/views/admin/RulesView.vue"),
         meta: { title: "告警规则", capability: "rules:write" },
+      },
+      {
+        path: "reports",
+        name: "admin-reports",
+        component: () => import("@/views/admin/ReportSchedulesView.vue"),
+        meta: { title: "定时报表", capability: "reports:write" },
       },
       {
         path: "audit",

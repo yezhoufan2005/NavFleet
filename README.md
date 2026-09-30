@@ -133,7 +133,7 @@ flowchart LR
 | `/reports`          | **报表**     | 服务端聚合的可用性 KPI + 时序 + CSV 导出                                     |
 | `/wall`             | **大屏值班** | 面向无人值守墙面：KPI + 地图 + 滚动告警，长效 kiosk 账号登录                 |
 | `/profile`          | **个人中心** | 自助改密、会话信息                                                           |
-| `/admin`            | **管理**     | 落地页，下挂九个子页                                                         |
+| `/admin`            | **管理**     | 落地页，下挂十个子页                                                         |
 | `/admin/onboarding` | 设备接入     | 车辆 / 编队配置的增删改（写 `vehicles.json` / `formations.json`，热重载）    |
 | `/admin/system`     | 系统状态     | 分辨「连不上后端」与「后端连不上 broker / Mongo」；列本机留存数据            |
 | `/admin/scenes`     | 场景         | 逐个核对场景资源可达性，说清取不到会看到什么                                 |
@@ -142,6 +142,7 @@ flowchart LR
 | `/admin/codebook`   | 报码字典     | 报码释义表，可导入 / 导出 JSON                                               |
 | `/admin/notify`     | 外发         | 告警外发渠道配置（渠道 / 严重度 / 静默窗口，写 `notify.json`，热重载）       |
 | `/admin/rules`      | 告警规则     | 低电量 / 离线规则的阈值 · 开关 · 作用范围（写 `rules.json`，热重载）         |
+| `/admin/reports`    | 定时报表     | 报表调度：回看窗口 · 发送时刻 · 收件人（写 `reports.json`，热重载）          |
 | `/admin/audit`      | 审计         | 鉴权与用户管理操作的审计日志                                                 |
 
 其余路径落 404。另有开发专用的 `/__charts-perf`（不在导航里）。

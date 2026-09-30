@@ -621,7 +621,7 @@ const parseReportSchedule = (raw: unknown, index: number): ReportScheduleConfig 
  * zero-config red line as notify.json). Malformed → throw so `reload` keeps the previous snapshot.
  * Schedule ids must be unique. The SMTP URL lives only in the env var `smtpEnv` names, never here.
  */
-const parseReportsConfig = (raw: unknown): ReportsConfig => {
+export const parseReportsConfig = (raw: unknown): ReportsConfig => {
   if (raw === null) {
     return DEFAULT_REPORTS_CONFIG;
   }
@@ -1184,6 +1184,21 @@ export class ConfigRegistry {
     await this.writeConfigFileAtomic(RULES_FILE, config);
     await this.reload("rules-write");
     return this.getAlertRules();
+  }
+
+  /**
+   * Persist `reports.json` from the 定时报表 editor (1.6.1), then reload. Validates shape first
+   * (`parseReportsConfig`: schedule ids unique, `time` HH:MM, `range`/`weekday` in range, `smtpEnv`
+   * + `from` set), so a bad body never reaches disk. The scheduler reads the config live each tick,
+   * so a write takes effect on the next poll with no restart. SMTP connection strings (with
+   * credentials) stay in the env vars `smtpEnv` names — only those *names* live in the file — so
+   * this is deployment-domain config, not command dispatch. The config volume must be writable.
+   */
+  async writeReportsConfig(raw: unknown): Promise<ReportsConfig> {
+    const config = parseReportsConfig(raw);
+    await this.writeConfigFileAtomic(REPORTS_FILE, config);
+    await this.reload("reports-write");
+    return this.getReportsConfig();
   }
 
   /**

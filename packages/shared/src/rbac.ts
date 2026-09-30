@@ -18,6 +18,7 @@ export const CAPABILITIES = [
   "notify:read", // 外发发送记录 + 生效渠道（管理面敏感读）
   "notify:write", // 外发渠道/路由配置写入（notify.json）
   "rules:write", // 告警规则阈值/开关/作用范围写入（rules.json）
+  "reports:write", // 定时报表调度写入（reports.json）
   "audit:read", // 审计日志查询
   "users:manage", // 用户增改删 / 重置 / 踢会话
   "debug:ingest", // 调试注入（默认关闭，仅 dev）
