@@ -234,7 +234,7 @@ function nextPage() {
       </article>
 
       <div v-if="!filteredAlerts.length" class="empty-alert">
-        {{ stats.total ? "当前筛选条件下没有告警。" : "当前没有活动告警，系统运行正常。" }}
+        {{ stats.total ? "当前筛选条件下没有告警" : "当前没有活动告警，系统运行正常" }}
       </div>
     </div>
 

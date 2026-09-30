@@ -318,7 +318,7 @@ function handleDeviceSelect(deviceId) {
 
           <div v-else class="map-empty">
             <strong>暂无 ROS 地图</strong>
-            <span>当前选中设备或编队还没有可用的场景地图配置。</span>
+            <span>当前选中设备或编队没有可用的场景地图配置</span>
           </div>
         </div>
       </section>
@@ -448,7 +448,7 @@ function handleDeviceSelect(deviceId) {
             </div>
 
             <div v-if="!hasSelectedRosPose" class="empty-alert compact">
-              当前设备还没有可用的 ROS 位姿数据。
+              当前设备还没有可用的 ROS 位姿数据
             </div>
           </section>
 
@@ -477,7 +477,7 @@ function handleDeviceSelect(deviceId) {
 
         <div v-else class="detail-empty">
           <strong>暂无设备详情</strong>
-          <span>请先从左侧选择一台设备或一个编队。</span>
+          <span>请先选择一台设备或一个编队</span>
         </div>
       </aside>
     </div>

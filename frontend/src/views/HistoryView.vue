@@ -240,19 +240,19 @@ async function loadHistory() {
           <div v-else-if="loaded && !samples.length" class="map-empty">
             <strong>没有历史轨迹数据</strong>
             <span>
-              历史回放依赖 MongoDB 持久化的遥测数据。请确认后端已连接 MongoDB，
-              且该设备在所选时间范围内有上报记录。
+              历史回放依赖 MongoDB 持久化的遥测数据,请确认后端已连接 MongoDB，
+              且该设备在所选时间范围内有上报记录
             </span>
           </div>
 
           <div v-else-if="loaded && !hasPlaybackPose" class="map-empty">
             <strong>该轨迹缺少 ROS 位姿</strong>
-            <span>选中设备的历史记录中没有融合/激光定位坐标，无法在场景地图上回放。</span>
+            <span>选中设备的历史记录中没有融合/激光定位坐标，无法在场景地图上回放</span>
           </div>
 
           <div v-else class="map-empty">
             <strong>选择设备并加载轨迹</strong>
-            <span>选择一台设备与时间范围，点击“加载轨迹”后即可在此回放历史运动。</span>
+            <span>选择一台设备与时间范围，点击“加载轨迹”后即可在此回放历史运动</span>
           </div>
         </div>
 
@@ -333,7 +333,7 @@ async function loadHistory() {
         </div>
         <div v-else class="detail-empty">
           <strong>暂无采样</strong>
-          <span>加载轨迹后，这里会显示当前回放位置的遥测详情。</span>
+          <span>加载轨迹后，会显示当前回放位置的遥测详情</span>
         </div>
       </aside>
     </div>

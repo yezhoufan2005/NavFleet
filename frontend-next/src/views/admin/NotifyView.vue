@@ -453,16 +453,12 @@ const channelDialogTitle = computed(() =>
         <h2 class="m-0 text-2xs text-ink-muted uppercase">配置渠道</h2>
         <UiButton size="sm" @click="openCreateChannel">新建渠道</UiButton>
       </div>
-      <p class="m-0 text-2xs text-ink-subtle">
-        端点地址（含密钥）只存放在环境变量里，这里配的是变量名；停用或未配 env
-        的渠道不外发
-      </p>
       <p
         v-if="!rawConfig?.channels.length"
         class="text-sm text-ink-muted"
         role="status"
       >
-        还没有配置渠道——新建一个渠道后，命中的告警才会外发
+        还没配置渠道
       </p>
       <div v-else :class="[tableClasses.wrapper, 'overflow-hidden']">
         <table :class="tableClasses.table">
@@ -472,7 +468,7 @@ const channelDialogTitle = computed(() =>
               <th scope="col" class="px-3 py-2">类型</th>
               <th scope="col" class="px-3 py-2">严重度</th>
               <th scope="col" class="px-3 py-2">env</th>
-              <th scope="col" class="px-3 py-2">操作</th>
+              <th scope="col" class="py-2 pr-6 pl-3 text-right">操作</th>
             </tr>
           </thead>
           <tbody>
@@ -506,7 +502,7 @@ const channelDialogTitle = computed(() =>
                 >
               </td>
               <td class="px-3 py-2">
-                <span class="flex gap-2">
+                <span class="flex justify-end gap-2">
                   <UiButton
                     variant="ghost"
                     size="sm"
@@ -706,7 +702,7 @@ const channelDialogTitle = computed(() =>
                 :class="[INPUT_CLASS, 'font-mono']"
               />
               <span class="text-2xs text-ink-subtle"
-                >留空表示未就绪：该渠道不发送、也不记失败</span
+                >留空表示未就绪：不发送不记失败</span
               >
             </label>
             <label class="flex items-center gap-2 text-sm text-ink">
@@ -775,7 +771,7 @@ const channelDialogTitle = computed(() =>
                 >
               </legend>
               <p v-if="!cSilence.length" class="m-0 text-2xs text-ink-subtle">
-                无：任意时段都发；落在窗口内的告警对本渠道静默
+                留空表示任意时段；落在窗口内的告警对本渠道静默
               </p>
               <div
                 v-for="(row, index) in cSilence"

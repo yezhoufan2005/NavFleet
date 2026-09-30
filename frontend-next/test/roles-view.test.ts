@@ -88,7 +88,7 @@ describe("RolesView — listing", () => {
     vi.spyOn(fleetApi, "getRbacRoles").mockResolvedValue({ roles: [] });
     vi.spyOn(fleetApi, "getRbacGroups").mockResolvedValue({ groups: [] });
     const wrapper = await mountView();
-    expect(wrapper.text()).toContain("还没有自定义角色");
+    expect(wrapper.text()).toContain("还没有角色");
     expect(wrapper.text()).toContain("还没有用户组");
   });
 });

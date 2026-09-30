@@ -267,11 +267,11 @@ const kioskUsernames = computed(
       <!-- Custom roles: named capability subsets that groups reference. -->
       <section class="flex flex-col gap-3">
         <div class="flex items-center justify-between gap-3">
-          <h2 class="m-0 text-md font-semibold text-ink">自定义角色</h2>
+          <h2 class="m-0 text-md font-semibold text-ink">角色</h2>
           <UiButton size="sm" @click="openCreateRole">新建角色</UiButton>
         </div>
         <p v-if="!roles.length" class="text-sm text-ink-muted" role="status">
-          还没有自定义角色——角色是一组能力，供用户组引用
+          还没有角色
         </p>
         <div v-else :class="[tableClasses.wrapper, 'overflow-hidden']">
           <table :class="tableClasses.table">
@@ -279,7 +279,7 @@ const kioskUsernames = computed(
               <tr>
                 <th scope="col" class="px-3 py-2">名称</th>
                 <th scope="col" class="px-3 py-2">能力</th>
-                <th scope="col" class="px-3 py-2">操作</th>
+                <th scope="col" class="py-2 pr-6 pl-3 text-right">操作</th>
               </tr>
             </thead>
             <tbody>
@@ -296,7 +296,7 @@ const kioskUsernames = computed(
                   }}
                 </td>
                 <td class="px-3 py-2">
-                  <span class="flex gap-2">
+                  <span class="flex justify-end gap-2">
                     <UiButton
                       variant="ghost"
                       size="sm"
@@ -324,7 +324,7 @@ const kioskUsernames = computed(
           <UiButton size="sm" @click="openCreateGroup">新建用户组</UiButton>
         </div>
         <p v-if="!groups.length" class="text-sm text-ink-muted" role="status">
-          还没有用户组——它把一批用户绑到若干自定义角色，成员即获得这些角色的能力
+          还没有用户组
         </p>
         <div v-else :class="[tableClasses.wrapper, 'overflow-hidden']">
           <table :class="tableClasses.table">
@@ -333,7 +333,7 @@ const kioskUsernames = computed(
                 <th scope="col" class="px-3 py-2">名称</th>
                 <th scope="col" class="px-3 py-2">角色</th>
                 <th scope="col" class="px-3 py-2">成员</th>
-                <th scope="col" class="px-3 py-2">操作</th>
+                <th scope="col" class="py-2 pr-6 pl-3 text-right">操作</th>
               </tr>
             </thead>
             <tbody>
@@ -350,7 +350,7 @@ const kioskUsernames = computed(
                   {{ group.memberUsernames.length }} 人
                 </td>
                 <td class="px-3 py-2">
-                  <span class="flex gap-2">
+                  <span class="flex justify-end gap-2">
                     <UiButton
                       variant="ghost"
                       size="sm"
@@ -496,7 +496,7 @@ const kioskUsernames = computed(
             <fieldset class="flex flex-col gap-1 border-0 p-0">
               <legend class="mb-1 text-sm font-medium text-ink">角色</legend>
               <p v-if="!roles.length" class="m-0 text-xs text-ink-subtle">
-                还没有自定义角色，先新建一个角色再回来
+                还没定义角色，请先新建一个角色再来
               </p>
               <div
                 v-else

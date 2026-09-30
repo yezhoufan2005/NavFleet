@@ -390,6 +390,6 @@ describe("NotifyView — channel editor", () => {
     const wrapper = await mountView();
     // The editor section still renders (writer), with the honest empty state.
     expect(wrapper.find('[aria-label="配置渠道"]').exists()).toBe(true);
-    expect(wrapper.text()).toContain("还没有配置渠道");
+    expect(wrapper.text()).toContain("还没配置渠道");
   });
 });

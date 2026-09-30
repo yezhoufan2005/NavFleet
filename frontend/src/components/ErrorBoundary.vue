@@ -42,7 +42,7 @@ watch(() => props.resetKey, retry);
     <span class="fallback-badge" aria-hidden="true">!</span>
     <h2>页面渲染失败</h2>
     <p class="fallback-hint">
-      当前页面在渲染时出现异常，其他页面仍可正常使用。可先点击「重试」重新加载，若反复失败请联系值班工程师。
+      当前页面在渲染时出现异常，其他页面仍可正常使用。可先点击「重试」重新加载，若反复失败请联系值班工程师
     </p>
     <p class="fallback-detail">
       {{ failure.summary }}<span v-if="failure.info"> · {{ failure.info }}</span>
