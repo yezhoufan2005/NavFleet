@@ -140,6 +140,8 @@ export const AUDIT_ACTIONS = [
   "notify_write",
   // Alert-rule config write (1.6.1).
   "rules_write",
+  // Scheduled-report config write (1.6.1).
+  "reports_write",
   // Device-onboarding wizard config writes (Phase 18).
   "vehicles_write",
   "formations_write",

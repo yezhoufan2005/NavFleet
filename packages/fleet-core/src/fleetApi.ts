@@ -23,6 +23,7 @@ import type {
   RbacRole,
   ReportBucketUnit,
   ReportCodeEntry,
+  ReportsConfig,
   SceneMapDefinition,
 } from "@navfleet/shared";
 
@@ -590,6 +591,21 @@ export const fleetApi = {
   ): Promise<{ config: AlertRulesConfig }> {
     return requestJson<{ config: AlertRulesConfig }>(
       "/api/v1/rules/config",
+      jsonBody("PUT", config),
+    );
+  },
+
+  // ── Scheduled reports (admin, 1.6.1) ────────────────────────────────────────
+  // The scheduled-report config (reports.json) for the editor, and a validate-first whole-file
+  // write. SMTP secrets stay in env (the schedule records only the `smtpEnv` variable name); a
+  // refused write surfaces as `error.message` = `invalid_reports` for the view to map.
+  getReportsConfig(): Promise<{ config: ReportsConfig }> {
+    return requestJson<{ config: ReportsConfig }>("/api/v1/reports/config");
+  },
+
+  putReportsConfig(config: ReportsConfig): Promise<{ config: ReportsConfig }> {
+    return requestJson<{ config: ReportsConfig }>(
+      "/api/v1/reports/config",
       jsonBody("PUT", config),
     );
   },

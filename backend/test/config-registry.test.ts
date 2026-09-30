@@ -813,6 +813,47 @@ describe("ConfigRegistry.writeAlertRules (1.6.1 告警规则写)", () => {
   });
 });
 
+describe("ConfigRegistry.writeReportsConfig (1.6.1 定时报表写)", () => {
+  it("writeReportsConfig 校验先行 + 原子落盘 + 重载，写出的文件能再次读回", async () => {
+    const registry = new ConfigRegistry();
+    await registry.load();
+
+    const saved = await registry.writeReportsConfig({
+      schedules: [
+        {
+          id: "daily-ops",
+          enabled: true,
+          range: "24h",
+          time: "08:30",
+          smtpEnv: "REPORTS_SMTP_URL",
+          from: "reports@fleet.local",
+          recipients: [{ email: "ops@fleet.local" }, { user: "bob" }],
+        },
+      ],
+    });
+    expect(saved.schedules).toHaveLength(1);
+    expect(saved.schedules[0]?.time).toBe("08:30");
+    // The live getter reflects the write…
+    expect(registry.getReportsConfig().schedules[0]?.id).toBe("daily-ops");
+    // …and the file on disk parses back to what we wrote.
+    const onDisk = JSON.parse(await fs.readFile(path.join(configRoot, "reports.json"), "utf8")) as {
+      schedules: Array<{ id: string; time: string }>;
+    };
+    expect(onDisk.schedules[0]?.id).toBe("daily-ops");
+    expect(onDisk.schedules[0]?.time).toBe("08:30");
+  });
+
+  it("writeReportsConfig 拒绝非法载荷（校验先行），不落坏文件", async () => {
+    const registry = new ConfigRegistry();
+    await registry.load();
+    await expect(
+      registry.writeReportsConfig({
+        schedules: [{ id: "x", enabled: true, range: "24h", time: "8am", smtpEnv: "E", from: "a" }],
+      }),
+    ).rejects.toThrow(/time must be "HH:MM"/);
+  });
+});
+
 describe("ConfigRegistry.writeScenes / writeSceneAsset (Phase 18 场景地图上传)", () => {
   const svg = Buffer.from('<svg xmlns="http://www.w3.org/2000/svg"></svg>', "utf8");
   const assetPath = (rel: string): string => path.join(configRoot, "scene-maps", rel);

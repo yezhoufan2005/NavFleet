@@ -26,6 +26,7 @@ import { buildUsersRouter } from "./routes/users";
 import { buildAuditRouter } from "./routes/audit";
 import { buildNotifyRouter } from "./routes/notify";
 import { buildRulesRouter } from "./routes/rules";
+import { buildReportsConfigRouter } from "./routes/reportsConfig";
 import { buildRbacRouter } from "./routes/rbac";
 import { buildReportsRouter } from "./routes/reports";
 import type { AuditService } from "./audit/service";
@@ -244,6 +245,7 @@ export const createApp = ({
     app.use(prefix, captureRouteMount, buildAuditRouter(auditService));
     app.use(prefix, captureRouteMount, buildNotifyRouter(notifyService, store, auditService));
     app.use(prefix, captureRouteMount, buildRulesRouter(store, auditService));
+    app.use(prefix, captureRouteMount, buildReportsConfigRouter(store, auditService));
   }
 
   // JSON 404 for any unmatched route, keeping the error contract consistent
