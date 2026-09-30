@@ -1,5 +1,39 @@
 # Changelog
 
+## [1.7.0](https://github.com/yezhoufan2005/NavFleet/compare/v1.6.0...v1.7.0) (2026-09-30)
+
+
+### Features
+
+* **codebook:** 报码字典行级增删改（复用整表写端点） ([4147de0](https://github.com/yezhoufan2005/NavFleet/commit/4147de044e3af64c049a91b0fa1cd3c57a124dc3))
+* **codebook:** 报码字典行级增删改（复用整表写端点） ([74b588e](https://github.com/yezhoufan2005/NavFleet/commit/74b588edd16a97613cb715d3397ed2c564b0665d))
+* **console:** 场景/系统状态并入焦点自动刷新 ([356742f](https://github.com/yezhoufan2005/NavFleet/commit/356742fea0b1ba781819c359a74995cb2a320d0c))
+* **console:** 场景/系统状态并入焦点自动刷新 ([48a4553](https://github.com/yezhoufan2005/NavFleet/commit/48a455381b8ef39f50d94090b43f269a8d1d6d95))
+* **console:** 用户 独立为一级导航 + 二级标签条（账号/角色/用户组） ([9b3b2b4](https://github.com/yezhoufan2005/NavFleet/commit/9b3b2b429220b75f7a1b8131027e44e7361b9192))
+* **console:** 用户 独立为一级导航，账号/角色与用户组并入二级标签（1.6.2 IA 第一步） ([e6533ce](https://github.com/yezhoufan2005/NavFleet/commit/e6533ceea403b5b13c00e3affe4e8b2b7174e98b))
+* **console:** 用户分区打磨——角色/用户组拆两标签、标题上移、修标签条滚动条 ([eafc189](https://github.com/yezhoufan2005/NavFleet/commit/eafc1893e2c3498acb7f6f85ccb570a7995b5a98))
+* **console:** 管理页焦点自动刷新，去掉手动刷新按钮 ([01990dd](https://github.com/yezhoufan2005/NavFleet/commit/01990dd2c25b0500e8f6938b2175b3a45f727136))
+* **console:** 管理页焦点自动刷新，去掉手动刷新按钮 ([f2a7db3](https://github.com/yezhoufan2005/NavFleet/commit/f2a7db31de96472bd1a8cfbfba0fde7a5140fcff))
+* **console:** 补齐审计动作筛选、报表导出与告警史时间窗 ([0c77a4c](https://github.com/yezhoufan2005/NavFleet/commit/0c77a4c422b7bfe8a369a30b313db53581c9c583))
+* **notify:** 外发渠道编辑器（精简+静默，高级路由整文件保留） ([6925396](https://github.com/yezhoufan2005/NavFleet/commit/6925396b4c30295b7bd3684cdd27e96c10ce7ee9))
+* **notify:** 外发渠道编辑器（精简+静默，高级路由整文件保留） ([2a83a81](https://github.com/yezhoufan2005/NavFleet/commit/2a83a81f09e19b0aa9bd825bec642342f7a83128))
+* **notify:** 外发配置写端点（校验先行、原子写、notify:write） ([956a13e](https://github.com/yezhoufan2005/NavFleet/commit/956a13e82a9875a21e2785bad7831c9f45011921))
+* **rbac:** 前端角色/用户组管理 + 按能力的门禁与 can() 接线 ([ded0faa](https://github.com/yezhoufan2005/NavFleet/commit/ded0faa52f4c95f0fcd85aa4dbed079cbbd4f300))
+* **rbac:** 自定义角色 + 用户组（能力经组叠加，改组即时生效） ([ac6e988](https://github.com/yezhoufan2005/NavFleet/commit/ac6e988a4dcadeeeab700c005be98a1def3bca8e))
+* **rbac:** 门禁改为细粒度能力项（等价重构，为自定义角色/用户组铺路） ([acc73f5](https://github.com/yezhoufan2005/NavFleet/commit/acc73f5160d82ed2e7cea666f29bfb90e27b5440))
+* **reports:** 定时报表写 UI（调度整文件校验写盘，复用外发收件人） ([f5fbff4](https://github.com/yezhoufan2005/NavFleet/commit/f5fbff41c883063393b21480b57aa9e0df5542af))
+* **reports:** 定时报表写 UI（调度整文件校验写盘，复用外发收件人） ([bc7a32b](https://github.com/yezhoufan2005/NavFleet/commit/bc7a32bb16608e334a0f15e9e052661a175b60cc))
+* **rules:** 告警规则写 UI（阈值·开关·作用范围整文件校验写盘） ([516b6a5](https://github.com/yezhoufan2005/NavFleet/commit/516b6a50efe321a99b2b7ca312713548af74eaf9))
+* **rules:** 告警规则写 UI（阈值·开关·作用范围整文件校验写盘） ([d8c0b50](https://github.com/yezhoufan2005/NavFleet/commit/d8c0b50b20db03d4d3cc64b4ef1bd094bc128ca3))
+
+
+### Bug Fixes
+
+* **ci:** release 的 images 作业补 id-token: write，修 v1.6.0 startup_failure ([ac029f2](https://github.com/yezhoufan2005/NavFleet/commit/ac029f206f515cd13d33002e00979b20ec4fd9b1))
+* **ci:** release 的 images 作业补 id-token: write，修 v1.6.0 startup_failure ([93a2cbe](https://github.com/yezhoufan2005/NavFleet/commit/93a2cbe4be01184f00956d94bbcf170886588ae5))
+* **console:** 管理页 UI 打磨 + 精简文案 ([e8d63df](https://github.com/yezhoufan2005/NavFleet/commit/e8d63dfb9b538fb749d1ce2ea8b393ae24f24c25))
+* **console:** 管理页 UI 打磨 + 精简文案 ([3e52b46](https://github.com/yezhoufan2005/NavFleet/commit/3e52b46721d76014a4df72e4d24f2e200e337c9d))
+
 ## [1.6.0](https://github.com/yezhoufan2005/NavFleet/compare/v1.5.0...v1.6.0) (2026-09-29)
 
 
