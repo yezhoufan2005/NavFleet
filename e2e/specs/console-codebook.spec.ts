@@ -6,9 +6,9 @@ import { expect, signIn, test } from "../support/fixtures";
  * resolves through the real backend and renders the table **in effect** — here the built-in
  * reference table, since the seeded deployment ships no `codebook.json`.
  *
- * Deliberately read-only: an import would write `codebook.json` on the one long-lived backend
- * and leak into every later test (the single-worker isolation rule), so import is left to the
- * unit tests and this only asserts the page reads and renders.
+ * Deliberately read-only: an import or a row edit would write `codebook.json` on the one
+ * long-lived backend and leak into every later test (the single-worker isolation rule), so
+ * writes are left to the unit tests and this only asserts the page reads and renders.
  */
 test.describe("console codebook", () => {
   test.beforeEach(async ({ page }) => {
@@ -31,8 +31,10 @@ test.describe("console codebook", () => {
     await expect(main.getByText("5102")).toBeVisible();
     await expect(main.getByText("路径规划超时")).toBeVisible();
 
-    // Export is offered; import is present but not exercised here (see file header).
+    // Export/import and the row-level 新建报码 affordance are offered; not exercised here (writes
+    // would leak into later tests — see the file header).
     await expect(main.getByRole("button", { name: /导出/ })).toBeVisible();
     await expect(main.getByRole("button", { name: /导入/ })).toBeVisible();
+    await expect(main.getByRole("button", { name: /新建报码/ })).toBeVisible();
   });
 });

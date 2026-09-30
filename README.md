@@ -139,7 +139,7 @@ flowchart LR
 | `/admin/scenes`     | 场景         | 逐个核对场景资源可达性，说清取不到会看到什么                                 |
 | `/admin/users`      | 用户         | 增删改、启禁用、改角色、重置密码、强制下线、查看 / 撤销会话（admin）         |
 | `/admin/roles`      | 角色与用户组 | 自定义能力角色 + 用户组，在内置角色之上按能力叠加授权（admin）               |
-| `/admin/codebook`   | 报码字典     | 报码释义表，可导入 / 导出 JSON                                               |
+| `/admin/codebook`   | 报码字典     | 报码释义表，逐条增删改或整表导入 / 导出 JSON（写 `codebook.json`）           |
 | `/admin/notify`     | 外发         | 告警外发渠道配置（渠道 / 严重度 / 静默窗口，写 `notify.json`，热重载）       |
 | `/admin/rules`      | 告警规则     | 低电量 / 离线规则的阈值 · 开关 · 作用范围（写 `rules.json`，热重载）         |
 | `/admin/reports`    | 定时报表     | 报表调度：回看窗口 · 发送时刻 · 收件人（写 `reports.json`，热重载）          |
