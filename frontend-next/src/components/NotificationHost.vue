@@ -85,7 +85,9 @@ const TONES: Record<NotificationType, string> = {
           aria-label="关闭"
           @click="dismiss(item.id)"
         >
-          ×
+          <!-- The ✕ glyph's ink sits a touch below its line-box centre, so it reads low even
+               when the button is flex-centred; nudge the glyph up ~2px to align with the text. -->
+          <span class="-translate-y-[2px]" aria-hidden="true">×</span>
         </button>
       </div>
     </TransitionGroup>

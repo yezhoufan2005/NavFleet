@@ -173,6 +173,22 @@ const resetToDefaults = (): void => applyConfig(DEFAULT_ALERT_RULES);
 
 <template>
   <PageHeader title="告警规则">
+    <template #actions>
+      <UiButton
+        variant="secondary"
+        size="sm"
+        :disabled="saving || status !== 'ready'"
+        @click="resetToDefaults"
+        >恢复默认</UiButton
+      >
+      <UiButton
+        size="sm"
+        :disabled="saving || status !== 'ready'"
+        @click="submit"
+        >保存</UiButton
+      >
+    </template>
+
     <p v-if="status === 'loading'" class="text-sm text-ink-muted">加载中…</p>
     <p
       v-else-if="status === 'error'"
@@ -184,14 +200,10 @@ const resetToDefaults = (): void => applyConfig(DEFAULT_ALERT_RULES);
 
     <form
       v-else
-      class="flex max-w-160 flex-col gap-5"
+      class="flex flex-col gap-5"
       :aria-busy="saving"
       @submit.prevent="submit"
     >
-      <p class="m-0 text-2xs text-ink-subtle">
-        规则在内置默认之上生效，改动即时热重载；作用范围留空表示全车队，多个值用逗号分隔
-      </p>
-
       <!-- 低电量预警 -->
       <section
         class="flex flex-col gap-3 rounded-md border border-border bg-surface-raised p-4"
@@ -227,9 +239,6 @@ const resetToDefaults = (): void => applyConfig(DEFAULT_ALERT_RULES);
               :disabled="saving || !lbEnabled"
               :class="INPUT_CLASS"
             />
-            <span class="text-2xs text-ink-subtle"
-              >0 = 立即清除；否则维持这么久防抖动</span
-            >
           </label>
         </div>
         <fieldset class="grid grid-cols-3 gap-2 border-0 p-0">
@@ -288,9 +297,6 @@ const resetToDefaults = (): void => applyConfig(DEFAULT_ALERT_RULES);
             :disabled="saving || !offEnabled"
             :class="INPUT_CLASS"
           />
-          <span class="text-2xs text-ink-subtle"
-            >设备静默超过这么久即判离线；留空沿用系统默认</span
-          >
         </label>
         <fieldset class="grid grid-cols-3 gap-2 border-0 p-0">
           <legend class="mb-1 text-sm font-medium text-ink">作用范围</legend>
@@ -327,17 +333,6 @@ const resetToDefaults = (): void => applyConfig(DEFAULT_ALERT_RULES);
       <p v-if="formError" class="m-0 text-sm text-critical-ink" role="alert">
         {{ formError }}
       </p>
-      <div class="flex items-center gap-2">
-        <UiButton size="sm" type="submit" :disabled="saving">保存</UiButton>
-        <UiButton
-          variant="secondary"
-          size="sm"
-          type="button"
-          :disabled="saving"
-          @click="resetToDefaults"
-          >恢复默认</UiButton
-        >
-      </div>
     </form>
   </PageHeader>
 </template>

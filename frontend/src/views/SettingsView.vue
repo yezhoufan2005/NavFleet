@@ -105,13 +105,13 @@ const connectionRows = computed(() => [
         <fieldset class="settings-group">
           <legend>本地数据</legend>
           <p class="settings-hint">
-            告警确认与场景视图都只保存在这台浏览器上，不会同步到服务器或其他用户。
+            告警确认与场景视图都只保存在本浏览器上，不会同步到服务器或其他用户
           </p>
 
           <div class="settings-action-row">
             <div class="settings-action-text">
               <strong>已确认告警</strong>
-              <span>{{ ackedCount }} 条记录（清除后这些告警会重新显示）</span>
+              <span>{{ ackedCount }} 条记录</span>
             </div>
             <button
               type="button"
@@ -126,7 +126,7 @@ const connectionRows = computed(() => [
           <div class="settings-action-row">
             <div class="settings-action-text">
               <strong>场景视图记忆</strong>
-              <span>{{ savedViewCount }} 个场景（清除后 ROS 地图恢复为适应场景）</span>
+              <span>{{ savedViewCount }} 个场景</span>
             </div>
             <button
               type="button"

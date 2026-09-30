@@ -119,15 +119,15 @@ const backendChecks = computed<Check[]>(() => {
       label: "后端可达性",
       value: "可访问",
       tone: "ok",
-      detail: "浏览器能取到 /health/ready，所以下面三项是后端此刻的自述",
+      detail: "浏览器能取到 /health/ready",
     },
     {
       label: "快照就绪",
       value: checks.store ? "就绪" : "初始化中",
       tone: checks.store ? "ok" : "warning",
       detail: checks.store
-        ? "内存快照已建立，REST 与 WebSocket 都能给出完整车队"
-        : "后端仍在初始化快照，此时 /health/ready 返回 503 —— 这是答案而不是错误",
+        ? "内存快照已建立，REST 与 WebSocket 能给出完整车队"
+        : "后端初始化快照，此时 /health/ready 返回 503",
     },
     {
       label: "MongoDB",
@@ -135,15 +135,13 @@ const backendChecks = computed<Check[]>(() => {
       tone: checks.mongo ? "ok" : "warning",
       detail: checks.mongo
         ? "遥测与告警在落库，历史回放有数据可读"
-        : "实时监控不受影响，但历史回放与曲线会是空的 —— 那两处的空态说的就是这件事",
+        : "实时监控不受影响，历史回放与曲线为空",
     },
     {
       label: "MQTT broker",
       value: checks.mqtt ? "已连接" : "未连接",
       tone: checks.mqtt ? "ok" : "critical",
-      detail: checks.mqtt
-        ? "车辆上报的链路是通的"
-        : "后端收不到车辆上报，所以画面会随离线阈值逐台变灰；这一条不通时，界面看起来像「车都停了」",
+      detail: checks.mqtt ? "车辆上报的链路连通" : "后端收不到车辆上报",
     },
   ];
 });
@@ -165,7 +163,7 @@ const linkChecks = computed<Check[]>(() => {
       tone: realtime.reconnectAttempts > 0 ? "warning" : "ok",
       detail:
         realtime.reconnectAttempts > 0
-          ? "这一栏不为零说明链路曾经断过，即使现在显示实时"
+          ? "本次会话链路曾断过"
           : "本次会话未发生重连",
     },
     {
@@ -173,8 +171,8 @@ const linkChecks = computed<Check[]>(() => {
       value: realtime.apiReady ? "已取得" : "未取得",
       tone: realtime.apiReady ? "ok" : "critical",
       detail: realtime.apiReady
-        ? "REST 引导成功，界面上的车队来自后端而不是本地兜底"
-        : "REST 引导没成功，界面显示的是本地兜底内容",
+        ? "REST 引导成功，界面上的车队来自后端返回"
+        : "REST 引导失败，界面上的车队来自本地兜底",
     },
   ];
 });

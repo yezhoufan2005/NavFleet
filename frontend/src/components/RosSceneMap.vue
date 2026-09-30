@@ -583,12 +583,12 @@ const screenInvariantTransform = computed(
 
     <div v-if="!sceneReady" class="ros-empty">
       <strong>暂无可用地图</strong>
-      <span>当前场景缺少有效的 ROS 地图元数据，请先补齐场景配置或地图资源。</span>
+      <span>当前场景缺少有效的 ROS 地图元数据，请先补齐场景配置或地图资源</span>
     </div>
 
     <div v-else-if="!selectedFusionPoint && !selectedLidarPoint" class="ros-empty">
       <strong>暂无 ROS 位姿</strong>
-      <span>当前设备还没有融合定位或激光定位数据，地图仍可用于查看当前场景。</span>
+      <span>当前设备还没有融合定位或激光定位数据，地图仍可用于查看当前场景</span>
     </div>
   </div>
 </template>

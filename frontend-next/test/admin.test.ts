@@ -189,7 +189,7 @@ describe("系统状态", () => {
     );
 
     expect(wrapper.text()).toContain("未连接");
-    expect(wrapper.text()).toContain("历史回放与曲线会是空的");
+    expect(wrapper.text()).toContain("历史回放与曲线为空");
   });
 
   it("broker 掉线说出界面会长什么样", async () => {
@@ -198,7 +198,7 @@ describe("系统状态", () => {
       readyBody({ store: true, mongo: true, mqtt: false }),
     );
 
-    expect(wrapper.text()).toContain("车都停了");
+    expect(wrapper.text()).toContain("后端收不到车辆上报");
   });
 
   it("每一项状态都有词，不只有颜色", async () => {

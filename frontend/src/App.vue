@@ -157,7 +157,7 @@ onMounted(async () => {
     </header>
 
     <div v-if="backendUnavailable" class="offline-banner">
-      <span>后端服务当前不可用，展示的数据可能不是最新。</span>
+      <span>后端服务当前不可用，展示的数据可能不是最新</span>
       <button type="button" :disabled="isRetrying" @click="handleRetry">
         {{ isRetrying ? "重试中…" : "重试连接" }}
       </button>

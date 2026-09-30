@@ -328,7 +328,7 @@ const exportAlertsCsv = (): void => {
           :disabled="status !== 'ready' || !hasAvailabilityData"
           @click="exportCsv"
         >
-          导出可用率 CSV ↗
+          导出可用率 ↗
         </UiButton>
         <UiButton
           variant="secondary"
@@ -336,7 +336,7 @@ const exportAlertsCsv = (): void => {
           :disabled="status !== 'ready' || !hasAlertData"
           @click="exportAlertsCsv"
         >
-          导出消息 CSV ↗
+          导出消息 ↗
         </UiButton>
       </div>
     </div>

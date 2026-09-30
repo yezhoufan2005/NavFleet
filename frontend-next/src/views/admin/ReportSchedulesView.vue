@@ -263,12 +263,9 @@ const weekdayLabel = (weekday?: number): string =>
     </p>
 
     <template v-else>
-      <p class="m-0 text-2xs text-ink-subtle">
-        报表按周期生成并邮件推送；SMTP
-        连接串（含密钥）只在环境变量里，这里配的是变量名；零配置即不推送
-      </p>
+      <p class="m-0 text-2xs text-ink-subtle">报表按周期生成并邮件推送</p>
       <p v-if="!schedules.length" class="text-sm text-ink-muted" role="status">
-        还没有定时报表——新建一条后，系统会按周期生成并邮件推送
+        还没有定时报表
       </p>
       <div v-else :class="[tableClasses.wrapper, 'overflow-hidden']">
         <table :class="tableClasses.table">
@@ -278,7 +275,9 @@ const weekdayLabel = (weekday?: number): string =>
               <th scope="col" class="px-3 py-2">回看</th>
               <th scope="col" class="px-3 py-2">发送</th>
               <th scope="col" class="px-3 py-2">发件人</th>
-              <th v-if="canWrite" scope="col" class="px-3 py-2">操作</th>
+              <th v-if="canWrite" scope="col" class="py-2 pr-6 pl-3 text-right">
+                操作
+              </th>
             </tr>
           </thead>
           <tbody>
@@ -301,7 +300,7 @@ const weekdayLabel = (weekday?: number): string =>
               </td>
               <td class="px-3 py-2 text-ink-muted">{{ schedule.from }}</td>
               <td v-if="canWrite" class="px-3 py-2">
-                <span class="flex gap-2">
+                <span class="flex justify-end gap-2">
                   <UiButton
                     variant="ghost"
                     size="sm"

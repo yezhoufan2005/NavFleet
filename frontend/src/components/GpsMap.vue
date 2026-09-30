@@ -52,7 +52,7 @@ const emptyStateMessage = computed(() => {
     return getAmapConfigError();
   }
   if (!gpsDevices.value.length) {
-    return "当前 MQTT 数据还没有可用的 GPS 经纬度字段。";
+    return "当前 MQTT 数据还没有可用的 GPS 经纬度字段";
   }
   return "";
 });
@@ -227,7 +227,7 @@ async function initializeMap() {
 
     syncMarkers();
   } catch (error) {
-    mapError.value = error instanceof Error ? error.message : "高德地图加载失败。";
+    mapError.value = error instanceof Error ? error.message : "高德地图加载失败";
   } finally {
     isLoading.value = false;
   }
@@ -288,7 +288,7 @@ watch(markerSignature, () => {
       <div v-if="isLoading" class="gps-map-overlay">
         <div class="gps-overlay-card">
           <strong>正在加载高德地图</strong>
-          <span>地图底图和设备点位初始化中，请稍候。</span>
+          <span>地图底图和设备点位初始化中，请稍候</span>
         </div>
       </div>
 
