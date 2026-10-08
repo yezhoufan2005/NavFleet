@@ -120,7 +120,7 @@ flowchart LR
 
 ## 页面地图
 
-前端 v3 控制台（`navfleet-console`）共 **16 条产品路由**，web history 模式。信息架构按「此刻 / 最近 /
+前端 v3 控制台（`navfleet-console`）共 **20 条产品路由**，web history 模式。信息架构按「此刻 / 最近 /
 那一段时间」三种问法组织，而不是把一切塞进一个仪表盘：
 
 | 路由                 | 页面            | 作用                                                                         |
@@ -150,8 +150,10 @@ flowchart LR
 
 ## 权限模型
 
-三个角色 `admin` / `operator` / `viewer`，**逐路由强制**，并有每路由 × 每角色的集成测试网格
-（`backend/test/http-rbac.test.ts`）钉住；前端用路由 `meta.roles` + 守卫做同样的区分。
+内置三个基础角色 `admin` / `operator` / `viewer`；自 1.6.1 起权限按**能力（capability）**细分——可在内置
+角色之上定义自定义能力角色，并用用户组把附加能力叠加到成员的基础角色上。后端**逐能力强制**，有每路由 ×
+每角色的集成测试网格（`backend/test/http-rbac.test.ts`，RBAC 服务与管理面另有 `rbac-service.test.ts` /
+`http-rbac-manage.test.ts`）钉住；前端用路由 `meta.capability` / `meta.capabilities` + 守卫做同样的区分。
 
 | 能力                                                           | viewer | operator | admin |
 | -------------------------------------------------------------- | :----: | :------: | :---: |
@@ -264,7 +266,7 @@ NavFleet/
 │  │  └─ metrics.ts      # prom-client 注册表
 │  └─ test/              # Vitest + supertest
 ├─ frontend-next/        # v3 控制台（navfleet-console）—— **默认部署的这一套**
-│  ├─ src/               # 16 条产品路由、web history、Tailwind v4 双主题、Reka UI、ECharts（懒加载）
+│  ├─ src/               # 20 条产品路由、web history、Tailwind v4 双主题、Reka UI、ECharts（懒加载）
 │  └─ test/              # Vitest + jsdom + @vue/test-utils
 ├─ frontend/             # v1.0.0 控制台 —— **已冻结**，保留作一行命令的回滚，不再是交付产物
 ├─ packages/shared/      # @navfleet/shared —— 领域类型单一来源
@@ -469,21 +471,22 @@ release-please 自动出 CHANGELOG 与 GHCR 镜像。贡献流程见 [CONTRIBUTI
 | `1.6.0`   | **交付成熟度**：设备接入向导（车辆/编队写盘）+ 场景地图上传、MQTT over TLS、多平台镜像 + SBOM + cosign 签名、运维监控指标   |
 | `1.7.0`   | **功能深化 + 导航重构**：前端 RBAC、运行期配置写 UI（报码/报表/规则/外发/车辆/编队）；原「管理」拆为七个一级分区 + 二级标签 |
 
-各版本发版说明在 [docs/release-notes/](docs/release-notes/)；完整变更见 [CHANGELOG.md](CHANGELOG.md)。
+发版说明以 GitHub Releases 为准（正文由 release-please 从 commit 生成）；完整变更见
+[CHANGELOG.md](CHANGELOG.md)。[docs/release-notes/](docs/release-notes/) 另留一份人工撰写的样例（`v1.1.0.md`）。
 
 ## 文档索引
 
-| 文档                                                                   | 内容                                           |
-| ---------------------------------------------------------------------- | ---------------------------------------------- |
-| [ARCHITECTURE.md](ARCHITECTURE.md)                                     | 分层、模块职责、数据流、前后端各文件的作用     |
-| [deploy/docs/deployment.md](deploy/docs/deployment.md)                 | 部署步骤、TLS、反代、镜像发布                  |
-| [deploy/docs/config-reference.md](deploy/docs/config-reference.md)     | 62 个环境变量 + 运行期 JSON 全字段             |
-| [deploy/docs/backup-and-restore.md](deploy/docs/backup-and-restore.md) | 备份、恢复、演练                               |
-| [docs/frontend-design-system.md](docs/frontend-design-system.md)       | 设计系统：令牌体系、GitHub Primer 映射、生成器 |
-| [CONTRIBUTING.md](CONTRIBUTING.md)                                     | 分支、提交规范、本地门禁                       |
-| [ROADMAP.md](ROADMAP.md)                                               | 当前路线图（Phase 14–18 的计划与决策）         |
-| [docs/roadmap-archive.md](docs/roadmap-archive.md)                     | 已完成阶段的记录：Phase 0–13                   |
-| [docs/release-notes/](docs/release-notes/)                             | 各版本发版说明（Release 页面正文的来源）       |
+| 文档                                                                   | 内容                                                              |
+| ---------------------------------------------------------------------- | ----------------------------------------------------------------- |
+| [ARCHITECTURE.md](ARCHITECTURE.md)                                     | 分层、模块职责、数据流、前后端各文件的作用                        |
+| [deploy/docs/deployment.md](deploy/docs/deployment.md)                 | 部署步骤、TLS、反代、镜像发布                                     |
+| [deploy/docs/config-reference.md](deploy/docs/config-reference.md)     | 62 个环境变量 + 运行期 JSON 全字段                                |
+| [deploy/docs/backup-and-restore.md](deploy/docs/backup-and-restore.md) | 备份、恢复、演练                                                  |
+| [docs/frontend-design-system.md](docs/frontend-design-system.md)       | 设计系统：令牌体系、GitHub Primer 映射、生成器                    |
+| [CONTRIBUTING.md](CONTRIBUTING.md)                                     | 分支、提交规范、本地门禁                                          |
+| [ROADMAP.md](ROADMAP.md)                                               | 当前路线图（Phase 14–18 的计划与决策）                            |
+| [docs/roadmap-archive.md](docs/roadmap-archive.md)                     | 已完成阶段的记录：Phase 0–13                                      |
+| [docs/release-notes/](docs/release-notes/)                             | 人工撰写的发版说明样例（`v1.1.0.md`；正式说明见 GitHub Releases） |
 
 ## 路线与已知边界
 
