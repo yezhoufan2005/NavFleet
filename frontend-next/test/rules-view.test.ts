@@ -30,9 +30,9 @@ let router: Router;
 const mountView = async () => {
   router = createRouter({
     history: createMemoryHistory(),
-    routes: [{ path: "/admin/rules", component: RulesView }],
+    routes: [{ path: "/alerts/rules", component: RulesView }],
   });
-  await router.push("/admin/rules");
+  await router.push("/alerts/rules");
   await router.isReady();
   const wrapper = mount(RulesView, { global: { plugins: [router] } });
   await flushPromises();

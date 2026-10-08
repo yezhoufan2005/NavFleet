@@ -108,17 +108,50 @@ const routes: RouteRecordRaw[] = [
     ],
   },
   {
+    // 消息 — a section with three tabs (1.6.2 IA): 消息 (live) and 告警史 (cleared) both render
+    // AlertsView (it reads live-vs-history off the path), and 告警规则 is RulesView, folded in from
+    // 管理. `AppSectionTabs` reads the strip off this parent's `meta.tabs`; the 告警规则 tab is gated
+    // on rules:write, so a viewer sees only 消息 / 告警史. 消息 (live) is the `""` child, so the nav
+    // item stays lit on every tab, as with /devices.
     path: "/alerts",
-    name: "alerts",
-    component: () => import("@/views/AlertsView.vue"),
-    meta: { title: "消息" },
+    meta: {
+      title: "消息",
+      tabs: [
+        { routeName: "alerts", label: "消息" },
+        { routeName: "alerts-history", label: "告警史" },
+        {
+          routeName: "alerts-rules",
+          label: "告警规则",
+          capability: "rules:write",
+        },
+      ],
+    },
+    children: [
+      {
+        path: "",
+        name: "alerts",
+        component: () => import("@/views/AlertsView.vue"),
+      },
+      {
+        path: "history",
+        name: "alerts-history",
+        component: () => import("@/views/AlertsView.vue"),
+        meta: { title: "告警史" },
+      },
+      {
+        path: "rules",
+        name: "alerts-rules",
+        component: () => import("@/views/admin/RulesView.vue"),
+        meta: { title: "告警规则", capability: "rules:write" },
+      },
+    ],
   },
   {
-    // 告警史 moved from a top-level page into a tab of 消息 (`?view=history`), Phase 18.
-    // The old deep link is kept as a redirect so shared bookmarks still land on it.
+    // 告警史 and 告警规则 used to live at these paths; kept as redirects so shared bookmarks land.
     path: "/alert-history",
-    redirect: "/alerts?view=history",
+    redirect: { name: "alerts-history" },
   },
+  { path: "/admin/rules", redirect: { name: "alerts-rules" } },
   {
     path: "/reports",
     name: "reports",
@@ -223,12 +256,6 @@ const routes: RouteRecordRaw[] = [
         name: "admin-notify",
         component: () => import("@/views/admin/NotifyView.vue"),
         meta: { title: "外发", capability: "notify:read" },
-      },
-      {
-        path: "rules",
-        name: "admin-rules",
-        component: () => import("@/views/admin/RulesView.vue"),
-        meta: { title: "告警规则", capability: "rules:write" },
       },
       {
         path: "reports",

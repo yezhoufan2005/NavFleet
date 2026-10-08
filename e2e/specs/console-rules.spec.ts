@@ -1,26 +1,30 @@
 import { expect, signIn, test } from "../support/fixtures";
 
 /**
- * 告警规则 (1.6.1) in a real browser. The form's parse/validate/save is unit-tested against mocked
- * data; what only a browser answers is that the admin route resolves through the real backend
- * (`GET /rules/config` returns the effective rules) and renders the editor. We sign in as admin
- * (who holds `rules:write`) and only read the page back — assert the two rule sections and the
- * 保存 affordance — never writing, so nothing leaks into later tests.
+ * 告警规则 (1.6.1; a tab of the 消息 section since 1.6.2) in a real browser. The form's
+ * parse/validate/save is unit-tested against mocked data; what only a browser answers is that the
+ * route resolves through the real backend (`GET /rules/config` returns the effective rules) and
+ * renders the editor. We sign in as admin (who holds `rules:write`) and only read the page back —
+ * assert the two rule sections and the 保存 affordance — never writing, so nothing leaks.
  */
 test.describe("console rules", () => {
   test.beforeEach(async ({ page }) => {
     await signIn(page);
   });
 
-  test("is reachable from the admin landing page and renders the rule editor", async ({
+  test("is reachable as a tab of 消息 and renders the rule editor", async ({
     page,
   }) => {
-    await page.goto("/admin");
-    await page.getByRole("link", { name: /告警规则/ }).click();
+    await page.goto("/alerts");
+    await page
+      .getByRole("navigation", { name: "分区导航" })
+      .getByRole("link", { name: "告警规则" })
+      .click();
 
-    await expect(page).toHaveURL(/\/admin\/rules$/);
+    await expect(page).toHaveURL(/\/alerts\/rules$/);
+    // The section heading is 消息; the active tab names the page.
     await expect(
-      page.getByRole("heading", { name: "告警规则", level: 2 }),
+      page.getByRole("heading", { name: "消息", level: 2 }),
     ).toBeVisible();
 
     const main = page.getByRole("main");

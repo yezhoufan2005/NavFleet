@@ -34,7 +34,7 @@ const ROUTES: readonly { path: string; heading: string | RegExp }[] = [
   { path: "/devices/agv-a03?tab=playback", heading: /a03/i },
   { path: "/devices/agv-a03?tab=alerts", heading: /a03/i },
   { path: "/alerts", heading: "消息" },
-  { path: "/alerts?view=history", heading: "消息" },
+  { path: "/alerts/history", heading: "消息" },
   { path: "/reports", heading: "报表" },
   { path: "/admin", heading: "管理" },
   { path: "/admin/system", heading: "系统状态" },

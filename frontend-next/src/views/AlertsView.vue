@@ -24,6 +24,7 @@
 import { computed, onMounted, watch } from "vue";
 import { RouterLink, useRoute, useRouter } from "vue-router";
 import PageHeader from "@/components/PageHeader.vue";
+import AppSectionTabs from "@/components/shell/AppSectionTabs.vue";
 import UiButton from "@/components/ui/UiButton.vue";
 import UiInput from "@/components/ui/UiInput.vue";
 import UiSegmented from "@/components/ui/UiSegmented.vue";
@@ -136,14 +137,14 @@ const page = computed(() => {
 });
 
 /**
- * 消息 页 has two tabs behind one filter bar: live alerts off the store (default) and 告警史
- * — cleared alerts — behind `?view=history`. The severity / device / search filters are shared
- * (the bar looks identical either way); only 显示已确认 and the bulk-ack actions are live-only.
- * Folded in from the former top-level 告警史 page in Phase 18; `/alert-history` now redirects
- * here so old links keep working.
+ * 消息 is a section with three tabs (1.6.2 IA): live alerts off the store (消息, this view at
+ * `/alerts`), 告警史 — cleared alerts — (this same view at `/alerts/history`), and 告警规则 (a
+ * separate view). Live and history share one filter bar; only 显示已确认 and the bulk-ack actions
+ * are live-only, and the 起止时间 inputs are history-only. The tab is the route now — the former
+ * `?view=history` toggle button is gone — so `/alert-history` redirects to `/alerts/history`.
  */
 const view = computed<"live" | "history">(() =>
-  readParam("view") === "history" ? "history" : "live",
+  route.path.endsWith("/history") ? "history" : "live",
 );
 const isLive = computed(() => view.value === "live");
 
@@ -161,10 +162,6 @@ const setFilter = (patch: Record<string, string | null>): void => {
   // now has one page shows nothing and looks broken.
   setQuery({ ...patch, page: null });
 };
-
-/** Switch between the live list and 告警史; page is live-only, so drop it on the way. */
-const toggleView = (): void =>
-  setQuery({ view: isLive.value ? "history" : null, page: null });
 
 /**
  * Every alert in the fleet, worst severity first and newest **onset** first within it.
@@ -407,6 +404,8 @@ watch(() => canAck.value && fleet.state.realtime.apiReady, runLegacyMigration);
       </UiButton>
     </template>
 
+    <AppSectionTabs />
+
     <div class="flex flex-wrap items-end gap-3">
       <label class="flex flex-col gap-1">
         <span class="text-2xs text-ink-muted">严重度</span>
@@ -499,21 +498,6 @@ watch(() => canAck.value && fleet.state.realtime.apiReady, runLegacyMigration);
           >（{{ acknowledgedPresent }}）</template
         >
       </label>
-
-      <!--
-        The 告警史 ↔ 消息页 tab toggle, pinned to the far right of the same bar so switching
-        tabs feels like part of it. `ml-auto` keeps it right-aligned whether or not the
-        live-only 显示已确认 control is present, so the bar reads the same across both tabs.
-      -->
-      <UiButton
-        variant="secondary"
-        size="sm"
-        class="ml-auto self-end"
-        :aria-pressed="!isLive"
-        @click="toggleView"
-      >
-        {{ isLive ? "告警史" : "消息页" }}
-      </UiButton>
     </div>
 
     <AlertHistoryPanel v-if="!isLive" />
