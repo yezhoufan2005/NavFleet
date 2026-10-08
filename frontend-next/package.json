@@ -26,23 +26,23 @@
   "devDependencies": {
     "@eslint/js": "*",
     "@tailwindcss/vite": "^4.3.3",
-    "@types/node": "^26.6.3",
+    "@types/node": "^26.6.4",
     "@vitejs/plugin-vue": "^6.0.9",
-    "@vitest/coverage-v8": "^5.0.2",
+    "@vitest/coverage-v8": "^5.0.3",
     "@vue/test-utils": "^2.5.1",
     "@vue/tsconfig": "^0.9.1",
     "eslint": "*",
     "eslint-config-prettier": "*",
     "eslint-plugin-vue": "^10.11.1",
     "globals": "*",
-    "jsdom": "^30.1.1",
+    "jsdom": "^30.1.2",
     "prettier": "*",
     "tailwindcss": "^4.3.3",
     "typescript": "*",
     "typescript-eslint": "*",
-    "vite": "^8.3.1",
+    "vite": "^8.3.2",
     "vitest": "^5.0.1",
-    "vue-tsc": "^3.3.11"
+    "vue-tsc": "^3.3.12"
   },
   "engines": {
     "node": "^22.13.0 || ^24.0.0 || >=26.0.0"
