@@ -26,12 +26,10 @@ test.describe("console admin", () => {
     await expect(page.getByRole("link", { name: /系统状态/ })).toBeVisible();
     await expect(page.getByRole("link", { name: /审计/ })).toBeVisible();
     await expect(page.getByRole("link", { name: /外发/ })).toBeVisible();
-    // 用户 (1.6.2) and 部署 — 设备接入 / 场景 / 报码字典 — (also 1.6.2) left the 管理 hub for their
-    // own top-level sections, so the landing no longer offers those as cards.
+    // 用户 (1.6.2) and 部署 — 车辆 / 编队 / 场景 / 报码字典 — (also 1.6.2) left the 管理 hub for
+    // their own top-level sections, so the landing no longer offers those as cards.
     const content = page.getByRole("main");
-    await expect(content.getByRole("link", { name: /设备接入/ })).toHaveCount(
-      0,
-    );
+    await expect(content.getByRole("link", { name: /车辆/ })).toHaveCount(0);
     await expect(content.getByRole("link", { name: /报码字典/ })).toHaveCount(
       0,
     );
@@ -65,7 +63,7 @@ test.describe("console admin", () => {
   test("部署 is its own section, reached from the primary nav and split into tabs", async ({
     page,
   }) => {
-    // 1.6.2 IA: 设备接入 / 场景 / 报码字典 are tabs of a top-level 部署 section, addressed by routes.
+    // 1.6.2 IA: 车辆 / 编队 / 场景 / 报码字典 are tabs of a top-level 部署 section.
     await page.goto("/");
     await page
       .getByRole("navigation", { name: "主导航" })
@@ -75,7 +73,7 @@ test.describe("console admin", () => {
 
     const tabs = page.getByRole("navigation", { name: "分区导航" });
     await expect(
-      tabs.getByRole("link", { name: "设备接入", exact: true }),
+      tabs.getByRole("link", { name: "车辆", exact: true }),
     ).toBeVisible();
     await tabs.getByRole("link", { name: "场景", exact: true }).click();
     await expect(page).toHaveURL(/\/deploy\/scenes$/);

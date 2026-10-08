@@ -64,14 +64,16 @@ describe("AppSectionTabs", () => {
   });
 
   it("hides tabs the caller lacks the capability for (部署)", async () => {
-    // 部署's three tabs each gate on their own capability. An admin with all three sees them all…
+    // 部署's tabs each gate on their own capability. A caller with all four sees them all…
     const all = await mountAt("/deploy", [
       "vehicles:write",
+      "formations:write",
       "scenes:write",
       "codebook:write",
     ]);
     expect(all.findAll("a").map((a) => a.text())).toEqual([
-      "设备接入",
+      "车辆",
+      "编队",
       "场景",
       "报码字典",
     ]);
