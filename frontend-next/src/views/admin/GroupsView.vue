@@ -265,7 +265,7 @@ const kioskUsernames = computed(
                 v-model="gName"
                 type="text"
                 :disabled="groupSaving"
-                size="md"
+                size="sm"
               />
             </label>
             <label class="flex flex-col gap-1">
@@ -274,7 +274,7 @@ const kioskUsernames = computed(
                 v-model="gDesc"
                 type="text"
                 :disabled="groupSaving"
-                size="md"
+                size="sm"
               />
             </label>
             <fieldset class="flex flex-col gap-1 border-0 p-0">

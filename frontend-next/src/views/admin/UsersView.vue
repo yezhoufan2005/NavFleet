@@ -487,7 +487,7 @@ const formatTime = (iso: string | null): string =>
                 v-model="fUsername"
                 type="text"
                 :disabled="saving"
-                size="md"
+                size="sm"
               />
             </label>
             <label
@@ -503,7 +503,7 @@ const formatTime = (iso: string | null): string =>
                 autocomplete="new-password"
                 placeholder="至少 8 位，含字母与数字"
                 :disabled="saving"
-                size="md"
+                size="sm"
               />
             </label>
             <label
@@ -526,7 +526,7 @@ const formatTime = (iso: string | null): string =>
                 v-model="fDisplayName"
                 type="text"
                 :disabled="saving"
-                size="md"
+                size="sm"
               />
             </label>
             <label
@@ -538,7 +538,7 @@ const formatTime = (iso: string | null): string =>
                 v-model="fEmail"
                 type="text"
                 :disabled="saving"
-                size="md"
+                size="sm"
               />
             </label>
             <label
@@ -550,7 +550,7 @@ const formatTime = (iso: string | null): string =>
                 v-model="fPhone"
                 type="text"
                 :disabled="saving"
-                size="md"
+                size="sm"
               />
             </label>
             <label v-if="mode === 'create'" class="flex flex-col gap-1">

@@ -684,7 +684,7 @@ useAutoRefresh(() => void load(), {
                   v-model="cId"
                   type="text"
                   :disabled="chSaving"
-                  size="md"
+                  size="sm"
                 />
               </label>
               <label class="flex flex-col gap-1">
@@ -706,7 +706,7 @@ useAutoRefresh(() => void load(), {
                 type="text"
                 placeholder="如 NOTIFY_OPS_WEBHOOK_URL"
                 :disabled="chSaving"
-                size="md"
+                size="sm"
                 class="font-mono"
               />
               <span class="text-2xs text-ink-subtle"
@@ -763,7 +763,7 @@ useAutoRefresh(() => void load(), {
                   type="text"
                   placeholder="逗号分隔的组名，引用配置里的命名收件人组"
                   :disabled="chSaving"
-                  size="md"
+                  size="sm"
                 />
               </label>
             </template>
@@ -792,7 +792,7 @@ useAutoRefresh(() => void load(), {
                     type="text"
                     placeholder="22:00"
                     :disabled="chSaving"
-                    size="md"
+                    size="sm"
                     class="w-20 font-mono"
                   />
                   <span class="text-ink-muted">至</span>
@@ -801,7 +801,7 @@ useAutoRefresh(() => void load(), {
                     type="text"
                     placeholder="06:00"
                     :disabled="chSaving"
-                    size="md"
+                    size="sm"
                     class="w-20 font-mono"
                   />
                   <UiButton

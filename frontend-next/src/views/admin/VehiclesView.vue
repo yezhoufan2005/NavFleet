@@ -317,7 +317,7 @@ const dialogTitle = computed(() =>
               v-model="fDeviceId"
               type="text"
               :disabled="mode === 'edit' || saving"
-              size="md"
+              size="sm"
             />
           </label>
           <label class="flex flex-col gap-1">
@@ -326,7 +326,7 @@ const dialogTitle = computed(() =>
               v-model="fDeviceName"
               type="text"
               :disabled="saving"
-              size="md"
+              size="sm"
             />
           </label>
           <label class="flex flex-col gap-1">
@@ -339,7 +339,7 @@ const dialogTitle = computed(() =>
           </label>
           <label class="flex flex-col gap-1">
             <span class="text-sm font-medium text-ink">标签（逗号分隔）</span>
-            <UiInput v-model="fTags" type="text" :disabled="saving" size="md" />
+            <UiInput v-model="fTags" type="text" :disabled="saving" size="sm" />
           </label>
           <label class="flex items-center gap-2">
             <input v-model="fGps" type="checkbox" :disabled="saving" />
