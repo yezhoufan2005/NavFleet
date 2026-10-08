@@ -16,6 +16,7 @@ import type {
   DeviceConfig,
   DeviceSnapshot,
   FormationConfig,
+  HistoryQuery,
   NotifyChannelView,
   NotifyConfig,
   NotifySendRecord,
@@ -25,6 +26,8 @@ import type {
   ReportCodeEntry,
   ReportsConfig,
   SceneMapDefinition,
+  Severity,
+  UserRole,
 } from "@navfleet/shared";
 
 /** Backdrop kinds the scene-management upload accepts (Phase 18). */
@@ -75,7 +78,7 @@ export interface AlertRecord {
   alertId?: string;
   deviceId?: string;
   deviceName?: string;
-  severity: "critical" | "warning" | "notice";
+  severity: Severity;
   source?: string;
   title?: string;
   detail?: string;
@@ -95,14 +98,10 @@ export interface AlertRecord {
   [key: string]: unknown;
 }
 
-export interface HistoryQueryParams {
-  from?: string;
-  to?: string;
-  limit?: number;
-}
+export type HistoryQueryParams = Omit<HistoryQuery, "deviceId">;
 
 export interface AlertsQueryParams {
-  severity?: "critical" | "warning" | "notice";
+  severity?: Severity;
   deviceId?: string;
   status?: "active" | "cleared";
   /** Onset window (`firstSeenAt`), ISO-8601 or epoch. Lets 告警史 reach a past period beyond the
@@ -127,7 +126,12 @@ export interface AvailabilityQueryParams {
   bucket?: ReportBucketUnit;
 }
 
-export type UserRoleName = "admin" | "operator" | "viewer";
+/**
+ * The three built-in base roles. Alias of `@navfleet/shared`'s `UserRole` so the literal union has
+ * a single source of truth; kept as a re-export because consumers (e.g. the console's user admin)
+ * import the role type from this client.
+ */
+export type UserRoleName = UserRole;
 
 /** A user as the admin API returns it (management view, never carries `passwordHash`). */
 export interface AdminUser {
