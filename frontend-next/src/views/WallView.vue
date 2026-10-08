@@ -39,6 +39,7 @@ import {
   wallFreshness,
   type WallTone,
 } from "@/lib/wallView";
+import { SEVERITY_LABELS } from "@/lib/severity";
 
 /** One second, no "刚刚" band: a freshness number that does not move reads as frozen. */
 const AGE_TICK_MS = 1_000;
@@ -89,11 +90,6 @@ const tiles = computed(() =>
   ),
 );
 
-const SEVERITY_LABELS: Record<Severity, string> = {
-  critical: "告警",
-  warning: "预警",
-  notice: "提示",
-};
 const SEVERITY_BADGE: Record<Severity, string> = {
   critical: "bg-critical-wash text-critical-ink",
   warning: "bg-warning-wash text-warning-ink",

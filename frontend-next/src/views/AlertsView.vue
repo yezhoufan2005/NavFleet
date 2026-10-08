@@ -29,6 +29,7 @@ import UiButton from "@/components/ui/UiButton.vue";
 import UiInput from "@/components/ui/UiInput.vue";
 import UiSegmented from "@/components/ui/UiSegmented.vue";
 import UiSelect from "@/components/ui/UiSelect.vue";
+import { SEVERITY_LABELS } from "@/lib/severity";
 import UiPager from "@/components/ui/UiPager.vue";
 import AlertHistoryPanel from "@/components/alerts/AlertHistoryPanel.vue";
 import { useFleetStore } from "@/stores/fleet";
@@ -67,12 +68,6 @@ const SEVERITIES: readonly { value: Severity | "all"; label: string }[] = [
   { value: "warning", label: "预警" },
   { value: "notice", label: "提示" },
 ];
-
-const SEVERITY_LABELS: Record<Severity, string> = {
-  critical: "告警",
-  warning: "预警",
-  notice: "提示",
-};
 
 const SEVERITY_BADGE: Record<Severity, string> = {
   critical: "bg-critical-wash text-critical-ink",

@@ -10,6 +10,7 @@
 
 import type { AlertStatsReport, AvailabilityReport } from "@navfleet/shared";
 import type { TimeSeries } from "@/components/charts/timeSeriesOption";
+import { SEVERITY_LABELS } from "@/lib/severity";
 
 export type RangePreset = "12h" | "24h" | "7d" | "30d";
 
@@ -200,13 +201,6 @@ export const buildAvailabilityCsv = (
   return lines.join("\n");
 };
 
-/** critical/warning/notice → 中文，与页面一致（消息/预警/提示的严重度口径）。 */
-const ALERT_SEVERITY_LABELS = {
-  critical: "告警",
-  warning: "预警",
-  notice: "提示",
-} as const;
-
 /**
  * 消息统计（`/reports/alerts`）导出为 CSV，补齐与可用率导出的对等能力（1.6.1）。
  *
@@ -230,7 +224,7 @@ export const buildAlertStatsCsv = (
   push("汇总", "处理时长中位数(ms)", report.duration.p50Ms ?? "");
 
   for (const key of ["critical", "warning", "notice"] as const) {
-    push("严重度", ALERT_SEVERITY_LABELS[key], report.bySeverity[key]);
+    push("严重度", SEVERITY_LABELS[key], report.bySeverity[key]);
   }
   for (const device of report.topDevices) {
     push("设备", nameOf(device.deviceId), device.count);

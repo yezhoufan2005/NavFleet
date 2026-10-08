@@ -22,23 +22,18 @@
  * `queryMemoryAlerts` keeps only *active* alerts, so with no MongoDB attached a
  * `cleared` query returns nothing at all — a vehicle with a long troubled history
  * reads identically to one that has never faulted. That is not a state to render as a
- * shrug: the empty text says what is missing and links to 管理 / 系统状态, which is
+ * shrug: the empty text says what is missing and links to 系统 / 状态, which is
  * the page that can actually say whether Mongo is connected right now.
  */
 import { computed, onBeforeUnmount, ref, watch } from "vue";
 import { RouterLink } from "vue-router";
 import { fleetApi, formatDateTime } from "@navfleet/fleet-core";
 import type { AlertRecord } from "@navfleet/fleet-core";
+import { SEVERITY_LABELS } from "@/lib/severity";
 
 const { deviceId } = defineProps<{ deviceId: string }>();
 
 type Severity = "critical" | "warning" | "notice";
-
-const SEVERITY_LABELS: Record<Severity, string> = {
-  critical: "告警",
-  warning: "预警",
-  notice: "提示",
-};
 
 const SEVERITY_BADGE: Record<Severity, string> = {
   critical: "bg-critical-wash text-critical-ink",

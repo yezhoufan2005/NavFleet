@@ -50,6 +50,7 @@ import UiSelect from "@/components/ui/UiSelect.vue";
 import { tableClasses } from "@/lib/uiClasses";
 import { useAuth } from "@/composables/useAuth";
 import { makeMessageFor } from "@/lib/errorMessages";
+import { severityLabel } from "@/lib/severity";
 import { notify as toast } from "@/composables/useNotifications";
 import { useAutoRefresh } from "@/composables/useAutoRefresh";
 
@@ -63,12 +64,6 @@ const CHANNEL_TYPE_LABELS: Record<string, string> = {
   wecom: "企业微信",
   dingtalk: "钉钉",
   email: "邮件",
-};
-
-const SEVERITY_LABELS: Record<string, string> = {
-  critical: "严重",
-  warning: "警告",
-  notice: "提示",
 };
 
 const STATUS_OPTIONS = [
@@ -159,7 +154,7 @@ const formatTime = (iso: string): string =>
   new Date(iso).toLocaleString("zh-CN", { hour12: false });
 
 const severitiesLabel = (severities: string[]): string =>
-  severities.map((s) => SEVERITY_LABELS[s] ?? s).join(" / ") || "无";
+  severities.map((s) => severityLabel(s)).join(" / ") || "无";
 
 // ── Channel editor (notify:write) ────────────────────────────────────────────────
 /** The advanced routing fields the 精简 form does not surface but must not drop on save. */
@@ -628,7 +623,7 @@ useAutoRefresh(() => void load(), {
                 }}</span>
               </td>
               <td class="px-3 py-2 text-ink-muted">
-                {{ SEVERITY_LABELS[record.severity] ?? record.severity }}
+                {{ severityLabel(record.severity) }}
               </td>
               <td class="px-3 py-2">
                 <span
@@ -745,7 +740,7 @@ useAutoRefresh(() => void load(), {
                     :disabled="chSaving"
                     @change="toggleSeverity(severity)"
                   />
-                  {{ SEVERITY_LABELS[severity] ?? severity }}
+                  {{ severityLabel(severity) }}
                 </label>
               </div>
             </fieldset>
