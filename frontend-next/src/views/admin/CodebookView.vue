@@ -14,18 +14,11 @@
  * re-validates as the authority).
  */
 import { computed, onMounted, ref } from "vue";
-import {
-  DialogContent,
-  DialogDescription,
-  DialogOverlay,
-  DialogPortal,
-  DialogRoot,
-  DialogTitle,
-} from "reka-ui";
 import PageHeader from "@/components/PageHeader.vue";
 import AppSectionTabs from "@/components/shell/AppSectionTabs.vue";
 import UiButton from "@/components/ui/UiButton.vue";
 import UiConfirmDialog from "@/components/ui/UiConfirmDialog.vue";
+import UiModal from "@/components/ui/UiModal.vue";
 import UiSelect from "@/components/ui/UiSelect.vue";
 import { tableClasses } from "@/lib/uiClasses";
 import { makeMessageFor } from "@/lib/errorMessages";
@@ -394,124 +387,110 @@ const rowDialogTitle = computed(() =>
     </template>
 
     <!-- Row editor (codebook:write). -->
-    <DialogRoot
+    <UiModal
       :open="mode !== null"
+      :title="rowDialogTitle"
+      description="填写报码、名称、通道、等级、子系统与说明后提交"
+      max-width="xl"
       @update:open="
         (open) => {
           if (!open) closeRowDialog();
         }
       "
     >
-      <DialogPortal>
-        <DialogOverlay class="fixed inset-0 z-50 bg-scrim/55" />
-        <DialogContent
-          class="fixed top-1/2 left-1/2 z-50 flex max-h-[85vh] w-full max-w-140 -translate-x-1/2 -translate-y-1/2 flex-col gap-3 overflow-auto rounded-md border border-border bg-surface-raised p-5 shadow-overlay"
-        >
-          <DialogTitle class="text-md font-semibold text-ink">{{
-            rowDialogTitle
-          }}</DialogTitle>
-          <DialogDescription class="sr-only"
-            >填写报码、名称、通道、等级、子系统与说明后提交</DialogDescription
+      <form
+        class="flex flex-col gap-3"
+        :aria-busy="rowSaving"
+        @submit.prevent="submitRow"
+      >
+        <div class="grid grid-cols-2 gap-3">
+          <label class="flex flex-col gap-1">
+            <span class="text-sm font-medium text-ink">报码</span>
+            <input
+              v-model="fCode"
+              type="number"
+              min="1"
+              :disabled="rowSaving"
+              :class="[INPUT_CLASS, 'font-mono']"
+            />
+          </label>
+          <label class="flex flex-col gap-1">
+            <span class="text-sm font-medium text-ink">名称</span>
+            <input
+              v-model="fLabel"
+              type="text"
+              :disabled="rowSaving"
+              :class="INPUT_CLASS"
+            />
+          </label>
+        </div>
+        <div class="grid grid-cols-3 gap-3">
+          <label class="flex flex-col gap-1">
+            <span class="text-sm font-medium text-ink">通道</span>
+            <UiSelect
+              :model-value="fChannel"
+              :options="CHANNEL_OPTIONS"
+              aria-label="通道"
+              @update:model-value="(v) => (fChannel = v as CodeChannel)"
+            />
+          </label>
+          <label class="flex flex-col gap-1">
+            <span class="text-sm font-medium text-ink">等级</span>
+            <UiSelect
+              :model-value="fImpact"
+              :options="IMPACT_OPTIONS"
+              aria-label="等级"
+              @update:model-value="(v) => (fImpact = v as CodeImpact)"
+            />
+          </label>
+          <label class="flex flex-col gap-1">
+            <span class="text-sm font-medium text-ink">子系统</span>
+            <UiSelect
+              :model-value="fSubsystem"
+              :options="SUBSYSTEM_OPTIONS"
+              aria-label="子系统"
+              @update:model-value="(v) => (fSubsystem = v as CodeSubsystem)"
+            />
+          </label>
+        </div>
+        <label class="flex flex-col gap-1">
+          <span class="text-sm font-medium text-ink">说明（原因）</span>
+          <textarea
+            v-model="fDescription"
+            rows="2"
+            :disabled="rowSaving"
+            :class="[INPUT_CLASS, 'h-auto py-2 leading-5']"
+          ></textarea>
+        </label>
+        <label class="flex flex-col gap-1">
+          <span class="text-sm font-medium text-ink">处理建议</span>
+          <textarea
+            v-model="fHint"
+            rows="2"
+            :disabled="rowSaving"
+            :class="[INPUT_CLASS, 'h-auto py-2 leading-5']"
+          ></textarea>
+        </label>
+        <p v-if="rowError" class="m-0 text-sm text-critical-ink" role="alert">
+          {{ rowError }}
+        </p>
+        <div class="flex justify-end gap-2">
+          <UiButton
+            variant="secondary"
+            size="sm"
+            type="button"
+            @click="closeRowDialog"
+            >取消</UiButton
           >
-          <form
-            class="flex flex-col gap-3"
-            :aria-busy="rowSaving"
-            @submit.prevent="submitRow"
+          <UiButton
+            size="sm"
+            type="submit"
+            :disabled="rowSaving || !String(fCode).trim()"
+            >保存</UiButton
           >
-            <div class="grid grid-cols-2 gap-3">
-              <label class="flex flex-col gap-1">
-                <span class="text-sm font-medium text-ink">报码</span>
-                <input
-                  v-model="fCode"
-                  type="number"
-                  min="1"
-                  :disabled="rowSaving"
-                  :class="[INPUT_CLASS, 'font-mono']"
-                />
-              </label>
-              <label class="flex flex-col gap-1">
-                <span class="text-sm font-medium text-ink">名称</span>
-                <input
-                  v-model="fLabel"
-                  type="text"
-                  :disabled="rowSaving"
-                  :class="INPUT_CLASS"
-                />
-              </label>
-            </div>
-            <div class="grid grid-cols-3 gap-3">
-              <label class="flex flex-col gap-1">
-                <span class="text-sm font-medium text-ink">通道</span>
-                <UiSelect
-                  :model-value="fChannel"
-                  :options="CHANNEL_OPTIONS"
-                  aria-label="通道"
-                  @update:model-value="(v) => (fChannel = v as CodeChannel)"
-                />
-              </label>
-              <label class="flex flex-col gap-1">
-                <span class="text-sm font-medium text-ink">等级</span>
-                <UiSelect
-                  :model-value="fImpact"
-                  :options="IMPACT_OPTIONS"
-                  aria-label="等级"
-                  @update:model-value="(v) => (fImpact = v as CodeImpact)"
-                />
-              </label>
-              <label class="flex flex-col gap-1">
-                <span class="text-sm font-medium text-ink">子系统</span>
-                <UiSelect
-                  :model-value="fSubsystem"
-                  :options="SUBSYSTEM_OPTIONS"
-                  aria-label="子系统"
-                  @update:model-value="(v) => (fSubsystem = v as CodeSubsystem)"
-                />
-              </label>
-            </div>
-            <label class="flex flex-col gap-1">
-              <span class="text-sm font-medium text-ink">说明（原因）</span>
-              <textarea
-                v-model="fDescription"
-                rows="2"
-                :disabled="rowSaving"
-                :class="[INPUT_CLASS, 'h-auto py-2 leading-5']"
-              ></textarea>
-            </label>
-            <label class="flex flex-col gap-1">
-              <span class="text-sm font-medium text-ink">处理建议</span>
-              <textarea
-                v-model="fHint"
-                rows="2"
-                :disabled="rowSaving"
-                :class="[INPUT_CLASS, 'h-auto py-2 leading-5']"
-              ></textarea>
-            </label>
-            <p
-              v-if="rowError"
-              class="m-0 text-sm text-critical-ink"
-              role="alert"
-            >
-              {{ rowError }}
-            </p>
-            <div class="flex justify-end gap-2">
-              <UiButton
-                variant="secondary"
-                size="sm"
-                type="button"
-                @click="closeRowDialog"
-                >取消</UiButton
-              >
-              <UiButton
-                size="sm"
-                type="submit"
-                :disabled="rowSaving || !String(fCode).trim()"
-                >保存</UiButton
-              >
-            </div>
-          </form>
-        </DialogContent>
-      </DialogPortal>
-    </DialogRoot>
+        </div>
+      </form>
+    </UiModal>
 
     <UiConfirmDialog
       :open="confirmDelete !== null"

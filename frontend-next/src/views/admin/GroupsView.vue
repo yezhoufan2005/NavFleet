@@ -13,14 +13,6 @@
  * backend error codes (重名 / 引用不存在的角色 / 不存在) become sentences via `messageFor`.
  */
 import { computed, onMounted, ref } from "vue";
-import {
-  DialogContent,
-  DialogDescription,
-  DialogOverlay,
-  DialogPortal,
-  DialogRoot,
-  DialogTitle,
-} from "reka-ui";
 import { fleetApi, type AdminUser } from "@navfleet/fleet-core";
 import type { RbacGroup, RbacRole } from "@navfleet/shared";
 import PageHeader from "@/components/PageHeader.vue";
@@ -28,6 +20,7 @@ import AppSectionTabs from "@/components/shell/AppSectionTabs.vue";
 import UiButton from "@/components/ui/UiButton.vue";
 import UiInput from "@/components/ui/UiInput.vue";
 import UiConfirmDialog from "@/components/ui/UiConfirmDialog.vue";
+import UiModal from "@/components/ui/UiModal.vue";
 import { tableClasses } from "@/lib/uiClasses";
 import { makeMessageFor } from "@/lib/errorMessages";
 import { notify } from "@/composables/useNotifications";
@@ -235,125 +228,111 @@ const kioskUsernames = computed(
     </template>
 
     <!-- Group dialog -->
-    <DialogRoot
+    <UiModal
       :open="groupMode !== null"
+      :title="groupDialogTitle"
+      description="填写组名、选择角色与成员后提交"
+      max-width="lg"
       @update:open="
         (open) => {
           if (!open) closeGroupDialog();
         }
       "
     >
-      <DialogPortal>
-        <DialogOverlay class="fixed inset-0 z-50 bg-scrim/55" />
-        <DialogContent
-          class="fixed top-1/2 left-1/2 z-50 flex max-h-[85vh] w-full max-w-120 -translate-x-1/2 -translate-y-1/2 flex-col gap-3 overflow-auto rounded-md border border-border bg-surface-raised p-5 shadow-overlay"
-        >
-          <DialogTitle class="text-md font-semibold text-ink">{{
-            groupDialogTitle
-          }}</DialogTitle>
-          <DialogDescription class="sr-only"
-            >填写组名、选择角色与成员后提交</DialogDescription
+      <form
+        class="flex flex-col gap-3"
+        :aria-busy="groupSaving"
+        @submit.prevent="submitGroup"
+      >
+        <label class="flex flex-col gap-1">
+          <span class="text-sm font-medium text-ink">名称</span>
+          <UiInput
+            v-model="gName"
+            type="text"
+            :disabled="groupSaving"
+            size="sm"
+          />
+        </label>
+        <label class="flex flex-col gap-1">
+          <span class="text-sm font-medium text-ink">描述（可选）</span>
+          <UiInput
+            v-model="gDesc"
+            type="text"
+            :disabled="groupSaving"
+            size="sm"
+          />
+        </label>
+        <fieldset class="flex flex-col gap-1 border-0 p-0">
+          <legend class="mb-1 text-sm font-medium text-ink">角色</legend>
+          <p v-if="!roles.length" class="m-0 text-xs text-ink-subtle">
+            还没定义角色，请先到「角色」标签新建一个角色再来
+          </p>
+          <div
+            v-else
+            class="flex max-h-32 flex-col gap-1 overflow-auto rounded-sm border border-border p-2"
           >
-          <form
-            class="flex flex-col gap-3"
-            :aria-busy="groupSaving"
-            @submit.prevent="submitGroup"
-          >
-            <label class="flex flex-col gap-1">
-              <span class="text-sm font-medium text-ink">名称</span>
-              <UiInput
-                v-model="gName"
-                type="text"
-                :disabled="groupSaving"
-                size="sm"
-              />
-            </label>
-            <label class="flex flex-col gap-1">
-              <span class="text-sm font-medium text-ink">描述（可选）</span>
-              <UiInput
-                v-model="gDesc"
-                type="text"
-                :disabled="groupSaving"
-                size="sm"
-              />
-            </label>
-            <fieldset class="flex flex-col gap-1 border-0 p-0">
-              <legend class="mb-1 text-sm font-medium text-ink">角色</legend>
-              <p v-if="!roles.length" class="m-0 text-xs text-ink-subtle">
-                还没定义角色，请先到「角色」标签新建一个角色再来
-              </p>
-              <div
-                v-else
-                class="flex max-h-32 flex-col gap-1 overflow-auto rounded-sm border border-border p-2"
-              >
-                <label
-                  v-for="role in roles"
-                  :key="role.id"
-                  class="flex items-center gap-2 text-xs text-ink-muted"
-                >
-                  <input
-                    type="checkbox"
-                    class="size-4"
-                    :checked="gRoleIds.includes(role.id)"
-                    :disabled="groupSaving"
-                    @change="toggleGroupRole(role.id)"
-                  />
-                  {{ role.name }}
-                </label>
-              </div>
-            </fieldset>
-            <fieldset class="flex flex-col gap-1 border-0 p-0">
-              <legend class="mb-1 text-sm font-medium text-ink">成员</legend>
-              <div
-                class="flex max-h-40 flex-col gap-1 overflow-auto rounded-sm border border-border p-2"
-              >
-                <label
-                  v-for="user in users"
-                  :key="user.username"
-                  class="flex items-center gap-2 text-xs text-ink-muted"
-                >
-                  <input
-                    type="checkbox"
-                    class="size-4"
-                    :checked="gMembers.includes(user.username)"
-                    :disabled="groupSaving"
-                    @change="toggleGroupMember(user.username)"
-                  />
-                  {{ user.displayName || user.username }}
-                  <span
-                    v-if="kioskUsernames.has(user.username)"
-                    class="text-2xs text-ink-subtle"
-                    >（kiosk 只读，不受组提权）</span
-                  >
-                </label>
-              </div>
-            </fieldset>
-            <p
-              v-if="groupError"
-              class="m-0 text-sm text-critical-ink"
-              role="alert"
+            <label
+              v-for="role in roles"
+              :key="role.id"
+              class="flex items-center gap-2 text-xs text-ink-muted"
             >
-              {{ groupError }}
-            </p>
-            <div class="flex justify-end gap-2">
-              <UiButton
-                variant="secondary"
-                size="sm"
-                type="button"
-                @click="closeGroupDialog"
-                >取消</UiButton
+              <input
+                type="checkbox"
+                class="size-4"
+                :checked="gRoleIds.includes(role.id)"
+                :disabled="groupSaving"
+                @change="toggleGroupRole(role.id)"
+              />
+              {{ role.name }}
+            </label>
+          </div>
+        </fieldset>
+        <fieldset class="flex flex-col gap-1 border-0 p-0">
+          <legend class="mb-1 text-sm font-medium text-ink">成员</legend>
+          <div
+            class="flex max-h-40 flex-col gap-1 overflow-auto rounded-sm border border-border p-2"
+          >
+            <label
+              v-for="user in users"
+              :key="user.username"
+              class="flex items-center gap-2 text-xs text-ink-muted"
+            >
+              <input
+                type="checkbox"
+                class="size-4"
+                :checked="gMembers.includes(user.username)"
+                :disabled="groupSaving"
+                @change="toggleGroupMember(user.username)"
+              />
+              {{ user.displayName || user.username }}
+              <span
+                v-if="kioskUsernames.has(user.username)"
+                class="text-2xs text-ink-subtle"
+                >（kiosk 只读，不受组提权）</span
               >
-              <UiButton
-                size="sm"
-                type="submit"
-                :disabled="groupSaving || !gName.trim()"
-                >保存</UiButton
-              >
-            </div>
-          </form>
-        </DialogContent>
-      </DialogPortal>
-    </DialogRoot>
+            </label>
+          </div>
+        </fieldset>
+        <p v-if="groupError" class="m-0 text-sm text-critical-ink" role="alert">
+          {{ groupError }}
+        </p>
+        <div class="flex justify-end gap-2">
+          <UiButton
+            variant="secondary"
+            size="sm"
+            type="button"
+            @click="closeGroupDialog"
+            >取消</UiButton
+          >
+          <UiButton
+            size="sm"
+            type="submit"
+            :disabled="groupSaving || !gName.trim()"
+            >保存</UiButton
+          >
+        </div>
+      </form>
+    </UiModal>
 
     <UiConfirmDialog
       :open="confirmGroupDelete !== null"

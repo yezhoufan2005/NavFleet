@@ -15,14 +15,6 @@
  * holding its connection string (`smtpEnv`) — so the whole-file write persists no credential.
  */
 import { computed, onMounted, ref } from "vue";
-import {
-  DialogContent,
-  DialogDescription,
-  DialogOverlay,
-  DialogPortal,
-  DialogRoot,
-  DialogTitle,
-} from "reka-ui";
 import { fleetApi } from "@navfleet/fleet-core";
 import {
   REPORT_RANGE_PRESETS,
@@ -36,6 +28,7 @@ import AppSectionTabs from "@/components/shell/AppSectionTabs.vue";
 import UiButton from "@/components/ui/UiButton.vue";
 import UiInput from "@/components/ui/UiInput.vue";
 import UiConfirmDialog from "@/components/ui/UiConfirmDialog.vue";
+import UiModal from "@/components/ui/UiModal.vue";
 import UiSelect from "@/components/ui/UiSelect.vue";
 import { tableClasses } from "@/lib/uiClasses";
 import { useAuth } from "@/composables/useAuth";
@@ -334,153 +327,131 @@ const weekdayLabel = (weekday?: number): string =>
     </template>
 
     <!-- Schedule editor (reports:write). -->
-    <DialogRoot
+    <UiModal
       :open="mode !== null"
+      :title="dialogTitle"
+      description="填写报表的回看窗口、发送时刻与收件人后提交"
+      max-width="xl"
       @update:open="
         (open) => {
           if (!open) closeDialog();
         }
       "
     >
-      <DialogPortal>
-        <DialogOverlay class="fixed inset-0 z-50 bg-scrim/55" />
-        <DialogContent
-          class="fixed top-1/2 left-1/2 z-50 flex max-h-[85vh] w-full max-w-140 -translate-x-1/2 -translate-y-1/2 flex-col gap-3 overflow-auto rounded-md border border-border bg-surface-raised p-5 shadow-overlay"
-        >
-          <DialogTitle class="text-md font-semibold text-ink">{{
-            dialogTitle
-          }}</DialogTitle>
-          <DialogDescription class="sr-only"
-            >填写报表的回看窗口、发送时刻与收件人后提交</DialogDescription
+      <form
+        class="flex flex-col gap-3"
+        :aria-busy="saving"
+        @submit.prevent="submit"
+      >
+        <div class="grid grid-cols-2 gap-3">
+          <label class="flex flex-col gap-1">
+            <span class="text-sm font-medium text-ink">报表 ID</span>
+            <UiInput v-model="sId" type="text" :disabled="saving" size="sm" />
+          </label>
+          <label class="flex flex-col gap-1">
+            <span class="text-sm font-medium text-ink">回看窗口</span>
+            <UiSelect
+              :model-value="sRange"
+              :options="RANGE_OPTIONS"
+              aria-label="回看窗口"
+              @update:model-value="
+                (value) => (sRange = value as ReportRangePreset)
+              "
+            />
+          </label>
+        </div>
+        <div class="grid grid-cols-2 gap-3">
+          <label class="flex flex-col gap-1">
+            <span class="text-sm font-medium text-ink">发送时刻</span>
+            <UiInput
+              v-model="sTime"
+              type="text"
+              placeholder="08:00"
+              :disabled="saving"
+              size="sm"
+              class="font-mono"
+            />
+          </label>
+          <label class="flex flex-col gap-1">
+            <span class="text-sm font-medium text-ink">发送频率</span>
+            <UiSelect
+              :model-value="sWeekday"
+              :options="WEEKDAY_OPTIONS"
+              aria-label="发送频率"
+              @update:model-value="(value) => (sWeekday = value)"
+            />
+          </label>
+        </div>
+        <label class="flex items-center gap-2 text-sm text-ink">
+          <input
+            v-model="sEnabled"
+            type="checkbox"
+            class="size-4"
+            :disabled="saving"
+          />
+          启用该报表
+        </label>
+        <label class="flex flex-col gap-1">
+          <span class="text-sm font-medium text-ink">SMTP 环境变量名</span>
+          <UiInput
+            v-model="sSmtpEnv"
+            type="text"
+            placeholder="如 REPORTS_SMTP_URL"
+            :disabled="saving"
+            size="sm"
+            class="font-mono"
+          />
+          <span class="text-2xs text-ink-subtle"
+            >装 SMTP 连接串的环境变量名；连接串本身不落配置文件</span
           >
-          <form
-            class="flex flex-col gap-3"
-            :aria-busy="saving"
-            @submit.prevent="submit"
+        </label>
+        <label class="flex flex-col gap-1">
+          <span class="text-sm font-medium text-ink">发件人地址</span>
+          <UiInput
+            v-model="sFrom"
+            type="text"
+            placeholder="reports@example.com"
+            :disabled="saving"
+            size="sm"
+          />
+        </label>
+        <label class="flex flex-col gap-1">
+          <span class="text-sm font-medium text-ink">收件人</span>
+          <textarea
+            v-model="sRecipientsText"
+            rows="3"
+            placeholder="每行一个：邮箱地址，或 @用户名（发送时取该用户邮箱）"
+            :disabled="saving"
+            class="w-full rounded-sm border border-border-strong bg-surface px-2 py-2 text-sm leading-5 text-ink placeholder:text-ink-subtle"
+          ></textarea>
+        </label>
+        <label class="flex flex-col gap-1">
+          <span class="text-sm font-medium text-ink">收件人组（可选）</span>
+          <UiInput
+            v-model="sGroupsText"
+            type="text"
+            placeholder="逗号分隔的组名，引用 notify.json 里的命名收件人组"
+            :disabled="saving"
+            size="sm"
+          />
+        </label>
+        <p v-if="formError" class="m-0 text-sm text-critical-ink" role="alert">
+          {{ formError }}
+        </p>
+        <div class="flex justify-end gap-2">
+          <UiButton
+            variant="secondary"
+            size="sm"
+            type="button"
+            @click="closeDialog"
+            >取消</UiButton
           >
-            <div class="grid grid-cols-2 gap-3">
-              <label class="flex flex-col gap-1">
-                <span class="text-sm font-medium text-ink">报表 ID</span>
-                <UiInput
-                  v-model="sId"
-                  type="text"
-                  :disabled="saving"
-                  size="sm"
-                />
-              </label>
-              <label class="flex flex-col gap-1">
-                <span class="text-sm font-medium text-ink">回看窗口</span>
-                <UiSelect
-                  :model-value="sRange"
-                  :options="RANGE_OPTIONS"
-                  aria-label="回看窗口"
-                  @update:model-value="
-                    (value) => (sRange = value as ReportRangePreset)
-                  "
-                />
-              </label>
-            </div>
-            <div class="grid grid-cols-2 gap-3">
-              <label class="flex flex-col gap-1">
-                <span class="text-sm font-medium text-ink">发送时刻</span>
-                <UiInput
-                  v-model="sTime"
-                  type="text"
-                  placeholder="08:00"
-                  :disabled="saving"
-                  size="sm"
-                  class="font-mono"
-                />
-              </label>
-              <label class="flex flex-col gap-1">
-                <span class="text-sm font-medium text-ink">发送频率</span>
-                <UiSelect
-                  :model-value="sWeekday"
-                  :options="WEEKDAY_OPTIONS"
-                  aria-label="发送频率"
-                  @update:model-value="(value) => (sWeekday = value)"
-                />
-              </label>
-            </div>
-            <label class="flex items-center gap-2 text-sm text-ink">
-              <input
-                v-model="sEnabled"
-                type="checkbox"
-                class="size-4"
-                :disabled="saving"
-              />
-              启用该报表
-            </label>
-            <label class="flex flex-col gap-1">
-              <span class="text-sm font-medium text-ink">SMTP 环境变量名</span>
-              <UiInput
-                v-model="sSmtpEnv"
-                type="text"
-                placeholder="如 REPORTS_SMTP_URL"
-                :disabled="saving"
-                size="sm"
-                class="font-mono"
-              />
-              <span class="text-2xs text-ink-subtle"
-                >装 SMTP 连接串的环境变量名；连接串本身不落配置文件</span
-              >
-            </label>
-            <label class="flex flex-col gap-1">
-              <span class="text-sm font-medium text-ink">发件人地址</span>
-              <UiInput
-                v-model="sFrom"
-                type="text"
-                placeholder="reports@example.com"
-                :disabled="saving"
-                size="sm"
-              />
-            </label>
-            <label class="flex flex-col gap-1">
-              <span class="text-sm font-medium text-ink">收件人</span>
-              <textarea
-                v-model="sRecipientsText"
-                rows="3"
-                placeholder="每行一个：邮箱地址，或 @用户名（发送时取该用户邮箱）"
-                :disabled="saving"
-                class="w-full rounded-sm border border-border-strong bg-surface px-2 py-2 text-sm leading-5 text-ink placeholder:text-ink-subtle"
-              ></textarea>
-            </label>
-            <label class="flex flex-col gap-1">
-              <span class="text-sm font-medium text-ink">收件人组（可选）</span>
-              <UiInput
-                v-model="sGroupsText"
-                type="text"
-                placeholder="逗号分隔的组名，引用 notify.json 里的命名收件人组"
-                :disabled="saving"
-                size="sm"
-              />
-            </label>
-            <p
-              v-if="formError"
-              class="m-0 text-sm text-critical-ink"
-              role="alert"
-            >
-              {{ formError }}
-            </p>
-            <div class="flex justify-end gap-2">
-              <UiButton
-                variant="secondary"
-                size="sm"
-                type="button"
-                @click="closeDialog"
-                >取消</UiButton
-              >
-              <UiButton
-                size="sm"
-                type="submit"
-                :disabled="saving || !sId.trim()"
-                >保存</UiButton
-              >
-            </div>
-          </form>
-        </DialogContent>
-      </DialogPortal>
-    </DialogRoot>
+          <UiButton size="sm" type="submit" :disabled="saving || !sId.trim()"
+            >保存</UiButton
+          >
+        </div>
+      </form>
+    </UiModal>
 
     <UiConfirmDialog
       :open="confirmDelete !== null"

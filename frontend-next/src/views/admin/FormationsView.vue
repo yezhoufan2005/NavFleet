@@ -10,14 +10,6 @@
  * the picker only offers configured vehicles, so the UI guards it up front too.
  */
 import { computed, onMounted, ref } from "vue";
-import {
-  DialogContent,
-  DialogDescription,
-  DialogOverlay,
-  DialogPortal,
-  DialogRoot,
-  DialogTitle,
-} from "reka-ui";
 import { fleetApi } from "@navfleet/fleet-core";
 import type { DeviceConfig, FormationConfig } from "@navfleet/shared";
 import PageHeader from "@/components/PageHeader.vue";
@@ -26,6 +18,7 @@ import UiButton from "@/components/ui/UiButton.vue";
 import UiInput from "@/components/ui/UiInput.vue";
 import UiSelect from "@/components/ui/UiSelect.vue";
 import UiConfirmDialog from "@/components/ui/UiConfirmDialog.vue";
+import UiModal from "@/components/ui/UiModal.vue";
 import { tableClasses } from "@/lib/uiClasses";
 import { makeMessageFor } from "@/lib/errorMessages";
 import { notify } from "@/composables/useNotifications";
@@ -302,112 +295,94 @@ const dialogTitle = computed(() =>
   </PageHeader>
 
   <!-- Formation create/edit -->
-  <DialogRoot
+  <UiModal
     :open="mode !== null"
+    :title="dialogTitle"
+    description="填写编队配置后提交"
     @update:open="
       (o) => {
         if (!o) close();
       }
     "
   >
-    <DialogPortal>
-      <DialogOverlay class="fixed inset-0 z-50 bg-scrim/55" />
-      <DialogContent
-        class="fixed top-1/2 left-1/2 z-50 flex max-h-[85vh] w-full max-w-100 -translate-x-1/2 -translate-y-1/2 flex-col gap-3 overflow-auto rounded-md border border-border bg-surface-raised p-5 shadow-overlay"
-      >
-        <DialogTitle class="text-md font-semibold text-ink">{{
-          dialogTitle
-        }}</DialogTitle>
-        <DialogDescription class="sr-only"
-          >填写编队配置后提交</DialogDescription
+    <form
+      class="flex flex-col gap-3"
+      :aria-busy="saving"
+      @submit.prevent="submit"
+    >
+      <label class="flex flex-col gap-1">
+        <span class="text-sm font-medium text-ink">编队 ID</span>
+        <UiInput
+          v-model="fId"
+          type="text"
+          :disabled="mode === 'edit' || saving"
+          size="sm"
+        />
+      </label>
+      <label class="flex flex-col gap-1">
+        <span class="text-sm font-medium text-ink">名称</span>
+        <UiInput v-model="fName" type="text" :disabled="saving" size="sm" />
+      </label>
+      <fieldset class="flex flex-col gap-1">
+        <legend class="text-sm font-medium text-ink">车辆（至少一台）</legend>
+        <div
+          class="flex max-h-40 flex-col gap-1 overflow-auto rounded-sm border border-border p-2"
         >
-        <form
-          class="flex flex-col gap-3"
-          :aria-busy="saving"
-          @submit.prevent="submit"
+          <label
+            v-for="option in vehicleOptions"
+            :key="option.value"
+            class="flex items-center gap-2"
+          >
+            <input
+              type="checkbox"
+              :checked="fDeviceIds.includes(option.value)"
+              :disabled="saving"
+              @change="toggleDevice(option.value)"
+            />
+            <span class="text-sm text-ink">{{ option.label }}</span>
+          </label>
+        </div>
+      </fieldset>
+      <label class="flex flex-col gap-1">
+        <span class="text-sm font-medium text-ink">默认场景</span>
+        <UiSelect
+          v-model="fSceneId"
+          :options="sceneOptions"
+          aria-label="编队默认场景"
+        />
+      </label>
+      <label class="flex flex-col gap-1">
+        <span class="text-sm font-medium text-ink">描述</span>
+        <UiInput
+          v-model="fDescription"
+          type="text"
+          :disabled="saving"
+          size="sm"
+        />
+      </label>
+      <label class="flex flex-col gap-1">
+        <span class="text-sm font-medium text-ink"
+          >颜色（可选，如 #46d7c3）</span
         >
-          <label class="flex flex-col gap-1">
-            <span class="text-sm font-medium text-ink">编队 ID</span>
-            <UiInput
-              v-model="fId"
-              type="text"
-              :disabled="mode === 'edit' || saving"
-              size="sm"
-            />
-          </label>
-          <label class="flex flex-col gap-1">
-            <span class="text-sm font-medium text-ink">名称</span>
-            <UiInput v-model="fName" type="text" :disabled="saving" size="sm" />
-          </label>
-          <fieldset class="flex flex-col gap-1">
-            <legend class="text-sm font-medium text-ink">
-              车辆（至少一台）
-            </legend>
-            <div
-              class="flex max-h-40 flex-col gap-1 overflow-auto rounded-sm border border-border p-2"
-            >
-              <label
-                v-for="option in vehicleOptions"
-                :key="option.value"
-                class="flex items-center gap-2"
-              >
-                <input
-                  type="checkbox"
-                  :checked="fDeviceIds.includes(option.value)"
-                  :disabled="saving"
-                  @change="toggleDevice(option.value)"
-                />
-                <span class="text-sm text-ink">{{ option.label }}</span>
-              </label>
-            </div>
-          </fieldset>
-          <label class="flex flex-col gap-1">
-            <span class="text-sm font-medium text-ink">默认场景</span>
-            <UiSelect
-              v-model="fSceneId"
-              :options="sceneOptions"
-              aria-label="编队默认场景"
-            />
-          </label>
-          <label class="flex flex-col gap-1">
-            <span class="text-sm font-medium text-ink">描述</span>
-            <UiInput
-              v-model="fDescription"
-              type="text"
-              :disabled="saving"
-              size="sm"
-            />
-          </label>
-          <label class="flex flex-col gap-1">
-            <span class="text-sm font-medium text-ink"
-              >颜色（可选，如 #46d7c3）</span
-            >
-            <UiInput
-              v-model="fColor"
-              type="text"
-              :disabled="saving"
-              size="sm"
-            />
-          </label>
-          <p v-if="formError" class="text-sm text-critical-ink" role="alert">
-            {{ formError }}
-          </p>
-          <div class="mt-1 flex justify-end gap-2">
-            <UiButton
-              variant="secondary"
-              size="sm"
-              :disabled="saving"
-              @click="close"
-              >取消</UiButton
-            >
-            <UiButton type="submit" size="sm" :disabled="saving">
-              {{ saving ? "提交中…" : "保存" }}
-            </UiButton>
-          </div>
-        </form>
-      </DialogContent>
-    </DialogPortal>
-  </DialogRoot>
+        <UiInput v-model="fColor" type="text" :disabled="saving" size="sm" />
+      </label>
+      <p v-if="formError" class="text-sm text-critical-ink" role="alert">
+        {{ formError }}
+      </p>
+      <div class="mt-1 flex justify-end gap-2">
+        <UiButton
+          variant="secondary"
+          size="sm"
+          :disabled="saving"
+          @click="close"
+          >取消</UiButton
+        >
+        <UiButton type="submit" size="sm" :disabled="saving">
+          {{ saving ? "提交中…" : "保存" }}
+        </UiButton>
+      </div>
+    </form>
+  </UiModal>
 
   <UiConfirmDialog
     :open="confirmDelete !== null"

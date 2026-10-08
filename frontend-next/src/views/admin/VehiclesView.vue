@@ -11,14 +11,6 @@
  * refused deletion — the 编队 tab is where that link is managed.
  */
 import { computed, onMounted, ref } from "vue";
-import {
-  DialogContent,
-  DialogDescription,
-  DialogOverlay,
-  DialogPortal,
-  DialogRoot,
-  DialogTitle,
-} from "reka-ui";
 import { fleetApi } from "@navfleet/fleet-core";
 import type { DeviceConfig } from "@navfleet/shared";
 import PageHeader from "@/components/PageHeader.vue";
@@ -27,6 +19,7 @@ import UiButton from "@/components/ui/UiButton.vue";
 import UiInput from "@/components/ui/UiInput.vue";
 import UiSelect from "@/components/ui/UiSelect.vue";
 import UiConfirmDialog from "@/components/ui/UiConfirmDialog.vue";
+import UiModal from "@/components/ui/UiModal.vue";
 import { tableClasses } from "@/lib/uiClasses";
 import { makeMessageFor } from "@/lib/errorMessages";
 import { notify } from "@/composables/useNotifications";
@@ -287,87 +280,76 @@ const dialogTitle = computed(() =>
   </PageHeader>
 
   <!-- Vehicle create/edit -->
-  <DialogRoot
+  <UiModal
     :open="mode !== null"
+    :title="dialogTitle"
+    description="填写车辆配置后提交"
     @update:open="
       (o) => {
         if (!o) close();
       }
     "
   >
-    <DialogPortal>
-      <DialogOverlay class="fixed inset-0 z-50 bg-scrim/55" />
-      <DialogContent
-        class="fixed top-1/2 left-1/2 z-50 flex w-full max-w-100 -translate-x-1/2 -translate-y-1/2 flex-col gap-3 rounded-md border border-border bg-surface-raised p-5 shadow-overlay"
-      >
-        <DialogTitle class="text-md font-semibold text-ink">{{
-          dialogTitle
-        }}</DialogTitle>
-        <DialogDescription class="sr-only"
-          >填写车辆配置后提交</DialogDescription
+    <form
+      class="flex flex-col gap-3"
+      :aria-busy="saving"
+      @submit.prevent="submit"
+    >
+      <label class="flex flex-col gap-1">
+        <span class="text-sm font-medium text-ink">设备 ID</span>
+        <UiInput
+          v-model="fDeviceId"
+          type="text"
+          :disabled="mode === 'edit' || saving"
+          size="sm"
+        />
+      </label>
+      <label class="flex flex-col gap-1">
+        <span class="text-sm font-medium text-ink">名称</span>
+        <UiInput
+          v-model="fDeviceName"
+          type="text"
+          :disabled="saving"
+          size="sm"
+        />
+      </label>
+      <label class="flex flex-col gap-1">
+        <span class="text-sm font-medium text-ink">默认场景</span>
+        <UiSelect
+          v-model="fSceneId"
+          :options="sceneOptions"
+          aria-label="默认场景"
+        />
+      </label>
+      <label class="flex flex-col gap-1">
+        <span class="text-sm font-medium text-ink">标签（逗号分隔）</span>
+        <UiInput v-model="fTags" type="text" :disabled="saving" size="sm" />
+      </label>
+      <label class="flex items-center gap-2">
+        <input v-model="fGps" type="checkbox" :disabled="saving" />
+        <span class="text-sm text-ink">在 GPS 地图中显示</span>
+      </label>
+      <label class="flex items-center gap-2">
+        <input v-model="fRosMap" type="checkbox" :disabled="saving" />
+        <span class="text-sm text-ink">在场景地图中显示</span>
+      </label>
+      <p v-if="formError" class="text-sm text-critical-ink" role="alert">
+        {{ formError }}
+      </p>
+      <div class="mt-1 flex justify-end gap-2">
+        <UiButton
+          variant="secondary"
+          size="sm"
+          :disabled="saving"
+          @click="close"
+          >取消</UiButton
         >
-        <form
-          class="flex flex-col gap-3"
-          :aria-busy="saving"
-          @submit.prevent="submit"
-        >
-          <label class="flex flex-col gap-1">
-            <span class="text-sm font-medium text-ink">设备 ID</span>
-            <UiInput
-              v-model="fDeviceId"
-              type="text"
-              :disabled="mode === 'edit' || saving"
-              size="sm"
-            />
-          </label>
-          <label class="flex flex-col gap-1">
-            <span class="text-sm font-medium text-ink">名称</span>
-            <UiInput
-              v-model="fDeviceName"
-              type="text"
-              :disabled="saving"
-              size="sm"
-            />
-          </label>
-          <label class="flex flex-col gap-1">
-            <span class="text-sm font-medium text-ink">默认场景</span>
-            <UiSelect
-              v-model="fSceneId"
-              :options="sceneOptions"
-              aria-label="默认场景"
-            />
-          </label>
-          <label class="flex flex-col gap-1">
-            <span class="text-sm font-medium text-ink">标签（逗号分隔）</span>
-            <UiInput v-model="fTags" type="text" :disabled="saving" size="sm" />
-          </label>
-          <label class="flex items-center gap-2">
-            <input v-model="fGps" type="checkbox" :disabled="saving" />
-            <span class="text-sm text-ink">在 GPS 地图中显示</span>
-          </label>
-          <label class="flex items-center gap-2">
-            <input v-model="fRosMap" type="checkbox" :disabled="saving" />
-            <span class="text-sm text-ink">在场景地图中显示</span>
-          </label>
-          <p v-if="formError" class="text-sm text-critical-ink" role="alert">
-            {{ formError }}
-          </p>
-          <div class="mt-1 flex justify-end gap-2">
-            <UiButton
-              variant="secondary"
-              size="sm"
-              :disabled="saving"
-              @click="close"
-              >取消</UiButton
-            >
-            <UiButton type="submit" size="sm" :disabled="saving">
-              {{ saving ? "提交中…" : "保存" }}
-            </UiButton>
-          </div>
-        </form>
-      </DialogContent>
-    </DialogPortal>
-  </DialogRoot>
+        <UiButton type="submit" size="sm" :disabled="saving">
+          {{ saving ? "提交中…" : "保存" }}
+        </UiButton>
+      </div>
+    </form>
+  </UiModal>
 
   <UiConfirmDialog
     :open="confirmDelete !== null"
