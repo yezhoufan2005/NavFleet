@@ -1,6 +1,7 @@
 <script setup lang="ts">
 /**
- * 告警规则 — the alert-rule editor (admin, 1.6.1), the console face of `rules.json`.
+ * 告警规则 — the alert-rule editor (admin, 1.6.1; a tab of the 消息 section since 1.6.2), the
+ * console face of `rules.json`.
  *
  * The rules config is a fixed shape — a low-battery rule and an offline rule — so this is one
  * whole-config form (read-modify-write the whole object, like the codebook/vehicles writes), not a
@@ -20,6 +21,7 @@ import {
   type RuleScope,
 } from "@navfleet/shared";
 import PageHeader from "@/components/PageHeader.vue";
+import AppSectionTabs from "@/components/shell/AppSectionTabs.vue";
 import UiButton from "@/components/ui/UiButton.vue";
 import { notify as toast } from "@/composables/useNotifications";
 
@@ -172,7 +174,7 @@ const resetToDefaults = (): void => applyConfig(DEFAULT_ALERT_RULES);
 </script>
 
 <template>
-  <PageHeader title="告警规则">
+  <PageHeader title="消息">
     <template #actions>
       <UiButton
         variant="secondary"
@@ -188,6 +190,8 @@ const resetToDefaults = (): void => applyConfig(DEFAULT_ALERT_RULES);
         >保存</UiButton
       >
     </template>
+
+    <AppSectionTabs />
 
     <p v-if="status === 'loading'" class="text-sm text-ink-muted">加载中…</p>
     <p

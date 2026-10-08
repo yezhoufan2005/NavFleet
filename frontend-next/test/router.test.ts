@@ -42,10 +42,15 @@ describe("route table", () => {
       { path: "/devices", name: undefined, title: "设备" },
       { path: "/devices", name: "devices", title: undefined },
       { path: "/devices/:deviceId", name: "device-detail", title: "设备详情" },
-      { path: "/alerts", name: "alerts", title: "消息" },
-      // 告警史 folded into 消息 as a tab (?view=history) in Phase 18; the old top-level path
-      // stays as a redirect, so it has no name or title of its own.
+      // 消息 is a section (1.6.2 IA): 消息 (live) and 告警史 both render AlertsView, 告警规则 is
+      // RulesView folded in from 管理. Live is the `""` child, sharing the parent's path.
+      { path: "/alerts", name: undefined, title: "消息" },
+      { path: "/alerts", name: "alerts", title: undefined },
+      { path: "/alerts/history", name: "alerts-history", title: "告警史" },
+      { path: "/alerts/rules", name: "alerts-rules", title: "告警规则" },
+      // Old top-level paths, kept as redirects so shared bookmarks still land.
       { path: "/alert-history", name: undefined, title: undefined },
+      { path: "/admin/rules", name: undefined, title: undefined },
       { path: "/reports", name: "reports", title: "报表" },
       // 用户 promoted to a top-level section (1.6.2 IA): 用户 / 角色 / 用户组 are tabs behind real
       // child routes. The first tab is the `""` child (renders at /access), so it shares the
@@ -72,7 +77,6 @@ describe("route table", () => {
       },
       { path: "/admin/codebook", name: "admin-codebook", title: "报码字典" },
       { path: "/admin/notify", name: "admin-notify", title: "外发" },
-      { path: "/admin/rules", name: "admin-rules", title: "告警规则" },
       { path: "/admin/reports", name: "admin-reports", title: "定时报表" },
       { path: "/admin/audit", name: "admin-audit", title: "审计" },
       // Personal center: any authenticated user, so it carries no roles and is

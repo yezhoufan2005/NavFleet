@@ -129,24 +129,24 @@ flowchart LR
 | `/devices`          | **设备**        | 列表 ⇄ 地图两个视图（可切 GPS / ROS 场景图，按编队筛选）                     |
 | `/devices/:id`      | **设备详情**    | 四个 tab：实时 / 曲线 / 历史回放 / 告警史；报码解读是它存在的理由            |
 | `/alerts`           | **消息**        | 按严重度分档、按设备筛选、确认 / 取消确认（operator+）                       |
-| `/alert-history`    | **消息史**      | 读 `/api/v1/alerts`，含起止时间与是否仍活跃                                  |
+| `/alerts/history`   | 消息 · 告警史   | 读 `/api/v1/alerts`，含起止时间与是否仍活跃                                  |
+| `/alerts/rules`     | 消息 · 告警规则 | 低电量 / 离线规则的阈值 · 开关 · 作用范围（写 `rules.json`，热重载；admin）  |
 | `/reports`          | **报表**        | 服务端聚合的可用性 KPI + 时序 + CSV 导出                                     |
 | `/wall`             | **大屏值班**    | 面向无人值守墙面：KPI + 地图 + 滚动告警，长效 kiosk 账号登录                 |
 | `/profile`          | **个人中心**    | 自助改密、会话信息                                                           |
 | `/access`           | **用户** · 账号 | 增删改、启禁用、改角色、重置密码、强制下线、查看 / 撤销会话（admin）         |
 | `/access/roles`     | 用户 · 角色     | 自定义能力角色，在内置角色之上按能力细分（admin）                            |
 | `/access/groups`    | 用户 · 用户组   | 用户组：绑定成员与角色，把附加能力叠加到成员的基础角色上（admin）            |
-| `/admin`            | **管理**        | 落地页，下挂八个子页                                                         |
+| `/admin`            | **管理**        | 落地页，下挂七个子页                                                         |
 | `/admin/onboarding` | 设备接入        | 车辆 / 编队配置的增删改（写 `vehicles.json` / `formations.json`，热重载）    |
 | `/admin/system`     | 系统状态        | 分辨「连不上后端」与「后端连不上 broker / Mongo」；列本机留存数据            |
 | `/admin/scenes`     | 场景            | 逐个核对场景资源可达性，说清取不到会看到什么                                 |
 | `/admin/codebook`   | 报码字典        | 报码释义表，逐条增删改或整表导入 / 导出 JSON（写 `codebook.json`）           |
 | `/admin/notify`     | 外发            | 告警外发渠道配置（渠道 / 严重度 / 静默窗口，写 `notify.json`，热重载）       |
-| `/admin/rules`      | 告警规则        | 低电量 / 离线规则的阈值 · 开关 · 作用范围（写 `rules.json`，热重载）         |
 | `/admin/reports`    | 定时报表        | 报表调度：回看窗口 · 发送时刻 · 收件人（写 `reports.json`，热重载）          |
 | `/admin/audit`      | 审计            | 鉴权与用户管理操作的审计日志                                                 |
 
-其余路径落 404（`/admin/users`、`/admin/roles` 保留为跳向 `/access` 的重定向）。另有开发专用的 `/__charts-perf`（不在导航里）。
+其余路径落 404（`/alert-history`→`/alerts/history`、`/admin/rules`→`/alerts/rules`、`/admin/users`→`/access`、`/admin/roles`→`/access/roles` 保留为重定向）。另有开发专用的 `/__charts-perf`（不在导航里）。
 
 ## 权限模型
 
