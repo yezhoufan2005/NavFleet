@@ -43,7 +43,7 @@ const mountPanel = async (query = "") => {
     history: createMemoryHistory(),
     routes: [
       { path: "/", component: { template: "<i />" } },
-      { path: "/admin/system", component: { template: "<i />" } },
+      { path: "/system", component: { template: "<i />" } },
       { path: "/devices/:deviceId", component: { template: "<i />" } },
     ],
   });
@@ -115,7 +115,7 @@ describe("loading and failure", () => {
     vi.spyOn(fleetApi, "getAlerts").mockResolvedValue({ items: [] });
     const wrapper = await mountPanel();
     expect(wrapper.text()).toContain("MongoDB");
-    expect(wrapper.find("a[href='/admin/system']").exists()).toBe(true);
+    expect(wrapper.find("a[href='/system']").exists()).toBe(true);
   });
 });
 

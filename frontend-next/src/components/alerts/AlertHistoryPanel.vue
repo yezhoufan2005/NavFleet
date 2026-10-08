@@ -243,9 +243,7 @@ const rows = computed<Row[]>(() =>
     role="status"
   >
     暂无已清除的消息；已清除的消息需要后端连接 MongoDB 才会留存 ——
-    <RouterLink
-      to="/admin/system"
-      class="text-brand-ink underline underline-offset-2"
+    <RouterLink to="/system" class="text-brand-ink underline underline-offset-2"
       >管理 / 系统状态</RouterLink
     >
     会说明它此刻连上了没有

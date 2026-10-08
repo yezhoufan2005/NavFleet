@@ -156,7 +156,7 @@ describe("告警史", () => {
     const wrapper = await mountTab();
 
     expect(wrapper.text()).toContain("MongoDB");
-    expect(wrapper.find("a").attributes("href")).toBe("/admin/system");
+    expect(wrapper.find("a").attributes("href")).toBe("/system");
   });
 
   it("数出仍活跃的条数，那是决定要不要动手的数字", async () => {

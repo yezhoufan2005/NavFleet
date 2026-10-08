@@ -220,9 +220,9 @@ const refreshStored = (): void => {
 onMounted(refreshStored);
 
 // Returning to the tab re-runs the health probe and re-scans stored keys, so the page is fresh
-// without a click. The manual 重新检查 button below stays: this is a diagnostics page, and an
-// operator watching a downed dependency recover sits on it without ever leaving — the case
-// focus-refresh cannot serve. There is no form here, so nothing to guard against.
+// without a click — the manual 重新检查 button was dropped (1.6.2) now that this is the only way
+// the page refreshes, matching the other pages that converged on focus-refresh. No form here, so
+// nothing to guard against.
 useAutoRefresh(() => {
   void probe();
   refreshStored();
@@ -262,17 +262,6 @@ const AREA_LABELS: Record<StoredEntry["area"], string> = {
 
 <template>
   <PageHeader title="系统">
-    <template #actions>
-      <UiButton
-        variant="secondary"
-        size="sm"
-        :disabled="probeState === 'loading'"
-        @click="probe"
-      >
-        {{ probeState === "loading" ? "检查中…" : "重新检查" }}
-      </UiButton>
-    </template>
-
     <AppSectionTabs />
 
     <section
@@ -380,7 +369,7 @@ const AREA_LABELS: Record<StoredEntry["area"], string> = {
           id="clock-heading"
           class="font-mono text-2xs tracking-wider text-ink-subtle uppercase"
         >
-          两个时钟
+          时钟时间
         </h3>
         <dl class="m-0 flex flex-col gap-1">
           <div

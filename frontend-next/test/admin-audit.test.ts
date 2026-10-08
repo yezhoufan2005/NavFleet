@@ -92,17 +92,18 @@ describe("AuditView", () => {
     expect(wrapper.text()).toContain("无法加载审计日志");
   });
 
-  it("passes the actor filter through to the backend on 查询", async () => {
+  it("re-queries the backend as the actor filter changes (debounced, no 查询 button)", async () => {
     const wrapper = await mountView([entry()]);
     const spy = vi
       .spyOn(fleetApi, "getAuditLog")
       .mockResolvedValue({ entries: [entry()] });
 
+    expect(wrapper.findAll("button").some((b) => b.text() === "查询")).toBe(
+      false,
+    );
     await wrapper.find("input[type=search]").setValue("root");
-    const queryButton = wrapper
-      .findAll("button")
-      .find((b) => b.text() === "查询");
-    await queryButton!.trigger("click");
+    // The free-text filter is debounced (~300ms); wait past it, then let the fetch resolve.
+    await new Promise((resolve) => setTimeout(resolve, 320));
     await flushPromises();
 
     expect(spy).toHaveBeenCalledWith(

@@ -34,9 +34,9 @@ test.describe("console notify", () => {
     // The 生效渠道 region is present; with no notify.json the honest empty state shows.
     await expect(main.getByText("生效渠道")).toBeVisible();
     await expect(main.getByText(/未配置任何渠道/)).toBeVisible();
-    // The send-log filters are offered.
-    await expect(main.getByRole("button", { name: /查询/ })).toBeVisible();
-    // An admin (notify:write) also sees the config editor's create affordance.
+    // The send-log filters apply live (no 查询 button); the status filter is one of them.
+    await expect(main.getByText("状态")).toBeVisible();
+    // An admin (notify:write) sees the config editor's create affordance (now a header action).
     await expect(main.getByRole("button", { name: /新建渠道/ })).toBeVisible();
   });
 });

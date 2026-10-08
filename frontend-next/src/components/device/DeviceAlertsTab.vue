@@ -177,7 +177,7 @@ const activeCount = computed(
     <p v-else-if="!rows.length" class="m-0 max-w-prose text-sm text-ink-muted">
       这台设备没有可显示的告警；已清除的告警需要后端连接 MongoDB 才会留存 ——
       <RouterLink
-        to="/admin/system"
+        to="/system"
         class="text-brand-ink underline-offset-2 hover:underline"
         >管理 / 系统状态</RouterLink
       >

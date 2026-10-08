@@ -21,7 +21,7 @@ test.describe("console admin", () => {
   test("系统 is its own section, reached from the primary nav and split into tabs", async ({
     page,
   }) => {
-    // 1.6.2 IA: 系统状态 / 审计 / 外发 are tabs of a top-level 系统 section, successor to the 管理 hub.
+    // 1.6.2 IA: 状态 / 审计 / 外发 are tabs of a top-level 系统 section, successor to the 管理 hub.
     await page.goto("/");
     await page
       .getByRole("navigation", { name: "主导航" })
@@ -31,7 +31,7 @@ test.describe("console admin", () => {
 
     const tabs = page.getByRole("navigation", { name: "分区导航" });
     await expect(
-      tabs.getByRole("link", { name: "系统状态", exact: true }),
+      tabs.getByRole("link", { name: "状态", exact: true }),
     ).toBeVisible();
     await tabs.getByRole("link", { name: "外发", exact: true }).click();
     await expect(page).toHaveURL(/\/system\/notify$/);

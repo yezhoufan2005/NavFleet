@@ -17,7 +17,7 @@
  * Filters are server-side; pagination over the returned page is client-side, and filter state
  * lives in the URL — the same shape 审计 / 告警 use.
  */
-import { computed, onMounted, ref } from "vue";
+import { computed, onMounted, ref, watch } from "vue";
 import { useRoute, useRouter } from "vue-router";
 import {
   DialogContent,
@@ -96,7 +96,9 @@ const PAGE_SIZE = 20;
 const page = ref(1);
 
 const load = async (): Promise<void> => {
-  status.value = "loading";
+  // Only flash the skeleton before the first successful load; filter changes re-query live, so
+  // blanking the page to 加载中… on every keystroke would be noise.
+  if (status.value !== "ready") status.value = "loading";
   try {
     const [config, log] = await Promise.all([
       fleetApi.getNotifyConfig(),
@@ -135,12 +137,14 @@ const applyFilters = (): void => {
   void load();
 };
 
-const resetFilters = (): void => {
-  deviceId.value = "";
-  channelId.value = "";
-  statusFilter.value = "";
-  applyFilters();
-};
+// Filters apply as you change them — no 查询 / 重置 buttons, matching the other tables. The two
+// free-text boxes are debounced; the status select applies at once. Clearing a field is the reset.
+let filterTimer: ReturnType<typeof setTimeout> | undefined;
+watch([deviceId, channelId], () => {
+  clearTimeout(filterTimer);
+  filterTimer = setTimeout(applyFilters, 300);
+});
+watch(statusFilter, () => applyFilters());
 
 onMounted(() => void load());
 
@@ -415,6 +419,10 @@ useAutoRefresh(() => void load(), {
 
 <template>
   <PageHeader title="系统">
+    <template v-if="canWrite" #actions>
+      <UiButton size="sm" @click="openCreateChannel">新建渠道</UiButton>
+    </template>
+
     <AppSectionTabs />
 
     <section aria-label="生效渠道" class="flex flex-col gap-2">
@@ -455,10 +463,7 @@ useAutoRefresh(() => void load(), {
     </section>
 
     <section v-if="canWrite" class="flex flex-col gap-2" aria-label="配置渠道">
-      <div class="flex items-center justify-between gap-3">
-        <h2 class="m-0 text-2xs text-ink-muted uppercase">配置渠道</h2>
-        <UiButton size="sm" @click="openCreateChannel">新建渠道</UiButton>
-      </div>
+      <h2 class="m-0 text-2xs text-ink-muted uppercase">配置渠道</h2>
       <p
         v-if="!rawConfig?.channels.length"
         class="text-sm text-ink-muted"
@@ -532,21 +537,11 @@ useAutoRefresh(() => void load(), {
     <section class="flex flex-wrap items-end gap-3" aria-label="筛选">
       <label class="flex flex-col gap-1">
         <span class="text-2xs text-ink-muted">设备</span>
-        <UiInput
-          v-model="deviceId"
-          type="search"
-          placeholder="设备 ID"
-          @keyup.enter="applyFilters"
-        />
+        <UiInput v-model="deviceId" type="search" placeholder="设备 ID" />
       </label>
       <label class="flex flex-col gap-1">
         <span class="text-2xs text-ink-muted">渠道</span>
-        <UiInput
-          v-model="channelId"
-          type="search"
-          placeholder="渠道 ID"
-          @keyup.enter="applyFilters"
-        />
+        <UiInput v-model="channelId" type="search" placeholder="渠道 ID" />
       </label>
       <label class="flex flex-col gap-1">
         <span class="text-2xs text-ink-muted">状态</span>
@@ -556,11 +551,6 @@ useAutoRefresh(() => void load(), {
           aria-label="按状态筛选"
         />
       </label>
-      <UiButton size="sm" @click="applyFilters">查询</UiButton>
-      <!-- 重置 uses the outlined secondary button (a framed control), matching 审计. -->
-      <UiButton variant="secondary" size="sm" @click="resetFilters"
-        >重置</UiButton
-      >
     </section>
     <!-- NOTIFY_TABLE_PLACEHOLDER -->
     <p v-if="status === 'loading'" class="text-sm text-ink-muted">加载中…</p>
