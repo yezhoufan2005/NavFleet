@@ -387,7 +387,7 @@ const exportAlertsCsv = (): void => {
     >
       暂无历史可聚合：报表依赖后端连接MongoDB——
       <RouterLink
-        to="/admin/system"
+        to="/system"
         class="text-brand-ink underline underline-offset-2"
         >管理 / 系统状态</RouterLink
       >

@@ -328,7 +328,7 @@ const routes: RouteRecordRaw[] = [
       title: "系统",
       capabilities: ADMIN_AREA_CAPABILITIES,
       tabs: [
-        { routeName: "system-status", label: "系统状态" },
+        { routeName: "system-status", label: "状态" },
         { routeName: "system-audit", label: "审计", capability: "audit:read" },
         {
           routeName: "system-notify",

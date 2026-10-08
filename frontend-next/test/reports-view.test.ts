@@ -88,7 +88,7 @@ const mountView = async (query = "") => {
     history: createMemoryHistory(),
     routes: [
       { path: "/reports", component: ReportsView },
-      { path: "/admin/system", component: { template: "<i />" } },
+      { path: "/system", component: { template: "<i />" } },
     ],
   });
   await router.push(`/reports${query}`);
@@ -135,7 +135,7 @@ describe("报表 状态与内容", () => {
     const wrapper = await mountView();
 
     expect(wrapper.text()).toContain("暂无历史可聚合");
-    expect(wrapper.find('a[href="/admin/system"]').exists()).toBe(true);
+    expect(wrapper.find('a[href="/system"]').exists()).toBe(true);
   });
 
   it("渲染 KPI 带、时序图与告警柱图", async () => {

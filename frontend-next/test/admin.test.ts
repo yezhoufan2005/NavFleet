@@ -272,10 +272,9 @@ describe("系统状态", () => {
     expect(clear?.attributes("disabled")).toBeUndefined();
   });
 
-  it("回到标签页时自动重新探测（诊断页仍保留手动「重新检查」）", async () => {
-    // The probe is a re-fetch, so returning to the tab re-runs it — same auto-refresh
-    // the list pages got. Unlike them, the manual button stays: an operator watching a
-    // downed dependency recover sits on this page without ever leaving it.
+  it("回到标签页时自动重新探测，且不再有手动「重新检查」按钮", async () => {
+    // The probe is a re-fetch, so returning to the tab re-runs it — the manual button was
+    // dropped (1.6.2) now that focus-refresh is the one way the page refreshes.
     const wrapper = await mountStatus(
       readyBody({ store: true, mongo: true, mqtt: true }),
     );
@@ -291,7 +290,7 @@ describe("系统状态", () => {
     expect(fetchMock.mock.calls.length).toBe(before + 1);
     expect(
       wrapper.findAll("button").some((b) => b.text().includes("重新检查")),
-    ).toBe(true);
+    ).toBe(false);
   });
 });
 

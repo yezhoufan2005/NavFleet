@@ -42,15 +42,18 @@ const ACTIVE_CLASS = "border-brand text-ink";
 
 <template>
   <!--
-    No `overflow` here on purpose: `overflow-x: auto` forces the computed `overflow-y` to `auto`
-    too, and the tabs' `-mb-px` (which laps the bottom border onto the strip's own) then pokes one
-    pixel past the box and raises a spurious vertical scrollbar. The handful of short tabs never
-    need to scroll horizontally, so the safe fix is to not scroll at all.
+    `-mt-4` cancels the `PageHeader` content gap (`flex ... gap-4`) above the strip, so the tabs sit
+    directly under the section title rather than a full gap below it — the title + strip read as one
+    header block, and the normal gap resumes below the strip, before the page content.
+
+    No `overflow` on purpose: `overflow-x: auto` forces the computed `overflow-y` to `auto` too, and
+    the tabs' `-mb-px` (which laps the bottom border onto the strip's own) then pokes one pixel past
+    the box and raises a spurious vertical scrollbar. The handful of short tabs never need to scroll.
   -->
   <nav
     v-if="tabs.length > 1"
     aria-label="分区导航"
-    class="flex gap-1 border-b border-border"
+    class="-mt-4 flex gap-1 border-b border-border"
   >
     <RouterLink
       v-for="tab in tabs"

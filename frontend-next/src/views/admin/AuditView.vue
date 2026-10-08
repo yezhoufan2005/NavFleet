@@ -6,12 +6,11 @@
  * returned page is client-side, matching 告警's shape. Filter state lives in the URL so a
  * shift can hand a view to the next one, the same reasoning `AlertsView` documents.
  */
-import { computed, onMounted, ref } from "vue";
+import { computed, onMounted, ref, watch } from "vue";
 import { useRoute, useRouter } from "vue-router";
 import { fleetApi, type AuditRecord } from "@navfleet/fleet-core";
 import PageHeader from "@/components/PageHeader.vue";
 import AppSectionTabs from "@/components/shell/AppSectionTabs.vue";
-import UiButton from "@/components/ui/UiButton.vue";
 import UiInput from "@/components/ui/UiInput.vue";
 import UiPager from "@/components/ui/UiPager.vue";
 import UiSelect from "@/components/ui/UiSelect.vue";
@@ -81,7 +80,9 @@ const setPageSize = (next: string): void => {
 };
 
 const load = async (): Promise<void> => {
-  status.value = "loading";
+  // Only flash the skeleton before the first successful load; filter changes and the focus
+  // refresh re-query live, so blanking the table to 加载中… on every keystroke would be noise.
+  if (status.value !== "ready") status.value = "loading";
   try {
     const result = await fleetApi.getAuditLog({
       actor: actor.value || undefined,
@@ -97,6 +98,7 @@ const load = async (): Promise<void> => {
   }
 };
 
+/** Mirror the filters into the URL (so a pasted link reproduces the view) and re-query. */
 const applyFilters = (): void => {
   void router.replace({
     query: {
@@ -109,13 +111,15 @@ const applyFilters = (): void => {
   void load();
 };
 
-const resetFilters = (): void => {
-  actor.value = "";
-  action.value = "";
-  from.value = "";
-  to.value = "";
-  applyFilters();
-};
+// Filters apply as you change them — no 查询 / 重置 buttons, matching the other tables. The free-text
+// 操作者 box is debounced so a query does not fire on every keystroke; the selects and dates apply at
+// once. Clearing a field (the search box's native ✕, or 全部动作) is what "reset" is now.
+let actorTimer: ReturnType<typeof setTimeout> | undefined;
+watch(actor, () => {
+  clearTimeout(actorTimer);
+  actorTimer = setTimeout(applyFilters, 300);
+});
+watch([action, from, to], () => applyFilters());
 
 onMounted(() => void load());
 // Re-fetch when the operator returns to the tab, rather than via a manual 刷新 button.
@@ -142,12 +146,7 @@ const formatTime = (iso: string): string =>
     <section class="flex flex-wrap items-end gap-3" aria-label="筛选">
       <label class="flex flex-col gap-1">
         <span class="text-2xs text-ink-muted">操作者</span>
-        <UiInput
-          v-model="actor"
-          type="search"
-          placeholder="用户名"
-          @keyup.enter="applyFilters"
-        />
+        <UiInput v-model="actor" type="search" placeholder="用户名" />
       </label>
       <label class="flex flex-col gap-1">
         <span class="text-2xs text-ink-muted">动作</span>
@@ -166,12 +165,6 @@ const formatTime = (iso: string): string =>
         <span class="text-2xs text-ink-muted">结束时间</span>
         <UiInput v-model="to" type="date" :min="from || undefined" />
       </label>
-      <UiButton size="sm" @click="applyFilters">查询</UiButton>
-      <!-- 重置 reuses the outlined secondary button (same frame as 刷新), a step quieter
-           than the solid 查询 primary beside it. -->
-      <UiButton variant="secondary" size="sm" @click="resetFilters"
-        >重置</UiButton
-      >
     </section>
 
     <!-- AUDIT_TABLE_PLACEHOLDER -->

@@ -36,7 +36,7 @@ test.describe("console reports", () => {
     await expect(main.getByText("暂无历史可聚合")).toBeVisible();
     await expect(main.getByRole("link", { name: /系统状态/ })).toHaveAttribute(
       "href",
-      "/admin/system",
+      "/system",
     );
   });
 });
