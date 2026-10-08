@@ -320,15 +320,16 @@ const rowDialogTitle = computed(() =>
 
       <div :class="[tableClasses.wrapper, 'overflow-x-auto']">
         <table :class="[tableClasses.table, 'table-fixed']">
-          <!-- Fixed widths so the geometry does not shift when the table is re-imported or edited;
-               说明 absorbs the remainder and wraps, the rest truncate. -->
+          <!-- Fixed widths, every column pinned (none width-less) so the columns grow evenly on a
+               wide table — modelled on the device list. 说明 (the longest field) carries the slack
+               and wraps; the rest truncate. -->
           <colgroup>
-            <col class="w-24" />
-            <col class="w-40" />
-            <col class="w-28" />
             <col class="w-20" />
+            <col class="w-40" />
+            <col class="w-24" />
+            <col class="w-24" />
             <col class="w-28" />
-            <col />
+            <col class="w-80" />
             <col v-if="canWrite" class="w-28" />
           </colgroup>
           <caption class="sr-only">

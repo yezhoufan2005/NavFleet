@@ -169,10 +169,12 @@ const roleDialogTitle = computed(() =>
       </p>
       <div v-else :class="[tableClasses.wrapper, 'overflow-hidden']">
         <table :class="[tableClasses.table, 'table-fixed']">
-          <!-- Fixed widths so the layout holds steady across reloads; 能力 wraps if long. -->
+          <!-- Fixed widths, every column pinned (none width-less) so the columns grow evenly on a
+               wide table — modelled on the device list. 能力 (the long capability list) carries the
+               slack and wraps within its column. -->
           <colgroup>
-            <col class="w-48" />
-            <col />
+            <col class="w-40" />
+            <col class="w-96" />
             <col class="w-28" />
           </colgroup>
           <thead :class="tableClasses.thead">

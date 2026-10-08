@@ -421,12 +421,13 @@ const AREA_LABELS: Record<StoredEntry["area"], string> = {
         aria-label="本浏览器留存的数据"
       >
         <table :class="[tableClasses.table, 'table-fixed']">
-          <!-- Fixed widths so the layout holds steady as keys are cleared; 值 absorbs the rest and
-               wraps (`break-all`), 项目 keeps its label + key on their own two lines. -->
+          <!-- Fixed widths, every column pinned (none width-less) so the columns grow evenly on a
+               wide table — modelled on the device list. 值 carries the slack and wraps (`break-all`);
+               项目 keeps its label + key on their own two lines. -->
           <colgroup>
             <col class="w-56" />
-            <col class="w-20" />
-            <col />
+            <col class="w-24" />
+            <col class="w-80" />
             <col class="w-20" />
           </colgroup>
           <caption class="sr-only">

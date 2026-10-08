@@ -473,11 +473,12 @@ useAutoRefresh(() => void load(), {
       </p>
       <div v-else :class="[tableClasses.wrapper, 'overflow-hidden']">
         <table :class="[tableClasses.table, 'table-fixed']">
-          <!-- Fixed widths so the layout holds steady across reloads; 严重度 absorbs the rest. -->
+          <!-- Fixed widths, every column pinned (none width-less) so the columns grow evenly on a
+               wide table — modelled on the device list. 严重度 carries the slack. -->
           <colgroup>
             <col class="w-40" />
             <col class="w-24" />
-            <col />
+            <col class="w-48" />
             <col class="w-32" />
             <col class="w-28" />
           </colgroup>

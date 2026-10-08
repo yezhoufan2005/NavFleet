@@ -232,12 +232,13 @@ const dialogTitle = computed(() =>
       <p class="m-0 text-xs text-ink-subtle">{{ countLabel }}</p>
       <div :class="[tableClasses.wrapper, 'overflow-auto']">
         <table :class="[tableClasses.table, 'table-fixed']">
-          <!-- Fixed widths so the layout holds steady across reloads; long names wrap. -->
+          <!-- Fixed widths, every column pinned (none width-less) so the columns grow evenly on a
+               wide table — modelled on the device list; long names truncate. -->
           <colgroup>
-            <col class="w-36" />
-            <col />
-            <col class="w-20" />
             <col class="w-32" />
+            <col class="w-40" />
+            <col class="w-20" />
+            <col class="w-36" />
             <col class="w-28" />
           </colgroup>
           <thead :class="tableClasses.thead">

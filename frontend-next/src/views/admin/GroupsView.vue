@@ -187,10 +187,11 @@ const kioskUsernames = computed(
       </p>
       <div v-else :class="[tableClasses.wrapper, 'overflow-hidden']">
         <table :class="[tableClasses.table, 'table-fixed']">
-          <!-- Fixed widths so the layout holds steady across reloads; 角色 wraps if long. -->
+          <!-- Fixed widths, every column pinned (none width-less) so the columns grow evenly on a
+               wide table — modelled on the device list. 角色 carries the slack and truncates. -->
           <colgroup>
             <col class="w-40" />
-            <col />
+            <col class="w-64" />
             <col class="w-20" />
             <col class="w-28" />
           </colgroup>

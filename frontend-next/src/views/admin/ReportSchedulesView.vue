@@ -273,12 +273,13 @@ const weekdayLabel = (weekday?: number): string =>
       </p>
       <div v-else :class="[tableClasses.wrapper, 'overflow-hidden']">
         <table :class="[tableClasses.table, 'table-fixed']">
-          <!-- Fixed widths so the layout holds steady across reloads; 发件人 absorbs the rest. -->
+          <!-- Fixed widths, every column pinned (none width-less) so the columns grow evenly on a
+               wide table — modelled on the device list. 发件人 carries the slack. -->
           <colgroup>
             <col class="w-40" />
-            <col class="w-24" />
+            <col class="w-28" />
             <col class="w-32" />
-            <col />
+            <col class="w-64" />
             <col v-if="canWrite" class="w-28" />
           </colgroup>
           <thead :class="tableClasses.thead">

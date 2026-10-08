@@ -323,10 +323,11 @@ const formatTime = (iso: string | null): string =>
       aria-label="用户列表"
     >
       <table :class="[tableClasses.table, 'table-fixed']">
-        <!-- Fixed column widths so the layout does not shift when the list reloads; an over-long
-             value wraps in its cell rather than widening the column. -->
+        <!-- Fixed widths, every column pinned (none width-less) so the columns grow evenly on a
+             wide table — modelled on the device list. 用户名 carries the slack; 操作 fits its five
+             buttons; an over-long value truncates rather than widening its column. -->
         <colgroup>
-          <col />
+          <col class="w-64" />
           <col class="w-20" />
           <col class="w-24" />
           <col class="w-44" />

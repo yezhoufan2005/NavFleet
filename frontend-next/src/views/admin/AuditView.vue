@@ -193,10 +193,10 @@ const formatTime = (iso: string): string =>
                than widening the column; `truncate` keeps the common case to one tidy line. -->
           <colgroup>
             <col class="w-44" />
-            <col class="w-32" />
             <col class="w-28" />
-            <col />
-            <col class="w-16" />
+            <col class="w-28" />
+            <col class="w-56" />
+            <col class="w-20" />
           </colgroup>
           <caption class="sr-only">
             鉴权与用户管理事件，最新在前
