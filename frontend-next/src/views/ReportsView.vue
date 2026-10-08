@@ -14,6 +14,7 @@
 import { computed, onMounted, ref, watch } from "vue";
 import { RouterLink, useRoute, useRouter } from "vue-router";
 import PageHeader from "@/components/PageHeader.vue";
+import AppSectionTabs from "@/components/shell/AppSectionTabs.vue";
 import UiButton from "@/components/ui/UiButton.vue";
 import UiInput from "@/components/ui/UiInput.vue";
 import UiSegmented from "@/components/ui/UiSegmented.vue";
@@ -264,6 +265,8 @@ const exportAlertsCsv = (): void => {
 
 <template>
   <PageHeader title="报表">
+    <AppSectionTabs />
+
     <!-- Filters in one row above the charts (data-viz convention), export at the end. -->
     <div class="flex flex-wrap items-end gap-3">
       <div class="flex flex-col gap-1">

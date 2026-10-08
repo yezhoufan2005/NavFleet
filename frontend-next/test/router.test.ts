@@ -51,7 +51,16 @@ describe("route table", () => {
       // Old top-level paths, kept as redirects so shared bookmarks still land.
       { path: "/alert-history", name: undefined, title: undefined },
       { path: "/admin/rules", name: undefined, title: undefined },
-      { path: "/reports", name: "reports", title: "报表" },
+      // 报表 is a section (1.6.2 IA): 报表 (live) is the `""` child, 定时报表 is the schedule
+      // editor folded in from 管理.
+      { path: "/reports", name: undefined, title: "报表" },
+      { path: "/reports", name: "reports", title: undefined },
+      {
+        path: "/reports/schedules",
+        name: "reports-schedules",
+        title: "定时报表",
+      },
+      { path: "/admin/reports", name: undefined, title: undefined },
       // 用户 promoted to a top-level section (1.6.2 IA): 用户 / 角色 / 用户组 are tabs behind real
       // child routes. The first tab is the `""` child (renders at /access), so it shares the
       // parent's path and carries no title of its own — its breadcrumb is the section's 用户.
@@ -77,7 +86,6 @@ describe("route table", () => {
       },
       { path: "/admin/codebook", name: "admin-codebook", title: "报码字典" },
       { path: "/admin/notify", name: "admin-notify", title: "外发" },
-      { path: "/admin/reports", name: "admin-reports", title: "定时报表" },
       { path: "/admin/audit", name: "admin-audit", title: "审计" },
       // Personal center: any authenticated user, so it carries no roles and is
       // reached from the session menu rather than the primary nav.
