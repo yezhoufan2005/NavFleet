@@ -428,13 +428,6 @@ export const describeDeviceCodesWith = (
         row !== null,
     );
 
-const CHANNELS: readonly CodeChannel[] = ["info", "warning", "error"];
-const CHANNEL_DIGIT: Record<CodeChannel, string> = {
-  info: "1",
-  warning: "2",
-  error: "5",
-};
-
 /**
  * Validate a deployment's (untrusted) `codebook.json` into well-formed entries. A JSON array
  * of entries; every field is checked and the "no duplicate code" discipline is enforced, so
@@ -527,10 +520,3 @@ export const mergeCodebook = (
   }
   return [...byCode.values()].sort((left, right) => left.code - right.code);
 };
-
-/** The `S B NN` digit that a channel must start with — exported for the table's own tests. */
-export const channelDigit = (channel: CodeChannel): string =>
-  CHANNEL_DIGIT[channel];
-
-/** The channels, worst-last, for callers that iterate them. */
-export const CODE_CHANNELS = CHANNELS;

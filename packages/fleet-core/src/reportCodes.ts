@@ -4,11 +4,11 @@
  * The table, the wire type, and the pure merge/lookup moved to `@navfleet/shared` in Phase
  * 16C-2 (the backend layers a deployment's `codebook.json` over the built-in base and 下发s
  * the merged result, and the backend does not depend on this package). What stays here is a
- * thin binding: the same `describeCode` / `describeDeviceCodes` / `lookupReportCode` names
- * and signatures the two frontends already call, bound to the **built-in** table. The v3
- * console instead describes against the deployment codebook it fetches (`describeCodeWith`
- * with the merged index from `GET /api/v1/codebook`); this built-in binding is the fallback
- * and what the frozen v1 frontend and the reference page use.
+ * thin binding of `describeCode` / `describeDeviceCodes` / `lookupReportCode` to the
+ * **built-in** table. The v3 console describes against the deployment codebook it fetches
+ * instead (`describeCodeWith` with the merged index from `GET /api/v1/codebook`), so these
+ * built-in-bound helpers currently have no console caller; they remain as the package's
+ * documented fallback API over the static table, exercised by `test/reportCodes.test.ts`.
  */
 
 import type {
