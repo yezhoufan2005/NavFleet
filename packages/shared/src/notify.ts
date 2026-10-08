@@ -17,10 +17,6 @@ import type { Severity } from "./index";
 import type { RuleScope } from "./alertRules";
 
 /**
- * 内建的出站渠道类型。三者都是「HTTP POST 一个 JSON」，用全局 `fetch` 即可，无需新依赖。邮件
- * （nodemailer 直连 SMTP）是 16D-2 的事，届时并入这个联合。
- */
-/**
  * 内建的出站渠道类型。前三者是「HTTP POST 一个 JSON」，用全局 `fetch`；`email` 走 nodemailer 直连
  * SMTP（16D-2a）。可扩展：新增一类在这里加一个字面量即可（`buildChannelBody` 的 switch 会强制处理）。
  */
