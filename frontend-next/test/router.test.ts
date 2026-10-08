@@ -47,7 +47,7 @@ describe("route table", () => {
       // stays as a redirect, so it has no name or title of its own.
       { path: "/alert-history", name: undefined, title: undefined },
       { path: "/reports", name: "reports", title: "报表" },
-      // 用户 promoted to a top-level section (1.6.2 IA): 账号 / 角色 / 用户组 are tabs behind real
+      // 用户 promoted to a top-level section (1.6.2 IA): 用户 / 角色 / 用户组 are tabs behind real
       // child routes. The first tab is the `""` child (renders at /access), so it shares the
       // parent's path and carries no title of its own — its breadcrumb is the section's 用户.
       { path: "/access", name: undefined, title: "用户" },
@@ -177,7 +177,7 @@ describe("primary navigation", () => {
   });
 
   it("keeps 用户 lit on any of its tabs (1.6.2 IA)", async () => {
-    // The section item stays the highlight while you switch between 账号 / 角色 / 用户组,
+    // The section item stays the highlight while you switch between 用户 / 角色 / 用户组,
     // for the same nested-record reason 设备 does.
     for (const path of ["/access", "/access/roles", "/access/groups"]) {
       const wrapper = await mountNav(path);

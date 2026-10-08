@@ -126,12 +126,12 @@ const routes: RouteRecordRaw[] = [
     meta: { title: "报表" },
   },
   {
-    // 用户 — access control, promoted to a top-level section (1.6.2 IA). Its pages (账号 / 角色 /
+    // 用户 — access control, promoted to a top-level section (1.6.2 IA). Its pages (用户 / 角色 /
     // 用户组) were cards under 管理; they are now tabs of one section, addressed by real child routes
     // so a pasted link, Back/Forward and `router-link-active` all work. `AppSectionTabs` reads the
     // strip off this parent's `meta.tabs`. The first tab is the `""` child (renders at /access), so
-    // — as with /devices — the section nav item stays lit on any tab. The section is named 用户; its
-    // first tab is 账号 (the accounts page) to avoid a 用户/用户 collision in the strip.
+    // — as with /devices — the section nav item stays lit on any tab. The first tab is labelled 用户
+    // (the accounts page) by request, matching the section name.
     path: "/access",
     meta: {
       title: "用户",
@@ -139,7 +139,7 @@ const routes: RouteRecordRaw[] = [
       tabs: [
         {
           routeName: "access-users",
-          label: "账号",
+          label: "用户",
           capability: "users:manage",
         },
         {
