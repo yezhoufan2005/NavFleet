@@ -19,6 +19,7 @@ import UiButton from "@/components/ui/UiButton.vue";
 import UiInput from "@/components/ui/UiInput.vue";
 import UiSegmented from "@/components/ui/UiSegmented.vue";
 import UiSelect from "@/components/ui/UiSelect.vue";
+import { SEVERITY_LABELS } from "@/lib/severity";
 import TimeSeriesChart from "@/components/charts/TimeSeriesChart.vue";
 import CategoryBarChart from "@/components/charts/CategoryBarChart.vue";
 import { useChartTheme } from "@/composables/useChartTheme";
@@ -51,12 +52,6 @@ const BUCKETS: readonly { value: ReportBucketUnit; label: string }[] = [
   { value: "day", label: "按天" },
   { value: "month", label: "按月" },
 ];
-const SEVERITY_LABELS = {
-  critical: "告警",
-  warning: "预警",
-  notice: "提示",
-} as const;
-
 const route = useRoute();
 const router = useRouter();
 const { palette } = useChartTheme();

@@ -332,9 +332,9 @@ describe("NotifyView — channel editor", () => {
     expect(textarea.value).toContain("a@x.com");
     expect(textarea.value).toContain("@bob");
 
-    // Add 警告 to the subscribed severities, then save.
+    // Add 预警 to the subscribed severities, then save.
     [...document.body.querySelectorAll("label")]
-      .find((label) => label.textContent?.trim().startsWith("警告"))
+      .find((label) => label.textContent?.trim().startsWith("预警"))
       ?.querySelector("input")
       ?.dispatchEvent(new Event("change"));
     await flushPromises();

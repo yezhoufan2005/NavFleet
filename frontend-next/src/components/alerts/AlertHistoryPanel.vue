@@ -25,15 +25,10 @@ import {
   severityOf,
   type Severity,
 } from "@/lib/alertStats";
+import { SEVERITY_LABELS } from "@/lib/severity";
 
 /** The endpoint's page size (`MAX_ALERTS_PER_QUERY`); a full page means older rows are cut. */
 const RESULT_CAP = 500;
-
-const SEVERITY_LABELS: Record<Severity, string> = {
-  critical: "告警",
-  warning: "预警",
-  notice: "提示",
-};
 
 const SEVERITY_BADGE: Record<Severity, string> = {
   critical: "bg-critical-wash text-critical-ink",
