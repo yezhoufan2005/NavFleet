@@ -29,9 +29,10 @@ export const buildRulesRouter = (store: DashboardStore, audit: AuditService): ex
     try {
       parsed = parseAlertRules(request.body);
     } catch (error) {
-      response
-        .status(400)
-        .json({ error: "invalid_rules", message: error instanceof Error ? error.message : "" });
+      response.status(400).json({
+        error: "invalid_rules",
+        detail: error instanceof Error ? error.message : "invalid rules",
+      });
       return;
     }
     try {
