@@ -2,7 +2,7 @@
 /**
  * Secondary navigation: the tab strip for a section (1.6.2 IA).
  *
- * A section like 用户 owns more than one page (账号 and 角色与用户组). Rather than the old
+ * A section like 用户 owns more than one page (用户 / 角色 / 用户组). Rather than the old
  * approach — cards under a 管理 hub, or a lone `?view=` toggle bolted to a filter bar (消息's
  * 告警史) — its pages are real child routes and this strip switches between them. Because they
  * are routes, a pasted link opens the right tab, Back/Forward walk the tabs, and the active
@@ -50,7 +50,7 @@ const ACTIVE_CLASS = "border-brand text-ink";
   <nav
     v-if="tabs.length > 1"
     aria-label="分区导航"
-    class="mb-4 flex gap-1 border-b border-border"
+    class="flex gap-1 border-b border-border"
   >
     <RouterLink
       v-for="tab in tabs"

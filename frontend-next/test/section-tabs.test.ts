@@ -35,13 +35,13 @@ describe("AppSectionTabs", () => {
   it("renders one tab per page of the 用户 section", async () => {
     const wrapper = await mountAt("/access");
     const labels = wrapper.findAll("a").map((a) => a.text());
-    expect(labels).toEqual(["账号", "角色", "用户组"]);
+    expect(labels).toEqual(["用户", "角色", "用户组"]);
   });
 
   it("marks the current tab, and only that one", async () => {
     const wrapper = await mountAt("/access/roles");
     expect(tabAt(wrapper, "角色")?.attributes("aria-current")).toBe("page");
-    expect(tabAt(wrapper, "账号")?.attributes("aria-current")).toBeUndefined();
+    expect(tabAt(wrapper, "用户")?.attributes("aria-current")).toBeUndefined();
     expect(
       tabAt(wrapper, "用户组")?.attributes("aria-current"),
     ).toBeUndefined();
@@ -49,7 +49,7 @@ describe("AppSectionTabs", () => {
 
   it("moves the active mark to the first tab on that tab", async () => {
     const wrapper = await mountAt("/access");
-    expect(tabAt(wrapper, "账号")?.attributes("aria-current")).toBe("page");
+    expect(tabAt(wrapper, "用户")?.attributes("aria-current")).toBe("page");
     expect(tabAt(wrapper, "角色")?.attributes("aria-current")).toBeUndefined();
   });
 

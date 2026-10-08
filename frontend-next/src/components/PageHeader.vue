@@ -70,7 +70,14 @@ defineProps<{
     class="flex min-h-0 flex-col gap-4"
     :class="{ 'h-full': scrollContent || fillHeight }"
   >
-    <div class="flex flex-wrap items-start justify-between gap-3">
+    <!--
+      `min-h-8` fixes the title band to 32px whether or not an action sits beside the heading.
+      Without it the row's height came from its tallest child — 32px with a button (设备), but the
+      bare `h2`'s line box (~27px) or 总览's right-hand text (~32px) otherwise — so the content
+      below started at a different offset on every page. Pinning the minimum makes that offset one
+      number. `items-start` keeps a title+lede block top-aligned against the action.
+    -->
+    <div class="flex min-h-8 flex-wrap items-start justify-between gap-3">
       <div class="flex min-w-0 flex-col gap-1">
         <h2 class="text-xl font-semibold text-ink">{{ title }}</h2>
         <p v-if="lede" class="max-w-prose text-sm text-ink-muted">{{ lede }}</p>
