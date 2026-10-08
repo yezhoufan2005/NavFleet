@@ -40,10 +40,11 @@ const PATHS: Record<NavIconName, string> = {
   users:
     "M8.9 8.5a3.1 3.1 0 1 0 6.2 0a3.1 3.1 0 1 0-6.2 0M5.5 19a6.5 6.5 0 0 1 13 0",
   // A 3D package/box: 部署 writes deployment config (vehicles / scenes / codebook) to disk,
-  // kept distinct from the 管理 sliders and the 设备 vehicle.
+  // kept distinct from the 系统 sliders and the 设备 vehicle.
   deploy: "M12 3l8 4.5v9L12 21l-8-4.5v-9zM4 7.5l8 4.5 8-4.5M12 12v9",
-  // Sliders: two tracks, one handle on each, at different positions.
-  admin:
+  // Sliders: two tracks, one handle on each — 系统 (系统状态 / 审计 / 外发) is the operations
+  // console, the knobs-and-dials section.
+  system:
     "M4 8.5h4.4M11.6 8.5H20M4 15.5h9.4M16.6 15.5H20M8.4 8.5a1.6 1.6 0 1 0 3.2 0a1.6 1.6 0 1 0-3.2 0M13.4 15.5a1.6 1.6 0 1 0 3.2 0a1.6 1.6 0 1 0-3.2 0",
 };
 </script>

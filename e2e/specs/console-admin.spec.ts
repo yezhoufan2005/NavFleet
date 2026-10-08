@@ -18,22 +18,27 @@ test.describe("console admin", () => {
     await signIn(page);
   });
 
-  test("the landing page links every built area", async ({ page }) => {
-    // An aggregate section gets a real landing page rather than a redirect into
-    // whichever child happens to be first (constraint C2).
-    await page.goto("/admin");
+  test("系统 is its own section, reached from the primary nav and split into tabs", async ({
+    page,
+  }) => {
+    // 1.6.2 IA: 系统状态 / 审计 / 外发 are tabs of a top-level 系统 section, successor to the 管理 hub.
+    await page.goto("/");
+    await page
+      .getByRole("navigation", { name: "主导航" })
+      .getByRole("link", { name: "系统", exact: true })
+      .click();
+    await expect(page).toHaveURL(/\/system$/);
 
-    await expect(page.getByRole("link", { name: /系统状态/ })).toBeVisible();
-    await expect(page.getByRole("link", { name: /审计/ })).toBeVisible();
-    await expect(page.getByRole("link", { name: /外发/ })).toBeVisible();
-    // 用户 (1.6.2) and 部署 — 车辆 / 编队 / 场景 / 报码字典 — (also 1.6.2) left the 管理 hub for
-    // their own top-level sections, so the landing no longer offers those as cards.
-    const content = page.getByRole("main");
-    await expect(content.getByRole("link", { name: /车辆/ })).toHaveCount(0);
-    await expect(content.getByRole("link", { name: /报码字典/ })).toHaveCount(
-      0,
-    );
-    await expect(page.getByText(/^PR /)).toHaveCount(0);
+    const tabs = page.getByRole("navigation", { name: "分区导航" });
+    await expect(
+      tabs.getByRole("link", { name: "系统状态", exact: true }),
+    ).toBeVisible();
+    await tabs.getByRole("link", { name: "外发", exact: true }).click();
+    await expect(page).toHaveURL(/\/system\/notify$/);
+    const section = page
+      .getByRole("navigation", { name: "主导航" })
+      .getByRole("link", { name: "系统", exact: true });
+    await expect(section).toHaveAttribute("href", "/system");
   });
 
   test("用户 is its own section, reached from the primary nav and split into tabs", async ({
@@ -103,32 +108,46 @@ test.describe("console admin", () => {
     await expect(page).toHaveURL(/\/deploy\/codebook$/);
   });
 
-  test("a child keeps 管理 lit and shows up in the breadcrumb", async ({
+  test("the old /admin deep links still land", async ({ page }) => {
+    // The emptied 管理 hub and its pages are kept as redirects so shared bookmarks survive.
+    await page.goto("/admin");
+    await expect(page).toHaveURL(/\/system$/);
+    await page.goto("/admin/system");
+    await expect(page).toHaveURL(/\/system$/);
+    await page.goto("/admin/audit");
+    await expect(page).toHaveURL(/\/system\/audit$/);
+    await page.goto("/admin/notify");
+    await expect(page).toHaveURL(/\/system\/notify$/);
+  });
+
+  test("a child keeps 系统 lit and shows up in the breadcrumb", async ({
     page,
   }) => {
-    // The reason /admin gained children rather than siblings: `router-link-active`
-    // follows matched records, so nesting is what keeps the section lit.
-    await page.goto("/admin");
-    await page.getByRole("link", { name: /系统状态/ }).click();
+    // `router-link-active` follows matched records, so nesting keeps the section lit while a tab
+    // is open, and the breadcrumb reads 系统 › 审计.
+    await page.goto("/system");
+    await page
+      .getByRole("navigation", { name: "分区导航" })
+      .getByRole("link", { name: "审计", exact: true })
+      .click();
 
-    await expect(page).toHaveURL(/\/admin\/system$/);
+    await expect(page).toHaveURL(/\/system\/audit$/);
     const trail = page.getByRole("navigation", { name: "面包屑" });
-    await expect(trail.getByRole("link", { name: "管理" })).toBeVisible();
-    await expect(trail.getByText("系统状态")).toBeVisible();
+    await expect(trail.getByRole("link", { name: "系统" })).toBeVisible();
+    await expect(trail.getByText("审计")).toBeVisible();
 
-    // Highlighted as the section, but not announced as the current page — the same
-    // distinction `console-shell` pins for 设备/设备详情.
+    // Highlighted as the section, but not announced as the current page.
     const section = page
       .getByRole("navigation", { name: "主导航" })
-      .getByRole("link", { name: "管理", exact: true });
-    await expect(section).toHaveAttribute("href", "/admin");
+      .getByRole("link", { name: "系统", exact: true });
+    await expect(section).toHaveAttribute("href", "/system");
     await expect(section).not.toHaveAttribute("aria-current", "page");
   });
 
   test("system status reaches /health/ready and reports both ends", async ({
     page,
   }) => {
-    await page.goto("/admin/system");
+    await page.goto("/system");
 
     // The backend is up in this suite, and that answer has to come from the endpoint
     // rather than from the console's own socket.
@@ -152,7 +171,7 @@ test.describe("console admin", () => {
     // The prefix scan is the point: a hand-kept list is exactly what goes stale on a
     // diagnostics page, so an undocumented key must still be listed — under its own
     // name, because that is the interesting case.
-    await page.goto("/admin/system");
+    await page.goto("/system");
     await page.evaluate(() =>
       localStorage.setItem("navfleet:e2e-undeclared", "42"),
     );

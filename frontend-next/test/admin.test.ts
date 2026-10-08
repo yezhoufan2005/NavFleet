@@ -4,7 +4,6 @@ import { createMemoryHistory, createRouter } from "vue-router";
 import type { Router } from "vue-router";
 import { enableAutoUnmount, flushPromises, mount } from "@vue/test-utils";
 import { fleetApi } from "@navfleet/fleet-core";
-import AdminView from "@/views/AdminView.vue";
 import ScenesView from "@/views/admin/ScenesView.vue";
 import SystemStatusView from "@/views/admin/SystemStatusView.vue";
 import {
@@ -52,8 +51,8 @@ const mountAt = async (component: unknown, path: string) => {
 
 beforeEach(() => {
   setActivePinia(createPinia());
-  // AdminView filters its cards by capability (1.6.1); seed a full-capability admin so every card
-  // shows. Harmless for the other views mounted here, which do not read capabilities.
+  // 系统状态 / 场景 read no capabilities, but AppSectionTabs (rendered in their headers) calls
+  // useAuth().can — seed a full-capability admin so nothing throws and the strip would populate.
   const auth = useAuth();
   auth.state.status = "authenticated";
   auth.state.user = { username: "admin", role: "admin" };
@@ -157,7 +156,7 @@ describe("系统状态", () => {
           : Promise.resolve(response),
       ),
     );
-    return mountAt(SystemStatusView, "/admin/system");
+    return mountAt(SystemStatusView, "/system");
   };
 
   it("后端连不上时，那件事本身就是诊断", async () => {
@@ -606,32 +605,5 @@ describe("场景", () => {
       .at(-1)![0]
       .find((s) => s.sceneId === "new-scene");
     expect(saved?.imageUrl).toBe("/scene-maps/new-scene/image.svg");
-  });
-});
-
-describe("管理落地页", () => {
-  it("每个分区都是可导航的链接", async () => {
-    // A card that looks clickable and is not would make this page worse than a plain
-    // list. Navigation stays an anchor so ⌘-click and "copy link address" work. Since
-    // Phase 18 there are no unbuilt placeholders — every card is a real area.
-    const wrapper = await mountAt(AdminView, "/admin");
-    const links = wrapper.findAll("a");
-
-    expect(links.map((link) => link.attributes("href")).sort()).toEqual([
-      "/admin/audit",
-      "/admin/notify",
-      "/admin/system",
-    ]);
-    // No dashed "not built" placeholders remain, so no "PR xx" marker is left.
-    expect(wrapper.text()).not.toContain("PR ");
-  });
-
-  it("不把未实现的分区说成已就绪", async () => {
-    const wrapper = await mountAt(AdminView, "/admin");
-    const readyBadges = wrapper
-      .findAll("span")
-      .filter((span) => span.text() === "已就绪");
-
-    expect(readyBadges).toHaveLength(3);
   });
 });

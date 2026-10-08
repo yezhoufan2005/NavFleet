@@ -17,7 +17,7 @@
 
 ## 界面一览
 
-登录后是一个多页工作台：实时监控、设备详情、消息中心、报表、大屏值班、管理区共享同一份状态与同一条
+登录后是一个多页工作台：实时监控、设备详情、消息中心、报表、大屏值班、各管理分区共享同一份状态与同一条
 WebSocket。以下截图取自一套播种了完整演示车队（**23 台车 / 5 编队 / 5 场景**）的运行实例，明暗两套
 主题均为 GitHub Primer 配色（浅 Light default / 深 dark_dimmed）。
 
@@ -36,7 +36,7 @@ WebSocket。以下截图取自一套播种了完整演示车队（**23 台车 / 
   </tr>
   <tr>
     <td width="50%"><img src="docs/screenshots/reports.png" alt="报表" width="100%"><br><sub><b>报表</b> · 服务端聚合在线率 / 电量趋势 + 消息分布，可导出 CSV</sub></td>
-    <td width="50%"><img src="docs/screenshots/admin.png" alt="设备接入" width="100%"><br><sub><b>管理 · 设备接入</b> · 车辆 / 编队配置增删改，落盘 JSON 后热重载</sub></td>
+    <td width="50%"><img src="docs/screenshots/admin.png" alt="部署 · 车辆/编队" width="100%"><br><sub><b>部署 · 车辆 / 编队</b> · 车辆 / 编队配置增删改，落盘 JSON 后热重载</sub></td>
   </tr>
 </table>
 
@@ -123,43 +123,42 @@ flowchart LR
 前端 v3 控制台（`navfleet-console`）共 **16 条产品路由**，web history 模式。信息架构按「此刻 / 最近 /
 那一段时间」三种问法组织，而不是把一切塞进一个仪表盘：
 
-| 路由                 | 页面            | 作用                                                                         |
-| -------------------- | --------------- | ---------------------------------------------------------------------------- |
-| `/`                  | **总览**        | 落地页：在线 / 消息 / GPS 覆盖 / 编队四张卡 + 待处理项 + 消息摘要 + 编队情况 |
-| `/devices`           | **设备**        | 列表 ⇄ 地图两个视图（可切 GPS / ROS 场景图，按编队筛选）                     |
-| `/devices/:id`       | **设备详情**    | 四个 tab：实时 / 曲线 / 历史回放 / 告警史；报码解读是它存在的理由            |
-| `/alerts`            | **消息**        | 按严重度分档、按设备筛选、确认 / 取消确认（operator+）                       |
-| `/alerts/history`    | 消息 · 告警史   | 读 `/api/v1/alerts`，含起止时间与是否仍活跃                                  |
-| `/alerts/rules`      | 消息 · 告警规则 | 低电量 / 离线规则的阈值 · 开关 · 作用范围（写 `rules.json`，热重载；admin）  |
-| `/reports`           | **报表**        | 服务端聚合的可用性 KPI + 时序 + CSV 导出                                     |
-| `/reports/schedules` | 报表 · 定时报表 | 报表调度：回看窗口 · 发送时刻 · 收件人（写 `reports.json`，热重载；admin）   |
-| `/wall`              | **大屏值班**    | 面向无人值守墙面：KPI + 地图 + 滚动告警，长效 kiosk 账号登录                 |
-| `/profile`           | **个人中心**    | 自助改密、会话信息                                                           |
-| `/access`            | **用户** · 账号 | 增删改、启禁用、改角色、重置密码、强制下线、查看 / 撤销会话（admin）         |
-| `/access/roles`      | 用户 · 角色     | 自定义能力角色，在内置角色之上按能力细分（admin）                            |
-| `/access/groups`     | 用户 · 用户组   | 用户组：绑定成员与角色，把附加能力叠加到成员的基础角色上（admin）            |
-| `/deploy`            | **部署** · 车辆 | 车辆配置覆盖的增删改（写 `vehicles.json`，热重载）                           |
-| `/deploy/formations` | 部署 · 编队     | 编队配置的增删改（写 `formations.json`，热重载）                             |
-| `/deploy/scenes`     | 部署 · 场景     | 逐个核对场景资源可达性，说清取不到会看到什么（写 `scenes.json`）             |
-| `/deploy/codebook`   | 部署 · 报码字典 | 报码释义表，逐条增删改或整表导入 / 导出 JSON（写 `codebook.json`）           |
-| `/admin`             | **管理**        | 落地页，下挂三个子页                                                         |
-| `/admin/system`      | 系统状态        | 分辨「连不上后端」与「后端连不上 broker / Mongo」；列本机留存数据            |
-| `/admin/notify`      | 外发            | 告警外发渠道配置（渠道 / 严重度 / 静默窗口，写 `notify.json`，热重载）       |
-| `/admin/audit`       | 审计            | 鉴权与用户管理操作的审计日志                                                 |
+| 路由                 | 页面                | 作用                                                                         |
+| -------------------- | ------------------- | ---------------------------------------------------------------------------- |
+| `/`                  | **总览**            | 落地页：在线 / 消息 / GPS 覆盖 / 编队四张卡 + 待处理项 + 消息摘要 + 编队情况 |
+| `/devices`           | **设备**            | 列表 ⇄ 地图两个视图（可切 GPS / ROS 场景图，按编队筛选）                     |
+| `/devices/:id`       | **设备详情**        | 四个 tab：实时 / 曲线 / 历史回放 / 告警史；报码解读是它存在的理由            |
+| `/alerts`            | **消息**            | 按严重度分档、按设备筛选、确认 / 取消确认（operator+）                       |
+| `/alerts/history`    | 消息 · 告警史       | 读 `/api/v1/alerts`，含起止时间与是否仍活跃                                  |
+| `/alerts/rules`      | 消息 · 告警规则     | 低电量 / 离线规则的阈值 · 开关 · 作用范围（写 `rules.json`，热重载；admin）  |
+| `/reports`           | **报表**            | 服务端聚合的可用性 KPI + 时序 + CSV 导出                                     |
+| `/reports/schedules` | 报表 · 定时报表     | 报表调度：回看窗口 · 发送时刻 · 收件人（写 `reports.json`，热重载；admin）   |
+| `/wall`              | **大屏值班**        | 面向无人值守墙面：KPI + 地图 + 滚动告警，长效 kiosk 账号登录                 |
+| `/profile`           | **个人中心**        | 自助改密、会话信息                                                           |
+| `/access`            | **用户** · 账号     | 增删改、启禁用、改角色、重置密码、强制下线、查看 / 撤销会话（admin）         |
+| `/access/roles`      | 用户 · 角色         | 自定义能力角色，在内置角色之上按能力细分（admin）                            |
+| `/access/groups`     | 用户 · 用户组       | 用户组：绑定成员与角色，把附加能力叠加到成员的基础角色上（admin）            |
+| `/deploy`            | **部署** · 车辆     | 车辆配置覆盖的增删改（写 `vehicles.json`，热重载）                           |
+| `/deploy/formations` | 部署 · 编队         | 编队配置的增删改（写 `formations.json`，热重载）                             |
+| `/deploy/scenes`     | 部署 · 场景         | 逐个核对场景资源可达性，说清取不到会看到什么（写 `scenes.json`）             |
+| `/deploy/codebook`   | 部署 · 报码字典     | 报码释义表，逐条增删改或整表导入 / 导出 JSON（写 `codebook.json`）           |
+| `/system`            | **系统** · 系统状态 | 分辨「连不上后端」与「后端连不上 broker / Mongo」；列本机留存数据            |
+| `/system/audit`      | 系统 · 审计         | 鉴权与用户管理操作的审计日志                                                 |
+| `/system/notify`     | 系统 · 外发         | 告警外发渠道配置（渠道 / 严重度 / 静默窗口，写 `notify.json`，热重载）       |
 
-其余路径落 404（`/alert-history`→`/alerts/history`、`/admin/rules`→`/alerts/rules`、`/admin/reports`→`/reports/schedules`、`/admin/users`→`/access`、`/admin/roles`→`/access/roles`、`/admin/onboarding`→`/deploy`、`/admin/scenes`→`/deploy/scenes`、`/admin/codebook`→`/deploy/codebook` 保留为重定向）。另有开发专用的 `/__charts-perf`（不在导航里）。
+其余路径落 404（旧 `管理` hub 已由 `系统` 取代；`/admin`→`/system`、`/admin/system`→`/system`、`/admin/audit`→`/system/audit`、`/admin/notify`→`/system/notify`、`/alert-history`→`/alerts/history`、`/admin/rules`→`/alerts/rules`、`/admin/reports`→`/reports/schedules`、`/admin/users`→`/access`、`/admin/roles`→`/access/roles`、`/admin/onboarding`→`/deploy`、`/admin/scenes`→`/deploy/scenes`、`/admin/codebook`→`/deploy/codebook` 保留为重定向）。另有开发专用的 `/__charts-perf`（不在导航里）。
 
 ## 权限模型
 
 三个角色 `admin` / `operator` / `viewer`，**逐路由强制**，并有每路由 × 每角色的集成测试网格
 （`backend/test/http-rbac.test.ts`）钉住；前端用路由 `meta.roles` + 守卫做同样的区分。
 
-| 能力                                                         | viewer | operator | admin |
-| ------------------------------------------------------------ | :----: | :------: | :---: |
-| 读全部监控数据（快照 / 设备 / 历史 / 告警 / 场景 / 报表）    |   ✅   |    ✅    |  ✅   |
-| 确认 / 取消确认告警（`POST /api/alerts/(un)ack`）            |   —    |    ✅    |  ✅   |
-| 用户管理（`/api/users*`）、管理区 `/admin/*`                 |   —    |    —     |  ✅   |
-| 调试注入（`/api/debug/ingest`，且需 `DEBUG_INGEST_ENABLED`） |   —    |    —     |  ✅   |
+| 能力                                                           | viewer | operator | admin |
+| -------------------------------------------------------------- | :----: | :------: | :---: |
+| 读全部监控数据（快照 / 设备 / 历史 / 告警 / 场景 / 报表）      |   ✅   |    ✅    |  ✅   |
+| 确认 / 取消确认告警（`POST /api/alerts/(un)ack`）              |   —    |    ✅    |  ✅   |
+| 用户管理（`/api/users*`）、各管理分区（系统 / 部署 / 用户 等） |   —    |    —     |  ✅   |
+| 调试注入（`/api/debug/ingest`，且需 `DEBUG_INGEST_ENABLED`）   |   —    |    —     |  ✅   |
 
 自 Phase 16A 起 `operator` 有专属操作面（告警确认），与 `viewer` 不再等价；配置仍走文件热加载、不走
 API。**登出 / 改密 / 禁用 / 改角色会立即失效已签发的 token**（每请求校验 `tokenVersion` 与 `enabled`）。
