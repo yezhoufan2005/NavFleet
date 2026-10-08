@@ -41,6 +41,7 @@ import {
   type Severity,
 } from "@navfleet/shared";
 import PageHeader from "@/components/PageHeader.vue";
+import AppSectionTabs from "@/components/shell/AppSectionTabs.vue";
 import UiButton from "@/components/ui/UiButton.vue";
 import UiConfirmDialog from "@/components/ui/UiConfirmDialog.vue";
 import UiInput from "@/components/ui/UiInput.vue";
@@ -413,7 +414,9 @@ useAutoRefresh(() => void load(), {
 </script>
 
 <template>
-  <PageHeader title="外发">
+  <PageHeader title="系统">
+    <AppSectionTabs />
+
     <section aria-label="生效渠道" class="flex flex-col gap-2">
       <h2 class="text-2xs text-ink-muted uppercase">生效渠道</h2>
       <p

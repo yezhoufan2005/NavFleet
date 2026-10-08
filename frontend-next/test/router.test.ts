@@ -82,15 +82,17 @@ describe("route table", () => {
       { path: "/admin/onboarding", name: undefined, title: undefined },
       { path: "/admin/scenes", name: undefined, title: undefined },
       { path: "/admin/codebook", name: undefined, title: undefined },
-      // 管理 is nested for the same reason 设备 is: `router-link-active` follows
-      // matched records, so a child page has to keep the section lit. Its landing
-      // page is a real page rather than a redirect into the first child (C2), which
-      // is why the parent carries no component and the `""` child does.
-      { path: "/admin", name: undefined, title: "管理" },
-      { path: "/admin", name: "admin", title: undefined },
-      { path: "/admin/system", name: "admin-system", title: "系统状态" },
-      { path: "/admin/notify", name: "admin-notify", title: "外发" },
-      { path: "/admin/audit", name: "admin-audit", title: "审计" },
+      // 系统 — the operations section (1.6.2 IA), successor to the emptied-out 管理 hub: 系统状态 /
+      // 审计 / 外发. 系统状态 is the `""` child (shares /system), so the nav item stays lit on all
+      // tabs. The old 管理 paths are kept as redirects.
+      { path: "/system", name: undefined, title: "系统" },
+      { path: "/system", name: "system-status", title: undefined },
+      { path: "/system/audit", name: "system-audit", title: "审计" },
+      { path: "/system/notify", name: "system-notify", title: "外发" },
+      { path: "/admin", name: undefined, title: undefined },
+      { path: "/admin/system", name: undefined, title: undefined },
+      { path: "/admin/audit", name: undefined, title: undefined },
+      { path: "/admin/notify", name: undefined, title: undefined },
       // Personal center: any authenticated user, so it carries no roles and is
       // reached from the session menu rather than the primary nav.
       { path: "/profile", name: "profile", title: "个人中心" },
@@ -239,13 +241,13 @@ describe("primary navigation", () => {
     expect(wrapper.find("nav").attributes("aria-label")).toBe("主导航");
   });
 
-  it("shows 管理 to an admin but hides it from viewer and operator (15C)", async () => {
+  it("shows 系统 to an admin but hides it from viewer and operator (15C)", async () => {
     const adminNav = await mountNav("/", "admin");
-    expect(link(adminNav, "管理"), "admin sees 管理").toBeDefined();
+    expect(link(adminNav, "系统"), "admin sees 系统").toBeDefined();
 
     for (const role of ["viewer", "operator"] as const) {
       const nav = await mountNav("/", role);
-      expect(link(nav, "管理"), `${role} must not see 管理`).toBeUndefined();
+      expect(link(nav, "系统"), `${role} must not see 系统`).toBeUndefined();
       // The read sections stay visible for everyone.
       expect(link(nav, "总览"), `${role} sees 总览`).toBeDefined();
     }

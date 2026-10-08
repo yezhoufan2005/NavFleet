@@ -10,6 +10,7 @@ import { computed, onMounted, ref } from "vue";
 import { useRoute, useRouter } from "vue-router";
 import { fleetApi, type AuditRecord } from "@navfleet/fleet-core";
 import PageHeader from "@/components/PageHeader.vue";
+import AppSectionTabs from "@/components/shell/AppSectionTabs.vue";
 import UiButton from "@/components/ui/UiButton.vue";
 import UiInput from "@/components/ui/UiInput.vue";
 import UiPager from "@/components/ui/UiPager.vue";
@@ -135,7 +136,9 @@ const formatTime = (iso: string): string =>
 </script>
 
 <template>
-  <PageHeader title="审计">
+  <PageHeader title="系统">
+    <AppSectionTabs />
+
     <section class="flex flex-wrap items-end gap-3" aria-label="筛选">
       <label class="flex flex-col gap-1">
         <span class="text-2xs text-ink-muted">操作者</span>

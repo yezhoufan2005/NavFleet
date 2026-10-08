@@ -5,9 +5,9 @@ import { useAuth } from "@/composables/useAuth";
 import { createAuthGuard } from "./guards";
 
 /**
- * Capabilities that grant access to the 管理 area (1.6.1 RBAC). Holding ANY of them shows the 管理
- * nav entry and admits the /admin landing + 系统状态; each functional admin page then gates on its
- * own capability. `alerts:ack` / `debug:ingest` are absent — they gate no admin page.
+ * Capabilities that grant access to admin-domain surfaces (1.6.1 RBAC). Holding ANY of them admits
+ * the 系统 section and its 系统状态 tab (which has no dedicated capability of its own); each other
+ * admin page gates on its own. `alerts:ack` / `debug:ingest` are absent — they gate no admin page.
  */
 export const ADMIN_AREA_CAPABILITIES: readonly Capability[] = [
   "users:manage",
@@ -318,39 +318,51 @@ const routes: RouteRecordRaw[] = [
   { path: "/admin/scenes", redirect: { name: "deploy-scenes" } },
   { path: "/admin/codebook", redirect: { name: "deploy-codebook" } },
   {
-    // An aggregate section, so it gets a real landing page rather than a redirect
-    // into its first child (constraint C2). The two children that exist arrive with
-    // 13F; the rest (用户 / 用户组 / 审计 / 设备接入 / 报码字典) come with Phase 15–17,
-    // and registering empty ones now would put dead entries in the navigation.
-    path: "/admin",
-    meta: { title: "管理", capabilities: ADMIN_AREA_CAPABILITIES },
+    // 系统 — the operations section (1.6.2 IA), successor to the old 管理 hub: 系统状态 / 审计 /
+    // 外发. The hub went empty once 用户 / 部署 / 消息(告警规则) / 报表(定时报表) split out into their
+    // own sections, so it is replaced by this one rather than kept as a landing with nothing on it.
+    // 系统状态 has no dedicated capability (it is the "whose fault is it" diagnostics page), so it —
+    // and the section — admit anyone holding any admin-area capability; 审计 / 外发 gate on their own.
+    path: "/system",
+    meta: {
+      title: "系统",
+      capabilities: ADMIN_AREA_CAPABILITIES,
+      tabs: [
+        { routeName: "system-status", label: "系统状态" },
+        { routeName: "system-audit", label: "审计", capability: "audit:read" },
+        {
+          routeName: "system-notify",
+          label: "外发",
+          capability: "notify:read",
+        },
+      ],
+    },
     children: [
       {
         path: "",
-        name: "admin",
-        component: () => import("@/views/AdminView.vue"),
+        name: "system-status",
+        component: () => import("@/views/admin/SystemStatusView.vue"),
         meta: { capabilities: ADMIN_AREA_CAPABILITIES },
       },
       {
-        path: "system",
-        name: "admin-system",
-        component: () => import("@/views/admin/SystemStatusView.vue"),
-        meta: { title: "系统状态", capabilities: ADMIN_AREA_CAPABILITIES },
-      },
-      {
-        path: "notify",
-        name: "admin-notify",
-        component: () => import("@/views/admin/NotifyView.vue"),
-        meta: { title: "外发", capability: "notify:read" },
-      },
-      {
         path: "audit",
-        name: "admin-audit",
+        name: "system-audit",
         component: () => import("@/views/admin/AuditView.vue"),
         meta: { title: "审计", capability: "audit:read" },
       },
+      {
+        path: "notify",
+        name: "system-notify",
+        component: () => import("@/views/admin/NotifyView.vue"),
+        meta: { title: "外发", capability: "notify:read" },
+      },
     ],
   },
+  // The 管理 hub and its pages' old paths, kept as redirects so shared bookmarks land.
+  { path: "/admin", redirect: { name: "system-status" } },
+  { path: "/admin/system", redirect: { name: "system-status" } },
+  { path: "/admin/audit", redirect: { name: "system-audit" } },
+  { path: "/admin/notify", redirect: { name: "system-notify" } },
   {
     // Personal center: any authenticated user (viewer+), so NO `roles`. Change own
     // password, view and revoke own sessions. Reached from the session menu, not the nav.
@@ -411,7 +423,7 @@ export interface NavSection {
 }
 
 export type NavIconName =
-  "overview" | "devices" | "alerts" | "reports" | "users" | "deploy" | "admin";
+  "overview" | "devices" | "alerts" | "reports" | "users" | "deploy" | "system";
 
 export const NAV_SECTIONS: readonly NavSection[] = [
   { routeName: "overview", label: "总览", icon: "overview" },
@@ -431,9 +443,9 @@ export const NAV_SECTIONS: readonly NavSection[] = [
     capabilities: DEPLOY_CAPABILITIES,
   },
   {
-    routeName: "admin",
-    label: "管理",
-    icon: "admin",
+    routeName: "system-status",
+    label: "系统",
+    icon: "system",
     capabilities: ADMIN_AREA_CAPABILITIES,
   },
 ];

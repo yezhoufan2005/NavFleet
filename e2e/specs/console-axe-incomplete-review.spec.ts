@@ -36,8 +36,7 @@ const ROUTES: readonly { path: string; heading: string | RegExp }[] = [
   { path: "/alerts", heading: "消息" },
   { path: "/alerts/history", heading: "消息" },
   { path: "/reports", heading: "报表" },
-  { path: "/admin", heading: "管理" },
-  { path: "/admin/system", heading: "系统状态" },
+  { path: "/system", heading: "系统" },
   { path: "/deploy/scenes", heading: "部署" },
   { path: "/wall", heading: /活跃告警/ },
 ];

@@ -30,6 +30,7 @@
  */
 import { computed, onMounted, ref } from "vue";
 import PageHeader from "@/components/PageHeader.vue";
+import AppSectionTabs from "@/components/shell/AppSectionTabs.vue";
 import UiButton from "@/components/ui/UiButton.vue";
 import { tableClasses } from "@/lib/uiClasses";
 import { useAutoRefresh } from "@/composables/useAutoRefresh";
@@ -260,7 +261,7 @@ const AREA_LABELS: Record<StoredEntry["area"], string> = {
 </script>
 
 <template>
-  <PageHeader title="系统状态">
+  <PageHeader title="系统">
     <template #actions>
       <UiButton
         variant="secondary"
@@ -271,6 +272,8 @@ const AREA_LABELS: Record<StoredEntry["area"], string> = {
         {{ probeState === "loading" ? "检查中…" : "重新检查" }}
       </UiButton>
     </template>
+
+    <AppSectionTabs />
 
     <section
       class="flex flex-col gap-3 rounded-md border border-border bg-surface-raised p-4"
