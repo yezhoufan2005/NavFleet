@@ -187,7 +187,17 @@ const formatTime = (iso: string): string =>
       <!-- Same shell as the device list: the table itself does not scroll (`overflow-hidden`
            clips its corners), the page scrolls. -->
       <div :class="[tableClasses.wrapper, 'overflow-hidden']">
-        <table :class="tableClasses.table">
+        <table :class="[tableClasses.table, 'table-fixed']">
+          <!-- Fixed column widths so the geometry does not shift as rows change between queries
+               (same reason 设备 pins its columns). An over-long value wraps inside its cell rather
+               than widening the column; `truncate` keeps the common case to one tidy line. -->
+          <colgroup>
+            <col class="w-44" />
+            <col class="w-32" />
+            <col class="w-28" />
+            <col />
+            <col class="w-16" />
+          </colgroup>
           <caption class="sr-only">
             鉴权与用户管理事件，最新在前
           </caption>
@@ -209,11 +219,11 @@ const formatTime = (iso: string): string =>
               <td class="px-3 py-2 whitespace-nowrap text-ink-muted">
                 {{ formatTime(entry.ts) }}
               </td>
-              <td class="px-3 py-2 text-ink">{{ entry.actor }}</td>
-              <td class="px-3 py-2 text-ink">
+              <td class="truncate px-3 py-2 text-ink">{{ entry.actor }}</td>
+              <td class="truncate px-3 py-2 text-ink">
                 {{ ACTION_LABELS[entry.action] ?? entry.action }}
               </td>
-              <td class="px-3 py-2 text-ink-muted">
+              <td class="truncate px-3 py-2 text-ink-muted">
                 {{ entry.target ?? "—" }}
               </td>
               <td class="px-3 py-2">

@@ -322,7 +322,16 @@ const formatTime = (iso: string | null): string =>
       role="region"
       aria-label="用户列表"
     >
-      <table :class="tableClasses.table">
+      <table :class="[tableClasses.table, 'table-fixed']">
+        <!-- Fixed column widths so the layout does not shift when the list reloads; an over-long
+             value wraps in its cell rather than widening the column. -->
+        <colgroup>
+          <col />
+          <col class="w-20" />
+          <col class="w-24" />
+          <col class="w-44" />
+          <col class="w-72" />
+        </colgroup>
         <caption class="sr-only">
           账号、角色、状态与管理操作
         </caption>

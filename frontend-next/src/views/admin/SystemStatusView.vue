@@ -420,7 +420,15 @@ const AREA_LABELS: Record<StoredEntry["area"], string> = {
         role="region"
         aria-label="本浏览器留存的数据"
       >
-        <table :class="tableClasses.table">
+        <table :class="[tableClasses.table, 'table-fixed']">
+          <!-- Fixed widths so the layout holds steady as keys are cleared; 值 absorbs the rest and
+               wraps (`break-all`), 项目 keeps its label + key on their own two lines. -->
+          <colgroup>
+            <col class="w-56" />
+            <col class="w-20" />
+            <col />
+            <col class="w-20" />
+          </colgroup>
           <caption class="sr-only">
             本浏览器留存的 NavFleet 数据，共
             {{

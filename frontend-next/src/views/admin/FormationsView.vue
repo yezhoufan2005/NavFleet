@@ -231,7 +231,15 @@ const dialogTitle = computed(() =>
     <template v-else>
       <p class="m-0 text-xs text-ink-subtle">{{ countLabel }}</p>
       <div :class="[tableClasses.wrapper, 'overflow-auto']">
-        <table :class="tableClasses.table">
+        <table :class="[tableClasses.table, 'table-fixed']">
+          <!-- Fixed widths so the layout holds steady across reloads; long names wrap. -->
+          <colgroup>
+            <col class="w-36" />
+            <col />
+            <col class="w-20" />
+            <col class="w-32" />
+            <col class="w-28" />
+          </colgroup>
           <thead :class="tableClasses.thead">
             <tr>
               <th scope="col" class="px-3 py-2">编队 ID</th>
@@ -252,16 +260,19 @@ const dialogTitle = computed(() =>
               :key="formation.formationId"
               :class="tableClasses.row"
             >
-              <th scope="row" class="px-3 py-2 font-mono text-2xs text-ink">
+              <th
+                scope="row"
+                class="truncate px-3 py-2 font-mono text-2xs text-ink"
+              >
                 {{ formation.formationId }}
               </th>
-              <td class="px-3 py-2 text-ink-muted">
+              <td class="truncate px-3 py-2 text-ink-muted">
                 {{ formation.formationName }}
               </td>
               <td class="px-3 py-2 text-ink-muted">
                 {{ formation.deviceIds.length }} 台
               </td>
-              <td class="px-3 py-2 text-ink-muted">
+              <td class="truncate px-3 py-2 text-ink-muted">
                 {{ formation.sceneId || "—" }}
               </td>
               <td class="px-3 py-2">
