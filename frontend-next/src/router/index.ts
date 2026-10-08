@@ -153,11 +153,38 @@ const routes: RouteRecordRaw[] = [
   },
   { path: "/admin/rules", redirect: { name: "alerts-rules" } },
   {
+    // 报表 — a section (1.6.2 IA): 报表 (the live KPI/charts/CSV page) and 定时报表 (the schedule
+    // editor, folded in from 管理). `AppSectionTabs` reads the strip off this parent; 定时报表 is
+    // gated on reports:write, so a viewer sees only one tab (the strip then hides itself). 报表 is
+    // the `""` child, so the nav item stays lit on both tabs, as with /devices.
     path: "/reports",
-    name: "reports",
-    component: () => import("@/views/ReportsView.vue"),
-    meta: { title: "报表" },
+    meta: {
+      title: "报表",
+      tabs: [
+        { routeName: "reports", label: "报表" },
+        {
+          routeName: "reports-schedules",
+          label: "定时报表",
+          capability: "reports:write",
+        },
+      ],
+    },
+    children: [
+      {
+        path: "",
+        name: "reports",
+        component: () => import("@/views/ReportsView.vue"),
+      },
+      {
+        path: "schedules",
+        name: "reports-schedules",
+        component: () => import("@/views/admin/ReportSchedulesView.vue"),
+        meta: { title: "定时报表", capability: "reports:write" },
+      },
+    ],
   },
+  // The 管理 deep link 定时报表 used to live at, kept as a redirect so shared bookmarks land.
+  { path: "/admin/reports", redirect: { name: "reports-schedules" } },
   {
     // 用户 — access control, promoted to a top-level section (1.6.2 IA). Its pages (用户 / 角色 /
     // 用户组) were cards under 管理; they are now tabs of one section, addressed by real child routes
@@ -256,12 +283,6 @@ const routes: RouteRecordRaw[] = [
         name: "admin-notify",
         component: () => import("@/views/admin/NotifyView.vue"),
         meta: { title: "外发", capability: "notify:read" },
-      },
-      {
-        path: "reports",
-        name: "admin-reports",
-        component: () => import("@/views/admin/ReportSchedulesView.vue"),
-        meta: { title: "定时报表", capability: "reports:write" },
       },
       {
         path: "audit",

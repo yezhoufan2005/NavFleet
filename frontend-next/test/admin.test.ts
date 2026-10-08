@@ -622,7 +622,6 @@ describe("管理落地页", () => {
       "/admin/codebook",
       "/admin/notify",
       "/admin/onboarding",
-      "/admin/reports",
       "/admin/scenes",
       "/admin/system",
     ]);
@@ -636,6 +635,6 @@ describe("管理落地页", () => {
       .findAll("span")
       .filter((span) => span.text() === "已就绪");
 
-    expect(readyBadges).toHaveLength(7);
+    expect(readyBadges).toHaveLength(6);
   });
 });

@@ -1,6 +1,7 @@
 <script setup lang="ts">
 /**
- * 定时报表 — the scheduled-report editor (admin, 1.6.1), the console face of `reports.json`.
+ * 定时报表 — the scheduled-report editor (admin, 1.6.1; a tab of the 报表 section since 1.6.2),
+ * the console face of `reports.json`.
  *
  * A schedule mails a periodic report (24h / 7d / 30d look-back) at a wall-clock time — every day,
  * or one weekday a week — to inline recipients and/or notify.json recipient groups. The list is
@@ -31,6 +32,7 @@ import {
   type ReportsConfig,
 } from "@navfleet/shared";
 import PageHeader from "@/components/PageHeader.vue";
+import AppSectionTabs from "@/components/shell/AppSectionTabs.vue";
 import UiButton from "@/components/ui/UiButton.vue";
 import UiConfirmDialog from "@/components/ui/UiConfirmDialog.vue";
 import UiSelect from "@/components/ui/UiSelect.vue";
@@ -246,12 +248,14 @@ const weekdayLabel = (weekday?: number): string =>
 </script>
 
 <template>
-  <PageHeader title="定时报表">
+  <PageHeader title="报表">
     <template #actions>
       <UiButton v-if="canWrite" size="sm" @click="openCreate"
         >新建报表</UiButton
       >
     </template>
+
+    <AppSectionTabs />
 
     <p v-if="status === 'loading'" class="text-sm text-ink-muted">加载中…</p>
     <p
