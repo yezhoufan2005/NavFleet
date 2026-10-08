@@ -71,11 +71,12 @@ describe("route table", () => {
       // The 管理 deep links the two pages used to live at, kept as redirects for old bookmarks.
       { path: "/admin/users", name: undefined, title: undefined },
       { path: "/admin/roles", name: undefined, title: undefined },
-      // 部署 — deployment config (1.6.2 IA): 设备接入 / 场景 / 报码字典, each gated on its own
-      // capability. 设备接入 is the `""` child (shares /deploy), so the nav item stays lit on all
-      // tabs; the section admits any-of the three write capabilities.
+      // 部署 — deployment config (1.6.2 IA): 车辆 / 编队 / 场景 / 报码字典, each gated on its own
+      // capability. 车辆 is the `""` child (shares /deploy), so the nav item stays lit on all tabs;
+      // the section admits any-of the four write capabilities.
       { path: "/deploy", name: undefined, title: "部署" },
-      { path: "/deploy", name: "deploy-onboarding", title: undefined },
+      { path: "/deploy", name: "deploy-vehicles", title: undefined },
+      { path: "/deploy/formations", name: "deploy-formations", title: "编队" },
       { path: "/deploy/scenes", name: "deploy-scenes", title: "场景" },
       { path: "/deploy/codebook", name: "deploy-codebook", title: "报码字典" },
       { path: "/admin/onboarding", name: undefined, title: undefined },

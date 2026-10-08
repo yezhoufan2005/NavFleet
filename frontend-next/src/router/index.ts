@@ -28,6 +28,7 @@ export const ADMIN_AREA_CAPABILITIES: readonly Capability[] = [
  */
 export const DEPLOY_CAPABILITIES: readonly Capability[] = [
   "vehicles:write",
+  "formations:write",
   "scenes:write",
   "codebook:write",
 ];
@@ -252,21 +253,26 @@ const routes: RouteRecordRaw[] = [
   { path: "/admin/users", redirect: { name: "access-users" } },
   { path: "/admin/roles", redirect: { name: "access-roles" } },
   {
-    // 部署 — deployment config, a top-level section (1.6.2 IA): 设备接入 / 场景 / 报码字典, folded
-    // out of 管理. Its three tabs each gate on their own capability (vehicles / scenes / codebook
-    // :write); the section admits anyone holding ANY of them (meta.capabilities). 设备接入 is the
-    // `""` child (renders at /deploy, so the nav item stays lit on every tab, as with /devices) and
-    // is gated by the section any-of rather than vehicles:write alone, so a caller holding only
-    // 场景/报码字典 writes still lands rather than being bounced; its own tab stays hidden for them.
+    // 部署 — deployment config, a top-level section (1.6.2 IA): 车辆 / 编队 / 场景 / 报码字典, folded
+    // out of 管理. Its tabs each gate on their own capability (vehicles / formations / scenes /
+    // codebook :write); the section admits anyone holding ANY of them (meta.capabilities). 车辆 is
+    // the `""` child (renders at /deploy, so the nav item stays lit on every tab, as with /devices)
+    // and is gated by the section any-of rather than vehicles:write alone, so a caller holding only
+    // one of the other writes still lands rather than being bounced; its own tab stays hidden.
     path: "/deploy",
     meta: {
       title: "部署",
       capabilities: DEPLOY_CAPABILITIES,
       tabs: [
         {
-          routeName: "deploy-onboarding",
-          label: "设备接入",
+          routeName: "deploy-vehicles",
+          label: "车辆",
           capability: "vehicles:write",
+        },
+        {
+          routeName: "deploy-formations",
+          label: "编队",
+          capability: "formations:write",
         },
         {
           routeName: "deploy-scenes",
@@ -283,9 +289,15 @@ const routes: RouteRecordRaw[] = [
     children: [
       {
         path: "",
-        name: "deploy-onboarding",
-        component: () => import("@/views/admin/DevicesOnboardingView.vue"),
+        name: "deploy-vehicles",
+        component: () => import("@/views/admin/VehiclesView.vue"),
         meta: { capabilities: DEPLOY_CAPABILITIES },
+      },
+      {
+        path: "formations",
+        name: "deploy-formations",
+        component: () => import("@/views/admin/FormationsView.vue"),
+        meta: { title: "编队", capability: "formations:write" },
       },
       {
         path: "scenes",
@@ -302,7 +314,7 @@ const routes: RouteRecordRaw[] = [
     ],
   },
   // The 管理 deep links these pages used to live at, kept as redirects so shared bookmarks land.
-  { path: "/admin/onboarding", redirect: { name: "deploy-onboarding" } },
+  { path: "/admin/onboarding", redirect: { name: "deploy-vehicles" } },
   { path: "/admin/scenes", redirect: { name: "deploy-scenes" } },
   { path: "/admin/codebook", redirect: { name: "deploy-codebook" } },
   {
@@ -413,7 +425,7 @@ export const NAV_SECTIONS: readonly NavSection[] = [
     capabilities: ["users:manage"],
   },
   {
-    routeName: "deploy-onboarding",
+    routeName: "deploy-vehicles",
     label: "部署",
     icon: "deploy",
     capabilities: DEPLOY_CAPABILITIES,

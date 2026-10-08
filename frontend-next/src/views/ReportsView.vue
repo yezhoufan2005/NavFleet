@@ -265,6 +265,25 @@ const exportAlertsCsv = (): void => {
 
 <template>
   <PageHeader title="报表">
+    <template #actions>
+      <UiButton
+        variant="secondary"
+        size="sm"
+        :disabled="status !== 'ready' || !hasAvailabilityData"
+        @click="exportCsv"
+      >
+        导出可用率 ↗
+      </UiButton>
+      <UiButton
+        variant="secondary"
+        size="sm"
+        :disabled="status !== 'ready' || !hasAlertData"
+        @click="exportAlertsCsv"
+      >
+        导出消息 ↗
+      </UiButton>
+    </template>
+
     <AppSectionTabs />
 
     <!-- Filters in one row above the charts (data-viz convention), export at the end. -->
@@ -323,25 +342,6 @@ const exportAlertsCsv = (): void => {
           @update:model-value="setFilter({ device: $event || null })"
         />
       </label>
-
-      <div class="ml-auto flex flex-wrap items-end gap-2">
-        <UiButton
-          variant="secondary"
-          size="sm"
-          :disabled="status !== 'ready' || !hasAvailabilityData"
-          @click="exportCsv"
-        >
-          导出可用率 ↗
-        </UiButton>
-        <UiButton
-          variant="secondary"
-          size="sm"
-          :disabled="status !== 'ready' || !hasAlertData"
-          @click="exportAlertsCsv"
-        >
-          导出消息 ↗
-        </UiButton>
-      </div>
     </div>
 
     <!-- Loading: a skeleton in the shape of the result (KPI band + two chart columns) rather
