@@ -356,10 +356,19 @@ PR #28 按职责拆开：
 
 ### `src/router/` 与 `src/views/`
 
-产品路由：`/` 总览 · `/devices` 设备（列表 ⇄ 地图两个视图）· `/devices/:deviceId` 设备详情
-（实时 / 曲线 / 历史回放 / 告警史四个 tab）· `/alerts` 消息 · `/alert-history` 消息史 · `/reports`
-报表 · `/admin` 管理（下挂 `/admin/onboarding`·`system`·`scenes`·`users`·`codebook`·`notify`·`audit` 七个子页）·
-`/profile` 个人中心 · `/wall` 大屏值班 · 其余落 404。（另有开发专用的 `/__charts-perf`。）
+产品路由（web history，共 20 条具名叶子路由，按 1.6.2 的七个一级分区组织）：
+
+- **总览** `/`
+- **设备** `/devices`（列表 ⇄ 地图两个视图）· `/devices/:deviceId` 设备详情（实时 / 曲线 / 历史回放 / 告警史四个 tab）
+- **消息** `/alerts` · `/alerts/history` 告警史 · `/alerts/rules` 告警规则
+- **报表** `/reports` · `/reports/schedules` 定时报表
+- **用户** `/access` 账号 · `/access/roles` 角色 · `/access/groups` 用户组
+- **部署** `/deploy` 车辆 · `/deploy/formations` 编队 · `/deploy/scenes` 场景 · `/deploy/codebook` 报码字典
+- **系统** `/system` 状态 · `/system/audit` 审计 · `/system/notify` 外发
+- `/profile` 个人中心 · `/wall` 大屏值班 · 其余落 404
+
+原 `管理` hub（`/admin/*`）与 `/alert-history` 在 1.6.2 已拆解为上述七个分区并降为重定向（完整映射见
+README「页面地图」）。另有开发专用的 `/__charts-perf`（仅 dev / `VITE_CHART_PERF`）。
 
 `guards.ts` 是鉴权守卫，在 import 时注册 —— 所以它读的会话状态必须能在 Pinia 实例之外使用，
 这正是 `useAuth` 用模块级 `reactive` 单例而不是 store 的原因。
