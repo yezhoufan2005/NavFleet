@@ -21,8 +21,8 @@ import {
  */
 const [device] = SEEDED_DEVICES;
 
-/** The tab is in the URL, which is the whole reason a playback can be linked. */
-const PLAYBACK_URL = `/devices/${device.deviceId}?tab=playback`;
+/** The tab is a real route now, which is the whole reason a playback can be linked. */
+const PLAYBACK_URL = `/devices/${device.deviceId}/playback`;
 
 test.describe("console playback", () => {
   test.beforeEach(async ({ page }) => {
@@ -36,9 +36,11 @@ test.describe("console playback", () => {
     // meant picking a vehicle you had just been looking at.
     await page.goto(PLAYBACK_URL);
 
-    await expect(
-      page.getByRole("tab", { name: "历史回放", selected: true }),
-    ).toBeVisible();
+    // The tabs are route links now; the active one carries aria-current="page".
+    await expect(page.getByRole("link", { name: "回放" })).toHaveAttribute(
+      "aria-current",
+      "page",
+    );
     await expect(
       page.getByText(`1 / ${SAMPLES_PER_DEVICE}`, { exact: true }),
     ).toBeVisible();
@@ -99,17 +101,19 @@ test.describe("console playback", () => {
 
   test("switching tabs is a link, not a step", async ({ page }) => {
     await page.goto(`/devices/${device.deviceId}`);
-    await expect(
-      page.getByRole("tab", { name: "实时", selected: true }),
-    ).toBeVisible();
+    await expect(page.getByRole("link", { name: "实时" })).toHaveAttribute(
+      "aria-current",
+      "page",
+    );
 
-    await page.getByRole("tab", { name: "历史回放" }).click();
-    await expect(page).toHaveURL(new RegExp(`tab=playback$`));
+    await page.getByRole("link", { name: "回放" }).click();
+    await expect(page).toHaveURL(new RegExp(`/${device.deviceId}/playback$`));
 
     // And it survives a reload, because the tab is state the URL owns.
     await page.reload();
-    await expect(
-      page.getByRole("tab", { name: "历史回放", selected: true }),
-    ).toBeVisible();
+    await expect(page.getByRole("link", { name: "回放" })).toHaveAttribute(
+      "aria-current",
+      "page",
+    );
   });
 });

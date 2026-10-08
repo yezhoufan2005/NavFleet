@@ -389,15 +389,18 @@ describe("breadcrumbs", () => {
       .findAll("li")
       .map((item) => item.text().replace(/^›\s*/, ""));
 
-    expect(crumbs).toEqual(["设备", "设备详情"]);
+    // The `:deviceId` segment resolves to the id itself (not a static "设备详情"), and
+    // the default tab adds 实时: 设备 › agv-c12 › 实时.
+    expect(crumbs).toEqual(["设备", "agv-c12", "实时"]);
   });
 
   it("does not link the page you are already on", async () => {
     const wrapper = await signedIn("/devices/agv-c12");
     const trail = wrapper.find("nav[aria-label='面包屑']");
 
-    expect(trail.findAll("a")).toHaveLength(1);
-    expect(trail.find("[aria-current='page']").text()).toBe("设备详情");
+    // 设备 and the device id are links; the current tab (实时) is not.
+    expect(trail.findAll("a")).toHaveLength(2);
+    expect(trail.find("[aria-current='page']").text()).toBe("实时");
   });
 });
 

@@ -112,10 +112,55 @@ const routes: RouteRecordRaw[] = [
         component: () => import("@/views/DevicesView.vue"),
       },
       {
+        // The device detail shell: it owns the device header and the tab strip, and
+        // renders the active L3 view into its outlet. The four views are **real child
+        // routes**, not a `?tab=` on one page — so the breadcrumb reads 设备 › <id> ›
+        // 实时, Back/Forward walk the tabs, and each tab is a linkable URL, the same
+        // pattern 消息 / 用户 / 部署 use. The parent carries no static title: the
+        // breadcrumb fills its segment from the device id (`AppBreadcrumbs` resolves a
+        // `:param` leaf), and `meta.tabs` drives `AppSectionTabs`. 实时 is the `""`
+        // child, so the 设备 nav item stays lit on every tab (as `/devices` already did).
         path: ":deviceId",
-        name: "device-detail",
         component: () => import("@/views/DeviceDetailView.vue"),
-        meta: { title: "设备详情" },
+        meta: {
+          tabs: [
+            { routeName: "device-detail", label: "实时" },
+            { routeName: "device-charts", label: "曲线" },
+            { routeName: "device-playback", label: "回放" },
+            { routeName: "device-alerts", label: "告警史" },
+          ],
+        },
+        children: [
+          {
+            path: "",
+            name: "device-detail",
+            component: () => import("@/components/device/DeviceLiveTab.vue"),
+            meta: { title: "实时" },
+            props: true,
+          },
+          {
+            path: "charts",
+            name: "device-charts",
+            component: () => import("@/components/device/DeviceChartsTab.vue"),
+            meta: { title: "曲线" },
+            props: true,
+          },
+          {
+            path: "playback",
+            name: "device-playback",
+            component: () =>
+              import("@/components/device/DevicePlaybackTab.vue"),
+            meta: { title: "回放" },
+            props: true,
+          },
+          {
+            path: "alerts",
+            name: "device-alerts",
+            component: () => import("@/components/device/DeviceAlertsTab.vue"),
+            meta: { title: "告警史" },
+            props: true,
+          },
+        ],
       },
     ],
   },

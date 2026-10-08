@@ -79,7 +79,12 @@ defineProps<{
     -->
     <div class="flex min-h-8 flex-wrap items-start justify-between gap-3">
       <div class="flex min-w-0 flex-col gap-1">
-        <h2 class="text-xl font-semibold text-ink">{{ title }}</h2>
+        <div class="flex min-w-0 flex-wrap items-baseline gap-x-2 gap-y-0.5">
+          <h2 class="text-xl font-semibold text-ink">{{ title }}</h2>
+          <!-- Inline beside the title: a secondary identifier that reads with the name
+               rather than under it (the device id on 设备详情). Absent on every other page. -->
+          <slot name="titleSuffix" />
+        </div>
         <p v-if="lede" class="max-w-prose text-sm text-ink-muted">{{ lede }}</p>
       </div>
       <div class="flex shrink-0 items-center gap-2">

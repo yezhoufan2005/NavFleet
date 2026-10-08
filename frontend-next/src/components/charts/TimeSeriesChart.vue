@@ -38,7 +38,7 @@ const {
   height = 260,
   label,
   legendPosition = "top",
-  tableMaxRows = null,
+  tableMatchHeight = false,
   cursorAt = null,
 } = defineProps<{
   series: readonly TimeSeries[];
@@ -50,12 +50,13 @@ const {
   /** Legend placement for multi-series charts — `"right"` when a top strip would wrap. */
   legendPosition?: "top" | "right";
   /**
-   * Cap the data-table to this many visible rows and scroll the rest — the 回放窗口速度 table
-   * asks for a short, fixed height rather than the default 24rem. When set, the header sits
-   * outside the scroll area so the scrollbar runs beside the records only, not the header row.
-   * Null (the default) keeps the original single-scroller table for every other chart.
+   * Match the table view's total height to the chart's `height`, so toggling 图表 ↔
+   * 数据表 keeps the block exactly the same size instead of the table jumping to its own
+   * row count. The header stays a fixed row and the records scroll in the remaining
+   * space — pixel-exact without guessing a header height. False (the default) keeps the
+   * original single-scroller table capped at 24rem for every other chart.
    */
-  tableMaxRows?: number | null;
+  tableMatchHeight?: boolean;
   /**
    * A vertical cursor at this instant (epoch ms), for history playback. Applied as a
    * separate merge rather than through the option, so a moving cursor does not
@@ -205,16 +206,6 @@ const sampled = computed(() => stamps.value.length > TABLE_ROW_LIMIT);
 
 const formatStamp = (stamp: number): string =>
   new Date(stamp).toLocaleString(undefined, { hour12: false });
-
-/** When a row cap is asked for, the body height is that many rows; otherwise it is capped at 24rem. */
-const fixedRows = computed(
-  () => typeof tableMaxRows === "number" && tableMaxRows > 0,
-);
-/** One body row is `py-1.5` + a text-xs line ≈ 29px; the header is rendered separately. */
-const BODY_ROW_PX = 29;
-const bodyMaxHeight = computed(() =>
-  fixedRows.value ? `${(tableMaxRows ?? 0) * BODY_ROW_PX}px` : "24rem",
-);
 </script>
 
 <template>
@@ -245,13 +236,21 @@ const bodyMaxHeight = computed(() =>
     <!--
       Data table. The header is its own table outside the scroll box, so the scrollbar runs
       beside the records only — never up through the 时间/值 header row (the shape 曲线 and
-      历史回放 now share). Both tables are `table-fixed` over the same colgroup, so the columns
-      line up despite the split. The body scrolls on the y-axis only: `overflow-auto` used to
-      let a stray horizontal scrollbar appear when the vertical one claimed the corner — that
-      extra groove is what pushed the scroll track off the bottom.
+      回放 now share). Both tables are `table-fixed` over the same colgroup, so the columns
+      line up despite the split. The body scrolls on the y-axis only.
+
+      When `tableMatchHeight` is set, the whole block is pinned to the chart's `height`: the
+      header is a fixed row and the records fill the rest, so toggling 图表 ↔ 数据表 does not
+      change the block's size. Otherwise the body is capped at 24rem, as every other chart.
     -->
-    <div v-else class="overflow-hidden rounded-sm border border-border">
-      <table class="w-full table-fixed border-collapse text-left text-sm">
+    <div
+      v-else
+      class="flex flex-col overflow-hidden rounded-sm border border-border"
+      :style="tableMatchHeight ? { height: `${height}px` } : undefined"
+    >
+      <table
+        class="w-full shrink-0 table-fixed border-collapse text-left text-sm"
+      >
         <caption class="sr-only">
           {{
             label
@@ -280,10 +279,11 @@ const bodyMaxHeight = computed(() =>
       <!-- Only the body scrolls, and it is the focusable region (WCAG 2.1.1). -->
       <div
         class="overflow-x-hidden overflow-y-auto border-t border-border"
+        :class="tableMatchHeight ? 'min-h-0 flex-1' : undefined"
         tabindex="0"
         role="region"
         :aria-label="`${label} 数据表`"
-        :style="{ maxHeight: bodyMaxHeight }"
+        :style="tableMatchHeight ? undefined : { maxHeight: '24rem' }"
       >
         <table class="w-full table-fixed border-collapse text-left text-sm">
           <colgroup>

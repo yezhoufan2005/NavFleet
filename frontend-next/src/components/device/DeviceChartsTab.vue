@@ -2,10 +2,10 @@
 /**
  * 曲线 — the last few hundred samples, with no window to choose.
  *
- * Distinct from the 历史回放 tab on purpose. This one answers "how has it been
- * behaving" for the cost of opening a tab; playback answers "what happened between
- * 14:00 and 15:00", which needs a window and a playhead. Collapsing them would make
- * the cheap question expensive.
+ * Distinct from the 回放 tab on purpose. This one answers "how has it been behaving"
+ * for the cost of opening a tab; playback answers "what happened between 14:00 and
+ * 15:00", which needs a window and a playhead. Collapsing them would make the cheap
+ * question expensive.
  *
  * ## Two charts, not one with two y-axes
  *
@@ -14,9 +14,9 @@
  * chart misleads. `TimeSeriesChart` takes one `unit` per chart precisely so a dual axis
  * is inexpressible.
  *
- * Fetching happens on mount, which is when this tab is opened rather than when the page
- * is: Reka's `TabsContent` does not mount an inactive panel, so arriving at 实时 costs
- * no history request.
+ * Fetching happens on mount, which is when this tab's route is entered rather than when
+ * the device page is: it is a lazy child route, so arriving at 实时 mounts neither this
+ * component nor its history request.
  */
 import { computed, onBeforeUnmount, ref, watch } from "vue";
 import TimeSeriesChart from "@/components/charts/TimeSeriesChart.vue";
@@ -138,14 +138,14 @@ const hasHistory = computed(
         unit="m/s"
         label="速度历史"
         :height="200"
-        :table-max-rows="6"
+        table-match-height
       />
       <TimeSeriesChart
         :series="socSeries"
         unit="%"
         label="电量历史"
         :height="200"
-        :table-max-rows="6"
+        table-match-height
       />
     </template>
   </section>

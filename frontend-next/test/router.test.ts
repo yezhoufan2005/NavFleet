@@ -41,7 +41,26 @@ describe("route table", () => {
       { path: "/", name: "overview", title: "总览" },
       { path: "/devices", name: undefined, title: "设备" },
       { path: "/devices", name: "devices", title: undefined },
-      { path: "/devices/:deviceId", name: "device-detail", title: "设备详情" },
+      // 设备详情 is a shell whose four L3 views are real child routes (Phase 18). The
+      // `:deviceId` parent carries no title — the breadcrumb fills it from the id — and
+      // 实时 is the `""` child, so the 设备 nav item stays lit on every tab.
+      { path: "/devices/:deviceId", name: undefined, title: undefined },
+      { path: "/devices/:deviceId", name: "device-detail", title: "实时" },
+      {
+        path: "/devices/:deviceId/charts",
+        name: "device-charts",
+        title: "曲线",
+      },
+      {
+        path: "/devices/:deviceId/playback",
+        name: "device-playback",
+        title: "回放",
+      },
+      {
+        path: "/devices/:deviceId/alerts",
+        name: "device-alerts",
+        title: "告警史",
+      },
       // 消息 is a section (1.6.2 IA): 消息 (live) and 告警史 both render AlertsView, 告警规则 is
       // RulesView folded in from 管理. Live is the `""` child, sharing the parent's path.
       { path: "/alerts", name: undefined, title: "消息" },
