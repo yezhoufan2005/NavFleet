@@ -1,6 +1,6 @@
 <script setup lang="ts">
 /**
- * 管理 / 报码字典 — the code→meaning table in effect, edited row by row or swapped as a file.
+ * 部署 / 报码字典 — the code→meaning table in effect, edited row by row or swapped as a file.
  *
  * The console describes a vehicle's report codes against the table **in effect**: the built-in
  * reference table with the deployment's `codebook.json` layered over it. This page shows that
@@ -28,6 +28,7 @@ import UiButton from "@/components/ui/UiButton.vue";
 import UiConfirmDialog from "@/components/ui/UiConfirmDialog.vue";
 import UiSelect from "@/components/ui/UiSelect.vue";
 import { tableClasses } from "@/lib/uiClasses";
+import { makeMessageFor } from "@/lib/errorMessages";
 import { notify } from "@/composables/useNotifications";
 import { useAuth } from "@/composables/useAuth";
 import { useCodebook } from "@/composables/useCodebook";
@@ -136,14 +137,10 @@ const SUBSYSTEM_OPTIONS = (Object.keys(CODE_SUBSYSTEMS) as CodeSubsystem[]).map(
   (value) => ({ value, label: CODE_SUBSYSTEMS[value] }),
 );
 
-const writeError = (error: unknown): string => {
-  const code = error instanceof Error ? error.message : "";
-  return code === "invalid_codebook"
-    ? "后端拒绝了这份码表，请检查内容"
-    : code === "forbidden"
-      ? "没有编辑码表的权限"
-      : "保存失败，请稍后重试";
-};
+const writeError = makeMessageFor({
+  invalid_codebook: "后端拒绝了这份码表，请检查内容",
+  forbidden: "没有编辑码表的权限",
+});
 
 const mode = ref<"create" | "edit" | null>(null);
 const editingCode = ref<number | null>(null);

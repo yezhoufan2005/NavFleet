@@ -1,6 +1,6 @@
 <script setup lang="ts">
 /**
- * 管理 / 场景 — what the deployment has configured, whether it is actually there, and (Phase 18)
+ * 部署 / 场景 — what the deployment has configured, whether it is actually there, and (Phase 18)
  * editing it: create / edit / delete scene entries and upload their backdrop files.
  *
  * This was read-only on the stated ground that "editing a scene means editing the map a vehicle
@@ -38,6 +38,7 @@ import AppSectionTabs from "@/components/shell/AppSectionTabs.vue";
 import UiButton from "@/components/ui/UiButton.vue";
 import UiSelect from "@/components/ui/UiSelect.vue";
 import UiConfirmDialog from "@/components/ui/UiConfirmDialog.vue";
+import { makeMessageFor } from "@/lib/errorMessages";
 import { notify } from "@/composables/useNotifications";
 import { useAutoRefresh } from "@/composables/useAutoRefresh";
 import { useFleetStore } from "@/stores/fleet";
@@ -226,10 +227,7 @@ const ERROR_MESSAGES: Record<string, string> = {
   empty_upload: "文件为空",
   forbidden: "需要管理员权限",
 };
-const messageFor = (error: unknown): string => {
-  const code = error instanceof Error ? error.message : "";
-  return ERROR_MESSAGES[code] ?? "保存失败，请稍后重试";
-};
+const messageFor = makeMessageFor(ERROR_MESSAGES);
 
 type Mode = "create" | "edit" | null;
 const mode = ref<Mode>(null);
@@ -646,7 +644,6 @@ const runDelete = async (): Promise<void> => {
               />
             </label>
           </div>
-          <!-- SCENE-FORM-REST -->
           <div class="grid grid-cols-3 gap-2">
             <label class="flex flex-col gap-1">
               <span class="text-sm font-medium text-ink">原点 x</span>

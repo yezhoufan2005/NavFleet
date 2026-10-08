@@ -1,6 +1,6 @@
 <script setup lang="ts">
 /**
- * 管理 / 系统状态 — the page that answers "whose fault is it".
+ * 系统 / 状态 — the page that answers "whose fault is it".
  *
  * `docs/frontend-ia.md` sends the old settings page's connection diagnostics here
  * (personal preferences went to the user menu instead). The reason this is worth a

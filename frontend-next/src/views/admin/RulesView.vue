@@ -23,6 +23,7 @@ import {
 import PageHeader from "@/components/PageHeader.vue";
 import AppSectionTabs from "@/components/shell/AppSectionTabs.vue";
 import UiButton from "@/components/ui/UiButton.vue";
+import { makeMessageFor } from "@/lib/errorMessages";
 import { notify as toast } from "@/composables/useNotifications";
 
 const INPUT_CLASS =
@@ -31,10 +32,7 @@ const INPUT_CLASS =
 const ERROR_MESSAGES: Record<string, string> = {
   invalid_rules: "规则校验未通过，请检查阈值与时间后重试",
 };
-const messageFor = (error: unknown): string => {
-  const code = error instanceof Error ? error.message : "";
-  return ERROR_MESSAGES[code] ?? "保存失败，请稍后重试";
-};
+const messageFor = makeMessageFor(ERROR_MESSAGES);
 
 const status = ref<"loading" | "ready" | "error">("loading");
 const saving = ref(false);

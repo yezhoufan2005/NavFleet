@@ -28,6 +28,7 @@ import AppSectionTabs from "@/components/shell/AppSectionTabs.vue";
 import UiButton from "@/components/ui/UiButton.vue";
 import UiConfirmDialog from "@/components/ui/UiConfirmDialog.vue";
 import { tableClasses } from "@/lib/uiClasses";
+import { makeMessageFor } from "@/lib/errorMessages";
 import { notify } from "@/composables/useNotifications";
 
 const ERROR_MESSAGES: Record<string, string> = {
@@ -35,10 +36,7 @@ const ERROR_MESSAGES: Record<string, string> = {
   not_found: "目标不存在，或引用了不存在的角色",
   role_in_use: "该角色仍被某个用户组引用，先从组里移除再删除",
 };
-const messageFor = (error: unknown): string => {
-  const code = error instanceof Error ? error.message : "";
-  return ERROR_MESSAGES[code] ?? "操作失败，请稍后重试";
-};
+const messageFor = makeMessageFor(ERROR_MESSAGES, "操作失败，请稍后重试");
 
 const INPUT_CLASS =
   "h-9 rounded-sm border border-border-strong bg-surface px-2 text-sm text-ink placeholder:text-ink-subtle";

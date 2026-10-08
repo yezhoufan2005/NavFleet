@@ -38,6 +38,7 @@ import UiConfirmDialog from "@/components/ui/UiConfirmDialog.vue";
 import UiSelect from "@/components/ui/UiSelect.vue";
 import { tableClasses } from "@/lib/uiClasses";
 import { useAuth } from "@/composables/useAuth";
+import { makeMessageFor } from "@/lib/errorMessages";
 import { notify as toast } from "@/composables/useNotifications";
 
 const auth = useAuth();
@@ -71,10 +72,7 @@ const ERROR_MESSAGES: Record<string, string> = {
   invalid_reports: "配置校验未通过，请检查各字段后重试",
   conflict: "报表 ID 已存在",
 };
-const messageFor = (error: unknown): string => {
-  const code = error instanceof Error ? error.message : "";
-  return ERROR_MESSAGES[code] ?? "保存失败，请稍后重试";
-};
+const messageFor = makeMessageFor(ERROR_MESSAGES);
 
 const config = ref<ReportsConfig | null>(null);
 const status = ref<"loading" | "ready" | "error">("loading");
