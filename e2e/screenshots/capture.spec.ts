@@ -81,11 +81,11 @@ test("capture console screenshots for the README", async ({ request }) => {
   await shoot(page, "devices-map");
 
   await page.goto(`/devices/${firstDevice.deviceId}`);
-  await expect(page.getByRole("tab", { name: "实时" })).toBeVisible();
+  await expect(page.getByRole("link", { name: "实时" })).toBeVisible();
   await shoot(page, "device-detail");
 
-  await page.goto(`/devices/${firstDevice.deviceId}?tab=charts`);
-  await expect(page.getByRole("tab", { name: "曲线" })).toBeVisible();
+  await page.goto(`/devices/${firstDevice.deviceId}/charts`);
+  await expect(page.getByRole("link", { name: "曲线" })).toBeVisible();
   await shoot(page, "device-charts");
 
   await page.goto("/alerts");

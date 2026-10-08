@@ -391,8 +391,8 @@ describe("the map and the curve", () => {
     // `(0, "%")` — one form across 实时 / 回放 / 设备列表. It printed `77.0%` here and
     // `77 %` on the live tab for the same reading.
     expect(text).toContain("77%");
-    // `taskStatus: 2` — a bare `2` is what v1.0.0 printed here.
-    expect(text).not.toMatch(/任务状态\s*2/);
+    // `taskStatus: 2` — a bare `2` is what v1.0.0 printed here. The row is 车端任务 now.
+    expect(text).not.toMatch(/车端任务\s*2/);
     expect(text).toContain("北区堆场");
   });
 
@@ -408,7 +408,8 @@ describe("the map and the curve", () => {
     const wrapper = await mountPlayback();
 
     const rows = wrapper.findAll("dl div");
-    expect(rows[0]!.text()).toContain("采样时间");
+    // The first sample-detail cell is 时间 (renamed from 采样时间 in the 3-column regroup).
+    expect(rows[0]!.text()).toContain("时间");
     expect(rows[0]!.text()).toContain("--");
   });
 });

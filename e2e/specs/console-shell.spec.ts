@@ -152,15 +152,18 @@ test.describe("console shell", () => {
     await page.goto("/devices/agv-a03");
 
     // The page titles itself with the vehicle's name, which is what an operator
-    // recognises; the id it was deep-linked by stays visible in the lede.
-    await expect(page.getByRole("heading", { name: /a03/i })).toBeVisible();
-    await expect(page.getByText("编号 agv-a03")).toBeVisible();
+    // recognises; the id it was deep-linked by sits beside the name (no 「编号」 label).
+    const heading = page.getByRole("heading", { name: /a03/i });
+    await expect(heading).toBeVisible();
+    await expect(heading.locator("xpath=following-sibling::span")).toHaveText(
+      "agv-a03",
+    );
 
     // The trail is built from the nesting, and 设备 stays the current section even
-    // though the current *page* is the detail page.
+    // though the current *page* is the detail page. The id is its own crumb now.
     const trail = page.getByRole("navigation", { name: "面包屑" });
     await expect(trail.getByRole("link", { name: "设备" })).toBeVisible();
-    await expect(trail.getByText("设备详情")).toBeVisible();
+    await expect(trail.getByText("agv-a03")).toBeVisible();
 
     const section = page
       .getByRole("navigation", { name: "主导航" })

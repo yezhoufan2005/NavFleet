@@ -256,7 +256,7 @@ test.describe("console devices", () => {
     await expect(page).toHaveURL(
       new RegExp(`/devices/${firstDevice.deviceId}$`),
     );
-    await expect(page.getByRole("tab", { name: "实时" })).toBeVisible();
+    await expect(page.getByRole("link", { name: "实时" })).toBeVisible();
 
     // Selection still follows, so the map lands with that vehicle as its subject. The
     // default view frames the whole scene, so 定位车辆 is what brings the remembered
@@ -301,7 +301,7 @@ test.describe("console devices", () => {
     // rather than failing it.
     const faulted = SEEDED_FAULTED;
 
-    await page.goto(`/devices/${faulted.deviceId}?tab=alerts`);
+    await page.goto(`/devices/${faulted.deviceId}/alerts`);
 
     const history = page.locator("section", { hasText: "告警史" });
     await expect(history).toContainText(String(faulted.errorCode!.code));
@@ -322,11 +322,11 @@ test.describe("console devices", () => {
     page.on("request", (request) => requested.push(request.url()));
 
     await page.goto(`/devices/${SEEDED_DEVICES[0].deviceId}`);
-    await expect(page.getByRole("tab", { name: "实时" })).toBeVisible();
+    await expect(page.getByRole("link", { name: "实时" })).toBeVisible();
     expect(requested.some((url) => /TimeSeriesChart/.test(url))).toBe(false);
 
     // And it arrives when the tab that needs it is opened.
-    await page.getByRole("tab", { name: "曲线" }).click();
+    await page.getByRole("link", { name: "曲线" }).click();
     await expect
       .poll(() => requested.some((url) => /TimeSeriesChart/.test(url)))
       .toBe(true);

@@ -294,23 +294,30 @@ const sampleRows = computed<Row[]>(() => {
   const device = playbackDevice.value;
   if (!device) return [];
   const at = cursorAt.value;
+  // Column-major order for the 3×3 grid below (`grid-flow-col`, 3 rows): the first
+  // three fill the left column (时间 / 速度 / 电量), the next three the middle
+  // (融合 X / Y / 航向 yaw), the last three the right (车端任务 / 平台任务 / 当前场景).
   return [
     // `--` rather than `formatDateTime(undefined)`: that helper falls back to
     // `Date.now()`, so a sample with no timestamp would claim to be from this second.
-    { label: "采样时间", value: at === null ? "--" : formatDateTime(at) },
+    { label: "时间", value: at === null ? "--" : formatDateTime(at) },
     {
       label: "速度",
       value: formatNumber(device.vehicleInfo?.speed, 2, " m/s"),
     },
-    // Same `(0, "%")` as 实时 and the device list. It said `1` here, so the same
-    // vehicle read 82% on one tab and 82.3% on the next.
+    // Same `(0, "%")` as 实时 and the device list, so the same vehicle never reads 82%
+    // on one tab and 82.3% on the next.
     { label: "电量", value: formatNumber(device.vehicleInfo?.soc, 0, "%") },
-    { label: "任务状态", value: formatEnum(device.taskStatus, taskStatusMap) },
     { label: "融合 X", value: formatNumber(device.fusionLoc?.x, 2) },
     { label: "融合 Y", value: formatNumber(device.fusionLoc?.y, 2) },
     { label: "航向 yaw", value: formatNumber(device.fusionLoc?.yaw, 3) },
+    { label: "车端任务", value: formatEnum(device.taskStatus, taskStatusMap) },
     {
-      label: "场景",
+      label: "平台任务",
+      value: formatEnum(device.platformTaskStatus, taskStatusMap),
+    },
+    {
+      label: "当前场景",
       value:
         (sceneDefinition.value?.sceneName as string) ||
         activeSceneId.value ||
@@ -358,7 +365,7 @@ const onScrub = (event: Event): void => {
         </UiButton>
 
         <span class="ml-auto flex flex-wrap items-center gap-1.5">
-          <span class="text-2xs text-ink-muted">快捷范围</span>
+          <span class="text-xs text-ink-muted">快捷范围</span>
           <UiButton
             v-for="hours in PRESET_HOURS"
             :key="hours"
@@ -540,7 +547,9 @@ const onScrub = (event: Event): void => {
       >
         采样详情
       </h3>
-      <dl class="m-0 grid gap-2 sm:grid-cols-2 xl:grid-cols-4">
+      <dl
+        class="m-0 grid grid-cols-1 gap-x-6 gap-y-2 sm:grid-flow-col sm:grid-cols-3 sm:grid-rows-3"
+      >
         <div
           v-for="row in sampleRows"
           :key="row.label"
@@ -559,7 +568,7 @@ const onScrub = (event: Event): void => {
         unit="m/s"
         label="回放窗口速度"
         :height="180"
-        :table-max-rows="6"
+        table-match-height
         :cursor-at="cursorAt"
       />
     </section>

@@ -11,6 +11,8 @@ import {
 } from "@navfleet/fleet-core";
 import type { HistorySample } from "@navfleet/fleet-core";
 import DeviceDetailView from "@/views/DeviceDetailView.vue";
+import DeviceLiveTab from "@/components/device/DeviceLiveTab.vue";
+import DeviceChartsTab from "@/components/device/DeviceChartsTab.vue";
 import TimeSeriesChart from "@/components/charts/TimeSeriesChart.vue";
 import { useFleetStore } from "@/stores/fleet";
 
@@ -61,34 +63,73 @@ const device = (patch: Record<string, unknown> = {}) => ({
 let store: ReturnType<typeof useFleetStore>;
 let router: Router;
 
+/** The tab strip's four entries, declared on the `:deviceId` parent as in the real router. */
+const TAB_META = [
+  { routeName: "device-detail", label: "实时" },
+  { routeName: "device-charts", label: "曲线" },
+  { routeName: "device-playback", label: "回放" },
+  { routeName: "device-alerts", label: "告警史" },
+];
+
+/** Playback/alerts pull in heavy deps (the map engine); this file only exercises 实时 and 曲线. */
+const Stub = { template: "<i />" };
+/** A root that is just the outlet, so the shell's own `<RouterView>` resolves the active tab. */
+const Root = { template: "<router-view />" };
+
 const mountDetail = async (deviceId = "agv-01", tab?: string) => {
   router = createRouter({
     history: createMemoryHistory(),
     routes: [
-      { path: "/devices/:deviceId", component: DeviceDetailView },
-      { path: "/", component: { template: "<i />" } },
+      { path: "/", component: Stub },
+      {
+        // 设备详情 is now a shell with four child routes (Phase 18), not a `?tab=` view.
+        path: "/devices/:deviceId",
+        component: DeviceDetailView,
+        meta: { tabs: TAB_META },
+        children: [
+          {
+            path: "",
+            name: "device-detail",
+            component: DeviceLiveTab,
+            meta: { title: "实时" },
+            props: true,
+          },
+          {
+            path: "charts",
+            name: "device-charts",
+            component: DeviceChartsTab,
+            meta: { title: "曲线" },
+            props: true,
+          },
+          {
+            path: "playback",
+            name: "device-playback",
+            component: Stub,
+            meta: { title: "回放" },
+            props: true,
+          },
+          {
+            path: "alerts",
+            name: "device-alerts",
+            component: Stub,
+            meta: { title: "告警史" },
+            props: true,
+          },
+        ],
+      },
     ],
   });
-  await router.push(`/devices/${deviceId}${tab ? `?tab=${tab}` : ""}`);
+  await router.push(`/devices/${deviceId}${tab ? `/${tab}` : ""}`);
   await router.isReady();
 
-  const wrapper = mount(DeviceDetailView, { global: { plugins: [router] } });
+  const wrapper = mount(Root, { global: { plugins: [router] } });
   await flushPromises();
 
-  // The three non-default panels are `defineAsyncComponent`, so one microtask flush
-  // does not guarantee the child has mounted — how many ticks a dynamic import takes
-  // depends on whether another test file already warmed the module cache, which is
-  // exactly the kind of thing that makes a suite pass alone and fail together. Wait on
-  // the condition instead: *some* panel has content. (Not the first one — Reka renders
-  // all four `tabpanel` elements and leaves the inactive ones empty, so `get()` would
-  // wait forever on the live panel.)
-  if (tab) {
+  // The 曲线 tab fetches history on mount; wait until that request has settled so the
+  // chart (or its empty state) has rendered rather than the loading placeholder.
+  if (tab === "charts") {
     await vi.waitFor(() =>
-      expect(
-        wrapper
-          .findAll("[role='tabpanel']")
-          .some((panel) => panel.text().length > 0),
-      ).toBe(true),
+      expect(wrapper.text()).not.toContain("正在加载历史数据"),
     );
   }
   return wrapper;
@@ -316,92 +357,63 @@ describe("找不到设备", () => {
 
 describe("视图切换", () => {
   /**
-   * Three answers to three questions asked at different times — right now / lately /
-   * that afternoon. They are tabs rather than one scroll because stacking them would
-   * bury 实时 under the other two, and 历史回放 is a tab here rather than a nav section
-   * because a separate page made you choose the same vehicle twice (`frontend-ia.md`).
+   * Four answers to four questions asked at different times — right now / lately /
+   * that afternoon / has this happened before. They are **real child routes** (Phase
+   * 18), rendered by the section tab strip, so a tab is a URL rather than a `?tab=`:
+   * the breadcrumb reads 设备 › <id> › 实时, and Back/Forward walk them.
    */
-  const tabLabels = (wrapper: Awaited<ReturnType<typeof mountDetail>>) =>
-    wrapper.findAll("[role='tab']").map((tab) => tab.text());
-
-  /**
-   * `mousedown`, not `click`: Reka activates a tab on pointer-down (matching the
-   * WAI-ARIA pattern), so a synthetic `click` alone selects nothing.
-   */
-  const openTab = async (
-    wrapper: Awaited<ReturnType<typeof mountDetail>>,
-    index: number,
-  ) => {
-    await wrapper.findAll("[role='tab']")[index]!.trigger("mousedown");
-    await flushPromises();
-  };
+  const tabStrip = (wrapper: Awaited<ReturnType<typeof mountDetail>>) =>
+    wrapper.find("nav[aria-label='分区导航']");
+  const tabLinks = (wrapper: Awaited<ReturnType<typeof mountDetail>>) =>
+    tabStrip(wrapper)
+      .findAll("a")
+      .map((link) => link.text());
 
   it("offers the four views, with 实时 first", async () => {
     seed();
     const wrapper = await mountDetail();
 
-    expect(tabLabels(wrapper)).toEqual(["实时", "曲线", "历史回放", "告警史"]);
-    expect(wrapper.find("[role='tab'][aria-selected='true']").text()).toBe(
+    expect(tabLinks(wrapper)).toEqual(["实时", "曲线", "回放", "告警史"]);
+    expect(tabStrip(wrapper).find("a[aria-current='page']").text()).toBe(
       "实时",
     );
   });
 
   it("opens the tab named in the URL, so a playback is a link", async () => {
-    // "Look at c12's playback" should be a URL rather than a sentence with a step in it.
-    seed();
-    const wrapper = await mountDetail("agv-01", "playback");
-
-    expect(wrapper.find("[role='tab'][aria-selected='true']").text()).toBe(
-      "历史回放",
-    );
-  });
-
-  it("ignores a tab name that is not one of the three", async () => {
-    seed();
-    const wrapper = await mountDetail("agv-01", "nonsense");
-
-    expect(wrapper.find("[role='tab'][aria-selected='true']").text()).toBe(
-      "实时",
-    );
-  });
-
-  it("puts the tab in the query, replacing rather than stacking history", async () => {
-    // `replace`, so the back button leaves the device instead of walking back through
-    // tabs one at a time. Asserted on the call rather than by walking history, because
-    // the latter measures vue-router's entry bookkeeping instead of this decision.
-    seed();
-    const wrapper = await mountDetail();
-    const replace = vi.spyOn(router, "replace");
-    const push = vi.spyOn(router, "push");
-
-    await openTab(wrapper, 1);
-
-    expect(router.currentRoute.value.query.tab).toBe("charts");
-    expect(router.currentRoute.value.params.deviceId).toBe("agv-01");
-    expect(replace).toHaveBeenCalled();
-    expect(push).not.toHaveBeenCalled();
-  });
-
-  it("drops the query entirely when returning to the default tab", async () => {
-    // `?tab=live` and no query mean the same thing, and only one of them should exist.
+    // "Look at c12's charts" should be a URL rather than a sentence with a step in it.
     seed();
     const wrapper = await mountDetail("agv-01", "charts");
 
-    await openTab(wrapper, 0);
+    expect(tabStrip(wrapper).find("a[aria-current='page']").text()).toBe(
+      "曲线",
+    );
+  });
 
-    expect(router.currentRoute.value.query.tab).toBeUndefined();
+  it("links each tab to its own route rather than a query toggle", async () => {
+    seed();
+    const wrapper = await mountDetail();
+
+    const hrefs = tabStrip(wrapper)
+      .findAll("a")
+      .map((link) => link.attributes("href"));
+    expect(hrefs).toEqual([
+      "/devices/agv-01",
+      "/devices/agv-01/charts",
+      "/devices/agv-01/playback",
+      "/devices/agv-01/alerts",
+    ]);
   });
 
   it("does not download the chart or map engine to show 实时", async () => {
-    // The three non-default panels are async, and the tab boundary is the split point:
-    // Reka does not mount an inactive panel, so "not needed yet" and "not loaded yet"
-    // coincide. Measured: this view's chunk went from 564 kB to 14.5 kB.
+    // Each tab is a lazy route import, so arriving at 实时 mounts none of ECharts: the
+    // split point and the "do we need this yet" point are the same line. Measured in the
+    // bundle by `e2e/specs/console-devices.spec.ts`; here the proxy is that the component
+    // is not in the tree.
     seed();
     const wrapper = await mountDetail();
 
     expect(wrapper.findComponent(TimeSeriesChart).exists()).toBe(false);
-    // The panel element exists (Reka renders the active one only), and the live tab's
-    // own content is there.
+    // The live tab's own content is there.
     expect(wrapper.text()).toContain("报码解读");
   });
 });
@@ -420,9 +432,10 @@ describe("历史曲线", () => {
     }) as unknown as HistorySample;
 
   /**
-   * Mounted on `?tab=charts`, and that is the assertion as much as the setup: Reka does
-   * not mount an inactive panel, so a device opened on 实时 issues no history request
-   * at all. `mountCharts()` failing to find a chart would mean the tab did not open.
+   * Mounted on the `charts` child route, and that is the assertion as much as the
+   * setup: the tab is a lazy child route, so a device opened on 实时 mounts neither this
+   * component nor its history request. `mountCharts()` failing to find a chart would
+   * mean the tab did not open.
    */
   const mountCharts = () => mountDetail("agv-01", "charts");
 
