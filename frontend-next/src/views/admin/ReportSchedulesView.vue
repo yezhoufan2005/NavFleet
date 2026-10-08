@@ -365,7 +365,7 @@ const weekdayLabel = (weekday?: number): string =>
                   v-model="sId"
                   type="text"
                   :disabled="saving"
-                  size="md"
+                  size="sm"
                 />
               </label>
               <label class="flex flex-col gap-1">
@@ -388,7 +388,7 @@ const weekdayLabel = (weekday?: number): string =>
                   type="text"
                   placeholder="08:00"
                   :disabled="saving"
-                  size="md"
+                  size="sm"
                   class="font-mono"
                 />
               </label>
@@ -418,7 +418,7 @@ const weekdayLabel = (weekday?: number): string =>
                 type="text"
                 placeholder="如 REPORTS_SMTP_URL"
                 :disabled="saving"
-                size="md"
+                size="sm"
                 class="font-mono"
               />
               <span class="text-2xs text-ink-subtle"
@@ -432,7 +432,7 @@ const weekdayLabel = (weekday?: number): string =>
                 type="text"
                 placeholder="reports@example.com"
                 :disabled="saving"
-                size="md"
+                size="sm"
               />
             </label>
             <label class="flex flex-col gap-1">
@@ -452,7 +452,7 @@ const weekdayLabel = (weekday?: number): string =>
                 type="text"
                 placeholder="逗号分隔的组名，引用 notify.json 里的命名收件人组"
                 :disabled="saving"
-                size="md"
+                size="sm"
               />
             </label>
             <p

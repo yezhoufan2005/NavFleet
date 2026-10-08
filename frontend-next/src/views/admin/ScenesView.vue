@@ -592,7 +592,7 @@ const runDelete = async (): Promise<void> => {
               v-model="fSceneId"
               type="text"
               :disabled="mode === 'edit' || saving"
-              size="md"
+              size="sm"
             />
           </label>
           <label class="flex flex-col gap-1">
@@ -601,7 +601,7 @@ const runDelete = async (): Promise<void> => {
               v-model="fSceneName"
               type="text"
               :disabled="saving"
-              size="md"
+              size="sm"
             />
           </label>
           <label class="flex flex-col gap-1">
@@ -610,7 +610,7 @@ const runDelete = async (): Promise<void> => {
               v-model="fMapFrame"
               type="text"
               :disabled="saving"
-              size="md"
+              size="sm"
             />
           </label>
           <div class="grid grid-cols-3 gap-2">
@@ -620,7 +620,7 @@ const runDelete = async (): Promise<void> => {
                 v-model="fResolution"
                 type="text"
                 :disabled="saving"
-                size="md"
+                size="sm"
               />
             </label>
             <label class="flex flex-col gap-1">
@@ -629,7 +629,7 @@ const runDelete = async (): Promise<void> => {
                 v-model="fWidth"
                 type="text"
                 :disabled="saving"
-                size="md"
+                size="sm"
               />
             </label>
             <label class="flex flex-col gap-1">
@@ -638,7 +638,7 @@ const runDelete = async (): Promise<void> => {
                 v-model="fHeight"
                 type="text"
                 :disabled="saving"
-                size="md"
+                size="sm"
               />
             </label>
           </div>
@@ -649,7 +649,7 @@ const runDelete = async (): Promise<void> => {
                 v-model="fOriginX"
                 type="text"
                 :disabled="saving"
-                size="md"
+                size="sm"
               />
             </label>
             <label class="flex flex-col gap-1">
@@ -658,7 +658,7 @@ const runDelete = async (): Promise<void> => {
                 v-model="fOriginY"
                 type="text"
                 :disabled="saving"
-                size="md"
+                size="sm"
               />
             </label>
             <label class="flex flex-col gap-1">
@@ -667,7 +667,7 @@ const runDelete = async (): Promise<void> => {
                 v-model="fOriginYaw"
                 type="text"
                 :disabled="saving"
-                size="md"
+                size="sm"
               />
             </label>
           </div>

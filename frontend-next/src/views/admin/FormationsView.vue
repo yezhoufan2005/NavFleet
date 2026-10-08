@@ -332,12 +332,12 @@ const dialogTitle = computed(() =>
               v-model="fId"
               type="text"
               :disabled="mode === 'edit' || saving"
-              size="md"
+              size="sm"
             />
           </label>
           <label class="flex flex-col gap-1">
             <span class="text-sm font-medium text-ink">名称</span>
-            <UiInput v-model="fName" type="text" :disabled="saving" size="md" />
+            <UiInput v-model="fName" type="text" :disabled="saving" size="sm" />
           </label>
           <fieldset class="flex flex-col gap-1">
             <legend class="text-sm font-medium text-ink">
@@ -375,7 +375,7 @@ const dialogTitle = computed(() =>
               v-model="fDescription"
               type="text"
               :disabled="saving"
-              size="md"
+              size="sm"
             />
           </label>
           <label class="flex flex-col gap-1">
@@ -386,7 +386,7 @@ const dialogTitle = computed(() =>
               v-model="fColor"
               type="text"
               :disabled="saving"
-              size="md"
+              size="sm"
             />
           </label>
           <p v-if="formError" class="text-sm text-critical-ink" role="alert">

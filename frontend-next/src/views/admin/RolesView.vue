@@ -241,7 +241,7 @@ const roleDialogTitle = computed(() =>
                 v-model="rName"
                 type="text"
                 :disabled="roleSaving"
-                size="md"
+                size="sm"
               />
             </label>
             <fieldset class="flex flex-col gap-1 border-0 p-0">

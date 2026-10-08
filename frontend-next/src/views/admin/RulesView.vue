@@ -227,7 +227,7 @@ const resetToDefaults = (): void => applyConfig(DEFAULT_ALERT_RULES);
               min="1"
               max="100"
               :disabled="saving || !lbEnabled"
-              size="md"
+              size="sm"
             />
           </label>
           <label class="flex flex-col gap-1">
@@ -237,7 +237,7 @@ const resetToDefaults = (): void => applyConfig(DEFAULT_ALERT_RULES);
               type="number"
               min="0"
               :disabled="saving || !lbEnabled"
-              size="md"
+              size="sm"
             />
           </label>
         </div>
@@ -249,7 +249,7 @@ const resetToDefaults = (): void => applyConfig(DEFAULT_ALERT_RULES);
               v-model="lbScope.deviceIds"
               type="text"
               :disabled="saving"
-              size="md"
+              size="sm"
             />
           </label>
           <label class="flex flex-col gap-1">
@@ -258,7 +258,7 @@ const resetToDefaults = (): void => applyConfig(DEFAULT_ALERT_RULES);
               v-model="lbScope.formationIds"
               type="text"
               :disabled="saving"
-              size="md"
+              size="sm"
             />
           </label>
           <label class="flex flex-col gap-1">
@@ -267,7 +267,7 @@ const resetToDefaults = (): void => applyConfig(DEFAULT_ALERT_RULES);
               v-model="lbScope.tags"
               type="text"
               :disabled="saving"
-              size="md"
+              size="sm"
             />
           </label>
         </fieldset>
@@ -295,7 +295,7 @@ const resetToDefaults = (): void => applyConfig(DEFAULT_ALERT_RULES);
             min="1"
             placeholder="留空用系统默认"
             :disabled="saving || !offEnabled"
-            size="md"
+            size="sm"
           />
         </label>
         <fieldset class="grid grid-cols-3 gap-2 border-0 p-0">
@@ -306,7 +306,7 @@ const resetToDefaults = (): void => applyConfig(DEFAULT_ALERT_RULES);
               v-model="offScope.deviceIds"
               type="text"
               :disabled="saving"
-              size="md"
+              size="sm"
             />
           </label>
           <label class="flex flex-col gap-1">
@@ -315,7 +315,7 @@ const resetToDefaults = (): void => applyConfig(DEFAULT_ALERT_RULES);
               v-model="offScope.formationIds"
               type="text"
               :disabled="saving"
-              size="md"
+              size="sm"
             />
           </label>
           <label class="flex flex-col gap-1">
@@ -324,7 +324,7 @@ const resetToDefaults = (): void => applyConfig(DEFAULT_ALERT_RULES);
               v-model="offScope.tags"
               type="text"
               :disabled="saving"
-              size="md"
+              size="sm"
             />
           </label>
         </fieldset>
