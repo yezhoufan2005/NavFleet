@@ -186,7 +186,15 @@ const kioskUsernames = computed(
         还没有用户组
       </p>
       <div v-else :class="[tableClasses.wrapper, 'overflow-hidden']">
-        <table :class="tableClasses.table">
+        <table :class="[tableClasses.table, 'table-fixed']">
+          <!-- Fixed widths, every column pinned (none width-less) so the columns grow evenly on a
+               wide table — modelled on the device list. 角色 carries the slack and truncates. -->
+          <colgroup>
+            <col class="w-40" />
+            <col class="w-64" />
+            <col class="w-20" />
+            <col class="w-28" />
+          </colgroup>
           <thead :class="tableClasses.thead">
             <tr>
               <th scope="col" class="px-3 py-2">名称</th>
@@ -201,8 +209,8 @@ const kioskUsernames = computed(
               :key="group.id"
               :class="tableClasses.row"
             >
-              <td class="px-3 py-2 text-ink">{{ group.name }}</td>
-              <td class="px-3 py-2 text-ink-muted">
+              <td class="truncate px-3 py-2 text-ink">{{ group.name }}</td>
+              <td class="truncate px-3 py-2 text-ink-muted">
                 {{ group.roleIds.map(roleName).join("、") || "—" }}
               </td>
               <td class="px-3 py-2 text-ink-muted tabular-nums">

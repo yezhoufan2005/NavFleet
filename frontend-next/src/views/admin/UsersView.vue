@@ -322,7 +322,17 @@ const formatTime = (iso: string | null): string =>
       role="region"
       aria-label="用户列表"
     >
-      <table :class="tableClasses.table">
+      <table :class="[tableClasses.table, 'table-fixed']">
+        <!-- Fixed widths, every column pinned (none width-less) so the columns grow evenly on a
+             wide table — modelled on the device list. 用户名 carries the slack; 操作 fits its five
+             buttons; an over-long value truncates rather than widening its column. -->
+        <colgroup>
+          <col class="w-64" />
+          <col class="w-20" />
+          <col class="w-24" />
+          <col class="w-44" />
+          <col class="w-72" />
+        </colgroup>
         <caption class="sr-only">
           账号、角色、状态与管理操作
         </caption>

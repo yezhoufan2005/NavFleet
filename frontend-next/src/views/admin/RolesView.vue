@@ -168,7 +168,15 @@ const roleDialogTitle = computed(() =>
         还没有角色
       </p>
       <div v-else :class="[tableClasses.wrapper, 'overflow-hidden']">
-        <table :class="tableClasses.table">
+        <table :class="[tableClasses.table, 'table-fixed']">
+          <!-- Fixed widths, every column pinned (none width-less) so the columns grow evenly on a
+               wide table — modelled on the device list. 能力 (the long capability list) carries the
+               slack and wraps within its column. -->
+          <colgroup>
+            <col class="w-40" />
+            <col class="w-96" />
+            <col class="w-28" />
+          </colgroup>
           <thead :class="tableClasses.thead">
             <tr>
               <th scope="col" class="px-3 py-2">名称</th>
@@ -178,7 +186,7 @@ const roleDialogTitle = computed(() =>
           </thead>
           <tbody>
             <tr v-for="role in roles" :key="role.id" :class="tableClasses.row">
-              <td class="px-3 py-2 text-ink">{{ role.name }}</td>
+              <td class="truncate px-3 py-2 text-ink">{{ role.name }}</td>
               <td class="px-3 py-2 text-ink-muted">
                 {{
                   role.capabilities.map((c) => CAP_LABELS[c]).join("、") || "—"

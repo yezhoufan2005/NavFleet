@@ -472,7 +472,16 @@ useAutoRefresh(() => void load(), {
         还没配置渠道
       </p>
       <div v-else :class="[tableClasses.wrapper, 'overflow-hidden']">
-        <table :class="tableClasses.table">
+        <table :class="[tableClasses.table, 'table-fixed']">
+          <!-- Fixed widths, every column pinned (none width-less) so the columns grow evenly on a
+               wide table — modelled on the device list. 严重度 carries the slack. -->
+          <colgroup>
+            <col class="w-40" />
+            <col class="w-24" />
+            <col class="w-48" />
+            <col class="w-32" />
+            <col class="w-28" />
+          </colgroup>
           <thead :class="tableClasses.thead">
             <tr>
               <th scope="col" class="px-3 py-2">渠道</th>
@@ -575,7 +584,20 @@ useAutoRefresh(() => void load(), {
         role="region"
         aria-label="发送记录"
       >
-        <table :class="tableClasses.table">
+        <table :class="[tableClasses.table, 'table-fixed']">
+          <!-- Fixed widths so the geometry does not shift as the log reloads under a filter; the
+               region scrolls sideways when the columns do not fit, text cells truncate. -->
+          <colgroup>
+            <col class="w-40" />
+            <col class="w-28" />
+            <col class="w-56" />
+            <col class="w-32" />
+            <col class="w-20" />
+            <col class="w-20" />
+            <col class="w-16" />
+            <col class="w-20" />
+            <col class="w-48" />
+          </colgroup>
           <caption class="sr-only">
             告警外发的发送记录，最新在前
           </caption>
@@ -601,9 +623,9 @@ useAutoRefresh(() => void load(), {
               <td class="px-3 py-2 whitespace-nowrap text-ink-muted">
                 {{ formatTime(record.ts) }}
               </td>
-              <td class="px-3 py-2 text-ink">{{ record.deviceId }}</td>
-              <td class="px-3 py-2 text-ink">{{ record.title }}</td>
-              <td class="px-3 py-2 text-ink">
+              <td class="truncate px-3 py-2 text-ink">{{ record.deviceId }}</td>
+              <td class="truncate px-3 py-2 text-ink">{{ record.title }}</td>
+              <td class="truncate px-3 py-2 text-ink">
                 {{ record.channelId }}
                 <span class="text-2xs text-ink-subtle">{{
                   CHANNEL_TYPE_LABELS[record.channelType] ?? record.channelType
@@ -626,7 +648,7 @@ useAutoRefresh(() => void load(), {
               <td class="px-3 py-2 text-ink-muted">
                 {{ record.latencyMs === null ? "—" : `${record.latencyMs}ms` }}
               </td>
-              <td class="px-3 py-2 text-ink-muted">
+              <td class="truncate px-3 py-2 text-ink-muted">
                 {{ record.error ?? "—" }}
               </td>
             </tr>

@@ -272,7 +272,16 @@ const weekdayLabel = (weekday?: number): string =>
         还没有定时报表
       </p>
       <div v-else :class="[tableClasses.wrapper, 'overflow-hidden']">
-        <table :class="tableClasses.table">
+        <table :class="[tableClasses.table, 'table-fixed']">
+          <!-- Fixed widths, every column pinned (none width-less) so the columns grow evenly on a
+               wide table — modelled on the device list. 发件人 carries the slack. -->
+          <colgroup>
+            <col class="w-40" />
+            <col class="w-28" />
+            <col class="w-32" />
+            <col class="w-64" />
+            <col v-if="canWrite" class="w-28" />
+          </colgroup>
           <thead :class="tableClasses.thead">
             <tr>
               <th scope="col" class="px-3 py-2">报表</th>
@@ -290,19 +299,21 @@ const weekdayLabel = (weekday?: number): string =>
               :key="schedule.id"
               :class="tableClasses.row"
             >
-              <td class="px-3 py-2 text-ink">
+              <td class="truncate px-3 py-2 text-ink">
                 {{ schedule.id }}
                 <span class="text-2xs text-ink-subtle">{{
                   schedule.enabled ? "启用" : "停用"
                 }}</span>
               </td>
-              <td class="px-3 py-2 text-ink-muted">
+              <td class="truncate px-3 py-2 text-ink-muted">
                 {{ RANGE_LABELS[schedule.range] ?? schedule.range }}
               </td>
               <td class="px-3 py-2 text-ink-muted tabular-nums">
                 {{ weekdayLabel(schedule.weekday) }} {{ schedule.time }}
               </td>
-              <td class="px-3 py-2 text-ink-muted">{{ schedule.from }}</td>
+              <td class="truncate px-3 py-2 text-ink-muted">
+                {{ schedule.from }}
+              </td>
               <td v-if="canWrite" class="px-3 py-2">
                 <span class="flex justify-end gap-2">
                   <UiButton

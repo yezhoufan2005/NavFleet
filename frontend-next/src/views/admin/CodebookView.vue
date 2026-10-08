@@ -319,7 +319,19 @@ const rowDialogTitle = computed(() =>
       <p class="m-0 text-xs text-ink-subtle">{{ overrideHint }}</p>
 
       <div :class="[tableClasses.wrapper, 'overflow-x-auto']">
-        <table :class="tableClasses.table">
+        <table :class="[tableClasses.table, 'table-fixed']">
+          <!-- Fixed widths, every column pinned (none width-less) so the columns grow evenly on a
+               wide table — modelled on the device list. 说明 (the longest field) carries the slack
+               and wraps; the rest truncate. -->
+          <colgroup>
+            <col class="w-20" />
+            <col class="w-40" />
+            <col class="w-24" />
+            <col class="w-24" />
+            <col class="w-28" />
+            <col class="w-80" />
+            <col v-if="canWrite" class="w-28" />
+          </colgroup>
           <caption class="sr-only">
             生效的报码字典：报码、名称、通道、等级、子系统、说明与处理建议
           </caption>
@@ -342,17 +354,19 @@ const rowDialogTitle = computed(() =>
               :key="entry.code"
               :class="[tableClasses.row, 'align-top']"
             >
-              <td class="px-3 py-2 font-mono text-ink">{{ entry.code }}</td>
-              <td class="px-3 py-2 whitespace-nowrap text-ink">
+              <td class="truncate px-3 py-2 font-mono text-ink">
+                {{ entry.code }}
+              </td>
+              <td class="truncate px-3 py-2 text-ink">
                 {{ entry.label }}
               </td>
-              <td class="px-4 py-2 whitespace-nowrap text-ink-muted">
+              <td class="truncate px-4 py-2 text-ink-muted">
                 {{ CHANNEL_LABELS[entry.channel] }}
               </td>
-              <td class="px-3 py-2 whitespace-nowrap text-ink-muted">
+              <td class="truncate px-3 py-2 text-ink-muted">
                 {{ CODE_IMPACTS[entry.impact].label }}
               </td>
-              <td class="px-3 py-2 whitespace-nowrap text-ink-muted">
+              <td class="truncate px-3 py-2 text-ink-muted">
                 {{ CODE_SUBSYSTEMS[entry.subsystem] }}
               </td>
               <td class="px-3 py-2 text-ink-muted">
