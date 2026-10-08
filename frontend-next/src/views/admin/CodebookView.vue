@@ -23,6 +23,7 @@ import {
   DialogTitle,
 } from "reka-ui";
 import PageHeader from "@/components/PageHeader.vue";
+import AppSectionTabs from "@/components/shell/AppSectionTabs.vue";
 import UiButton from "@/components/ui/UiButton.vue";
 import UiConfirmDialog from "@/components/ui/UiConfirmDialog.vue";
 import UiSelect from "@/components/ui/UiSelect.vue";
@@ -267,7 +268,7 @@ const rowDialogTitle = computed(() =>
 </script>
 
 <template>
-  <PageHeader title="报码字典">
+  <PageHeader title="部署">
     <template #actions>
       <UiButton v-if="canWrite" size="sm" @click="openCreateRow"
         >新建报码</UiButton
@@ -291,6 +292,8 @@ const rowDialogTitle = computed(() =>
         @change="onFileChosen"
       />
     </template>
+
+    <AppSectionTabs />
 
     <p
       v-if="importError"

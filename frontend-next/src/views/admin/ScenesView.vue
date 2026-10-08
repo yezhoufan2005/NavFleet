@@ -34,6 +34,7 @@ import {
   DialogTitle,
 } from "reka-ui";
 import PageHeader from "@/components/PageHeader.vue";
+import AppSectionTabs from "@/components/shell/AppSectionTabs.vue";
 import UiButton from "@/components/ui/UiButton.vue";
 import UiSelect from "@/components/ui/UiSelect.vue";
 import UiConfirmDialog from "@/components/ui/UiConfirmDialog.vue";
@@ -415,12 +416,14 @@ const runDelete = async (): Promise<void> => {
 </script>
 
 <template>
-  <PageHeader title="场景">
+  <PageHeader title="部署">
     <template #actions>
       <UiButton size="sm" :disabled="status !== 'ready'" @click="openCreate">
         新增场景
       </UiButton>
     </template>
+
+    <AppSectionTabs />
 
     <p v-if="status === 'loading'" class="text-sm text-ink-muted" role="status">
       正在读取场景配置…

@@ -23,6 +23,7 @@ import {
 import { fleetApi } from "@navfleet/fleet-core";
 import type { DeviceConfig, FormationConfig } from "@navfleet/shared";
 import PageHeader from "@/components/PageHeader.vue";
+import AppSectionTabs from "@/components/shell/AppSectionTabs.vue";
 import UiButton from "@/components/ui/UiButton.vue";
 import UiSelect from "@/components/ui/UiSelect.vue";
 import UiConfirmDialog from "@/components/ui/UiConfirmDialog.vue";
@@ -330,7 +331,9 @@ const gTitle = computed(() =>
 </script>
 
 <template>
-  <PageHeader title="设备接入">
+  <PageHeader title="部署">
+    <AppSectionTabs />
+
     <p class="m-0 text-sm text-ink-muted">
       配置车辆与编队并写入 <code>vehicles.json</code> /
       <code>formations.json</code>

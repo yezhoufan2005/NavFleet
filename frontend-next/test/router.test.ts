@@ -71,6 +71,16 @@ describe("route table", () => {
       // The 管理 deep links the two pages used to live at, kept as redirects for old bookmarks.
       { path: "/admin/users", name: undefined, title: undefined },
       { path: "/admin/roles", name: undefined, title: undefined },
+      // 部署 — deployment config (1.6.2 IA): 设备接入 / 场景 / 报码字典, each gated on its own
+      // capability. 设备接入 is the `""` child (shares /deploy), so the nav item stays lit on all
+      // tabs; the section admits any-of the three write capabilities.
+      { path: "/deploy", name: undefined, title: "部署" },
+      { path: "/deploy", name: "deploy-onboarding", title: undefined },
+      { path: "/deploy/scenes", name: "deploy-scenes", title: "场景" },
+      { path: "/deploy/codebook", name: "deploy-codebook", title: "报码字典" },
+      { path: "/admin/onboarding", name: undefined, title: undefined },
+      { path: "/admin/scenes", name: undefined, title: undefined },
+      { path: "/admin/codebook", name: undefined, title: undefined },
       // 管理 is nested for the same reason 设备 is: `router-link-active` follows
       // matched records, so a child page has to keep the section lit. Its landing
       // page is a real page rather than a redirect into the first child (C2), which
@@ -78,13 +88,6 @@ describe("route table", () => {
       { path: "/admin", name: undefined, title: "管理" },
       { path: "/admin", name: "admin", title: undefined },
       { path: "/admin/system", name: "admin-system", title: "系统状态" },
-      { path: "/admin/scenes", name: "admin-scenes", title: "场景" },
-      {
-        path: "/admin/onboarding",
-        name: "admin-onboarding",
-        title: "设备接入",
-      },
-      { path: "/admin/codebook", name: "admin-codebook", title: "报码字典" },
       { path: "/admin/notify", name: "admin-notify", title: "外发" },
       { path: "/admin/audit", name: "admin-audit", title: "审计" },
       // Personal center: any authenticated user, so it carries no roles and is
@@ -194,6 +197,15 @@ describe("primary navigation", () => {
     for (const path of ["/access", "/access/roles", "/access/groups"]) {
       const wrapper = await mountNav(path);
       expect(link(wrapper, "用户")?.classes().join(" "), path).toContain(
+        ACTIVE,
+      );
+    }
+  });
+
+  it("keeps 部署 lit on any of its tabs (1.6.2 IA)", async () => {
+    for (const path of ["/deploy", "/deploy/scenes", "/deploy/codebook"]) {
+      const wrapper = await mountNav(path);
+      expect(link(wrapper, "部署")?.classes().join(" "), path).toContain(
         ACTIVE,
       );
     }
