@@ -13,14 +13,6 @@
  * become sentences via `messageFor`.
  */
 import { computed, onMounted, ref } from "vue";
-import {
-  DialogContent,
-  DialogDescription,
-  DialogOverlay,
-  DialogPortal,
-  DialogRoot,
-  DialogTitle,
-} from "reka-ui";
 import { fleetApi } from "@navfleet/fleet-core";
 import { CAPABILITIES, type Capability, type RbacRole } from "@navfleet/shared";
 import PageHeader from "@/components/PageHeader.vue";
@@ -28,6 +20,7 @@ import AppSectionTabs from "@/components/shell/AppSectionTabs.vue";
 import UiButton from "@/components/ui/UiButton.vue";
 import UiInput from "@/components/ui/UiInput.vue";
 import UiConfirmDialog from "@/components/ui/UiConfirmDialog.vue";
+import UiModal from "@/components/ui/UiModal.vue";
 import { tableClasses } from "@/lib/uiClasses";
 import { makeMessageFor } from "@/lib/errorMessages";
 import { notify } from "@/composables/useNotifications";
@@ -211,84 +204,69 @@ const roleDialogTitle = computed(() =>
     </template>
 
     <!-- Role dialog -->
-    <DialogRoot
+    <UiModal
       :open="roleMode !== null"
+      :title="roleDialogTitle"
+      description="填写角色名与能力后提交"
       @update:open="
         (open) => {
           if (!open) closeRoleDialog();
         }
       "
     >
-      <DialogPortal>
-        <DialogOverlay class="fixed inset-0 z-50 bg-scrim/55" />
-        <DialogContent
-          class="fixed top-1/2 left-1/2 z-50 flex w-full max-w-100 -translate-x-1/2 -translate-y-1/2 flex-col gap-3 rounded-md border border-border bg-surface-raised p-5 shadow-overlay"
-        >
-          <DialogTitle class="text-md font-semibold text-ink">{{
-            roleDialogTitle
-          }}</DialogTitle>
-          <DialogDescription class="sr-only"
-            >填写角色名与能力后提交</DialogDescription
-          >
-          <form
-            class="flex flex-col gap-3"
-            :aria-busy="roleSaving"
-            @submit.prevent="submitRole"
-          >
-            <label class="flex flex-col gap-1">
-              <span class="text-sm font-medium text-ink">名称</span>
-              <UiInput
-                v-model="rName"
-                type="text"
-                :disabled="roleSaving"
-                size="sm"
-              />
-            </label>
-            <fieldset class="flex flex-col gap-1 border-0 p-0">
-              <legend class="mb-1 text-sm font-medium text-ink">能力</legend>
-              <div class="grid max-h-56 grid-cols-2 gap-1 overflow-auto">
-                <label
-                  v-for="capability in CAPABILITIES"
-                  :key="capability"
-                  class="flex items-center gap-2 text-xs text-ink-muted"
-                >
-                  <input
-                    type="checkbox"
-                    class="size-4"
-                    :checked="rCaps.includes(capability)"
-                    :disabled="roleSaving"
-                    @change="toggleCap(capability)"
-                  />
-                  {{ CAP_LABELS[capability] }}
-                </label>
-              </div>
-            </fieldset>
-            <p
-              v-if="roleError"
-              class="m-0 text-sm text-critical-ink"
-              role="alert"
+      <form
+        class="flex flex-col gap-3"
+        :aria-busy="roleSaving"
+        @submit.prevent="submitRole"
+      >
+        <label class="flex flex-col gap-1">
+          <span class="text-sm font-medium text-ink">名称</span>
+          <UiInput
+            v-model="rName"
+            type="text"
+            :disabled="roleSaving"
+            size="sm"
+          />
+        </label>
+        <fieldset class="flex flex-col gap-1 border-0 p-0">
+          <legend class="mb-1 text-sm font-medium text-ink">能力</legend>
+          <div class="grid max-h-56 grid-cols-2 gap-1 overflow-auto">
+            <label
+              v-for="capability in CAPABILITIES"
+              :key="capability"
+              class="flex items-center gap-2 text-xs text-ink-muted"
             >
-              {{ roleError }}
-            </p>
-            <div class="flex justify-end gap-2">
-              <UiButton
-                variant="secondary"
-                size="sm"
-                type="button"
-                @click="closeRoleDialog"
-                >取消</UiButton
-              >
-              <UiButton
-                size="sm"
-                type="submit"
-                :disabled="roleSaving || !rName.trim()"
-                >保存</UiButton
-              >
-            </div>
-          </form>
-        </DialogContent>
-      </DialogPortal>
-    </DialogRoot>
+              <input
+                type="checkbox"
+                class="size-4"
+                :checked="rCaps.includes(capability)"
+                :disabled="roleSaving"
+                @change="toggleCap(capability)"
+              />
+              {{ CAP_LABELS[capability] }}
+            </label>
+          </div>
+        </fieldset>
+        <p v-if="roleError" class="m-0 text-sm text-critical-ink" role="alert">
+          {{ roleError }}
+        </p>
+        <div class="flex justify-end gap-2">
+          <UiButton
+            variant="secondary"
+            size="sm"
+            type="button"
+            @click="closeRoleDialog"
+            >取消</UiButton
+          >
+          <UiButton
+            size="sm"
+            type="submit"
+            :disabled="roleSaving || !rName.trim()"
+            >保存</UiButton
+          >
+        </div>
+      </form>
+    </UiModal>
 
     <UiConfirmDialog
       :open="confirmRoleDelete !== null"

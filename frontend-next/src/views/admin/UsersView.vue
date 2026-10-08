@@ -11,14 +11,6 @@
  */
 import { computed, onMounted, ref, watch } from "vue";
 import {
-  DialogContent,
-  DialogDescription,
-  DialogOverlay,
-  DialogPortal,
-  DialogRoot,
-  DialogTitle,
-} from "reka-ui";
-import {
   fleetApi,
   type AdminUser,
   type SessionRecordView,
@@ -30,6 +22,7 @@ import UiButton from "@/components/ui/UiButton.vue";
 import UiInput from "@/components/ui/UiInput.vue";
 import UiSelect from "@/components/ui/UiSelect.vue";
 import UiConfirmDialog from "@/components/ui/UiConfirmDialog.vue";
+import UiModal from "@/components/ui/UiModal.vue";
 import { tableClasses } from "@/lib/uiClasses";
 import { makeMessageFor } from "@/lib/errorMessages";
 import { notify } from "@/composables/useNotifications";
@@ -459,135 +452,110 @@ const formatTime = (iso: string | null): string =>
         </tbody>
       </table>
     </div>
-    <DialogRoot
+    <UiModal
       :open="mode !== null"
+      :title="dialogTitle"
+      description="填写表单后提交"
       @update:open="
         (open) => {
           if (!open) closeDialog();
         }
       "
     >
-      <DialogPortal>
-        <DialogOverlay class="fixed inset-0 z-50 bg-scrim/55" />
-        <DialogContent
-          class="fixed top-1/2 left-1/2 z-50 flex w-full max-w-100 -translate-x-1/2 -translate-y-1/2 flex-col gap-3 rounded-md border border-border bg-surface-raised p-5 shadow-overlay"
+      <form
+        class="flex flex-col gap-3"
+        :aria-busy="saving"
+        @submit.prevent="submitForm"
+      >
+        <label v-if="mode === 'create'" class="flex flex-col gap-1">
+          <span class="text-sm font-medium text-ink">用户名</span>
+          <UiInput
+            v-model="fUsername"
+            type="text"
+            :disabled="saving"
+            size="sm"
+          />
+        </label>
+        <label
+          v-if="mode === 'create' || mode === 'reset'"
+          class="flex flex-col gap-1"
         >
-          <DialogTitle class="text-md font-semibold text-ink">{{
-            dialogTitle
-          }}</DialogTitle>
-          <DialogDescription class="sr-only">填写表单后提交</DialogDescription>
-          <form
-            class="flex flex-col gap-3"
-            :aria-busy="saving"
-            @submit.prevent="submitForm"
+          <span class="text-sm font-medium text-ink">
+            {{ mode === "reset" ? "新密码" : "密码" }}
+          </span>
+          <UiInput
+            v-model="fPassword"
+            type="password"
+            autocomplete="new-password"
+            placeholder="至少 8 位，含字母与数字"
+            :disabled="saving"
+            size="sm"
+          />
+        </label>
+        <label
+          v-if="mode === 'create' || mode === 'edit'"
+          class="flex flex-col gap-1"
+        >
+          <span class="text-sm font-medium text-ink">角色</span>
+          <UiSelect v-model="fRole" :options="ROLE_OPTIONS" aria-label="角色" />
+        </label>
+        <label
+          v-if="mode === 'create' || mode === 'edit'"
+          class="flex flex-col gap-1"
+        >
+          <span class="text-sm font-medium text-ink">显示名</span>
+          <UiInput
+            v-model="fDisplayName"
+            type="text"
+            :disabled="saving"
+            size="sm"
+          />
+        </label>
+        <label
+          v-if="mode === 'create' || mode === 'edit'"
+          class="flex flex-col gap-1"
+        >
+          <span class="text-sm font-medium text-ink">邮箱</span>
+          <UiInput v-model="fEmail" type="text" :disabled="saving" size="sm" />
+        </label>
+        <label
+          v-if="mode === 'create' || mode === 'edit'"
+          class="flex flex-col gap-1"
+        >
+          <span class="text-sm font-medium text-ink">电话</span>
+          <UiInput v-model="fPhone" type="text" :disabled="saving" size="sm" />
+        </label>
+        <label v-if="mode === 'create'" class="flex flex-col gap-1">
+          <span class="flex items-center gap-2">
+            <input v-model="fKiosk" type="checkbox" :disabled="saving" />
+            <span class="text-sm text-ink">大屏 kiosk 账号（长效只读）</span>
+          </span>
+          <span class="text-2xs text-ink-subtle">
+            固定为只读角色，登录后会话数月不掉线，用于无人值守的墙面大屏
+          </span>
+        </label>
+        <label v-if="mode === 'edit'" class="flex items-center gap-2">
+          <input v-model="fEnabled" type="checkbox" :disabled="saving" />
+          <span class="text-sm text-ink">启用该账号</span>
+        </label>
+        <p v-if="formError" class="text-sm text-critical-ink" role="alert">
+          {{ formError }}
+        </p>
+        <div class="mt-1 flex justify-end gap-2">
+          <UiButton
+            variant="secondary"
+            size="sm"
+            :disabled="saving"
+            @click="closeDialog"
           >
-            <label v-if="mode === 'create'" class="flex flex-col gap-1">
-              <span class="text-sm font-medium text-ink">用户名</span>
-              <UiInput
-                v-model="fUsername"
-                type="text"
-                :disabled="saving"
-                size="sm"
-              />
-            </label>
-            <label
-              v-if="mode === 'create' || mode === 'reset'"
-              class="flex flex-col gap-1"
-            >
-              <span class="text-sm font-medium text-ink">
-                {{ mode === "reset" ? "新密码" : "密码" }}
-              </span>
-              <UiInput
-                v-model="fPassword"
-                type="password"
-                autocomplete="new-password"
-                placeholder="至少 8 位，含字母与数字"
-                :disabled="saving"
-                size="sm"
-              />
-            </label>
-            <label
-              v-if="mode === 'create' || mode === 'edit'"
-              class="flex flex-col gap-1"
-            >
-              <span class="text-sm font-medium text-ink">角色</span>
-              <UiSelect
-                v-model="fRole"
-                :options="ROLE_OPTIONS"
-                aria-label="角色"
-              />
-            </label>
-            <label
-              v-if="mode === 'create' || mode === 'edit'"
-              class="flex flex-col gap-1"
-            >
-              <span class="text-sm font-medium text-ink">显示名</span>
-              <UiInput
-                v-model="fDisplayName"
-                type="text"
-                :disabled="saving"
-                size="sm"
-              />
-            </label>
-            <label
-              v-if="mode === 'create' || mode === 'edit'"
-              class="flex flex-col gap-1"
-            >
-              <span class="text-sm font-medium text-ink">邮箱</span>
-              <UiInput
-                v-model="fEmail"
-                type="text"
-                :disabled="saving"
-                size="sm"
-              />
-            </label>
-            <label
-              v-if="mode === 'create' || mode === 'edit'"
-              class="flex flex-col gap-1"
-            >
-              <span class="text-sm font-medium text-ink">电话</span>
-              <UiInput
-                v-model="fPhone"
-                type="text"
-                :disabled="saving"
-                size="sm"
-              />
-            </label>
-            <label v-if="mode === 'create'" class="flex flex-col gap-1">
-              <span class="flex items-center gap-2">
-                <input v-model="fKiosk" type="checkbox" :disabled="saving" />
-                <span class="text-sm text-ink"
-                  >大屏 kiosk 账号（长效只读）</span
-                >
-              </span>
-              <span class="text-2xs text-ink-subtle">
-                固定为只读角色，登录后会话数月不掉线，用于无人值守的墙面大屏
-              </span>
-            </label>
-            <label v-if="mode === 'edit'" class="flex items-center gap-2">
-              <input v-model="fEnabled" type="checkbox" :disabled="saving" />
-              <span class="text-sm text-ink">启用该账号</span>
-            </label>
-            <p v-if="formError" class="text-sm text-critical-ink" role="alert">
-              {{ formError }}
-            </p>
-            <div class="mt-1 flex justify-end gap-2">
-              <UiButton
-                variant="secondary"
-                size="sm"
-                :disabled="saving"
-                @click="closeDialog"
-              >
-                取消
-              </UiButton>
-              <UiButton type="submit" size="sm" :disabled="saving">
-                {{ saving ? "提交中…" : "保存" }}
-              </UiButton>
-            </div>
-          </form>
-        </DialogContent>
-      </DialogPortal>
-    </DialogRoot>
+            取消
+          </UiButton>
+          <UiButton type="submit" size="sm" :disabled="saving">
+            {{ saving ? "提交中…" : "保存" }}
+          </UiButton>
+        </div>
+      </form>
+    </UiModal>
 
     <UiConfirmDialog
       :open="confirm !== null"

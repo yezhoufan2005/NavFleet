@@ -19,14 +19,6 @@
  */
 import { computed, onMounted, ref, watch } from "vue";
 import { useRoute, useRouter } from "vue-router";
-import {
-  DialogContent,
-  DialogDescription,
-  DialogOverlay,
-  DialogPortal,
-  DialogRoot,
-  DialogTitle,
-} from "reka-ui";
 import { fleetApi } from "@navfleet/fleet-core";
 import {
   NOTIFY_CHANNEL_TYPES,
@@ -44,6 +36,7 @@ import PageHeader from "@/components/PageHeader.vue";
 import AppSectionTabs from "@/components/shell/AppSectionTabs.vue";
 import UiButton from "@/components/ui/UiButton.vue";
 import UiConfirmDialog from "@/components/ui/UiConfirmDialog.vue";
+import UiModal from "@/components/ui/UiModal.vue";
 import UiInput from "@/components/ui/UiInput.vue";
 import UiPager from "@/components/ui/UiPager.vue";
 import UiSelect from "@/components/ui/UiSelect.vue";
@@ -653,211 +646,185 @@ useAutoRefresh(() => void load(), {
     </template>
 
     <!-- Channel editor (notify:write). -->
-    <DialogRoot
+    <UiModal
       :open="chMode !== null"
+      :title="channelDialogTitle"
+      description="填写渠道的类型、订阅严重度与静默窗口后提交"
+      max-width="xl"
       @update:open="
         (open) => {
           if (!open) closeChannelDialog();
         }
       "
     >
-      <DialogPortal>
-        <DialogOverlay class="fixed inset-0 z-50 bg-scrim/55" />
-        <DialogContent
-          class="fixed top-1/2 left-1/2 z-50 flex max-h-[85vh] w-full max-w-140 -translate-x-1/2 -translate-y-1/2 flex-col gap-3 overflow-auto rounded-md border border-border bg-surface-raised p-5 shadow-overlay"
-        >
-          <DialogTitle class="text-md font-semibold text-ink">{{
-            channelDialogTitle
-          }}</DialogTitle>
-          <DialogDescription class="sr-only"
-            >填写渠道的类型、订阅严重度与静默窗口后提交</DialogDescription
+      <form
+        class="flex flex-col gap-3"
+        :aria-busy="chSaving"
+        @submit.prevent="submitChannel"
+      >
+        <div class="grid grid-cols-2 gap-3">
+          <label class="flex flex-col gap-1">
+            <span class="text-sm font-medium text-ink">渠道 ID</span>
+            <UiInput v-model="cId" type="text" :disabled="chSaving" size="sm" />
+          </label>
+          <label class="flex flex-col gap-1">
+            <span class="text-sm font-medium text-ink">类型</span>
+            <UiSelect
+              :model-value="cType"
+              :options="CHANNEL_TYPE_OPTIONS"
+              aria-label="渠道类型"
+              @update:model-value="
+                (value) => (cType = value as NotifyChannelType)
+              "
+            />
+          </label>
+        </div>
+        <label class="flex flex-col gap-1">
+          <span class="text-sm font-medium text-ink">端点环境变量名</span>
+          <UiInput
+            v-model="cUrlEnv"
+            type="text"
+            placeholder="如 NOTIFY_OPS_WEBHOOK_URL"
+            :disabled="chSaving"
+            size="sm"
+            class="font-mono"
+          />
+          <span class="text-2xs text-ink-subtle"
+            >留空表示未就绪：不发送不记失败</span
           >
-          <form
-            class="flex flex-col gap-3"
-            :aria-busy="chSaving"
-            @submit.prevent="submitChannel"
-          >
-            <div class="grid grid-cols-2 gap-3">
-              <label class="flex flex-col gap-1">
-                <span class="text-sm font-medium text-ink">渠道 ID</span>
-                <UiInput
-                  v-model="cId"
-                  type="text"
-                  :disabled="chSaving"
-                  size="sm"
-                />
-              </label>
-              <label class="flex flex-col gap-1">
-                <span class="text-sm font-medium text-ink">类型</span>
-                <UiSelect
-                  :model-value="cType"
-                  :options="CHANNEL_TYPE_OPTIONS"
-                  aria-label="渠道类型"
-                  @update:model-value="
-                    (value) => (cType = value as NotifyChannelType)
-                  "
-                />
-              </label>
-            </div>
-            <label class="flex flex-col gap-1">
-              <span class="text-sm font-medium text-ink">端点环境变量名</span>
-              <UiInput
-                v-model="cUrlEnv"
-                type="text"
-                placeholder="如 NOTIFY_OPS_WEBHOOK_URL"
-                :disabled="chSaving"
-                size="sm"
-                class="font-mono"
-              />
-              <span class="text-2xs text-ink-subtle"
-                >留空表示未就绪：不发送不记失败</span
-              >
-            </label>
-            <label class="flex items-center gap-2 text-sm text-ink">
+        </label>
+        <label class="flex items-center gap-2 text-sm text-ink">
+          <input
+            v-model="cEnabled"
+            type="checkbox"
+            class="size-4"
+            :disabled="chSaving"
+          />
+          启用该渠道
+        </label>
+        <fieldset class="flex flex-col gap-1 border-0 p-0">
+          <legend class="mb-1 text-sm font-medium text-ink">订阅严重度</legend>
+          <div class="flex flex-wrap gap-3">
+            <label
+              v-for="severity in NOTIFY_SEVERITIES"
+              :key="severity"
+              class="flex items-center gap-2 text-xs text-ink-muted"
+            >
               <input
-                v-model="cEnabled"
                 type="checkbox"
                 class="size-4"
+                :checked="cSeverities.includes(severity)"
                 :disabled="chSaving"
+                @change="toggleSeverity(severity)"
               />
-              启用该渠道
+              {{ severityLabel(severity) }}
             </label>
-            <fieldset class="flex flex-col gap-1 border-0 p-0">
-              <legend class="mb-1 text-sm font-medium text-ink">
-                订阅严重度
-              </legend>
-              <div class="flex flex-wrap gap-3">
-                <label
-                  v-for="severity in NOTIFY_SEVERITIES"
-                  :key="severity"
-                  class="flex items-center gap-2 text-xs text-ink-muted"
-                >
-                  <input
-                    type="checkbox"
-                    class="size-4"
-                    :checked="cSeverities.includes(severity)"
-                    :disabled="chSaving"
-                    @change="toggleSeverity(severity)"
-                  />
-                  {{ severityLabel(severity) }}
-                </label>
-              </div>
-            </fieldset>
-            <template v-if="isEmail">
-              <label class="flex flex-col gap-1">
-                <span class="text-sm font-medium text-ink">收件人</span>
-                <textarea
-                  v-model="cRecipientsText"
-                  rows="3"
-                  placeholder="每行一个：邮箱地址，或 @用户名（发送时取该用户邮箱）"
-                  :disabled="chSaving"
-                  class="w-full rounded-sm border border-border-strong bg-surface px-2 py-2 text-sm leading-5 text-ink placeholder:text-ink-subtle"
-                ></textarea>
-              </label>
-              <label class="flex flex-col gap-1">
-                <span class="text-sm font-medium text-ink"
-                  >收件人组（可选）</span
-                >
-                <UiInput
-                  v-model="cGroupsText"
-                  type="text"
-                  placeholder="逗号分隔的组名，引用配置里的命名收件人组"
-                  :disabled="chSaving"
-                  size="sm"
-                />
-              </label>
-            </template>
-            <fieldset class="flex flex-col gap-2 border-0 p-0">
-              <legend class="mb-1 flex w-full items-center justify-between">
-                <span class="text-sm font-medium text-ink">静默窗口</span>
-                <UiButton
-                  variant="secondary"
-                  size="sm"
-                  type="button"
-                  @click="addSilenceRow"
-                  >添加窗口</UiButton
-                >
-              </legend>
-              <p v-if="!cSilence.length" class="m-0 text-2xs text-ink-subtle">
-                留空表示任意时段；落在窗口内的告警对本渠道静默
-              </p>
-              <div
-                v-for="(row, index) in cSilence"
-                :key="index"
-                class="flex flex-col gap-2 rounded-sm border border-border p-2"
-              >
-                <div class="flex flex-wrap items-center gap-2">
-                  <UiInput
-                    v-model="row.from"
-                    type="text"
-                    placeholder="22:00"
-                    :disabled="chSaving"
-                    size="sm"
-                    class="w-20 font-mono"
-                  />
-                  <span class="text-ink-muted">至</span>
-                  <UiInput
-                    v-model="row.to"
-                    type="text"
-                    placeholder="06:00"
-                    :disabled="chSaving"
-                    size="sm"
-                    class="w-20 font-mono"
-                  />
-                  <UiButton
-                    variant="ghost"
-                    size="sm"
-                    type="button"
-                    class="ml-auto"
-                    @click="removeSilenceRow(index)"
-                    >移除</UiButton
-                  >
-                </div>
-                <div class="flex flex-wrap gap-2">
-                  <label
-                    v-for="(label, day) in WEEKDAYS"
-                    :key="day"
-                    class="flex items-center gap-1 text-2xs text-ink-muted"
-                  >
-                    <input
-                      type="checkbox"
-                      class="size-3.5"
-                      :checked="row.days.includes(day)"
-                      :disabled="chSaving"
-                      @change="toggleSilenceDay(row, day)"
-                    />
-                    周{{ label }}
-                  </label>
-                  <span class="text-2xs text-ink-subtle">（不选=每天）</span>
-                </div>
-              </div>
-            </fieldset>
-            <p
-              v-if="chError"
-              class="m-0 text-sm text-critical-ink"
-              role="alert"
+          </div>
+        </fieldset>
+        <template v-if="isEmail">
+          <label class="flex flex-col gap-1">
+            <span class="text-sm font-medium text-ink">收件人</span>
+            <textarea
+              v-model="cRecipientsText"
+              rows="3"
+              placeholder="每行一个：邮箱地址，或 @用户名（发送时取该用户邮箱）"
+              :disabled="chSaving"
+              class="w-full rounded-sm border border-border-strong bg-surface px-2 py-2 text-sm leading-5 text-ink placeholder:text-ink-subtle"
+            ></textarea>
+          </label>
+          <label class="flex flex-col gap-1">
+            <span class="text-sm font-medium text-ink">收件人组（可选）</span>
+            <UiInput
+              v-model="cGroupsText"
+              type="text"
+              placeholder="逗号分隔的组名，引用配置里的命名收件人组"
+              :disabled="chSaving"
+              size="sm"
+            />
+          </label>
+        </template>
+        <fieldset class="flex flex-col gap-2 border-0 p-0">
+          <legend class="mb-1 flex w-full items-center justify-between">
+            <span class="text-sm font-medium text-ink">静默窗口</span>
+            <UiButton
+              variant="secondary"
+              size="sm"
+              type="button"
+              @click="addSilenceRow"
+              >添加窗口</UiButton
             >
-              {{ chError }}
-            </p>
-            <div class="flex justify-end gap-2">
+          </legend>
+          <p v-if="!cSilence.length" class="m-0 text-2xs text-ink-subtle">
+            留空表示任意时段；落在窗口内的告警对本渠道静默
+          </p>
+          <div
+            v-for="(row, index) in cSilence"
+            :key="index"
+            class="flex flex-col gap-2 rounded-sm border border-border p-2"
+          >
+            <div class="flex flex-wrap items-center gap-2">
+              <UiInput
+                v-model="row.from"
+                type="text"
+                placeholder="22:00"
+                :disabled="chSaving"
+                size="sm"
+                class="w-20 font-mono"
+              />
+              <span class="text-ink-muted">至</span>
+              <UiInput
+                v-model="row.to"
+                type="text"
+                placeholder="06:00"
+                :disabled="chSaving"
+                size="sm"
+                class="w-20 font-mono"
+              />
               <UiButton
-                variant="secondary"
+                variant="ghost"
                 size="sm"
                 type="button"
-                @click="closeChannelDialog"
-                >取消</UiButton
-              >
-              <UiButton
-                size="sm"
-                type="submit"
-                :disabled="chSaving || !cId.trim()"
-                >保存</UiButton
+                class="ml-auto"
+                @click="removeSilenceRow(index)"
+                >移除</UiButton
               >
             </div>
-          </form>
-        </DialogContent>
-      </DialogPortal>
-    </DialogRoot>
+            <div class="flex flex-wrap gap-2">
+              <label
+                v-for="(label, day) in WEEKDAYS"
+                :key="day"
+                class="flex items-center gap-1 text-2xs text-ink-muted"
+              >
+                <input
+                  type="checkbox"
+                  class="size-3.5"
+                  :checked="row.days.includes(day)"
+                  :disabled="chSaving"
+                  @change="toggleSilenceDay(row, day)"
+                />
+                周{{ label }}
+              </label>
+              <span class="text-2xs text-ink-subtle">（不选=每天）</span>
+            </div>
+          </div>
+        </fieldset>
+        <p v-if="chError" class="m-0 text-sm text-critical-ink" role="alert">
+          {{ chError }}
+        </p>
+        <div class="flex justify-end gap-2">
+          <UiButton
+            variant="secondary"
+            size="sm"
+            type="button"
+            @click="closeChannelDialog"
+            >取消</UiButton
+          >
+          <UiButton size="sm" type="submit" :disabled="chSaving || !cId.trim()"
+            >保存</UiButton
+          >
+        </div>
+      </form>
+    </UiModal>
 
     <UiConfirmDialog
       :open="confirmDelete !== null"

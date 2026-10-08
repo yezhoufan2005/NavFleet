@@ -25,20 +25,13 @@
  * for one byte tests the path the map itself will use, without paying for the file.
  */
 import { computed, onMounted, ref } from "vue";
-import {
-  DialogContent,
-  DialogDescription,
-  DialogOverlay,
-  DialogPortal,
-  DialogRoot,
-  DialogTitle,
-} from "reka-ui";
 import PageHeader from "@/components/PageHeader.vue";
 import AppSectionTabs from "@/components/shell/AppSectionTabs.vue";
 import UiButton from "@/components/ui/UiButton.vue";
 import UiInput from "@/components/ui/UiInput.vue";
 import UiSelect from "@/components/ui/UiSelect.vue";
 import UiConfirmDialog from "@/components/ui/UiConfirmDialog.vue";
+import UiModal from "@/components/ui/UiModal.vue";
 import { makeMessageFor } from "@/lib/errorMessages";
 import { notify } from "@/composables/useNotifications";
 import { useAutoRefresh } from "@/composables/useAutoRefresh";
@@ -562,159 +555,125 @@ const runDelete = async (): Promise<void> => {
   </PageHeader>
 
   <!-- Create / edit scene -->
-  <DialogRoot
+  <UiModal
     :open="mode !== null"
+    :title="dialogTitle"
+    description="填写场景几何参数并可上传底图后提交"
     @update:open="
       (o) => {
         if (!o) close();
       }
     "
   >
-    <DialogPortal>
-      <DialogOverlay class="fixed inset-0 z-50 bg-scrim/55" />
-      <DialogContent
-        class="fixed top-1/2 left-1/2 z-50 flex max-h-[85vh] w-full max-w-100 -translate-x-1/2 -translate-y-1/2 flex-col gap-3 overflow-auto rounded-md border border-border bg-surface-raised p-5 shadow-overlay"
-      >
-        <DialogTitle class="text-md font-semibold text-ink">{{
-          dialogTitle
-        }}</DialogTitle>
-        <DialogDescription class="sr-only"
-          >填写场景几何参数并可上传底图后提交</DialogDescription
+    <form
+      class="flex flex-col gap-3"
+      :aria-busy="saving"
+      @submit.prevent="submit"
+    >
+      <label class="flex flex-col gap-1">
+        <span class="text-sm font-medium text-ink">场景 ID</span>
+        <UiInput
+          v-model="fSceneId"
+          type="text"
+          :disabled="mode === 'edit' || saving"
+          size="sm"
+        />
+      </label>
+      <label class="flex flex-col gap-1">
+        <span class="text-sm font-medium text-ink">名称</span>
+        <UiInput
+          v-model="fSceneName"
+          type="text"
+          :disabled="saving"
+          size="sm"
+        />
+      </label>
+      <label class="flex flex-col gap-1">
+        <span class="text-sm font-medium text-ink">地图坐标系</span>
+        <UiInput v-model="fMapFrame" type="text" :disabled="saving" size="sm" />
+      </label>
+      <div class="grid grid-cols-3 gap-2">
+        <label class="flex flex-col gap-1">
+          <span class="text-sm font-medium text-ink">分辨率 m/px</span>
+          <UiInput
+            v-model="fResolution"
+            type="text"
+            :disabled="saving"
+            size="sm"
+          />
+        </label>
+        <label class="flex flex-col gap-1">
+          <span class="text-sm font-medium text-ink">宽 px</span>
+          <UiInput v-model="fWidth" type="text" :disabled="saving" size="sm" />
+        </label>
+        <label class="flex flex-col gap-1">
+          <span class="text-sm font-medium text-ink">高 px</span>
+          <UiInput v-model="fHeight" type="text" :disabled="saving" size="sm" />
+        </label>
+      </div>
+      <div class="grid grid-cols-3 gap-2">
+        <label class="flex flex-col gap-1">
+          <span class="text-sm font-medium text-ink">原点 x</span>
+          <UiInput
+            v-model="fOriginX"
+            type="text"
+            :disabled="saving"
+            size="sm"
+          />
+        </label>
+        <label class="flex flex-col gap-1">
+          <span class="text-sm font-medium text-ink">原点 y</span>
+          <UiInput
+            v-model="fOriginY"
+            type="text"
+            :disabled="saving"
+            size="sm"
+          />
+        </label>
+        <label class="flex flex-col gap-1">
+          <span class="text-sm font-medium text-ink">原点 yaw</span>
+          <UiInput
+            v-model="fOriginYaw"
+            type="text"
+            :disabled="saving"
+            size="sm"
+          />
+        </label>
+      </div>
+      <fieldset class="flex flex-col gap-2 rounded-sm border border-border p-2">
+        <legend class="px-1 text-sm font-medium text-ink">底图（可选）</legend>
+        <p class="m-0 text-xs text-ink-muted">
+          选类型并上传文件；已引用同类底图时就地替换，否则落到 scene-maps 下
+        </p>
+        <UiSelect
+          v-model="fAssetKind"
+          :options="ASSET_KIND_OPTIONS"
+          aria-label="底图类型"
+        />
+        <input
+          type="file"
+          :disabled="saving"
+          class="text-sm text-ink"
+          @change="onFileChosen"
+        />
+      </fieldset>
+      <p v-if="formError" class="m-0 text-sm text-critical-ink" role="alert">
+        {{ formError }}
+      </p>
+      <div class="mt-1 flex justify-end gap-2">
+        <UiButton
+          variant="secondary"
+          size="sm"
+          :disabled="saving"
+          @click="close"
+          >取消</UiButton
         >
-        <form
-          class="flex flex-col gap-3"
-          :aria-busy="saving"
-          @submit.prevent="submit"
-        >
-          <label class="flex flex-col gap-1">
-            <span class="text-sm font-medium text-ink">场景 ID</span>
-            <UiInput
-              v-model="fSceneId"
-              type="text"
-              :disabled="mode === 'edit' || saving"
-              size="sm"
-            />
-          </label>
-          <label class="flex flex-col gap-1">
-            <span class="text-sm font-medium text-ink">名称</span>
-            <UiInput
-              v-model="fSceneName"
-              type="text"
-              :disabled="saving"
-              size="sm"
-            />
-          </label>
-          <label class="flex flex-col gap-1">
-            <span class="text-sm font-medium text-ink">地图坐标系</span>
-            <UiInput
-              v-model="fMapFrame"
-              type="text"
-              :disabled="saving"
-              size="sm"
-            />
-          </label>
-          <div class="grid grid-cols-3 gap-2">
-            <label class="flex flex-col gap-1">
-              <span class="text-sm font-medium text-ink">分辨率 m/px</span>
-              <UiInput
-                v-model="fResolution"
-                type="text"
-                :disabled="saving"
-                size="sm"
-              />
-            </label>
-            <label class="flex flex-col gap-1">
-              <span class="text-sm font-medium text-ink">宽 px</span>
-              <UiInput
-                v-model="fWidth"
-                type="text"
-                :disabled="saving"
-                size="sm"
-              />
-            </label>
-            <label class="flex flex-col gap-1">
-              <span class="text-sm font-medium text-ink">高 px</span>
-              <UiInput
-                v-model="fHeight"
-                type="text"
-                :disabled="saving"
-                size="sm"
-              />
-            </label>
-          </div>
-          <div class="grid grid-cols-3 gap-2">
-            <label class="flex flex-col gap-1">
-              <span class="text-sm font-medium text-ink">原点 x</span>
-              <UiInput
-                v-model="fOriginX"
-                type="text"
-                :disabled="saving"
-                size="sm"
-              />
-            </label>
-            <label class="flex flex-col gap-1">
-              <span class="text-sm font-medium text-ink">原点 y</span>
-              <UiInput
-                v-model="fOriginY"
-                type="text"
-                :disabled="saving"
-                size="sm"
-              />
-            </label>
-            <label class="flex flex-col gap-1">
-              <span class="text-sm font-medium text-ink">原点 yaw</span>
-              <UiInput
-                v-model="fOriginYaw"
-                type="text"
-                :disabled="saving"
-                size="sm"
-              />
-            </label>
-          </div>
-          <fieldset
-            class="flex flex-col gap-2 rounded-sm border border-border p-2"
-          >
-            <legend class="px-1 text-sm font-medium text-ink">
-              底图（可选）
-            </legend>
-            <p class="m-0 text-xs text-ink-muted">
-              选类型并上传文件；已引用同类底图时就地替换，否则落到 scene-maps 下
-            </p>
-            <UiSelect
-              v-model="fAssetKind"
-              :options="ASSET_KIND_OPTIONS"
-              aria-label="底图类型"
-            />
-            <input
-              type="file"
-              :disabled="saving"
-              class="text-sm text-ink"
-              @change="onFileChosen"
-            />
-          </fieldset>
-          <p
-            v-if="formError"
-            class="m-0 text-sm text-critical-ink"
-            role="alert"
-          >
-            {{ formError }}
-          </p>
-          <div class="mt-1 flex justify-end gap-2">
-            <UiButton
-              variant="secondary"
-              size="sm"
-              :disabled="saving"
-              @click="close"
-              >取消</UiButton
-            >
-            <UiButton type="submit" size="sm" :disabled="saving">
-              {{ saving ? "提交中…" : "保存" }}
-            </UiButton>
-          </div>
-        </form>
-      </DialogContent>
-    </DialogPortal>
-  </DialogRoot>
+        <UiButton type="submit" size="sm" :disabled="saving">
+          {{ saving ? "提交中…" : "保存" }}
+        </UiButton>
+      </div>
+    </form>
+  </UiModal>
 
   <UiConfirmDialog
     :open="confirmDelete !== null"
