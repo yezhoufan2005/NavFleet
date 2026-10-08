@@ -22,7 +22,7 @@
   },
   "devDependencies": {
     "@eslint/js": "*",
-    "@vitest/coverage-v8": "^5.0.2",
+    "@vitest/coverage-v8": "^5.0.3",
     "eslint": "*",
     "eslint-config-prettier": "*",
     "globals": "*",
