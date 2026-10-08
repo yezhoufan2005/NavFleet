@@ -34,6 +34,7 @@ import {
 import PageHeader from "@/components/PageHeader.vue";
 import AppSectionTabs from "@/components/shell/AppSectionTabs.vue";
 import UiButton from "@/components/ui/UiButton.vue";
+import UiInput from "@/components/ui/UiInput.vue";
 import UiConfirmDialog from "@/components/ui/UiConfirmDialog.vue";
 import UiSelect from "@/components/ui/UiSelect.vue";
 import { tableClasses } from "@/lib/uiClasses";
@@ -65,8 +66,6 @@ const WEEKDAY_OPTIONS = [
   { value: "6", label: "周六" },
 ];
 const TIME_RE = /^([01]\d|2[0-3]):[0-5]\d$/;
-const INPUT_CLASS =
-  "h-9 w-full rounded-sm border border-border-strong bg-surface px-2 text-sm text-ink placeholder:text-ink-subtle";
 
 const ERROR_MESSAGES: Record<string, string> = {
   invalid_reports: "配置校验未通过，请检查各字段后重试",
@@ -362,11 +361,11 @@ const weekdayLabel = (weekday?: number): string =>
             <div class="grid grid-cols-2 gap-3">
               <label class="flex flex-col gap-1">
                 <span class="text-sm font-medium text-ink">报表 ID</span>
-                <input
+                <UiInput
                   v-model="sId"
                   type="text"
                   :disabled="saving"
-                  :class="INPUT_CLASS"
+                  size="md"
                 />
               </label>
               <label class="flex flex-col gap-1">
@@ -384,12 +383,13 @@ const weekdayLabel = (weekday?: number): string =>
             <div class="grid grid-cols-2 gap-3">
               <label class="flex flex-col gap-1">
                 <span class="text-sm font-medium text-ink">发送时刻</span>
-                <input
+                <UiInput
                   v-model="sTime"
                   type="text"
                   placeholder="08:00"
                   :disabled="saving"
-                  :class="[INPUT_CLASS, 'font-mono']"
+                  size="md"
+                  class="font-mono"
                 />
               </label>
               <label class="flex flex-col gap-1">
@@ -413,12 +413,13 @@ const weekdayLabel = (weekday?: number): string =>
             </label>
             <label class="flex flex-col gap-1">
               <span class="text-sm font-medium text-ink">SMTP 环境变量名</span>
-              <input
+              <UiInput
                 v-model="sSmtpEnv"
                 type="text"
                 placeholder="如 REPORTS_SMTP_URL"
                 :disabled="saving"
-                :class="[INPUT_CLASS, 'font-mono']"
+                size="md"
+                class="font-mono"
               />
               <span class="text-2xs text-ink-subtle"
                 >装 SMTP 连接串的环境变量名；连接串本身不落配置文件</span
@@ -426,12 +427,12 @@ const weekdayLabel = (weekday?: number): string =>
             </label>
             <label class="flex flex-col gap-1">
               <span class="text-sm font-medium text-ink">发件人地址</span>
-              <input
+              <UiInput
                 v-model="sFrom"
                 type="text"
                 placeholder="reports@example.com"
                 :disabled="saving"
-                :class="INPUT_CLASS"
+                size="md"
               />
             </label>
             <label class="flex flex-col gap-1">
@@ -441,17 +442,17 @@ const weekdayLabel = (weekday?: number): string =>
                 rows="3"
                 placeholder="每行一个：邮箱地址，或 @用户名（发送时取该用户邮箱）"
                 :disabled="saving"
-                :class="[INPUT_CLASS, 'h-auto py-2 leading-5']"
+                class="w-full rounded-sm border border-border-strong bg-surface px-2 py-2 text-sm leading-5 text-ink placeholder:text-ink-subtle"
               ></textarea>
             </label>
             <label class="flex flex-col gap-1">
               <span class="text-sm font-medium text-ink">收件人组（可选）</span>
-              <input
+              <UiInput
                 v-model="sGroupsText"
                 type="text"
                 placeholder="逗号分隔的组名，引用 notify.json 里的命名收件人组"
                 :disabled="saving"
-                :class="INPUT_CLASS"
+                size="md"
               />
             </label>
             <p

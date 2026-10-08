@@ -27,6 +27,7 @@ import {
 import PageHeader from "@/components/PageHeader.vue";
 import AppSectionTabs from "@/components/shell/AppSectionTabs.vue";
 import UiButton from "@/components/ui/UiButton.vue";
+import UiInput from "@/components/ui/UiInput.vue";
 import UiSelect from "@/components/ui/UiSelect.vue";
 import UiConfirmDialog from "@/components/ui/UiConfirmDialog.vue";
 import { tableClasses } from "@/lib/uiClasses";
@@ -53,9 +54,6 @@ const ERROR_MESSAGES: Record<string, string> = {
   not_found: "用户不存在",
 };
 const messageFor = makeMessageFor(ERROR_MESSAGES, "操作失败，请稍后重试");
-
-const INPUT_CLASS =
-  "h-9 rounded-sm border border-border-strong bg-surface px-2 text-sm text-ink placeholder:text-ink-subtle";
 
 // ── List ─────────────────────────────────────────────────────────────────────
 const users = ref<AdminUser[]>([]);
@@ -485,11 +483,11 @@ const formatTime = (iso: string | null): string =>
           >
             <label v-if="mode === 'create'" class="flex flex-col gap-1">
               <span class="text-sm font-medium text-ink">用户名</span>
-              <input
+              <UiInput
                 v-model="fUsername"
                 type="text"
                 :disabled="saving"
-                :class="INPUT_CLASS"
+                size="md"
               />
             </label>
             <label
@@ -499,13 +497,13 @@ const formatTime = (iso: string | null): string =>
               <span class="text-sm font-medium text-ink">
                 {{ mode === "reset" ? "新密码" : "密码" }}
               </span>
-              <input
+              <UiInput
                 v-model="fPassword"
                 type="password"
                 autocomplete="new-password"
                 placeholder="至少 8 位，含字母与数字"
                 :disabled="saving"
-                :class="INPUT_CLASS"
+                size="md"
               />
             </label>
             <label
@@ -524,11 +522,11 @@ const formatTime = (iso: string | null): string =>
               class="flex flex-col gap-1"
             >
               <span class="text-sm font-medium text-ink">显示名</span>
-              <input
+              <UiInput
                 v-model="fDisplayName"
                 type="text"
                 :disabled="saving"
-                :class="INPUT_CLASS"
+                size="md"
               />
             </label>
             <label
@@ -536,11 +534,11 @@ const formatTime = (iso: string | null): string =>
               class="flex flex-col gap-1"
             >
               <span class="text-sm font-medium text-ink">邮箱</span>
-              <input
+              <UiInput
                 v-model="fEmail"
                 type="text"
                 :disabled="saving"
-                :class="INPUT_CLASS"
+                size="md"
               />
             </label>
             <label
@@ -548,11 +546,11 @@ const formatTime = (iso: string | null): string =>
               class="flex flex-col gap-1"
             >
               <span class="text-sm font-medium text-ink">电话</span>
-              <input
+              <UiInput
                 v-model="fPhone"
                 type="text"
                 :disabled="saving"
-                :class="INPUT_CLASS"
+                size="md"
               />
             </label>
             <label v-if="mode === 'create'" class="flex flex-col gap-1">

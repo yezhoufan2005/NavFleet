@@ -24,6 +24,7 @@ import type { DeviceConfig } from "@navfleet/shared";
 import PageHeader from "@/components/PageHeader.vue";
 import AppSectionTabs from "@/components/shell/AppSectionTabs.vue";
 import UiButton from "@/components/ui/UiButton.vue";
+import UiInput from "@/components/ui/UiInput.vue";
 import UiSelect from "@/components/ui/UiSelect.vue";
 import UiConfirmDialog from "@/components/ui/UiConfirmDialog.vue";
 import { tableClasses } from "@/lib/uiClasses";
@@ -36,9 +37,6 @@ const ERROR_MESSAGES: Record<string, string> = {
   forbidden: "需要管理员权限",
 };
 const messageFor = makeMessageFor(ERROR_MESSAGES);
-
-const INPUT_CLASS =
-  "h-9 rounded-sm border border-border-strong bg-surface px-2 text-sm text-ink placeholder:text-ink-subtle";
 
 const status = ref<"loading" | "ready" | "error">("loading");
 const vehicles = ref<DeviceConfig[]>([]);
@@ -315,20 +313,20 @@ const dialogTitle = computed(() =>
         >
           <label class="flex flex-col gap-1">
             <span class="text-sm font-medium text-ink">设备 ID</span>
-            <input
+            <UiInput
               v-model="fDeviceId"
               type="text"
               :disabled="mode === 'edit' || saving"
-              :class="INPUT_CLASS"
+              size="md"
             />
           </label>
           <label class="flex flex-col gap-1">
             <span class="text-sm font-medium text-ink">名称</span>
-            <input
+            <UiInput
               v-model="fDeviceName"
               type="text"
               :disabled="saving"
-              :class="INPUT_CLASS"
+              size="md"
             />
           </label>
           <label class="flex flex-col gap-1">
@@ -341,12 +339,7 @@ const dialogTitle = computed(() =>
           </label>
           <label class="flex flex-col gap-1">
             <span class="text-sm font-medium text-ink">标签（逗号分隔）</span>
-            <input
-              v-model="fTags"
-              type="text"
-              :disabled="saving"
-              :class="INPUT_CLASS"
-            />
+            <UiInput v-model="fTags" type="text" :disabled="saving" size="md" />
           </label>
           <label class="flex items-center gap-2">
             <input v-model="fGps" type="checkbox" :disabled="saving" />

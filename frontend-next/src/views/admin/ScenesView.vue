@@ -36,6 +36,7 @@ import {
 import PageHeader from "@/components/PageHeader.vue";
 import AppSectionTabs from "@/components/shell/AppSectionTabs.vue";
 import UiButton from "@/components/ui/UiButton.vue";
+import UiInput from "@/components/ui/UiInput.vue";
 import UiSelect from "@/components/ui/UiSelect.vue";
 import UiConfirmDialog from "@/components/ui/UiConfirmDialog.vue";
 import { makeMessageFor } from "@/lib/errorMessages";
@@ -215,9 +216,6 @@ const ASSET_KIND_OPTIONS = ASSET_KINDS.map(({ value, label }) => ({
   value,
   label,
 }));
-
-const INPUT_CLASS =
-  "h-9 rounded-sm border border-border-strong bg-surface px-2 text-sm text-ink placeholder:text-ink-subtle";
 
 const ERROR_MESSAGES: Record<string, string> = {
   invalid_scenes: "场景配置不合法，请检查各字段",
@@ -590,86 +588,86 @@ const runDelete = async (): Promise<void> => {
         >
           <label class="flex flex-col gap-1">
             <span class="text-sm font-medium text-ink">场景 ID</span>
-            <input
+            <UiInput
               v-model="fSceneId"
               type="text"
               :disabled="mode === 'edit' || saving"
-              :class="INPUT_CLASS"
+              size="md"
             />
           </label>
           <label class="flex flex-col gap-1">
             <span class="text-sm font-medium text-ink">名称</span>
-            <input
+            <UiInput
               v-model="fSceneName"
               type="text"
               :disabled="saving"
-              :class="INPUT_CLASS"
+              size="md"
             />
           </label>
           <label class="flex flex-col gap-1">
             <span class="text-sm font-medium text-ink">地图坐标系</span>
-            <input
+            <UiInput
               v-model="fMapFrame"
               type="text"
               :disabled="saving"
-              :class="INPUT_CLASS"
+              size="md"
             />
           </label>
           <div class="grid grid-cols-3 gap-2">
             <label class="flex flex-col gap-1">
               <span class="text-sm font-medium text-ink">分辨率 m/px</span>
-              <input
+              <UiInput
                 v-model="fResolution"
                 type="text"
                 :disabled="saving"
-                :class="INPUT_CLASS"
+                size="md"
               />
             </label>
             <label class="flex flex-col gap-1">
               <span class="text-sm font-medium text-ink">宽 px</span>
-              <input
+              <UiInput
                 v-model="fWidth"
                 type="text"
                 :disabled="saving"
-                :class="INPUT_CLASS"
+                size="md"
               />
             </label>
             <label class="flex flex-col gap-1">
               <span class="text-sm font-medium text-ink">高 px</span>
-              <input
+              <UiInput
                 v-model="fHeight"
                 type="text"
                 :disabled="saving"
-                :class="INPUT_CLASS"
+                size="md"
               />
             </label>
           </div>
           <div class="grid grid-cols-3 gap-2">
             <label class="flex flex-col gap-1">
               <span class="text-sm font-medium text-ink">原点 x</span>
-              <input
+              <UiInput
                 v-model="fOriginX"
                 type="text"
                 :disabled="saving"
-                :class="INPUT_CLASS"
+                size="md"
               />
             </label>
             <label class="flex flex-col gap-1">
               <span class="text-sm font-medium text-ink">原点 y</span>
-              <input
+              <UiInput
                 v-model="fOriginY"
                 type="text"
                 :disabled="saving"
-                :class="INPUT_CLASS"
+                size="md"
               />
             </label>
             <label class="flex flex-col gap-1">
               <span class="text-sm font-medium text-ink">原点 yaw</span>
-              <input
+              <UiInput
                 v-model="fOriginYaw"
                 type="text"
                 :disabled="saving"
-                :class="INPUT_CLASS"
+                size="md"
               />
             </label>
           </div>

@@ -26,6 +26,7 @@ import type { RbacGroup, RbacRole } from "@navfleet/shared";
 import PageHeader from "@/components/PageHeader.vue";
 import AppSectionTabs from "@/components/shell/AppSectionTabs.vue";
 import UiButton from "@/components/ui/UiButton.vue";
+import UiInput from "@/components/ui/UiInput.vue";
 import UiConfirmDialog from "@/components/ui/UiConfirmDialog.vue";
 import { tableClasses } from "@/lib/uiClasses";
 import { makeMessageFor } from "@/lib/errorMessages";
@@ -37,9 +38,6 @@ const ERROR_MESSAGES: Record<string, string> = {
   role_in_use: "该角色仍被某个用户组引用，先从组里移除再删除",
 };
 const messageFor = makeMessageFor(ERROR_MESSAGES, "操作失败，请稍后重试");
-
-const INPUT_CLASS =
-  "h-9 rounded-sm border border-border-strong bg-surface px-2 text-sm text-ink placeholder:text-ink-subtle";
 
 // ── Data ───────────────────────────────────────────────────────────────────────
 const roles = ref<RbacRole[]>([]);
@@ -263,20 +261,20 @@ const kioskUsernames = computed(
           >
             <label class="flex flex-col gap-1">
               <span class="text-sm font-medium text-ink">名称</span>
-              <input
+              <UiInput
                 v-model="gName"
                 type="text"
                 :disabled="groupSaving"
-                :class="INPUT_CLASS"
+                size="md"
               />
             </label>
             <label class="flex flex-col gap-1">
               <span class="text-sm font-medium text-ink">描述（可选）</span>
-              <input
+              <UiInput
                 v-model="gDesc"
                 type="text"
                 :disabled="groupSaving"
-                :class="INPUT_CLASS"
+                size="md"
               />
             </label>
             <fieldset class="flex flex-col gap-1 border-0 p-0">

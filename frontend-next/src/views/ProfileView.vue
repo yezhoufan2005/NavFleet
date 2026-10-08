@@ -12,6 +12,7 @@ import { onMounted, ref } from "vue";
 import type { SessionRecordView } from "@navfleet/fleet-core";
 import PageHeader from "@/components/PageHeader.vue";
 import UiButton from "@/components/ui/UiButton.vue";
+import UiInput from "@/components/ui/UiInput.vue";
 import UiCard from "@/components/ui/UiCard.vue";
 import UiConfirmDialog from "@/components/ui/UiConfirmDialog.vue";
 import { tableClasses } from "@/lib/uiClasses";
@@ -19,9 +20,6 @@ import { useAuth } from "@/composables/useAuth";
 import { notify } from "@/composables/useNotifications";
 
 const auth = useAuth();
-
-const INPUT_CLASS =
-  "h-10 rounded-sm border border-border-strong bg-surface px-3 text-ink placeholder:text-ink-subtle disabled:opacity-55";
 
 // ── Change password ──────────────────────────────────────────────────────────
 const oldPassword = ref("");
@@ -135,36 +133,36 @@ const formatTime = (iso: string): string =>
       >
         <label class="flex flex-col gap-1.5">
           <span class="text-sm font-medium text-ink">当前密码</span>
-          <input
+          <UiInput
             v-model="oldPassword"
             type="password"
             autocomplete="current-password"
             :disabled="changing"
             :aria-invalid="formError ? 'true' : undefined"
-            :class="INPUT_CLASS"
+            size="md"
           />
         </label>
         <label class="flex flex-col gap-1.5">
           <span class="text-sm font-medium text-ink">新密码</span>
-          <input
+          <UiInput
             v-model="newPassword"
             type="password"
             autocomplete="new-password"
             placeholder="至少 8 位，含字母与数字"
             :disabled="changing"
             :aria-invalid="formError ? 'true' : undefined"
-            :class="INPUT_CLASS"
+            size="md"
           />
         </label>
         <label class="flex flex-col gap-1.5">
           <span class="text-sm font-medium text-ink">确认新密码</span>
-          <input
+          <UiInput
             v-model="confirmPassword"
             type="password"
             autocomplete="new-password"
             :disabled="changing"
             :aria-invalid="formError ? 'true' : undefined"
-            :class="INPUT_CLASS"
+            size="md"
           />
         </label>
         <p
