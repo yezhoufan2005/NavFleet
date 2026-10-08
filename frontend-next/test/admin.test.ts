@@ -340,7 +340,7 @@ describe("场景", () => {
     vi.spyOn(fleetApi, "getScenes").mockResolvedValue({
       items: items as never,
     });
-    return mountAt(ScenesView, "/admin/scenes");
+    return mountAt(ScenesView, "/deploy/scenes");
   };
 
   it("检查每一个配置了的资源，并说明取不到会看到什么", async () => {
@@ -433,7 +433,7 @@ describe("场景", () => {
   it("列表请求失败就报出来", async () => {
     stubResources();
     vi.spyOn(fleetApi, "getScenes").mockRejectedValue(new Error("HTTP 503"));
-    const wrapper = await mountAt(ScenesView, "/admin/scenes");
+    const wrapper = await mountAt(ScenesView, "/deploy/scenes");
 
     expect(wrapper.text()).toContain("HTTP 503");
   });
@@ -452,7 +452,7 @@ describe("场景", () => {
     const spy = vi
       .spyOn(fleetApi, "getScenes")
       .mockResolvedValue({ items: [scene()] as never });
-    await mountAt(ScenesView, "/admin/scenes");
+    await mountAt(ScenesView, "/deploy/scenes");
     const before = spy.mock.calls.length;
     Object.defineProperty(document, "visibilityState", {
       value: "visible",
@@ -619,10 +619,7 @@ describe("管理落地页", () => {
 
     expect(links.map((link) => link.attributes("href")).sort()).toEqual([
       "/admin/audit",
-      "/admin/codebook",
       "/admin/notify",
-      "/admin/onboarding",
-      "/admin/scenes",
       "/admin/system",
     ]);
     // No dashed "not built" placeholders remain, so no "PR xx" marker is left.
@@ -635,6 +632,6 @@ describe("管理落地页", () => {
       .findAll("span")
       .filter((span) => span.text() === "已就绪");
 
-    expect(readyBadges).toHaveLength(6);
+    expect(readyBadges).toHaveLength(3);
   });
 });

@@ -25,25 +25,7 @@ interface Area {
 }
 
 const AREAS: readonly Area[] = [
-  {
-    label: "设备接入",
-    plan: "18",
-    to: "/admin/onboarding",
-    capability: "vehicles:write",
-  },
   { label: "审计", plan: "15E", to: "/admin/audit", capability: "audit:read" },
-  {
-    label: "场景",
-    plan: "13F",
-    to: "/admin/scenes",
-    capability: "scenes:write",
-  },
-  {
-    label: "报码字典",
-    plan: "16C",
-    to: "/admin/codebook",
-    capability: "codebook:write",
-  },
   {
     label: "外发",
     plan: "16D",

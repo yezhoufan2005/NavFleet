@@ -41,9 +41,9 @@ const FORMATIONS = [
 const mountView = async () => {
   const router = createRouter({
     history: createMemoryHistory(),
-    routes: [{ path: "/admin/onboarding", component: DevicesOnboardingView }],
+    routes: [{ path: "/deploy", component: DevicesOnboardingView }],
   });
-  await router.push("/admin/onboarding");
+  await router.push("/deploy");
   await router.isReady();
   const wrapper = mount(DevicesOnboardingView, {
     global: { plugins: [router] },

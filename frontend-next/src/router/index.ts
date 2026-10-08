@@ -22,6 +22,17 @@ export const ADMIN_AREA_CAPABILITIES: readonly Capability[] = [
 ];
 
 /**
+ * Capabilities that grant access to the 部署 section (1.6.2 IA). Its three tabs each gate on one of
+ * these; holding ANY shows the 部署 nav entry and admits the section (which then redirects to the
+ * first tab the caller holds).
+ */
+export const DEPLOY_CAPABILITIES: readonly Capability[] = [
+  "vehicles:write",
+  "scenes:write",
+  "codebook:write",
+];
+
+/**
  * Application router.
  *
  * Two departures from the v1.0.0 frontend, both decided in `docs/frontend-ia.md`:
@@ -241,6 +252,60 @@ const routes: RouteRecordRaw[] = [
   { path: "/admin/users", redirect: { name: "access-users" } },
   { path: "/admin/roles", redirect: { name: "access-roles" } },
   {
+    // 部署 — deployment config, a top-level section (1.6.2 IA): 设备接入 / 场景 / 报码字典, folded
+    // out of 管理. Its three tabs each gate on their own capability (vehicles / scenes / codebook
+    // :write); the section admits anyone holding ANY of them (meta.capabilities). 设备接入 is the
+    // `""` child (renders at /deploy, so the nav item stays lit on every tab, as with /devices) and
+    // is gated by the section any-of rather than vehicles:write alone, so a caller holding only
+    // 场景/报码字典 writes still lands rather than being bounced; its own tab stays hidden for them.
+    path: "/deploy",
+    meta: {
+      title: "部署",
+      capabilities: DEPLOY_CAPABILITIES,
+      tabs: [
+        {
+          routeName: "deploy-onboarding",
+          label: "设备接入",
+          capability: "vehicles:write",
+        },
+        {
+          routeName: "deploy-scenes",
+          label: "场景",
+          capability: "scenes:write",
+        },
+        {
+          routeName: "deploy-codebook",
+          label: "报码字典",
+          capability: "codebook:write",
+        },
+      ],
+    },
+    children: [
+      {
+        path: "",
+        name: "deploy-onboarding",
+        component: () => import("@/views/admin/DevicesOnboardingView.vue"),
+        meta: { capabilities: DEPLOY_CAPABILITIES },
+      },
+      {
+        path: "scenes",
+        name: "deploy-scenes",
+        component: () => import("@/views/admin/ScenesView.vue"),
+        meta: { title: "场景", capability: "scenes:write" },
+      },
+      {
+        path: "codebook",
+        name: "deploy-codebook",
+        component: () => import("@/views/admin/CodebookView.vue"),
+        meta: { title: "报码字典", capability: "codebook:write" },
+      },
+    ],
+  },
+  // The 管理 deep links these pages used to live at, kept as redirects so shared bookmarks land.
+  { path: "/admin/onboarding", redirect: { name: "deploy-onboarding" } },
+  { path: "/admin/scenes", redirect: { name: "deploy-scenes" } },
+  { path: "/admin/codebook", redirect: { name: "deploy-codebook" } },
+  {
     // An aggregate section, so it gets a real landing page rather than a redirect
     // into its first child (constraint C2). The two children that exist arrive with
     // 13F; the rest (用户 / 用户组 / 审计 / 设备接入 / 报码字典) come with Phase 15–17,
@@ -259,24 +324,6 @@ const routes: RouteRecordRaw[] = [
         name: "admin-system",
         component: () => import("@/views/admin/SystemStatusView.vue"),
         meta: { title: "系统状态", capabilities: ADMIN_AREA_CAPABILITIES },
-      },
-      {
-        path: "scenes",
-        name: "admin-scenes",
-        component: () => import("@/views/admin/ScenesView.vue"),
-        meta: { title: "场景", capability: "scenes:write" },
-      },
-      {
-        path: "onboarding",
-        name: "admin-onboarding",
-        component: () => import("@/views/admin/DevicesOnboardingView.vue"),
-        meta: { title: "设备接入", capability: "vehicles:write" },
-      },
-      {
-        path: "codebook",
-        name: "admin-codebook",
-        component: () => import("@/views/admin/CodebookView.vue"),
-        meta: { title: "报码字典", capability: "codebook:write" },
       },
       {
         path: "notify",
@@ -352,7 +399,7 @@ export interface NavSection {
 }
 
 export type NavIconName =
-  "overview" | "devices" | "alerts" | "reports" | "users" | "admin";
+  "overview" | "devices" | "alerts" | "reports" | "users" | "deploy" | "admin";
 
 export const NAV_SECTIONS: readonly NavSection[] = [
   { routeName: "overview", label: "总览", icon: "overview" },
@@ -364,6 +411,12 @@ export const NAV_SECTIONS: readonly NavSection[] = [
     label: "用户",
     icon: "users",
     capabilities: ["users:manage"],
+  },
+  {
+    routeName: "deploy-onboarding",
+    label: "部署",
+    icon: "deploy",
+    capabilities: DEPLOY_CAPABILITIES,
   },
   {
     routeName: "admin",

@@ -43,11 +43,10 @@ const ROUTES: readonly { path: string; heading: string | RegExp }[] = [
   { path: "/alerts/history", heading: "消息" },
   { path: "/reports", heading: "报表" },
   { path: "/admin", heading: "管理" },
-  // The two built children. 系统状态 carries a data table and a row of state badges;
-  // 场景 carries a badge per map resource. Auditing only the landing page would check
-  // a list of cards and nothing else.
+  // The built children of 管理 and the config sections split out of it. 系统状态 carries a data
+  // table and a row of state badges; 场景 (now a 部署 tab) carries a badge per map resource.
   { path: "/admin/system", heading: "系统状态" },
-  { path: "/admin/scenes", heading: "场景" },
+  { path: "/deploy/scenes", heading: "部署" },
   // 用户: its own top-level section (1.6.2 IA), and the first surface to carry the secondary
   // tab strip — a second `nav` landmark that has to stay named and reachable.
   { path: "/access", heading: "用户" },

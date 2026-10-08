@@ -32,14 +32,14 @@ const routerFor = (): Router =>
   createRouter({
     history: createMemoryHistory(),
     routes: [
-      { path: "/admin/codebook", component: CodebookView },
+      { path: "/deploy/codebook", component: CodebookView },
       { path: "/:rest(.*)*", component: { template: "<i />" } },
     ],
   });
 
 const mountView = async () => {
   const router = routerFor();
-  await router.push("/admin/codebook");
+  await router.push("/deploy/codebook");
   await router.isReady();
   const wrapper = mount(CodebookView, { global: { plugins: [router] } });
   await flushPromises();

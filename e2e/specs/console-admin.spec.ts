@@ -24,16 +24,17 @@ test.describe("console admin", () => {
     await page.goto("/admin");
 
     await expect(page.getByRole("link", { name: /系统状态/ })).toBeVisible();
-    await expect(page.getByRole("link", { name: /场景/ })).toBeVisible();
     await expect(page.getByRole("link", { name: /审计/ })).toBeVisible();
-    // 设备接入 is a real area since Phase 18 (the onboarding wizard).
-    await expect(page.getByRole("link", { name: /设备接入/ })).toBeVisible();
-    // 用户 与 角色与用户组 left the 管理 hub for their own top-level 用户 section (1.6.2 IA), so the
-    // landing no longer offers them as cards — the main-content region has no card for either.
+    await expect(page.getByRole("link", { name: /外发/ })).toBeVisible();
+    // 用户 (1.6.2) and 部署 — 设备接入 / 场景 / 报码字典 — (also 1.6.2) left the 管理 hub for their
+    // own top-level sections, so the landing no longer offers those as cards.
     const content = page.getByRole("main");
-    await expect(
-      content.getByRole("link", { name: /角色与用户组/ }),
-    ).toHaveCount(0);
+    await expect(content.getByRole("link", { name: /设备接入/ })).toHaveCount(
+      0,
+    );
+    await expect(content.getByRole("link", { name: /报码字典/ })).toHaveCount(
+      0,
+    );
     await expect(page.getByText(/^PR /)).toHaveCount(0);
   });
 
@@ -55,11 +56,33 @@ test.describe("console admin", () => {
     ).toBeVisible();
     await tabs.getByRole("link", { name: "用户组", exact: true }).click();
     await expect(page).toHaveURL(/\/access\/groups$/);
-    // The section item stays lit across the tab switch (nested-record active state).
-    const section = page
+    const accessSection = page
       .getByRole("navigation", { name: "主导航" })
       .getByRole("link", { name: "用户", exact: true });
-    await expect(section).toHaveAttribute("href", "/access");
+    await expect(accessSection).toHaveAttribute("href", "/access");
+  });
+
+  test("部署 is its own section, reached from the primary nav and split into tabs", async ({
+    page,
+  }) => {
+    // 1.6.2 IA: 设备接入 / 场景 / 报码字典 are tabs of a top-level 部署 section, addressed by routes.
+    await page.goto("/");
+    await page
+      .getByRole("navigation", { name: "主导航" })
+      .getByRole("link", { name: "部署", exact: true })
+      .click();
+    await expect(page).toHaveURL(/\/deploy$/);
+
+    const tabs = page.getByRole("navigation", { name: "分区导航" });
+    await expect(
+      tabs.getByRole("link", { name: "设备接入", exact: true }),
+    ).toBeVisible();
+    await tabs.getByRole("link", { name: "场景", exact: true }).click();
+    await expect(page).toHaveURL(/\/deploy\/scenes$/);
+    const section = page
+      .getByRole("navigation", { name: "主导航" })
+      .getByRole("link", { name: "部署", exact: true });
+    await expect(section).toHaveAttribute("href", "/deploy");
   });
 
   test("the old /admin/users and /admin/roles deep links still land", async ({
@@ -70,6 +93,16 @@ test.describe("console admin", () => {
     await expect(page).toHaveURL(/\/access$/);
     await page.goto("/admin/roles");
     await expect(page).toHaveURL(/\/access\/roles$/);
+  });
+
+  test("the old /admin deploy deep links still land", async ({ page }) => {
+    // Kept as redirects so shared bookmarks survive the move to /deploy.
+    await page.goto("/admin/onboarding");
+    await expect(page).toHaveURL(/\/deploy$/);
+    await page.goto("/admin/scenes");
+    await expect(page).toHaveURL(/\/deploy\/scenes$/);
+    await page.goto("/admin/codebook");
+    await expect(page).toHaveURL(/\/deploy\/codebook$/);
   });
 
   test("a child keeps 管理 lit and shows up in the breadcrumb", async ({
@@ -137,7 +170,7 @@ test.describe("console admin", () => {
   test("scenes report each configured resource as reachable or not", async ({
     page,
   }) => {
-    await page.goto("/admin/scenes");
+    await page.goto("/deploy/scenes");
 
     const scene = page.locator("section", { hasText: SEEDED_SCENE.sceneName });
     await expect(scene).toBeVisible();
@@ -161,7 +194,7 @@ test.describe("console admin", () => {
     // console renders these backdrops, it does not push maps to vehicles, so editing scene
     // config is operator/deployment domain and the red line (no command dispatch) holds. The
     // page now offers 新增场景, and the dialog carries the geometry fields + a file upload.
-    await page.goto("/admin/scenes");
+    await page.goto("/deploy/scenes");
 
     await page.getByRole("button", { name: "新增场景" }).click();
 
