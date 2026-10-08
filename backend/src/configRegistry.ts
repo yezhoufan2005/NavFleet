@@ -258,16 +258,20 @@ const parsePositiveNumber = (
   value: unknown,
   fallback: number | undefined,
   label: string,
-  { min = 0, allowMinInclusive = true }: { min?: number; allowMinInclusive?: boolean } = {},
+  {
+    min = 0,
+    allowMinInclusive = true,
+    file = RULES_FILE,
+  }: { min?: number; allowMinInclusive?: boolean; file?: string } = {},
 ): number | undefined => {
   if (value === undefined) {
     return fallback;
   }
   if (typeof value !== "number" || !Number.isFinite(value)) {
-    throw new Error(`${label} must be a finite number: ${RULES_FILE}`);
+    throw new Error(`${label} must be a finite number: ${file}`);
   }
   if (allowMinInclusive ? value < min : value <= min) {
-    throw new Error(`${label} must be ${allowMinInclusive ? ">=" : ">"} ${min}: ${RULES_FILE}`);
+    throw new Error(`${label} must be ${allowMinInclusive ? ">=" : ">"} ${min}: ${file}`);
   }
   return value;
 };
@@ -446,6 +450,7 @@ const parseEscalation = (value: unknown, label: string): NotifyEscalation | unde
   const afterSeconds = parsePositiveNumber(value.afterSeconds, undefined, `${label}.afterSeconds`, {
     min: 0,
     allowMinInclusive: false,
+    file: NOTIFY_FILE,
   });
   const channelId = parseOptionalString(value.channelId, `${label}.channelId`);
   if (afterSeconds === undefined || !channelId) {
@@ -488,7 +493,9 @@ const parseNotifyChannel = (raw: Record<string, unknown>, index: number): Notify
     from: parseOptionalString(raw.from, `${label}.from`),
     recipients: parseRecipients(raw.recipients, `${label}.recipients`),
     groups: parseStringList(raw.groups, `${label}.groups`),
-    digestSeconds: parsePositiveNumber(raw.digestSeconds, undefined, `${label}.digestSeconds`),
+    digestSeconds: parsePositiveNumber(raw.digestSeconds, undefined, `${label}.digestSeconds`, {
+      file: NOTIFY_FILE,
+    }),
     digestSeverities:
       raw.digestSeverities === undefined
         ? undefined
@@ -497,6 +504,7 @@ const parseNotifyChannel = (raw: Record<string, unknown>, index: number): Notify
       raw.renotifySeconds,
       undefined,
       `${label}.renotifySeconds`,
+      { file: NOTIFY_FILE },
     ),
     silenceWindows: parseSilenceWindows(raw.silenceWindows, `${label}.silenceWindows`),
     escalation: parseEscalation(raw.escalation, `${label}.escalation`),
@@ -1068,16 +1076,16 @@ export class ConfigRegistry {
    */
   async importCodebook(rawEntries: unknown): Promise<ReportCodeEntry[]> {
     const entries = parseCodebook(rawEntries);
-    await fs.writeFile(CODEBOOK_FILE, `${JSON.stringify(entries, null, 2)}\n`, "utf8");
+    await this.writeConfigFileAtomic(CODEBOOK_FILE, entries);
     await this.reload("codebook-import");
     return this.getCodebook();
   }
 
   /**
    * Atomically write JSON config: write a sibling temp file then rename over the target, so
-   * a crash mid-write can never leave a half-written config that the next load rejects. (The
-   * codebook path predates this and overwrites in place; multi-file cross-referenced config
-   * earns the stronger guarantee.)
+   * a crash mid-write can never leave a half-written config that the next load rejects. All
+   * config writers (codebook / vehicles / formations / scenes / notify / rules / reports) go
+   * through this one path.
    */
   private async writeConfigFileAtomic(filePath: string, value: unknown): Promise<void> {
     const tmp = `${filePath}.${process.pid}.${Date.now()}.tmp`;

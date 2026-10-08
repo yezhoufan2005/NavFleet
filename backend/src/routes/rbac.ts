@@ -3,7 +3,7 @@ import { requireCapability } from "../auth/middleware";
 import type { RbacService, RbacError } from "../rbac/service";
 import type { AuditService } from "../audit/service";
 import { rbacGroupSchema, rbacRoleSchema } from "../validation";
-import { respondValidationError } from "./helpers";
+import { makeActionErrorResponder, respondValidationError } from "./helpers";
 
 /** Map a service-layer refusal to an HTTP status; stable `error` code goes in the body. */
 const STATUS_BY_ERROR: Record<RbacError, number> = {
@@ -11,6 +11,8 @@ const STATUS_BY_ERROR: Record<RbacError, number> = {
   conflict: 409,
   role_in_use: 409,
 };
+
+const respondActionError = makeActionErrorResponder(STATUS_BY_ERROR);
 
 /**
  * Custom roles + user groups management API (1.6.1 RBAC). Gated by `users:manage` — administering
@@ -36,7 +38,7 @@ export const buildRbacRouter = (rbac: RbacService, audit: AuditService): express
       }
       const result = await rbac.createRole(parsed.data);
       if (!result.ok) {
-        response.status(STATUS_BY_ERROR[result.error]).json({ error: result.error });
+        respondActionError(response, result.error);
         return;
       }
       void audit.record({
@@ -59,7 +61,7 @@ export const buildRbacRouter = (rbac: RbacService, audit: AuditService): express
       }
       const result = await rbac.updateRole(String(request.params.id), parsed.data);
       if (!result.ok) {
-        response.status(STATUS_BY_ERROR[result.error]).json({ error: result.error });
+        respondActionError(response, result.error);
         return;
       }
       void audit.record({
@@ -79,7 +81,7 @@ export const buildRbacRouter = (rbac: RbacService, audit: AuditService): express
       const id = String(request.params.id);
       const result = await rbac.deleteRole(id);
       if (!result.ok) {
-        response.status(STATUS_BY_ERROR[result.error]).json({ error: result.error });
+        respondActionError(response, result.error);
         return;
       }
       void audit.record({
@@ -107,7 +109,7 @@ export const buildRbacRouter = (rbac: RbacService, audit: AuditService): express
       }
       const result = await rbac.createGroup(parsed.data);
       if (!result.ok) {
-        response.status(STATUS_BY_ERROR[result.error]).json({ error: result.error });
+        respondActionError(response, result.error);
         return;
       }
       void audit.record({
@@ -131,7 +133,7 @@ export const buildRbacRouter = (rbac: RbacService, audit: AuditService): express
       }
       const result = await rbac.updateGroup(String(request.params.id), parsed.data);
       if (!result.ok) {
-        response.status(STATUS_BY_ERROR[result.error]).json({ error: result.error });
+        respondActionError(response, result.error);
         return;
       }
       void audit.record({
@@ -150,7 +152,7 @@ export const buildRbacRouter = (rbac: RbacService, audit: AuditService): express
       const id = String(request.params.id);
       const result = await rbac.deleteGroup(id);
       if (!result.ok) {
-        response.status(STATUS_BY_ERROR[result.error]).json({ error: result.error });
+        respondActionError(response, result.error);
         return;
       }
       void audit.record({

@@ -3,7 +3,7 @@ import { requireCapability } from "../auth/middleware";
 import type { AuthService, AdminActionError } from "../auth/service";
 import type { AuditService } from "../audit/service";
 import { createUserSchema, resetPasswordSchema, updateUserSchema } from "../validation";
-import { respondValidationError } from "./helpers";
+import { makeActionErrorResponder, respondValidationError } from "./helpers";
 
 /** Map a service-layer refusal to an HTTP status + stable error code. */
 const STATUS_BY_ERROR: Record<AdminActionError, number> = {
@@ -13,9 +13,7 @@ const STATUS_BY_ERROR: Record<AdminActionError, number> = {
   self_forbidden: 409,
 };
 
-const respondActionError = (response: express.Response, error: AdminActionError): void => {
-  response.status(STATUS_BY_ERROR[error]).json({ error });
-};
+const respondActionError = makeActionErrorResponder(STATUS_BY_ERROR);
 
 /**
  * Admin user management API. Every route is gated by `requireCapability("users:manage")`, on top
