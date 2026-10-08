@@ -220,7 +220,7 @@ jobs:
       - run: npm ci
       # Cache the downloaded browser (~/.cache/ms-playwright) keyed on the lockfile, which changes
       # when the Playwright version does. On a hit the install below only pulls the apt system deps.
-      - uses: actions/cache@v4
+      - uses: actions/cache@v6
         with:
           path: ~/.cache/ms-playwright
           key: ${{ runner.os }}-playwright-${{ hashFiles('package-lock.json') }}
