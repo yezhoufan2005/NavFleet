@@ -23,11 +23,9 @@ import {
 import PageHeader from "@/components/PageHeader.vue";
 import AppSectionTabs from "@/components/shell/AppSectionTabs.vue";
 import UiButton from "@/components/ui/UiButton.vue";
+import UiInput from "@/components/ui/UiInput.vue";
 import { makeMessageFor } from "@/lib/errorMessages";
 import { notify as toast } from "@/composables/useNotifications";
-
-const INPUT_CLASS =
-  "h-9 w-full rounded-sm border border-border-strong bg-surface px-2 text-sm text-ink placeholder:text-ink-subtle";
 
 const ERROR_MESSAGES: Record<string, string> = {
   invalid_rules: "规则校验未通过，请检查阈值与时间后重试",
@@ -223,23 +221,23 @@ const resetToDefaults = (): void => applyConfig(DEFAULT_ALERT_RULES);
         <div class="grid grid-cols-2 gap-3">
           <label class="flex flex-col gap-1">
             <span class="text-sm font-medium text-ink">触发阈值（%）</span>
-            <input
+            <UiInput
               v-model="lbThreshold"
               type="number"
               min="1"
               max="100"
               :disabled="saving || !lbEnabled"
-              :class="INPUT_CLASS"
+              size="md"
             />
           </label>
           <label class="flex flex-col gap-1">
             <span class="text-sm font-medium text-ink">防抖窗口（秒）</span>
-            <input
+            <UiInput
               v-model="lbDebounce"
               type="number"
               min="0"
               :disabled="saving || !lbEnabled"
-              :class="INPUT_CLASS"
+              size="md"
             />
           </label>
         </div>
@@ -247,29 +245,29 @@ const resetToDefaults = (): void => applyConfig(DEFAULT_ALERT_RULES);
           <legend class="mb-1 text-sm font-medium text-ink">作用范围</legend>
           <label class="flex flex-col gap-1">
             <span class="text-2xs text-ink-muted">设备 ID</span>
-            <input
+            <UiInput
               v-model="lbScope.deviceIds"
               type="text"
               :disabled="saving"
-              :class="INPUT_CLASS"
+              size="md"
             />
           </label>
           <label class="flex flex-col gap-1">
             <span class="text-2xs text-ink-muted">编队 ID</span>
-            <input
+            <UiInput
               v-model="lbScope.formationIds"
               type="text"
               :disabled="saving"
-              :class="INPUT_CLASS"
+              size="md"
             />
           </label>
           <label class="flex flex-col gap-1">
             <span class="text-2xs text-ink-muted">标签</span>
-            <input
+            <UiInput
               v-model="lbScope.tags"
               type="text"
               :disabled="saving"
-              :class="INPUT_CLASS"
+              size="md"
             />
           </label>
         </fieldset>
@@ -291,42 +289,42 @@ const resetToDefaults = (): void => applyConfig(DEFAULT_ALERT_RULES);
         </label>
         <label class="flex max-w-xs flex-col gap-1">
           <span class="text-sm font-medium text-ink">离线判定（秒）</span>
-          <input
+          <UiInput
             v-model="offAfter"
             type="number"
             min="1"
             placeholder="留空用系统默认"
             :disabled="saving || !offEnabled"
-            :class="INPUT_CLASS"
+            size="md"
           />
         </label>
         <fieldset class="grid grid-cols-3 gap-2 border-0 p-0">
           <legend class="mb-1 text-sm font-medium text-ink">作用范围</legend>
           <label class="flex flex-col gap-1">
             <span class="text-2xs text-ink-muted">设备 ID</span>
-            <input
+            <UiInput
               v-model="offScope.deviceIds"
               type="text"
               :disabled="saving"
-              :class="INPUT_CLASS"
+              size="md"
             />
           </label>
           <label class="flex flex-col gap-1">
             <span class="text-2xs text-ink-muted">编队 ID</span>
-            <input
+            <UiInput
               v-model="offScope.formationIds"
               type="text"
               :disabled="saving"
-              :class="INPUT_CLASS"
+              size="md"
             />
           </label>
           <label class="flex flex-col gap-1">
             <span class="text-2xs text-ink-muted">标签</span>
-            <input
+            <UiInput
               v-model="offScope.tags"
               type="text"
               :disabled="saving"
-              :class="INPUT_CLASS"
+              size="md"
             />
           </label>
         </fieldset>

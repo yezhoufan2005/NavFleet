@@ -181,8 +181,6 @@ const CHANNEL_TYPE_OPTIONS = NOTIFY_CHANNEL_TYPES.map((type) => ({
 /** 0=周日..6=周六, in display order; empty selection means 每天. */
 const WEEKDAYS = ["日", "一", "二", "三", "四", "五", "六"];
 const TIME_RE = /^([01]\d|2[0-3]):[0-5]\d$/;
-const INPUT_CLASS =
-  "h-9 rounded-sm border border-border-strong bg-surface px-2 text-sm text-ink placeholder:text-ink-subtle";
 
 const ERROR_MESSAGES: Record<string, string> = {
   invalid_notify: "配置校验未通过，请检查各字段后重试",
@@ -682,11 +680,11 @@ useAutoRefresh(() => void load(), {
             <div class="grid grid-cols-2 gap-3">
               <label class="flex flex-col gap-1">
                 <span class="text-sm font-medium text-ink">渠道 ID</span>
-                <input
+                <UiInput
                   v-model="cId"
                   type="text"
                   :disabled="chSaving"
-                  :class="INPUT_CLASS"
+                  size="md"
                 />
               </label>
               <label class="flex flex-col gap-1">
@@ -703,12 +701,13 @@ useAutoRefresh(() => void load(), {
             </div>
             <label class="flex flex-col gap-1">
               <span class="text-sm font-medium text-ink">端点环境变量名</span>
-              <input
+              <UiInput
                 v-model="cUrlEnv"
                 type="text"
                 placeholder="如 NOTIFY_OPS_WEBHOOK_URL"
                 :disabled="chSaving"
-                :class="[INPUT_CLASS, 'font-mono']"
+                size="md"
+                class="font-mono"
               />
               <span class="text-2xs text-ink-subtle"
                 >留空表示未就绪：不发送不记失败</span
@@ -752,19 +751,19 @@ useAutoRefresh(() => void load(), {
                   rows="3"
                   placeholder="每行一个：邮箱地址，或 @用户名（发送时取该用户邮箱）"
                   :disabled="chSaving"
-                  :class="[INPUT_CLASS, 'h-auto py-2 leading-5']"
+                  class="w-full rounded-sm border border-border-strong bg-surface px-2 py-2 text-sm leading-5 text-ink placeholder:text-ink-subtle"
                 ></textarea>
               </label>
               <label class="flex flex-col gap-1">
                 <span class="text-sm font-medium text-ink"
                   >收件人组（可选）</span
                 >
-                <input
+                <UiInput
                   v-model="cGroupsText"
                   type="text"
                   placeholder="逗号分隔的组名，引用配置里的命名收件人组"
                   :disabled="chSaving"
-                  :class="INPUT_CLASS"
+                  size="md"
                 />
               </label>
             </template>
@@ -788,20 +787,22 @@ useAutoRefresh(() => void load(), {
                 class="flex flex-col gap-2 rounded-sm border border-border p-2"
               >
                 <div class="flex flex-wrap items-center gap-2">
-                  <input
+                  <UiInput
                     v-model="row.from"
                     type="text"
                     placeholder="22:00"
                     :disabled="chSaving"
-                    :class="[INPUT_CLASS, 'w-20 font-mono']"
+                    size="md"
+                    class="w-20 font-mono"
                   />
                   <span class="text-ink-muted">至</span>
-                  <input
+                  <UiInput
                     v-model="row.to"
                     type="text"
                     placeholder="06:00"
                     :disabled="chSaving"
-                    :class="[INPUT_CLASS, 'w-20 font-mono']"
+                    size="md"
+                    class="w-20 font-mono"
                   />
                   <UiButton
                     variant="ghost"
