@@ -30,6 +30,7 @@ import UiButton from "@/components/ui/UiButton.vue";
 import UiSelect from "@/components/ui/UiSelect.vue";
 import UiConfirmDialog from "@/components/ui/UiConfirmDialog.vue";
 import { tableClasses } from "@/lib/uiClasses";
+import { makeMessageFor } from "@/lib/errorMessages";
 import { notify } from "@/composables/useNotifications";
 import { useAutoRefresh } from "@/composables/useAutoRefresh";
 
@@ -51,10 +52,7 @@ const ERROR_MESSAGES: Record<string, string> = {
   self_forbidden: "不能对自己执行该操作",
   not_found: "用户不存在",
 };
-const messageFor = (error: unknown): string => {
-  const code = error instanceof Error ? error.message : "";
-  return ERROR_MESSAGES[code] ?? "操作失败，请稍后重试";
-};
+const messageFor = makeMessageFor(ERROR_MESSAGES, "操作失败，请稍后重试");
 
 const INPUT_CLASS =
   "h-9 rounded-sm border border-border-strong bg-surface px-2 text-sm text-ink placeholder:text-ink-subtle";
@@ -402,7 +400,6 @@ const formatTime = (iso: string | null): string =>
                 </div>
               </td>
             </tr>
-            <!-- USERS_SESSIONS_ROW_PLACEHOLDER -->
             <tr
               v-if="sessionsFor === user.username"
               :class="[tableClasses.row, 'bg-surface-sunken']"
@@ -464,7 +461,6 @@ const formatTime = (iso: string | null): string =>
         </tbody>
       </table>
     </div>
-    <!-- USERS_DIALOGS_PLACEHOLDER -->
     <DialogRoot
       :open="mode !== null"
       @update:open="

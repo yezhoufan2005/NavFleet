@@ -26,6 +26,7 @@ import UiButton from "@/components/ui/UiButton.vue";
 import UiSelect from "@/components/ui/UiSelect.vue";
 import UiConfirmDialog from "@/components/ui/UiConfirmDialog.vue";
 import { tableClasses } from "@/lib/uiClasses";
+import { makeMessageFor } from "@/lib/errorMessages";
 import { notify } from "@/composables/useNotifications";
 
 const ERROR_MESSAGES: Record<string, string> = {
@@ -33,10 +34,7 @@ const ERROR_MESSAGES: Record<string, string> = {
   unknown_device_in_formation: "编队引用了未配置的车辆",
   forbidden: "需要管理员权限",
 };
-const messageFor = (error: unknown): string => {
-  const code = error instanceof Error ? error.message : "";
-  return ERROR_MESSAGES[code] ?? "保存失败，请稍后重试";
-};
+const messageFor = makeMessageFor(ERROR_MESSAGES);
 
 const INPUT_CLASS =
   "h-9 rounded-sm border border-border-strong bg-surface px-2 text-sm text-ink placeholder:text-ink-subtle";

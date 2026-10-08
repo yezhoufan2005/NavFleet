@@ -167,7 +167,6 @@ const formatTime = (iso: string): string =>
       </label>
     </section>
 
-    <!-- AUDIT_TABLE_PLACEHOLDER -->
     <p v-if="status === 'loading'" class="text-sm text-ink-muted">加载中…</p>
     <p
       v-else-if="status === 'error'"

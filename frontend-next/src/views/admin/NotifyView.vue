@@ -49,6 +49,7 @@ import UiPager from "@/components/ui/UiPager.vue";
 import UiSelect from "@/components/ui/UiSelect.vue";
 import { tableClasses } from "@/lib/uiClasses";
 import { useAuth } from "@/composables/useAuth";
+import { makeMessageFor } from "@/lib/errorMessages";
 import { notify as toast } from "@/composables/useNotifications";
 import { useAutoRefresh } from "@/composables/useAutoRefresh";
 
@@ -80,7 +81,6 @@ const readParam = (key: string): string => {
   const value = route.query[key];
   return typeof value === "string" ? value : "";
 };
-// SCRIPT_PLACEHOLDER
 const deviceId = ref(readParam("deviceId"));
 const channelId = ref(readParam("channelId"));
 const statusFilter = ref(readParam("status"));
@@ -193,10 +193,7 @@ const ERROR_MESSAGES: Record<string, string> = {
   invalid_notify: "配置校验未通过，请检查各字段后重试",
   conflict: "渠道 ID 已存在",
 };
-const messageFor = (error: unknown): string => {
-  const code = error instanceof Error ? error.message : "";
-  return ERROR_MESSAGES[code] ?? "保存失败，请稍后重试";
-};
+const messageFor = makeMessageFor(ERROR_MESSAGES);
 
 /** Look up the redacted view's env-readiness badge for a raw channel by id. */
 const configuredById = computed(() => {
@@ -561,7 +558,6 @@ useAutoRefresh(() => void load(), {
         />
       </label>
     </section>
-    <!-- NOTIFY_TABLE_PLACEHOLDER -->
     <p v-if="status === 'loading'" class="text-sm text-ink-muted">加载中…</p>
     <p
       v-else-if="status === 'error'"

@@ -179,7 +179,6 @@ const formatTime = (iso: string): string =>
         </UiButton>
       </form>
     </UiCard>
-    <!-- SESSIONS_PLACEHOLDER -->
     <UiCard
       as="section"
       aria-labelledby="profile-sessions-heading"
