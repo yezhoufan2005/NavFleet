@@ -36,9 +36,10 @@ export const buildReportsConfigRouter = (
       try {
         parsed = parseReportsConfig(request.body);
       } catch (error) {
-        response
-          .status(400)
-          .json({ error: "invalid_reports", message: error instanceof Error ? error.message : "" });
+        response.status(400).json({
+          error: "invalid_reports",
+          detail: error instanceof Error ? error.message : "invalid reports",
+        });
         return;
       }
       try {

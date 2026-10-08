@@ -66,9 +66,10 @@ export const buildNotifyRouter = (
       try {
         parsed = parseNotifyConfig(request.body);
       } catch (error) {
-        response
-          .status(400)
-          .json({ error: "invalid_notify", message: error instanceof Error ? error.message : "" });
+        response.status(400).json({
+          error: "invalid_notify",
+          detail: error instanceof Error ? error.message : "invalid notify",
+        });
         return;
       }
       try {

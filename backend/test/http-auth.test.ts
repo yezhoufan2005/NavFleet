@@ -102,7 +102,15 @@ describe("POST /api/auth/login", () => {
     const response = await request(app).post("/api/auth/login").send({ username: "admin" });
 
     expect(response.status).toBe(400);
-    expect(response.body).toEqual({ error: "invalid_request" });
+    // Uniform validation envelope: stable code + field-level issues (same shape as every other
+    // zod route via respondValidationError).
+    const body = response.body as {
+      error: string;
+      issues: { path: string; message: string }[];
+    };
+    expect(body.error).toBe("invalid_request");
+    expect(Array.isArray(body.issues)).toBe(true);
+    expect(body.issues).toContainEqual(expect.objectContaining({ path: "password" }));
   });
 
   it("rejects unknown credentials with 401", async () => {

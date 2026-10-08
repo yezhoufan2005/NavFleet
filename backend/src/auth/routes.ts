@@ -14,6 +14,7 @@ import {
   type CapabilityResolver,
 } from "./middleware";
 import { durationToMs, signAccessToken, signRefreshToken, verifyToken } from "./tokens";
+import { respondValidationError } from "../routes/helpers";
 
 const baseCookie = (): CookieOptions => ({
   httpOnly: true,
@@ -87,7 +88,7 @@ export const buildAuthRouter = (
     try {
       const parsed = loginSchema.safeParse(request.body);
       if (!parsed.success) {
-        response.status(400).json({ error: "invalid_request" });
+        respondValidationError(response, parsed.error);
         return;
       }
       const result = await authService.authenticate(parsed.data.username, parsed.data.password);
@@ -212,7 +213,7 @@ export const buildAuthRouter = (
     try {
       const parsed = changePasswordSchema.safeParse(request.body);
       if (!parsed.success) {
-        response.status(400).json({ error: "invalid_request", detail: parsed.error.issues });
+        respondValidationError(response, parsed.error);
         return;
       }
       // `authenticate` guarantees request.user.
