@@ -77,8 +77,6 @@ interface BackgroundLayerLike {
 }
 
 export interface UseSvgViewportOptions {
-  /** Injected so number formatting stays owned by the caller. */
-  round: (value: number, digits: number) => number;
   selectedDevice: ComputedRef<SelectedDeviceLike | null>;
   resolvedScene: ComputedRef<ResolvedSceneLike>;
   activeSceneId: ComputedRef<string>;
@@ -99,7 +97,6 @@ export interface UseSvgViewportOptions {
 
 export function useSvgViewport(options: UseSvgViewportOptions) {
   const {
-    round,
     selectedDevice,
     resolvedScene,
     activeSceneId,
@@ -119,6 +116,8 @@ export function useSvgViewport(options: UseSvgViewportOptions) {
   const shellRef = ref<HTMLDivElement | null>(null);
   const svgRef = ref<SVGSVGElement | null>(null);
   const dragging = ref(false);
+  /** Continuous follow: when on, the view re-centres on the selected vehicle as it moves. */
+  const following = ref(false);
   const hydratedSceneId = ref("");
   const viewport = reactive({
     width: 1000,
@@ -136,6 +135,10 @@ export function useSvgViewport(options: UseSvgViewportOptions) {
   let dragOriginX = 0;
   let dragOriginY = 0;
   let dragMoved = false;
+  /** Live pointers on the stage, keyed by id — two of them is a pinch. */
+  const activePointers = new Map<number, { x: number; y: number }>();
+  /** Distance between the two pinch pointers on the previous move, 0 when not pinching. */
+  let pinchPrevDistance = 0;
   /**
    * False until `updateViewportSize` has read a real panel size. `viewport`'s
    * initial 1000x620 is a placeholder, and any view computed against it is wrong for
@@ -245,37 +248,48 @@ export function useSvgViewport(options: UseSvgViewportOptions) {
   }
 
   /**
-   * Screen point → world point, or `null` when it lands outside the scene.
-   *
-   * `rect` is a parameter so the wheel handler can measure once and use it for both
-   * this and the offset it computes afterwards. v1.0.0 called
-   * `getBoundingClientRect()` twice per wheel event — a forced layout each, in the
-   * handler of an event a trackpad emits at up to 120 Hz.
+   * Keep at least `PAN_MARGIN_PX` of the world rect inside the viewport on each axis, so a
+   * drag or keyboard pan can never push the scene entirely off-screen with 适应场景 as the
+   * only way back. Only user panning is clamped; the framing helpers (`resetView`,
+   * `focusSelectedDevice`, …) position the world deliberately and stay exact.
    */
-  function pointerToWorld(
-    event: MouseEvent,
-    rect: DOMRect | undefined = svgRef.value?.getBoundingClientRect(),
-  ): WorldPoint | null {
+  const PAN_MARGIN_PX = 56;
+  function clampPan(): void {
+    if (!sceneReady.value) return;
+    const worldPx = worldWidth.value * viewport.scale;
+    const worldPy = worldHeight.value * viewport.scale;
+    viewport.offsetX = Math.max(
+      PAN_MARGIN_PX - worldPx,
+      Math.min(viewport.offsetX, viewport.width - PAN_MARGIN_PX),
+    );
+    viewport.offsetY = Math.max(
+      PAN_MARGIN_PX - worldPy,
+      Math.min(viewport.offsetY, viewport.height - PAN_MARGIN_PX),
+    );
+  }
+
+  /**
+   * Zoom by `factor`, holding the world point under the screen point (sx, sy) fixed.
+   *
+   * The anchor is NOT rejected for landing outside the world bounds — zooming with the
+   * cursor over the blank margin around a scene smaller than the panel now works, where it
+   * used to no-op (the old `pointerToWorld` returned null there and the wheel handler bailed).
+   * Callers pass only in-viewport points, so a cursor genuinely off the panel is still ignored.
+   */
+  function zoomAtScreenPoint(sx: number, sy: number, factor: number): void {
+    if (!sceneReady.value) return;
     const bounds = effectiveWorldBounds.value;
-    if (!sceneReady.value || !bounds || !rect) return null;
+    if (!bounds) return;
 
-    const pointerX = event.clientX - rect.left;
-    const pointerY = event.clientY - rect.top;
-    const worldX = (pointerX - viewport.offsetX) / viewport.scale + bounds.minX;
-    const worldY = bounds.maxY - (pointerY - viewport.offsetY) / viewport.scale;
+    const nextScale = clampScale(viewport.scale * factor);
+    if (nextScale === viewport.scale) return;
 
-    if (
-      !Number.isFinite(worldX) ||
-      !Number.isFinite(worldY) ||
-      worldX < bounds.minX ||
-      worldX > bounds.maxX ||
-      worldY < bounds.minY ||
-      worldY > bounds.maxY
-    ) {
-      return null;
-    }
-
-    return { x: round(worldX, 3), y: round(worldY, 3) };
+    const worldX = (sx - viewport.offsetX) / viewport.scale + bounds.minX;
+    const worldY = bounds.maxY - (sy - viewport.offsetY) / viewport.scale;
+    viewport.scale = nextScale;
+    viewport.offsetX = sx - (worldX - bounds.minX) * nextScale;
+    viewport.offsetY = sy - (bounds.maxY - worldY) * nextScale;
+    saveViewportState();
   }
 
   function centerWorldPoint(
@@ -538,33 +552,63 @@ export function useSvgViewport(options: UseSvgViewportOptions) {
     viewport.offsetY -= (bounds.maxY - previousMaxY) * viewport.scale;
   }
 
-  function handleWheel(event: WheelEvent): void {
-    if (!sceneReady.value) return;
-
-    // One measurement for both the world lookup and the offset below.
+  /** The screen point relative to the stage, or null if the event is outside the panel. */
+  function stagePoint(event: MouseEvent): { x: number; y: number } | null {
     const rect = svgRef.value?.getBoundingClientRect();
-    const worldPoint = pointerToWorld(event, rect);
-    if (!worldPoint || !rect) return;
-
-    const nextScale = clampScale(
-      viewport.scale * (event.deltaY < 0 ? 1.12 : 0.88),
-    );
-    if (nextScale === viewport.scale) return;
-
-    const bounds = effectiveWorldBounds.value;
-    if (!bounds) return;
-
-    viewport.scale = nextScale;
-    viewport.offsetX =
-      event.clientX - rect.left - (worldPoint.x - bounds.minX) * nextScale;
-    viewport.offsetY =
-      event.clientY - rect.top - (bounds.maxY - worldPoint.y) * nextScale;
-    saveViewportState();
+    if (!rect) return null;
+    const x = event.clientX - rect.left;
+    const y = event.clientY - rect.top;
+    if (x < 0 || y < 0 || x > rect.width || y > rect.height) return null;
+    return { x, y };
   }
+
+  function handleWheel(event: WheelEvent): void {
+    const point = stagePoint(event);
+    if (!point) return;
+    zoomAtScreenPoint(point.x, point.y, event.deltaY < 0 ? 1.12 : 0.88);
+  }
+
+  /** Double-click / double-tap zooms in one step, anchored where it happened. */
+  function handleDoubleClick(event: MouseEvent): void {
+    const point = stagePoint(event);
+    if (!point) return;
+    zoomAtScreenPoint(point.x, point.y, 1.6);
+  }
+
+  const distanceBetweenPointers = (): number => {
+    const [a, b] = [...activePointers.values()];
+    if (!a || !b) return 0;
+    return Math.hypot(a.x - b.x, a.y - b.y);
+  };
+
+  const pinchMidpoint = (): { x: number; y: number } | null => {
+    const [a, b] = [...activePointers.values()];
+    if (!a || !b) return null;
+    const rect = svgRef.value?.getBoundingClientRect();
+    if (!rect) return null;
+    return {
+      x: (a.x + b.x) / 2 - rect.left,
+      y: (a.y + b.y) / 2 - rect.top,
+    };
+  };
 
   function handlePointerDown(event: PointerEvent): void {
     if (!sceneReady.value || event.button !== 0) return;
 
+    activePointers.set(event.pointerId, { x: event.clientX, y: event.clientY });
+    svgRef.value?.setPointerCapture?.(event.pointerId);
+
+    // A second finger starts a pinch and ends any single-pointer drag in progress.
+    if (activePointers.size >= 2) {
+      isDragging = false;
+      activePointerId = null;
+      dragging.value = false;
+      pinchPrevDistance = distanceBetweenPointers();
+      return;
+    }
+
+    // A manual grab takes over from follow mode — the operator is driving now.
+    following.value = false;
     isDragging = true;
     activePointerId = event.pointerId;
     dragging.value = true;
@@ -573,7 +617,6 @@ export function useSvgViewport(options: UseSvgViewportOptions) {
     dragStartY = event.clientY;
     dragOriginX = viewport.offsetX;
     dragOriginY = viewport.offsetY;
-    svgRef.value?.setPointerCapture?.(event.pointerId);
   }
 
   /**
@@ -590,6 +633,23 @@ export function useSvgViewport(options: UseSvgViewportOptions) {
    * `useSceneViewportPersistence`).
    */
   function handlePointerMove(event: PointerEvent): void {
+    const tracked = activePointers.get(event.pointerId);
+    if (tracked) {
+      tracked.x = event.clientX;
+      tracked.y = event.clientY;
+    }
+
+    // Two fingers: pinch-zoom around their midpoint by the change in their separation.
+    if (activePointers.size >= 2) {
+      const distance = distanceBetweenPointers();
+      const midpoint = pinchMidpoint();
+      if (pinchPrevDistance > 0 && distance > 0 && midpoint) {
+        zoomAtScreenPoint(midpoint.x, midpoint.y, distance / pinchPrevDistance);
+      }
+      pinchPrevDistance = distance;
+      return;
+    }
+
     if (!isDragging || event.pointerId !== activePointerId) return;
 
     const deltaX = event.clientX - dragStartX;
@@ -598,21 +658,81 @@ export function useSvgViewport(options: UseSvgViewportOptions) {
 
     viewport.offsetX = dragOriginX + deltaX;
     viewport.offsetY = dragOriginY + deltaY;
+    clampPan();
   }
 
   function finishPointerInteraction(event: PointerEvent): void {
-    if (!isDragging || event.pointerId !== activePointerId) return;
+    activePointers.delete(event.pointerId);
+    if (activePointers.size < 2) pinchPrevDistance = 0;
+    svgRef.value?.releasePointerCapture?.(event.pointerId);
 
+    if (event.pointerId !== activePointerId) return;
     isDragging = false;
     activePointerId = null;
     dragging.value = false;
-    svgRef.value?.releasePointerCapture?.(event.pointerId);
-
     if (dragMoved) saveViewportState();
   }
 
   function handlePointerUp(event: PointerEvent): void {
     finishPointerInteraction(event);
+  }
+
+  /** Pan the view by a screen-space delta (keyboard arrows), clamped and saved. */
+  function panBy(dx: number, dy: number): void {
+    if (!sceneReady.value) return;
+    following.value = false;
+    viewport.offsetX += dx;
+    viewport.offsetY += dy;
+    clampPan();
+    saveViewportState();
+  }
+
+  /**
+   * Keyboard pan/zoom, so the map is operable without a pointer (it was not focusable
+   * or key-driven at all before). Arrows pan, +/− zoom about the centre, Home re-fits.
+   */
+  const KEY_PAN_STEP_PX = 64;
+  function handleKeyDown(event: KeyboardEvent): void {
+    if (!sceneReady.value) return;
+    switch (event.key) {
+      case "ArrowUp":
+        panBy(0, KEY_PAN_STEP_PX);
+        break;
+      case "ArrowDown":
+        panBy(0, -KEY_PAN_STEP_PX);
+        break;
+      case "ArrowLeft":
+        panBy(KEY_PAN_STEP_PX, 0);
+        break;
+      case "ArrowRight":
+        panBy(-KEY_PAN_STEP_PX, 0);
+        break;
+      case "+":
+      case "=":
+        zoomAtScreenPoint(viewport.width / 2, viewport.height / 2, 1.12);
+        break;
+      case "-":
+      case "_":
+        zoomAtScreenPoint(viewport.width / 2, viewport.height / 2, 0.88);
+        break;
+      case "Home":
+        resetView();
+        break;
+      default:
+        return;
+    }
+    event.preventDefault();
+  }
+
+  /** Re-centre on the selected vehicle at the current zoom — the follow-mode step. */
+  function recentreOnSelected(): void {
+    const pose = getFocusPose();
+    if (pose) centerWorldPoint(pose.x, pose.y, viewport.scale);
+  }
+
+  function toggleFollow(): void {
+    following.value = !following.value;
+    if (following.value) recentreOnSelected();
   }
 
   onMounted(() => {
@@ -716,14 +836,30 @@ export function useSvgViewport(options: UseSvgViewportOptions) {
     },
   );
 
+  // Follow mode: while on, track the selected vehicle as its pose updates. The world is
+  // otherwise deliberately static (see the header), so this only runs when toggled on.
+  watch(
+    () => {
+      const pose = getFocusPose();
+      return pose ? `${pose.x},${pose.y}` : "";
+    },
+    () => {
+      if (following.value) recentreOnSelected();
+    },
+  );
+
   return {
     viewport,
     shellRef,
     svgRef,
     dragging,
+    following,
     resetView,
     focusSelectedDevice,
+    toggleFollow,
     handleWheel,
+    handleDoubleClick,
+    handleKeyDown,
     handlePointerDown,
     handlePointerMove,
     handlePointerUp,

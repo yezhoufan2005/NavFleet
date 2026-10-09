@@ -405,14 +405,17 @@ const {
   shellRef,
   svgRef,
   dragging,
+  following,
   resetView,
   focusSelectedDevice,
+  toggleFollow,
   handleWheel,
+  handleDoubleClick,
+  handleKeyDown,
   handlePointerDown,
   handlePointerMove,
   handlePointerUp,
 } = useSvgViewport({
-  round,
   selectedDevice: computed(() => selectedDevice),
   resolvedScene: resolvedScene as never,
   activeSceneId,
@@ -511,6 +514,22 @@ const screenInvariantTransform = computed(() => {
   const inverse = 1 / Math.max(viewport.scale || 1, 0.0001);
   return `scale(${round(inverse, 6)} ${round(-inverse, 6)})`;
 });
+
+/**
+ * Per-layer visibility, operator-toggled from the legend. Every layer defaults on; the
+ * toggle for a layer only appears when that layer has something to show (so a scene with
+ * no point cloud shows no 点云 switch). These gate rendering only — never the data.
+ */
+const showCloud = ref(true);
+const showLanes = ref(true);
+const showTrails = ref(true);
+const hasTrails = computed(
+  () => peerTrails.value.length > 0 || Boolean(selectedTrailD.value),
+);
+/** The backdrop is a point cloud when the scene declares one, otherwise a site raster. */
+const cloudLabel = computed(() =>
+  resolvedScene.value.pointCloudUrl ? "点云" : "底图",
+);
 </script>
 
 <template>
@@ -522,7 +541,11 @@ const screenInvariantTransform = computed(() => {
       :viewBox="`0 0 ${viewport.width || 1000} ${viewport.height || 620}`"
       role="img"
       aria-label="ROS 场景地图"
+      aria-keyshortcuts="ArrowUp ArrowDown ArrowLeft ArrowRight Plus Minus Home"
+      tabindex="0"
       @wheel.prevent="handleWheel"
+      @dblclick.prevent="handleDoubleClick"
+      @keydown="handleKeyDown"
       @pointerdown="handlePointerDown"
       @pointermove="handlePointerMove"
       @pointerup="handlePointerUp"
@@ -548,7 +571,7 @@ const screenInvariantTransform = computed(() => {
         <!-- Flipped back upright: the stage scales y by -1, and an image drawn under
              that transform would otherwise appear upside down. -->
         <image
-          v-if="backgroundLayerDefinition"
+          v-if="backgroundLayerDefinition && showCloud"
           :href="backgroundLayerDefinition.href"
           x="0"
           y="0"
@@ -563,7 +586,7 @@ const screenInvariantTransform = computed(() => {
           @error="handleBackgroundError"
         />
 
-        <g v-if="laneletPaths.length" class="lanelet-overlay">
+        <g v-if="laneletPaths.length && showLanes" class="lanelet-overlay">
           <path
             v-for="lanelet in laneletPaths"
             :key="`${lanelet.id}-left`"
@@ -597,7 +620,7 @@ const screenInvariantTransform = computed(() => {
         />
 
         <path
-          v-for="trail in peerTrails"
+          v-for="trail in showTrails ? peerTrails : []"
           :key="`trail-${trail.deviceId}`"
           :d="trail.d"
           class="device-trail peer"
@@ -605,7 +628,7 @@ const screenInvariantTransform = computed(() => {
           vector-effect="non-scaling-stroke"
         />
         <path
-          v-if="selectedTrailD"
+          v-if="selectedTrailD && showTrails"
           :d="selectedTrailD"
           class="device-trail selected"
           vector-effect="non-scaling-stroke"
@@ -753,23 +776,61 @@ const screenInvariantTransform = computed(() => {
       <button type="button" class="map-btn" @click="focusSelectedDevice">
         定位车辆
       </button>
+      <!-- Follow keeps re-centring on the selected vehicle as it moves; the world is
+           otherwise static. A manual pan/zoom turns it back off. -->
+      <button
+        type="button"
+        class="map-btn"
+        :class="{ 'is-active': following }"
+        :aria-pressed="following"
+        @click="toggleFollow"
+      >
+        跟随
+      </button>
     </div>
 
-    <ul
-      class="pointer-events-none absolute bottom-2 left-2 m-0 flex list-none flex-wrap gap-3 p-0 text-2xs text-ink-muted"
+    <!--
+      Layer toggles + legend. Each toggleable layer (路网 / 点云·底图 / 轨迹) is a button
+      that hides its layer when switched off and dims to show the state; the switch for a
+      layer only appears when that layer has something to draw. 融合定位 / 激光定位 are the
+      always-on vehicle markers, so they stay as plain legend swatches.
+    -->
+    <div
+      class="absolute bottom-2 left-2 m-0 flex flex-wrap items-center gap-2 text-2xs text-ink-muted"
     >
-      <!-- The count is the overlay's own `stats.laneletCount`, which v1.0.0 carried
-           in the payload and rendered nowhere. It answers a question the legend
-           otherwise cannot: whether the overlay loaded *fully*. -->
-      <li v-if="laneletPaths.length" class="legend">
-        <i class="lanelet" />路网覆盖{{ laneletCountLabel }}
-      </li>
-      <li v-if="resolvedScene.pointCloudUrl" class="legend">
-        <i class="cloud" />点云背景
-      </li>
-      <li class="legend"><i class="fusion" />融合定位</li>
-      <li class="legend"><i class="lidar" />激光定位</li>
-    </ul>
+      <button
+        v-if="laneletPaths.length"
+        type="button"
+        class="layer-toggle"
+        :class="{ off: !showLanes }"
+        :aria-pressed="showLanes"
+        @click="showLanes = !showLanes"
+      >
+        <i class="lanelet" />路网{{ laneletCountLabel }}
+      </button>
+      <button
+        v-if="backgroundLayerDefinition"
+        type="button"
+        class="layer-toggle"
+        :class="{ off: !showCloud }"
+        :aria-pressed="showCloud"
+        @click="showCloud = !showCloud"
+      >
+        <i class="cloud" />{{ cloudLabel }}
+      </button>
+      <button
+        v-if="hasTrails"
+        type="button"
+        class="layer-toggle"
+        :class="{ off: !showTrails }"
+        :aria-pressed="showTrails"
+        @click="showTrails = !showTrails"
+      >
+        <i class="trail" />轨迹
+      </button>
+      <span class="legend"><i class="fusion" />融合定位</span>
+      <span class="legend"><i class="lidar" />激光定位</span>
+    </div>
 
     <!-- The backdrop is what the operator is looking at, so its failure belongs on
          the map rather than in a toast that scrolls away. Both notices can be up at
@@ -1082,6 +1143,55 @@ const screenInvariantTransform = computed(() => {
 }
 .map-btn:hover {
   color: var(--color-ink);
+}
+.map-btn.is-active {
+  border-color: var(--color-brand);
+  color: var(--color-brand-ink);
+  background: var(--color-brand-wash);
+}
+
+/* The stage is keyboard-operable (arrows pan, +/- zoom); make that focus visible. */
+.ros-stage:focus-visible {
+  outline: 2px solid var(--color-brand);
+  outline-offset: -2px;
+}
+
+/*
+ * Layer toggles: a legend swatch that is also the on/off switch for its layer. `off`
+ * dims and strikes it so the state reads without colour alone.
+ */
+.layer-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 2px 7px;
+  border: 1px solid var(--color-border-strong);
+  border-radius: var(--radius-xs);
+  background: var(--color-surface-raised);
+  color: var(--color-ink-muted);
+  transition: color 150ms var(--ease-standard);
+}
+.layer-toggle:hover {
+  color: var(--color-ink);
+}
+.layer-toggle.off {
+  opacity: 0.5;
+  text-decoration: line-through;
+}
+.layer-toggle i {
+  display: block;
+  width: 10px;
+  height: 10px;
+  border-radius: var(--radius-full, 999px);
+}
+.layer-toggle i.lanelet {
+  background: var(--color-ros-lanelet-line);
+}
+.layer-toggle i.cloud {
+  background: var(--color-ros-cloud-obstacle);
+}
+.layer-toggle i.trail {
+  background: var(--color-brand);
 }
 
 .legend {
