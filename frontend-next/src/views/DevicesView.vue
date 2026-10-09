@@ -31,6 +31,7 @@ import UiFilterBar from "@/components/ui/UiFilterBar.vue";
 import UiFilterField from "@/components/ui/UiFilterField.vue";
 import UiListPagination from "@/components/ui/UiListPagination.vue";
 import { tableClasses } from "@/lib/uiClasses";
+import { compileSearch } from "@/lib/searchQuery";
 import { useFleetStore } from "@/stores/fleet";
 import { useListPagination } from "@/composables/useListPagination";
 import { useDeviceView } from "@/composables/useDeviceView";
@@ -159,14 +160,16 @@ const TONE_ORDER = [
 
 type DeviceRow = (typeof rows)["value"][number];
 
-const matchSearch = (row: DeviceRow): boolean => {
-  const query = deviceSearch.value.trim().toLowerCase();
-  if (!query) return true;
-  return (
-    (row.device.deviceName || "").toLowerCase().includes(query) ||
-    row.device.deviceId.toLowerCase().includes(query)
+/**
+ * The search box is a boolean query (与/或/非 + 括号, see `compileSearch`), compiled once per
+ * keystroke rather than per row. It runs over the device's name, id and scene label joined, so
+ * `agv-a01 and 康城 Airy 路网` narrows to that vehicle in that scene.
+ */
+const searchMatches = computed(() => compileSearch(deviceSearch.value));
+const matchSearch = (row: DeviceRow): boolean =>
+  searchMatches.value(
+    `${row.device.deviceName || ""} ${row.device.deviceId} ${row.sceneLabel}`,
   );
-};
 // Multi-select: an empty set means "all"; otherwise the value must be in the set.
 const matchStatus = (row: DeviceRow): boolean =>
   statusFilter.value.length === 0 || statusFilter.value.includes(row.tone);
