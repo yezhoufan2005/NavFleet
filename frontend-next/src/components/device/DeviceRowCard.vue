@@ -34,7 +34,6 @@ import type { DeviceSnapshot } from "@navfleet/shared";
 
 const props = defineProps<{
   device: DeviceSnapshot;
-  sceneLabel: string;
   /** Formation display names, resolved by the caller (the store holds them). */
   formationNames: string[];
 }>();
@@ -58,8 +57,12 @@ const orMissing = (value: string): string =>
  * All nine fields, always, in a fixed order. Earlier the two position rows were pushed
  * only when the vehicle had that fix, so a card could come up with six rows or eight and
  * the grid reflowed per device — «为什么这台没有经纬度» reads as a bug, not as "no fix yet".
- * Now every row is present and an absent value says 缺失. (场景/编队 keep their own
- * always-present wording — 未配置场景 / 未编入编队 — which says more than 缺失 would.)
+ * Now every row is present and an absent value says 缺失. (编队 keeps its own always-present
+ * wording — 未编入编队 — which says more than 缺失 would.)
+ *
+ * The order is **column-major** for the 3×3 grid below (`grid-flow-col`, 3 rows): the left
+ * column is 控制模式 / 融合定位 / 经纬度, the middle 挡位 / 速度 / 角速度, the right 编队 /
+ * 车端任务 / 平台任务. 场景 is not here — the row's own 场景 column already carries it.
  */
 const fields = computed<Field[]>(() => {
   const device = props.device;
@@ -70,22 +73,6 @@ const fields = computed<Field[]>(() => {
       value: orMissing(formatEnum(info?.controlMode, controlModeMap)),
       title: describeEnum(info?.controlMode, controlModeMap),
     },
-    {
-      label: "挡位",
-      value: orMissing(formatEnum(info?.gear, gearMap)),
-      title: describeEnum(info?.gear, gearMap),
-    },
-    { label: "速度", value: orMissing(formatNumber(info?.speed, 2, " m/s")) },
-    {
-      label: "角速度",
-      value: orMissing(formatNumber(info?.omega, 3, " rad/s")),
-    },
-    {
-      label: "车端任务",
-      value: orMissing(formatEnum(device.taskStatus, taskStatusMap)),
-      title: describeEnum(device.taskStatus, taskStatusMap),
-    },
-    { label: "场景", value: props.sceneLabel },
     {
       label: "融合定位",
       value: hasPose(device.fusionLoc)
@@ -100,10 +87,30 @@ const fields = computed<Field[]>(() => {
           : MISSING,
     },
     {
+      label: "挡位",
+      value: orMissing(formatEnum(info?.gear, gearMap)),
+      title: describeEnum(info?.gear, gearMap),
+    },
+    { label: "速度", value: orMissing(formatNumber(info?.speed, 2, " m/s")) },
+    {
+      label: "角速度",
+      value: orMissing(formatNumber(info?.omega, 3, " rad/s")),
+    },
+    {
       label: "编队",
       value: props.formationNames.length
         ? props.formationNames.join("、")
         : "未编入编队",
+    },
+    {
+      label: "车端任务",
+      value: orMissing(formatEnum(device.taskStatus, taskStatusMap)),
+      title: describeEnum(device.taskStatus, taskStatusMap),
+    },
+    {
+      label: "平台任务",
+      value: orMissing(formatEnum(device.platformTaskStatus, taskStatusMap)),
+      title: describeEnum(device.platformTaskStatus, taskStatusMap),
     },
   ];
 });
@@ -147,7 +154,9 @@ const hiddenAlertCount = computed(() =>
 
 <template>
   <div class="flex flex-col gap-3 bg-surface-sunken px-3 py-3">
-    <dl class="m-0 grid gap-x-4 gap-y-2 sm:grid-cols-3 xl:grid-cols-4">
+    <dl
+      class="m-0 grid grid-cols-1 gap-x-4 gap-y-2 sm:grid-flow-col sm:grid-cols-3 sm:grid-rows-3"
+    >
       <div
         v-for="field in fields"
         :key="field.label"

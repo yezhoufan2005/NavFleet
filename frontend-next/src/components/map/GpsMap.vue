@@ -65,9 +65,20 @@ interface AmapNamespace {
   ToolBar: new (options: Record<string, unknown>) => unknown;
 }
 
-const { devices, selectedDeviceId } = defineProps<{
+const {
+  devices,
+  selectedDeviceId,
+  fitDeviceIds = [],
+} = defineProps<{
   devices: DeviceSnapshot[];
   selectedDeviceId: string;
+  /**
+   * When non-empty, 适应车队 frames only these device ids — the active formation filter —
+   * instead of the whole fleet. Markers for vehicles outside the filter still render (the
+   * GPS map deliberately shows the whole fleet so a filter never makes a vehicle vanish);
+   * only the framing narrows. Empty = frame everything, as before.
+   */
+  fitDeviceIds?: string[];
 }>();
 
 const emit = defineEmits<{ select: [deviceId: string] }>();
@@ -176,7 +187,16 @@ const stepZoom = (delta: number): void => {
 const fitFleet = (): void => {
   if (!map || !markerEntries.size) return;
 
-  const entries = [...markerEntries.values()];
+  // With a formation filter active, frame only that formation's vehicles (`fitDeviceIds`);
+  // with none, frame the whole fleet. If the filtered set has no vehicle with a fix, fall
+  // back to the whole fleet so the button is never a silent no-op.
+  const filtered = fitDeviceIds.length
+    ? [...markerEntries.entries()]
+        .filter(([deviceId]) => fitDeviceIds.includes(deviceId))
+        .map(([, entry]) => entry)
+    : [];
+  const entries = filtered.length ? filtered : [...markerEntries.values()];
+
   const only = entries[0];
   if (entries.length === 1 && only) {
     map.setZoomAndCenter(16, only.position, false, 300);

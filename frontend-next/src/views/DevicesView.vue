@@ -66,6 +66,18 @@ const sceneDefinition = computed(() =>
     : null,
 );
 
+/**
+ * The device ids 适应车队 frames on the GPS map. The GPS surface keeps showing the whole
+ * fleet (a filter must not make a vehicle vanish from geography), but when a formation is
+ * selected the fit should frame *that* formation rather than the whole fleet — so this is
+ * the narrowed set when a formation is active, and empty (= frame everything) otherwise.
+ */
+const gpsFitDeviceIds = computed(() =>
+  state.value.selectedFormationId
+    ? fleet.filteredDevices.map((device) => device.deviceId)
+    : [],
+);
+
 const LAYOUT_OPTIONS: { value: DeviceLayoutPreference; label: string }[] = [
   { value: "auto", label: "自动" },
   { value: "list", label: "列表" },
@@ -465,14 +477,15 @@ watch(
           takes the narrowed set (`sceneDevices` also requires the device to be in the
           formation's scene and to have the ROS map enabled).
 
-          v1.0.0 drew the same line — `DashboardView.vue:303` passed `sortedDevices`
-          here. It is currently invisible either way because no formation can be
-          selected yet, which is exactly why this belongs in the same change as the
-          formation control below rather than in a commit of its own.
+          `fit-device-ids` is the one place the GPS filter *does* bite: 适应车队 frames the
+          selected formation (empty = the whole fleet) without hiding the other markers —
+          so filtering a formation and pressing 适应车队 zooms to that formation, which is
+          what an operator means by it, while the rest of the fleet stays on the map.
         -->
         <GpsMap
           v-if="surface === 'gps'"
           :devices="fleet.sortedDevices"
+          :fit-device-ids="gpsFitDeviceIds"
           :selected-device-id="state.selectedDeviceId"
           @select="fleet.selectDevice"
         />
@@ -750,7 +763,6 @@ watch(
                   <div class="dev-card-clip">
                     <DeviceRowCard
                       :device="row.device"
-                      :scene-label="row.sceneLabel"
                       :formation-names="row.formationNames"
                       @focus-on-map="focusOnMap"
                     />

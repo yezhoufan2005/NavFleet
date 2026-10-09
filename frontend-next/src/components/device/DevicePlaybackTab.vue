@@ -137,7 +137,11 @@ const rangeError = computed(() => {
 let requestId = 0;
 
 const load = async (): Promise<void> => {
-  if (!deviceId || rangeError.value) return;
+  // A window needs both ends: a cleared 起始/结束 must not load (it would silently become
+  // an open-ended, server-capped query that is not the window the operator sees). The
+  // button is disabled in the same case; this guard is the belt to that braces.
+  if (!deviceId || !fromInput.value || !toInput.value || rangeError.value)
+    return;
   const id = (requestId += 1);
   status.value = "loading";
   errorMessage.value = "";
@@ -341,7 +345,7 @@ const onScrub = (event: Event): void => {
     >
       <div class="flex flex-wrap items-end gap-3">
         <label class="flex flex-col gap-1">
-          <span class="text-xs text-ink-muted">起始时间</span>
+          <span class="text-2xs text-ink-muted">起始时间</span>
           <input
             v-model="fromInput"
             type="datetime-local"
@@ -349,7 +353,7 @@ const onScrub = (event: Event): void => {
           />
         </label>
         <label class="flex flex-col gap-1">
-          <span class="text-xs text-ink-muted">结束时间</span>
+          <span class="text-2xs text-ink-muted">结束时间</span>
           <input
             v-model="toInput"
             type="datetime-local"
@@ -359,13 +363,15 @@ const onScrub = (event: Event): void => {
         <UiButton
           type="submit"
           size="sm"
-          :disabled="status === 'loading' || !!rangeError"
+          :disabled="
+            status === 'loading' || !fromInput || !toInput || !!rangeError
+          "
         >
           {{ status === "loading" ? "加载中…" : "加载轨迹" }}
         </UiButton>
 
         <span class="ml-auto flex flex-wrap items-center gap-1.5">
-          <span class="text-xs text-ink-muted">快捷范围</span>
+          <span class="text-2xs text-ink-muted">快捷范围</span>
           <UiButton
             v-for="hours in PRESET_HOURS"
             :key="hours"
@@ -501,7 +507,7 @@ const onScrub = (event: Event): void => {
           {{ playing ? "暂停" : "播放" }}
         </UiButton>
         <UiButton
-          variant="ghost"
+          variant="secondary"
           size="sm"
           :disabled="!samples.length"
           @click="restart"

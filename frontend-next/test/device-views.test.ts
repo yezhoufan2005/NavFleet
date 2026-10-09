@@ -433,11 +433,17 @@ describe("the GPS map against a fake SDK", () => {
   }
 
   const markers: FakeMarker[] = [];
-  const calls = { fitView: 0, zoomAndCenter: 0, style: [] as string[] };
+  const calls = {
+    fitView: 0,
+    fitCount: 0,
+    zoomAndCenter: 0,
+    style: [] as string[],
+  };
 
   const fakeAmap = () => {
     markers.length = 0;
     calls.fitView = 0;
+    calls.fitCount = 0;
     calls.zoomAndCenter = 0;
     calls.style = [];
 
@@ -449,8 +455,9 @@ describe("the GPS map against a fake SDK", () => {
         setZoomAndCenter = (): void => {
           calls.zoomAndCenter += 1;
         };
-        setFitView = (): void => {
+        setFitView = (framed: FakeMarker[]): void => {
           calls.fitView += 1;
+          calls.fitCount = framed.length;
         };
         getZoom = (): number => 12;
         add = (): void => undefined;
@@ -494,6 +501,7 @@ describe("the GPS map against a fake SDK", () => {
   const mountMap = async (props: {
     devices: unknown[];
     selectedDeviceId: string;
+    fitDeviceIds?: string[];
   }) => {
     const amap = await import("@/lib/amap");
     vi.spyOn(amap, "hasAmapConfig").mockReturnValue(true);
@@ -546,6 +554,25 @@ describe("the GPS map against a fake SDK", () => {
     await flushPromises();
 
     expect(calls.fitView).toBe(1);
+  });
+
+  it("frames only the active formation when 适应车队 has a filter set", async () => {
+    // The GPS surface keeps every marker on the map, but 适应车队 should zoom to the
+    // selected formation rather than the whole fleet. Three vehicles with a fix, two of
+    // them in the filter → the fit frames two, not three.
+    await mountMap({
+      devices: [
+        gpsDevice("agv-01", 31.2, 121.4),
+        gpsDevice("agv-02", 31.3, 121.5),
+        gpsDevice("agv-03", 31.4, 121.6),
+      ],
+      selectedDeviceId: "",
+      fitDeviceIds: ["agv-01", "agv-02"],
+    });
+
+    expect(markers).toHaveLength(3);
+    expect(calls.fitView).toBe(1);
+    expect(calls.fitCount).toBe(2);
   });
 
   it("redraws a marker only when something it shows has changed", async () => {
