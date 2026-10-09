@@ -40,6 +40,8 @@ import UiModal from "@/components/ui/UiModal.vue";
 import UiInput from "@/components/ui/UiInput.vue";
 import UiListPagination from "@/components/ui/UiListPagination.vue";
 import UiSelect from "@/components/ui/UiSelect.vue";
+import UiFilterBar from "@/components/ui/UiFilterBar.vue";
+import UiFilterField from "@/components/ui/UiFilterField.vue";
 import { tableClasses } from "@/lib/uiClasses";
 import { useAuth } from "@/composables/useAuth";
 import { makeMessageFor } from "@/lib/errorMessages";
@@ -535,24 +537,21 @@ useAutoRefresh(() => void load(), {
       </div>
     </section>
 
-    <section class="flex flex-wrap items-end gap-3" aria-label="筛选">
-      <label class="flex flex-col gap-1">
-        <span class="text-2xs text-ink-muted">设备</span>
+    <UiFilterBar>
+      <UiFilterField label="设备">
         <UiInput v-model="deviceId" type="search" placeholder="设备 ID" />
-      </label>
-      <label class="flex flex-col gap-1">
-        <span class="text-2xs text-ink-muted">渠道</span>
+      </UiFilterField>
+      <UiFilterField label="渠道">
         <UiInput v-model="channelId" type="search" placeholder="渠道 ID" />
-      </label>
-      <label class="flex flex-col gap-1">
-        <span class="text-2xs text-ink-muted">状态</span>
+      </UiFilterField>
+      <UiFilterField label="状态">
         <UiSelect
           v-model="statusFilter"
           :options="STATUS_OPTIONS"
           aria-label="按状态筛选"
         />
-      </label>
-    </section>
+      </UiFilterField>
+    </UiFilterBar>
     <p v-if="status === 'loading'" class="text-sm text-ink-muted">加载中…</p>
     <p
       v-else-if="status === 'error'"

@@ -20,6 +20,8 @@ import UiInput from "@/components/ui/UiInput.vue";
 import UiSegmented from "@/components/ui/UiSegmented.vue";
 import UiSelect from "@/components/ui/UiSelect.vue";
 import UiMultiSelect from "@/components/ui/UiMultiSelect.vue";
+import UiFilterBar from "@/components/ui/UiFilterBar.vue";
+import UiFilterField from "@/components/ui/UiFilterField.vue";
 import { SEVERITY_LABELS } from "@/lib/severity";
 import TimeSeriesChart from "@/components/charts/TimeSeriesChart.vue";
 import CategoryBarChart from "@/components/charts/CategoryBarChart.vue";
@@ -293,9 +295,8 @@ const exportAlertsCsv = (): void => {
     <AppSectionTabs />
 
     <!-- Filters in one row above the charts (data-viz convention), export at the end. -->
-    <div class="flex flex-wrap items-end gap-3">
-      <div class="flex flex-col gap-1">
-        <span class="text-2xs text-ink-muted">范围</span>
+    <UiFilterBar>
+      <UiFilterField label="范围">
         <UiSegmented
           :model-value="isCustom ? '' : range"
           :options="RANGES"
@@ -304,12 +305,11 @@ const exportAlertsCsv = (): void => {
             (value) => setFilter({ range: value, from: null, to: null })
           "
         />
-      </div>
+      </UiFilterField>
 
       <!-- 自定义起止：与预设是同一控件的两种形态，选日期即接管，选预设即清空。起 ≤ 止 由
            原生 min/max 约束，另在 isCustom 里兜底。 -->
-      <label class="flex flex-col gap-1">
-        <span class="text-2xs text-ink-muted">起始时间</span>
+      <UiFilterField label="起始时间">
         <UiInput
           type="date"
           :model-value="customFrom"
@@ -317,9 +317,8 @@ const exportAlertsCsv = (): void => {
           aria-label="自定义起始日期"
           @update:model-value="(value) => setCustom({ from: value })"
         />
-      </label>
-      <label class="flex flex-col gap-1">
-        <span class="text-2xs text-ink-muted">结束时间</span>
+      </UiFilterField>
+      <UiFilterField label="结束时间">
         <UiInput
           type="date"
           :model-value="customTo"
@@ -327,20 +326,18 @@ const exportAlertsCsv = (): void => {
           aria-label="自定义结束日期"
           @update:model-value="(value) => setCustom({ to: value })"
         />
-      </label>
+      </UiFilterField>
 
-      <label class="flex flex-col gap-1">
-        <span class="text-2xs text-ink-muted">粒度</span>
+      <UiFilterField label="粒度">
         <UiSelect
           :model-value="bucket"
           :options="BUCKETS"
           aria-label="分桶粒度"
           @update:model-value="setFilter({ bucket: $event })"
         />
-      </label>
+      </UiFilterField>
 
-      <label class="flex flex-col gap-1">
-        <span class="text-2xs text-ink-muted">设备</span>
+      <UiFilterField label="设备">
         <UiMultiSelect
           :model-value="deviceFilter"
           :options="deviceOptions"
@@ -351,8 +348,8 @@ const exportAlertsCsv = (): void => {
               setFilter({ device: value.length ? value.join(',') : null })
           "
         />
-      </label>
-    </div>
+      </UiFilterField>
+    </UiFilterBar>
 
     <!-- Loading: a skeleton in the shape of the result (KPI band + two chart columns) rather
          than a bare line, so the wait reads as "this is filling in" — the aggregation can be
