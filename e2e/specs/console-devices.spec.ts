@@ -124,8 +124,8 @@ test.describe("console devices", () => {
     await expect(map).toContainText(SEEDED_SCENE.sceneName);
     // The count comes from the overlay's own `stats.laneletCount`, which v1.0.0
     // carried and never rendered. It is what tells you the overlay loaded *fully*
-    // rather than merely loaded.
-    await expect(map.getByText(/路网覆盖 · \d+ 段/)).toBeVisible();
+    // rather than merely loaded. (The 路网 legend is also the layer's on/off toggle.)
+    await expect(map.getByText(/路网 · \d+ 段/)).toBeVisible();
   });
 
   test("the chosen view and surface both survive a reload", async ({

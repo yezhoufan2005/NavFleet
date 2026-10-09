@@ -27,9 +27,6 @@ const PANEL = { width: 800, height: 600 };
 const WORLD: WorldBounds = { minX: 0, maxX: 100, minY: 0, maxY: 50 };
 const BASE_SCALE = 7.36;
 
-const round = (value: number, digits: number): number =>
-  Number(value.toFixed(digits));
-
 interface HarnessOptions {
   bounds?: WorldBounds | null;
   scene?: Record<string, unknown>;
@@ -57,7 +54,6 @@ const mountViewport = (options: HarnessOptions = {}) => {
   const Harness = defineComponent({
     setup() {
       api = useSvgViewport({
-        round,
         selectedDevice: device as unknown as ComputedRef<null>,
         resolvedScene: scene as unknown as ComputedRef<Record<string, never>>,
         activeSceneId: sceneId as unknown as ComputedRef<string>,
@@ -111,6 +107,12 @@ const pointerAt = (
   extra: Partial<PointerEvent> = {},
 ): PointerEvent =>
   ({ clientX, clientY, pointerId: 1, button: 0, ...extra }) as PointerEvent;
+
+const keyEvent = (key: string): KeyboardEvent =>
+  ({ key, preventDefault: () => undefined }) as KeyboardEvent;
+
+const mouseAt = (clientX: number, clientY: number): MouseEvent =>
+  ({ clientX, clientY, preventDefault: () => undefined }) as MouseEvent;
 
 beforeEach(() => {
   __resetSceneViewCache();
@@ -290,13 +292,24 @@ describe("zoom", () => {
     expect(api.viewport.scale).toBeCloseTo(BASE_SCALE * 1, 4);
   });
 
-  it("ignores a wheel event that lands outside the scene", () => {
+  it("ignores a wheel event that lands outside the panel", () => {
     const { api } = mountViewport();
     const before = api.viewport.scale;
 
-    // The stubbed rect is 800x600 at the origin, so x=2000 is off the map.
+    // The stubbed rect is 800x600 at the origin, so x=2000 is off the panel entirely.
     api.handleWheel(wheelAt(2000, 150, -100));
     expect(api.viewport.scale).toBe(before);
+  });
+
+  it("zooms when the cursor is over the blank margin inside the panel", () => {
+    // The 100x50 world fits to 736x368 centred in the 800x600 panel, so x=780 is inside
+    // the panel but past the world's right edge. This used to no-op (the old
+    // `pointerToWorld` rejected it); now it zooms, anchored at the cursor.
+    const { api } = mountViewport();
+    const before = api.viewport.scale;
+
+    api.handleWheel(wheelAt(780, 300, -100));
+    expect(api.viewport.scale).toBeGreaterThan(before);
   });
 });
 
@@ -329,6 +342,99 @@ describe("panning", () => {
     const { api } = mountViewport();
     api.handlePointerDown(pointerAt(100, 100, { button: 2 }));
     expect(api.dragging.value).toBe(false);
+  });
+
+  it("clamps a pan so the scene cannot be dragged off-screen", () => {
+    // Dragging far past the edge used to leave the scene lost with 适应场景 the only way
+    // back. The offset is clamped to keep a margin of the world in view.
+    const { api } = mountViewport();
+
+    api.handlePointerDown(pointerAt(100, 100));
+    api.handlePointerMove(pointerAt(5100, 100));
+
+    // Upper bound is viewport.width - PAN_MARGIN_PX (800 - 56).
+    expect(api.viewport.offsetX).toBe(744);
+  });
+});
+
+describe("double-click and keyboard", () => {
+  it("double-click zooms in one step, anchored where it happened", () => {
+    const { api } = mountViewport();
+    const before = api.viewport.scale;
+
+    api.handleDoubleClick(mouseAt(400, 300));
+    expect(api.viewport.scale).toBeCloseTo(before * 1.6, 4);
+  });
+
+  it("pans with the arrow keys", () => {
+    const { api } = mountViewport();
+    const startX = api.viewport.offsetX;
+
+    api.handleKeyDown(keyEvent("ArrowRight"));
+    expect(api.viewport.offsetX).toBe(startX - 64);
+  });
+
+  it("zooms with +/- about the centre and re-fits on Home", () => {
+    const { api } = mountViewport();
+    const base = api.viewport.scale;
+
+    api.handleKeyDown(keyEvent("+"));
+    expect(api.viewport.scale).toBeGreaterThan(base);
+
+    api.handleKeyDown(keyEvent("Home"));
+    expect(api.viewport.scale).toBeCloseTo(BASE_SCALE, 5);
+  });
+});
+
+describe("pinch zoom", () => {
+  it("zooms by the change in finger separation, about their midpoint", () => {
+    const { api } = mountViewport();
+    const base = api.viewport.scale;
+
+    api.handlePointerDown(pointerAt(100, 100, { pointerId: 1 }));
+    api.handlePointerDown(pointerAt(200, 100, { pointerId: 2 }));
+    // Fingers spread from 100px apart to 200px: a 2x zoom.
+    api.handlePointerMove(pointerAt(300, 100, { pointerId: 2 }));
+
+    expect(api.viewport.scale).toBeCloseTo(base * 2, 4);
+  });
+});
+
+describe("follow mode", () => {
+  it("re-centres on the selected vehicle as its pose moves", async () => {
+    const { api, device, wrapper } = mountViewport({
+      device: {
+        deviceId: "agv-01",
+        sceneId: "yard",
+        fusionLoc: { x: 20, y: 10 },
+      },
+    });
+
+    api.toggleFollow();
+    expect(api.following.value).toBe(true);
+
+    // Same vehicle, new pose — follow tracks it (the device-change watch does not fire
+    // because the id is unchanged).
+    device.value = {
+      deviceId: "agv-01",
+      sceneId: "yard",
+      fusionLoc: { x: 80, y: 40 },
+    };
+    await wrapper.vm.$nextTick();
+
+    expect(centreOf(api.viewport).x).toBeCloseTo(80, 4);
+    expect(centreOf(api.viewport).y).toBeCloseTo(40, 4);
+  });
+
+  it("turns off when the operator pans manually", () => {
+    const { api } = mountViewport({
+      device: { deviceId: "agv-01", fusionLoc: { x: 20, y: 10 } },
+    });
+    api.toggleFollow();
+    expect(api.following.value).toBe(true);
+
+    api.handlePointerDown(pointerAt(100, 100));
+    expect(api.following.value).toBe(false);
   });
 });
 
