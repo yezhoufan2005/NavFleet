@@ -65,11 +65,21 @@ const commitJump = (): void => {
     <span class="font-mono text-2xs text-ink-muted">
       <slot>第 {{ Math.min(page, pageCount) }} / {{ pageCount }} 页</slot>
     </span>
+    <UiButton
+      variant="ghost"
+      size="sm"
+      :disabled="page >= pageCount"
+      @click="$emit('update:page', page + 1)"
+    >
+      下一页
+    </UiButton>
+    <!-- The jump sits to the right of 下一页, and reads 「跳至第 _ 页」. Only shown with more
+         than one page — there is nowhere to jump on a single page. -->
     <label
       v-if="jump && pageCount > 1"
-      class="flex items-center gap-1 text-2xs text-ink-muted"
+      class="flex items-center gap-1 font-mono text-2xs text-ink-muted"
     >
-      跳至
+      跳至第
       <input
         v-model="draft"
         type="number"
@@ -80,14 +90,7 @@ const commitJump = (): void => {
         @change="commitJump"
         @keyup.enter="commitJump"
       />
+      页
     </label>
-    <UiButton
-      variant="ghost"
-      size="sm"
-      :disabled="page >= pageCount"
-      @click="$emit('update:page', page + 1)"
-    >
-      下一页
-    </UiButton>
   </div>
 </template>

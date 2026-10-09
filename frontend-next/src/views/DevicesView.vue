@@ -209,7 +209,7 @@ const PAGE_SIZE_OPTIONS = [
   { value: "50", label: "50 条/页" },
 ];
 const ALLOWED_PAGE_SIZES = [10, 20, 50];
-const DEFAULT_PAGE_SIZE = 20;
+const DEFAULT_PAGE_SIZE = 10;
 
 const pageSize = computed(() => {
   const value = Number(route.query.pageSize);
@@ -343,13 +343,14 @@ const clearSelectedTrail = (): void => {
 };
 
 /**
- * 在地图上选中 — select the vehicle *and* switch to the GPS map, so the button lands you
- * looking at it rather than just marking it in a list you are still reading. The layout
- * preference is remembered, which is fine: the operator asked to see this on the map.
+ * 地图选中 — select the vehicle *and* switch to the ROS scene map focused on it, so the
+ * button lands you looking at that vehicle in its scene rather than just marking it in a
+ * list you are still reading. The layout preference is remembered, which is fine: the
+ * operator asked to see this on the map.
  */
 const focusOnMap = (deviceId: string): void => {
   fleet.selectDevice(deviceId);
-  setSurface("gps");
+  setSurface("scene");
   setLayout("map");
 };
 
@@ -885,7 +886,7 @@ watch(
       class="flex items-center justify-between gap-3"
       aria-label="分页"
     >
-      <label class="flex items-center gap-2 text-xs text-ink-muted">
+      <label class="flex items-center gap-2 font-mono text-2xs text-ink-muted">
         <span>每页条数</span>
         <UiSelect
           :model-value="String(pageSize)"

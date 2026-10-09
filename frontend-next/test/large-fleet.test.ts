@@ -114,14 +114,15 @@ describe("large fleet rendering", () => {
 
     const wrapper = await mountList();
 
-    expect(wrapper.findAll("tbody tr.device-row")).toHaveLength(20);
-    // And the pager says what the page is a page *of* — 500 rows behind 25 pages.
+    expect(wrapper.findAll("tbody tr.device-row")).toHaveLength(10);
+    // And the pager says what the page is a page *of* — 500 rows behind 50 pages at the
+    // default 10/page.
     const pager = wrapper.get("nav[aria-label='分页']");
-    expect(pager.text()).toContain("第 1 / 25 页");
+    expect(pager.text()).toContain("第 1 / 50 页");
     expect(pager.text()).toContain("共 500 台");
   });
 
-  it("walks to the next page and lands on the next twenty vehicles", async () => {
+  it("walks to the next page and lands on the next ten vehicles", async () => {
     ingest(45);
     const wrapper = await mountList();
     const idsOf = () =>
@@ -137,8 +138,8 @@ describe("large fleet rendering", () => {
       .trigger("click");
     await flushPromises();
 
-    expect(idsOf()).toHaveLength(20);
-    expect(idsOf()[0]).toBe("agv-0021");
+    expect(idsOf()).toHaveLength(10);
+    expect(idsOf()[0]).toBe("agv-0011");
     // The page travels in the URL, for the same reason the sort does: "it is on page 3"
     // has to be something you can send to a colleague.
     expect(wrapper.vm.$route.query.page).toBe("2");
@@ -148,7 +149,7 @@ describe("large fleet rendering", () => {
     ingest(45);
     const wrapper = await mountList();
     expect(wrapper.get("nav[aria-label='分页']").text()).toContain(
-      "第 1 / 3 页",
+      "第 1 / 5 页",
     );
 
     const sizeSelect = wrapper
