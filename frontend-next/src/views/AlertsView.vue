@@ -28,7 +28,7 @@ import AppSectionTabs from "@/components/shell/AppSectionTabs.vue";
 import UiButton from "@/components/ui/UiButton.vue";
 import UiInput from "@/components/ui/UiInput.vue";
 import UiSegmented from "@/components/ui/UiSegmented.vue";
-import UiSelect from "@/components/ui/UiSelect.vue";
+import UiMultiSelect from "@/components/ui/UiMultiSelect.vue";
 import { SEVERITY_LABELS } from "@/lib/severity";
 import UiListPagination from "@/components/ui/UiListPagination.vue";
 import AlertHistoryPanel from "@/components/alerts/AlertHistoryPanel.vue";
@@ -114,7 +114,16 @@ const severity = computed<Severity | "all">(() => {
     ? value
     : "all";
 });
-const deviceFilter = computed(() => readParam("device"));
+/**
+ * 设备 is a **multi-select** now (消息 页 was single until the filter-polish sweep). The URL
+ * keeps one `device` key, comma-joined, so a shareable link still carries the whole set:
+ * `?device=agv-02,agv-07`. An empty list means 全部设备. `AlertHistoryPanel` parses the same
+ * key the same way, so the history tab honours a multi-device link too.
+ */
+const deviceFilter = computed(() => {
+  const raw = readParam("device");
+  return raw ? raw.split(",").filter(Boolean) : [];
+});
 const search = computed(() => readParam("q"));
 /**
  * Onset window for 告警史 (history tab only). Server-side (see `AlertHistoryPanel`), so it reaches
@@ -174,70 +183,87 @@ const allAlerts = computed(() =>
     ),
 );
 
+/**
+ * The filter predicates, each over one axis, so 设备 can be faceted against the *others*.
+ * `matchAcked` is the 显示已确认 rule folded in as a filter: hidden-by-default acknowledged
+ * rows are simply "not matching" unless the toggle is on.
+ */
+const matchSeverity = (alert: { severity: Severity }): boolean =>
+  severity.value === "all" || alert.severity === severity.value;
+const matchDevice = (alert: { deviceId: string }): boolean =>
+  deviceFilter.value.length === 0 ||
+  deviceFilter.value.includes(alert.deviceId);
+const matchAcked = (alert: { deviceId: string; id: string }): boolean =>
+  showAcknowledged.value || !ack.isAcknowledged(alert.deviceId, alert.id);
+const matchSearch = (alert: {
+  title: string;
+  detail?: string;
+  deviceName?: string;
+  deviceId: string;
+  info?: string;
+  source: string;
+}): boolean => {
+  const keyword = search.value.trim().toLowerCase();
+  if (!keyword) return true;
+  return [
+    alert.title,
+    alert.detail,
+    alert.deviceName,
+    alert.deviceId,
+    alert.info,
+    // Both forms of the source: the operator sees 规则引擎 on the row, so that is what
+    // they will type — but a deployment reading logs may know it as `rule-engine`. The
+    // placeholder names 来源, and a placeholder that promises a field the filter does
+    // not search is its own small lie.
+    SOURCE_LABELS[alert.source],
+    alert.source,
+  ]
+    .filter(Boolean)
+    .some((field) => String(field).toLowerCase().includes(keyword));
+};
+
+/**
+ * 设备 options, faceted against the *other* filters (严重度 / 搜索 / 显示已确认): the dropdown
+ * only offers vehicles that still have a matching alert, so narrowing 严重度=预警 (or searching
+ * a code) trims the device list to the vehicles that actually have such an alert — the same
+ * cascading 设备 页 does. A currently-selected device is always kept listed so it can be
+ * unticked even after its own alert clears (the filter lives in the URL and outlives the alert).
+ */
 const deviceOptions = computed(() => {
   const seen = new Map<string, string>();
   for (const alert of allAlerts.value) {
-    if (!seen.has(alert.deviceId)) {
-      seen.set(alert.deviceId, alert.deviceName || alert.deviceId);
+    if (matchSeverity(alert) && matchSearch(alert) && matchAcked(alert)) {
+      if (!seen.has(alert.deviceId)) {
+        seen.set(alert.deviceId, alert.deviceName || alert.deviceId);
+      }
     }
   }
-  /*
-   * Keep the **currently filtered** device in the list even when it no longer has an
-   * alert to contribute one.
-   *
-   * The list is built by walking the alerts, so a device leaves it the moment its fault
-   * clears — while the filter naming that device lives in the URL and stays. That is the
-   * normal life of an alert filter, not an edge case: narrow to 某台车, the fault clears,
-   * and the page becomes an empty list beside a dropdown showing nothing, with no
-   * indication that a filter is still narrowing it. The only way out was to know to
-   * re-pick 全部设备 from a control that looked unset.
-   *
-   * The name is resolved from the fleet when the device is still known, so the option
-   * reads 「B07 巡检车」 rather than `agv-b07`; one that has left the fleet as well falls
-   * back to its id, which is still the truth about what the URL is asking for.
-   */
-  const filteredDevice = deviceFilter.value;
-  if (filteredDevice && !seen.has(filteredDevice)) {
-    const known = fleet.devices.find(
-      (device) => device.deviceId === filteredDevice,
-    );
-    seen.set(filteredDevice, known?.deviceName || filteredDevice);
+  // The name is resolved from the fleet when the device is still known, so a kept option
+  // reads 「B07 巡检车」 rather than `agv-b07`; one that has left the fleet falls back to its
+  // id, which is still the truth about what the URL is asking for.
+  for (const id of deviceFilter.value) {
+    if (!seen.has(id)) {
+      const known = fleet.devices.find((device) => device.deviceId === id);
+      seen.set(id, known?.deviceName || id);
+    }
   }
-  // By name, not by first appearance. The set is built by walking the alert list, so
-  // without this the menu's order is "whichever vehicle happened to fault first" — an
-  // order that changes under the reader and cannot be scanned for a known name.
+  // By name, not by first appearance — the set is built by walking the alert list, so without
+  // this the menu's order is "whichever vehicle happened to fault first", an order that moves
+  // under the reader and cannot be scanned for a known name.
   return [...seen]
     .map(([value, label]) => ({ value, label }))
     .sort((left, right) => left.label.localeCompare(right.label, "zh-Hans-CN"));
 });
 
-const filtered = computed(() => {
-  const keyword = search.value.trim().toLowerCase();
-  return allAlerts.value.filter((alert) => {
-    if (severity.value !== "all" && alert.severity !== severity.value)
-      return false;
-    if (deviceFilter.value && alert.deviceId !== deviceFilter.value)
-      return false;
-    if (!showAcknowledged.value && ack.isAcknowledged(alert.deviceId, alert.id))
-      return false;
-    if (!keyword) return true;
-    return [
-      alert.title,
-      alert.detail,
-      alert.deviceName,
-      alert.deviceId,
-      alert.info,
-      // Both forms of the source: the operator sees 规则引擎 on the row, so that is what
-      // they will type — but a deployment reading logs may know it as `rule-engine`. The
-      // placeholder names 来源, and a placeholder that promises a field the filter does
-      // not search is its own small lie.
-      SOURCE_LABELS[alert.source],
-      alert.source,
-    ]
-      .filter(Boolean)
-      .some((field) => String(field).toLowerCase().includes(keyword));
-  });
-});
+const filtered = computed(() =>
+  allAlerts.value.filter(
+    (alert) =>
+      matchSeverity(alert) &&
+      matchDevice(alert) &&
+      matchAcked(alert) &&
+      matchSearch(alert),
+  ),
+);
 
 // Shared pagination (default 10/页, URL-backed), the same control 设备/审计/外发 use. A
 // filter change still resets the page via `setFilter({ …, page: null })` below; the
@@ -405,11 +431,15 @@ watch(() => canAck.value && fleet.state.realtime.apiReady, runLegacyMigration);
 
       <label class="flex flex-col gap-1">
         <span class="text-2xs text-ink-muted">设备</span>
-        <UiSelect
+        <UiMultiSelect
           :model-value="deviceFilter"
-          :options="[{ value: '', label: '全部设备' }, ...deviceOptions]"
+          :options="deviceOptions"
+          placeholder="全部设备"
           aria-label="设备筛选"
-          @update:model-value="setFilter({ device: $event || null })"
+          @update:model-value="
+            (value) =>
+              setFilter({ device: value.length ? value.join(',') : null })
+          "
         />
       </label>
 

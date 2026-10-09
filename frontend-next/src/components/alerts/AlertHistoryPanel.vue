@@ -90,7 +90,12 @@ const severity = computed<Severity | "all">(() => {
     ? value
     : "all";
 });
-const deviceFilter = computed(() => readParam("device"));
+// 设备 is comma-joined in the one `device` key (multi-select since the filter-polish sweep);
+// an empty list means 全部设备, matching AlertsView's shared bar.
+const deviceFilter = computed(() => {
+  const raw = readParam("device");
+  return raw ? raw.split(",").filter(Boolean) : [];
+});
 const search = computed(() => readParam("q"));
 
 /**
@@ -123,8 +128,8 @@ const filtered = computed(() =>
     if (severity.value !== "all" && severityOf(record) !== severity.value)
       return false;
     if (
-      deviceFilter.value &&
-      String(record.deviceId ?? "") !== deviceFilter.value
+      deviceFilter.value.length &&
+      !deviceFilter.value.includes(String(record.deviceId ?? ""))
     )
       return false;
     const keyword = search.value.trim().toLowerCase();

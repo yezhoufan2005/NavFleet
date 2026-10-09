@@ -6,7 +6,7 @@ import { enableAutoUnmount, flushPromises, mount } from "@vue/test-utils";
 import { fleetApi } from "@navfleet/fleet-core";
 import { capabilitiesForRole, type UserRole } from "@navfleet/shared";
 import AlertsView from "@/views/AlertsView.vue";
-import UiSelect from "@/components/ui/UiSelect.vue";
+import UiMultiSelect from "@/components/ui/UiMultiSelect.vue";
 import NotificationHost from "@/components/NotificationHost.vue";
 import { useFleetStore } from "@/stores/fleet";
 import { useAuth, __resetAuth } from "@/composables/useAuth";
@@ -230,19 +230,36 @@ describe("filters live in the URL", () => {
 });
 
 describe("the controls the template wires up", () => {
-  it("filters by the device select", async () => {
+  it("filters by the device multi-select", async () => {
     seedMixed();
     const wrapper = await mountAlerts();
 
-    // Driven through the component's own contract rather than a DOM `<select>`: the
-    // filter is a `UiSelect` now, and its list lives in a portal that jsdom cannot open
-    // meaningfully. What this case owns is the *wiring* — that the view turns a chosen
-    // value into a query param — and `UiSelect`'s own mapping is covered in ui-select.
-    wrapper.findComponent(UiSelect).vm.$emit("update:modelValue", "agv-02");
+    // Driven through the component's own contract rather than a DOM control: the filter is
+    // a `UiMultiSelect` now (multi-device), and its panel lives in a portal jsdom cannot open
+    // meaningfully. What this case owns is the *wiring* — that the view turns the chosen set
+    // into the comma-joined `device` query param — and the component's own toggle/summary
+    // behaviour is covered in ui-multi-select.
+    wrapper
+      .findComponent(UiMultiSelect)
+      .vm.$emit("update:modelValue", ["agv-02"]);
     await flushPromises();
 
     expect(router.currentRoute.value.query.device).toBe("agv-02");
     expect(wrapper.findAll("li")).toHaveLength(1);
+  });
+
+  it("joins several picked devices into one query key", async () => {
+    seedMixed();
+    const wrapper = await mountAlerts();
+
+    wrapper
+      .findComponent(UiMultiSelect)
+      .vm.$emit("update:modelValue", ["agv-01", "agv-02"]);
+    await flushPromises();
+
+    expect(router.currentRoute.value.query.device).toBe("agv-01,agv-02");
+    // Both vehicles' alerts survive the filter (critical + warning), nothing else.
+    expect(wrapper.findAll("li")).toHaveLength(2);
   });
 
   it("keeps the filtered vehicle selectable after its alert clears", async () => {
@@ -264,10 +281,21 @@ describe("the controls the template wires up", () => {
     );
     await flushPromises();
 
-    const select = wrapper.findComponent(UiSelect);
+    const select = wrapper.findComponent(UiMultiSelect);
     const options = select.props("options");
     expect(options.map((option) => option.value)).toContain("agv-02");
+    // The trigger summarises the still-selected device, so it does not look unset.
     expect(select.text()).toContain("B07 巡检车");
+  });
+
+  it("narrows the device options to match the other filters (faceted)", async () => {
+    // agv-01 critical, agv-02 warning, agv-03 notice. Under 严重度=预警 only the warning
+    // vehicle has a matching alert, so the device dropdown offers just that one.
+    seedMixed();
+    const wrapper = await mountAlerts("?severity=warning");
+
+    const options = wrapper.findComponent(UiMultiSelect).props("options");
+    expect(options.map((option) => option.value)).toEqual(["agv-02"]);
   });
 
   it("filters by the search box, committing on Enter", async () => {
@@ -367,7 +395,9 @@ describe("the controls the template wires up", () => {
     const wrapper = await mountAlerts("?page=2");
     expect(wrapper.findAll("li")).toHaveLength(10);
 
-    wrapper.findComponent(UiSelect).vm.$emit("update:modelValue", "agv-01");
+    wrapper
+      .findComponent(UiMultiSelect)
+      .vm.$emit("update:modelValue", ["agv-01"]);
     await flushPromises();
 
     expect(router.currentRoute.value.query.page).toBeUndefined();
