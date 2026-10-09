@@ -3,47 +3,43 @@ import { mount } from "@vue/test-utils";
 import UiPager from "@/components/ui/UiPager.vue";
 
 /**
- * The pager the three paginating views now share. The logic worth pinning is the
- * part that was quietly divergent before: it hides itself at a single page, its
- * edges disable, it emits neighbouring pages, and the position label is a slot so
- * 设备's "· 共 N 台" survives without a second markup.
+ * The shared pager. Two behaviours are new (设备 opts into them via `jump`): staying
+ * visible on a single page, and a page-number jump input. Everything else — the
+ * disabled edges and the `update:page` emit — is the long-standing shape.
  */
 describe("UiPager", () => {
-  it("renders nothing when there is only one page", () => {
+  it("renders nothing on a single page without `jump` (the default)", () => {
     const wrapper = mount(UiPager, { props: { page: 1, pageCount: 1 } });
     expect(wrapper.find("button").exists()).toBe(false);
   });
 
-  it("disables the edges at the first and last page", () => {
-    const first = mount(UiPager, { props: { page: 1, pageCount: 3 } });
-    const firstButtons = first.findAll("button");
-    expect(firstButtons[0]!.attributes("disabled")).toBeDefined();
-    expect(firstButtons[1]!.attributes("disabled")).toBeUndefined();
-
-    const last = mount(UiPager, { props: { page: 3, pageCount: 3 } });
-    const lastButtons = last.findAll("button");
-    expect(lastButtons[0]!.attributes("disabled")).toBeUndefined();
-    expect(lastButtons[1]!.attributes("disabled")).toBeDefined();
-  });
-
-  it("emits the neighbouring page for each direction", async () => {
-    const wrapper = mount(UiPager, { props: { page: 2, pageCount: 5 } });
-    const buttons = wrapper.findAll("button");
-
-    await buttons[0]!.trigger("click");
-    await buttons[1]!.trigger("click");
-
-    expect(wrapper.emitted("update:page")).toEqual([[1], [3]]);
-  });
-
-  it("shows the default position label and lets a slot replace it", () => {
-    const plain = mount(UiPager, { props: { page: 2, pageCount: 5 } });
-    expect(plain.text()).toContain("第 2 / 5 页");
-
-    const slotted = mount(UiPager, {
-      props: { page: 2, pageCount: 5 },
-      slots: { default: "第 2 / 5 页 · 共 42 台" },
+  it("stays visible on a single page when `jump` is set, with edges disabled", () => {
+    const wrapper = mount(UiPager, {
+      props: { page: 1, pageCount: 1, jump: true },
     });
-    expect(slotted.text()).toContain("· 共 42 台");
+    const next = wrapper
+      .findAll("button")
+      .find((button) => button.text() === "下一页");
+    expect(next).toBeTruthy();
+    expect(next!.attributes("disabled")).toBeDefined();
+    // No jump input while there is only one page — there is nowhere to jump.
+    expect(wrapper.find("input[aria-label='跳转到页码']").exists()).toBe(false);
+  });
+
+  it("jumps to a typed page, clamped to range", async () => {
+    const wrapper = mount(UiPager, {
+      props: { page: 1, pageCount: 5, jump: true },
+    });
+    const input = wrapper.find("input[aria-label='跳转到页码']");
+    expect(input.exists()).toBe(true);
+
+    await input.setValue("3");
+    await input.trigger("change");
+    expect(wrapper.emitted("update:page")?.at(-1)).toEqual([3]);
+
+    // Out of range is clamped rather than emitted raw.
+    await input.setValue("99");
+    await input.trigger("change");
+    expect(wrapper.emitted("update:page")?.at(-1)).toEqual([5]);
   });
 });
