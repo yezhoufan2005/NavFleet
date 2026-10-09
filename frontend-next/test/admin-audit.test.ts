@@ -4,6 +4,7 @@ import { enableAutoUnmount, flushPromises, mount } from "@vue/test-utils";
 import { fleetApi, type AuditRecord } from "@navfleet/fleet-core";
 import AuditView from "@/views/admin/AuditView.vue";
 import UiSelect from "@/components/ui/UiSelect.vue";
+import UiMultiSelect from "@/components/ui/UiMultiSelect.vue";
 
 /**
  * 审计 — the audit log page. Filters are server-side (assert the params reach `getAuditLog`),
@@ -108,6 +109,24 @@ describe("AuditView", () => {
 
     expect(spy).toHaveBeenCalledWith(
       expect.objectContaining({ actor: "root" }),
+    );
+  });
+
+  it("sends the picked actions as one comma-joined key, and mirrors it to the URL", async () => {
+    const wrapper = await mountView([entry()]);
+    const spy = vi
+      .spyOn(fleetApi, "getAuditLog")
+      .mockResolvedValue({ entries: [entry()] });
+
+    // The 动作 filter is a multi-select now; emitting its set should query with the actions
+    // comma-joined — the single `action` key the backend parses back into a list.
+    wrapper
+      .findComponent(UiMultiSelect)
+      .vm.$emit("update:modelValue", ["user_create", "user_delete"]);
+    await flushPromises();
+
+    expect(spy).toHaveBeenCalledWith(
+      expect.objectContaining({ action: "user_create,user_delete" }),
     );
   });
 

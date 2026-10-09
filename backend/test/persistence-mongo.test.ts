@@ -436,7 +436,7 @@ describe("audit_log", () => {
 
     await persistence.queryAudit({
       actor: "root",
-      action: "login",
+      action: ["login"],
       from: "2026-01-01T00:00:00Z",
       to: "2026-02-01T00:00:00Z",
     });
@@ -447,7 +447,7 @@ describe("audit_log", () => {
     expect(query?.sort).toEqual({ ts: -1 });
     expect(query?.filter).toMatchObject({
       actor: "root",
-      action: "login",
+      action: { $in: ["login"] },
       ts: { $gte: anyDate, $lte: anyDate },
     });
   });

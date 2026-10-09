@@ -232,10 +232,20 @@ export const resetPasswordSchema = z.object({
 /** Query filters for `GET /api/audit` (admin). All optional; unbounded result is capped server-side. */
 export const auditQuerySchema = z.object({
   actor: z.string().min(1).max(200).optional(),
-  // The action vocabulary is derived from the canonical `AUDIT_ACTIONS` tuple, so every emittable
-  // action is filterable by construction — see the tuple's note in `types.ts` for the drift this
-  // closes (config-write actions were auditable but not selectable before 1.6.1).
-  action: z.enum(AUDIT_ACTIONS).optional(),
+  // `action` is a **comma-joined list** (the 审计 page's 动作 filter is multi-select since 1.6.x),
+  // e.g. `user_create,user_delete`. Each item must be in the canonical `AUDIT_ACTIONS` tuple, so an
+  // unknown action still 400s — see the tuple's note in `types.ts` for the drift this closes. An
+  // empty value parses to `[]`, which the persistence layer treats as "no action filter".
+  action: z
+    .string()
+    .transform((raw) =>
+      raw
+        .split(",")
+        .map((part) => part.trim())
+        .filter(Boolean),
+    )
+    .pipe(z.array(z.enum(AUDIT_ACTIONS)))
+    .optional(),
   from: timestampString.optional(),
   to: timestampString.optional(),
 });

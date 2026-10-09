@@ -46,7 +46,7 @@ describe("AuditService", () => {
   it("query forwards filters to persistence", async () => {
     const { persistence, queryAudit } = fakePersistence();
     const service = new AuditService(persistence);
-    await service.query({ actor: "root", action: "login" });
-    expect(queryAudit).toHaveBeenCalledWith({ actor: "root", action: "login" });
+    await service.query({ actor: "root", action: ["login"] });
+    expect(queryAudit).toHaveBeenCalledWith({ actor: "root", action: ["login"] });
   });
 });

@@ -1071,7 +1071,12 @@ const apiWideResponses = { "429": tooManyRequests, "500": serverError } as const
       summary: "查询审计日志（需 admin；filters: actor / action / from / to）",
       parameters: [
         { name: "actor", in: "query", schema: { type: "string" } },
-        { name: "action", in: "query", schema: { type: "string" } },
+        {
+          name: "action",
+          in: "query",
+          description: "逗号拼接的动作列表，如 user_create,user_delete（每项须属 AUDIT_ACTIONS）",
+          schema: { type: "string" },
+        },
         { name: "from", in: "query", schema: { type: "string" } },
         { name: "to", in: "query", schema: { type: "string" } },
       ],
