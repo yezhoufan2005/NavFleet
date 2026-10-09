@@ -200,14 +200,28 @@ const hiddenAlertCount = computed(() =>
         <!--
           Selecting is a separate act from opening: the map centres on
           `selectedDeviceId`, so this is how someone lines up a vehicle in the list and
-          then switches to the map to watch it move.
+          then switches to the map to watch it move. The trailing crosshair mirrors
+          「打开详情 →」's trailing glyph so the two actions read as a matched pair.
         -->
         <UiButton
           variant="secondary"
           size="sm"
           @click="$emit('focus-on-map', device.deviceId)"
         >
-          在地图上选中
+          地图选中
+          <svg
+            class="size-3.5"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="1.8"
+            stroke-linecap="round"
+            aria-hidden="true"
+            focusable="false"
+          >
+            <circle cx="12" cy="12" r="4" />
+            <path d="M12 2v3M12 19v3M2 12h3M19 12h3" />
+          </svg>
         </UiButton>
       </div>
     </div>

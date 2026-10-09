@@ -159,13 +159,31 @@ describe("large fleet rendering", () => {
     sizeSelect!.vm.$emit("update:modelValue", "50");
     await flushPromises();
 
-    // 45 rows at 50/page is a single page: the pager buttons drop, the selector stays,
-    // and the chosen density rides in the URL like the page number does.
+    // 45 rows at 50/page is a single page. The pager now stays visible (设备's pager runs
+    // with `jump`, so the control does not come and go), with 下一页 rendered but disabled
+    // since there is no next page; the chosen density rides in the URL like the page number.
     expect(wrapper.findAll("tbody tr.device-row")).toHaveLength(45);
-    expect(wrapper.findAll("button").some((b) => b.text() === "下一页")).toBe(
-      false,
-    );
+    const next = wrapper.findAll("button").find((b) => b.text() === "下一页");
+    expect(next).toBeTruthy();
+    expect(next!.attributes("disabled")).toBeDefined();
     expect(wrapper.vm.$route.query.pageSize).toBe("50");
+  });
+
+  it("filters the list by the search box, and says so when nothing matches", async () => {
+    ingest(45);
+    const wrapper = await mountList();
+    const search = wrapper.find("input[aria-label='搜索设备']");
+    expect(search.exists()).toBe(true);
+
+    // `agv-0003` is a substring of exactly one id (the 4-digit padding keeps it unique).
+    await search.setValue("agv-0003");
+    await flushPromises();
+    expect(wrapper.findAll("tbody tr.device-row")).toHaveLength(1);
+
+    await search.setValue("no-such-device");
+    await flushPromises();
+    expect(wrapper.findAll("tbody tr.device-row")).toHaveLength(0);
+    expect(wrapper.text()).toContain("没有匹配当前筛选的设备");
   });
 
   it("keeps the per-device node count bounded", async () => {
