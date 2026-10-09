@@ -931,6 +931,34 @@ describe("what the device list has to answer at a glance", () => {
     expect(sceneValues).toEqual(["dock"]);
   });
 
+  it("search is a boolean query over name / id / scene", async () => {
+    // Scenes aren't loaded in this harness, so the scene label is the raw id (yard / dock).
+    const wrapper = await mountList([
+      { sceneId: "yard" }, // agv-01, AGV 1
+      { sceneId: "dock" }, // agv-02, AGV 2
+    ]);
+    const search = wrapper.get("input[aria-label='搜索设备']");
+
+    // `agv-01 and yard` → both terms must hit; only the yard device qualifies.
+    await search.setValue("agv-01 and yard");
+    await flushPromises();
+    let rows = wrapper.findAll("tbody tr.device-row");
+    expect(rows).toHaveLength(1);
+    expect(rows[0]!.text()).toContain("agv-01");
+
+    // `yard or dock` → both devices come back.
+    await search.setValue("yard or dock");
+    await flushPromises();
+    expect(wrapper.findAll("tbody tr.device-row")).toHaveLength(2);
+
+    // `not dock` → excludes the dock device.
+    await search.setValue("not dock");
+    await flushPromises();
+    rows = wrapper.findAll("tbody tr.device-row");
+    expect(rows).toHaveLength(1);
+    expect(rows[0]!.text()).toContain("agv-01");
+  });
+
   const headers = (wrapper: Awaited<ReturnType<typeof mountList>>) =>
     wrapper.findAll("thead th").map((cell) => cell.text());
 

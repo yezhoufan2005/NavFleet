@@ -32,6 +32,7 @@ import UiMultiSelect from "@/components/ui/UiMultiSelect.vue";
 import UiFilterBar from "@/components/ui/UiFilterBar.vue";
 import UiFilterField from "@/components/ui/UiFilterField.vue";
 import { SEVERITY_LABELS } from "@/lib/severity";
+import { compileSearch } from "@/lib/searchQuery";
 import UiListPagination from "@/components/ui/UiListPagination.vue";
 import AlertHistoryPanel from "@/components/alerts/AlertHistoryPanel.vue";
 import { useFleetStore } from "@/stores/fleet";
@@ -197,6 +198,13 @@ const matchDevice = (alert: { deviceId: string }): boolean =>
   deviceFilter.value.includes(alert.deviceId);
 const matchAcked = (alert: { deviceId: string; id: string }): boolean =>
   showAcknowledged.value || !ack.isAcknowledged(alert.deviceId, alert.id);
+/**
+ * Search is a boolean query (与/或/非 + 括号, see `compileSearch`), compiled once per committed
+ * keystroke and run over the row's title / detail / device / 来源 joined. Both forms of 来源 are
+ * included (the operator sees 规则引擎 on the row, a deployment reading logs knows it as
+ * `rule-engine`), so the placeholder's promise of 来源 is honest.
+ */
+const searchMatches = computed(() => compileSearch(search.value));
 const matchSearch = (alert: {
   title: string;
   detail?: string;
@@ -204,25 +212,20 @@ const matchSearch = (alert: {
   deviceId: string;
   info?: string;
   source: string;
-}): boolean => {
-  const keyword = search.value.trim().toLowerCase();
-  if (!keyword) return true;
-  return [
-    alert.title,
-    alert.detail,
-    alert.deviceName,
-    alert.deviceId,
-    alert.info,
-    // Both forms of the source: the operator sees 规则引擎 on the row, so that is what
-    // they will type — but a deployment reading logs may know it as `rule-engine`. The
-    // placeholder names 来源, and a placeholder that promises a field the filter does
-    // not search is its own small lie.
-    SOURCE_LABELS[alert.source],
-    alert.source,
-  ]
-    .filter(Boolean)
-    .some((field) => String(field).toLowerCase().includes(keyword));
-};
+}): boolean =>
+  searchMatches.value(
+    [
+      alert.title,
+      alert.detail,
+      alert.deviceName,
+      alert.deviceId,
+      alert.info,
+      SOURCE_LABELS[alert.source],
+      alert.source,
+    ]
+      .filter(Boolean)
+      .join(" "),
+  );
 
 /**
  * 设备 options, faceted against the *other* filters (严重度 / 搜索 / 显示已确认): the dropdown

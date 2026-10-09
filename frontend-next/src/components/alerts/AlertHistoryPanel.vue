@@ -26,6 +26,7 @@ import {
   type Severity,
 } from "@/lib/alertStats";
 import { SEVERITY_LABELS } from "@/lib/severity";
+import { compileSearch } from "@/lib/searchQuery";
 
 /** The endpoint's page size (`MAX_ALERTS_PER_QUERY`); a full page means older rows are cut. */
 const RESULT_CAP = 500;
@@ -123,6 +124,7 @@ const deviceNameOf = (id: string, fallback?: string): string => {
   return known?.deviceName || fallback || id;
 };
 
+const searchMatches = computed(() => compileSearch(search.value));
 const filtered = computed(() =>
   records.value.filter((record) => {
     if (severity.value !== "all" && severityOf(record) !== severity.value)
@@ -132,18 +134,19 @@ const filtered = computed(() =>
       !deviceFilter.value.includes(String(record.deviceId ?? ""))
     )
       return false;
-    const keyword = search.value.trim().toLowerCase();
-    if (!keyword) return true;
-    return [
-      record.title,
-      record.detail,
-      record.deviceName,
-      record.deviceId,
-      record.info,
-      record.code,
-    ]
-      .filter(Boolean)
-      .some((field) => String(field).toLowerCase().includes(keyword));
+    // Same boolean search language as the live tab (shared box) — see `compileSearch`.
+    return searchMatches.value(
+      [
+        record.title,
+        record.detail,
+        record.deviceName,
+        record.deviceId,
+        record.info,
+        record.code,
+      ]
+        .filter(Boolean)
+        .join(" "),
+    );
   }),
 );
 
