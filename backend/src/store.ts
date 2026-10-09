@@ -876,7 +876,7 @@ export class DashboardStore extends EventEmitter {
 
   /** Server-side availability + battery time-series (Phase 17A-2); honest-empty without Mongo. */
   async getAvailabilityReport(params: {
-    deviceId?: string;
+    deviceId?: string[];
     from?: string;
     to?: string;
     bucket: ReportBucketUnit;

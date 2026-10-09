@@ -1424,7 +1424,7 @@ export class Persistence {
    * the alert-stats path, rather than returning zero-filled buckets that read as "all offline".
    */
   async aggregateAvailability(params: {
-    deviceId?: string;
+    deviceId?: string[];
     from?: string;
     to?: string;
     bucket: ReportBucketUnit;
@@ -1433,7 +1433,7 @@ export class Persistence {
       return emptyAvailabilityReport(params.bucket, false);
     }
     const pipeline = buildAvailabilityPipeline({
-      deviceId: params.deviceId ?? null,
+      deviceIds: params.deviceId?.length ? params.deviceId : null,
       from: toBoundDate(params.from),
       to: toBoundDate(params.to),
       bucket: params.bucket,

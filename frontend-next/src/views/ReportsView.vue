@@ -19,6 +19,7 @@ import UiButton from "@/components/ui/UiButton.vue";
 import UiInput from "@/components/ui/UiInput.vue";
 import UiSegmented from "@/components/ui/UiSegmented.vue";
 import UiSelect from "@/components/ui/UiSelect.vue";
+import UiMultiSelect from "@/components/ui/UiMultiSelect.vue";
 import { SEVERITY_LABELS } from "@/lib/severity";
 import TimeSeriesChart from "@/components/charts/TimeSeriesChart.vue";
 import CategoryBarChart from "@/components/charts/CategoryBarChart.vue";
@@ -78,7 +79,15 @@ const bucket = computed<ReportBucketUnit>(() => {
   const value = readParam("bucket");
   return value === "hour" || value === "month" ? value : "day";
 });
-const deviceFilter = computed(() => readParam("device"));
+/**
+ * 设备 is multi-select: a comma-joined `device` key narrows the aggregate to the chosen vehicles
+ * (each still its own series on the charts); an empty list is 全部设备. The server parses the same
+ * comma list back into a set — see `reportAvailabilityQuerySchema`.
+ */
+const deviceFilter = computed(() => {
+  const raw = readParam("device");
+  return raw ? raw.split(",").filter(Boolean) : [];
+});
 
 /**
  * Custom window: two `YYYY-MM-DD` params. Active only when both are set and 起 ≤ 止 — an
@@ -130,7 +139,9 @@ const load = async (): Promise<void> => {
         from: window.from,
         to: window.to,
         bucket: bucket.value,
-        deviceId: deviceFilter.value || undefined,
+        deviceId: deviceFilter.value.length
+          ? deviceFilter.value.join(",")
+          : undefined,
       }),
       fleetApi.getAlertStatsReport({ from: window.from, to: window.to }),
     ]);
@@ -330,11 +341,15 @@ const exportAlertsCsv = (): void => {
 
       <label class="flex flex-col gap-1">
         <span class="text-2xs text-ink-muted">设备</span>
-        <UiSelect
+        <UiMultiSelect
           :model-value="deviceFilter"
-          :options="[{ value: '', label: '全部设备' }, ...deviceOptions]"
+          :options="deviceOptions"
+          placeholder="全部设备"
           aria-label="设备筛选"
-          @update:model-value="setFilter({ device: $event || null })"
+          @update:model-value="
+            (value) =>
+              setFilter({ device: value.length ? value.join(',') : null })
+          "
         />
       </label>
     </div>

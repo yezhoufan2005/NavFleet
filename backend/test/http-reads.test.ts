@@ -219,10 +219,24 @@ describe("GET /api/reports/availability (Phase 17A-2)", () => {
 
     expect(response.status).toBe(200);
     expect(context.store.getAvailabilityReport).toHaveBeenCalledWith({
-      deviceId: DEVICE_ID,
+      deviceId: [DEVICE_ID],
       from: "2026-09-01T00:00:00Z",
       to: "2026-09-30T00:00:00Z",
       bucket: "hour",
+    });
+  });
+
+  it("parses a comma-joined device list into a set", async () => {
+    const context = createTestApp();
+    const response = await authed(
+      context,
+      `/api/reports/availability?deviceId=${DEVICE_ID},agv-other`,
+    );
+
+    expect(response.status).toBe(200);
+    expect(context.store.getAvailabilityReport).toHaveBeenCalledWith({
+      deviceId: [DEVICE_ID, "agv-other"],
+      bucket: "day",
     });
   });
 

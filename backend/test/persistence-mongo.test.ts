@@ -917,7 +917,7 @@ describe("aggregateAvailability（Phase 17A-2 可用率/电量时序）", () => 
     persistence.__setDbForTests(db);
 
     const report = await persistence.aggregateAvailability({
-      deviceId: "agv-1",
+      deviceId: ["agv-1"],
       from: "2026-09-01T00:00:00Z",
       to: "2026-09-02T00:00:00Z",
       bucket: "hour",
