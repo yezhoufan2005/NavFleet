@@ -26,6 +26,7 @@ import DeviceRowCard from "@/components/device/DeviceRowCard.vue";
 import UiSelect from "@/components/ui/UiSelect.vue";
 import UiSegmented from "@/components/ui/UiSegmented.vue";
 import UiInput from "@/components/ui/UiInput.vue";
+import UiMultiSelect from "@/components/ui/UiMultiSelect.vue";
 import UiListPagination from "@/components/ui/UiListPagination.vue";
 import { tableClasses } from "@/lib/uiClasses";
 import { useFleetStore } from "@/stores/fleet";
@@ -143,53 +144,75 @@ const rows = computed(() =>
  * apply on top of the formation filter (which already narrowed `devices`).
  */
 const deviceSearch = ref("");
-const statusFilter = ref("all");
-const sceneFilter = ref("all");
+const statusFilter = ref<string[]>([]);
+const sceneFilter = ref<string[]>([]);
 
-const STATUS_OPTIONS = computed(() => [
-  { value: "all", label: "全部状态" },
-  ...(["normal", "notice", "warning", "critical", "offline"] as const).map(
-    (tone) => ({ value: tone, label: deviceToneLabels[tone] }),
-  ),
-]);
+const TONE_ORDER = [
+  "normal",
+  "notice",
+  "warning",
+  "critical",
+  "offline",
+] as const;
 
-/** Scene options are the scenes actually present among the current (formation-scoped) rows. */
+type DeviceRow = (typeof rows)["value"][number];
+
+const matchSearch = (row: DeviceRow): boolean => {
+  const query = deviceSearch.value.trim().toLowerCase();
+  if (!query) return true;
+  return (
+    (row.device.deviceName || "").toLowerCase().includes(query) ||
+    row.device.deviceId.toLowerCase().includes(query)
+  );
+};
+// Multi-select: an empty set means "all"; otherwise the value must be in the set.
+const matchStatus = (row: DeviceRow): boolean =>
+  statusFilter.value.length === 0 || statusFilter.value.includes(row.tone);
+const matchScene = (row: DeviceRow): boolean =>
+  sceneFilter.value.length === 0 ||
+  sceneFilter.value.includes(row.device.sceneId);
+
+/**
+ * Faceted options: each dropdown offers only the values that still have matching rows
+ * under the *other* active filters — so filtering 状态=预警 (or searching agv-a03) narrows
+ * 场景 to just the scenes that have such a vehicle. An already-selected value is kept in
+ * the list regardless, so it can always be unticked. 状态 keeps its fixed severity order.
+ */
+const STATUS_OPTIONS = computed(() => {
+  const present = new Set(
+    rows.value
+      .filter((row) => matchSearch(row) && matchScene(row))
+      .map((row) => row.tone),
+  );
+  return TONE_ORDER.filter(
+    (tone) => present.has(tone) || statusFilter.value.includes(tone),
+  ).map((tone) => ({ value: tone, label: deviceToneLabels[tone] }));
+});
 const sceneOptions = computed(() => {
   const seen = new Map<string, string>();
-  for (const row of rows.value) {
+  for (const row of rows.value.filter(
+    (row) => matchSearch(row) && matchStatus(row),
+  )) {
     const id = row.device.sceneId;
     if (id && !seen.has(id)) seen.set(id, row.sceneLabel);
   }
-  return [
-    { value: "all", label: "全部场景" },
-    ...[...seen].map(([value, label]) => ({ value, label })),
-  ];
+  // Keep a selected scene listed even if the other filters currently hide its rows.
+  for (const id of sceneFilter.value) {
+    if (!seen.has(id)) {
+      const row = rows.value.find(
+        (candidate) => candidate.device.sceneId === id,
+      );
+      if (row) seen.set(id, row.sceneLabel);
+    }
+  }
+  return [...seen].map(([value, label]) => ({ value, label }));
 });
 
-const filteredRows = computed(() => {
-  const query = deviceSearch.value.trim().toLowerCase();
-  return rows.value.filter((row) => {
-    if (statusFilter.value !== "all" && row.tone !== statusFilter.value) {
-      return false;
-    }
-    if (
-      sceneFilter.value !== "all" &&
-      row.device.sceneId !== sceneFilter.value
-    ) {
-      return false;
-    }
-    if (query) {
-      const name = (row.device.deviceName || "").toLowerCase();
-      if (
-        !name.includes(query) &&
-        !row.device.deviceId.toLowerCase().includes(query)
-      ) {
-        return false;
-      }
-    }
-    return true;
-  });
-});
+const filteredRows = computed(() =>
+  rows.value.filter(
+    (row) => matchSearch(row) && matchStatus(row) && matchScene(row),
+  ),
+);
 
 /**
  * Pagination, same shape as 告警's: page size and page both in the URL, and a clamp.
@@ -575,10 +598,11 @@ watch(
 
     <div v-else class="flex min-h-0 flex-1 flex-col gap-3">
       <!--
-        List filters: a search over name/id, plus status and scene. On top of the
-        formation filter in the header; local (not in the URL) because they are a quick
-        scan-time narrowing, not part of the shareable view. 场景 only appears when the
-        current set spans more than one scene.
+        List filters: a search over name/id, plus 状态 and 场景 as multi-selects (empty =
+        all). On top of the formation filter in the header; local (not in the URL) because
+        they are a quick scan-time narrowing, not part of the shareable view. Each dropdown
+        offers only values that still have rows under the other filters (faceted), and 场景
+        stays visible even under a formation (编队 and 场景 cross, not nest).
       -->
       <div class="flex flex-wrap items-end gap-3">
         <label class="flex flex-col gap-1">
@@ -592,18 +616,20 @@ watch(
         </label>
         <label class="flex flex-col gap-1">
           <span class="text-2xs text-ink-muted">状态</span>
-          <UiSelect
+          <UiMultiSelect
             :model-value="statusFilter"
             :options="STATUS_OPTIONS"
+            placeholder="全部状态"
             aria-label="状态筛选"
             @update:model-value="(value) => (statusFilter = value)"
           />
         </label>
-        <label v-if="sceneOptions.length > 2" class="flex flex-col gap-1">
+        <label v-if="sceneOptions.length" class="flex flex-col gap-1">
           <span class="text-2xs text-ink-muted">场景</span>
-          <UiSelect
+          <UiMultiSelect
             :model-value="sceneFilter"
             :options="sceneOptions"
+            placeholder="全部场景"
             aria-label="场景筛选"
             @update:model-value="(value) => (sceneFilter = value)"
           />

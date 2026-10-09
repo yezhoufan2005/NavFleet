@@ -7,6 +7,7 @@ import { enableAutoUnmount, flushPromises, mount } from "@vue/test-utils";
 import { fleetApi, formatStamp } from "@navfleet/fleet-core";
 import DevicesView from "@/views/DevicesView.vue";
 import UiSelect from "@/components/ui/UiSelect.vue";
+import UiMultiSelect from "@/components/ui/UiMultiSelect.vue";
 import SceneMap from "@/components/map/SceneMap.vue";
 import GpsMap from "@/components/map/GpsMap.vue";
 import { useFleetStore } from "@/stores/fleet";
@@ -905,6 +906,30 @@ describe("what the device list has to answer at a glance", () => {
     await flushPromises();
     return wrapper;
   };
+
+  it("multi-selects status and narrows the scene options to match (faceted)", async () => {
+    // Three devices across two scenes: a 预警 (warning) in dock, a 正常 and a 提示 in yard.
+    const wrapper = await mountList([
+      { sceneId: "yard" }, // normal
+      { sceneId: "dock", warning_code: { code: 2301, info: "" } }, // 预警
+      { sceneId: "yard", info_code: { code: 1101, info: "" } }, // 提示
+    ]);
+    const multi = (label: string) =>
+      wrapper
+        .findAllComponents(UiMultiSelect)
+        .find((component) => component.props("ariaLabel") === label)!;
+
+    // Pick 状态 = 预警; only the one warning device survives…
+    multi("状态筛选").vm.$emit("update:modelValue", ["warning"]);
+    await flushPromises();
+    expect(wrapper.findAll("tbody tr.device-row")).toHaveLength(1);
+
+    // …and 场景 now offers only the scene that has a 预警 vehicle (faceted/cascading).
+    const sceneValues = multi("场景筛选")
+      .props("options")
+      .map((option: { value: string }) => option.value);
+    expect(sceneValues).toEqual(["dock"]);
+  });
 
   const headers = (wrapper: Awaited<ReturnType<typeof mountList>>) =>
     wrapper.findAll("thead th").map((cell) => cell.text());
