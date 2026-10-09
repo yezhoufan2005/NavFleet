@@ -73,9 +73,18 @@ const toggle = (value: string): void => {
       type="button"
       :disabled="disabled"
       :aria-label="ariaLabel"
-      class="flex h-8 min-w-28 items-center justify-between gap-2 rounded-sm border border-border-strong bg-surface-raised px-2 text-sm text-ink transition-colors duration-150 ease-standard hover:border-brand disabled:opacity-50 data-[state=open]:border-brand"
+      class="flex h-8 min-w-28 max-w-56 items-center justify-between gap-2 rounded-sm border border-border-strong bg-surface-raised px-2 text-sm text-ink transition-colors duration-150 ease-standard hover:border-brand disabled:opacity-50 data-[state=open]:border-brand"
     >
-      <span class="truncate" :class="{ 'text-ink-subtle': !modelValue.length }">
+      <!--
+        `min-w-0` lets the label shrink below its content so `truncate` can bite; without
+        it a flex child keeps its intrinsic width and the trigger grows past `max-w-56`
+        instead of ellipsising. The cap keeps a many-item selection (状态/场景 ticked several
+        at once) from stretching the filter bar — the panel still lists every choice.
+      -->
+      <span
+        class="min-w-0 truncate"
+        :class="{ 'text-ink-subtle': !modelValue.length }"
+      >
         {{ summary }}
       </span>
       <svg
