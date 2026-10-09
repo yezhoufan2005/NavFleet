@@ -594,6 +594,30 @@ describe("the GPS map against a fake SDK", () => {
     expect(fit?.attributes("disabled")).toBeDefined();
   });
 
+  it("re-frames when the formation filter changes, both directions", async () => {
+    const wrapper = await mountMap({
+      devices: [
+        gpsDevice("agv-01", 31.2, 121.4),
+        gpsDevice("agv-02", 31.3, 121.5),
+        gpsDevice("agv-03", 31.4, 121.6),
+      ],
+      selectedDeviceId: "",
+      fitDeviceIds: [],
+    });
+    // Opens framed over the whole fleet.
+    expect(calls.fitCount).toBe(3);
+
+    // 全部 → 具体: frames just that formation.
+    await wrapper.setProps({ fitDeviceIds: ["agv-01", "agv-02"] } as never);
+    await flushPromises();
+    expect(calls.fitCount).toBe(2);
+
+    // 具体 → 全部: frames the whole fleet again (the direction that used to do nothing).
+    await wrapper.setProps({ fitDeviceIds: [] } as never);
+    await flushPromises();
+    expect(calls.fitCount).toBe(3);
+  });
+
   it("redraws a marker only when something it shows has changed", async () => {
     // The watcher used to be `{ deep: true }` over the device array, so a tick that
     // moved nothing but the state of charge redrew every marker.

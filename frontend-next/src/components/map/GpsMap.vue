@@ -200,14 +200,16 @@ const fitFleet = (): void => {
 
   const only = entries[0];
   if (entries.length === 1 && only) {
-    map.setZoomAndCenter(16, only.position, false, 300);
+    map.setZoomAndCenter(17, only.position, false, 300);
     return;
   }
+  // Tighter than before: less padding and a higher max zoom, so a clustered formation
+  // fills the frame instead of sitting as a knot of points in a mostly-empty map.
   map.setFitView(
     entries.map((entry) => entry.marker),
     false,
-    [64, 72, 64, 72],
-    16,
+    [40, 48, 40, 48],
+    18,
   );
 };
 
@@ -376,6 +378,24 @@ const markerSignature = computed(() => {
 watch(markerSignature, () => {
   syncMarkers();
 });
+
+/**
+ * Re-frame when the formation filter changes, in BOTH directions (全部 ↔ 具体). The map is
+ * otherwise left where the operator put it (`hasFittedOnce`), but changing the filter is an
+ * explicit request to look at a different set — so 全部→具体 frames that formation and
+ * 具体→全部 frames the whole fleet, rather than the previous behaviour where only one
+ * direction re-centred (via the auto-selected vehicle) and the other did nothing.
+ *
+ * Registered after the marker watch so, on the same change, it runs last and the fit wins
+ * over the selection-driven `focusSelected`. Keyed on the joined ids, so it fires only when
+ * the set actually changes — not on every telemetry tick, which hands down a fresh array.
+ */
+watch(
+  () => fitDeviceIds.join(","),
+  () => {
+    if (map && canFit.value) fitFleet();
+  },
+);
 </script>
 
 <template>
@@ -418,10 +438,11 @@ watch(markerSignature, () => {
           适应车队
         </button>
         <!-- Replacing `AMap.ToolBar`'s zoom, in this surface's own styling. `aria-label`
-             rather than a bare glyph: `+` and `−` are punctuation to a screen reader. -->
+             rather than a bare glyph: `+` and `−` are punctuation to a screen reader.
+             Sized `size-7` (28px) to match the scene map's 定位/跟随 icon buttons. -->
         <button
           type="button"
-          class="rounded-xs border border-border-strong bg-surface-raised px-2.5 py-1 text-xs text-ink-muted transition-colors duration-150 ease-standard hover:border-brand hover:bg-surface-sunken hover:text-ink"
+          class="grid size-7 place-content-center rounded-xs border border-border-strong bg-surface-raised text-sm text-ink-muted transition-colors duration-150 ease-standard hover:border-brand hover:bg-surface-sunken hover:text-ink"
           aria-label="放大"
           @click="stepZoom(1)"
         >
@@ -429,7 +450,7 @@ watch(markerSignature, () => {
         </button>
         <button
           type="button"
-          class="rounded-xs border border-border-strong bg-surface-raised px-2.5 py-1 text-xs text-ink-muted transition-colors duration-150 ease-standard hover:border-brand hover:bg-surface-sunken hover:text-ink"
+          class="grid size-7 place-content-center rounded-xs border border-border-strong bg-surface-raised text-sm text-ink-muted transition-colors duration-150 ease-standard hover:border-brand hover:bg-surface-sunken hover:text-ink"
           aria-label="缩小"
           @click="stepZoom(-1)"
         >
