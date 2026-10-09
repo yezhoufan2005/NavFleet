@@ -38,7 +38,7 @@ import UiButton from "@/components/ui/UiButton.vue";
 import UiConfirmDialog from "@/components/ui/UiConfirmDialog.vue";
 import UiModal from "@/components/ui/UiModal.vue";
 import UiInput from "@/components/ui/UiInput.vue";
-import UiPager from "@/components/ui/UiPager.vue";
+import UiListPagination from "@/components/ui/UiListPagination.vue";
 import UiSelect from "@/components/ui/UiSelect.vue";
 import { tableClasses } from "@/lib/uiClasses";
 import { useAuth } from "@/composables/useAuth";
@@ -80,8 +80,14 @@ const status = ref<"loading" | "ready" | "error">("loading");
 /** The full editable config (raw `urlEnv` names, routing, groups) — writers only. */
 const rawConfig = ref<NotifyConfig | null>(null);
 
-const PAGE_SIZE = 20;
+const pageSize = ref(10);
 const page = ref(1);
+
+/** Changing page size restarts at page 1 so the slice offset stays in range. */
+const setPageSize = (next: string): void => {
+  pageSize.value = Number(next);
+  page.value = 1;
+};
 
 const load = async (): Promise<void> => {
   // Only flash the skeleton before the first successful load; filter changes re-query live, so
@@ -137,10 +143,13 @@ watch(statusFilter, () => applyFilters());
 onMounted(() => void load());
 
 const pageCount = computed(() =>
-  Math.max(1, Math.ceil(records.value.length / PAGE_SIZE)),
+  Math.max(1, Math.ceil(records.value.length / pageSize.value)),
 );
 const pageRows = computed(() =>
-  records.value.slice((page.value - 1) * PAGE_SIZE, page.value * PAGE_SIZE),
+  records.value.slice(
+    (page.value - 1) * pageSize.value,
+    page.value * pageSize.value,
+  ),
 );
 
 const formatTime = (iso: string): string =>
@@ -637,12 +646,14 @@ useAutoRefresh(() => void load(), {
           </tbody>
         </table>
       </div>
-      <div
-        v-if="pageCount > 1"
-        class="flex items-center justify-end gap-3 text-sm"
-      >
-        <UiPager v-model:page="page" :page-count="pageCount" />
-      </div>
+      <UiListPagination
+        :page="page"
+        :page-count="pageCount"
+        :page-size="pageSize"
+        :total="records.length"
+        @update:page="(value) => (page = value)"
+        @update:page-size="setPageSize"
+      />
     </template>
 
     <!-- Channel editor (notify:write). -->

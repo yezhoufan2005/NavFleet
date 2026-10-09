@@ -30,17 +30,16 @@ import UiInput from "@/components/ui/UiInput.vue";
 import UiSegmented from "@/components/ui/UiSegmented.vue";
 import UiSelect from "@/components/ui/UiSelect.vue";
 import { SEVERITY_LABELS } from "@/lib/severity";
-import UiPager from "@/components/ui/UiPager.vue";
+import UiListPagination from "@/components/ui/UiListPagination.vue";
 import AlertHistoryPanel from "@/components/alerts/AlertHistoryPanel.vue";
 import { useFleetStore } from "@/stores/fleet";
 import { useAlertAck } from "@/composables/useAlertAck";
+import { useListPagination } from "@/composables/useListPagination";
 import { useAuth } from "@/composables/useAuth";
 import { useDebouncedText } from "@/composables/useDebouncedText";
 import { useNotifications } from "@/composables/useNotifications";
 import { formatDateTime } from "@navfleet/fleet-core";
 import type { Severity } from "@navfleet/shared";
-
-const PAGE_SIZE = 20;
 
 /**
  * The four `source` values the normalizer produces, in words.
@@ -126,10 +125,6 @@ const search = computed(() => readParam("q"));
 const fromDate = computed(() => readParam("from"));
 const toDate = computed(() => readParam("to"));
 const showAcknowledged = computed(() => readParam("acked") === "1");
-const page = computed(() => {
-  const value = Number(readParam("page"));
-  return Number.isFinite(value) && value >= 1 ? Math.floor(value) : 1;
-});
 
 /**
  * 消息 is a section with three tabs (1.6.2 IA): live alerts off the store (消息, this view at
@@ -244,18 +239,12 @@ const filtered = computed(() => {
   });
 });
 
-const pageCount = computed(() =>
-  Math.max(1, Math.ceil(filtered.value.length / PAGE_SIZE)),
-);
-const pageRows = computed(() => {
-  const start = (Math.min(page.value, pageCount.value) - 1) * PAGE_SIZE;
-  return filtered.value.slice(start, start + PAGE_SIZE);
-});
-
-// A list that shrinks under a filter can leave the page number past the end.
-watch(pageCount, (count) => {
-  if (page.value > count) setQuery({ page: count > 1 ? String(count) : null });
-});
+// Shared pagination (default 10/页, URL-backed), the same control 设备/审计/外发 use. A
+// filter change still resets the page via `setFilter({ …, page: null })` below; the
+// clamp when a filter shrinks the list lives inside the composable.
+const { page, pageSize, pageCount, pageItems, setPage, setPageSize } =
+  useListPagination(filtered);
+const pageRows = pageItems;
 
 /**
  * Every unacknowledged id in the **whole filtered set**, not just the visible page.
@@ -619,20 +608,14 @@ watch(() => canAck.value && fleet.state.realtime.apiReady, runLegacyMigration);
         </li>
       </ul>
 
-      <nav
-        v-if="pageCount > 1"
-        class="flex items-center justify-end gap-3"
-        aria-label="分页"
-      >
-        <UiPager
-          :page="page"
-          :page-count="pageCount"
-          @update:page="(p) => setQuery({ page: p <= 1 ? null : String(p) })"
-        >
-          第 {{ Math.min(page, pageCount) }} / {{ pageCount }} 页 · 共
-          {{ filtered.length }} 条
-        </UiPager>
-      </nav>
+      <UiListPagination
+        :page="page"
+        :page-count="pageCount"
+        :page-size="pageSize"
+        :total="filtered.length"
+        @update:page="setPage"
+        @update:page-size="setPageSize"
+      />
     </template>
   </PageHeader>
 </template>

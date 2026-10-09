@@ -334,13 +334,13 @@ describe("the controls the template wires up", () => {
       "api",
     );
     const wrapper = await mountAlerts();
-    expect(wrapper.findAll("li")).toHaveLength(20);
+    expect(wrapper.findAll("li")).toHaveLength(10);
 
     const next = wrapper.findAll("button").find((b) => b.text() === "下一页");
     await next?.trigger("click");
     await flushPromises();
-    expect(wrapper.findAll("li")).toHaveLength(5);
-    expect(wrapper.text()).toContain("第 2 / 2 页");
+    expect(wrapper.findAll("li")).toHaveLength(10);
+    expect(wrapper.text()).toContain("第 2 / 3 页");
 
     const previous = wrapper
       .findAll("button")
@@ -365,7 +365,7 @@ describe("the controls the template wires up", () => {
       "api",
     );
     const wrapper = await mountAlerts("?page=2");
-    expect(wrapper.findAll("li")).toHaveLength(5);
+    expect(wrapper.findAll("li")).toHaveLength(10);
 
     wrapper.findComponent(UiSelect).vm.$emit("update:modelValue", "agv-01");
     await flushPromises();

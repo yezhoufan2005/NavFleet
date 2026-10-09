@@ -12,7 +12,7 @@ import { fleetApi, type AuditRecord } from "@navfleet/fleet-core";
 import PageHeader from "@/components/PageHeader.vue";
 import AppSectionTabs from "@/components/shell/AppSectionTabs.vue";
 import UiInput from "@/components/ui/UiInput.vue";
-import UiPager from "@/components/ui/UiPager.vue";
+import UiListPagination from "@/components/ui/UiListPagination.vue";
 import UiSelect from "@/components/ui/UiSelect.vue";
 import { tableClasses } from "@/lib/uiClasses";
 import { useAutoRefresh } from "@/composables/useAutoRefresh";
@@ -65,12 +65,7 @@ const to = ref(readParam("to"));
 const entries = ref<AuditRecord[]>([]);
 const status = ref<"loading" | "ready" | "error">("loading");
 
-const PAGE_SIZE_OPTIONS = [
-  { value: "10", label: "10 条/页" },
-  { value: "20", label: "20 条/页" },
-  { value: "50", label: "50 条/页" },
-];
-const pageSize = ref(20);
+const pageSize = ref(10);
 const page = ref(1);
 
 /** Changing page size restarts at the first page so the slice offset stays in range. */
@@ -239,18 +234,14 @@ const formatTime = (iso: string): string =>
           </tbody>
         </table>
       </div>
-      <div class="flex items-center justify-between gap-3 text-sm">
-        <label class="flex items-center gap-2">
-          <span class="text-ink-muted">每页条数</span>
-          <UiSelect
-            :model-value="String(pageSize)"
-            :options="PAGE_SIZE_OPTIONS"
-            aria-label="每页条数"
-            @update:model-value="setPageSize"
-          />
-        </label>
-        <UiPager v-model:page="page" :page-count="pageCount" />
-      </div>
+      <UiListPagination
+        :page="page"
+        :page-count="pageCount"
+        :page-size="pageSize"
+        :total="entries.length"
+        @update:page="(value) => (page = value)"
+        @update:page-size="setPageSize"
+      />
     </template>
   </PageHeader>
 </template>
