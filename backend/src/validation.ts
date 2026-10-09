@@ -12,35 +12,63 @@ const timestampString = z
     "must be an ISO-8601 datetime or a numeric epoch",
   );
 
-export const historyQuerySchema = z.object({
-  from: timestampString.optional(),
-  to: timestampString.optional(),
-  /**
-   * Bounded by what the server will actually return, not by a round number.
-   *
-   * This used to accept up to 5000 while both query paths clamp to
-   * `MAX_HISTORY_POINTS` (default 500) — and because `openapi.ts` generates this
-   * parameter *from this schema*, the published contract promised 5000 for a server
-   * that never returns more than 500. A client sizing its buffers off the spec was
-   * being told the wrong number by the spec's own source of truth.
-   *
-   * Reading `config` means the document each deployment serves states that
-   * deployment's real cap, which is the only version of this number that is true.
-   */
-  limit: z.coerce.number().int().positive().max(config.maxHistoryPoints).optional(),
-});
+/** Milliseconds for ordering, preferring ISO parsing and falling back to a numeric epoch. */
+const toEpochMs = (value: string): number =>
+  Number.isFinite(Date.parse(value)) ? Date.parse(value) : Number(value);
 
-export const alertsQuerySchema = z.object({
-  severity: z.enum(["critical", "warning", "notice"]).optional(),
-  deviceId: z.string().min(1).max(200).optional(),
-  status: z.enum(["active", "cleared"]).optional(),
-  // Time window, bounds on `firstSeenAt` (onset) — the same field the report aggregates filter on,
-  // so a window means the same thing here and there. Added in 1.6.1 so 告警史 can reach a specific
-  // past period: the query is capped at MAX_ALERTS_PER_QUERY rows, and without a window that cap
-  // always returned the most-recent page, leaving older cleared alerts unreachable.
-  from: timestampString.optional(),
-  to: timestampString.optional(),
-});
+/**
+ * `from` must not be after `to`. The frontend already blocks this before it issues the
+ * request, so this is the matching server-side guard — a hand-built query (or a stale
+ * client) that inverts the window gets a clean 400 rather than a silently empty result
+ * that reads the same as "no telemetry in range". Only checked when both bounds are
+ * present; a one-sided (open-ended) window is still valid for the filter endpoints.
+ */
+const rejectInvertedWindow = <T extends { from?: string; to?: string }>(
+  value: T,
+  ctx: z.RefinementCtx,
+): void => {
+  if (value.from && value.to && toEpochMs(value.from) > toEpochMs(value.to)) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      path: ["to"],
+      message: "结束时间不能早于起始时间",
+    });
+  }
+};
+
+export const historyQuerySchema = z
+  .object({
+    from: timestampString.optional(),
+    to: timestampString.optional(),
+    /**
+     * Bounded by what the server will actually return, not by a round number.
+     *
+     * This used to accept up to 5000 while both query paths clamp to
+     * `MAX_HISTORY_POINTS` (default 500) — and because `openapi.ts` generates this
+     * parameter *from this schema*, the published contract promised 5000 for a server
+     * that never returns more than 500. A client sizing its buffers off the spec was
+     * being told the wrong number by the spec's own source of truth.
+     *
+     * Reading `config` means the document each deployment serves states that
+     * deployment's real cap, which is the only version of this number that is true.
+     */
+    limit: z.coerce.number().int().positive().max(config.maxHistoryPoints).optional(),
+  })
+  .superRefine(rejectInvertedWindow);
+
+export const alertsQuerySchema = z
+  .object({
+    severity: z.enum(["critical", "warning", "notice"]).optional(),
+    deviceId: z.string().min(1).max(200).optional(),
+    status: z.enum(["active", "cleared"]).optional(),
+    // Time window, bounds on `firstSeenAt` (onset) — the same field the report aggregates filter on,
+    // so a window means the same thing here and there. Added in 1.6.1 so 告警史 can reach a specific
+    // past period: the query is capped at MAX_ALERTS_PER_QUERY rows, and without a window that cap
+    // always returned the most-recent page, leaving older cleared alerts unreachable.
+    from: timestampString.optional(),
+    to: timestampString.optional(),
+  })
+  .superRefine(rejectInvertedWindow);
 
 /**
  * Debug-ingest bodies are intentionally heterogeneous (the normalizer accepts

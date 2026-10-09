@@ -32,6 +32,25 @@ describe("historyQuerySchema", () => {
   it("rejects an unparseable timestamp", () => {
     expect(historyQuerySchema.safeParse({ from: "not-a-date" }).success).toBe(false);
   });
+
+  it("rejects a window whose end is before its start", () => {
+    // The matching server-side guard for the frontend's own from>to check: a hand-built
+    // or stale query that inverts the window gets a 400, not a silently empty result.
+    expect(
+      historyQuerySchema.safeParse({
+        from: "2026-03-01T00:00:00Z",
+        to: "2026-02-01T00:00:00Z",
+      }).success,
+    ).toBe(false);
+    // A correctly ordered window, and one-sided (open-ended) windows, still pass.
+    expect(
+      historyQuerySchema.safeParse({
+        from: "2026-02-01T00:00:00Z",
+        to: "2026-03-01T00:00:00Z",
+      }).success,
+    ).toBe(true);
+    expect(historyQuerySchema.safeParse({ from: "2026-02-01T00:00:00Z" }).success).toBe(true);
+  });
 });
 
 describe("alertsQuerySchema", () => {
@@ -48,9 +67,18 @@ describe("alertsQuerySchema", () => {
 
   it("accepts an onset window (from/to), ISO or epoch (1.6.1)", () => {
     expect(
-      alertsQuerySchema.safeParse({ from: "2026-03-01T00:00:00Z", to: "1712472000000" }).success,
+      alertsQuerySchema.safeParse({ from: "2024-03-01T00:00:00Z", to: "1712472000000" }).success,
     ).toBe(true);
     expect(alertsQuerySchema.safeParse({ from: "not-a-date" }).success).toBe(false);
+  });
+
+  it("rejects a window whose end is before its start", () => {
+    expect(
+      alertsQuerySchema.safeParse({
+        from: "2026-03-01T00:00:00Z",
+        to: "2026-02-01T00:00:00Z",
+      }).success,
+    ).toBe(false);
   });
 });
 
