@@ -22,7 +22,19 @@ describe("GET /api/audit — admin only", () => {
 
     expect(response.status).toBe(200);
     expect(context.auditService.query).toHaveBeenCalledWith(
-      expect.objectContaining({ actor: "bob", action: "login" }),
+      expect.objectContaining({ actor: "bob", action: ["login"] }),
+    );
+  });
+
+  it("parses a comma-joined action list into a set", async () => {
+    const context = createTestApp();
+    const response = await request(context.app)
+      .get("/api/audit?action=user_create,user_delete")
+      .set("Cookie", sessionCookie("admin"));
+
+    expect(response.status).toBe(200);
+    expect(context.auditService.query).toHaveBeenCalledWith(
+      expect.objectContaining({ action: ["user_create", "user_delete"] }),
     );
   });
 
@@ -41,6 +53,14 @@ describe("GET /api/audit — admin only", () => {
     const context = createTestApp();
     const response = await request(context.app)
       .get("/api/audit?action=nonsense")
+      .set("Cookie", sessionCookie("admin"));
+    expect(response.status).toBe(400);
+  });
+
+  it("400s when any action in the list is unknown", async () => {
+    const context = createTestApp();
+    const response = await request(context.app)
+      .get("/api/audit?action=login,nonsense")
       .set("Cookie", sessionCookie("admin"));
     expect(response.status).toBe(400);
   });

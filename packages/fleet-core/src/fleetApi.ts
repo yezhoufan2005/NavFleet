@@ -197,6 +197,7 @@ export interface UpdateUserPayload {
 
 export interface AuditQueryParams {
   actor?: string;
+  /** Comma-joined action list, e.g. `user_create,user_delete`; the backend validates each item. */
   action?: string;
   from?: string;
   to?: string;

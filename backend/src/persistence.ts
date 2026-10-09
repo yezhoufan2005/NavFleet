@@ -754,10 +754,10 @@ export class Persistence {
     }
   }
 
-  /** Query the audit trail, newest first, filtered by actor / action / time window. */
+  /** Query the audit trail, newest first, filtered by actor / action(s) / time window. */
   async queryAudit(filters: {
     actor?: string;
-    action?: string;
+    action?: string[];
     from?: string;
     to?: string;
   }): Promise<AuditEntry[]> {
@@ -770,7 +770,7 @@ export class Persistence {
     if (!this.db) {
       return this.auditFallback
         .filter((entry) => !filters.actor || entry.actor === filters.actor)
-        .filter((entry) => !filters.action || entry.action === filters.action)
+        .filter((entry) => !filters.action?.length || filters.action.includes(entry.action))
         .filter((entry) => !fromDate || entry.ts >= fromDate)
         .filter((entry) => !toDate || entry.ts <= toDate)
         .slice(0, MAX_AUDIT_PER_QUERY);
@@ -778,7 +778,7 @@ export class Persistence {
 
     const query: Record<string, unknown> = {};
     if (filters.actor) query.actor = filters.actor;
-    if (filters.action) query.action = filters.action;
+    if (filters.action?.length) query.action = { $in: filters.action };
     if (Object.keys(tsBound).length > 0) query.ts = tsBound;
 
     return this.db

@@ -13,7 +13,8 @@ export interface AuditInput {
 
 export interface AuditQuery {
   actor?: string;
-  action?: string;
+  /** Zero or more actions; empty / absent means every action. */
+  action?: string[];
   from?: string;
   to?: string;
 }

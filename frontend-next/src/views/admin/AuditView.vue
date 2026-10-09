@@ -13,7 +13,7 @@ import PageHeader from "@/components/PageHeader.vue";
 import AppSectionTabs from "@/components/shell/AppSectionTabs.vue";
 import UiInput from "@/components/ui/UiInput.vue";
 import UiListPagination from "@/components/ui/UiListPagination.vue";
-import UiSelect from "@/components/ui/UiSelect.vue";
+import UiMultiSelect from "@/components/ui/UiMultiSelect.vue";
 import { tableClasses } from "@/lib/uiClasses";
 import { useAutoRefresh } from "@/composables/useAutoRefresh";
 
@@ -47,18 +47,24 @@ const ACTION_LABELS: Record<string, string> = {
   scene_asset_upload: "上传场景资源",
 };
 
-const ACTION_OPTIONS = [
-  { value: "", label: "全部动作" },
-  ...Object.entries(ACTION_LABELS).map(([value, label]) => ({ value, label })),
-];
+/** The 动作 filter is multi-select, so there is no 全部动作 sentinel — an empty set means "all". */
+const ACTION_OPTIONS = Object.entries(ACTION_LABELS).map(([value, label]) => ({
+  value,
+  label,
+}));
 
 const readParam = (key: string): string => {
   const value = route.query[key];
   return typeof value === "string" ? value : "";
 };
+/** A comma-joined query key (动作 is multi) read back as a list; empty when absent. */
+const readParamList = (key: string): string[] => {
+  const raw = readParam(key);
+  return raw ? raw.split(",").filter(Boolean) : [];
+};
 
 const actor = ref(readParam("actor"));
-const action = ref(readParam("action"));
+const action = ref<string[]>(readParamList("action"));
 const from = ref(readParam("from"));
 const to = ref(readParam("to"));
 
@@ -81,7 +87,7 @@ const load = async (): Promise<void> => {
   try {
     const result = await fleetApi.getAuditLog({
       actor: actor.value || undefined,
-      action: action.value || undefined,
+      action: action.value.length ? action.value.join(",") : undefined,
       from: from.value || undefined,
       to: to.value || undefined,
     });
@@ -98,7 +104,7 @@ const applyFilters = (): void => {
   void router.replace({
     query: {
       ...(actor.value ? { actor: actor.value } : {}),
-      ...(action.value ? { action: action.value } : {}),
+      ...(action.value.length ? { action: action.value.join(",") } : {}),
       ...(from.value ? { from: from.value } : {}),
       ...(to.value ? { to: to.value } : {}),
     },
@@ -145,9 +151,10 @@ const formatTime = (iso: string): string =>
       </label>
       <label class="flex flex-col gap-1">
         <span class="text-2xs text-ink-muted">动作</span>
-        <UiSelect
+        <UiMultiSelect
           v-model="action"
           :options="ACTION_OPTIONS"
+          placeholder="全部动作"
           aria-label="按动作筛选"
         />
       </label>
