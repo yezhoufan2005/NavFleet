@@ -565,7 +565,7 @@ useAutoRefresh(() => void load(), {
       class="text-sm text-ink-muted"
       role="status"
     >
-      没有符合条件的发送记录
+      没有符合当前筛选条件的发送记录
     </p>
     <template v-else>
       <div

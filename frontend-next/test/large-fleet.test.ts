@@ -184,7 +184,7 @@ describe("large fleet rendering", () => {
     await search.setValue("no-such-device");
     await flushPromises();
     expect(wrapper.findAll("tbody tr.device-row")).toHaveLength(0);
-    expect(wrapper.text()).toContain("没有匹配当前筛选的设备");
+    expect(wrapper.text()).toContain("没有符合当前筛选条件的设备");
   });
 
   it("keeps the per-device node count bounded", async () => {
