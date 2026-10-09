@@ -37,6 +37,8 @@ const STYLES = resolve(HERE, "..", "..", "frontend-next", "src", "styles");
 const PAIRS = [
   ["map-grid", "ros-canvas", 1.3, "装饰参考线：只保可见"],
   ["map-scale", "ros-canvas", 3, "内容图形：WCAG 1.4.11"],
+  // 激光定位标记：实心紫罗兰 puck，画在底图上，与融合蓝区分；按"内容图形"判 3:1。
+  ["ros-lidar", "ros-canvas", 3, "激光定位：必须看得见"],
 ];
 
 /**

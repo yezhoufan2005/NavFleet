@@ -313,9 +313,8 @@ describe("what else the scene map draws", () => {
       ?.trigger("click");
     expect(zoom()).not.toBe(focused);
 
-    await buttons
-      .find((button) => button.text() === "定位车辆")
-      ?.trigger("click");
+    // 定位车辆 is an icon button now, so it is found by its accessible name.
+    await wrapper.find("button[aria-label='定位车辆']").trigger("click");
     expect(zoom()).toBe(focused);
   });
 
@@ -573,6 +572,26 @@ describe("the GPS map against a fake SDK", () => {
     expect(markers).toHaveLength(3);
     expect(calls.fitView).toBe(1);
     expect(calls.fitCount).toBe(2);
+  });
+
+  it("disables 适应车队 and never fits all when the formation has no GPS vehicle", async () => {
+    // 仓储编队 Beta is indoor (gpsEnabled false), so filtering it leaves nothing to frame
+    // on the GPS surface. The button must not silently zoom out to the whole fleet — it is
+    // disabled instead. (fitDeviceIds names a device with no marker here.)
+    const wrapper = await mountMap({
+      devices: [
+        gpsDevice("agv-01", 31.2, 121.4),
+        gpsDevice("agv-02", 31.3, 121.5),
+      ],
+      selectedDeviceId: "",
+      fitDeviceIds: ["agv-w01"],
+    });
+
+    expect(calls.fitView).toBe(0);
+    const fit = wrapper
+      .findAll("button")
+      .find((button) => button.text() === "适应车队");
+    expect(fit?.attributes("disabled")).toBeDefined();
   });
 
   it("redraws a marker only when something it shows has changed", async () => {
