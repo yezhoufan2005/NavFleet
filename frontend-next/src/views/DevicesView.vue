@@ -205,7 +205,11 @@ const sceneOptions = computed(() => {
       if (row) seen.set(id, row.sceneLabel);
     }
   }
-  return [...seen].map(([value, label]) => ({ value, label }));
+  // 场景 options collate by name ascending (zh pinyin, same collation as 编队), so the
+  // menu reads in a stable alphabetical order rather than in device-encounter order.
+  return [...seen]
+    .map(([value, label]) => ({ value, label }))
+    .sort((left, right) => left.label.localeCompare(right.label, "zh-Hans-CN"));
 });
 
 const filteredRows = computed(() =>
@@ -606,15 +610,6 @@ watch(
       -->
       <div class="flex flex-wrap items-end gap-3">
         <label class="flex flex-col gap-1">
-          <span class="text-2xs text-ink-muted">搜索</span>
-          <UiInput
-            v-model="deviceSearch"
-            class="w-48"
-            placeholder="名称或编号"
-            aria-label="搜索设备"
-          />
-        </label>
-        <label class="flex flex-col gap-1">
           <span class="text-2xs text-ink-muted">状态</span>
           <UiMultiSelect
             :model-value="statusFilter"
@@ -632,6 +627,15 @@ watch(
             placeholder="全部场景"
             aria-label="场景筛选"
             @update:model-value="(value) => (sceneFilter = value)"
+          />
+        </label>
+        <label class="flex flex-col gap-1">
+          <span class="text-2xs text-ink-muted">搜索</span>
+          <UiInput
+            v-model="deviceSearch"
+            class="w-48"
+            placeholder="名称或编号"
+            aria-label="搜索设备"
           />
         </label>
       </div>
@@ -772,7 +776,7 @@ watch(
                     :aria-label="`${row.device.deviceName || row.device.deviceId} 详情`"
                     @click.stop="toggleExpanded(row.device.deviceId)"
                   >
-                    <span aria-hidden="true" class="text-2xs">
+                    <span aria-hidden="true" class="text-sm leading-none">
                       {{ expandedId === row.device.deviceId ? "▾" : "▸" }}
                     </span>
                   </button>
