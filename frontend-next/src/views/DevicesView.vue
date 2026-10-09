@@ -620,7 +620,7 @@ watch(
             @update:model-value="(value) => (statusFilter = value)"
           />
         </UiFilterField>
-        <UiFilterField v-if="sceneOptions.length" label="场景">
+        <UiFilterField label="场景">
           <UiMultiSelect
             :model-value="sceneFilter"
             :options="sceneOptions"
@@ -633,7 +633,7 @@ watch(
           <UiInput
             v-model="deviceSearch"
             class="w-48"
-            placeholder="名称或编号"
+            placeholder="名称/编号"
             aria-label="搜索设备"
           />
         </UiFilterField>
@@ -775,7 +775,7 @@ watch(
                     :aria-label="`${row.device.deviceName || row.device.deviceId} 详情`"
                     @click.stop="toggleExpanded(row.device.deviceId)"
                   >
-                    <span aria-hidden="true" class="text-sm leading-none">
+                    <span aria-hidden="true" class="text-lg leading-none">
                       {{ expandedId === row.device.deviceId ? "▾" : "▸" }}
                     </span>
                   </button>
@@ -853,7 +853,7 @@ watch(
         v-if="!filteredRows.length"
         class="rounded-md border border-border bg-surface-raised px-4 py-6 text-center text-sm text-ink-muted"
       >
-        没有匹配当前筛选的设备 —— 调整搜索 / 状态 / 场景，或清空筛选条件
+        没有符合当前筛选条件的设备
       </p>
     </div>
 

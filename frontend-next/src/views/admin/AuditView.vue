@@ -180,7 +180,7 @@ const formatTime = (iso: string): string =>
       class="text-sm text-ink-muted"
       role="status"
     >
-      没有符合条件的记录
+      没有符合当前筛选条件的记录
     </p>
     <template v-else>
       <!-- Same shell as the device list: the table itself does not scroll (`overflow-hidden`
