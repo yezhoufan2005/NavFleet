@@ -694,7 +694,7 @@ const apiWideResponses = { "429": tooManyRequests, "500": serverError } as const
       parameters: queryParameters(reportAvailabilityQuerySchema, {
         from: "ISO-8601 或 epoch，按 ts 过滤下界",
         to: "ISO-8601 或 epoch，上界",
-        deviceId: "只看这一台；缺省为全车队",
+        deviceId: "逗号拼接的设备列表（如 agv-1,agv-2）；缺省为全车队",
         bucket: "分桶粒度（hour/day/month），缺省 day",
       }),
       responses: {

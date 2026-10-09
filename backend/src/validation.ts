@@ -258,11 +258,21 @@ export const reportRangeSchema = z.object({
 });
 
 /** Query filters for `GET /api/reports/availability` (Phase 17A-2, viewer+). `bucket` defaults to
- * day; `deviceId` narrows to one vehicle, otherwise the whole fleet. Bounds filter on `ts`. */
+ * day; `deviceId` is a comma-joined list that narrows to those vehicles (multi-select since the
+ * filter-polish sweep), otherwise the whole fleet. Bounds filter on `ts`. */
 export const reportAvailabilityQuerySchema = z.object({
   from: timestampString.optional(),
   to: timestampString.optional(),
-  deviceId: z.string().min(1).max(200).optional(),
+  deviceId: z
+    .string()
+    .transform((raw) =>
+      raw
+        .split(",")
+        .map((part) => part.trim())
+        .filter(Boolean),
+    )
+    .pipe(z.array(z.string().min(1).max(200)))
+    .optional(),
   bucket: z.enum(["hour", "day", "month"]).default("day"),
 });
 

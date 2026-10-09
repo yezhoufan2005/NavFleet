@@ -117,8 +117,9 @@ export interface ReportRangeParams {
   to?: string;
 }
 
-/** Query for the availability/battery time-series (Phase 17A-2). `deviceId` narrows to one vehicle;
- * `bucket` defaults server-side to day when omitted. */
+/** Query for the availability/battery time-series (Phase 17A-2). `deviceId` is a comma-joined list
+ * narrowing to those vehicles (empty = whole fleet); `bucket` defaults server-side to day when
+ * omitted. */
 export interface AvailabilityQueryParams {
   from?: string;
   to?: string;

@@ -19,8 +19,8 @@ import type {
 } from "@navfleet/shared";
 
 export interface AvailabilityPipelineParams {
-  /** 只看这一台；null 表示全车队。 */
-  deviceId: string | null;
+  /** 只看这些设备；null 或空表示全车队。 */
+  deviceIds: string[] | null;
   /** 区间下界（含），按 `ts` 过滤；null 表示不设下界。 */
   from: Date | null;
   /** 区间上界（含）；null 表示不设上界。 */
@@ -34,13 +34,16 @@ export interface AvailabilityPipelineParams {
 /**
  * 构造 `telemetry_ts` 上的降采样管道：按（设备 × 时间桶）聚合在线帧数/总帧数与电量均值/最低。
  * `$dateTrunc` 按部署时区切桶界，末尾按设备、桶起点升序，让 mapper 可以顺序切成每台设备一条序列。
+ * `deviceIds` 多选时用 `$in` 收窄到选中的若干台，每台仍各自成一条序列。
  */
 export const buildAvailabilityPipeline = (params: AvailabilityPipelineParams): Document[] => {
-  const { deviceId, from, to, bucket, timezone } = params;
+  const { deviceIds, from, to, bucket, timezone } = params;
   const pipeline: Document[] = [];
 
   const match: Record<string, unknown> = {};
-  if (deviceId) match["meta.deviceId"] = deviceId;
+  if (deviceIds && deviceIds.length > 0) {
+    match["meta.deviceId"] = deviceIds.length === 1 ? deviceIds[0] : { $in: deviceIds };
+  }
   const range: Record<string, Date> = {};
   if (from) range.$gte = from;
   if (to) range.$lte = to;

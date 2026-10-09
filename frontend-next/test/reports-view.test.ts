@@ -5,6 +5,7 @@ import { enableAutoUnmount, flushPromises, mount } from "@vue/test-utils";
 import { fleetApi } from "@navfleet/fleet-core";
 import type { AlertStatsReport, AvailabilityReport } from "@navfleet/shared";
 import ReportsView from "@/views/ReportsView.vue";
+import UiMultiSelect from "@/components/ui/UiMultiSelect.vue";
 import { useFleetStore } from "@/stores/fleet";
 
 /**
@@ -217,5 +218,21 @@ describe("报表 状态与内容", () => {
       .mockResolvedValue(availabilityReport());
     await mountView("?bucket=month");
     expect(avail.mock.calls.at(-1)![0]!.bucket).toBe("month");
+  });
+
+  it("设备多选把选中的若干台拼成一个逗号 deviceId 去取数", async () => {
+    const avail = vi
+      .spyOn(fleetApi, "getAvailabilityReport")
+      .mockResolvedValue(availabilityReport());
+    const wrapper = await mountView();
+
+    // 设备 is a multi-select now; emitting its set should refetch with the ids comma-joined
+    // (the single key the backend parses back into a set).
+    wrapper
+      .findComponent(UiMultiSelect)
+      .vm.$emit("update:modelValue", ["agv-01", "agv-02"]);
+    await flushPromises();
+
+    expect(avail.mock.calls.at(-1)![0]!.deviceId).toBe("agv-01,agv-02");
   });
 });

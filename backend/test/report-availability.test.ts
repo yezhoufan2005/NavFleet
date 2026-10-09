@@ -21,7 +21,7 @@ describe("buildAvailabilityPipeline", () => {
     const from = new Date("2026-09-01T00:00:00Z");
     const to = new Date("2026-09-02T00:00:00Z");
     const pipeline = buildAvailabilityPipeline({
-      deviceId: "agv-1",
+      deviceIds: ["agv-1"],
       from,
       to,
       bucket: "hour",
@@ -44,7 +44,7 @@ describe("buildAvailabilityPipeline", () => {
     // Phase 18: 按月 is a valid granularity. `$dateTrunc` truncates to the month natively, so
     // the pipeline just forwards the unit — no new aggregation code, only the wider enum.
     const pipeline = buildAvailabilityPipeline({
-      deviceId: null,
+      deviceIds: null,
       from: null,
       to: null,
       bucket: "month",
@@ -58,7 +58,7 @@ describe("buildAvailabilityPipeline", () => {
 
   it("omits the match entirely for the whole fleet over the whole window", () => {
     const pipeline = buildAvailabilityPipeline({
-      deviceId: null,
+      deviceIds: null,
       from: null,
       to: null,
       bucket: "day",
@@ -71,7 +71,7 @@ describe("buildAvailabilityPipeline", () => {
 
   it("matches on device alone when only a device is given", () => {
     const pipeline = buildAvailabilityPipeline({
-      deviceId: "agv-9",
+      deviceIds: ["agv-9"],
       from: null,
       to: null,
       bucket: "day",
@@ -80,9 +80,22 @@ describe("buildAvailabilityPipeline", () => {
     expect(pipeline[0]).toEqual({ $match: { "meta.deviceId": "agv-9" } });
   });
 
+  it("matches several devices with $in, keeping each its own series", () => {
+    const pipeline = buildAvailabilityPipeline({
+      deviceIds: ["agv-1", "agv-2"],
+      from: null,
+      to: null,
+      bucket: "day",
+      timezone: TZ,
+    });
+    expect(pipeline[0]).toEqual({
+      $match: { "meta.deviceId": { $in: ["agv-1", "agv-2"] } },
+    });
+  });
+
   it("sorts by device then bucket so the mapper can slice runs into series", () => {
     const pipeline = buildAvailabilityPipeline({
-      deviceId: null,
+      deviceIds: null,
       from: null,
       to: null,
       bucket: "day",
