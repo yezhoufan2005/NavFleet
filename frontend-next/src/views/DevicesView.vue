@@ -26,9 +26,10 @@ import DeviceRowCard from "@/components/device/DeviceRowCard.vue";
 import UiSelect from "@/components/ui/UiSelect.vue";
 import UiSegmented from "@/components/ui/UiSegmented.vue";
 import UiInput from "@/components/ui/UiInput.vue";
-import UiPager from "@/components/ui/UiPager.vue";
+import UiListPagination from "@/components/ui/UiListPagination.vue";
 import { tableClasses } from "@/lib/uiClasses";
 import { useFleetStore } from "@/stores/fleet";
+import { useListPagination } from "@/composables/useListPagination";
 import { useDeviceView } from "@/composables/useDeviceView";
 import { useDeviceSort } from "@/composables/useDeviceSort";
 import type { DeviceSortKey } from "@/composables/useDeviceSort";
@@ -195,65 +196,13 @@ const filteredRows = computed(() => {
  *
  * The list did not have it, and «scroll a 200-row table» is not the same capability —
  * pagination is what makes "the vehicle I want is on page 3" a thing you can say to a
- * colleague, because the page number travels in the link like the sort does. The page
- * size is selectable (10 / 20 / 50, default 20) and rides in the URL too, so a chosen
- * density is part of the shareable view; an out-of-range `pageSize` falls back to 20.
- *
- * The clamp matters more than it looks: filtering down to one page while sitting on page
- * four would otherwise render an empty table under a populated header, which reads as
- * "no devices" rather than "wrong page".
+ * colleague, because the page number travels in the link like the sort does. The state
+ * and controls are the shared `useListPagination` + `UiListPagination` (default 10/页,
+ * sizes 10/20/50 in the URL), the same as 消息 / 审计 / 外发.
  */
-const PAGE_SIZE_OPTIONS = [
-  { value: "10", label: "10 条/页" },
-  { value: "20", label: "20 条/页" },
-  { value: "50", label: "50 条/页" },
-];
-const ALLOWED_PAGE_SIZES = [10, 20, 50];
-const DEFAULT_PAGE_SIZE = 10;
-
-const pageSize = computed(() => {
-  const value = Number(route.query.pageSize);
-  return ALLOWED_PAGE_SIZES.includes(value) ? value : DEFAULT_PAGE_SIZE;
-});
-
-const page = computed(() => {
-  const value = Number(route.query.page);
-  return Number.isFinite(value) && value >= 1 ? Math.floor(value) : 1;
-});
-
-const pageCount = computed(() =>
-  Math.max(1, Math.ceil(filteredRows.value.length / pageSize.value)),
-);
-
-const pageRows = computed(() => {
-  const start = (Math.min(page.value, pageCount.value) - 1) * pageSize.value;
-  return filteredRows.value.slice(start, start + pageSize.value);
-});
-
-const setPage = (next: number): void => {
-  void router.replace({
-    query: { ...route.query, page: next > 1 ? String(next) : undefined },
-  });
-};
-
-// A filtered-down list can leave the page number past the end — the same correction 告警
-// makes (`AlertsView`). `pageRows` already clamps what it *shows*, but without this the URL
-// keeps a stale `page`: the pager highlights nothing, and clearing the filter jumps back to it.
-watch(pageCount, (count) => {
-  if (page.value > count) setPage(count);
-});
-
-/** Changing page size drops back to page 1 (offset would otherwise fall out of range). */
-const setPageSize = (next: string): void => {
-  const size = Number(next);
-  void router.replace({
-    query: {
-      ...route.query,
-      pageSize: size !== DEFAULT_PAGE_SIZE ? String(size) : undefined,
-      page: undefined,
-    },
-  });
-};
+const { page, pageSize, pageCount, pageItems, setPage, setPageSize } =
+  useListPagination(filteredRows);
+const pageRows = pageItems;
 
 /**
  * The one expanded row, or null. An accordion: opening a row closes the previous one, so
@@ -879,27 +828,18 @@ watch(
       </p>
     </div>
 
-    <!-- Page-size selector always available in list view; the pager shows even on a
-         single page (jump) so the control does not come and go. -->
-    <nav
+    <!-- Shared footer: 每页条数 + pager (with jump), the same control 消息/审计/外发 use.
+         Shown even on a single page so it does not come and go. -->
+    <UiListPagination
       v-if="layout === 'list' && filteredRows.length"
-      class="flex items-center justify-between gap-3"
-      aria-label="分页"
-    >
-      <label class="flex items-center gap-2 font-mono text-2xs text-ink-muted">
-        <span>每页条数</span>
-        <UiSelect
-          :model-value="String(pageSize)"
-          :options="PAGE_SIZE_OPTIONS"
-          aria-label="每页条数"
-          @update:model-value="setPageSize"
-        />
-      </label>
-      <UiPager :page="page" :page-count="pageCount" jump @update:page="setPage">
-        第 {{ Math.min(page, pageCount) }} / {{ pageCount }} 页 · 共
-        {{ filteredRows.length }} 台
-      </UiPager>
-    </nav>
+      :page="page"
+      :page-count="pageCount"
+      :page-size="pageSize"
+      :total="filteredRows.length"
+      unit="台"
+      @update:page="setPage"
+      @update:page-size="setPageSize"
+    />
   </PageHeader>
 </template>
 

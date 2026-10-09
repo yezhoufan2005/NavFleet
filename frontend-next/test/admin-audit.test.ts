@@ -128,11 +128,11 @@ describe("AuditView", () => {
       entry({ actor: `u${i}` }),
     );
     const wrapper = await mountView(many);
-    expect(wrapper.text()).toContain("第 1 / 2 页");
+    expect(wrapper.text()).toContain("第 1 / 3 页");
 
     const next = wrapper.findAll("button").find((b) => b.text() === "下一页");
     await next!.trigger("click");
-    expect(wrapper.text()).toContain("第 2 / 2 页");
+    expect(wrapper.text()).toContain("第 2 / 3 页");
   });
 
   it("re-paginates when the per-page dropdown changes and returns to page 1", async () => {
@@ -140,22 +140,17 @@ describe("AuditView", () => {
       entry({ actor: `u${i}` }),
     );
     const wrapper = await mountView(many);
-    expect(wrapper.text()).toContain("第 1 / 2 页"); // default 20/page
+    expect(wrapper.text()).toContain("第 1 / 3 页"); // default 10/page
 
     const sizeSelect = wrapper
       .findAllComponents(UiSelect)
       .find((component) => component.props("ariaLabel") === "每页条数");
     expect(sizeSelect).toBeTruthy();
 
-    sizeSelect!.vm.$emit("update:modelValue", "10");
-    await flushPromises();
-    expect(wrapper.text()).toContain("第 1 / 3 页"); // 25 rows / 10
-
     sizeSelect!.vm.$emit("update:modelValue", "50");
     await flushPromises();
-    // 25 rows on one page of 50 — the pager drops out entirely.
-    expect(wrapper.findAll("button").some((b) => b.text() === "下一页")).toBe(
-      false,
-    );
+    // 25 rows on one page of 50: the pager stays (jump) but 下一页 is disabled.
+    const next = wrapper.findAll("button").find((b) => b.text() === "下一页");
+    expect(next?.attributes("disabled")).toBeDefined();
   });
 });

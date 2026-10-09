@@ -147,7 +147,7 @@ const onUpdate = (next: unknown): void => {
         side="bottom"
         :side-offset="4"
         align="start"
-        class="z-50 max-h-[273px] min-w-(--reka-select-trigger-width) overflow-hidden rounded-md border border-border bg-surface-raised shadow-overlay"
+        class="z-50 max-h-69 min-w-(--reka-select-trigger-width) overflow-hidden rounded-md border border-border bg-surface-raised shadow-overlay"
       >
         <SelectViewport class="p-1">
           <SelectItem
