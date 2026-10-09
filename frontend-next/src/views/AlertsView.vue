@@ -29,6 +29,8 @@ import UiButton from "@/components/ui/UiButton.vue";
 import UiInput from "@/components/ui/UiInput.vue";
 import UiSegmented from "@/components/ui/UiSegmented.vue";
 import UiMultiSelect from "@/components/ui/UiMultiSelect.vue";
+import UiFilterBar from "@/components/ui/UiFilterBar.vue";
+import UiFilterField from "@/components/ui/UiFilterField.vue";
 import { SEVERITY_LABELS } from "@/lib/severity";
 import UiListPagination from "@/components/ui/UiListPagination.vue";
 import AlertHistoryPanel from "@/components/alerts/AlertHistoryPanel.vue";
@@ -416,9 +418,8 @@ watch(() => canAck.value && fleet.state.realtime.apiReady, runLegacyMigration);
 
     <AppSectionTabs />
 
-    <div class="flex flex-wrap items-end gap-3">
-      <label class="flex flex-col gap-1">
-        <span class="text-2xs text-ink-muted">严重度</span>
+    <UiFilterBar>
+      <UiFilterField label="严重度">
         <UiSegmented
           :model-value="severity"
           :options="SEVERITIES"
@@ -427,10 +428,9 @@ watch(() => canAck.value && fleet.state.realtime.apiReady, runLegacyMigration);
             (value) => setFilter({ severity: value === 'all' ? null : value })
           "
         />
-      </label>
+      </UiFilterField>
 
-      <label class="flex flex-col gap-1">
-        <span class="text-2xs text-ink-muted">设备</span>
+      <UiFilterField label="设备">
         <UiMultiSelect
           :model-value="deviceFilter"
           :options="deviceOptions"
@@ -441,10 +441,9 @@ watch(() => canAck.value && fleet.state.realtime.apiReady, runLegacyMigration);
               setFilter({ device: value.length ? value.join(',') : null })
           "
         />
-      </label>
+      </UiFilterField>
 
-      <label class="flex flex-col gap-1">
-        <span class="text-2xs text-ink-muted">搜索</span>
+      <UiFilterField label="搜索">
         <!--
           Bound to the local draft, committed on a timer. Bound to `search` it would read
           from the URL it is about to rewrite, and every keystroke was a navigation.
@@ -459,14 +458,13 @@ watch(() => canAck.value && fleet.state.realtime.apiReady, runLegacyMigration);
           @update:model-value="onSearchInput"
           @keydown.enter.prevent="flushSearch"
         />
-      </label>
+      </UiFilterField>
 
       <!--
         起止时间：仅 告警史 有（实时页读 store、没有历史可窗）。服务端过滤，能取到最近一页之外的
         旧记录。起 ≤ 止 由原生 min/max 约束；两端独立可选。
       -->
-      <label v-if="!isLive" class="flex flex-col gap-1">
-        <span class="text-2xs text-ink-muted">起始时间</span>
+      <UiFilterField v-if="!isLive" label="起始时间">
         <UiInput
           type="date"
           :model-value="fromDate"
@@ -474,9 +472,8 @@ watch(() => canAck.value && fleet.state.realtime.apiReady, runLegacyMigration);
           aria-label="起始日期"
           @update:model-value="(value) => setFilter({ from: value || null })"
         />
-      </label>
-      <label v-if="!isLive" class="flex flex-col gap-1">
-        <span class="text-2xs text-ink-muted">结束时间</span>
+      </UiFilterField>
+      <UiFilterField v-if="!isLive" label="结束时间">
         <UiInput
           type="date"
           :model-value="toDate"
@@ -484,7 +481,7 @@ watch(() => canAck.value && fleet.state.realtime.apiReady, runLegacyMigration);
           aria-label="结束日期"
           @update:model-value="(value) => setFilter({ to: value || null })"
         />
-      </label>
+      </UiFilterField>
 
       <!--
         `min-h-6` on the label and a 16px box: the audit at 390px found this input at
@@ -512,7 +509,7 @@ watch(() => canAck.value && fleet.state.realtime.apiReady, runLegacyMigration);
           >（{{ acknowledgedPresent }}）</template
         >
       </label>
-    </div>
+    </UiFilterBar>
 
     <AlertHistoryPanel v-if="!isLive" />
 

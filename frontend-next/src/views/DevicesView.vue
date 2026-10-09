@@ -27,6 +27,8 @@ import UiSelect from "@/components/ui/UiSelect.vue";
 import UiSegmented from "@/components/ui/UiSegmented.vue";
 import UiInput from "@/components/ui/UiInput.vue";
 import UiMultiSelect from "@/components/ui/UiMultiSelect.vue";
+import UiFilterBar from "@/components/ui/UiFilterBar.vue";
+import UiFilterField from "@/components/ui/UiFilterField.vue";
 import UiListPagination from "@/components/ui/UiListPagination.vue";
 import { tableClasses } from "@/lib/uiClasses";
 import { useFleetStore } from "@/stores/fleet";
@@ -608,9 +610,8 @@ watch(
         offers only values that still have rows under the other filters (faceted), and 场景
         stays visible even under a formation (编队 and 场景 cross, not nest).
       -->
-      <div class="flex flex-wrap items-end gap-3">
-        <label class="flex flex-col gap-1">
-          <span class="text-2xs text-ink-muted">状态</span>
+      <UiFilterBar>
+        <UiFilterField label="状态">
           <UiMultiSelect
             :model-value="statusFilter"
             :options="STATUS_OPTIONS"
@@ -618,9 +619,8 @@ watch(
             aria-label="状态筛选"
             @update:model-value="(value) => (statusFilter = value)"
           />
-        </label>
-        <label v-if="sceneOptions.length" class="flex flex-col gap-1">
-          <span class="text-2xs text-ink-muted">场景</span>
+        </UiFilterField>
+        <UiFilterField v-if="sceneOptions.length" label="场景">
           <UiMultiSelect
             :model-value="sceneFilter"
             :options="sceneOptions"
@@ -628,17 +628,16 @@ watch(
             aria-label="场景筛选"
             @update:model-value="(value) => (sceneFilter = value)"
           />
-        </label>
-        <label class="flex flex-col gap-1">
-          <span class="text-2xs text-ink-muted">搜索</span>
+        </UiFilterField>
+        <UiFilterField label="搜索">
           <UiInput
             v-model="deviceSearch"
             class="w-48"
             placeholder="名称或编号"
             aria-label="搜索设备"
           />
-        </label>
-      </div>
+        </UiFilterField>
+      </UiFilterBar>
 
       <div :class="[tableClasses.wrapper, 'overflow-x-auto']">
         <!--

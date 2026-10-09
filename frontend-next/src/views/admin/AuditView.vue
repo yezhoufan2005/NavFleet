@@ -14,6 +14,8 @@ import AppSectionTabs from "@/components/shell/AppSectionTabs.vue";
 import UiInput from "@/components/ui/UiInput.vue";
 import UiListPagination from "@/components/ui/UiListPagination.vue";
 import UiMultiSelect from "@/components/ui/UiMultiSelect.vue";
+import UiFilterBar from "@/components/ui/UiFilterBar.vue";
+import UiFilterField from "@/components/ui/UiFilterField.vue";
 import { tableClasses } from "@/lib/uiClasses";
 import { useAutoRefresh } from "@/composables/useAutoRefresh";
 
@@ -144,30 +146,26 @@ const formatTime = (iso: string): string =>
   <PageHeader title="系统">
     <AppSectionTabs />
 
-    <section class="flex flex-wrap items-end gap-3" aria-label="筛选">
-      <label class="flex flex-col gap-1">
-        <span class="text-2xs text-ink-muted">操作者</span>
+    <UiFilterBar>
+      <UiFilterField label="操作者">
         <UiInput v-model="actor" type="search" placeholder="用户名" />
-      </label>
-      <label class="flex flex-col gap-1">
-        <span class="text-2xs text-ink-muted">动作</span>
+      </UiFilterField>
+      <UiFilterField label="动作">
         <UiMultiSelect
           v-model="action"
           :options="ACTION_OPTIONS"
           placeholder="全部动作"
           aria-label="按动作筛选"
         />
-      </label>
+      </UiFilterField>
       <!-- 起 ≤ 止 enforced with native min/max so an inverted range cannot be picked at all. -->
-      <label class="flex flex-col gap-1">
-        <span class="text-2xs text-ink-muted">起始时间</span>
+      <UiFilterField label="起始时间">
         <UiInput v-model="from" type="date" :max="to || undefined" />
-      </label>
-      <label class="flex flex-col gap-1">
-        <span class="text-2xs text-ink-muted">结束时间</span>
+      </UiFilterField>
+      <UiFilterField label="结束时间">
         <UiInput v-model="to" type="date" :min="from || undefined" />
-      </label>
-    </section>
+      </UiFilterField>
+    </UiFilterBar>
 
     <p v-if="status === 'loading'" class="text-sm text-ink-muted">加载中…</p>
     <p
