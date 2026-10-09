@@ -362,6 +362,9 @@ export function useSvgViewport(options: UseSvgViewportOptions) {
    */
   function resetView(): void {
     if (!sceneReady.value) return;
+    // 适应场景 is a one-shot framing, which conflicts with follow (a continuous state) —
+    // so it ends follow, same as 定位车辆 and a manual pan.
+    following.value = false;
 
     const scene = resolvedScene.value;
     const baseScale = getBaseScale();
@@ -421,6 +424,8 @@ export function useSvgViewport(options: UseSvgViewportOptions) {
    */
   function focusSelectedDevice(): boolean {
     if (!sceneReady.value) return false;
+    // A one-shot locate, so it also ends follow (see resetView).
+    following.value = false;
 
     const baseScale = getBaseScale();
     const focusPose = getFocusPose();

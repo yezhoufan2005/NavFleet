@@ -1225,8 +1225,7 @@ const cloudLabel = computed(() =>
   background: var(--color-surface-sunken);
 }
 .layer-toggle.off {
-  opacity: 0.5;
-  text-decoration: line-through;
+  opacity: 0.45;
 }
 .layer-toggle i {
   display: block;

@@ -436,6 +436,22 @@ describe("follow mode", () => {
     api.handlePointerDown(pointerAt(100, 100));
     expect(api.following.value).toBe(false);
   });
+
+  it("turns off when 适应场景 or 定位车辆 is used (they conflict with follow)", () => {
+    const { api } = mountViewport({
+      device: { deviceId: "agv-01", fusionLoc: { x: 20, y: 10 } },
+    });
+
+    api.toggleFollow();
+    expect(api.following.value).toBe(true);
+    api.resetView();
+    expect(api.following.value).toBe(false);
+
+    api.toggleFollow();
+    expect(api.following.value).toBe(true);
+    api.focusSelectedDevice();
+    expect(api.following.value).toBe(false);
+  });
 });
 
 describe("holding the view still when the world grows", () => {
