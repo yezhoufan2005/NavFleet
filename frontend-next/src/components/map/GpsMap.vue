@@ -187,15 +187,16 @@ const stepZoom = (delta: number): void => {
 const fitFleet = (): void => {
   if (!map || !markerEntries.size) return;
 
-  // With a formation filter active, frame only that formation's vehicles (`fitDeviceIds`);
-  // with none, frame the whole fleet. If the filtered set has no vehicle with a fix, fall
-  // back to the whole fleet so the button is never a silent no-op.
-  const filtered = fitDeviceIds.length
+  // With a formation filter active, frame ONLY that formation's vehicles. No fallback to
+  // the whole fleet: a formation with no GPS vehicle (an indoor one) must not silently
+  // zoom out to everything — that is the bug this removes. The button is disabled in that
+  // case (`canFit`), so an empty set here is only ever a race, and a no-op is correct.
+  const entries = fitDeviceIds.length
     ? [...markerEntries.entries()]
         .filter(([deviceId]) => fitDeviceIds.includes(deviceId))
         .map(([, entry]) => entry)
-    : [];
-  const entries = filtered.length ? filtered : [...markerEntries.values()];
+    : [...markerEntries.values()];
+  if (!entries.length) return;
 
   const only = entries[0];
   if (entries.length === 1 && only) {
@@ -209,6 +210,25 @@ const fitFleet = (): void => {
     16,
   );
 };
+
+/**
+ * How many vehicles 适应车队 would frame: the whole GPS fleet when no formation is
+ * filtered, otherwise the filtered formation's GPS vehicles. Zero means the selected
+ * formation has none on the GPS surface (e.g. an indoor one), so the button is disabled.
+ */
+const fitTargetCount = computed(() =>
+  fitDeviceIds.length
+    ? gpsDevices.value.filter((device) =>
+        fitDeviceIds.includes(device.deviceId),
+      ).length
+    : gpsDevices.value.length,
+);
+const canFit = computed(() => fitTargetCount.value > 0);
+const fitTitle = computed(() =>
+  canFit.value
+    ? "适应车队"
+    : "该编队没有 GPS 车辆（可能是室内场景），无法在卫星图上取景",
+);
 
 /** Animate to the picked vehicle, keeping at least street-level zoom. */
 const focusSelected = (): void => {
@@ -390,7 +410,9 @@ watch(markerSignature, () => {
       >
         <button
           type="button"
-          class="rounded-xs border border-border-strong bg-surface-raised px-2.5 py-1 text-xs text-ink-muted transition-colors duration-150 ease-standard hover:text-ink"
+          class="rounded-xs border border-border-strong bg-surface-raised px-2.5 py-1 text-xs text-ink-muted transition-colors duration-150 ease-standard hover:border-brand hover:bg-surface-sunken hover:text-ink disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:border-border-strong disabled:hover:bg-surface-raised disabled:hover:text-ink-muted"
+          :disabled="!canFit"
+          :title="fitTitle"
           @click="fitFleet"
         >
           适应车队
@@ -399,7 +421,7 @@ watch(markerSignature, () => {
              rather than a bare glyph: `+` and `−` are punctuation to a screen reader. -->
         <button
           type="button"
-          class="rounded-xs border border-border-strong bg-surface-raised px-2.5 py-1 text-xs text-ink-muted transition-colors duration-150 ease-standard hover:text-ink"
+          class="rounded-xs border border-border-strong bg-surface-raised px-2.5 py-1 text-xs text-ink-muted transition-colors duration-150 ease-standard hover:border-brand hover:bg-surface-sunken hover:text-ink"
           aria-label="放大"
           @click="stepZoom(1)"
         >
@@ -407,7 +429,7 @@ watch(markerSignature, () => {
         </button>
         <button
           type="button"
-          class="rounded-xs border border-border-strong bg-surface-raised px-2.5 py-1 text-xs text-ink-muted transition-colors duration-150 ease-standard hover:text-ink"
+          class="rounded-xs border border-border-strong bg-surface-raised px-2.5 py-1 text-xs text-ink-muted transition-colors duration-150 ease-standard hover:border-brand hover:bg-surface-sunken hover:text-ink"
           aria-label="缩小"
           @click="stepZoom(-1)"
         >

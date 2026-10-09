@@ -68,6 +68,11 @@
   --color-ros-link: rgba(30, 41, 59, 0.5);
   --color-ros-cloud-obstacle: #123a52;
   --color-ros-cloud-floor: #5a6b7a;
+  /* Laser-localisation fix (激光定位): a violet distinct from the fusion fix, which is
+     brand blue — the two used to share --color-notice (== brand), so they were the same
+     colour. Violet is not one of the four status hues, so it reads as "a second fix", not
+     "a status". Contrast-checked against ros-canvas by docs/tools/check-map-contrast.mjs. */
+  --color-ros-lidar: #7c3aed;
   --color-map-grid: var(--color-slate-300);
   --color-map-scale: var(--color-slate-600);
 
@@ -134,6 +139,7 @@
     --color-ros-link: rgba(255, 255, 255, 0.72);
     --color-ros-cloud-obstacle: #b6edff;
     --color-ros-cloud-floor: #6c8494;
+    --color-ros-lidar: #a371f7;
     --color-map-grid: var(--color-slate-600);
     --color-map-scale: var(--color-slate-300);
 
@@ -200,6 +206,7 @@
   --color-ros-link: rgba(255, 255, 255, 0.72);
   --color-ros-cloud-obstacle: #b6edff;
   --color-ros-cloud-floor: #6c8494;
+  --color-ros-lidar: #a371f7;
   --color-map-grid: var(--color-slate-600);
   --color-map-scale: var(--color-slate-300);
 

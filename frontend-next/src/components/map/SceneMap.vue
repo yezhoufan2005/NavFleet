@@ -773,19 +773,48 @@ const cloudLabel = computed(() =>
 
     <div class="absolute top-2 right-2 flex gap-2">
       <button type="button" class="map-btn" @click="resetView">适应场景</button>
-      <button type="button" class="map-btn" @click="focusSelectedDevice">
-        定位车辆
+      <!-- 定位车辆 / 跟随 are icon buttons (crosshair / navigation arrow); their text
+           label moves to aria-label + title so the two read as a compact control pair. -->
+      <button
+        type="button"
+        class="map-btn map-btn-icon"
+        aria-label="定位车辆"
+        title="定位车辆"
+        @click="focusSelectedDevice"
+      >
+        <svg
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          stroke-width="1.8"
+          stroke-linecap="round"
+          aria-hidden="true"
+          focusable="false"
+        >
+          <circle cx="12" cy="12" r="4" />
+          <path d="M12 2v3M12 19v3M2 12h3M19 12h3" />
+          <circle cx="12" cy="12" r="1.4" fill="currentColor" stroke="none" />
+        </svg>
       </button>
       <!-- Follow keeps re-centring on the selected vehicle as it moves; the world is
            otherwise static. A manual pan/zoom turns it back off. -->
       <button
         type="button"
-        class="map-btn"
+        class="map-btn map-btn-icon"
         :class="{ 'is-active': following }"
         :aria-pressed="following"
+        aria-label="跟随选中车辆"
+        title="跟随选中车辆"
         @click="toggleFollow"
       >
-        跟随
+        <svg
+          viewBox="0 0 24 24"
+          fill="currentColor"
+          aria-hidden="true"
+          focusable="false"
+        >
+          <path d="M3 10.5 21 3l-7.5 18-2.6-7-7.9-3.5Z" />
+        </svg>
       </button>
     </div>
 
@@ -1060,9 +1089,10 @@ const cloudLabel = computed(() =>
   stroke-linejoin: round;
   paint-order: stroke;
 }
-/* Laser fix: the demoted companion dot, in the notice hue with the same light edge. */
+/* Laser fix: the demoted companion dot, in its own violet (distinct from the fusion
+   fix's brand blue) with the same light edge. */
 .ros-marker.lidar .ros-marker-core {
-  fill: var(--color-notice);
+  fill: var(--color-ros-lidar);
 }
 
 /*
@@ -1143,17 +1173,36 @@ const cloudLabel = computed(() =>
 }
 .map-btn:hover {
   color: var(--color-ink);
+  background: var(--color-surface-sunken);
+  border-color: var(--color-brand);
 }
 .map-btn.is-active {
   border-color: var(--color-brand);
   color: var(--color-brand-ink);
   background: var(--color-brand-wash);
 }
+/* Icon-only variant (定位车辆 / 跟随): square, with the glyph centred. */
+.map-btn-icon {
+  display: grid;
+  place-items: center;
+  padding: 4px;
+  width: 28px;
+  height: 28px;
+}
+.map-btn-icon svg {
+  width: 16px;
+  height: 16px;
+}
 
-/* The stage is keyboard-operable (arrows pan, +/- zoom); make that focus visible. */
+/*
+ * No focus ring on the stage. It is keyboard-operable (tabindex + arrow/zoom keys), but
+ * a click used to leave a blue box around the whole map — the global `:focus-visible`
+ * ring (base.css) applied to the focused svg. The map matches the GPS surface instead,
+ * which carries no such outline; this overrides the global ring for this element only.
+ */
+.ros-stage:focus,
 .ros-stage:focus-visible {
-  outline: 2px solid var(--color-brand);
-  outline-offset: -2px;
+  outline: none;
 }
 
 /*
@@ -1173,6 +1222,7 @@ const cloudLabel = computed(() =>
 }
 .layer-toggle:hover {
   color: var(--color-ink);
+  background: var(--color-surface-sunken);
 }
 .layer-toggle.off {
   opacity: 0.5;
@@ -1215,6 +1265,6 @@ const cloudLabel = computed(() =>
   background: var(--color-brand);
 }
 .legend i.lidar {
-  background: var(--color-notice);
+  background: var(--color-ros-lidar);
 }
 </style>

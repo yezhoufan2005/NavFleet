@@ -41,7 +41,7 @@ defineEmits<{ "update:modelValue": [string] }>();
       :class="
         modelValue === option.value
           ? 'bg-brand text-brand-contrast'
-          : 'bg-surface-raised text-ink-muted hover:text-ink'
+          : 'bg-surface-raised text-ink-muted hover:bg-surface-sunken hover:text-ink'
       "
       :aria-pressed="modelValue === option.value"
       @click="$emit('update:modelValue', option.value)"
