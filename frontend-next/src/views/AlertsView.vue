@@ -21,13 +21,12 @@
  * operator+ capability — so the confirm control is hidden from viewers. A re-fired alert
  * comes back unacknowledged, because the confirmation was of one occurrence, not the code.
  */
-import { computed, onMounted, watch } from "vue";
+import { computed, onMounted, ref, watch } from "vue";
 import { RouterLink, useRoute, useRouter } from "vue-router";
 import PageHeader from "@/components/PageHeader.vue";
 import AppSectionTabs from "@/components/shell/AppSectionTabs.vue";
 import UiButton from "@/components/ui/UiButton.vue";
 import UiInput from "@/components/ui/UiInput.vue";
-import UiSegmented from "@/components/ui/UiSegmented.vue";
 import UiMultiSelect from "@/components/ui/UiMultiSelect.vue";
 import UiFilterBar from "@/components/ui/UiFilterBar.vue";
 import UiFilterField from "@/components/ui/UiFilterField.vue";
@@ -64,8 +63,8 @@ const SOURCE_LABELS: Record<string, string> = {
   snapshot: "快照",
 };
 
-const SEVERITIES: readonly { value: Severity | "all"; label: string }[] = [
-  { value: "all", label: "全部" },
+/** The severity filter is multi-select (worst-first); an empty set means 全部. */
+const SEVERITY_OPTIONS: readonly { value: Severity; label: string }[] = [
   { value: "critical", label: "告警" },
   { value: "warning", label: "预警" },
   { value: "notice", label: "提示" },
@@ -111,11 +110,17 @@ const readParam = (key: string): string => {
   return typeof value === "string" ? value : "";
 };
 
-const severity = computed<Severity | "all">(() => {
-  const value = readParam("severity");
-  return value === "critical" || value === "warning" || value === "notice"
-    ? value
-    : "all";
+/** 严重度 is multi-select too: comma-joined in `severity`, empty = 全部. */
+const SEVERITY_VALUES = ["critical", "warning", "notice"] as const;
+const severity = computed<Severity[]>(() => {
+  const raw = readParam("severity");
+  return raw
+    ? (raw
+        .split(",")
+        .filter((value): value is Severity =>
+          (SEVERITY_VALUES as readonly string[]).includes(value),
+        ) as Severity[])
+    : [];
 });
 /**
  * 设备 is a **multi-select** now (消息 页 was single until the filter-polish sweep). The URL
@@ -192,7 +197,7 @@ const allAlerts = computed(() =>
  * rows are simply "not matching" unless the toggle is on.
  */
 const matchSeverity = (alert: { severity: Severity }): boolean =>
-  severity.value === "all" || alert.severity === severity.value;
+  severity.value.length === 0 || severity.value.includes(alert.severity);
 const matchDevice = (alert: { deviceId: string }): boolean =>
   deviceFilter.value.length === 0 ||
   deviceFilter.value.includes(alert.deviceId);
@@ -312,6 +317,61 @@ const acknowledgeFiltered = async (): Promise<void> => {
 };
 
 /**
+ * Per-row selection for 确认选中: tick several rows, confirm them in one write. This is the
+ * explicit counterpart to 确认当前筛选 (which acts on the whole filtered set sight-unseen) — the
+ * operator picks exactly which occurrences to confirm, across pages. The map is keyed by the
+ * alert's `deviceId:id` and holds the ref so a confirm needs no lookup; it is reassigned on every
+ * change because a `ref<Map>` does not track in-place mutation. A watch prunes ids whose alert has
+ * cleared, so the count never counts rows that are gone.
+ */
+const selected = ref(new Map<string, { deviceId: string; id: string }>());
+const selectionKey = (alert: { deviceId: string; id: string }): string =>
+  `${alert.deviceId}:${alert.id}`;
+const isSelected = (alert: { deviceId: string; id: string }): boolean =>
+  selected.value.has(selectionKey(alert));
+const toggleSelected = (alert: { deviceId: string; id: string }): void => {
+  const next = new Map(selected.value);
+  const key = selectionKey(alert);
+  if (next.has(key)) next.delete(key);
+  else next.set(key, { deviceId: alert.deviceId, id: alert.id });
+  selected.value = next;
+};
+const selectedCount = computed(() => selected.value.size);
+
+watch(allAlerts, (alerts) => {
+  if (!selected.value.size) return;
+  const present = new Set(alerts.map(selectionKey));
+  const next = new Map(selected.value);
+  let dropped = false;
+  for (const key of next.keys())
+    if (!present.has(key)) {
+      next.delete(key);
+      dropped = true;
+    }
+  if (dropped) selected.value = next;
+});
+
+/**
+ * Confirm the ticked rows (minus any already acknowledged), then clear the selection. Same
+ * undo-toast contract as 确认当前筛选 — `acknowledgeMany` returns only what actually landed.
+ */
+const acknowledgeSelected = async (): Promise<void> => {
+  const refs = [...selected.value.values()].filter(
+    (entry) => !ack.isAcknowledged(entry.deviceId, entry.id),
+  );
+  selected.value = new Map();
+  const changed = await ack.acknowledgeMany(refs);
+  if (!changed.length) return;
+  notify(`已确认 ${changed.length} 条告警`, {
+    type: "success",
+    action: {
+      label: "撤销",
+      handler: () => void ack.unacknowledgeMany(changed),
+    },
+  });
+};
+
+/**
  * How many of the alerts currently in the fleet are acknowledged.
  *
  * Deliberately **not** a stored count that would include ids for alerts that have since
@@ -392,6 +452,19 @@ watch(() => canAck.value && fleet.state.realtime.apiReady, runLegacyMigration);
   <PageHeader title="消息">
     <template #actions>
       <!--
+        确认选中 — the ticked rows (see the per-row checkboxes). Explicit counterpart to
+        确认当前筛选: the operator chose exactly these, possibly across pages.
+      -->
+      <UiButton
+        v-if="isLive && canAck && selectedCount"
+        variant="secondary"
+        size="sm"
+        @click="acknowledgeSelected"
+      >
+        确认选中 {{ selectedCount }} 条
+      </UiButton>
+
+      <!--
         「确认当前筛选」rather than 确认本页. The research note for this control says
         「保持能力，补反馈与撤销」 —— the feedback and the undo are here; narrowing the
         scope to one page was not part of it, and on sixty active alerts it turns one
@@ -423,12 +496,14 @@ watch(() => canAck.value && fleet.state.realtime.apiReady, runLegacyMigration);
 
     <UiFilterBar>
       <UiFilterField label="严重度">
-        <UiSegmented
+        <UiMultiSelect
           :model-value="severity"
-          :options="SEVERITIES"
-          aria-label="严重度"
+          :options="SEVERITY_OPTIONS"
+          placeholder="全部严重度"
+          aria-label="严重度筛选"
           @update:model-value="
-            (value) => setFilter({ severity: value === 'all' ? null : value })
+            (value) =>
+              setFilter({ severity: value.length ? value.join(',') : null })
           "
         />
       </UiFilterField>
@@ -564,6 +639,17 @@ watch(() => canAck.value && fleet.state.realtime.apiReady, runLegacyMigration);
             ack.isAcknowledged(alert.deviceId, alert.id) ? 'true' : undefined
           "
         >
+          <!-- Select-to-confirm: ticking rows feeds 确认选中 above. Operator+ only, since the
+               whole point is bulk acknowledgement; viewers never see it. -->
+          <input
+            v-if="canAck"
+            type="checkbox"
+            class="mt-0.5 size-4 shrink-0"
+            :checked="isSelected(alert)"
+            :aria-label="`选择告警：${alert.title}`"
+            @change="toggleSelected(alert)"
+          />
+
           <span
             class="shrink-0 rounded-xs px-2 py-0.5 font-mono text-2xs"
             :class="SEVERITY_BADGE[alert.severity]"

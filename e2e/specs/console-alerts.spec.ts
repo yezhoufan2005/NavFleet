@@ -61,13 +61,16 @@ test.describe("console alerts", () => {
   test("narrows by severity and puts that in the URL", async ({ page }) => {
     // The point of filter-state-in-the-URL: a supervisor can send this link to
     // whoever is on shift. In v1.0.0 the same view could only be described in words.
-    await page.getByRole("button", { name: "告警", exact: true }).click();
+    // 严重度 is a multi-select now: open it and tick 告警.
+    await page.getByRole("button", { name: "严重度筛选" }).click();
+    await page.getByRole("checkbox", { name: "告警", exact: true }).click();
     await expect(page).toHaveURL(/severity=critical/);
 
     await page.reload();
+    await page.getByRole("button", { name: "严重度筛选" }).click();
     await expect(
-      page.getByRole("button", { name: "告警", exact: true }),
-    ).toHaveAttribute("aria-pressed", "true");
+      page.getByRole("checkbox", { name: "告警", exact: true }),
+    ).toHaveAttribute("aria-checked", "true");
   });
 
   test("an acknowledgement survives a reload", async ({ page }) => {

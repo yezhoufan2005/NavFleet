@@ -85,11 +85,13 @@ const readParam = (key: string): string => {
   const value = route.query[key];
   return typeof value === "string" ? value : "";
 };
-const severity = computed<Severity | "all">(() => {
-  const value = readParam("severity");
-  return value === "critical" || value === "warning" || value === "notice"
-    ? value
-    : "all";
+// 严重度 is comma-joined in `severity` (multi-select since the filter-polish sweep); empty = 全部.
+const severity = computed<Severity[]>(() => {
+  const raw = readParam("severity");
+  const valid = ["critical", "warning", "notice"];
+  return raw
+    ? (raw.split(",").filter((value) => valid.includes(value)) as Severity[])
+    : [];
 });
 // 设备 is comma-joined in the one `device` key (multi-select since the filter-polish sweep);
 // an empty list means 全部设备, matching AlertsView's shared bar.
@@ -127,7 +129,7 @@ const deviceNameOf = (id: string, fallback?: string): string => {
 const searchMatches = computed(() => compileSearch(search.value));
 const filtered = computed(() =>
   records.value.filter((record) => {
-    if (severity.value !== "all" && severityOf(record) !== severity.value)
+    if (severity.value.length && !severity.value.includes(severityOf(record)))
       return false;
     if (
       deviceFilter.value.length &&
