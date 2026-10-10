@@ -309,17 +309,17 @@ const { page, pageCount, pageSize, pageItems, setPage, setPageSize } =
         </dd>
       </div>
     </dl>
-    <!-- Three charts, one row, equal 288px height. 「按消息数分布」lists every device (no Top-N
-         cap) and scrolls inside its fixed-height card, so the full fleet is reachable without the
-         card growing; the day-frequency chart likewise keeps `scroll` (a wide month grows
-         sideways). The fixed height is the whole point — a scrollbar, never an ever-taller card. -->
+    <!-- Three charts, one row, equal 240px height (the original). 「按消息数分布」lists every
+         device (no Top-N cap) and scrolls inside its fixed-height card, so the full fleet is
+         reachable without the card growing; the day-frequency chart likewise keeps `scroll`. The
+         fixed height is the whole point — a scrollbar, never an ever-taller card. -->
     <div class="grid gap-4 lg:grid-cols-3">
       <section class="rounded-md border border-border bg-surface-raised p-4">
         <CategoryBarChart
           :data="severityData"
           label="按严重度分布"
           unit="条"
-          :height="288"
+          :height="240"
         />
       </section>
       <section class="rounded-md border border-border bg-surface-raised p-4">
@@ -328,7 +328,7 @@ const { page, pageCount, pageSize, pageItems, setPage, setPageSize } =
           label="按消息数分布"
           unit="条"
           orientation="horizontal"
-          :height="288"
+          :height="240"
           scroll
         />
       </section>
@@ -337,7 +337,7 @@ const { page, pageCount, pageSize, pageItems, setPage, setPageSize } =
           :data="dailyData"
           label="按时间天频次"
           unit="条"
-          :height="288"
+          :height="240"
           scroll
         />
       </section>
