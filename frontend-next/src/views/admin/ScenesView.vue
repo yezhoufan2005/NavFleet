@@ -236,6 +236,7 @@ const fOriginY = ref("0");
 const fOriginYaw = ref("0");
 const fAssetKind = ref<SceneAssetKind>("image");
 const fAssetFile = ref<File | null>(null);
+const assetFileInput = ref<HTMLInputElement | null>(null);
 
 const dialogTitle = computed(() =>
   mode.value === "create" ? "新增场景" : "编辑场景",
@@ -491,7 +492,7 @@ const runDelete = async (): Promise<void> => {
             </dd>
           </div>
           <div class="flex flex-col gap-0.5">
-            <dt class="text-xs text-ink-muted">在此场景的车辆</dt>
+            <dt class="text-xs text-ink-muted">在此场景的设备</dt>
             <dd class="m-0 truncate text-sm text-ink">
               {{ (devicesByScene[scene.sceneId] ?? []).join("、") || "无" }}
             </dd>
@@ -650,12 +651,29 @@ const runDelete = async (): Promise<void> => {
           :options="ASSET_KIND_OPTIONS"
           aria-label="底图类型"
         />
-        <input
-          type="file"
-          :disabled="saving"
-          class="text-sm text-ink"
-          @change="onFileChosen"
-        />
+        <!-- The native file input renders as unstyled, barely-tappable text; present a real
+             button that drives a hidden input, with the chosen filename beside it. -->
+        <div class="flex items-center gap-2">
+          <input
+            ref="assetFileInput"
+            type="file"
+            class="hidden"
+            :disabled="saving"
+            @change="onFileChosen"
+          />
+          <UiButton
+            variant="secondary"
+            size="sm"
+            type="button"
+            :disabled="saving"
+            @click="assetFileInput?.click()"
+          >
+            选择文件
+          </UiButton>
+          <span class="min-w-0 flex-1 truncate text-xs text-ink-muted">
+            {{ fAssetFile ? fAssetFile.name : "未选择文件" }}
+          </span>
+        </div>
       </fieldset>
       <p v-if="formError" class="m-0 text-sm text-critical-ink" role="alert">
         {{ formError }}

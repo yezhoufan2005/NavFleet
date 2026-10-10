@@ -454,7 +454,7 @@ const rowDialogTitle = computed(() =>
           </label>
         </div>
         <label class="flex flex-col gap-1">
-          <span class="text-sm font-medium text-ink">说明（原因）</span>
+          <span class="text-sm font-medium text-ink">说明</span>
           <textarea
             v-model="fDescription"
             rows="2"
