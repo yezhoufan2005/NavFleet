@@ -206,7 +206,9 @@ describe("the statistics", () => {
 describe("the cleared-alert list", () => {
   it("renders a row that reaches the vehicle and shows its duration", async () => {
     const wrapper = await mountPanel();
-    expect(wrapper.find("a[href='/devices/agv-01']").exists()).toBe(true);
+    expect(wrapper.find("a[href='/devices/agv-01/alerts']").exists()).toBe(
+      true,
+    );
     expect(wrapper.text()).toContain("1小时0分");
   });
 

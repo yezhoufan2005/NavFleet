@@ -139,22 +139,37 @@ onBeforeUnmount(disposeChart);
       />
     </div>
 
+    <!--
+      The data-table view is bound to the *same* fixed `height` as the chart view, so toggling
+      图表 ⇆ 数据表 never resizes the card (the old `max-h-96` was both a different value and
+      shrink-to-fit, i.e. dynamic). It scrolls inside that fixed box with a sticky header, the same
+      way the chart scrolls its long axis.
+    -->
+    <!--
+      Data table. The header is its own table outside the scroll box, so the scrollbar runs beside
+      the records only — never up through the 项/数值 header row (the same split 曲线/回放's
+      `TimeSeriesChart` uses). Both tables are `table-fixed` over the same colgroup, so the two
+      columns line up despite the split, and the whole block is pinned to the chart's `height` so
+      toggling 图表 ↔ 数据表 never resizes the card.
+    -->
     <div
       v-else
-      class="max-h-96 overflow-auto rounded-sm border border-border"
-      tabindex="0"
-      role="region"
-      :aria-label="`${label} 数据表`"
+      class="flex flex-col overflow-hidden rounded-sm border border-border"
+      :style="{ height: `${height}px` }"
     >
-      <table class="w-full border-collapse text-left text-sm">
+      <table
+        class="w-full shrink-0 table-fixed border-collapse text-left text-sm"
+      >
         <caption class="sr-only">
           {{
             label
           }}
         </caption>
-        <thead
-          class="sticky top-0 bg-surface-sunken text-2xs text-ink-muted uppercase"
-        >
+        <colgroup>
+          <col />
+          <col class="w-24" />
+        </colgroup>
+        <thead class="bg-surface-sunken text-2xs text-ink-muted uppercase">
           <tr>
             <th scope="col" class="px-3 py-2 font-medium">项</th>
             <th scope="col" class="px-3 py-2 font-medium">
@@ -162,24 +177,38 @@ onBeforeUnmount(disposeChart);
             </th>
           </tr>
         </thead>
-        <tbody>
-          <tr
-            v-for="datum in data"
-            :key="datum.label"
-            class="border-t border-border"
-          >
-            <th
-              scope="row"
-              class="px-3 py-1.5 text-xs font-normal whitespace-nowrap text-ink-muted"
-            >
-              {{ datum.label }}
-            </th>
-            <td class="px-3 py-1.5 font-mono text-xs tabular-nums text-ink">
-              {{ datum.value }}
-            </td>
-          </tr>
-        </tbody>
       </table>
+      <!-- Only the body scrolls, and it is the focusable region (WCAG 2.1.1). -->
+      <div
+        class="min-h-0 flex-1 overflow-x-hidden overflow-y-auto border-t border-border"
+        tabindex="0"
+        role="region"
+        :aria-label="`${label} 数据表`"
+      >
+        <table class="w-full table-fixed border-collapse text-left text-sm">
+          <colgroup>
+            <col />
+            <col class="w-24" />
+          </colgroup>
+          <tbody>
+            <tr
+              v-for="datum in data"
+              :key="datum.label"
+              class="border-b border-border last:border-b-0"
+            >
+              <th
+                scope="row"
+                class="px-3 py-1.5 text-xs font-normal whitespace-nowrap text-ink-muted"
+              >
+                {{ datum.label }}
+              </th>
+              <td class="px-3 py-1.5 font-mono text-xs tabular-nums text-ink">
+                {{ datum.value }}
+              </td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
     </div>
   </figure>
 </template>
