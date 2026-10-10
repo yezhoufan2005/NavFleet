@@ -66,6 +66,8 @@ interface DeviceState {
   soc: number; // battery %, evolves deterministically per tick
   mode: Motion; // current duty cycle phase: patrolling the route, or parked charging
   distance: number; // metres travelled along the route (only advances while driving)
+  /** Per-vehicle phase offset so speed "breathing" is not in lockstep across the fleet. */
+  phase: number;
   frozenAt: { x: number; y: number; yaw: number } | null; // where a faulted vehicle stopped
   tick: number;
   active: boolean;
@@ -232,6 +234,25 @@ function findBounds(scenes: SceneConfig[], sceneId: string): Bounds {
   return { minX: 0, maxX: 60, minY: 0, maxY: 40 };
 }
 const round = (value: number, digits = 3): number => Number(value.toFixed(digits));
+
+const clamp = (value: number, lo: number, hi: number): number => Math.min(hi, Math.max(lo, value));
+
+/** Shortest signed difference a−b, wrapped to (−π, π]. */
+const angleDiff = (a: number, b: number): number => {
+  let d = a - b;
+  while (d > Math.PI) d -= Math.PI * 2;
+  while (d <= -Math.PI) d += Math.PI * 2;
+  return d;
+};
+
+// Speed realism: a driving vehicle is not a constant belt. It eases off approaching a turn and
+// picks back up on the straight, and carries a gentle stop-and-go "breathing" on top — so the
+// 速度 series reads like real motion rather than a flat line. All deterministic (no RNG).
+const TURN_LOOKAHEAD_M = 1.2; // how far ahead to sense the next turn
+const TURN_FULL_RAD = Math.PI / 2; // a 90° turn slows the vehicle to CORNER_FLOOR
+const CORNER_FLOOR = 0.35; // fraction of cruise speed kept in the sharpest turn
+const BREATHE_AMP = 0.07; // ±7% stop-and-go ripple on the straight
+const OMEGA_MAX = 0.8; // rad/s cap on reported yaw rate
 
 /**
  * Scene yaw (radians, maths convention: 0 = +x/east, counter-clockwise) to the
@@ -584,6 +605,8 @@ async function buildStates(count: number): Promise<DeviceState[]> {
       soc: scenario === "charging" ? 16 : 58 + ((index * 17) % 38),
       mode: scenario === "charging" ? "charging" : "route",
       distance: startDistance,
+      // Golden-ratio stride keeps the per-vehicle breathing phases well spread.
+      phase: (index * 2.399963) % (Math.PI * 2),
       frozenAt: null,
       tick: 0,
       active: true,
@@ -760,6 +783,7 @@ function buildTelemetry(state: DeviceState) {
   let y: number;
   let yaw: number;
   let speed: number;
+  let omega = 0;
 
   const faulted = state.scenario === "fault-offline" && state.tick >= FAULT_MOVE_TICKS;
   if (!faulted) {
@@ -785,10 +809,19 @@ function buildTelemetry(state: DeviceState) {
     x = pose.x;
     y = pose.y;
     yaw = pose.yaw;
-    speed = state.cruiseSpeed;
+    // Ease off into turns and breathe on the straight (see constants above), so speed is not
+    // a flat line. The turn is sensed by how much the heading swings over the next
+    // TURN_LOOKAHEAD_M of route; omega follows from that swing at the current speed.
+    const ahead = pointOnRoute(state.route, state.distance + TURN_LOOKAHEAD_M);
+    const turn = angleDiff(ahead.yaw, pose.yaw);
+    const cornerFactor =
+      CORNER_FLOOR + (1 - CORNER_FLOOR) * (1 - Math.min(1, Math.abs(turn) / TURN_FULL_RAD));
+    const breathe = 1 + BREATHE_AMP * Math.sin(state.tick * 0.7 + state.phase);
+    speed = state.cruiseSpeed * cornerFactor * breathe;
+    omega = clamp((turn * speed) / TURN_LOOKAHEAD_M, -OMEGA_MAX, OMEGA_MAX);
     // Travel accumulates only while driving, so a vehicle resumes from where it
     // parked instead of teleporting to where it "would" have been.
-    state.distance += state.cruiseSpeed * intervalSeconds;
+    state.distance += speed * intervalSeconds;
   }
 
   stepBattery(state, motion === "charging", speed > 0);
@@ -804,7 +837,7 @@ function buildTelemetry(state: DeviceState) {
       control_mode: frame.controlMode,
       gear: frame.gear,
       speed: round(speed),
-      omega: 0,
+      omega: round(omega),
       soc: round(state.soc, 1),
     },
     task_status: frame.taskStatus,
