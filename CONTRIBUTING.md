@@ -79,7 +79,7 @@ npm run e2e                     # Playwright 端到端（自动拉起 backend + 
                                 # 无需 MongoDB / MQTT；首次先 npx playwright install chromium）
 
 npm run dev:backend             # 后端 dev（tsx watch）
-npm run dev:console             # 新前端 dev（vite，:5273）—— 默认部署的这一套
+npm run dev:console             # 新前端 dev（vite，:7070）—— 默认部署的这一套
 npm run dev:frontend            # 旧前端 dev（vite，:5173）—— 已冻结，仅回滚验证用
 npm run mock:mqtt               # 发布确定性演示遥测
 npm run screenshots             # 逐页截图到 docs/screenshots/（独立 Playwright 配置，不进 CI）

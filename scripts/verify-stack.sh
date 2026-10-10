@@ -2,23 +2,24 @@
 # NavFleet 整栈启动与验收检查
 #
 # 用 Docker Compose 起完整栈（nginx / web / backend / mongo / mosquitto），等到全部健康，
-# 可选地推一段演示数据，然后**逐条断言**边缘路由、鉴权边界、探针、指标与业务接口。
+# 可选地推一段演示数据 + 注入演示账号/记录，然后**逐条断言**边缘路由、鉴权边界、探针、指标与业务接口。
 # 断言全过才返回 0，所以可以直接当验收门禁用。
 #
 # 用法:
-#   scripts/verify-stack.sh              起栈 + 演示数据 + 全部断言，跑完把栈留着
+#   scripts/verify-stack.sh              起栈 + 演示数据 + 演示账号/记录 + 全部断言，跑完把栈留着
 #   scripts/verify-stack.sh --down       跑完自动停栈并删掉它自己建的卷
-#   scripts/verify-stack.sh --no-mock    不推演示数据（断言里与数据量有关的几条会跳过）
+#   scripts/verify-stack.sh --no-mock    不推实时演示遥测（断言里与数据量有关的几条会跳过）
+#   scripts/verify-stack.sh --no-seed    不注入演示账号/角色/组/会话/审计（只保留 admin）
 #   scripts/verify-stack.sh --fresh      先删掉本脚本的 project 与卷，从空库重来
-#   scripts/verify-stack.sh --check-only 不碰 compose，只对已经在跑的栈跑断言
+#   scripts/verify-stack.sh --check-only 不碰 compose，只对已经在跑的栈跑断言（也不注入演示数据）
 #   scripts/verify-stack.sh --mqtt-tls   叠加 TLS broker（mqtts://8883），验证加密摄入链路
 #   scripts/verify-stack.sh --monitoring 叠加监控栈，断言三个 exporter 在 Prometheus 里 up
 #
 # 与另外两个脚本的分工：
-#   dev.sh    —— 开发用，不走 Docker，起 vite + tsx
-#   smoke.sh  —— 只起一个后端进程，断言 API 契约，秒级，不需要 Docker
-#   本脚本    —— 唯一覆盖**边缘 nginx 与容器编排**的那一层：/docs 有没有真被路由、
-#                /metrics 在边缘是不是 SPA 兜底、五个服务的 healthcheck、跨容器 DNS
+#   dev.sh    —— 开发用（热更新）：前后端走 tsx/vite；--demo 另起一次性 Mongo 容器注入演示数据
+#   smoke.sh  —— 全量 API 契约冒烟：起一个临时后端进程逐条断言接口契约，秒级，不需要 Docker
+#   本脚本    —— 完整起栈：唯一覆盖**边缘 nginx 与容器编排**的那一层（/docs 路由、/metrics
+#                SPA 兜底、五个服务 healthcheck、跨容器 DNS），并把演示账号/记录注入进真库
 set -uo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
@@ -33,6 +34,7 @@ FAIL=0
 SKIP=0
 
 DO_MOCK=1
+DO_SEED=1
 DO_DOWN=0
 DO_FRESH=0
 CHECK_ONLY=0
@@ -42,13 +44,14 @@ while [[ $# -gt 0 ]]; do
   case "$1" in
     --down) DO_DOWN=1; shift ;;
     --no-mock) DO_MOCK=0; shift ;;
+    --no-seed) DO_SEED=0; shift ;;
     --fresh) DO_FRESH=1; shift ;;
     --check-only) CHECK_ONLY=1; shift ;;
     --mqtt-tls) MQTT_TLS=1; shift ;;
     --monitoring) MONITORING=1; shift ;;
-    # 2,21 是上面那段注释的确切范围 —— 注释止于第 21 行，第 22 行是 `set -uo pipefail`。
+    # 2,22 是上面那段注释的确切范围 —— 注释止于第 22 行，第 23 行是 `set -uo pipefail`。
     # dev.sh 里踩过同一个off-by-one（--help 末尾多印一行代码），所以这里写死并核对过。
-    -h|--help) sed -n '2,21p' "$0"; exit 0 ;;
+    -h|--help) sed -n '2,22p' "$0"; exit 0 ;;
     *) echo "未知参数: $1"; exit 1 ;;
   esac
 done
@@ -290,6 +293,34 @@ if [[ "$DO_MOCK" == "1" ]]; then
   has "历史落库并可查（Mongo 链路）" '"measurements"' "$HIST"
 else
   skip "历史落库" "--no-mock"
+fi
+
+# --- 演示账号 / 角色 / 组 / 会话 / 审计（admin API 注入进真库）------------------
+# verify-stack 过去只推遥测（mock），却从不建演示用户 —— 整栈起来后「用户/会话/审计」页仍是空的，
+# 用户在真栈里看不到改好的演示数据正是这个缺口。这里跑 seed:demo（幂等）把账号/角色/组/会话/审计
+# 注入进 compose 的 Mongo，再断言确实落了库。报表的多日历史不在这里造（需 DEBUG_INGEST，且本就是
+# dev.sh --demo 的职责）；mock 已给「今天」的遥测与告警。
+if [[ "$DO_SEED" == "1" && "$CHECK_ONLY" == "0" ]]; then
+  echo
+  echo "注入演示账号/角色/组/会话/审计…"
+  if (
+    cd "$ROOT/backend"
+    SEED_BASE_URL="$BASE" ADMIN_USERNAME="$ADMIN_USER" ADMIN_PASSWORD="$ADMIN_PASS" \
+      npm run seed:demo >/tmp/navfleet-verify-seed.log 2>&1
+  ); then ok "seed:demo 跑通"; else bad "seed:demo 失败 —— 看 /tmp/navfleet-verify-seed.log"; fi
+  echo
+  echo "断言（演示账号/记录）:"
+  USERS="$(body -b "$COOKIE" "$BASE/api/v1/users")"
+  has "演示运维账号已建"   'zhaoyun'  "$USERS"
+  has "锁定演示账号已建"   'wugang'   "$USERS"
+  has "自定义角色已建"     '报码维护' "$(body -b "$COOKIE" "$BASE/api/v1/rbac/roles")"
+  has "用户组已建"         '现场运维组' "$(body -b "$COOKIE" "$BASE/api/v1/rbac/groups")"
+  AUDIT_N="$(body -b "$COOKIE" "$BASE/api/v1/audit?limit=20" | count_json '["entries"]')"
+  [[ "${AUDIT_N:-0}" -ge 1 ]] && ok "审计有记录 (${AUDIT_N})" || bad "审计为空（seed 未留痕）"
+elif [[ "$CHECK_ONLY" == "1" ]]; then
+  skip "注入演示账号/记录" "--check-only"
+else
+  skip "注入演示账号/记录" "--no-seed"
 fi
 
 # --- 边缘路由的三条特有口径 ----------------------------------------------

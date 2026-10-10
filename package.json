@@ -32,6 +32,7 @@
     "dev:frontend": "npm run dev -w navfleet-frontend",
     "mock:mqtt": "npm run mock:mqtt -w navfleet-backend",
     "seed:demo": "npm run seed:demo -w navfleet-backend",
+    "seed:reports": "npm run seed:reports -w navfleet-backend",
     "e2e:install": "playwright install chromium",
     "screenshots": "npm run e2e:install && playwright test -c e2e/screenshots.config.ts",
     "dev:console": "npm run dev -w navfleet-console",
