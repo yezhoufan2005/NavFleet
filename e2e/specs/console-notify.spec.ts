@@ -5,10 +5,12 @@ import { expect, signIn, test } from "../support/fixtures";
  * cards, the send table, the filters and the editor are unit-tested against mocked data; what only
  * a browser answers is that the route resolves through the real backend and renders the regions.
  *
- * The seeded deployment ships no `notify.json`, so the effective-channel list is empty — which is
- * the "zero-config = no outbound" red line, and exactly what the page must say honestly. We sign
- * in as admin (who holds `notify:write`), so the config editor is present; this test only reads it
- * back (asserts the 新建渠道 affordance) and never writes, so nothing leaks into later tests.
+ * The seeded deployment ships a demo `notify.json` whose channels name `urlEnv` variables that are
+ * left unset, so the effective-channel cards render in a "configured but not ready" (未配 env)
+ * state — visible on the page, yet nothing is ever sent, preserving the "no outbound without an
+ * endpoint" red line. We sign in as admin (who holds `notify:write`), so the config editor is
+ * present; this test only reads it back (asserts the 新建渠道 affordance) and never writes, so
+ * nothing leaks into later tests.
  */
 test.describe("console notify", () => {
   test.beforeEach(async ({ page }) => {
@@ -31,9 +33,11 @@ test.describe("console notify", () => {
     ).toBeVisible();
 
     const main = page.getByRole("main");
-    // The 生效渠道 region is present; with no notify.json the honest empty state shows.
+    // The 生效渠道 region lists the demo channels; their urlEnv is unset, so each reads 未配 env
+    // (configured but not ready — nothing is sent).
     await expect(main.getByText("生效渠道")).toBeVisible();
-    await expect(main.getByText(/未配置任何渠道/)).toBeVisible();
+    await expect(main.getByText("ops-wecom").first()).toBeVisible();
+    await expect(main.getByText(/未配 env/).first()).toBeVisible();
     // The send-log filters apply live (no 查询 button) — the 筛选 region is still there.
     await expect(main.getByRole("region", { name: "筛选" })).toBeVisible();
     // An admin (notify:write) sees the config editor's create affordance (now a header action).

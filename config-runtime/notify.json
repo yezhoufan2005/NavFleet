@@ -1,0 +1,32 @@
+{
+  "channels": [
+    {
+      "id": "ops-wecom",
+      "type": "wecom",
+      "enabled": true,
+      "urlEnv": "NOTIFY_WECOM_URL",
+      "severities": ["critical"]
+    },
+    {
+      "id": "ops-email",
+      "type": "email",
+      "enabled": true,
+      "urlEnv": "NOTIFY_SMTP_URL",
+      "severities": ["critical", "warning"],
+      "from": "navfleet@example.com",
+      "recipients": [{ "email": "ops@example.com" }],
+      "groups": ["oncall"],
+      "silenceWindows": [{ "days": [0, 6], "from": "22:00", "to": "07:00" }]
+    },
+    {
+      "id": "dev-webhook",
+      "type": "webhook",
+      "enabled": false,
+      "urlEnv": "NOTIFY_DEV_WEBHOOK_URL",
+      "severities": ["critical", "warning", "notice"]
+    }
+  ],
+  "groups": {
+    "oncall": [{ "user": "operator" }, { "email": "oncall@example.com" }]
+  }
+}

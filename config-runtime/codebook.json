@@ -1,0 +1,29 @@
+[
+  {
+    "code": 2203,
+    "channel": "warning",
+    "subsystem": "motion",
+    "label": "厂区限速区降速",
+    "description": "车辆进入本厂划定的限速区，按现场规程自动降速通过",
+    "hint": "属正常降速；若在非限速区持续出现，核对速度区配置与标识",
+    "impact": "watch"
+  },
+  {
+    "code": 1901,
+    "channel": "info",
+    "subsystem": "task",
+    "label": "到达人工交接位",
+    "description": "车辆到达人工交接工位并等待操作员确认后再继续任务",
+    "hint": "操作员在工位确认即可；长时间停留检查交接流程",
+    "impact": "none"
+  },
+  {
+    "code": 2902,
+    "channel": "warning",
+    "subsystem": "payload",
+    "label": "载荷偏移预警",
+    "description": "载荷传感器检测到货物相对托盘偏移超过阈值",
+    "hint": "检查货物摆放与托盘定位，必要时重新对位",
+    "impact": "watch"
+  }
+]

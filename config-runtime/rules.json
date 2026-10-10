@@ -1,0 +1,14 @@
+{
+  "lowBattery": {
+    "enabled": true,
+    "thresholdPct": 20,
+    "debounceSeconds": 30,
+    "scope": {
+      "tags": ["仓储", "装卸", "产线"]
+    }
+  },
+  "offline": {
+    "enabled": true,
+    "afterSeconds": 90
+  }
+}

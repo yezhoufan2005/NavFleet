@@ -5,7 +5,7 @@ import { expect, signIn, test } from "../support/fixtures";
  * create/edit/delete + whole-file write is unit-tested against mocked data; what only a browser
  * answers is that the route resolves through the real backend (`GET /reports/config` returns the
  * schedule config) and renders the editor. We sign in as admin (who holds `reports:write`) and only
- * read the page back — assert the empty state and the 新建报表 affordance — never writing.
+ * read the page back — assert the seeded demo schedules and the 新建报表 affordance — never writing.
  */
 test.describe("console report schedules", () => {
   test.beforeEach(async ({ page }) => {
@@ -28,8 +28,8 @@ test.describe("console report schedules", () => {
     ).toBeVisible();
 
     const main = page.getByRole("main");
-    // The seeded deployment ships no reports.json, so the honest empty state shows.
-    await expect(main.getByText(/还没有定时报表/)).toBeVisible();
+    // The seeded demo ships a reports.json with two schedules; the table lists them by id.
+    await expect(main.getByText("daily-availability")).toBeVisible();
     // An admin (reports:write) sees the create affordance.
     await expect(main.getByRole("button", { name: /新建报表/ })).toBeVisible();
   });
