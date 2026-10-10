@@ -166,8 +166,8 @@ const routes: RouteRecordRaw[] = [
   },
   {
     // 消息 — a section with three tabs (1.6.2 IA): 消息 (live) and 消息史 (cleared) both render
-    // AlertsView (it reads live-vs-history off the path), and 告警规则 is RulesView, folded in from
-    // 管理. `AppSectionTabs` reads the strip off this parent's `meta.tabs`; the 告警规则 tab is gated
+    // AlertsView (it reads live-vs-history off the path), and 消息规则 is RulesView, folded in from
+    // 管理. `AppSectionTabs` reads the strip off this parent's `meta.tabs`; the 消息规则 tab is gated
     // on rules:write, so a viewer sees only 消息 / 消息史. 消息 (live) is the `""` child, so the nav
     // item stays lit on every tab, as with /devices.
     path: "/alerts",
@@ -178,7 +178,7 @@ const routes: RouteRecordRaw[] = [
         { routeName: "alerts-history", label: "消息史" },
         {
           routeName: "alerts-rules",
-          label: "告警规则",
+          label: "消息规则",
           capability: "rules:write",
         },
       ],
@@ -199,12 +199,12 @@ const routes: RouteRecordRaw[] = [
         path: "rules",
         name: "alerts-rules",
         component: () => import("@/views/admin/RulesView.vue"),
-        meta: { title: "告警规则", capability: "rules:write" },
+        meta: { title: "消息规则", capability: "rules:write" },
       },
     ],
   },
   {
-    // 消息史 and 告警规则 used to live at these paths; kept as redirects so shared bookmarks land.
+    // 消息史 and 消息规则 used to live at these paths; kept as redirects so shared bookmarks land.
     path: "/alert-history",
     redirect: { name: "alerts-history" },
   },
@@ -364,7 +364,7 @@ const routes: RouteRecordRaw[] = [
   { path: "/admin/codebook", redirect: { name: "deploy-codebook" } },
   {
     // 系统 — the operations section (1.6.2 IA), successor to the old 管理 hub: 系统状态 / 审计 /
-    // 外发. The hub went empty once 用户 / 部署 / 消息(告警规则) / 报表(定时报表) split out into their
+    // 外发. The hub went empty once 用户 / 部署 / 消息(消息规则) / 报表(定时报表) split out into their
     // own sections, so it is replaced by this one rather than kept as a landing with nothing on it.
     // 系统状态 has no dedicated capability (it is the "whose fault is it" diagnostics page), so it —
     // and the section — admit anyone holding any admin-area capability; 审计 / 外发 gate on their own.

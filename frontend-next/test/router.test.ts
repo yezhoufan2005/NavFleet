@@ -61,12 +61,12 @@ describe("route table", () => {
         name: "device-alerts",
         title: "消息史",
       },
-      // 消息 is a section (1.6.2 IA): 消息 (live) and 消息史 both render AlertsView, 告警规则 is
+      // 消息 is a section (1.6.2 IA): 消息 (live) and 消息史 both render AlertsView, 消息规则 is
       // RulesView folded in from 管理. Live is the `""` child, sharing the parent's path.
       { path: "/alerts", name: undefined, title: "消息" },
       { path: "/alerts", name: "alerts", title: undefined },
       { path: "/alerts/history", name: "alerts-history", title: "消息史" },
-      { path: "/alerts/rules", name: "alerts-rules", title: "告警规则" },
+      { path: "/alerts/rules", name: "alerts-rules", title: "消息规则" },
       // Old top-level paths, kept as redirects so shared bookmarks still land.
       { path: "/alert-history", name: undefined, title: undefined },
       { path: "/admin/rules", name: undefined, title: undefined },
