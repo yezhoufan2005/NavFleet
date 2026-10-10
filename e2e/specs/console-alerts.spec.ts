@@ -85,7 +85,7 @@ test.describe("console alerts", () => {
       page.locator("li").filter({ hasText: faulted.deviceName }),
     ).toBeHidden();
 
-    await page.getByRole("checkbox").check();
+    await page.getByRole("checkbox", { name: /显示已确认/ }).check();
     await expect(
       page
         .locator("li")
@@ -101,7 +101,7 @@ test.describe("console alerts", () => {
     const row = page.locator("li").filter({ hasText: faulted.deviceName });
     await row.getByRole("button", { name: /确认告警/ }).click();
 
-    await page.getByRole("checkbox").check();
+    await page.getByRole("checkbox", { name: /显示已确认/ }).check();
     await expect(
       page.locator("li").filter({ hasText: faulted.deviceName }),
     ).toContainText(`已确认 · ${ADMIN.username}`);
