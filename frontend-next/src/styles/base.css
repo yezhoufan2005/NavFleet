@@ -45,11 +45,13 @@
     outline-offset: 2px;
   }
 
-  /* …but a scroll-affordance region (a table/chart wrapper made focusable only so the
-     keyboard can scroll it, `role="region"` + `tabindex="0"`) is not a control, and the
-     2px ring reads as an unwanted "selection box" around the whole table. Suppress it there;
-     the real controls inside keep their ring, and an operable map (role="application") is
-     untouched. */
+  /* …but only a control the user tabs to earns that ring. Elements made focusable for
+     structure — a `tabindex="-1"` panel that takes focus by script or click (the app shell's
+     <main> on route change, a dialog's own panel), or a `role="region"` + `tabindex="0"`
+     scroll wrapper (a table/chart body) — are not controls: a stray keypress while one holds
+     focus must not draw a blue box around the whole thing. The controls inside keep their
+     ring; an operable surface like the map suppresses its own already. */
+  [tabindex="-1"]:focus-visible,
   [role="region"][tabindex="0"]:focus-visible {
     outline: none;
   }

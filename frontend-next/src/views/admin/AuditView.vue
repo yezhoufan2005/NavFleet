@@ -177,7 +177,7 @@ const formatTime = (iso: string): string =>
       无法加载审计日志
     </p>
     <UiEmptyState v-else-if="entries.length === 0">
-      没有符合当前筛选条件的记录
+      没有符合当前筛选条件的审计记录
     </UiEmptyState>
     <template v-else>
       <!-- Same shell as the device list: the table itself does not scroll (`overflow-hidden`
