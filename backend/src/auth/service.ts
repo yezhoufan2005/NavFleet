@@ -312,7 +312,10 @@ export class AuthService {
     }
 
     const demotes = fields.role !== undefined && fields.role !== "admin" && target.role === "admin";
-    const disables = fields.enabled === false && target.enabled;
+    // Only disabling an *admin* can remove admin power, so only that case consults the guard.
+    // Disabling a non-admin (operator/viewer) must never be blocked by the enabled-admin count —
+    // in a single-admin deployment that previously refused disabling any user as `last_admin`.
+    const disables = fields.enabled === false && target.enabled && target.role === "admin";
     if (demotes || disables) {
       const guard = await this.guardAdminPower(actor, target);
       if (guard) {
