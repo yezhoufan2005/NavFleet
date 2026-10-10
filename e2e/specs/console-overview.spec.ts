@@ -92,11 +92,11 @@ test.describe("console overview", () => {
      */
     const list = page.locator(".formation-list");
     const rows = list.locator("li");
-    // Five, because that is what `config-runtime/formations.json` declares — the count
+    // Six, because that is what `config-runtime/formations.json` declares — the count
     // comes from the file (see `CONFIGURED_FORMATION_COUNT`) so a change to the deployment
     // config fails here with a reason instead of a bare number mismatch. All rows render;
     // the panel caps its height at three and scrolls the rest (asserted below).
-    expect(CONFIGURED_FORMATION_COUNT).toBe(5);
+    expect(CONFIGURED_FORMATION_COUNT).toBe(6);
     await expect(rows).toHaveCount(CONFIGURED_FORMATION_COUNT);
 
     const heights = await Promise.all(
