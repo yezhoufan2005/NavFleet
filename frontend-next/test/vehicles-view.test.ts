@@ -75,10 +75,13 @@ describe("VehiclesView — create", () => {
     const wrapper = await mountView();
 
     await wrapper.get("button").trigger("click"); // 新增车辆 (header action)
-    const idInput =
-      document.body.querySelector<HTMLInputElement>("input[type='text']")!;
-    idInput.value = "agv-9";
-    idInput.dispatchEvent(new Event("input"));
+    const [idInput, nameInput] =
+      document.body.querySelectorAll<HTMLInputElement>("input[type='text']");
+    idInput!.value = "agv-9";
+    idInput!.dispatchEvent(new Event("input"));
+    // 名称 is required (点 4), so fill it too or the save is blocked client-side.
+    nameInput!.value = "九号车";
+    nameInput!.dispatchEvent(new Event("input"));
     await flushPromises();
     document.body.querySelector("form")!.dispatchEvent(new Event("submit"));
     await flushPromises();

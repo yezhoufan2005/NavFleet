@@ -20,9 +20,15 @@
  */
 type Size = "sm" | "md";
 
-const { modelValue, size = "sm" } = defineProps<{
+const {
+  modelValue,
+  size = "sm",
+  invalid = false,
+} = defineProps<{
   modelValue: string;
   size?: Size;
+  /** Mark the field as failing validation: red border (idle + hover) and `aria-invalid`. */
+  invalid?: boolean;
 }>();
 
 defineEmits<{ "update:modelValue": [string] }>();
@@ -39,10 +45,13 @@ const SIZES: Record<Size, string> = {
   <input
     :value="modelValue"
     v-bind="$attrs"
+    :aria-invalid="invalid || undefined"
     :class="[
-      'ui-field rounded-sm border border-border-strong bg-surface-raised text-ink',
+      'ui-field rounded-sm border bg-surface-raised text-ink',
+      invalid
+        ? 'border-critical hover:border-critical'
+        : 'border-border-strong hover:border-brand',
       'placeholder:text-ink-subtle transition-colors duration-150 ease-standard',
-      'hover:border-brand',
       'disabled:cursor-not-allowed disabled:opacity-55',
       SIZES[size],
     ]"

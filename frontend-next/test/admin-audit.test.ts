@@ -61,7 +61,7 @@ describe("AuditView", () => {
 
   it("shows the empty state when there are no records", async () => {
     const wrapper = await mountView([]);
-    expect(wrapper.text()).toContain("没有符合当前筛选条件的记录");
+    expect(wrapper.text()).toContain("没有符合当前筛选条件的审计记录");
   });
 
   it("auto-refreshes when the tab regains focus (no manual 刷新)", async () => {

@@ -45,6 +45,17 @@
     outline-offset: 2px;
   }
 
+  /* …but only a control the user tabs to earns that ring. Elements made focusable for
+     structure — a `tabindex="-1"` panel that takes focus by script or click (the app shell's
+     <main> on route change, a dialog's own panel), or a `role="region"` + `tabindex="0"`
+     scroll wrapper (a table/chart body) — are not controls: a stray keypress while one holds
+     focus must not draw a blue box around the whole thing. The controls inside keep their
+     ring; an operable surface like the map suppresses its own already. */
+  [tabindex="-1"]:focus-visible,
+  [role="region"][tabindex="0"]:focus-visible {
+    outline: none;
+  }
+
   ::selection {
     background-color: var(--color-brand-wash);
     color: var(--color-brand-ink);

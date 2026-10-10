@@ -42,12 +42,14 @@ import UiListPagination from "@/components/ui/UiListPagination.vue";
 import UiSelect from "@/components/ui/UiSelect.vue";
 import UiFilterBar from "@/components/ui/UiFilterBar.vue";
 import UiFilterField from "@/components/ui/UiFilterField.vue";
+import UiEmptyState from "@/components/ui/UiEmptyState.vue";
 import { tableClasses } from "@/lib/uiClasses";
 import { useAuth } from "@/composables/useAuth";
 import { makeMessageFor } from "@/lib/errorMessages";
 import { severityLabel } from "@/lib/severity";
 import { notify as toast } from "@/composables/useNotifications";
 import { useAutoRefresh } from "@/composables/useAutoRefresh";
+import { useFieldErrors } from "@/composables/useFieldErrors";
 
 const route = useRoute();
 const router = useRouter();
@@ -218,6 +220,8 @@ const cGroupsText = ref("");
 const cSilence = ref<SilenceRow[]>([]);
 const chSaving = ref(false);
 const chError = ref("");
+const { errors, clearOn, setErrors, report } = useFieldErrors();
+clearOn(cId, "id");
 
 const isEmail = computed(() => cType.value === "email");
 
@@ -245,6 +249,7 @@ const openCreateChannel = (): void => {
   cGroupsText.value = "";
   cSilence.value = [];
   chError.value = "";
+  setErrors({});
   chMode.value = "create";
 };
 
@@ -273,6 +278,7 @@ const openEditChannel = (channel: NotifyChannelConfig): void => {
     to: window.to,
   }));
   chError.value = "";
+  setErrors({});
   chMode.value = "edit";
 };
 
@@ -329,12 +335,6 @@ const buildChannel = (): NotifyChannelConfig => {
 };
 
 const localValidationError = (channel: NotifyChannelConfig): string => {
-  if (!channel.id) return "渠道 ID 不能为空";
-  const clashes = (rawConfig.value?.channels ?? []).some(
-    (existing) =>
-      existing.id === channel.id && existing.id !== chEditingId.value,
-  );
-  if (clashes) return "渠道 ID 已存在";
   for (const window of channel.silenceWindows ?? []) {
     if (!TIME_RE.test(window.from) || !TIME_RE.test(window.to)) {
       return "静默窗口时间需为 HH:MM（24 小时制）";
@@ -355,6 +355,18 @@ const persist = async (nextChannels: NotifyChannelConfig[]): Promise<void> => {
 
 const submitChannel = async (): Promise<void> => {
   const channel = buildChannel();
+  const fieldErrors: Record<string, string> = {};
+  if (!channel.id) {
+    fieldErrors.id = "渠道 ID 不能为空";
+  } else if (
+    (rawConfig.value?.channels ?? []).some(
+      (existing) =>
+        existing.id === channel.id && existing.id !== chEditingId.value,
+    )
+  ) {
+    fieldErrors.id = "渠道 ID 已存在";
+  }
+  if (report(fieldErrors)) return;
   const problem = localValidationError(channel);
   if (problem) {
     chError.value = problem;
@@ -560,13 +572,9 @@ useAutoRefresh(() => void load(), {
     >
       无法加载外发记录
     </p>
-    <p
-      v-else-if="records.length === 0"
-      class="text-sm text-ink-muted"
-      role="status"
-    >
+    <UiEmptyState v-else-if="records.length === 0">
       没有符合当前筛选条件的发送记录
-    </p>
+    </UiEmptyState>
     <template v-else>
       <div
         :class="[tableClasses.wrapper, 'overflow-auto']"
@@ -658,6 +666,7 @@ useAutoRefresh(() => void load(), {
     <!-- Channel editor (notify:write). -->
     <UiModal
       :open="chMode !== null"
+      :autofocus="chMode === 'create'"
       :title="channelDialogTitle"
       description="填写渠道的类型、订阅严重度与静默窗口后提交"
       max-width="xl"
@@ -674,8 +683,19 @@ useAutoRefresh(() => void load(), {
       >
         <div class="grid grid-cols-2 gap-3">
           <label class="flex flex-col gap-1">
-            <span class="text-sm font-medium text-ink">渠道 ID</span>
-            <UiInput v-model="cId" type="text" :disabled="chSaving" size="sm" />
+            <span class="text-sm font-medium text-ink"
+              >渠道 ID <span class="text-critical-ink">*</span></span
+            >
+            <UiInput
+              v-model="cId"
+              type="text"
+              :disabled="chSaving"
+              :invalid="!!errors.id"
+              size="sm"
+            />
+            <p v-if="errors.id" class="m-0 text-xs text-critical-ink">
+              {{ errors.id }}
+            </p>
           </label>
           <label class="flex flex-col gap-1">
             <span class="text-sm font-medium text-ink">类型</span>
@@ -743,7 +763,7 @@ useAutoRefresh(() => void load(), {
             ></textarea>
           </label>
           <label class="flex flex-col gap-1">
-            <span class="text-sm font-medium text-ink">收件人组（可选）</span>
+            <span class="text-sm font-medium text-ink">收件人组</span>
             <UiInput
               v-model="cGroupsText"
               type="text"

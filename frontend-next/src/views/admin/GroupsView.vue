@@ -24,6 +24,7 @@ import UiModal from "@/components/ui/UiModal.vue";
 import { tableClasses } from "@/lib/uiClasses";
 import { makeMessageFor } from "@/lib/errorMessages";
 import { notify } from "@/composables/useNotifications";
+import { useFieldErrors } from "@/composables/useFieldErrors";
 
 const ERROR_MESSAGES: Record<string, string> = {
   conflict: "名称已存在",
@@ -68,6 +69,8 @@ const gRoleIds = ref<string[]>([]);
 const gMembers = ref<string[]>([]);
 const groupSaving = ref(false);
 const groupError = ref("");
+const { errors, clearOn, setErrors, report } = useFieldErrors();
+clearOn(gName, "name");
 
 const openCreateGroup = (): void => {
   groupEditingId.value = null;
@@ -76,6 +79,7 @@ const openCreateGroup = (): void => {
   gRoleIds.value = [];
   gMembers.value = [];
   groupError.value = "";
+  setErrors({});
   groupMode.value = "create";
 };
 const openEditGroup = (group: RbacGroup): void => {
@@ -85,6 +89,7 @@ const openEditGroup = (group: RbacGroup): void => {
   gRoleIds.value = [...group.roleIds];
   gMembers.value = [...group.memberUsernames];
   groupError.value = "";
+  setErrors({});
   groupMode.value = "edit";
 };
 const closeGroupDialog = (): void => {
@@ -102,10 +107,12 @@ const toggleGroupMember = (username: string): void => {
 };
 
 const submitGroup = async (): Promise<void> => {
+  const name = gName.value.trim();
+  if (report(name ? {} : { name: "请输入名称" })) return;
   groupSaving.value = true;
   groupError.value = "";
   const payload = {
-    name: gName.value.trim(),
+    name,
     description: gDesc.value.trim(),
     roleIds: gRoleIds.value,
     memberUsernames: gMembers.value,
@@ -230,6 +237,7 @@ const kioskUsernames = computed(
     <!-- Group dialog -->
     <UiModal
       :open="groupMode !== null"
+      :autofocus="groupMode === 'create'"
       :title="groupDialogTitle"
       description="填写组名、选择角色与成员后提交"
       max-width="lg"
@@ -245,16 +253,22 @@ const kioskUsernames = computed(
         @submit.prevent="submitGroup"
       >
         <label class="flex flex-col gap-1">
-          <span class="text-sm font-medium text-ink">名称</span>
+          <span class="text-sm font-medium text-ink"
+            >名称 <span class="text-critical-ink">*</span></span
+          >
           <UiInput
             v-model="gName"
             type="text"
             :disabled="groupSaving"
+            :invalid="!!errors.name"
             size="sm"
           />
+          <p v-if="errors.name" class="m-0 text-xs text-critical-ink">
+            {{ errors.name }}
+          </p>
         </label>
         <label class="flex flex-col gap-1">
-          <span class="text-sm font-medium text-ink">描述（可选）</span>
+          <span class="text-sm font-medium text-ink">描述</span>
           <UiInput
             v-model="gDesc"
             type="text"
@@ -324,10 +338,7 @@ const kioskUsernames = computed(
             @click="closeGroupDialog"
             >取消</UiButton
           >
-          <UiButton
-            size="sm"
-            type="submit"
-            :disabled="groupSaving || !gName.trim()"
+          <UiButton size="sm" type="submit" :disabled="groupSaving"
             >保存</UiButton
           >
         </div>

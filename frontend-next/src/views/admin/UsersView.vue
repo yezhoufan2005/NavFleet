@@ -27,6 +27,7 @@ import { tableClasses } from "@/lib/uiClasses";
 import { makeMessageFor } from "@/lib/errorMessages";
 import { notify } from "@/composables/useNotifications";
 import { useAutoRefresh } from "@/composables/useAutoRefresh";
+import { useFieldErrors } from "@/composables/useFieldErrors";
 
 const ROLE_LABELS: Record<UserRoleName, string> = {
   admin: "管理员",
@@ -74,6 +75,7 @@ const mode = ref<FormMode>(null);
 const selected = ref<AdminUser | null>(null);
 const saving = ref(false);
 const formError = ref("");
+const { errors, clearOn, setErrors, report } = useFieldErrors();
 
 // Shared form fields (a subset is used per mode).
 const fUsername = ref("");
@@ -93,6 +95,9 @@ const fKiosk = ref(false);
 watch(fKiosk, (on) => {
   if (on) fRole.value = "viewer";
 });
+// Clear a field's red state as soon as the operator starts fixing it.
+clearOn(fUsername, "username");
+clearOn(fPassword, "password");
 
 const dialogTitle = computed(() =>
   mode.value === "create"
@@ -106,6 +111,7 @@ const openCreate = (): void => {
   mode.value = "create";
   selected.value = null;
   formError.value = "";
+  setErrors({});
   fUsername.value = "";
   fPassword.value = "";
   fRole.value = "viewer";
@@ -119,6 +125,7 @@ const openEdit = (user: AdminUser): void => {
   mode.value = "edit";
   selected.value = user;
   formError.value = "";
+  setErrors({});
   fRole.value = user.role;
   fDisplayName.value = user.displayName;
   fEmail.value = user.email ?? "";
@@ -130,6 +137,7 @@ const openReset = (user: AdminUser): void => {
   mode.value = "reset";
   selected.value = user;
   formError.value = "";
+  setErrors({});
   fPassword.value = "";
 };
 
@@ -142,20 +150,19 @@ const weakPassword = (value: string): boolean =>
 
 const submitForm = async (): Promise<void> => {
   formError.value = "";
+  const fieldErrors: Record<string, string> = {};
   if (mode.value === "create") {
     if (!fUsername.value) {
-      formError.value = "请输入用户名";
-      return;
+      fieldErrors.username = "请输入用户名";
     }
     if (weakPassword(fPassword.value)) {
-      formError.value = "密码至少 8 位，且需同时包含字母与数字";
-      return;
+      fieldErrors.password = "密码至少 8 位，且需同时包含字母与数字";
     }
   }
   if (mode.value === "reset" && weakPassword(fPassword.value)) {
-    formError.value = "密码至少 8 位，且需同时包含字母与数字";
-    return;
+    fieldErrors.password = "密码至少 8 位，且需同时包含字母与数字";
   }
+  if (report(fieldErrors)) return;
   saving.value = true;
   try {
     if (mode.value === "create") {
@@ -454,6 +461,7 @@ const formatTime = (iso: string | null): string =>
     </div>
     <UiModal
       :open="mode !== null"
+      :autofocus="mode !== 'edit'"
       :title="dialogTitle"
       description="填写表单后提交"
       @update:open="
@@ -468,13 +476,19 @@ const formatTime = (iso: string | null): string =>
         @submit.prevent="submitForm"
       >
         <label v-if="mode === 'create'" class="flex flex-col gap-1">
-          <span class="text-sm font-medium text-ink">用户名</span>
+          <span class="text-sm font-medium text-ink"
+            >用户名 <span class="text-critical-ink">*</span></span
+          >
           <UiInput
             v-model="fUsername"
             type="text"
             :disabled="saving"
+            :invalid="!!errors.username"
             size="sm"
           />
+          <p v-if="errors.username" class="m-0 text-xs text-critical-ink">
+            {{ errors.username }}
+          </p>
         </label>
         <label
           v-if="mode === 'create' || mode === 'reset'"
@@ -482,6 +496,7 @@ const formatTime = (iso: string | null): string =>
         >
           <span class="text-sm font-medium text-ink">
             {{ mode === "reset" ? "新密码" : "密码" }}
+            <span class="text-critical-ink">*</span>
           </span>
           <UiInput
             v-model="fPassword"
@@ -489,8 +504,12 @@ const formatTime = (iso: string | null): string =>
             autocomplete="new-password"
             placeholder="至少 8 位，含字母与数字"
             :disabled="saving"
+            :invalid="!!errors.password"
             size="sm"
           />
+          <p v-if="errors.password" class="m-0 text-xs text-critical-ink">
+            {{ errors.password }}
+          </p>
         </label>
         <label
           v-if="mode === 'create' || mode === 'edit'"

@@ -34,6 +34,7 @@ import { tableClasses } from "@/lib/uiClasses";
 import { useAuth } from "@/composables/useAuth";
 import { makeMessageFor } from "@/lib/errorMessages";
 import { notify as toast } from "@/composables/useNotifications";
+import { useFieldErrors } from "@/composables/useFieldErrors";
 
 const auth = useAuth();
 const canWrite = computed(() => auth.can("reports:write"));
@@ -96,6 +97,11 @@ const sRecipientsText = ref("");
 const sGroupsText = ref("");
 const saving = ref(false);
 const formError = ref("");
+const { errors, clearOn, setErrors, report } = useFieldErrors();
+clearOn(sId, "id");
+clearOn(sTime, "time");
+clearOn(sSmtpEnv, "smtpEnv");
+clearOn(sFrom, "from");
 
 const recipientToLine = (recipient: NotifyRecipient): string =>
   recipient.user ? `@${recipient.user}` : (recipient.email ?? "");
@@ -120,6 +126,7 @@ const openCreate = (): void => {
   sRecipientsText.value = "";
   sGroupsText.value = "";
   formError.value = "";
+  setErrors({});
   mode.value = "create";
 };
 
@@ -138,6 +145,7 @@ const openEdit = (schedule: ReportScheduleConfig): void => {
     .join("\n");
   sGroupsText.value = (schedule.groups ?? []).join(", ");
   formError.value = "";
+  setErrors({});
   mode.value = "edit";
 };
 
@@ -165,21 +173,6 @@ const buildSchedule = (): ReportScheduleConfig => {
   return schedule;
 };
 
-const localValidationError = (schedule: ReportScheduleConfig): string => {
-  if (!schedule.id) return "报表 ID 不能为空";
-  if (
-    schedules.value.some(
-      (s) => s.id === schedule.id && s.id !== editingId.value,
-    )
-  ) {
-    return "报表 ID 已存在";
-  }
-  if (!TIME_RE.test(schedule.time)) return "发送时刻需为 HH:MM（24 小时制）";
-  if (!schedule.smtpEnv) return "SMTP 环境变量名不能为空";
-  if (!schedule.from) return "发件人地址不能为空";
-  return "";
-};
-
 const persist = async (next: ReportScheduleConfig[]): Promise<void> => {
   const result = await fleetApi.putReportsConfig({ schedules: next });
   config.value = result.config;
@@ -187,11 +180,22 @@ const persist = async (next: ReportScheduleConfig[]): Promise<void> => {
 
 const submit = async (): Promise<void> => {
   const schedule = buildSchedule();
-  const problem = localValidationError(schedule);
-  if (problem) {
-    formError.value = problem;
-    return;
+  const fieldErrors: Record<string, string> = {};
+  if (!schedule.id) {
+    fieldErrors.id = "报表 ID 不能为空";
+  } else if (
+    schedules.value.some(
+      (s) => s.id === schedule.id && s.id !== editingId.value,
+    )
+  ) {
+    fieldErrors.id = "报表 ID 已存在";
   }
+  if (!TIME_RE.test(schedule.time)) {
+    fieldErrors.time = "需为 HH:MM（24 小时制）";
+  }
+  if (!schedule.smtpEnv) fieldErrors.smtpEnv = "不能为空";
+  if (!schedule.from) fieldErrors.from = "不能为空";
+  if (report(fieldErrors)) return;
   const current = schedules.value;
   const next =
     mode.value === "edit" && editingId.value
@@ -329,6 +333,7 @@ const weekdayLabel = (weekday?: number): string =>
     <!-- Schedule editor (reports:write). -->
     <UiModal
       :open="mode !== null"
+      :autofocus="mode === 'create'"
       :title="dialogTitle"
       description="填写报表的回看窗口、发送时刻与收件人后提交"
       max-width="xl"
@@ -345,8 +350,19 @@ const weekdayLabel = (weekday?: number): string =>
       >
         <div class="grid grid-cols-2 gap-3">
           <label class="flex flex-col gap-1">
-            <span class="text-sm font-medium text-ink">报表 ID</span>
-            <UiInput v-model="sId" type="text" :disabled="saving" size="sm" />
+            <span class="text-sm font-medium text-ink"
+              >报表 ID <span class="text-critical-ink">*</span></span
+            >
+            <UiInput
+              v-model="sId"
+              type="text"
+              :disabled="saving"
+              :invalid="!!errors.id"
+              size="sm"
+            />
+            <p v-if="errors.id" class="m-0 text-xs text-critical-ink">
+              {{ errors.id }}
+            </p>
           </label>
           <label class="flex flex-col gap-1">
             <span class="text-sm font-medium text-ink">回看窗口</span>
@@ -362,15 +378,21 @@ const weekdayLabel = (weekday?: number): string =>
         </div>
         <div class="grid grid-cols-2 gap-3">
           <label class="flex flex-col gap-1">
-            <span class="text-sm font-medium text-ink">发送时刻</span>
+            <span class="text-sm font-medium text-ink"
+              >发送时刻 <span class="text-critical-ink">*</span></span
+            >
             <UiInput
               v-model="sTime"
               type="text"
               placeholder="08:00"
               :disabled="saving"
+              :invalid="!!errors.time"
               size="sm"
               class="font-mono"
             />
+            <p v-if="errors.time" class="m-0 text-xs text-critical-ink">
+              {{ errors.time }}
+            </p>
           </label>
           <label class="flex flex-col gap-1">
             <span class="text-sm font-medium text-ink">发送频率</span>
@@ -392,28 +414,40 @@ const weekdayLabel = (weekday?: number): string =>
           启用该报表
         </label>
         <label class="flex flex-col gap-1">
-          <span class="text-sm font-medium text-ink">SMTP 环境变量名</span>
+          <span class="text-sm font-medium text-ink"
+            >SMTP 环境变量名 <span class="text-critical-ink">*</span></span
+          >
           <UiInput
             v-model="sSmtpEnv"
             type="text"
             placeholder="如 REPORTS_SMTP_URL"
             :disabled="saving"
+            :invalid="!!errors.smtpEnv"
             size="sm"
             class="font-mono"
           />
+          <p v-if="errors.smtpEnv" class="m-0 text-xs text-critical-ink">
+            {{ errors.smtpEnv }}
+          </p>
           <span class="text-2xs text-ink-subtle"
             >装 SMTP 连接串的环境变量名；连接串本身不落配置文件</span
           >
         </label>
         <label class="flex flex-col gap-1">
-          <span class="text-sm font-medium text-ink">发件人地址</span>
+          <span class="text-sm font-medium text-ink"
+            >发件人地址 <span class="text-critical-ink">*</span></span
+          >
           <UiInput
             v-model="sFrom"
             type="text"
             placeholder="reports@example.com"
             :disabled="saving"
+            :invalid="!!errors.from"
             size="sm"
           />
+          <p v-if="errors.from" class="m-0 text-xs text-critical-ink">
+            {{ errors.from }}
+          </p>
         </label>
         <label class="flex flex-col gap-1">
           <span class="text-sm font-medium text-ink">收件人</span>
@@ -426,7 +460,7 @@ const weekdayLabel = (weekday?: number): string =>
           ></textarea>
         </label>
         <label class="flex flex-col gap-1">
-          <span class="text-sm font-medium text-ink">收件人组（可选）</span>
+          <span class="text-sm font-medium text-ink">收件人组</span>
           <UiInput
             v-model="sGroupsText"
             type="text"
@@ -446,9 +480,7 @@ const weekdayLabel = (weekday?: number): string =>
             @click="closeDialog"
             >取消</UiButton
           >
-          <UiButton size="sm" type="submit" :disabled="saving || !sId.trim()"
-            >保存</UiButton
-          >
+          <UiButton size="sm" type="submit" :disabled="saving">保存</UiButton>
         </div>
       </form>
     </UiModal>
