@@ -152,6 +152,21 @@ if [[ "$CHECK_ONLY" == "0" ]]; then
     echo "compose up 失败，最后 30 行："; tail -30 /tmp/navfleet-verify-up.log; exit 1
   fi
 
+  # 重启 backend，清空它内存里的「登录限流」计数再做鉴权断言。
+  #
+  # 为什么需要：/api/auth 挂了一个 express-rate-limit（AUTH_RATE_LIMIT_MAX，默认 50 次 /
+  # 15 分钟 / 每 IP，见 app.ts），计数存在后端进程内存里。本脚本每跑一遍要打 ~5 个 auth 请求
+  # （错/对口令登录、/me、续签、登出），同一个 15 分钟窗口里反复验收就会累加到 50 以上 ——
+  # 于是登录直接 429，后面所有带会话的断言连锁 401。`compose up` 若没改镜像不会重建既有容器，
+  # 这个内存计数就跨多次验收活了下来（正是本次 23 条失败的根因）。重启后进程重来、计数归零，
+  # 每次验收都拿到干净的限流预算；限流值本身不动（仍是真实的 50/15min）。
+  #
+  # --fresh 刚 down -v + up 过，backend 本就是新的，跳过这次多余的重启。
+  if [[ "$DO_FRESH" == "0" ]]; then
+    echo "重启 backend 清空登录限流计数（避免多次验收累积触发 429）…"
+    compose restart backend >/dev/null 2>&1 || true
+  fi
+
   echo -n "等五个服务全部 healthy"
   for _ in $(seq 1 90); do
     unhealthy=0
