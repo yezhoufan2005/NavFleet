@@ -75,7 +75,7 @@ test.describe("console alerts", () => {
 
   test("an acknowledgement survives a reload", async ({ page }) => {
     const row = page.locator("li").filter({ hasText: faulted.deviceName });
-    await row.getByRole("button", { name: /确认告警/ }).click();
+    await row.getByRole("button", { name: /确认消息/ }).click();
 
     // Acknowledged alerts are hidden by default, which is itself the assertion.
     await expect(row).toBeHidden();
@@ -90,7 +90,7 @@ test.describe("console alerts", () => {
       page
         .locator("li")
         .filter({ hasText: faulted.deviceName })
-        .getByRole("button", { name: /确认告警/ }),
+        .getByRole("button", { name: /确认消息/ }),
     ).toHaveAttribute("aria-pressed", "true");
   });
 
@@ -99,7 +99,7 @@ test.describe("console alerts", () => {
   }) => {
     // The point of moving acknowledgement off localStorage (Phase 16A): it carries a who.
     const row = page.locator("li").filter({ hasText: faulted.deviceName });
-    await row.getByRole("button", { name: /确认告警/ }).click();
+    await row.getByRole("button", { name: /确认消息/ }).click();
 
     await page.getByRole("checkbox", { name: /显示已确认/ }).check();
     await expect(

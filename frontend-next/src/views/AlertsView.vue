@@ -307,7 +307,7 @@ const unacknowledgedFiltered = computed(() =>
 const acknowledgeFiltered = async (): Promise<void> => {
   const changed = await ack.acknowledgeMany(unacknowledgedFiltered.value);
   if (!changed.length) return;
-  notify(`已确认 ${changed.length} 条告警`, {
+  notify(`已确认 ${changed.length} 条消息`, {
     type: "success",
     action: {
       label: "撤销",
@@ -362,11 +362,36 @@ const acknowledgeSelected = async (): Promise<void> => {
   selected.value = new Map();
   const changed = await ack.acknowledgeMany(refs);
   if (!changed.length) return;
-  notify(`已确认 ${changed.length} 条告警`, {
+  notify(`已确认 ${changed.length} 条消息`, {
     type: "success",
     action: {
       label: "撤销",
       handler: () => void ack.unacknowledgeMany(changed),
+    },
+  });
+};
+
+/**
+ * The per-row toggle. Confirming one message now gives the same feedback the bulk actions do —
+ * a toast with an undo — because a single confirm is just as easy to misfire and was the one ack
+ * path that happened silently. Un-confirming is the correction itself, so it stays quiet; a
+ * failed write already surfaces its own error from `useAlertAck`.
+ */
+const toggleOne = async (alert: {
+  deviceId: string;
+  id: string;
+}): Promise<void> => {
+  if (ack.isAcknowledged(alert.deviceId, alert.id)) {
+    void ack.unacknowledge(alert.deviceId, alert.id);
+    return;
+  }
+  const ok = await ack.acknowledge(alert.deviceId, alert.id);
+  if (!ok) return;
+  notify("已确认 1 条消息", {
+    type: "success",
+    action: {
+      label: "撤销",
+      handler: () => void ack.unacknowledge(alert.deviceId, alert.id),
     },
   });
 };
@@ -397,7 +422,7 @@ const clearAcknowledged = async (): Promise<void> => {
       .map((alert) => ({ deviceId: alert.deviceId, id: alert.id })),
   );
   if (!cleared.length) return;
-  notify(`已取消确认 ${cleared.length} 条告警`, {
+  notify(`已取消确认 ${cleared.length} 条消息`, {
     type: "info",
     action: { label: "撤销", handler: () => void ack.acknowledgeMany(cleared) },
   });
@@ -457,7 +482,7 @@ watch(() => canAck.value && fleet.state.realtime.apiReady, runLegacyMigration);
       -->
       <UiButton
         v-if="isLive && canAck && selectedCount"
-        variant="secondary"
+        variant="primary"
         size="sm"
         @click="acknowledgeSelected"
       >
@@ -602,7 +627,7 @@ watch(() => canAck.value && fleet.state.realtime.apiReady, runLegacyMigration);
         {{
           allAlerts.length
             ? "没有符合当前筛选条件的消息"
-            : "当前车队没有活跃告警"
+            : "当前车队没有活跃消息"
         }}
       </p>
 
@@ -695,11 +720,10 @@ watch(() => canAck.value && fleet.state.realtime.apiReady, runLegacyMigration);
           <!-- A toggle that says it is one, rather than a button whose meaning is
              carried by its colour.
 
-             The idle hover moves the border and the surface, not only the ink: acceptance
-             reported the hover as barely visible, and it was — a muted-to-ink text change
-             on a 12px label is a few percent of the control's area. The confirmed state
-             darkens its wash instead, because that one already carries a brand fill and a
-             second fill on top would read as a different state rather than a hover. -->
+             Idle fill is `surface-sunken` — one step *down* from the row's own
+             `surface-raised`, so the control reads as a distinct button rather than a label
+             painted in the row's own colour (acceptance: the old `bg-surface` sat at the same
+             value as the surface behind it). The confirmed state carries the brand wash. -->
           <button
             v-if="canAck"
             type="button"
@@ -707,15 +731,11 @@ watch(() => canAck.value && fleet.state.realtime.apiReady, runLegacyMigration);
             :class="
               ack.isAcknowledged(alert.deviceId, alert.id)
                 ? 'border-brand bg-brand-wash text-brand-ink hover:bg-surface-sunken'
-                : 'border-border-strong bg-surface text-ink-muted hover:border-brand hover:bg-brand-wash hover:text-brand-ink'
+                : 'border-border-strong bg-surface-sunken text-ink hover:border-brand hover:bg-brand-wash hover:text-brand-ink'
             "
             :aria-pressed="ack.isAcknowledged(alert.deviceId, alert.id)"
-            :aria-label="`确认告警：${alert.title}`"
-            @click="
-              ack.isAcknowledged(alert.deviceId, alert.id)
-                ? ack.unacknowledge(alert.deviceId, alert.id)
-                : ack.acknowledge(alert.deviceId, alert.id)
-            "
+            :aria-label="`确认消息：${alert.title}`"
+            @click="toggleOne(alert)"
           >
             {{
               ack.isAcknowledged(alert.deviceId, alert.id) ? "已确认" : "确认"
