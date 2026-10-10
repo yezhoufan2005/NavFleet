@@ -19,7 +19,20 @@ import { parseLaneletOsmFile } from "../src/laneletOsm";
  * offline. Restart the publisher to reset the demo from t=0.
  */
 
-type Scenario = "cruising" | "speed-limited" | "charging" | "hauling" | "fault-offline" | "teleop";
+type Scenario =
+  | "cruising"
+  | "speed-limited"
+  | "charging"
+  | "hauling"
+  | "fault-offline"
+  | "teleop"
+  | "idle"
+  | "reversing"
+  | "relocating"
+  | "loc-degraded"
+  | "comms-degraded"
+  | "payload-shift"
+  | "estop";
 
 interface Vehicle {
   deviceId: string;
@@ -114,16 +127,23 @@ const SCENE_BASE_SPEED: Record<string, number> = {
 };
 const DEFAULT_SPEED = 1.0;
 
-// The demo tells a "平稳运营 + 少量事件" story: almost every vehicle patrols/hauls
-// normally, and exactly four carry a scripted event. Assigning events by deviceId (not a
-// round-robin over the whole fleet) fixes the event count at four however large the fleet
-// grows — a 23-vehicle round-robin over the six scenarios would otherwise manufacture
-// several faults and several charging vehicles at once.
+// The demo tells a "平稳运营 + 少量事件" story: most vehicles patrol/haul normally (now truly
+// 正常 — no code), and a spread of vehicles carry one scripted status each so the console shows
+// the full case matrix (每档 tone、各类预警/提示、空闲、倒车、单点告警与离线) rather than a
+// monotone fleet. Events are keyed by deviceId (not a round-robin), so the count is fixed and
+// only ONE vehicle (y03) ever faults + goes offline, however large the fleet grows.
 const EVENT_SCENARIOS: Record<string, Scenario> = {
-  "agv-a03": "speed-limited", // 巡检 A03：限速区降速通行
-  "agv-a05": "teleop", // 巡检 A05：远程接管中
-  "agv-w04": "charging", // 仓储 W04：低电回桩充电
-  "agv-y03": "fault-offline", // 装卸 Y03：故障停车后离线
+  "agv-a03": "speed-limited", // 巡检 A03：限速区降速（预警 2203）
+  "agv-a05": "teleop", // 巡检 A05：远程接管中（提示 1601）
+  "agv-a07": "relocating", // 巡检 A07：刚完成重定位（提示 1102）
+  "agv-w02": "loc-degraded", // 仓储 W02：定位置信度偏低（预警 2101）
+  "agv-w04": "charging", // 仓储 W04：低电回桩充电（提示 1301 + 低电量预警规则）
+  "agv-w05": "estop", // 仓储 W05：急停触发、在线待处理（告警 5701，非离线）
+  "agv-y01": "reversing", // 装卸 Y01：倒车入位（提示 1901，R 挡）
+  "agv-y02": "comms-degraded", // 装卸 Y02：通信质量下降（预警 2601）
+  "agv-y03": "fault-offline", // 装卸 Y03：故障停车后离线（告警 5102 + 离线）
+  "agv-p02": "payload-shift", // 产线 P02：载荷偏移预警（预警 2902）
+  "agv-p04": "idle", // 产线 P04：空闲待命（正常 tone + taskStatus 空闲）
 };
 
 // The normal (non-event) scenario for a scene: outdoor patrol vs indoor/yard material
@@ -657,7 +677,7 @@ function scenarioFrame(scenario: Scenario): ScenarioFrame {
         taskStatus: 4,
         platformTaskStatus: 0,
         motion: "charging",
-        info: { code: 1203, info: "充电中，等待补能完成" },
+        info: { code: 1301, info: "正在充电，等待补能完成" },
         warning: NO_CODE,
         error: NO_CODE,
         speedLimit: { limit: 0, slowdownTime: 0, module: "dispatcher" },
@@ -669,7 +689,7 @@ function scenarioFrame(scenario: Scenario): ScenarioFrame {
         taskStatus: 1,
         platformTaskStatus: 2,
         motion: "route",
-        info: { code: 1101, info: "定位稳定" },
+        info: NO_CODE,
         warning: NO_CODE,
         error: NO_CODE,
         speedLimit: { limit: 1.5, slowdownTime: 0, module: "dispatcher" },
@@ -693,10 +713,97 @@ function scenarioFrame(scenario: Scenario): ScenarioFrame {
         taskStatus: 1,
         platformTaskStatus: 1,
         motion: "route",
-        info: { code: 1101, info: "远程接管中，操作员在线" },
+        info: { code: 1601, info: "远程接管中，操作员在线" },
         warning: NO_CODE,
         error: NO_CODE,
         speedLimit: { limit: 2, slowdownTime: 0, module: "teleop" },
+      };
+    case "idle":
+      // 空闲待命：无任务、无码 —— 用来演示「正常」tone 与 taskStatus 空闲。
+      return {
+        controlMode: 0,
+        gear: 0,
+        taskStatus: 0,
+        platformTaskStatus: 0,
+        motion: "route",
+        info: NO_CODE,
+        warning: NO_CODE,
+        error: NO_CODE,
+        speedLimit: { limit: 0, slowdownTime: 0, module: "dispatcher" },
+      };
+    case "reversing":
+      // 倒车入位：R 挡 + 一条提示；演示档位 R 与「到达人工交接位」提示码。
+      return {
+        controlMode: 1,
+        gear: -1,
+        taskStatus: 1,
+        platformTaskStatus: 2,
+        motion: "route",
+        info: { code: 1901, info: "到达人工交接位，等待确认" },
+        warning: NO_CODE,
+        error: NO_CODE,
+        speedLimit: { limit: 0.5, slowdownTime: 0, module: "dispatcher" },
+      };
+    case "relocating":
+      return {
+        controlMode: 1,
+        gear: 1,
+        taskStatus: 1,
+        platformTaskStatus: 1,
+        motion: "route",
+        info: { code: 1102, info: "已完成重定位" },
+        warning: NO_CODE,
+        error: NO_CODE,
+        speedLimit: { limit: 2.5, slowdownTime: 0, module: "dispatcher" },
+      };
+    case "loc-degraded":
+      return {
+        controlMode: 1,
+        gear: 1,
+        taskStatus: 1,
+        platformTaskStatus: 2,
+        motion: "route",
+        info: NO_CODE,
+        warning: { code: 2101, info: "定位置信度偏低，建议减速观察" },
+        error: NO_CODE,
+        speedLimit: { limit: 1.2, slowdownTime: 0, module: "navigation" },
+      };
+    case "comms-degraded":
+      return {
+        controlMode: 1,
+        gear: 1,
+        taskStatus: 1,
+        platformTaskStatus: 2,
+        motion: "route",
+        info: NO_CODE,
+        warning: { code: 2601, info: "通信质量下降，遥测可能延迟" },
+        error: NO_CODE,
+        speedLimit: { limit: 1.5, slowdownTime: 0, module: "network" },
+      };
+    case "payload-shift":
+      return {
+        controlMode: 1,
+        gear: 1,
+        taskStatus: 1,
+        platformTaskStatus: 2,
+        motion: "route",
+        info: NO_CODE,
+        warning: { code: 2902, info: "载荷偏移超阈值，请检查货物与托盘" },
+        error: NO_CODE,
+        speedLimit: { limit: 1.0, slowdownTime: 0, module: "payload" },
+      };
+    case "estop":
+      // 急停触发但仍在线（区别于 y03 的故障离线）：演示「告警」tone 的非离线情形。
+      return {
+        controlMode: 3,
+        gear: 0,
+        taskStatus: 3,
+        platformTaskStatus: 3,
+        motion: "route",
+        info: NO_CODE,
+        warning: NO_CODE,
+        error: { code: 5701, info: "急停已触发，等待人工复位" },
+        speedLimit: { limit: 0, slowdownTime: 0, module: "safety" },
       };
     case "cruising":
     default:
@@ -706,7 +813,7 @@ function scenarioFrame(scenario: Scenario): ScenarioFrame {
         taskStatus: 1,
         platformTaskStatus: 1,
         motion: "route",
-        info: { code: 1101, info: "定位稳定" },
+        info: NO_CODE,
         warning: NO_CODE,
         error: NO_CODE,
         speedLimit: { limit: 2.5, slowdownTime: 0, module: "dispatcher" },
@@ -769,7 +876,7 @@ function presentFrame(state: DeviceState, motion: Motion): ScenarioFrame {
           taskStatus: 4,
           platformTaskStatus: 0,
           motion: "charging",
-          info: { code: 1203, info: "电量偏低，回桩充电中" },
+          info: { code: 1301, info: "电量偏低，回桩充电中" },
           speedLimit: { limit: 0, slowdownTime: 0, module: "dispatcher" },
         };
   }
@@ -786,6 +893,8 @@ function buildTelemetry(state: DeviceState) {
   let omega = 0;
 
   const faulted = state.scenario === "fault-offline" && state.tick >= FAULT_MOVE_TICKS;
+  // Stationary-but-online states (空闲待命 / 急停): hold position, speed 0, stay published.
+  const stationary = state.scenario === "idle" || state.scenario === "estop";
   if (!faulted) {
     advanceDutyCycle(state);
   }
@@ -797,7 +906,7 @@ function buildTelemetry(state: DeviceState) {
     y = state.station.y;
     yaw = 0;
     speed = 0;
-  } else if (faulted) {
+  } else if (faulted || stationary) {
     const stopPose = state.frozenAt ?? pointOnRoute(state.route, state.distance);
     state.frozenAt = stopPose;
     x = stopPose.x;
