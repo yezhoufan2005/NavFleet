@@ -132,6 +132,15 @@ describe("AuthService — admin user management", () => {
     });
   });
 
+  it("disables a non-admin even when only one admin is enabled (not last_admin)", async () => {
+    const service = await freshService(); // only "admin" is an enabled admin
+    await service.createUser({ username: "vera", password: A_PASSWORD, role: "viewer" });
+
+    const result = await service.updateUser("admin", "vera", { enabled: false });
+    expect(result.ok).toBe(true);
+    expect((await service.getUser("vera"))?.enabled).toBe(false);
+  });
+
   it("refuses to disable/delete/demote your own account", async () => {
     const service = await freshService();
     // Add a second admin so the last-admin guard is not what trips; self guard must.
