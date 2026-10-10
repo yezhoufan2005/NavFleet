@@ -34,7 +34,7 @@ const CAP_LABELS: Record<Capability, string> = {
   "codebook:write": "报码字典",
   "notify:read": "外发记录",
   "notify:write": "外发配置",
-  "rules:write": "告警规则",
+  "rules:write": "消息规则",
   "reports:write": "定时报表",
   "audit:read": "审计日志",
   "users:manage": "用户管理",

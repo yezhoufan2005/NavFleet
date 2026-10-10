@@ -1,7 +1,7 @@
 import { expect, signIn, test } from "../support/fixtures";
 
 /**
- * 告警规则 (1.6.1; a tab of the 消息 section since 1.6.2) in a real browser. The form's
+ * 消息规则 (1.6.1; a tab of the 消息 section since 1.6.2) in a real browser. The form's
  * parse/validate/save is unit-tested against mocked data; what only a browser answers is that the
  * route resolves through the real backend (`GET /rules/config` returns the effective rules) and
  * renders the editor. We sign in as admin (who holds `rules:write`) and only read the page back —
@@ -18,7 +18,7 @@ test.describe("console rules", () => {
     await page.goto("/alerts");
     await page
       .getByRole("navigation", { name: "分区导航" })
-      .getByRole("link", { name: "告警规则" })
+      .getByRole("link", { name: "消息规则" })
       .click();
 
     await expect(page).toHaveURL(/\/alerts\/rules$/);

@@ -1,7 +1,7 @@
 /**
  * `messageFor` factory shared by the admin config views.
  *
- * Every admin editor (用户 / 角色 / 用户组 / 车辆 / 编队 / 场景 / 定时报表 / 外发 / 告警规则) maps a
+ * Every admin editor (用户 / 角色 / 用户组 / 车辆 / 编队 / 场景 / 定时报表 / 外发 / 消息规则) maps a
  * backend error code to a Chinese sentence the same way: the code arrives as the thrown Error's
  * `message` (fleetApi's convention — a non-2xx response rejects with the stable error code as the
  * message), and an unknown code (or a non-Error value) falls back to a generic line. The maps
