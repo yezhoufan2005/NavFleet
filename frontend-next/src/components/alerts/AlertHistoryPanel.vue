@@ -381,8 +381,8 @@ const { page, pageCount, pageSize, pageItems, setPage, setPageSize } =
             <dd class="m-0">
               <RouterLink
                 v-if="row.deviceId"
-                :to="`/devices/${row.deviceId}`"
-                class="text-xs text-brand-ink underline underline-offset-2"
+                :to="`/devices/${row.deviceId}/alerts`"
+                class="text-xs text-brand-ink underline-offset-2 hover:underline"
                 >{{ row.deviceName }}</RouterLink
               >
               <span v-else class="text-xs text-ink">{{ row.deviceName }}</span>
