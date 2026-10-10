@@ -10,6 +10,7 @@
     "start": "node dist/index.js",
     "mock:mqtt": "tsx scripts/mock-mqtt.ts",
     "seed:demo": "tsx scripts/seed-demo.ts",
+    "seed:reports": "tsx scripts/seed-reports.ts",
     "load:ingest": "tsx scripts/load-ingest.ts",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "lint": "eslint . --max-warnings 0",

@@ -6,10 +6,10 @@ import tailwindcss from "@tailwindcss/vite";
 /**
  * Dev server for the v3 console.
  *
- * Port 5273, deliberately not the 5173 the v1.0.0 frontend uses: the two run
- * side by side for the whole of Phase 12–13, and a port collision would look
- * like a build failure. The proxy targets are the same backend, so `scripts/dev.sh`
- * can keep pointing one backend at both consoles.
+ * Port 7070 (set in package.json's `dev` script), deliberately apart from the 5173 the
+ * v1.0.0 frontend uses and the 5299/5298 the e2e harness drives: nothing collides when
+ * several of them run side by side. The proxy targets are the same backend, so
+ * `scripts/dev.sh` can keep pointing one backend at both consoles.
  *
  * `base` is left at "/" and the router uses web history (an 11C decision), so the
  * image needs an SPA fallback — see frontend-next/nginx.conf.
