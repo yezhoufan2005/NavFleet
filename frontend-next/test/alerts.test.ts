@@ -152,7 +152,7 @@ describe("the list", () => {
     // Two different situations, and telling them apart is the whole value of the
     // sentence: one means nothing is wrong, the other means look at your filters.
     const empty = await mountAlerts();
-    expect(empty.find("[role='status']").text()).toContain("没有活跃告警");
+    expect(empty.find("[role='status']").text()).toContain("没有活跃消息");
     empty.unmount();
 
     seedMixed();
@@ -420,7 +420,7 @@ describe("acknowledging (server-backed, Phase 16A)", () => {
     const button = wrapper.findAll("li")[0]!.findAll("button").at(-1)!;
 
     expect(button.attributes("aria-pressed")).toBe("false");
-    expect(button.attributes("aria-label")).toContain("确认告警");
+    expect(button.attributes("aria-label")).toContain("确认消息");
 
     const ref = criticalRef();
     await button.trigger("click");
@@ -434,6 +434,18 @@ describe("acknowledging (server-backed, Phase 16A)", () => {
         .at(-1)!
         .attributes("aria-pressed"),
     ).toBe("true");
+  });
+
+  it("toasts with an undo when a single row is confirmed", async () => {
+    seedMixed();
+    const wrapper = await mountAlerts();
+
+    await wrapper.findAll("li")[0]!.findAll("button").at(-1)!.trigger("click");
+    await flushPromises();
+
+    const toast = useNotifications().items.at(-1);
+    expect(toast?.message).toContain("已确认 1 条消息");
+    expect(toast?.action?.label).toBe("撤销");
   });
 
   it("hides an acknowledged alert unless asked for", async () => {
