@@ -157,7 +157,12 @@ const filtered = computed(() =>
 const capped = computed(() => records.value.length >= RESULT_CAP);
 
 // ── Derived statistics + chart inputs ─────────────────────────────────────────────────────
-const stats = computed(() => computeAlertStats(filtered.value));
+// `topN: Infinity` — the per-device chart shows *every* device with cleared messages, not a Top-8.
+// The chart card has a fixed height and scrolls (see the grid comment), so "all of them" costs a
+// scrollbar, never an ever-taller card.
+const stats = computed(() =>
+  computeAlertStats(filtered.value, { topN: Number.POSITIVE_INFINITY }),
+);
 
 const severityData = computed(() =>
   (["critical", "warning", "notice"] as const).map((key) => ({
@@ -304,9 +309,10 @@ const { page, pageCount, pageSize, pageItems, setPage, setPageSize } =
         </dd>
       </div>
     </dl>
-    <!-- Three charts, one row, equal height. 288px clears the per-device Top-8 horizontal bars
-         (8 × 32px slot = 256) so that chart no longer shows a stub scrollbar inside the card; the
-         day-frequency chart keeps `scroll` because a wide month grows sideways, not down. -->
+    <!-- Three charts, one row, equal 288px height. 「按消息数分布」lists every device (no Top-N
+         cap) and scrolls inside its fixed-height card, so the full fleet is reachable without the
+         card growing; the day-frequency chart likewise keeps `scroll` (a wide month grows
+         sideways). The fixed height is the whole point — a scrollbar, never an ever-taller card. -->
     <div class="grid gap-4 lg:grid-cols-3">
       <section class="rounded-md border border-border bg-surface-raised p-4">
         <CategoryBarChart

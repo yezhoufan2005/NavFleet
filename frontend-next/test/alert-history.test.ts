@@ -183,6 +183,24 @@ describe("the statistics", () => {
     expect(labels).toContain("按消息数分布");
     expect(labels).toContain("按时间天频次");
   });
+
+  it("feeds the per-device chart every device, not a Top-N (点 4)", async () => {
+    // 10 devices, one cleared message each: the chart gets all 10 (the card scrolls), not 8.
+    vi.spyOn(fleetApi, "getAlerts").mockResolvedValue({
+      items: Array.from({ length: 10 }, (_unused, index) =>
+        record({
+          eventKey: `agv-${index}:e`,
+          deviceId: `agv-${index}`,
+          deviceName: `车 ${index}`,
+        }),
+      ),
+    });
+    const wrapper = await mountPanel();
+    const deviceBar = wrapper
+      .findAll(".bar-stub")
+      .find((node) => node.attributes("data-label") === "按消息数分布");
+    expect(deviceBar?.attributes("data-count")).toBe("10");
+  });
 });
 
 describe("the cleared-alert list", () => {
