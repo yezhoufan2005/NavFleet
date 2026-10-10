@@ -28,6 +28,7 @@ import { useFieldErrors } from "@/composables/useFieldErrors";
 const ERROR_MESSAGES: Record<string, string> = {
   invalid_vehicles: "车辆配置不合法，请检查各字段",
   vehicle_referenced_by_formation: "该车辆仍被某个编队引用，请先从编队移除",
+  unknown_scene_in_vehicle: "默认场景不存在，请重新选择",
   forbidden: "需要管理员权限",
 };
 const messageFor = makeMessageFor(ERROR_MESSAGES);
@@ -79,9 +80,18 @@ const fSceneId = ref("");
 const fTags = ref("");
 const fGps = ref(true);
 const fRosMap = ref(true);
+// Identity / spec metadata (optional, VDA 5050 factsheet-style; display-only).
+const fVendor = ref("");
+const fModel = ref("");
+const fSerialNumber = ref("");
+const fCategory = ref("");
+const fMaxLoadKg = ref("");
+const fCommissionedAt = ref("");
+const fNotes = ref("");
 // Clear a field's red state as soon as the operator starts fixing it.
 clearOn(fDeviceId, "deviceId");
 clearOn(fDeviceName, "deviceName");
+clearOn(fMaxLoadKg, "maxLoadKg");
 
 const openCreate = (): void => {
   mode.value = "create";
@@ -94,6 +104,13 @@ const openCreate = (): void => {
   fTags.value = "";
   fGps.value = true;
   fRosMap.value = true;
+  fVendor.value = "";
+  fModel.value = "";
+  fSerialNumber.value = "";
+  fCategory.value = "";
+  fMaxLoadKg.value = "";
+  fCommissionedAt.value = "";
+  fNotes.value = "";
 };
 const openEdit = (vehicle: DeviceConfig): void => {
   mode.value = "edit";
@@ -106,22 +123,41 @@ const openEdit = (vehicle: DeviceConfig): void => {
   fTags.value = (vehicle.tags ?? []).join(", ");
   fGps.value = vehicle.gpsEnabled ?? true;
   fRosMap.value = vehicle.rosMapEnabled ?? true;
+  fVendor.value = vehicle.vendor ?? "";
+  fModel.value = vehicle.model ?? "";
+  fSerialNumber.value = vehicle.serialNumber ?? "";
+  fCategory.value = vehicle.category ?? "";
+  fMaxLoadKg.value =
+    vehicle.maxLoadKg === undefined ? "" : String(vehicle.maxLoadKg);
+  fCommissionedAt.value = vehicle.commissionedAt ?? "";
+  fNotes.value = vehicle.notes ?? "";
 };
 const close = (): void => {
   mode.value = null;
 };
 
-const buildVehicle = (): DeviceConfig => ({
-  deviceId: fDeviceId.value.trim(),
-  deviceName: fDeviceName.value.trim() || fDeviceId.value.trim(),
-  defaultSceneId: fSceneId.value || undefined,
-  gpsEnabled: fGps.value,
-  rosMapEnabled: fRosMap.value,
-  tags: fTags.value
-    .split(",")
-    .map((tag) => tag.trim())
-    .filter((tag) => tag.length > 0),
-});
+const buildVehicle = (): DeviceConfig => {
+  const trimmed = (value: string): string | undefined =>
+    value.trim() ? value.trim() : undefined;
+  return {
+    deviceId: fDeviceId.value.trim(),
+    deviceName: fDeviceName.value.trim() || fDeviceId.value.trim(),
+    defaultSceneId: fSceneId.value || undefined,
+    gpsEnabled: fGps.value,
+    rosMapEnabled: fRosMap.value,
+    tags: fTags.value
+      .split(",")
+      .map((tag) => tag.trim())
+      .filter((tag) => tag.length > 0),
+    vendor: trimmed(fVendor.value),
+    model: trimmed(fModel.value),
+    serialNumber: trimmed(fSerialNumber.value),
+    category: trimmed(fCategory.value),
+    maxLoadKg: fMaxLoadKg.value.trim() ? Number(fMaxLoadKg.value) : undefined,
+    commissionedAt: trimmed(fCommissionedAt.value),
+    notes: trimmed(fNotes.value),
+  };
+};
 
 const persist = async (next: DeviceConfig[]): Promise<boolean> => {
   try {
@@ -149,6 +185,10 @@ const submit = async (): Promise<void> => {
   }
   if (!fDeviceName.value.trim()) {
     fieldErrors.deviceName = "请输入名称";
+  }
+  const loadRaw = fMaxLoadKg.value.trim();
+  if (loadRaw && (!Number.isFinite(Number(loadRaw)) || Number(loadRaw) < 0)) {
+    fieldErrors.maxLoadKg = "额定载重需为不小于 0 的数字";
   }
   if (report(fieldErrors)) return;
   saving.value = true;
@@ -352,6 +392,62 @@ const dialogTitle = computed(() =>
           :disabled="saving"
           size="sm"
         />
+      </label>
+      <div class="grid grid-cols-2 gap-3">
+        <label class="flex flex-col gap-1">
+          <span class="text-sm font-medium text-ink">厂商</span>
+          <UiInput v-model="fVendor" type="text" :disabled="saving" size="sm" />
+        </label>
+        <label class="flex flex-col gap-1">
+          <span class="text-sm font-medium text-ink">型号</span>
+          <UiInput v-model="fModel" type="text" :disabled="saving" size="sm" />
+        </label>
+        <label class="flex flex-col gap-1">
+          <span class="text-sm font-medium text-ink">序列号</span>
+          <UiInput
+            v-model="fSerialNumber"
+            type="text"
+            :disabled="saving"
+            size="sm"
+          />
+        </label>
+        <label class="flex flex-col gap-1">
+          <span class="text-sm font-medium text-ink">类型</span>
+          <UiInput
+            v-model="fCategory"
+            type="text"
+            placeholder="如 巡检 / 搬运 / 牵引"
+            :disabled="saving"
+            size="sm"
+          />
+        </label>
+        <label class="flex flex-col gap-1">
+          <span class="text-sm font-medium text-ink">额定载重（kg）</span>
+          <UiInput
+            v-model="fMaxLoadKg"
+            type="number"
+            min="0"
+            :disabled="saving"
+            :invalid="!!errors.maxLoadKg"
+            size="sm"
+          />
+          <p v-if="errors.maxLoadKg" class="m-0 text-xs text-critical-ink">
+            {{ errors.maxLoadKg }}
+          </p>
+        </label>
+        <label class="flex flex-col gap-1">
+          <span class="text-sm font-medium text-ink">投产日期</span>
+          <UiInput
+            v-model="fCommissionedAt"
+            type="date"
+            :disabled="saving"
+            size="sm"
+          />
+        </label>
+      </div>
+      <label class="flex flex-col gap-1">
+        <span class="text-sm font-medium text-ink">备注</span>
+        <UiInput v-model="fNotes" type="text" :disabled="saving" size="sm" />
       </label>
       <label class="flex items-center gap-2">
         <input v-model="fGps" type="checkbox" :disabled="saving" />

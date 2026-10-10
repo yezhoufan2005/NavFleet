@@ -843,6 +843,38 @@ export class ConfigRegistry {
       nextSceneConfigs.set(sceneId, normalizedScene);
     }
 
+    // Scene referential integrity (load path is tolerant). A formation / vehicle / fleet default
+    // that names a scene which does not exist would resolve to a dangling id at runtime. The write
+    // API rejects that up front; a hand-edited file must not crash the stack, so here we only warn
+    // and blank the dangling reference, letting the effective-scene fallback take over.
+    const sceneMissing = (id: string | undefined): id is string =>
+      !!id && !nextSceneConfigs.has(id);
+    for (const formation of nextFormationConfigs.values()) {
+      if (sceneMissing(formation.sceneId)) {
+        logger.warn(
+          { formationId: formation.formationId, sceneId: formation.sceneId },
+          "Formation references unknown scene; treating as unset",
+        );
+        formation.sceneId = undefined;
+      }
+    }
+    for (const device of nextDeviceConfigs.values()) {
+      if (sceneMissing(device.defaultSceneId)) {
+        logger.warn(
+          { deviceId: device.deviceId, sceneId: device.defaultSceneId },
+          "Vehicle references unknown default scene; treating as unset",
+        );
+        device.defaultSceneId = undefined;
+      }
+    }
+    if (sceneMissing(nextFleetConfig.defaultSceneId)) {
+      logger.warn(
+        { sceneId: nextFleetConfig.defaultSceneId },
+        "Fleet default scene does not exist; treating as unset",
+      );
+      nextFleetConfig.defaultSceneId = undefined;
+    }
+
     return {
       fleetConfig: nextFleetConfig,
       deviceConfigs: nextDeviceConfigs,
@@ -1122,6 +1154,13 @@ export class ConfigRegistry {
         }
       }
     }
+    for (const vehicle of vehicles) {
+      if (vehicle.defaultSceneId && !this.sceneConfigs.has(vehicle.defaultSceneId)) {
+        throw new Error(
+          `vehicle ${vehicle.deviceId} references unknown scene ${vehicle.defaultSceneId}`,
+        );
+      }
+    }
     await this.writeConfigFileAtomic(VEHICLES_FILE, vehicles);
     await this.reload("vehicles-write");
     return this.listVehicleConfigs();
@@ -1143,6 +1182,11 @@ export class ConfigRegistry {
             `formation ${formation.formationId} references unknown deviceId ${deviceId}`,
           );
         }
+      }
+      if (formation.sceneId && !this.sceneConfigs.has(formation.sceneId)) {
+        throw new Error(
+          `formation ${formation.formationId} references unknown scene ${formation.sceneId}`,
+        );
       }
     }
     await this.writeConfigFileAtomic(FORMATIONS_FILE, formations);
@@ -1328,6 +1372,14 @@ export class ConfigRegistry {
       formationIds: [
         ...(this.deviceFormationIds.get(snapshot.deviceId) || snapshot.formationIds || []),
       ],
+      // Identity / spec metadata (optional, display-only); config overrides any carried value.
+      vendor: deviceConfig?.vendor ?? snapshot.vendor,
+      model: deviceConfig?.model ?? snapshot.model,
+      serialNumber: deviceConfig?.serialNumber ?? snapshot.serialNumber,
+      category: deviceConfig?.category ?? snapshot.category,
+      maxLoadKg: deviceConfig?.maxLoadKg ?? snapshot.maxLoadKg,
+      commissionedAt: deviceConfig?.commissionedAt ?? snapshot.commissionedAt,
+      notes: deviceConfig?.notes ?? snapshot.notes,
     };
   }
 
