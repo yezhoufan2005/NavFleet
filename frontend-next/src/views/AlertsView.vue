@@ -727,7 +727,7 @@ watch(() => canAck.value && fleet.state.realtime.apiReady, runLegacyMigration);
           <button
             v-if="canAck"
             type="button"
-            class="shrink-0 rounded-sm border px-2.5 py-1 text-xs transition-colors duration-150 ease-standard"
+            class="inline-flex h-8 shrink-0 items-center rounded-sm border px-3 text-xs transition-colors duration-150 ease-standard"
             :class="
               ack.isAcknowledged(alert.deviceId, alert.id)
                 ? 'border-brand bg-brand-wash text-brand-ink hover:bg-surface-sunken'

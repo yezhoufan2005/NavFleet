@@ -85,7 +85,7 @@ const commitJump = (): void => {
         type="number"
         min="1"
         :max="pageCount"
-        class="h-7 w-12 rounded-sm border border-border-strong bg-surface-raised px-1 text-center font-mono text-xs text-ink tabular-nums transition-colors duration-150 ease-standard hover:border-brand focus:border-brand focus:outline-none"
+        class="h-8 w-12 rounded-sm border border-border-strong bg-surface-raised px-1 text-center font-mono text-xs text-ink tabular-nums transition-colors duration-150 ease-standard hover:border-brand focus:border-brand focus:outline-none"
         aria-label="跳转到页码"
         @change="commitJump"
         @keyup.enter="commitJump"
