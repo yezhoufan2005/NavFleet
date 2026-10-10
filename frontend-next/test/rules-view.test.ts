@@ -212,19 +212,25 @@ describe("RulesView — save", () => {
       .mockResolvedValue({ config: RULES });
     const wrapper = await mountView();
     // 设备/编队 via their multi-selects; 标签 via the two free-text inputs ([low-battery, offline]).
+    // Each scope dimension updates the whole scope object through RuleSection, so let the prop
+    // propagate between picks (await) — otherwise a second patch would read a stale scope.
     scopeSelect(wrapper, "低电量作用范围：设备").vm.$emit("update:modelValue", [
       "agv-1",
       "agv-2",
     ]);
+    await flushPromises();
     scopeSelect(wrapper, "低电量作用范围：编队").vm.$emit("update:modelValue", [
       "line-a",
     ]);
+    await flushPromises();
     scopeSelect(wrapper, "离线作用范围：设备").vm.$emit("update:modelValue", [
       "agv-9",
     ]);
+    await flushPromises();
     scopeSelect(wrapper, "离线作用范围：编队").vm.$emit("update:modelValue", [
       "line-b",
     ]);
+    await flushPromises();
     const tags = tagInputs(wrapper);
     await tags[0]!.setValue("cold");
     await tags[1]!.setValue("hot");
