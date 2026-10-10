@@ -27,6 +27,7 @@ import { useFieldErrors } from "@/composables/useFieldErrors";
 const ERROR_MESSAGES: Record<string, string> = {
   invalid_formations: "编队配置不合法，请检查各字段",
   unknown_device_in_formation: "编队引用了未配置的车辆",
+  unknown_scene_in_formation: "所选场景不存在，请重新选择",
   forbidden: "需要管理员权限",
 };
 const messageFor = makeMessageFor(ERROR_MESSAGES);

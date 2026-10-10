@@ -162,6 +162,24 @@ describe("ConfigRegistry.load", () => {
     expect(registry.getSceneOverlay("scene-a")).toBeNull();
   });
 
+  it("tolerates config naming a non-existent scene — loads, blanks the dangling reference", async () => {
+    await writeConfig({
+      vehicles: [{ deviceId: "agv-1", defaultSceneId: "ghost" }, { deviceId: "agv-2" }],
+      formations: [
+        { formationId: "f", formationName: "F", deviceIds: ["agv-1"], sceneId: "ghost" },
+      ],
+    });
+    const registry = new ConfigRegistry();
+    // A hand-edited typo must not crash the stack — load resolves, not rejects.
+    await registry.load();
+
+    // The dangling vehicle default scene is treated as unset…
+    expect(registry.getDeviceConfig("agv-1")?.defaultSceneId).toBeUndefined();
+    // …and the formation's ghost scene never surfaces on its snapshot.
+    const formation = registry.listFormations().find((f) => f.formationId === "f");
+    expect(formation?.sceneId).not.toBe("ghost");
+  });
+
   it("applies device config and formation membership to a snapshot", async () => {
     const registry = new ConfigRegistry();
     await registry.load();

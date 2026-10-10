@@ -60,6 +60,18 @@ export const buildDeviceConfigRouter = (
         return;
       }
     }
+    // A vehicle's defaultSceneId must name a configured scene, or it resolves to a dangling id.
+    const vehicleSceneIds = new Set(store.getScenes().map((scene) => scene.sceneId));
+    const badVehicle = vehicles.find(
+      (vehicle) => vehicle.defaultSceneId && !vehicleSceneIds.has(vehicle.defaultSceneId),
+    );
+    if (badVehicle) {
+      response.status(400).json({
+        error: "unknown_scene_in_vehicle",
+        detail: `vehicle ${badVehicle.deviceId} references unknown scene ${badVehicle.defaultSceneId}`,
+      });
+      return;
+    }
     try {
       const saved = await store.writeVehicles(raw);
       void audit.record({
@@ -105,6 +117,18 @@ export const buildDeviceConfigRouter = (
           });
           return;
         }
+      }
+      // A formation's sceneId must name a configured scene, or it resolves to a dangling id.
+      const sceneIds = new Set(store.getScenes().map((scene) => scene.sceneId));
+      const badFormation = formations.find(
+        (formation) => formation.sceneId && !sceneIds.has(formation.sceneId),
+      );
+      if (badFormation) {
+        response.status(400).json({
+          error: "unknown_scene_in_formation",
+          detail: `formation ${badFormation.formationId} references unknown scene ${badFormation.sceneId}`,
+        });
+        return;
       }
       try {
         const saved = await store.writeFormations(raw);

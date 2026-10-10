@@ -380,7 +380,9 @@ export const useFleetStore = defineStore("fleet", () => {
           formation.sceneId ||
           (uniqueScenes.length === 1
             ? (uniqueScenes[0] ?? "")
-            : memberDevices[0]?.sceneId || ""),
+            : memberDevices[0]?.sceneId ||
+              memberDevices[0]?.defaultSceneId ||
+              ""),
       };
     }),
   );

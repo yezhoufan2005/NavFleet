@@ -44,6 +44,18 @@ const optionalBoolean = (
   return value;
 };
 
+/** A non-negative finite number, or undefined when absent (e.g. a rated load in kg). */
+const optionalNonNegativeNumber = (
+  value: unknown,
+  label: string,
+): number | undefined => {
+  if (value === undefined || value === null) return undefined;
+  if (typeof value !== "number" || !Number.isFinite(value) || value < 0) {
+    throw new Error(`${label} must be a number ≥ 0`);
+  }
+  return value;
+};
+
 const stringArray = (value: unknown, label: string): string[] => {
   if (!Array.isArray(value))
     throw new Error(`${label} must be an array of strings`);
@@ -95,6 +107,23 @@ export const parseVehicles = (raw: unknown): DeviceConfig[] => {
         entry.tags === undefined
           ? undefined
           : stringArray(entry.tags, `vehicles[${index}].tags`),
+      // Identity / spec metadata (VDA 5050 factsheet-style, all optional, display-only).
+      vendor: optionalString(entry.vendor, `vehicles[${index}].vendor`),
+      model: optionalString(entry.model, `vehicles[${index}].model`),
+      serialNumber: optionalString(
+        entry.serialNumber,
+        `vehicles[${index}].serialNumber`,
+      ),
+      category: optionalString(entry.category, `vehicles[${index}].category`),
+      maxLoadKg: optionalNonNegativeNumber(
+        entry.maxLoadKg,
+        `vehicles[${index}].maxLoadKg`,
+      ),
+      commissionedAt: optionalString(
+        entry.commissionedAt,
+        `vehicles[${index}].commissionedAt`,
+      ),
+      notes: optionalString(entry.notes, `vehicles[${index}].notes`),
     };
   });
 };

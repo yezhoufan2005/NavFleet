@@ -228,6 +228,7 @@ const formError = ref("");
 const editingId = ref("");
 const fSceneId = ref("");
 const fSceneName = ref("");
+const fDescription = ref("");
 const fMapFrame = ref("map");
 const fResolution = ref("0.05");
 const fWidth = ref("");
@@ -256,6 +257,7 @@ const openCreate = (): void => {
   editingId.value = "";
   fSceneId.value = "";
   fSceneName.value = "";
+  fDescription.value = "";
   fMapFrame.value = "map";
   fResolution.value = "0.05";
   fWidth.value = "";
@@ -274,6 +276,7 @@ const openEdit = (scene: SceneDefinition): void => {
   editingId.value = String(scene.sceneId);
   fSceneId.value = String(scene.sceneId);
   fSceneName.value = String(scene.sceneName ?? "");
+  fDescription.value = String(scene.description ?? "");
   fMapFrame.value = String(scene.mapFrame ?? "map");
   fResolution.value = String(scene.resolution ?? "");
   fWidth.value = String(scene.width ?? "");
@@ -345,6 +348,7 @@ const submit = async (): Promise<void> => {
       ...(existing ?? {}),
       sceneId: id,
       sceneName: fSceneName.value.trim() || id,
+      description: fDescription.value.trim() || undefined,
       mapFrame: fMapFrame.value.trim() || "map",
       resolution,
       width,
@@ -614,6 +618,15 @@ const runDelete = async (): Promise<void> => {
         <p v-if="errors.sceneName" class="m-0 text-xs text-critical-ink">
           {{ errors.sceneName }}
         </p>
+      </label>
+      <label class="flex flex-col gap-1">
+        <span class="text-sm font-medium text-ink">说明</span>
+        <UiInput
+          v-model="fDescription"
+          type="text"
+          :disabled="saving"
+          size="sm"
+        />
       </label>
       <label class="flex flex-col gap-1">
         <span class="text-sm font-medium text-ink">地图坐标系</span>

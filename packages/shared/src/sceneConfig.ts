@@ -173,6 +173,9 @@ const parseScene = (value: unknown, label: string): SceneMapDefinition => {
   const maxZoom = optionalFinite(raw.maxZoom, `${label}.maxZoom`);
   if (maxZoom !== undefined) scene.maxZoom = maxZoom;
 
+  const description = optionalString(raw.description, `${label}.description`);
+  if (description) scene.description = description;
+
   return scene;
 };
 

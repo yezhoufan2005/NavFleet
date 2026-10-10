@@ -486,8 +486,8 @@ describe("场景", () => {
     ];
     setInput(inputs[0]!, "new-scene"); // sceneId
     setInput(inputs[1]!, "新场景"); // 名称 is required (点 4)
-    setInput(inputs[4]!, "800"); // width
-    setInput(inputs[5]!, "600"); // height
+    setInput(inputs[5]!, "800"); // width (说明 field shifted the indices by one)
+    setInput(inputs[6]!, "600"); // height
     document.body.querySelector("form")!.dispatchEvent(new Event("submit"));
     await flushPromises();
 
@@ -587,8 +587,8 @@ describe("场景", () => {
     };
     set(inputs[0]!, "new-scene");
     set(inputs[1]!, "新场景"); // 名称 is required (点 4)
-    set(inputs[4]!, "800");
-    set(inputs[5]!, "600");
+    set(inputs[5]!, "800"); // width (说明 field shifted the indices by one)
+    set(inputs[6]!, "600"); // height
     // Attach a file to the (uncontrolled) file input, then fire change.
     const fileInput =
       document.body.querySelector<HTMLInputElement>("input[type='file']")!;

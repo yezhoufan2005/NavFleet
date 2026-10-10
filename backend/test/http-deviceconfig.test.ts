@@ -67,6 +67,56 @@ describe("PUT /api/vehicles", () => {
     expect(context.store.writeVehicles).not.toHaveBeenCalled();
     expect(context.auditService.record).not.toHaveBeenCalled();
   });
+
+  it("400s a negative maxLoadKg (invalid_vehicles)", async () => {
+    const context = createTestApp();
+
+    const response = await request(context.app)
+      .put("/api/vehicles")
+      .set("Cookie", ADMIN)
+      .send({ vehicles: [{ ...VEHICLE, maxLoadKg: -5 }] });
+
+    expect(response.status).toBe(400);
+    expect((response.body as { error: string }).error).toBe("invalid_vehicles");
+    expect(context.store.writeVehicles).not.toHaveBeenCalled();
+  });
+
+  it("400s a vehicle whose defaultSceneId names no configured scene", async () => {
+    const context = createTestApp(); // getScenes defaults to [scene-a]
+
+    const response = await request(context.app)
+      .put("/api/vehicles")
+      .set("Cookie", ADMIN)
+      .send({ vehicles: [{ ...VEHICLE, defaultSceneId: "ghost" }] });
+
+    expect(response.status).toBe(400);
+    expect((response.body as { error: string }).error).toBe("unknown_scene_in_vehicle");
+    expect(context.store.writeVehicles).not.toHaveBeenCalled();
+  });
+
+  it("accepts identity/spec metadata and a valid defaultSceneId", async () => {
+    const context = createTestApp();
+    const rich: DeviceConfig = {
+      ...VEHICLE,
+      defaultSceneId: "scene-a",
+      vendor: "北醒",
+      model: "AGV-200",
+      serialNumber: "SN-0001",
+      category: "巡检",
+      maxLoadKg: 200,
+      commissionedAt: "2026-01-15",
+      notes: "一号线主力",
+    };
+    context.store.writeVehicles.mockResolvedValue([rich]);
+
+    const response = await request(context.app)
+      .put("/api/vehicles")
+      .set("Cookie", ADMIN)
+      .send({ vehicles: [rich] });
+
+    expect(response.status).toBe(200);
+    expect(context.store.writeVehicles).toHaveBeenCalledWith([rich]);
+  });
 });
 
 describe("PUT /api/formation-config", () => {
@@ -113,5 +163,19 @@ describe("PUT /api/formation-config", () => {
     expect((response.body as { error: string }).error).toBe("unknown_device_in_formation");
     expect(context.store.writeFormations).not.toHaveBeenCalled();
     expect(context.auditService.record).not.toHaveBeenCalled();
+  });
+
+  it("400s a formation whose sceneId names no configured scene", async () => {
+    const context = createTestApp(); // getScenes defaults to [scene-a]
+    context.store.listVehicleConfigs.mockReturnValue([VEHICLE]);
+
+    const response = await request(context.app)
+      .put("/api/formation-config")
+      .set("Cookie", ADMIN)
+      .send({ formations: [{ ...FORMATION, sceneId: "ghost" }] });
+
+    expect(response.status).toBe(400);
+    expect((response.body as { error: string }).error).toBe("unknown_scene_in_formation");
+    expect(context.store.writeFormations).not.toHaveBeenCalled();
   });
 });

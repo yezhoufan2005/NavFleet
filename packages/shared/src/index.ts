@@ -70,6 +70,14 @@ export interface DeviceSnapshot {
   rosMapEnabled: boolean;
   tags: string[];
   formationIds: string[];
+  /** Identity / spec metadata merged from `DeviceConfig` (optional, display-only — see there). */
+  vendor?: string;
+  model?: string;
+  serialNumber?: string;
+  category?: string;
+  maxLoadKg?: number;
+  commissionedAt?: string;
+  notes?: string;
   gps: GpsPoint;
   fusionLoc: PosePoint;
   lidarLoc: PosePoint;
@@ -115,6 +123,8 @@ export interface FleetSnapshot {
 export interface SceneMapDefinition {
   sceneId: string;
   sceneName: string;
+  /** Optional human description of the scene, mirrored on 编队 — display-only. */
+  description?: string;
   imageUrl?: string;
   /**
    * External scene-metadata document to merge over the inline definition. No shipped
@@ -208,6 +218,22 @@ export interface DeviceConfig {
   gpsEnabled?: boolean;
   rosMapEnabled?: boolean;
   tags?: string[];
+  /**
+   * Identity / spec metadata the deployment records about a vehicle, beyond what telemetry
+   * reports — modelled on the per-vehicle static properties of VDA 5050's factsheet and the IDTA
+   * "Technical Data for AGV" submodel (manufacturer / series / serial / class / load). All
+   * optional and display-only: this is a read-only monitoring console, so none of it steers a
+   * vehicle. `category` is free text (this fleet is patrol/inspection, not VDA's warehouse
+   * forklift/tugger classes). `maxLoadKg` is the rated load in kilograms; `commissionedAt` an
+   * ISO date (`YYYY-MM-DD`).
+   */
+  vendor?: string;
+  model?: string;
+  serialNumber?: string;
+  category?: string;
+  maxLoadKg?: number;
+  commissionedAt?: string;
+  notes?: string;
 }
 
 export interface SocketEvent<T = unknown> {
