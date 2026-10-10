@@ -48,7 +48,7 @@ const MAX_WIDTH: Record<"md" | "lg" | "xl", string> = {
       <DialogOverlay class="fixed inset-0 z-50 bg-scrim/55" />
       <DialogContent
         :class="[
-          'fixed top-1/2 left-1/2 z-50 flex max-h-[85vh] w-full -translate-x-1/2 -translate-y-1/2 flex-col gap-3 overflow-auto rounded-md border border-border bg-surface-raised p-5 shadow-overlay',
+          'ui-dialog-surface fixed top-1/2 left-1/2 z-50 flex max-h-[85vh] w-full -translate-x-1/2 -translate-y-1/2 flex-col gap-3 overflow-auto rounded-md border border-border bg-surface-raised p-5 shadow-overlay',
           MAX_WIDTH[maxWidth],
         ]"
       >

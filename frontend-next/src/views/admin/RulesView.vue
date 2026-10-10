@@ -271,7 +271,7 @@ const resetToDefaults = (): void => applyConfig(DEFAULT_ALERT_RULES);
         @update:scope="(value) => (lbScope = value)"
       >
         <template #default="{ disabled }">
-          <div class="grid grid-cols-2 gap-3">
+          <div class="flex flex-wrap gap-3">
             <label class="flex flex-col gap-1">
               <span class="text-sm font-medium text-ink">触发阈值（%）</span>
               <UiInput
@@ -281,6 +281,7 @@ const resetToDefaults = (): void => applyConfig(DEFAULT_ALERT_RULES);
                 max="100"
                 :disabled="disabled"
                 size="sm"
+                class="w-28"
               />
             </label>
             <label class="flex flex-col gap-1">
@@ -291,6 +292,7 @@ const resetToDefaults = (): void => applyConfig(DEFAULT_ALERT_RULES);
                 min="0"
                 :disabled="disabled"
                 size="sm"
+                class="w-28"
               />
             </label>
           </div>
@@ -309,7 +311,7 @@ const resetToDefaults = (): void => applyConfig(DEFAULT_ALERT_RULES);
         @update:scope="(value) => (offScope = value)"
       >
         <template #default="{ disabled }">
-          <label class="flex max-w-xs flex-col gap-1">
+          <label class="flex flex-col gap-1">
             <span class="text-sm font-medium text-ink">离线判定（秒）</span>
             <UiInput
               v-model="offAfter"
@@ -318,6 +320,7 @@ const resetToDefaults = (): void => applyConfig(DEFAULT_ALERT_RULES);
               placeholder="留空用系统默认"
               :disabled="disabled"
               size="sm"
+              class="w-28"
             />
           </label>
         </template>

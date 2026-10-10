@@ -98,6 +98,7 @@ const patchScope = (patch: Partial<RuleScopeModel>): void =>
             placeholder="不限"
             :aria-label="`${scopeLabel}作用范围：设备`"
             :disabled="disabled"
+            fluid
             @update:model-value="(value) => patchScope({ deviceIds: value })"
           />
         </label>
@@ -109,6 +110,7 @@ const patchScope = (patch: Partial<RuleScopeModel>): void =>
             placeholder="不限"
             :aria-label="`${scopeLabel}作用范围：编队`"
             :disabled="disabled"
+            fluid
             @update:model-value="(value) => patchScope({ formationIds: value })"
           />
         </label>

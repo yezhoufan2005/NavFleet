@@ -361,10 +361,14 @@ const dialogTitle = computed(() =>
         />
       </label>
       <label class="flex flex-col gap-1">
-        <span class="text-sm font-medium text-ink"
-          >颜色（可选，如 #46d7c3）</span
-        >
-        <UiInput v-model="fColor" type="text" :disabled="saving" size="sm" />
+        <span class="text-sm font-medium text-ink">颜色</span>
+        <UiInput
+          v-model="fColor"
+          type="text"
+          placeholder="可选，如 #46d7c3"
+          :disabled="saving"
+          size="sm"
+        />
       </label>
       <p v-if="formError" class="text-sm text-critical-ink" role="alert">
         {{ formError }}

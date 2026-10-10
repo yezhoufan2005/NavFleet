@@ -31,6 +31,7 @@ const {
   ariaLabel,
   placeholder = "全部",
   disabled = false,
+  fluid = false,
 } = defineProps<{
   modelValue: readonly string[];
   options: readonly UiMultiSelectOption[];
@@ -38,6 +39,12 @@ const {
   /** Shown on the trigger when nothing is selected — e.g. 全部状态 / 全部场景. */
   placeholder?: string;
   disabled?: boolean;
+  /**
+   * Fill the container (`w-full`) instead of sizing to content capped at `max-w-56`. The cap keeps
+   * a many-item selection from stretching a filter bar; a scope grid cell wants the control to fill
+   * its track like the 标签 input beside it, so that layout opts into `fluid`.
+   */
+  fluid?: boolean;
 }>();
 
 const emit = defineEmits<{ "update:modelValue": [string[]] }>();
@@ -73,7 +80,10 @@ const toggle = (value: string): void => {
       type="button"
       :disabled="disabled"
       :aria-label="ariaLabel"
-      class="flex h-8 min-w-28 max-w-56 items-center justify-between gap-2 rounded-sm border border-border-strong bg-surface-raised px-2 text-sm text-ink transition-colors duration-150 ease-standard hover:border-brand disabled:opacity-50 data-[state=open]:border-brand"
+      :class="[
+        'ui-field flex h-8 items-center justify-between gap-2 rounded-sm border border-border-strong bg-surface-raised px-2 text-sm text-ink transition-colors duration-150 ease-standard hover:border-brand disabled:opacity-50 data-[state=open]:border-brand',
+        fluid ? 'w-full' : 'min-w-28 max-w-56',
+      ]"
     >
       <!--
         `min-w-0` lets the label shrink below its content so `truncate` can bite; without

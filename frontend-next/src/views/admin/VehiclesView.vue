@@ -322,8 +322,14 @@ const dialogTitle = computed(() =>
         />
       </label>
       <label class="flex flex-col gap-1">
-        <span class="text-sm font-medium text-ink">标签（逗号分隔）</span>
-        <UiInput v-model="fTags" type="text" :disabled="saving" size="sm" />
+        <span class="text-sm font-medium text-ink">标签</span>
+        <UiInput
+          v-model="fTags"
+          type="text"
+          placeholder="逗号分隔"
+          :disabled="saving"
+          size="sm"
+        />
       </label>
       <label class="flex items-center gap-2">
         <input v-model="fGps" type="checkbox" :disabled="saving" />
@@ -331,7 +337,7 @@ const dialogTitle = computed(() =>
       </label>
       <label class="flex items-center gap-2">
         <input v-model="fRosMap" type="checkbox" :disabled="saving" />
-        <span class="text-sm text-ink">在场景地图中显示</span>
+        <span class="text-sm text-ink">在 ROS 地图中显示</span>
       </label>
       <p v-if="formError" class="text-sm text-critical-ink" role="alert">
         {{ formError }}

@@ -82,3 +82,14 @@
     }
   }
 }
+
+/*
+ * Form fields inside a dialog recede to the base surface, so the control reads as "inside the
+ * frame" against the raised modal panel (报码字典 editor used this and it was adopted for every
+ * dialog). Unlayered on purpose: it has to beat the `bg-surface-raised` utility these controls
+ * carry by default, which lives in Tailwind's `utilities` layer. Only `.ui-field` elements
+ * (UiInput / UiSelect / UiMultiSelect triggers) are touched — never the dialog's buttons.
+ */
+.ui-dialog-surface .ui-field {
+  background-color: var(--color-surface);
+}
