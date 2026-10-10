@@ -78,5 +78,19 @@
     "defaultView": { "zoom": 1, "centerX": 72, "centerY": 44.64 },
     "minZoom": 0.75,
     "maxZoom": 6
+  },
+  {
+    "sceneId": "staging-depot",
+    "sceneName": "预备调度区",
+    "description": "新接入车辆的预备调度区，暂未部署车辆与底图（演示：有场景但无设备、无地图资源）",
+    "mapFrame": "map",
+    "resolution": 0.1,
+    "origin": { "x": 0, "y": 0, "yaw": 0 },
+    "width": 800,
+    "height": 500,
+    "bounds": { "minX": 0, "maxX": 80, "minY": 0, "maxY": 50 },
+    "defaultView": { "zoom": 1, "centerX": 40, "centerY": 25 },
+    "minZoom": 0.75,
+    "maxZoom": 6
   }
 ]

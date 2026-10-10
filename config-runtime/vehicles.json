@@ -5,7 +5,12 @@
     "defaultSceneId": "kangcheng-airy",
     "gpsEnabled": true,
     "rosMapEnabled": true,
-    "tags": ["巡检", "室外"]
+    "tags": ["巡检", "室外"],
+    "vendor": "优艾智合",
+    "model": "巡检 X1",
+    "category": "巡检",
+    "serialNumber": "NF-A24-001",
+    "commissionedAt": "2024-03-18"
   },
   {
     "deviceId": "agv-a02",
@@ -13,7 +18,12 @@
     "defaultSceneId": "kangcheng-airy",
     "gpsEnabled": true,
     "rosMapEnabled": true,
-    "tags": ["巡检", "室外"]
+    "tags": ["巡检", "室外"],
+    "vendor": "优艾智合",
+    "model": "巡检 X1",
+    "category": "巡检",
+    "serialNumber": "NF-A24-002",
+    "commissionedAt": "2024-03-18"
   },
   {
     "deviceId": "agv-a03",
@@ -21,7 +31,12 @@
     "defaultSceneId": "kangcheng-airy",
     "gpsEnabled": true,
     "rosMapEnabled": true,
-    "tags": ["巡检", "室外"]
+    "tags": ["巡检", "室外"],
+    "vendor": "优艾智合",
+    "model": "巡检 X1",
+    "category": "巡检",
+    "serialNumber": "NF-A24-003",
+    "commissionedAt": "2024-03-18"
   },
   {
     "deviceId": "agv-a04",
@@ -29,7 +44,12 @@
     "defaultSceneId": "kangcheng-airy",
     "gpsEnabled": true,
     "rosMapEnabled": true,
-    "tags": ["巡检", "室外"]
+    "tags": ["巡检", "室外"],
+    "vendor": "亿嘉和",
+    "model": "巡检 G200",
+    "category": "巡检",
+    "serialNumber": "NF-A24-004",
+    "commissionedAt": "2024-03-18"
   },
   {
     "deviceId": "agv-a05",
@@ -37,7 +57,13 @@
     "defaultSceneId": "kangcheng-airy",
     "gpsEnabled": true,
     "rosMapEnabled": true,
-    "tags": ["巡检", "室外"]
+    "tags": ["巡检", "室外", "遥控演示"],
+    "vendor": "亿嘉和",
+    "model": "巡检 G200",
+    "category": "巡检",
+    "serialNumber": "NF-A24-005",
+    "commissionedAt": "2024-03-18",
+    "notes": "常用于遥控接管演示"
   },
   {
     "deviceId": "agv-a06",
@@ -45,7 +71,11 @@
     "defaultSceneId": "kangcheng-airy",
     "gpsEnabled": true,
     "rosMapEnabled": true,
-    "tags": ["巡检", "室外"]
+    "tags": ["巡检", "室外"],
+    "vendor": "亿嘉和",
+    "model": "巡检 G200",
+    "category": "巡检",
+    "commissionedAt": "2024-03-18"
   },
   {
     "deviceId": "agv-w01",
@@ -53,7 +83,13 @@
     "defaultSceneId": "warehouse-a",
     "gpsEnabled": false,
     "rosMapEnabled": true,
-    "tags": ["仓储", "室内"]
+    "tags": ["仓储", "室内"],
+    "vendor": "海康机器人",
+    "model": "潜伏 Qi-100",
+    "category": "搬运",
+    "maxLoadKg": 1000,
+    "serialNumber": "NF-W24-001",
+    "commissionedAt": "2023-11-02"
   },
   {
     "deviceId": "agv-w02",
@@ -61,7 +97,13 @@
     "defaultSceneId": "warehouse-a",
     "gpsEnabled": false,
     "rosMapEnabled": true,
-    "tags": ["仓储", "室内"]
+    "tags": ["仓储", "室内"],
+    "vendor": "海康机器人",
+    "model": "潜伏 Qi-100",
+    "category": "搬运",
+    "maxLoadKg": 1000,
+    "serialNumber": "NF-W24-002",
+    "commissionedAt": "2023-11-02"
   },
   {
     "deviceId": "agv-w03",
@@ -69,7 +111,13 @@
     "defaultSceneId": "warehouse-a",
     "gpsEnabled": false,
     "rosMapEnabled": true,
-    "tags": ["仓储", "室内"]
+    "tags": ["仓储", "室内"],
+    "vendor": "海康机器人",
+    "model": "潜伏 Qi-100",
+    "category": "搬运",
+    "maxLoadKg": 1000,
+    "serialNumber": "NF-W24-003",
+    "commissionedAt": "2023-11-02"
   },
   {
     "deviceId": "agv-w04",
@@ -77,7 +125,14 @@
     "defaultSceneId": "warehouse-a",
     "gpsEnabled": false,
     "rosMapEnabled": true,
-    "tags": ["仓储", "室内"]
+    "tags": ["仓储", "室内"],
+    "vendor": "快仓",
+    "model": "潜伏 M5",
+    "category": "搬运",
+    "maxLoadKg": 1000,
+    "serialNumber": "NF-W24-004",
+    "commissionedAt": "2023-11-02",
+    "notes": "电池循环次数偏多，关注健康度"
   },
   {
     "deviceId": "agv-w05",
@@ -85,7 +140,13 @@
     "defaultSceneId": "warehouse-a",
     "gpsEnabled": false,
     "rosMapEnabled": true,
-    "tags": ["仓储", "室内"]
+    "tags": ["仓储", "室内"],
+    "vendor": "快仓",
+    "model": "潜伏 M5",
+    "category": "搬运",
+    "maxLoadKg": 1000,
+    "serialNumber": "NF-W24-005",
+    "commissionedAt": "2023-11-02"
   },
   {
     "deviceId": "agv-w06",
@@ -93,7 +154,13 @@
     "defaultSceneId": "warehouse-a",
     "gpsEnabled": false,
     "rosMapEnabled": true,
-    "tags": ["仓储", "室内"]
+    "tags": ["仓储", "室内"],
+    "vendor": "快仓",
+    "model": "潜伏 M5",
+    "category": "搬运",
+    "maxLoadKg": 1000,
+    "serialNumber": "NF-W24-006",
+    "commissionedAt": "2023-11-02"
   },
   {
     "deviceId": "agv-y01",
@@ -101,7 +168,13 @@
     "defaultSceneId": "yard-north",
     "gpsEnabled": true,
     "rosMapEnabled": true,
-    "tags": ["装卸", "室外"]
+    "tags": ["装卸", "室外"],
+    "vendor": "仙工智能",
+    "model": "牵引 T3000",
+    "category": "牵引",
+    "maxLoadKg": 3000,
+    "serialNumber": "NF-Y24-001",
+    "commissionedAt": "2024-07-09"
   },
   {
     "deviceId": "agv-y02",
@@ -109,7 +182,13 @@
     "defaultSceneId": "yard-north",
     "gpsEnabled": true,
     "rosMapEnabled": true,
-    "tags": ["装卸", "室外"]
+    "tags": ["装卸", "室外"],
+    "vendor": "仙工智能",
+    "model": "牵引 T3000",
+    "category": "牵引",
+    "maxLoadKg": 3000,
+    "serialNumber": "NF-Y24-002",
+    "commissionedAt": "2024-07-09"
   },
   {
     "deviceId": "agv-y03",
@@ -117,7 +196,14 @@
     "defaultSceneId": "yard-north",
     "gpsEnabled": true,
     "rosMapEnabled": true,
-    "tags": ["装卸", "室外"]
+    "tags": ["装卸", "室外"],
+    "vendor": "仙工智能",
+    "model": "牵引 T3000",
+    "category": "牵引",
+    "maxLoadKg": 3000,
+    "serialNumber": "NF-Y24-003",
+    "commissionedAt": "2024-07-09",
+    "notes": "偶发激光定位丢失，待排查"
   },
   {
     "deviceId": "agv-y04",
@@ -125,7 +211,13 @@
     "defaultSceneId": "yard-north",
     "gpsEnabled": true,
     "rosMapEnabled": true,
-    "tags": ["装卸", "室外"]
+    "tags": ["装卸", "室外"],
+    "vendor": "斯坦德",
+    "model": "Oasis 3000T",
+    "category": "牵引",
+    "maxLoadKg": 3000,
+    "serialNumber": "NF-Y24-004",
+    "commissionedAt": "2024-07-09"
   },
   {
     "deviceId": "agv-y05",
@@ -133,7 +225,13 @@
     "defaultSceneId": "yard-north",
     "gpsEnabled": true,
     "rosMapEnabled": true,
-    "tags": ["装卸", "室外"]
+    "tags": ["装卸", "室外"],
+    "vendor": "斯坦德",
+    "model": "Oasis 3000T",
+    "category": "牵引",
+    "maxLoadKg": 3000,
+    "serialNumber": "NF-Y24-005",
+    "commissionedAt": "2024-07-09"
   },
   {
     "deviceId": "agv-p01",
@@ -141,7 +239,13 @@
     "defaultSceneId": "assembly-line",
     "gpsEnabled": false,
     "rosMapEnabled": true,
-    "tags": ["产线", "室内"]
+    "tags": ["产线", "室内"],
+    "vendor": "极智嘉",
+    "model": "配料 M300",
+    "category": "配料",
+    "maxLoadKg": 300,
+    "serialNumber": "NF-P24-001",
+    "commissionedAt": "2025-01-20"
   },
   {
     "deviceId": "agv-p02",
@@ -149,7 +253,13 @@
     "defaultSceneId": "assembly-line",
     "gpsEnabled": false,
     "rosMapEnabled": true,
-    "tags": ["产线", "室内"]
+    "tags": ["产线", "室内"],
+    "vendor": "极智嘉",
+    "model": "配料 M300",
+    "category": "配料",
+    "maxLoadKg": 300,
+    "serialNumber": "NF-P24-002",
+    "commissionedAt": "2025-01-20"
   },
   {
     "deviceId": "agv-p03",
@@ -157,7 +267,13 @@
     "defaultSceneId": "assembly-line",
     "gpsEnabled": false,
     "rosMapEnabled": true,
-    "tags": ["产线", "室内"]
+    "tags": ["产线", "室内"],
+    "vendor": "未来机器人",
+    "model": "MR300",
+    "category": "配料",
+    "maxLoadKg": 300,
+    "serialNumber": "NF-P24-003",
+    "commissionedAt": "2025-01-20"
   },
   {
     "deviceId": "agv-p04",
@@ -165,22 +281,38 @@
     "defaultSceneId": "assembly-line",
     "gpsEnabled": false,
     "rosMapEnabled": true,
-    "tags": ["产线", "室内"]
+    "tags": ["产线", "室内"],
+    "vendor": "未来机器人",
+    "model": "MR300",
+    "category": "配料",
+    "maxLoadKg": 300,
+    "serialNumber": "NF-P24-004"
   },
   {
     "deviceId": "agv-r01",
     "deviceName": "R01 点云示例车",
     "defaultSceneId": "cloudpoint-demo",
-    "gpsEnabled": true,
+    "gpsEnabled": false,
     "rosMapEnabled": true,
-    "tags": ["点云示例", "室内"]
+    "tags": ["点云示例", "室内"],
+    "vendor": "斯坦德",
+    "model": "Oasis 600C",
+    "category": "搬运",
+    "maxLoadKg": 600,
+    "serialNumber": "NF-R24-001",
+    "commissionedAt": "2024-05-30"
   },
   {
     "deviceId": "agv-r02",
     "deviceName": "R02 点云示例车",
     "defaultSceneId": "cloudpoint-demo",
-    "gpsEnabled": true,
+    "gpsEnabled": false,
     "rosMapEnabled": true,
-    "tags": ["点云示例", "室内"]
+    "tags": ["点云示例", "室内"],
+    "vendor": "斯坦德",
+    "model": "Oasis 600C",
+    "category": "搬运",
+    "maxLoadKg": 600,
+    "serialNumber": "NF-R24-002"
   }
 ]

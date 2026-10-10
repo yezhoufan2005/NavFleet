@@ -52,5 +52,12 @@
     "sceneId": "cloudpoint-demo",
     "description": "点云地图示例编队",
     "color": "#7bd88f"
+  },
+  {
+    "formationId": "cross-site-patrol",
+    "formationName": "跨区联动编队",
+    "deviceIds": ["agv-a06", "agv-y05"],
+    "description": "跨康城路网与北区装卸场的联动编队——成员分处两个场景，有效场景按成员推导；a06/y05 同时属于各自主编队，演示一车多编队",
+    "color": "#f58eb1"
   }
 ]

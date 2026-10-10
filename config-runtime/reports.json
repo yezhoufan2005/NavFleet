@@ -1,0 +1,23 @@
+{
+  "schedules": [
+    {
+      "id": "daily-availability",
+      "enabled": true,
+      "range": "24h",
+      "time": "08:00",
+      "smtpEnv": "REPORTS_SMTP_URL",
+      "from": "navfleet@example.com",
+      "groups": ["oncall"]
+    },
+    {
+      "id": "weekly-summary",
+      "enabled": true,
+      "range": "7d",
+      "time": "09:00",
+      "weekday": 1,
+      "smtpEnv": "REPORTS_SMTP_URL",
+      "from": "navfleet@example.com",
+      "recipients": [{ "email": "manager@example.com" }]
+    }
+  ]
+}
