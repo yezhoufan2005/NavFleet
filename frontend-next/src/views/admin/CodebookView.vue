@@ -25,6 +25,7 @@ import { makeMessageFor } from "@/lib/errorMessages";
 import { notify } from "@/composables/useNotifications";
 import { useAuth } from "@/composables/useAuth";
 import { useCodebook } from "@/composables/useCodebook";
+import { useFieldErrors } from "@/composables/useFieldErrors";
 import {
   CODE_IMPACTS,
   CODE_SUBSYSTEMS,
@@ -117,8 +118,13 @@ const overrideHint = computed(() =>
 );
 
 // ── Row-level editing (codebook:write, 1.6.1) ─────────────────────────────────────
-const INPUT_CLASS =
-  "h-9 w-full rounded-sm border border-border-strong bg-surface px-2 text-sm text-ink placeholder:text-ink-subtle";
+const INPUT_BASE =
+  "h-9 w-full rounded-sm border bg-surface px-2 text-sm text-ink placeholder:text-ink-subtle";
+/** The raw field's classes, with the border turning red when that field is in error. */
+const fieldClass = (invalid: boolean): string[] => [
+  INPUT_BASE,
+  invalid ? "border-critical" : "border-border-strong",
+];
 
 const CHANNEL_OPTIONS = (["error", "warning", "info"] as CodeChannel[]).map(
   (value) => ({ value, label: CHANNEL_LABELS[value] }),
@@ -146,6 +152,11 @@ const fDescription = ref("");
 const fHint = ref("");
 const rowSaving = ref(false);
 const rowError = ref("");
+const { errors, clearOn, setErrors, report } = useFieldErrors();
+clearOn(fCode, "code");
+clearOn(fLabel, "label");
+clearOn(fDescription, "description");
+clearOn(fHint, "hint");
 
 const openCreateRow = (): void => {
   editingCode.value = null;
@@ -157,6 +168,7 @@ const openCreateRow = (): void => {
   fDescription.value = "";
   fHint.value = "";
   rowError.value = "";
+  setErrors({});
   mode.value = "create";
 };
 
@@ -170,6 +182,7 @@ const openEditRow = (entry: ReportCodeEntry): void => {
   fDescription.value = entry.description;
   fHint.value = entry.hint;
   rowError.value = "";
+  setErrors({});
   mode.value = "edit";
 };
 
@@ -177,23 +190,25 @@ const closeRowDialog = (): void => {
   mode.value = null;
 };
 
-/** Build the entry from the form, or return an error string for the first invalid field. */
-const buildEntry = (): { entry: ReportCodeEntry } | { error: string } => {
+/** Build the entry from the form, or return per-field errors for the invalid fields. */
+const buildEntry = ():
+  { entry: ReportCodeEntry } | { errors: Record<string, string> } => {
+  const fieldErrors: Record<string, string> = {};
   const code = Number(fCode.value);
   if (!Number.isInteger(code) || code <= 0) {
-    return { error: "报码需为正整数" };
-  }
-  if (
+    fieldErrors.code = "报码需为正整数";
+  } else if (
     entries.value.some((e) => e.code === code && e.code !== editingCode.value)
   ) {
-    return { error: `报码 ${code} 已存在` };
+    fieldErrors.code = `报码 ${code} 已存在`;
   }
   const label = fLabel.value.trim();
   const description = fDescription.value.trim();
   const hint = fHint.value.trim();
-  if (!label || !description || !hint) {
-    return { error: "名称、说明与处理建议都不能为空" };
-  }
+  if (!label) fieldErrors.label = "名称不能为空";
+  if (!description) fieldErrors.description = "说明不能为空";
+  if (!hint) fieldErrors.hint = "处理建议不能为空";
+  if (Object.keys(fieldErrors).length) return { errors: fieldErrors };
   return {
     entry: {
       code,
@@ -215,8 +230,8 @@ const persistRows = async (next: ReportCodeEntry[]): Promise<void> => {
 
 const submitRow = async (): Promise<void> => {
   const built = buildEntry();
-  if ("error" in built) {
-    rowError.value = built.error;
+  if ("errors" in built) {
+    report(built.errors);
     return;
   }
   const current = entries.value;
@@ -405,23 +420,35 @@ const rowDialogTitle = computed(() =>
       >
         <div class="grid grid-cols-2 gap-3">
           <label class="flex flex-col gap-1">
-            <span class="text-sm font-medium text-ink">报码</span>
+            <span class="text-sm font-medium text-ink"
+              >报码 <span class="text-critical-ink">*</span></span
+            >
             <input
               v-model="fCode"
               type="number"
               min="1"
               :disabled="rowSaving"
-              :class="[INPUT_CLASS, 'font-mono']"
+              :aria-invalid="errors.code ? 'true' : undefined"
+              :class="[fieldClass(!!errors.code), 'font-mono']"
             />
+            <p v-if="errors.code" class="m-0 text-xs text-critical-ink">
+              {{ errors.code }}
+            </p>
           </label>
           <label class="flex flex-col gap-1">
-            <span class="text-sm font-medium text-ink">名称</span>
+            <span class="text-sm font-medium text-ink"
+              >名称 <span class="text-critical-ink">*</span></span
+            >
             <input
               v-model="fLabel"
               type="text"
               :disabled="rowSaving"
-              :class="INPUT_CLASS"
+              :aria-invalid="errors.label ? 'true' : undefined"
+              :class="fieldClass(!!errors.label)"
             />
+            <p v-if="errors.label" class="m-0 text-xs text-critical-ink">
+              {{ errors.label }}
+            </p>
           </label>
         </div>
         <div class="grid grid-cols-3 gap-3">
@@ -454,22 +481,34 @@ const rowDialogTitle = computed(() =>
           </label>
         </div>
         <label class="flex flex-col gap-1">
-          <span class="text-sm font-medium text-ink">说明</span>
+          <span class="text-sm font-medium text-ink"
+            >说明 <span class="text-critical-ink">*</span></span
+          >
           <textarea
             v-model="fDescription"
             rows="2"
             :disabled="rowSaving"
-            :class="[INPUT_CLASS, 'h-auto py-2 leading-5']"
+            :aria-invalid="errors.description ? 'true' : undefined"
+            :class="[fieldClass(!!errors.description), 'h-auto py-2 leading-5']"
           ></textarea>
+          <p v-if="errors.description" class="m-0 text-xs text-critical-ink">
+            {{ errors.description }}
+          </p>
         </label>
         <label class="flex flex-col gap-1">
-          <span class="text-sm font-medium text-ink">处理建议</span>
+          <span class="text-sm font-medium text-ink"
+            >处理建议 <span class="text-critical-ink">*</span></span
+          >
           <textarea
             v-model="fHint"
             rows="2"
             :disabled="rowSaving"
-            :class="[INPUT_CLASS, 'h-auto py-2 leading-5']"
+            :aria-invalid="errors.hint ? 'true' : undefined"
+            :class="[fieldClass(!!errors.hint), 'h-auto py-2 leading-5']"
           ></textarea>
+          <p v-if="errors.hint" class="m-0 text-xs text-critical-ink">
+            {{ errors.hint }}
+          </p>
         </label>
         <p v-if="rowError" class="m-0 text-sm text-critical-ink" role="alert">
           {{ rowError }}
@@ -482,10 +521,7 @@ const rowDialogTitle = computed(() =>
             @click="closeRowDialog"
             >取消</UiButton
           >
-          <UiButton
-            size="sm"
-            type="submit"
-            :disabled="rowSaving || !String(fCode).trim()"
+          <UiButton size="sm" type="submit" :disabled="rowSaving"
             >保存</UiButton
           >
         </div>

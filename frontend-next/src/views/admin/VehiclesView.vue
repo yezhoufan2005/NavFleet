@@ -23,6 +23,7 @@ import UiModal from "@/components/ui/UiModal.vue";
 import { tableClasses } from "@/lib/uiClasses";
 import { makeMessageFor } from "@/lib/errorMessages";
 import { notify } from "@/composables/useNotifications";
+import { useFieldErrors } from "@/composables/useFieldErrors";
 
 const ERROR_MESSAGES: Record<string, string> = {
   invalid_vehicles: "车辆配置不合法，请检查各字段",
@@ -70,6 +71,7 @@ type Mode = "create" | "edit" | null;
 const mode = ref<Mode>(null);
 const saving = ref(false);
 const formError = ref("");
+const { errors, clearOn, setErrors, report } = useFieldErrors();
 const editingId = ref("");
 const fDeviceId = ref("");
 const fDeviceName = ref("");
@@ -77,10 +79,13 @@ const fSceneId = ref("");
 const fTags = ref("");
 const fGps = ref(true);
 const fRosMap = ref(true);
+// Clear a field's red state as soon as the operator starts fixing it.
+clearOn(fDeviceId, "deviceId");
 
 const openCreate = (): void => {
   mode.value = "create";
   formError.value = "";
+  setErrors({});
   editingId.value = "";
   fDeviceId.value = "";
   fDeviceName.value = "";
@@ -92,6 +97,7 @@ const openCreate = (): void => {
 const openEdit = (vehicle: DeviceConfig): void => {
   mode.value = "edit";
   formError.value = "";
+  setErrors({});
   editingId.value = vehicle.deviceId;
   fDeviceId.value = vehicle.deviceId;
   fDeviceName.value = vehicle.deviceName ?? "";
@@ -131,17 +137,16 @@ const persist = async (next: DeviceConfig[]): Promise<boolean> => {
 const submit = async (): Promise<void> => {
   formError.value = "";
   const id = fDeviceId.value.trim();
+  const fieldErrors: Record<string, string> = {};
   if (!id) {
-    formError.value = "请输入设备 ID";
-    return;
-  }
-  if (
+    fieldErrors.deviceId = "请输入设备 ID";
+  } else if (
     mode.value === "create" &&
     vehicles.value.some((v) => v.deviceId === id)
   ) {
-    formError.value = "设备 ID 已存在";
-    return;
+    fieldErrors.deviceId = "设备 ID 已存在";
   }
+  if (report(fieldErrors)) return;
   saving.value = true;
   const entry = buildVehicle();
   const next =
@@ -296,13 +301,19 @@ const dialogTitle = computed(() =>
       @submit.prevent="submit"
     >
       <label class="flex flex-col gap-1">
-        <span class="text-sm font-medium text-ink">设备 ID</span>
+        <span class="text-sm font-medium text-ink"
+          >设备 ID <span class="text-critical-ink">*</span></span
+        >
         <UiInput
           v-model="fDeviceId"
           type="text"
           :disabled="mode === 'edit' || saving"
+          :invalid="!!errors.deviceId"
           size="sm"
         />
+        <p v-if="errors.deviceId" class="m-0 text-xs text-critical-ink">
+          {{ errors.deviceId }}
+        </p>
       </label>
       <label class="flex flex-col gap-1">
         <span class="text-sm font-medium text-ink">名称</span>

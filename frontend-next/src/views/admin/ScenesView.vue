@@ -35,6 +35,7 @@ import UiModal from "@/components/ui/UiModal.vue";
 import { makeMessageFor } from "@/lib/errorMessages";
 import { notify } from "@/composables/useNotifications";
 import { useAutoRefresh } from "@/composables/useAutoRefresh";
+import { useFieldErrors } from "@/composables/useFieldErrors";
 import { useFleetStore } from "@/stores/fleet";
 import { fleetApi, formatNumber } from "@navfleet/fleet-core";
 import type { SceneAssetKind, SceneDefinition } from "@navfleet/fleet-core";
@@ -237,6 +238,11 @@ const fOriginYaw = ref("0");
 const fAssetKind = ref<SceneAssetKind>("image");
 const fAssetFile = ref<File | null>(null);
 const assetFileInput = ref<HTMLInputElement | null>(null);
+const { errors, clearOn, setErrors, report } = useFieldErrors();
+clearOn(fSceneId, "sceneId");
+clearOn(fResolution, "resolution");
+clearOn(fWidth, "width");
+clearOn(fHeight, "height");
 
 const dialogTitle = computed(() =>
   mode.value === "create" ? "新增场景" : "编辑场景",
@@ -245,6 +251,7 @@ const dialogTitle = computed(() =>
 const openCreate = (): void => {
   mode.value = "create";
   formError.value = "";
+  setErrors({});
   editingId.value = "";
   fSceneId.value = "";
   fSceneName.value = "";
@@ -262,6 +269,7 @@ const openCreate = (): void => {
 const openEdit = (scene: SceneDefinition): void => {
   mode.value = "edit";
   formError.value = "";
+  setErrors({});
   editingId.value = String(scene.sceneId);
   fSceneId.value = String(scene.sceneId);
   fSceneName.value = String(scene.sceneName ?? "");
@@ -294,26 +302,27 @@ const positive = (value: string): number | null => {
 
 const submit = async (): Promise<void> => {
   formError.value = "";
+  const fieldErrors: Record<string, string> = {};
   const id = fSceneId.value.trim();
   if (!id) {
-    formError.value = "请输入场景 ID";
-    return;
-  }
-  if (!/^[A-Za-z0-9._-]+$/.test(id) || /^\.+$/.test(id)) {
-    formError.value = "场景 ID 只能是字母、数字、点、下划线、连字符";
-    return;
-  }
-  if (mode.value === "create" && scenes.value.some((s) => s.sceneId === id)) {
-    formError.value = "场景 ID 已存在";
-    return;
+    fieldErrors.sceneId = "请输入场景 ID";
+  } else if (!/^[A-Za-z0-9._-]+$/.test(id) || /^\.+$/.test(id)) {
+    fieldErrors.sceneId = "只能是字母、数字、点、下划线、连字符";
+  } else if (
+    mode.value === "create" &&
+    scenes.value.some((s) => s.sceneId === id)
+  ) {
+    fieldErrors.sceneId = "场景 ID 已存在";
   }
   const resolution = positive(fResolution.value);
   const width = positive(fWidth.value);
   const height = positive(fHeight.value);
-  if (resolution === null || width === null || height === null) {
-    formError.value = "分辨率、宽、高都必须是大于 0 的数";
-    return;
-  }
+  if (resolution === null) fieldErrors.resolution = "需为大于 0 的数";
+  if (width === null) fieldErrors.width = "需为大于 0 的数";
+  if (height === null) fieldErrors.height = "需为大于 0 的数";
+  if (report(fieldErrors)) return;
+  // Narrowed by the guard above (each null set a field error and returned).
+  if (resolution === null || width === null || height === null) return;
   const originX = Number(fOriginX.value);
   const originY = Number(fOriginY.value);
   const originYaw = Number(fOriginYaw.value);
@@ -572,13 +581,19 @@ const runDelete = async (): Promise<void> => {
       @submit.prevent="submit"
     >
       <label class="flex flex-col gap-1">
-        <span class="text-sm font-medium text-ink">场景 ID</span>
+        <span class="text-sm font-medium text-ink"
+          >场景 ID <span class="text-critical-ink">*</span></span
+        >
         <UiInput
           v-model="fSceneId"
           type="text"
           :disabled="mode === 'edit' || saving"
+          :invalid="!!errors.sceneId"
           size="sm"
         />
+        <p v-if="errors.sceneId" class="m-0 text-xs text-critical-ink">
+          {{ errors.sceneId }}
+        </p>
       </label>
       <label class="flex flex-col gap-1">
         <span class="text-sm font-medium text-ink">名称</span>
@@ -595,21 +610,49 @@ const runDelete = async (): Promise<void> => {
       </label>
       <div class="grid grid-cols-3 gap-2">
         <label class="flex flex-col gap-1">
-          <span class="text-sm font-medium text-ink">分辨率 m/px</span>
+          <span class="text-sm font-medium text-ink"
+            >分辨率 m/px <span class="text-critical-ink">*</span></span
+          >
           <UiInput
             v-model="fResolution"
             type="text"
             :disabled="saving"
+            :invalid="!!errors.resolution"
             size="sm"
           />
+          <p v-if="errors.resolution" class="m-0 text-xs text-critical-ink">
+            {{ errors.resolution }}
+          </p>
         </label>
         <label class="flex flex-col gap-1">
-          <span class="text-sm font-medium text-ink">宽 px</span>
-          <UiInput v-model="fWidth" type="text" :disabled="saving" size="sm" />
+          <span class="text-sm font-medium text-ink"
+            >宽 px <span class="text-critical-ink">*</span></span
+          >
+          <UiInput
+            v-model="fWidth"
+            type="text"
+            :disabled="saving"
+            :invalid="!!errors.width"
+            size="sm"
+          />
+          <p v-if="errors.width" class="m-0 text-xs text-critical-ink">
+            {{ errors.width }}
+          </p>
         </label>
         <label class="flex flex-col gap-1">
-          <span class="text-sm font-medium text-ink">高 px</span>
-          <UiInput v-model="fHeight" type="text" :disabled="saving" size="sm" />
+          <span class="text-sm font-medium text-ink"
+            >高 px <span class="text-critical-ink">*</span></span
+          >
+          <UiInput
+            v-model="fHeight"
+            type="text"
+            :disabled="saving"
+            :invalid="!!errors.height"
+            size="sm"
+          />
+          <p v-if="errors.height" class="m-0 text-xs text-critical-ink">
+            {{ errors.height }}
+          </p>
         </label>
       </div>
       <div class="grid grid-cols-3 gap-2">
@@ -642,7 +685,7 @@ const runDelete = async (): Promise<void> => {
         </label>
       </div>
       <fieldset class="flex flex-col gap-2 rounded-sm border border-border p-2">
-        <legend class="px-1 text-sm font-medium text-ink">底图（可选）</legend>
+        <legend class="px-1 text-sm font-medium text-ink">底图</legend>
         <p class="m-0 text-xs text-ink-muted">
           选类型并上传文件；已引用同类底图时就地替换，否则落到 scene-maps 下
         </p>
@@ -662,7 +705,6 @@ const runDelete = async (): Promise<void> => {
             @change="onFileChosen"
           />
           <UiButton
-            variant="secondary"
             size="sm"
             type="button"
             :disabled="saving"

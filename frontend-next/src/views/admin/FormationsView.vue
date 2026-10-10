@@ -22,6 +22,7 @@ import UiModal from "@/components/ui/UiModal.vue";
 import { tableClasses } from "@/lib/uiClasses";
 import { makeMessageFor } from "@/lib/errorMessages";
 import { notify } from "@/composables/useNotifications";
+import { useFieldErrors } from "@/composables/useFieldErrors";
 
 const ERROR_MESSAGES: Record<string, string> = {
   invalid_formations: "编队配置不合法，请检查各字段",
@@ -79,6 +80,7 @@ type Mode = "create" | "edit" | null;
 const mode = ref<Mode>(null);
 const saving = ref(false);
 const formError = ref("");
+const { errors, clearOn, setErrors, report } = useFieldErrors();
 const editingId = ref("");
 const fId = ref("");
 const fName = ref("");
@@ -86,10 +88,14 @@ const fDeviceIds = ref<string[]>([]);
 const fSceneId = ref("");
 const fDescription = ref("");
 const fColor = ref("");
+// Clear a field's red state as soon as the operator starts fixing it.
+clearOn(fId, "formationId");
+clearOn(fDeviceIds, "deviceIds");
 
 const openCreate = (): void => {
   mode.value = "create";
   formError.value = "";
+  setErrors({});
   editingId.value = "";
   fId.value = "";
   fName.value = "";
@@ -101,6 +107,7 @@ const openCreate = (): void => {
 const openEdit = (formation: FormationConfig): void => {
   mode.value = "edit";
   formError.value = "";
+  setErrors({});
   editingId.value = formation.formationId;
   fId.value = formation.formationId;
   fName.value = formation.formationName ?? "";
@@ -133,21 +140,19 @@ const persist = async (next: FormationConfig[]): Promise<boolean> => {
 const submit = async (): Promise<void> => {
   formError.value = "";
   const id = fId.value.trim();
+  const fieldErrors: Record<string, string> = {};
   if (!id) {
-    formError.value = "请输入编队 ID";
-    return;
-  }
-  if (
+    fieldErrors.formationId = "请输入编队 ID";
+  } else if (
     mode.value === "create" &&
     formations.value.some((f) => f.formationId === id)
   ) {
-    formError.value = "编队 ID 已存在";
-    return;
+    fieldErrors.formationId = "编队 ID 已存在";
   }
   if (fDeviceIds.value.length === 0) {
-    formError.value = "请至少选择一台车辆";
-    return;
+    fieldErrors.deviceIds = "请至少选择一台车辆";
   }
+  if (report(fieldErrors)) return;
   saving.value = true;
   const entry: FormationConfig = {
     formationId: id,
@@ -311,22 +316,33 @@ const dialogTitle = computed(() =>
       @submit.prevent="submit"
     >
       <label class="flex flex-col gap-1">
-        <span class="text-sm font-medium text-ink">编队 ID</span>
+        <span class="text-sm font-medium text-ink"
+          >编队 ID <span class="text-critical-ink">*</span></span
+        >
         <UiInput
           v-model="fId"
           type="text"
           :disabled="mode === 'edit' || saving"
+          :invalid="!!errors.formationId"
           size="sm"
         />
+        <p v-if="errors.formationId" class="m-0 text-xs text-critical-ink">
+          {{ errors.formationId }}
+        </p>
       </label>
       <label class="flex flex-col gap-1">
         <span class="text-sm font-medium text-ink">名称</span>
         <UiInput v-model="fName" type="text" :disabled="saving" size="sm" />
       </label>
       <fieldset class="flex flex-col gap-1">
-        <legend class="text-sm font-medium text-ink">车辆（至少一台）</legend>
+        <legend class="text-sm font-medium text-ink">
+          车辆 <span class="text-critical-ink">*</span>
+        </legend>
         <div
-          class="flex max-h-40 flex-col gap-1 overflow-auto rounded-sm border border-border p-2"
+          class="flex max-h-40 flex-col gap-1 overflow-auto rounded-sm border p-2"
+          :class="errors.deviceIds ? 'border-critical' : 'border-border'"
+          :data-invalid="errors.deviceIds ? 'true' : undefined"
+          :tabindex="errors.deviceIds ? -1 : undefined"
         >
           <label
             v-for="option in vehicleOptions"
@@ -342,6 +358,9 @@ const dialogTitle = computed(() =>
             <span class="text-sm text-ink">{{ option.label }}</span>
           </label>
         </div>
+        <p v-if="errors.deviceIds" class="m-0 text-xs text-critical-ink">
+          {{ errors.deviceIds }}
+        </p>
       </fieldset>
       <label class="flex flex-col gap-1">
         <span class="text-sm font-medium text-ink">默认场景</span>

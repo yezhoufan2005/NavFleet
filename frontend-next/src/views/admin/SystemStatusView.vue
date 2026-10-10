@@ -442,9 +442,7 @@ const AREA_LABELS: Record<StoredEntry["area"], string> = {
               <th scope="col" class="px-3 py-2">项目</th>
               <th scope="col" class="px-3 py-2">存续</th>
               <th scope="col" class="px-3 py-2">值</th>
-              <th scope="col" class="px-3 py-2">
-                <span class="sr-only">操作</span>
-              </th>
+              <th scope="col" class="px-3 py-2 text-right">操作</th>
             </tr>
           </thead>
           <tbody>

@@ -24,6 +24,7 @@ import UiModal from "@/components/ui/UiModal.vue";
 import { tableClasses } from "@/lib/uiClasses";
 import { makeMessageFor } from "@/lib/errorMessages";
 import { notify } from "@/composables/useNotifications";
+import { useFieldErrors } from "@/composables/useFieldErrors";
 
 /** Chinese labels for the capability catalog, in `CAPABILITIES` order. */
 const CAP_LABELS: Record<Capability, string> = {
@@ -71,12 +72,15 @@ const rName = ref("");
 const rCaps = ref<Capability[]>([]);
 const roleSaving = ref(false);
 const roleError = ref("");
+const { errors, clearOn, setErrors, report } = useFieldErrors();
+clearOn(rName, "name");
 
 const openCreateRole = (): void => {
   roleEditingId.value = null;
   rName.value = "";
   rCaps.value = [];
   roleError.value = "";
+  setErrors({});
   roleMode.value = "create";
 };
 const openEditRole = (role: RbacRole): void => {
@@ -84,6 +88,7 @@ const openEditRole = (role: RbacRole): void => {
   rName.value = role.name;
   rCaps.value = [...role.capabilities];
   roleError.value = "";
+  setErrors({});
   roleMode.value = "edit";
 };
 const closeRoleDialog = (): void => {
@@ -96,9 +101,11 @@ const toggleCap = (capability: Capability): void => {
 };
 
 const submitRole = async (): Promise<void> => {
+  const name = rName.value.trim();
+  if (report(name ? {} : { name: "请输入名称" })) return;
   roleSaving.value = true;
   roleError.value = "";
-  const payload = { name: rName.value.trim(), capabilities: rCaps.value };
+  const payload = { name, capabilities: rCaps.value };
   try {
     if (roleMode.value === "edit" && roleEditingId.value) {
       await fleetApi.updateRbacRole(roleEditingId.value, payload);
@@ -220,13 +227,19 @@ const roleDialogTitle = computed(() =>
         @submit.prevent="submitRole"
       >
         <label class="flex flex-col gap-1">
-          <span class="text-sm font-medium text-ink">名称</span>
+          <span class="text-sm font-medium text-ink"
+            >名称 <span class="text-critical-ink">*</span></span
+          >
           <UiInput
             v-model="rName"
             type="text"
             :disabled="roleSaving"
+            :invalid="!!errors.name"
             size="sm"
           />
+          <p v-if="errors.name" class="m-0 text-xs text-critical-ink">
+            {{ errors.name }}
+          </p>
         </label>
         <fieldset class="flex flex-col gap-1 border-0 p-0">
           <legend class="mb-1 text-sm font-medium text-ink">能力</legend>
@@ -258,10 +271,7 @@ const roleDialogTitle = computed(() =>
             @click="closeRoleDialog"
             >取消</UiButton
           >
-          <UiButton
-            size="sm"
-            type="submit"
-            :disabled="roleSaving || !rName.trim()"
+          <UiButton size="sm" type="submit" :disabled="roleSaving"
             >保存</UiButton
           >
         </div>
