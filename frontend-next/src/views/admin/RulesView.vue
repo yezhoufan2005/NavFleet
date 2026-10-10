@@ -24,7 +24,8 @@ import PageHeader from "@/components/PageHeader.vue";
 import AppSectionTabs from "@/components/shell/AppSectionTabs.vue";
 import UiButton from "@/components/ui/UiButton.vue";
 import UiInput from "@/components/ui/UiInput.vue";
-import UiMultiSelect from "@/components/ui/UiMultiSelect.vue";
+import RuleSection from "@/components/admin/RuleSection.vue";
+import type { RuleScopeModel } from "@/components/admin/RuleSection.vue";
 import { useFleetStore } from "@/stores/fleet";
 import { makeMessageFor } from "@/lib/errorMessages";
 import { notify as toast } from "@/composables/useNotifications";
@@ -49,19 +50,21 @@ const offAfter = ref("");
 
 /**
  * 设备 / 编队 are picked from the live fleet (multi-select) rather than typed, so a scope can only
- * name things that exist; 标签 stays free text because tags are arbitrary and have no roster. A
- * scope id configured for a device/formation that has since left the fleet is kept selectable (see
- * `mergeOptions`) so it can still be removed.
+ * name things that exist; 标签 stays free text because tags are arbitrary and have no roster. The
+ * per-section rendering (and keeping a departed id selectable) lives in `RuleSection`.
  */
-interface ScopeModel {
-  deviceIds: string[];
-  formationIds: string[];
-  tags: string;
-}
-const lbScope = ref<ScopeModel>({ deviceIds: [], formationIds: [], tags: "" });
-const offScope = ref<ScopeModel>({ deviceIds: [], formationIds: [], tags: "" });
+const lbScope = ref<RuleScopeModel>({
+  deviceIds: [],
+  formationIds: [],
+  tags: "",
+});
+const offScope = ref<RuleScopeModel>({
+  deviceIds: [],
+  formationIds: [],
+  tags: "",
+});
 
-const scopeToModel = (scope?: RuleScope): ScopeModel => ({
+const scopeToModel = (scope?: RuleScope): RuleScopeModel => ({
   deviceIds: [...(scope?.deviceIds ?? [])],
   formationIds: [...(scope?.formationIds ?? [])],
   tags: (scope?.tags ?? []).join(", "),
@@ -72,7 +75,7 @@ const splitList = (text: string): string[] =>
     .map((entry) => entry.trim())
     .filter(Boolean);
 /** Only include a `scope` when some dimension is listed — an empty scope means whole-fleet. */
-const modelToScope = (model: ScopeModel): RuleScope | undefined => {
+const modelToScope = (model: RuleScopeModel): RuleScope | undefined => {
   const scope: RuleScope = {};
   const tags = splitList(model.tags);
   if (model.deviceIds.length) scope.deviceIds = [...model.deviceIds];
@@ -96,19 +99,6 @@ const formationOptions = computed(() =>
     label: formation.formationName || formation.formationId,
   })),
 );
-/** Keep already-selected ids listed even if they are no longer in the fleet, so they can be unset. */
-const mergeOptions = (
-  base: { value: string; label: string }[],
-  selected: readonly string[],
-): { value: string; label: string }[] => {
-  const known = new Set(base.map((option) => option.value));
-  return [
-    ...base,
-    ...selected
-      .filter((value) => !known.has(value))
-      .map((value) => ({ value, label: value })),
-  ];
-};
 
 /** The last config the server confirmed — the thing 撤销 restores to. */
 const lastSaved = ref<AlertRulesConfig | null>(null);
@@ -269,144 +259,76 @@ const resetToDefaults = (): void => applyConfig(DEFAULT_ALERT_RULES);
       :aria-busy="saving"
       @submit.prevent="submit"
     >
-      <!-- 低电量预警 -->
-      <section
-        class="flex flex-col gap-3 rounded-md border border-border bg-surface-raised p-4"
-        aria-label="低电量预警"
+      <RuleSection
+        title="低电量预警"
+        scope-label="低电量"
+        :enabled="lbEnabled"
+        :scope="lbScope"
+        :device-options="deviceOptions"
+        :formation-options="formationOptions"
+        :disabled="saving"
+        @update:enabled="(value) => (lbEnabled = value)"
+        @update:scope="(value) => (lbScope = value)"
       >
-        <label class="flex items-center gap-2 text-md font-semibold text-ink">
-          <input
-            v-model="lbEnabled"
-            type="checkbox"
-            class="size-4"
-            :disabled="saving"
-          />
-          低电量预警
-        </label>
-        <div class="grid grid-cols-2 gap-3">
-          <label class="flex flex-col gap-1">
-            <span class="text-sm font-medium text-ink">触发阈值（%）</span>
+        <template #default="{ disabled }">
+          <div class="grid grid-cols-2 gap-3">
+            <label class="flex flex-col gap-1">
+              <span class="text-sm font-medium text-ink">触发阈值（%）</span>
+              <UiInput
+                v-model="lbThreshold"
+                type="number"
+                min="1"
+                max="100"
+                :disabled="disabled"
+                size="sm"
+              />
+            </label>
+            <label class="flex flex-col gap-1">
+              <span class="text-sm font-medium text-ink">防抖窗口（秒）</span>
+              <UiInput
+                v-model="lbDebounce"
+                type="number"
+                min="0"
+                :disabled="disabled"
+                size="sm"
+              />
+            </label>
+          </div>
+        </template>
+      </RuleSection>
+
+      <RuleSection
+        title="设备离线"
+        scope-label="离线"
+        :enabled="offEnabled"
+        :scope="offScope"
+        :device-options="deviceOptions"
+        :formation-options="formationOptions"
+        :disabled="saving"
+        @update:enabled="(value) => (offEnabled = value)"
+        @update:scope="(value) => (offScope = value)"
+      >
+        <template #default="{ disabled }">
+          <label class="flex max-w-xs flex-col gap-1">
+            <span class="text-sm font-medium text-ink">离线判定（秒）</span>
             <UiInput
-              v-model="lbThreshold"
+              v-model="offAfter"
               type="number"
               min="1"
-              max="100"
-              :disabled="saving || !lbEnabled"
+              placeholder="留空用系统默认"
+              :disabled="disabled"
               size="sm"
             />
           </label>
-          <label class="flex flex-col gap-1">
-            <span class="text-sm font-medium text-ink">防抖窗口（秒）</span>
-            <UiInput
-              v-model="lbDebounce"
-              type="number"
-              min="0"
-              :disabled="saving || !lbEnabled"
-              size="sm"
-            />
-          </label>
-        </div>
-        <fieldset class="grid grid-cols-3 gap-2 border-0 p-0">
-          <legend class="mb-1 text-sm font-medium text-ink">作用范围</legend>
-          <label class="flex flex-col gap-1">
-            <span class="text-2xs text-ink-muted">设备</span>
-            <UiMultiSelect
-              :model-value="lbScope.deviceIds"
-              :options="mergeOptions(deviceOptions, lbScope.deviceIds)"
-              placeholder="不限"
-              aria-label="低电量作用范围：设备"
-              :disabled="saving"
-              @update:model-value="(value) => (lbScope.deviceIds = value)"
-            />
-          </label>
-          <label class="flex flex-col gap-1">
-            <span class="text-2xs text-ink-muted">编队</span>
-            <UiMultiSelect
-              :model-value="lbScope.formationIds"
-              :options="mergeOptions(formationOptions, lbScope.formationIds)"
-              placeholder="不限"
-              aria-label="低电量作用范围：编队"
-              :disabled="saving"
-              @update:model-value="(value) => (lbScope.formationIds = value)"
-            />
-          </label>
-          <label class="flex flex-col gap-1">
-            <span class="text-2xs text-ink-muted">标签</span>
-            <UiInput
-              v-model="lbScope.tags"
-              type="text"
-              placeholder="逗号分隔"
-              :disabled="saving"
-              size="sm"
-            />
-          </label>
-        </fieldset>
-      </section>
-
-      <!-- 设备离线 -->
-      <section
-        class="flex flex-col gap-3 rounded-md border border-border bg-surface-raised p-4"
-        aria-label="设备离线"
-      >
-        <label class="flex items-center gap-2 text-md font-semibold text-ink">
-          <input
-            v-model="offEnabled"
-            type="checkbox"
-            class="size-4"
-            :disabled="saving"
-          />
-          设备离线
-        </label>
-        <label class="flex max-w-xs flex-col gap-1">
-          <span class="text-sm font-medium text-ink">离线判定（秒）</span>
-          <UiInput
-            v-model="offAfter"
-            type="number"
-            min="1"
-            placeholder="留空用系统默认"
-            :disabled="saving || !offEnabled"
-            size="sm"
-          />
-        </label>
-        <fieldset class="grid grid-cols-3 gap-2 border-0 p-0">
-          <legend class="mb-1 text-sm font-medium text-ink">作用范围</legend>
-          <label class="flex flex-col gap-1">
-            <span class="text-2xs text-ink-muted">设备</span>
-            <UiMultiSelect
-              :model-value="offScope.deviceIds"
-              :options="mergeOptions(deviceOptions, offScope.deviceIds)"
-              placeholder="不限"
-              aria-label="离线作用范围：设备"
-              :disabled="saving"
-              @update:model-value="(value) => (offScope.deviceIds = value)"
-            />
-          </label>
-          <label class="flex flex-col gap-1">
-            <span class="text-2xs text-ink-muted">编队</span>
-            <UiMultiSelect
-              :model-value="offScope.formationIds"
-              :options="mergeOptions(formationOptions, offScope.formationIds)"
-              placeholder="不限"
-              aria-label="离线作用范围：编队"
-              :disabled="saving"
-              @update:model-value="(value) => (offScope.formationIds = value)"
-            />
-          </label>
-          <label class="flex flex-col gap-1">
-            <span class="text-2xs text-ink-muted">标签</span>
-            <UiInput
-              v-model="offScope.tags"
-              type="text"
-              placeholder="逗号分隔"
-              :disabled="saving"
-              size="sm"
-            />
-          </label>
-        </fieldset>
-      </section>
+        </template>
+      </RuleSection>
 
       <p v-if="formError" class="m-0 text-sm text-critical-ink" role="alert">
         {{ formError }}
+      </p>
+      <!-- 恢复默认 only refills the form; nothing is written until 保存. -->
+      <p class="m-0 text-2xs text-ink-subtle">
+        「恢复默认」仅重置表单为内置默认值，点「保存」后才写入生效
       </p>
     </form>
   </PageHeader>
