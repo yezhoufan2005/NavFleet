@@ -74,6 +74,65 @@ export const summarizeAvailability = (
   };
 };
 
+export interface DeviceAvailabilitySummary {
+  deviceId: string;
+  /** 帧加权在线率 [0,1]；该设备这段无样本时 null。 */
+  onlineRatio: number | null;
+  /** 帧加权 soc 均值；无 soc 样本时 null。 */
+  socMean: number | null;
+  /** 区间内见过的最低 soc；无 soc 样本时 null。 */
+  socMin: number | null;
+  /** 上报总帧数（在线率的分母），用来判断「100% 来自 2 帧」这类小样本。 */
+  samples: number;
+}
+
+/**
+ * 把可用率报表按设备卷成「每车一行」——运营报告表格的数据源。在线率与 soc 均值用与车队汇总同样的
+ * 帧加权，另给出区间最低 soc 与样本帧数。按**在线率升序**（null 垫底、再按 id）返回，让最该关注的
+ * 车排在最上面；视图负责把 id 映射成名字。
+ */
+export const perDeviceAvailability = (
+  report: AvailabilityReport,
+): DeviceAvailabilitySummary[] => {
+  const rows = report.devices.map((device) => {
+    let online = 0;
+    let total = 0;
+    let socWeighted = 0;
+    let socWeight = 0;
+    let socMin: number | null = null;
+    for (const bucket of device.buckets) {
+      online += bucket.onlineSamples;
+      total += bucket.totalSamples;
+      if (bucket.socMean !== null && bucket.totalSamples > 0) {
+        socWeighted += bucket.socMean * bucket.totalSamples;
+        socWeight += bucket.totalSamples;
+      }
+      if (bucket.socMin !== null) {
+        socMin =
+          socMin === null ? bucket.socMin : Math.min(socMin, bucket.socMin);
+      }
+    }
+    return {
+      deviceId: device.deviceId,
+      onlineRatio: total > 0 ? online / total : null,
+      socMean: socWeight > 0 ? socWeighted / socWeight : null,
+      socMin,
+      samples: total,
+    };
+  });
+  return rows.sort((left, right) => {
+    if (left.onlineRatio === null && right.onlineRatio === null) {
+      return left.deviceId.localeCompare(right.deviceId);
+    }
+    if (left.onlineRatio === null) return 1;
+    if (right.onlineRatio === null) return -1;
+    if (left.onlineRatio !== right.onlineRatio) {
+      return left.onlineRatio - right.onlineRatio;
+    }
+    return left.deviceId.localeCompare(right.deviceId);
+  });
+};
+
 /** 一个 ISO 桶起点 → epoch ms；无法解析时返回 NaN（调用方过滤掉）。 */
 const bucketMs = (iso: string): number => Date.parse(iso);
 

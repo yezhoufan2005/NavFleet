@@ -22,11 +22,6 @@ const lineStub = {
   template:
     '<div class="line-stub" :data-label="label" :data-series="series.length" />',
 };
-const barStub = {
-  props: ["data", "label"],
-  template:
-    '<div class="bar-stub" :data-label="label" :data-count="data.length" />',
-};
 
 const availabilityReport = (
   patch: Partial<AvailabilityReport> = {},
@@ -97,7 +92,7 @@ const mountView = async (query = "") => {
   const wrapper = mount(ReportsView, {
     global: {
       plugins: [router],
-      stubs: { TimeSeriesChart: lineStub, CategoryBarChart: barStub },
+      stubs: { TimeSeriesChart: lineStub },
     },
   });
   await flushPromises();
@@ -139,7 +134,7 @@ describe("报表 状态与内容", () => {
     expect(wrapper.find('a[href="/system"]').exists()).toBe(true);
   });
 
-  it("渲染 KPI 带、时序图与告警柱图", async () => {
+  it("渲染 KPI 带、两条趋势与按车辆可用率表", async () => {
     const wrapper = await mountView();
 
     // KPI band: fleet online = 19/20 = 95.0%, weighted soc = (80*10+78*10)/20 = 79.0%.
@@ -149,9 +144,14 @@ describe("报表 状态与内容", () => {
     // 确认率 0.5 → 50%; 消息总数 4.
     expect(wrapper.text()).toContain("50%");
 
-    // Two time-series (online + battery) and three bar charts (severity/top/daily).
+    // Two time-series (online + battery); the alert distribution bars are gone.
     expect(wrapper.findAll(".line-stub")).toHaveLength(2);
-    expect(wrapper.findAll(".bar-stub")).toHaveLength(3);
+
+    // Per-vehicle table: the one device, with its online rate, mean soc and lowest soc.
+    expect(wrapper.text()).toContain("按车辆可用率");
+    expect(wrapper.text()).toContain("A01 巡检车");
+    // 最低电量 = min(60, 70) = 60.0%.
+    expect(wrapper.text()).toContain("60.0%");
   });
 
   it("导出 CSV 时生成一个带 BOM 的 Blob 并触发下载", async () => {

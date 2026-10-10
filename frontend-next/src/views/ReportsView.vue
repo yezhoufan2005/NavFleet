@@ -22,10 +22,8 @@ import UiSelect from "@/components/ui/UiSelect.vue";
 import UiMultiSelect from "@/components/ui/UiMultiSelect.vue";
 import UiFilterBar from "@/components/ui/UiFilterBar.vue";
 import UiFilterField from "@/components/ui/UiFilterField.vue";
-import { SEVERITY_LABELS } from "@/lib/severity";
+import { tableClasses } from "@/lib/uiClasses";
 import TimeSeriesChart from "@/components/charts/TimeSeriesChart.vue";
-import CategoryBarChart from "@/components/charts/CategoryBarChart.vue";
-import { useChartTheme } from "@/composables/useChartTheme";
 import { useFleetStore } from "@/stores/fleet";
 import { fleetApi } from "@navfleet/fleet-core";
 import type {
@@ -37,9 +35,11 @@ import {
   buildAlertStatsCsv,
   buildAvailabilityCsv,
   onlineRatioSeries,
+  perDeviceAvailability,
   socSeries,
   summarizeAvailability,
   windowForPreset,
+  type DeviceAvailabilitySummary,
   type RangePreset,
 } from "@/lib/reportsView";
 
@@ -57,7 +57,6 @@ const BUCKETS: readonly { value: ReportBucketUnit; label: string }[] = [
 ];
 const route = useRoute();
 const router = useRouter();
-const { palette } = useChartTheme();
 const fleet = useFleetStore();
 
 const status = ref<"loading" | "ready" | "error">("loading");
@@ -199,34 +198,24 @@ const ackRateLabel = computed(() =>
     : `${Math.round(alertStats.value.ackRate * 100)}%`,
 );
 const alertTotal = computed(() => alertStats.value?.total ?? 0);
-
-// ── Derived: alert charts ───────────────────────────────────────────────────────────────
-const severityData = computed(() =>
-  alertStats.value
-    ? (["critical", "warning", "notice"] as const).map((key) => ({
-        label: SEVERITY_LABELS[key],
-        value: alertStats.value!.bySeverity[key],
-        color: palette.value.status[key],
-      }))
-    : [],
-);
-const deviceData = computed(() =>
-  alertStats.value
-    ? alertStats.value.topDevices.map((device) => ({
-        label: nameOf(device.deviceId),
-        value: device.count,
-      }))
-    : [],
-);
-const dailyData = computed(() =>
-  alertStats.value
-    ? alertStats.value.daily.map((entry) => ({
-        label: entry.day,
-        value: entry.count,
-      }))
-    : [],
-);
 const hasAlertData = computed(() => alertTotal.value > 0);
+
+// ── Derived: per-vehicle availability table (the operational core of the report) ─────────
+interface DeviceRow extends DeviceAvailabilitySummary {
+  name: string;
+}
+const deviceRows = computed<DeviceRow[]>(() =>
+  availability.value
+    ? perDeviceAvailability(availability.value).map((row) => ({
+        ...row,
+        name: nameOf(row.deviceId),
+      }))
+    : [],
+);
+const pct = (value: number | null): string =>
+  value === null ? "—" : `${(value * 100).toFixed(1)}%`;
+const soc = (value: number | null): string =>
+  value === null ? "—" : `${value.toFixed(1)}%`;
 
 // ── Device filter options (union of live fleet + whatever the report carries) ────────────
 const deviceOptions = computed(() => {
@@ -296,7 +285,7 @@ const exportAlertsCsv = (): void => {
 
     <!-- Filters in one row above the charts (data-viz convention), export at the end. -->
     <UiFilterBar>
-      <UiFilterField label="范围">
+      <UiFilterField label="快捷范围">
         <UiSegmented
           :model-value="isCustom ? '' : range"
           :options="RANGES"
@@ -363,19 +352,18 @@ const exportAlertsCsv = (): void => {
           class="h-[4.5rem] rounded-md border border-border bg-surface-raised motion-safe:animate-pulse"
         />
       </dl>
-      <div class="grid gap-4 lg:grid-cols-[2fr_1fr]" aria-hidden="true">
-        <div class="flex flex-col gap-4">
-          <div
-            class="h-64 rounded-md border border-border bg-surface-raised motion-safe:animate-pulse"
-          />
-          <div
-            class="h-64 rounded-md border border-border bg-surface-raised motion-safe:animate-pulse"
-          />
-        </div>
+      <div class="grid gap-4 lg:grid-cols-2" aria-hidden="true">
+        <div
+          class="h-64 rounded-md border border-border bg-surface-raised motion-safe:animate-pulse"
+        />
         <div
           class="h-64 rounded-md border border-border bg-surface-raised motion-safe:animate-pulse"
         />
       </div>
+      <div
+        class="h-48 rounded-md border border-border bg-surface-raised motion-safe:animate-pulse"
+        aria-hidden="true"
+      />
     </div>
 
     <p
@@ -430,82 +418,108 @@ const exportAlertsCsv = (): void => {
         </div>
       </dl>
 
-      <!-- Two columns: left = availability/battery over time (wider), right = message
-           breakdown, narrowed to the 消息摘要 proportion so its empty state is not a wide slab. -->
-      <div class="grid gap-4 lg:grid-cols-[2fr_1fr]">
-        <div class="flex flex-col gap-4">
-          <section
-            class="rounded-md border border-border bg-surface-raised p-4"
-          >
-            <TimeSeriesChart
-              v-if="hasAvailabilityData"
-              :series="onlineSeries"
-              label="在线率趋势"
-              unit="%"
-              :height="240"
-              legend-position="right"
-            />
-            <p v-else class="m-0 py-8 text-center text-sm text-ink-muted">
-              该时间段没有遥测样本
-            </p>
-          </section>
-          <section
-            class="rounded-md border border-border bg-surface-raised p-4"
-          >
-            <TimeSeriesChart
-              v-if="hasAvailabilityData"
-              :series="batterySeries"
-              label="电量SOC均值"
-              unit="%"
-              :height="240"
-              legend-position="right"
-            />
-            <p v-else class="m-0 py-8 text-center text-sm text-ink-muted">
-              该时间段没有电量样本
-            </p>
-          </section>
-        </div>
-
-        <div class="flex flex-col gap-4">
-          <section
-            class="rounded-md border border-border bg-surface-raised p-4"
-          >
-            <CategoryBarChart
-              v-if="hasAlertData"
-              :data="severityData"
-              label="按严重度分布"
-              unit="条"
-              :height="200"
-            />
-            <p v-else class="m-0 py-8 text-center text-sm text-ink-muted">
-              该时间段没有消息
-            </p>
-          </section>
-          <section
-            v-if="hasAlertData"
-            class="rounded-md border border-border bg-surface-raised p-4"
-          >
-            <CategoryBarChart
-              :data="deviceData"
-              label="按消息数分布"
-              unit="条"
-              orientation="horizontal"
-              :height="200"
-            />
-          </section>
-          <section
-            v-if="hasAlertData"
-            class="rounded-md border border-border bg-surface-raised p-4"
-          >
-            <CategoryBarChart
-              :data="dailyData"
-              label="按时间天频次"
-              unit="条"
-              :height="200"
-            />
-          </section>
-        </div>
+      <!-- Two trends across the window: fleet online-rate and battery, side by side. -->
+      <div class="grid gap-4 lg:grid-cols-2">
+        <section class="rounded-md border border-border bg-surface-raised p-4">
+          <TimeSeriesChart
+            v-if="hasAvailabilityData"
+            :series="onlineSeries"
+            label="在线率趋势"
+            unit="%"
+            :height="240"
+            legend-position="right"
+          />
+          <p v-else class="m-0 py-8 text-center text-sm text-ink-muted">
+            该时间段没有遥测样本
+          </p>
+        </section>
+        <section class="rounded-md border border-border bg-surface-raised p-4">
+          <TimeSeriesChart
+            v-if="hasAvailabilityData"
+            :series="batterySeries"
+            label="电量SOC均值"
+            unit="%"
+            :height="240"
+            legend-position="right"
+          />
+          <p v-else class="m-0 py-8 text-center text-sm text-ink-muted">
+            该时间段没有电量样本
+          </p>
+        </section>
       </div>
+
+      <!-- Per-vehicle availability — the operational core: worst online-rate first, so the
+           vehicles needing attention read first. 消息数/确认率 stay fleet-wide above (the
+           aggregate only exposes a Top-8 and a fleet ack rate, not per-vehicle). -->
+      <section class="flex flex-col gap-2">
+        <header class="flex items-baseline justify-between gap-2">
+          <h2 class="m-0 text-sm font-semibold text-ink">按车辆可用率</h2>
+          <span class="text-2xs text-ink-subtle">在线率最低者在前</span>
+        </header>
+        <div
+          v-if="deviceRows.length"
+          :class="[tableClasses.wrapper, 'overflow-x-auto']"
+        >
+          <table :class="[tableClasses.table, 'table-fixed']">
+            <colgroup>
+              <col />
+              <col class="w-28" />
+              <col class="w-28" />
+              <col class="w-28" />
+            </colgroup>
+            <caption class="sr-only">
+              每台车在本时间窗内的在线率、平均电量与最低电量
+            </caption>
+            <thead :class="tableClasses.thead">
+              <tr>
+                <th scope="col" class="px-3 py-2">设备</th>
+                <th scope="col" class="px-3 py-2 text-right">在线率</th>
+                <th scope="col" class="px-3 py-2 text-right">平均电量</th>
+                <th scope="col" class="px-3 py-2 text-right">最低电量</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr
+                v-for="row in deviceRows"
+                :key="row.deviceId"
+                :class="tableClasses.row"
+              >
+                <th scope="row" class="truncate px-3 py-2 font-medium text-ink">
+                  {{ row.name }}
+                </th>
+                <td
+                  class="px-3 py-2 text-right font-mono tabular-nums"
+                  :class="
+                    row.onlineRatio !== null && row.onlineRatio < 0.9
+                      ? 'text-critical-ink'
+                      : 'text-ink-muted'
+                  "
+                >
+                  {{ pct(row.onlineRatio) }}
+                </td>
+                <td
+                  class="px-3 py-2 text-right font-mono text-ink-muted tabular-nums"
+                >
+                  {{ soc(row.socMean) }}
+                </td>
+                <td
+                  class="px-3 py-2 text-right font-mono tabular-nums"
+                  :class="
+                    row.socMin !== null && row.socMin < 20
+                      ? 'text-warning-ink'
+                      : 'text-ink-muted'
+                  "
+                >
+                  {{ soc(row.socMin) }}
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+        <p v-else class="m-0 py-8 text-center text-sm text-ink-muted">
+          该时间段没有遥测样本
+        </p>
+      </section>
     </template>
   </PageHeader>
 </template>

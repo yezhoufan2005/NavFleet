@@ -4,6 +4,7 @@ import {
   buildAlertStatsCsv,
   buildAvailabilityCsv,
   onlineRatioSeries,
+  perDeviceAvailability,
   socSeries,
   summarizeAvailability,
   windowForPreset,
@@ -98,6 +99,64 @@ describe("summarizeAvailability", () => {
     );
     expect(summary.onlineRatio).toBeNull();
     expect(summary.socMean).toBeNull();
+  });
+});
+
+describe("perDeviceAvailability", () => {
+  it("rolls each device up frame-weighted and sorts worst-online first, nulls last", () => {
+    const rows = perDeviceAvailability(
+      report([
+        {
+          deviceId: "agv-good",
+          buckets: [
+            {
+              bucketStart: iso(0),
+              onlineSamples: 10,
+              totalSamples: 10,
+              onlineRatio: 1,
+              socMean: 80,
+              socMin: 70,
+            },
+          ],
+        },
+        {
+          deviceId: "agv-bad",
+          buckets: [
+            {
+              bucketStart: iso(0),
+              onlineSamples: 5,
+              totalSamples: 10,
+              onlineRatio: 0.5,
+              socMean: 40,
+              socMin: 15,
+            },
+          ],
+        },
+        {
+          deviceId: "agv-silent",
+          buckets: [
+            {
+              bucketStart: iso(0),
+              onlineSamples: 0,
+              totalSamples: 0,
+              onlineRatio: 0,
+              socMean: null,
+              socMin: null,
+            },
+          ],
+        },
+      ]),
+    );
+    // Worst online rate first; the device with no samples (null ratio) sinks to the bottom.
+    expect(rows.map((row) => row.deviceId)).toEqual([
+      "agv-bad",
+      "agv-good",
+      "agv-silent",
+    ]);
+    expect(rows[0]!.onlineRatio).toBeCloseTo(0.5);
+    expect(rows[0]!.socMin).toBe(15);
+    expect(rows[2]!.onlineRatio).toBeNull();
+    expect(rows[2]!.socMean).toBeNull();
   });
 });
 
