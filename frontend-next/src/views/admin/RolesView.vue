@@ -213,6 +213,7 @@ const roleDialogTitle = computed(() =>
     <!-- Role dialog -->
     <UiModal
       :open="roleMode !== null"
+      :autofocus="roleMode === 'create'"
       :title="roleDialogTitle"
       description="填写角色名与能力后提交"
       @update:open="

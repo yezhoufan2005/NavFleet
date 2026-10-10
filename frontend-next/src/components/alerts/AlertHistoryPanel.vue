@@ -16,6 +16,7 @@ import { computed, onMounted, ref, watch } from "vue";
 import { RouterLink, useRoute } from "vue-router";
 import CategoryBarChart from "@/components/charts/CategoryBarChart.vue";
 import UiListPagination from "@/components/ui/UiListPagination.vue";
+import UiEmptyState from "@/components/ui/UiEmptyState.vue";
 import { useChartTheme } from "@/composables/useChartTheme";
 import { useListPagination } from "@/composables/useListPagination";
 import { useFleetStore } from "@/stores/fleet";
@@ -269,13 +270,9 @@ const { page, pageCount, pageSize, pageItems, setPage, setPageSize } =
     会说明它此刻连上了没有
   </p>
 
-  <p
-    v-else-if="!filtered.length"
-    class="m-0 rounded-md border border-border bg-surface-raised p-8 text-center text-sm text-ink-muted"
-    role="status"
-  >
+  <UiEmptyState v-else-if="!filtered.length">
     没有符合当前筛选条件的历史消息
-  </p>
+  </UiEmptyState>
 
   <template v-else>
     <p v-if="capped" class="m-0 text-2xs text-ink-subtle">

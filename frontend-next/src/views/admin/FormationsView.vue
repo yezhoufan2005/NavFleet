@@ -90,6 +90,7 @@ const fDescription = ref("");
 const fColor = ref("");
 // Clear a field's red state as soon as the operator starts fixing it.
 clearOn(fId, "formationId");
+clearOn(fName, "name");
 clearOn(fDeviceIds, "deviceIds");
 
 const openCreate = (): void => {
@@ -148,6 +149,9 @@ const submit = async (): Promise<void> => {
     formations.value.some((f) => f.formationId === id)
   ) {
     fieldErrors.formationId = "编队 ID 已存在";
+  }
+  if (!fName.value.trim()) {
+    fieldErrors.name = "请输入名称";
   }
   if (fDeviceIds.value.length === 0) {
     fieldErrors.deviceIds = "请至少选择一台车辆";
@@ -302,6 +306,7 @@ const dialogTitle = computed(() =>
   <!-- Formation create/edit -->
   <UiModal
     :open="mode !== null"
+    :autofocus="mode === 'create'"
     :title="dialogTitle"
     description="填写编队配置后提交"
     @update:open="
@@ -331,8 +336,19 @@ const dialogTitle = computed(() =>
         </p>
       </label>
       <label class="flex flex-col gap-1">
-        <span class="text-sm font-medium text-ink">名称</span>
-        <UiInput v-model="fName" type="text" :disabled="saving" size="sm" />
+        <span class="text-sm font-medium text-ink"
+          >名称 <span class="text-critical-ink">*</span></span
+        >
+        <UiInput
+          v-model="fName"
+          type="text"
+          :disabled="saving"
+          :invalid="!!errors.name"
+          size="sm"
+        />
+        <p v-if="errors.name" class="m-0 text-xs text-critical-ink">
+          {{ errors.name }}
+        </p>
       </label>
       <fieldset class="flex flex-col gap-1">
         <legend class="text-sm font-medium text-ink">
@@ -384,7 +400,7 @@ const dialogTitle = computed(() =>
         <UiInput
           v-model="fColor"
           type="text"
-          placeholder="可选，如 #46d7c3"
+          placeholder="如 #46d7c3"
           :disabled="saving"
           size="sm"
         />

@@ -81,6 +81,7 @@ const fGps = ref(true);
 const fRosMap = ref(true);
 // Clear a field's red state as soon as the operator starts fixing it.
 clearOn(fDeviceId, "deviceId");
+clearOn(fDeviceName, "deviceName");
 
 const openCreate = (): void => {
   mode.value = "create";
@@ -145,6 +146,9 @@ const submit = async (): Promise<void> => {
     vehicles.value.some((v) => v.deviceId === id)
   ) {
     fieldErrors.deviceId = "设备 ID 已存在";
+  }
+  if (!fDeviceName.value.trim()) {
+    fieldErrors.deviceName = "请输入名称";
   }
   if (report(fieldErrors)) return;
   saving.value = true;
@@ -287,6 +291,7 @@ const dialogTitle = computed(() =>
   <!-- Vehicle create/edit -->
   <UiModal
     :open="mode !== null"
+    :autofocus="mode === 'create'"
     :title="dialogTitle"
     description="填写车辆配置后提交"
     @update:open="
@@ -316,13 +321,19 @@ const dialogTitle = computed(() =>
         </p>
       </label>
       <label class="flex flex-col gap-1">
-        <span class="text-sm font-medium text-ink">名称</span>
+        <span class="text-sm font-medium text-ink"
+          >名称 <span class="text-critical-ink">*</span></span
+        >
         <UiInput
           v-model="fDeviceName"
           type="text"
           :disabled="saving"
+          :invalid="!!errors.deviceName"
           size="sm"
         />
+        <p v-if="errors.deviceName" class="m-0 text-xs text-critical-ink">
+          {{ errors.deviceName }}
+        </p>
       </label>
       <label class="flex flex-col gap-1">
         <span class="text-sm font-medium text-ink">默认场景</span>

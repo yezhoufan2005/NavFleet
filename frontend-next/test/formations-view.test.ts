@@ -87,10 +87,13 @@ describe("FormationsView — create", () => {
     const wrapper = await mountView();
 
     await wrapper.get("button").trigger("click"); // 新增编队 (header action)
-    const idInput =
-      document.body.querySelector<HTMLInputElement>("input[type='text']")!;
-    idInput.value = "f-b";
-    idInput.dispatchEvent(new Event("input"));
+    const [idInput, nameInput] =
+      document.body.querySelectorAll<HTMLInputElement>("input[type='text']");
+    idInput!.value = "f-b";
+    idInput!.dispatchEvent(new Event("input"));
+    // 名称 is required (点 4); fill it or the save is blocked client-side.
+    nameInput!.value = "编队乙";
+    nameInput!.dispatchEvent(new Event("input"));
     document.body
       .querySelector<HTMLInputElement>("input[type='checkbox']")!
       .dispatchEvent(new Event("change"));

@@ -45,6 +45,15 @@
     outline-offset: 2px;
   }
 
+  /* …but a scroll-affordance region (a table/chart wrapper made focusable only so the
+     keyboard can scroll it, `role="region"` + `tabindex="0"`) is not a control, and the
+     2px ring reads as an unwanted "selection box" around the whole table. Suppress it there;
+     the real controls inside keep their ring, and an operable map (role="application") is
+     untouched. */
+  [role="region"][tabindex="0"]:focus-visible {
+    outline: none;
+  }
+
   ::selection {
     background-color: var(--color-brand-wash);
     color: var(--color-brand-ink);

@@ -485,6 +485,7 @@ describe("场景", () => {
       ...document.body.querySelectorAll<HTMLInputElement>("input[type='text']"),
     ];
     setInput(inputs[0]!, "new-scene"); // sceneId
+    setInput(inputs[1]!, "新场景"); // 名称 is required (点 4)
     setInput(inputs[4]!, "800"); // width
     setInput(inputs[5]!, "600"); // height
     document.body.querySelector("form")!.dispatchEvent(new Event("submit"));
@@ -585,6 +586,7 @@ describe("场景", () => {
       el.dispatchEvent(new Event("input"));
     };
     set(inputs[0]!, "new-scene");
+    set(inputs[1]!, "新场景"); // 名称 is required (点 4)
     set(inputs[4]!, "800");
     set(inputs[5]!, "600");
     // Attach a file to the (uncontrolled) file input, then fire change.

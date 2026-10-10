@@ -42,6 +42,7 @@ import UiListPagination from "@/components/ui/UiListPagination.vue";
 import UiSelect from "@/components/ui/UiSelect.vue";
 import UiFilterBar from "@/components/ui/UiFilterBar.vue";
 import UiFilterField from "@/components/ui/UiFilterField.vue";
+import UiEmptyState from "@/components/ui/UiEmptyState.vue";
 import { tableClasses } from "@/lib/uiClasses";
 import { useAuth } from "@/composables/useAuth";
 import { makeMessageFor } from "@/lib/errorMessages";
@@ -571,13 +572,9 @@ useAutoRefresh(() => void load(), {
     >
       无法加载外发记录
     </p>
-    <p
-      v-else-if="records.length === 0"
-      class="text-sm text-ink-muted"
-      role="status"
-    >
+    <UiEmptyState v-else-if="records.length === 0">
       没有符合当前筛选条件的发送记录
-    </p>
+    </UiEmptyState>
     <template v-else>
       <div
         :class="[tableClasses.wrapper, 'overflow-auto']"
@@ -669,6 +666,7 @@ useAutoRefresh(() => void load(), {
     <!-- Channel editor (notify:write). -->
     <UiModal
       :open="chMode !== null"
+      :autofocus="chMode === 'create'"
       :title="channelDialogTitle"
       description="填写渠道的类型、订阅严重度与静默窗口后提交"
       max-width="xl"

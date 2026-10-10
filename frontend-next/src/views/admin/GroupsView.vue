@@ -237,6 +237,7 @@ const kioskUsernames = computed(
     <!-- Group dialog -->
     <UiModal
       :open="groupMode !== null"
+      :autofocus="groupMode === 'create'"
       :title="groupDialogTitle"
       description="填写组名、选择角色与成员后提交"
       max-width="lg"

@@ -404,6 +404,7 @@ const rowDialogTitle = computed(() =>
     <!-- Row editor (codebook:write). -->
     <UiModal
       :open="mode !== null"
+      :autofocus="mode === 'create'"
       :title="rowDialogTitle"
       description="填写报码、名称、通道、等级、子系统与说明后提交"
       max-width="xl"

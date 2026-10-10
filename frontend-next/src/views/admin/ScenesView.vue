@@ -240,6 +240,7 @@ const fAssetFile = ref<File | null>(null);
 const assetFileInput = ref<HTMLInputElement | null>(null);
 const { errors, clearOn, setErrors, report } = useFieldErrors();
 clearOn(fSceneId, "sceneId");
+clearOn(fSceneName, "sceneName");
 clearOn(fResolution, "resolution");
 clearOn(fWidth, "width");
 clearOn(fHeight, "height");
@@ -313,6 +314,9 @@ const submit = async (): Promise<void> => {
     scenes.value.some((s) => s.sceneId === id)
   ) {
     fieldErrors.sceneId = "场景 ID 已存在";
+  }
+  if (!fSceneName.value.trim()) {
+    fieldErrors.sceneName = "请输入名称";
   }
   const resolution = positive(fResolution.value);
   const width = positive(fWidth.value);
@@ -567,6 +571,7 @@ const runDelete = async (): Promise<void> => {
   <!-- Create / edit scene -->
   <UiModal
     :open="mode !== null"
+    :autofocus="mode === 'create'"
     :title="dialogTitle"
     description="填写场景几何参数并可上传底图后提交"
     @update:open="
@@ -596,13 +601,19 @@ const runDelete = async (): Promise<void> => {
         </p>
       </label>
       <label class="flex flex-col gap-1">
-        <span class="text-sm font-medium text-ink">名称</span>
+        <span class="text-sm font-medium text-ink"
+          >名称 <span class="text-critical-ink">*</span></span
+        >
         <UiInput
           v-model="fSceneName"
           type="text"
           :disabled="saving"
+          :invalid="!!errors.sceneName"
           size="sm"
         />
+        <p v-if="errors.sceneName" class="m-0 text-xs text-critical-ink">
+          {{ errors.sceneName }}
+        </p>
       </label>
       <label class="flex flex-col gap-1">
         <span class="text-sm font-medium text-ink">地图坐标系</span>

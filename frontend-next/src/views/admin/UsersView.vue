@@ -461,6 +461,7 @@ const formatTime = (iso: string | null): string =>
     </div>
     <UiModal
       :open="mode !== null"
+      :autofocus="mode !== 'edit'"
       :title="dialogTitle"
       description="填写表单后提交"
       @update:open="

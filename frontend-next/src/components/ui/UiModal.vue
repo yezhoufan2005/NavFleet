@@ -12,6 +12,7 @@
  * visually hidden (`sr-only`) — the forms carry their own visible labels. `maxWidth` picks the
  * content width (md/lg/xl). The content caps at 85vh and scrolls, so a tall form never overflows.
  */
+import { nextTick } from "vue";
 import {
   DialogContent,
   DialogDescription,
@@ -26,14 +27,33 @@ const {
   title,
   description = "",
   maxWidth = "md",
+  autofocus = true,
 } = defineProps<{
   open: boolean;
   title: string;
   description?: string;
   maxWidth?: "md" | "lg" | "xl";
+  /**
+   * Whether to let the dialog move focus to its first field on open. A 新增 dialog wants that
+   * (start typing straight away); an 编辑 dialog does not — it opens pre-filled, and landing the
+   * caret in 名称 looks like that field was singled out. When false, focus rests on the panel
+   * itself so the focus trap holds but no field is highlighted. Call sites pass `mode === 'create'`.
+   */
+  autofocus?: boolean;
 }>();
 
 const emit = defineEmits<{ "update:open": [boolean] }>();
+
+const onOpenAutoFocus = (event: Event): void => {
+  if (autofocus) return;
+  // Keep focus on the panel (tabindex -1) instead of the first field.
+  event.preventDefault();
+  void nextTick(() => {
+    (
+      document.querySelector(".ui-dialog-surface") as HTMLElement | null
+    )?.focus();
+  });
+};
 
 const MAX_WIDTH: Record<"md" | "lg" | "xl", string> = {
   md: "max-w-100",
@@ -47,10 +67,12 @@ const MAX_WIDTH: Record<"md" | "lg" | "xl", string> = {
     <DialogPortal>
       <DialogOverlay class="fixed inset-0 z-50 bg-scrim/55" />
       <DialogContent
+        tabindex="-1"
         :class="[
           'ui-dialog-surface fixed top-1/2 left-1/2 z-50 flex max-h-[85vh] w-full -translate-x-1/2 -translate-y-1/2 flex-col gap-3 overflow-auto rounded-md border border-border bg-surface-raised p-5 shadow-overlay',
           MAX_WIDTH[maxWidth],
         ]"
+        @open-auto-focus="onOpenAutoFocus"
       >
         <DialogTitle class="text-md font-semibold text-ink">{{
           title

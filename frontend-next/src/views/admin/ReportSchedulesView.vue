@@ -333,6 +333,7 @@ const weekdayLabel = (weekday?: number): string =>
     <!-- Schedule editor (reports:write). -->
     <UiModal
       :open="mode !== null"
+      :autofocus="mode === 'create'"
       :title="dialogTitle"
       description="填写报表的回看窗口、发送时刻与收件人后提交"
       max-width="xl"

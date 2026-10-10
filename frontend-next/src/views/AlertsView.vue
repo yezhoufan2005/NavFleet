@@ -30,6 +30,7 @@ import UiInput from "@/components/ui/UiInput.vue";
 import UiMultiSelect from "@/components/ui/UiMultiSelect.vue";
 import UiFilterBar from "@/components/ui/UiFilterBar.vue";
 import UiFilterField from "@/components/ui/UiFilterField.vue";
+import UiEmptyState from "@/components/ui/UiEmptyState.vue";
 import { SEVERITY_LABELS } from "@/lib/severity";
 import { compileSearch } from "@/lib/searchQuery";
 import UiListPagination from "@/components/ui/UiListPagination.vue";
@@ -619,17 +620,13 @@ watch(() => canAck.value && fleet.state.realtime.apiReady, runLegacyMigration);
     <template v-else>
       <!-- A live region: filtering down to nothing has to be announced, not leave a
            blank panel behind. -->
-      <p
-        v-if="!pageRows.length"
-        class="rounded-md border border-border bg-surface-raised p-8 text-center text-sm text-ink-muted"
-        role="status"
-      >
+      <UiEmptyState v-if="!pageRows.length">
         {{
           allAlerts.length
             ? "没有符合当前筛选条件的消息"
             : "当前车队没有活跃消息"
         }}
-      </p>
+      </UiEmptyState>
 
       <ul v-else class="m-0 flex list-none flex-col gap-2 p-0">
         <!--

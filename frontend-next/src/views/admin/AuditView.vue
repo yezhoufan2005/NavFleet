@@ -16,6 +16,7 @@ import UiListPagination from "@/components/ui/UiListPagination.vue";
 import UiMultiSelect from "@/components/ui/UiMultiSelect.vue";
 import UiFilterBar from "@/components/ui/UiFilterBar.vue";
 import UiFilterField from "@/components/ui/UiFilterField.vue";
+import UiEmptyState from "@/components/ui/UiEmptyState.vue";
 import { tableClasses } from "@/lib/uiClasses";
 import { useAutoRefresh } from "@/composables/useAutoRefresh";
 
@@ -175,13 +176,9 @@ const formatTime = (iso: string): string =>
     >
       无法加载审计日志
     </p>
-    <p
-      v-else-if="entries.length === 0"
-      class="text-sm text-ink-muted"
-      role="status"
-    >
+    <UiEmptyState v-else-if="entries.length === 0">
       没有符合当前筛选条件的记录
-    </p>
+    </UiEmptyState>
     <template v-else>
       <!-- Same shell as the device list: the table itself does not scroll (`overflow-hidden`
            clips its corners), the page scrolls. -->

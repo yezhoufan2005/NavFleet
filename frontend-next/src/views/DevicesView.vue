@@ -30,6 +30,7 @@ import UiMultiSelect from "@/components/ui/UiMultiSelect.vue";
 import UiFilterBar from "@/components/ui/UiFilterBar.vue";
 import UiFilterField from "@/components/ui/UiFilterField.vue";
 import UiListPagination from "@/components/ui/UiListPagination.vue";
+import UiEmptyState from "@/components/ui/UiEmptyState.vue";
 import { tableClasses } from "@/lib/uiClasses";
 import { compileSearch } from "@/lib/searchQuery";
 import { useFleetStore } from "@/stores/fleet";
@@ -852,12 +853,9 @@ watch(
 
       <!-- The filters narrowed the list to nothing: say so, rather than leave a header
            over an empty body that reads as "no devices". -->
-      <p
-        v-if="!filteredRows.length"
-        class="rounded-md border border-border bg-surface-raised px-4 py-6 text-center text-sm text-ink-muted"
-      >
+      <UiEmptyState v-if="!filteredRows.length">
         没有符合当前筛选条件的设备
-      </p>
+      </UiEmptyState>
     </div>
 
     <!-- Shared footer: 每页条数 + pager (with jump), the same control 消息/审计/外发 use.
