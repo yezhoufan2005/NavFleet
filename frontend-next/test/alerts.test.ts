@@ -77,6 +77,17 @@ const mountAlerts = async (query = "") => {
   return wrapper;
 };
 
+/** The bar now has two `UiMultiSelect`s (严重度 + 设备); pick one by its aria-label. */
+type AlertsWrapper = Awaited<ReturnType<typeof mountAlerts>>;
+const multiByLabel = (wrapper: AlertsWrapper, label: string) =>
+  wrapper
+    .findAllComponents(UiMultiSelect)
+    .find((component) => component.props("ariaLabel") === label)!;
+const deviceSelect = (wrapper: AlertsWrapper) =>
+  multiByLabel(wrapper, "设备筛选");
+const severitySelect = (wrapper: AlertsWrapper) =>
+  multiByLabel(wrapper, "严重度筛选");
+
 /** A fleet whose alerts span all three severities and two vehicles. */
 const seedMixed = () =>
   store.ingestPayload(
@@ -181,10 +192,7 @@ describe("filters live in the URL", () => {
     seedMixed();
     const wrapper = await mountAlerts();
 
-    const critical = wrapper
-      .findAll("button")
-      .find((button) => button.text() === "告警");
-    await critical?.trigger("click");
+    severitySelect(wrapper).vm.$emit("update:modelValue", ["critical"]);
     await flushPromises();
 
     expect(router.currentRoute.value.query.severity).toBe("critical");
@@ -195,22 +203,22 @@ describe("filters live in the URL", () => {
     seedMixed();
     const wrapper = await mountAlerts("?severity=critical");
 
-    const all = wrapper.findAll("button").find((b) => b.text() === "全部");
-    await all?.trigger("click");
+    severitySelect(wrapper).vm.$emit("update:modelValue", []);
     await flushPromises();
 
     expect(router.currentRoute.value.query.severity).toBeUndefined();
   });
 
-  it("marks the active severity as pressed, not merely coloured", async () => {
+  it("reflects the active severities in the 严重度 control and narrows to them", async () => {
     seedMixed();
-    const wrapper = await mountAlerts("?severity=critical");
-    const pressed = wrapper
-      .findAll("button")
-      .filter((button) => button.attributes("aria-pressed") === "true")
-      .map((button) => button.text());
+    const wrapper = await mountAlerts("?severity=critical,warning");
 
-    expect(pressed).toContain("告警");
+    expect(severitySelect(wrapper).props("modelValue")).toEqual([
+      "critical",
+      "warning",
+    ]);
+    // critical + warning rows survive; the notice one does not.
+    expect(wrapper.findAll("li")).toHaveLength(2);
   });
 
   it("narrows to one vehicle", async () => {
@@ -239,9 +247,7 @@ describe("the controls the template wires up", () => {
     // meaningfully. What this case owns is the *wiring* — that the view turns the chosen set
     // into the comma-joined `device` query param — and the component's own toggle/summary
     // behaviour is covered in ui-multi-select.
-    wrapper
-      .findComponent(UiMultiSelect)
-      .vm.$emit("update:modelValue", ["agv-02"]);
+    deviceSelect(wrapper).vm.$emit("update:modelValue", ["agv-02"]);
     await flushPromises();
 
     expect(router.currentRoute.value.query.device).toBe("agv-02");
@@ -252,9 +258,7 @@ describe("the controls the template wires up", () => {
     seedMixed();
     const wrapper = await mountAlerts();
 
-    wrapper
-      .findComponent(UiMultiSelect)
-      .vm.$emit("update:modelValue", ["agv-01", "agv-02"]);
+    deviceSelect(wrapper).vm.$emit("update:modelValue", ["agv-01", "agv-02"]);
     await flushPromises();
 
     expect(router.currentRoute.value.query.device).toBe("agv-01,agv-02");
@@ -281,7 +285,7 @@ describe("the controls the template wires up", () => {
     );
     await flushPromises();
 
-    const select = wrapper.findComponent(UiMultiSelect);
+    const select = deviceSelect(wrapper);
     const options = select.props("options");
     expect(options.map((option) => option.value)).toContain("agv-02");
     // The trigger summarises the still-selected device, so it does not look unset.
@@ -294,7 +298,7 @@ describe("the controls the template wires up", () => {
     seedMixed();
     const wrapper = await mountAlerts("?severity=warning");
 
-    const options = wrapper.findComponent(UiMultiSelect).props("options");
+    const options = deviceSelect(wrapper).props("options");
     expect(options.map((option) => option.value)).toEqual(["agv-02"]);
   });
 
@@ -395,9 +399,7 @@ describe("the controls the template wires up", () => {
     const wrapper = await mountAlerts("?page=2");
     expect(wrapper.findAll("li")).toHaveLength(10);
 
-    wrapper
-      .findComponent(UiMultiSelect)
-      .vm.$emit("update:modelValue", ["agv-01"]);
+    deviceSelect(wrapper).vm.$emit("update:modelValue", ["agv-01"]);
     await flushPromises();
 
     expect(router.currentRoute.value.query.page).toBeUndefined();
@@ -743,6 +745,44 @@ describe("acting on more than one row", () => {
     await flushPromises();
 
     expect(wrapper.text()).toContain("显示已确认（1）");
+  });
+});
+
+describe("selecting rows to confirm (确认选中)", () => {
+  const selectBoxes = (wrapper: AlertsWrapper) =>
+    wrapper
+      .findAll("input[type='checkbox']")
+      .filter((box) => box.attributes("aria-label")?.startsWith("选择告警"));
+
+  it("confirms only the rows ticked via their checkbox, then clears the selection", async () => {
+    seedMixed();
+    const wrapper = await mountAlerts();
+    const ref = criticalRef(); // worst-first, so the first row is the critical one
+
+    await selectBoxes(wrapper)[0]!.setValue(true);
+    await flushPromises();
+
+    const confirm = wrapper
+      .findAll("button")
+      .find((button) => button.text().includes("确认选中"));
+    expect(confirm?.text()).toContain("1");
+
+    await confirm!.trigger("click");
+    await flushPromises();
+
+    // Exactly the ticked occurrence was written, and the button is gone (selection cleared).
+    expect(ackSpy).toHaveBeenCalledWith(ref.deviceId, ref.id);
+    expect(
+      wrapper.findAll("button").some((b) => b.text().includes("确认选中")),
+    ).toBe(false);
+  });
+
+  it("shows no select checkbox to a viewer", async () => {
+    __resetAuth();
+    signIn("viewer");
+    seedMixed();
+    const wrapper = await mountAlerts();
+    expect(selectBoxes(wrapper)).toHaveLength(0);
   });
 });
 
