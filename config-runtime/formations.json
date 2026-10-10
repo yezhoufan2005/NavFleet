@@ -8,7 +8,10 @@
       "agv-a03",
       "agv-a04",
       "agv-a05",
-      "agv-a06"
+      "agv-a06",
+      "agv-a07",
+      "agv-a08",
+      "agv-a09"
     ],
     "sceneId": "kangcheng-airy",
     "description": "康城 Airy 路网室外巡检编队",
@@ -32,7 +35,16 @@
   {
     "formationId": "yard-gamma",
     "formationName": "装卸编队 Gamma",
-    "deviceIds": ["agv-y01", "agv-y02", "agv-y03", "agv-y04", "agv-y05"],
+    "deviceIds": [
+      "agv-y01",
+      "agv-y02",
+      "agv-y03",
+      "agv-y04",
+      "agv-y05",
+      "agv-y06",
+      "agv-y07",
+      "agv-y08"
+    ],
     "sceneId": "yard-north",
     "description": "北区装卸场室外牵引编队",
     "color": "#86b8ff"
