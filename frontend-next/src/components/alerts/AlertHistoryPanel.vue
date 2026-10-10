@@ -1,8 +1,8 @@
 <script setup lang="ts">
 /**
- * 告警史面板 — cleared alerts with at-a-glance statistics, shown as the 消息 页 history tab.
+ * 消息史面板 — cleared alerts with at-a-glance statistics, shown as the 消息 页 history tab.
  *
- * Phase 18 folded 告警史 from a top-level page into a tab of `AlertsView`. The shared filter
+ * Phase 18 folded 消息史 from a top-level page into a tab of `AlertsView`. The shared filter
  * bar (severity / device / search) lives in `AlertsView` and writes the URL; this panel reads
  * the same query params, fetches cleared alerts once on mount, and derives severity
  * distribution, per-device counts, per-day frequency, acknowledgement rate and clear-time
@@ -15,7 +15,9 @@
 import { computed, onMounted, ref, watch } from "vue";
 import { RouterLink, useRoute } from "vue-router";
 import CategoryBarChart from "@/components/charts/CategoryBarChart.vue";
+import UiListPagination from "@/components/ui/UiListPagination.vue";
 import { useChartTheme } from "@/composables/useChartTheme";
+import { useListPagination } from "@/composables/useListPagination";
 import { useFleetStore } from "@/stores/fleet";
 import { fleetApi, formatDateTime } from "@navfleet/fleet-core";
 import type { AlertRecord } from "@navfleet/fleet-core";
@@ -74,7 +76,7 @@ const load = async (): Promise<void> => {
     records.value = [];
     status.value = "error";
     errorMessage.value =
-      error instanceof Error ? error.message : "告警历史加载失败";
+      error instanceof Error ? error.message : "消息历史加载失败";
   }
 };
 
@@ -225,11 +227,19 @@ const rows = computed<Row[]>(() =>
     };
   }),
 );
+
+/**
+ * The record list paginates like every other list (shared `useListPagination` + `UiListPagination`,
+ * default 10/页). Its own URL keys (`hpage` / `hsize`) so it does not collide with the live tab's
+ * `page` / `pageSize` — both views live under the same `/alerts*` route tree.
+ */
+const { page, pageCount, pageSize, pageItems, setPage, setPageSize } =
+  useListPagination(rows, { pageParam: "hpage", pageSizeParam: "hsize" });
 </script>
 
 <template>
   <p v-if="status === 'loading'" class="m-0 text-sm text-ink-muted">
-    正在加载告警历史…
+    正在加载消息历史…
   </p>
 
   <p
@@ -294,14 +304,16 @@ const rows = computed<Row[]>(() =>
         </dd>
       </div>
     </dl>
-    <!-- Three charts, one row, equal height; the two that can grow past the frame scroll. -->
+    <!-- Three charts, one row, equal height. 288px clears the per-device Top-8 horizontal bars
+         (8 × 32px slot = 256) so that chart no longer shows a stub scrollbar inside the card; the
+         day-frequency chart keeps `scroll` because a wide month grows sideways, not down. -->
     <div class="grid gap-4 lg:grid-cols-3">
       <section class="rounded-md border border-border bg-surface-raised p-4">
         <CategoryBarChart
           :data="severityData"
           label="按严重度分布"
           unit="条"
-          :height="240"
+          :height="288"
         />
       </section>
       <section class="rounded-md border border-border bg-surface-raised p-4">
@@ -310,7 +322,7 @@ const rows = computed<Row[]>(() =>
           label="按消息数分布"
           unit="条"
           orientation="horizontal"
-          :height="240"
+          :height="288"
           scroll
         />
       </section>
@@ -319,16 +331,17 @@ const rows = computed<Row[]>(() =>
           :data="dailyData"
           label="按时间天频次"
           unit="条"
-          :height="240"
+          :height="288"
           scroll
         />
       </section>
     </div>
 
-    <!-- Cleared-alert list, newest clear first -->
+    <!-- Cleared-message list, newest clear first, paged like the other lists. Each row is two
+         lines: the code+title (with the detail inline to its right) over the device/时间/时长 facts. -->
     <ul class="m-0 flex list-none flex-col gap-2 p-0">
       <li
-        v-for="row in rows"
+        v-for="row in pageItems"
         :key="row.key"
         class="flex flex-col gap-1 rounded-md border border-border bg-surface-raised p-3"
         :data-severity="row.severity"
@@ -345,16 +358,16 @@ const rows = computed<Row[]>(() =>
             >{{ row.code }}</span
           >
           <strong class="text-sm text-ink">{{ row.title }}</strong>
+          <!-- The detail sits inline after the title (was its own line), so a row is two lines. -->
+          <span v-if="row.detail" class="text-xs text-ink-muted">{{
+            row.detail
+          }}</span>
           <span
             v-if="row.ackedBy"
             class="ml-auto font-mono text-2xs text-brand-ink"
             >已确认 · {{ row.ackedBy }}</span
           >
         </div>
-
-        <p v-if="row.detail" class="m-0 text-xs text-ink-muted">
-          {{ row.detail }}
-        </p>
 
         <dl class="m-0 flex flex-wrap gap-x-4 gap-y-0.5">
           <div class="flex items-baseline gap-1.5">
@@ -384,5 +397,15 @@ const rows = computed<Row[]>(() =>
         </dl>
       </li>
     </ul>
+
+    <UiListPagination
+      :page="page"
+      :page-count="pageCount"
+      :page-size="pageSize"
+      :total="rows.length"
+      unit="条"
+      @update:page="setPage"
+      @update:page-size="setPageSize"
+    />
   </template>
 </template>

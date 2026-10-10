@@ -8,7 +8,7 @@ import type { AlertRecord } from "@navfleet/fleet-core";
 import DeviceAlertsTab from "@/components/device/DeviceAlertsTab.vue";
 
 /**
- * 告警史 — the fourth L3 tab, and the first consumer of `/api/v1/alerts` anywhere in
+ * 消息史 — the fourth L3 tab, and the first consumer of `/api/v1/alerts` anywhere in
  * the console (13D-1 built the alert centre on the store's live alerts and left the
  * endpoint at zero calls).
  *
@@ -65,7 +65,7 @@ afterEach(() => {
   vi.restoreAllMocks();
 });
 
-describe("告警史", () => {
+describe("消息史", () => {
   it("按设备取，而不是取全车队再筛", async () => {
     await mountTab("agv-07");
     expect(getAlerts).toHaveBeenCalledWith({ deviceId: "agv-07" });

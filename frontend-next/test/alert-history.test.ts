@@ -6,7 +6,7 @@ import { fleetApi, type AlertRecord } from "@navfleet/fleet-core";
 import AlertHistoryPanel from "@/components/alerts/AlertHistoryPanel.vue";
 
 /**
- * 告警史面板 — the cleared-alert history + statistics, now the 消息 页 history tab (Phase 18).
+ * 消息史面板 — the cleared-alert history + statistics, now the 消息 页 history tab (Phase 18).
  * `fleetApi.getAlerts` is mocked; the charts are stubbed (their option builders are tested in
  * charts.test.ts), so this file owns the panel's own logic: loading/error/empty states, the
  * client-side stats, the URL filters it reads (the shared bar lives in AlertsView), and the
@@ -64,6 +64,26 @@ afterEach(() => {
   vi.restoreAllMocks();
 });
 // PLACEHOLDER_TESTS
+
+describe("the record list pagination (点 5)", () => {
+  it("pages the cleared records 10 at a time under its own hpage key", async () => {
+    const many = Array.from({ length: 12 }, (_unused, index) =>
+      record({ eventKey: `agv-01:e${index}`, title: `记录 ${index}` }),
+    );
+    vi.spyOn(fleetApi, "getAlerts").mockResolvedValue({ items: many });
+    const wrapper = await mountPanel();
+
+    expect(wrapper.findAll("ul > li")).toHaveLength(10);
+
+    const next = wrapper.findAll("button").find((b) => b.text() === "下一页");
+    await next!.trigger("click");
+    await flushPromises();
+
+    expect(wrapper.findAll("ul > li")).toHaveLength(2);
+    // Its own key so it never fights the live tab's `page` on the same /alerts route tree.
+    expect(router.currentRoute.value.query.hpage).toBe("2");
+  });
+});
 
 describe("the onset window (server-side, 1.6.1)", () => {
   it("passes from/to as day-boundary ISO bounds to the endpoint", async () => {

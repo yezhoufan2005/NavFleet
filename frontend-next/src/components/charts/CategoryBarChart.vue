@@ -7,7 +7,7 @@
  * colours at `setOption` time so a theme switch rebuilds the option (`useChartTheme` watches),
  * and a data table ships alongside because identity/magnitude must be readable without colour.
  *
- * Used by the 告警史 page for severity distribution, per-device Top-N and per-day frequency.
+ * Used by the 消息史 page for severity distribution, per-device Top-N and per-day frequency.
  */
 import { computed, onBeforeUnmount, ref, useTemplateRef, watch } from "vue";
 import type { CSSProperties } from "vue";

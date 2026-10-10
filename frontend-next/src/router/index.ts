@@ -127,7 +127,7 @@ const routes: RouteRecordRaw[] = [
             { routeName: "device-detail", label: "实时" },
             { routeName: "device-charts", label: "曲线" },
             { routeName: "device-playback", label: "回放" },
-            { routeName: "device-alerts", label: "告警史" },
+            { routeName: "device-alerts", label: "消息史" },
           ],
         },
         children: [
@@ -157,7 +157,7 @@ const routes: RouteRecordRaw[] = [
             path: "alerts",
             name: "device-alerts",
             component: () => import("@/components/device/DeviceAlertsTab.vue"),
-            meta: { title: "告警史" },
+            meta: { title: "消息史" },
             props: true,
           },
         ],
@@ -165,17 +165,17 @@ const routes: RouteRecordRaw[] = [
     ],
   },
   {
-    // 消息 — a section with three tabs (1.6.2 IA): 消息 (live) and 告警史 (cleared) both render
+    // 消息 — a section with three tabs (1.6.2 IA): 消息 (live) and 消息史 (cleared) both render
     // AlertsView (it reads live-vs-history off the path), and 告警规则 is RulesView, folded in from
     // 管理. `AppSectionTabs` reads the strip off this parent's `meta.tabs`; the 告警规则 tab is gated
-    // on rules:write, so a viewer sees only 消息 / 告警史. 消息 (live) is the `""` child, so the nav
+    // on rules:write, so a viewer sees only 消息 / 消息史. 消息 (live) is the `""` child, so the nav
     // item stays lit on every tab, as with /devices.
     path: "/alerts",
     meta: {
       title: "消息",
       tabs: [
         { routeName: "alerts", label: "消息" },
-        { routeName: "alerts-history", label: "告警史" },
+        { routeName: "alerts-history", label: "消息史" },
         {
           routeName: "alerts-rules",
           label: "告警规则",
@@ -193,7 +193,7 @@ const routes: RouteRecordRaw[] = [
         path: "history",
         name: "alerts-history",
         component: () => import("@/views/AlertsView.vue"),
-        meta: { title: "告警史" },
+        meta: { title: "消息史" },
       },
       {
         path: "rules",
@@ -204,7 +204,7 @@ const routes: RouteRecordRaw[] = [
     ],
   },
   {
-    // 告警史 and 告警规则 used to live at these paths; kept as redirects so shared bookmarks land.
+    // 消息史 and 告警规则 used to live at these paths; kept as redirects so shared bookmarks land.
     path: "/alert-history",
     redirect: { name: "alerts-history" },
   },
@@ -294,7 +294,7 @@ const routes: RouteRecordRaw[] = [
     ],
   },
   // The 管理 deep links these pages used to live at, kept as redirects so shared bookmarks still
-  // land — same courtesy as 告警史's old top-level path. /admin/roles now points at the 角色 tab.
+  // land — same courtesy as 消息史's old top-level path. /admin/roles now points at the 角色 tab.
   { path: "/admin/users", redirect: { name: "access-users" } },
   { path: "/admin/roles", redirect: { name: "access-roles" } },
   {

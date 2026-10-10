@@ -34,11 +34,11 @@ const ROUTES: readonly { path: string; heading: string | RegExp }[] = [
   // and an unnamed slider is exactly the critical Phase 10 found on the old history
   // page. Auditing 实时 would never reach it.
   { path: "/devices/agv-a03/playback", heading: /a03/i },
-  // 告警史 is a list of severity badges and dated rows — its own surface, and the one
+  // 消息史 is a list of severity badges and dated rows — its own surface, and the one
   // where "still running" has to read as a word rather than a colour.
   { path: "/devices/agv-a03/alerts", heading: /a03/i },
   { path: "/alerts", heading: "消息" },
-  // 告警史 is now a real-route tab of 消息 (/alerts/history): its own surface, and the one where
+  // 消息史 is now a real-route tab of 消息 (/alerts/history): its own surface, and the one where
   // "still running" reads as a word rather than a colour, plus an in-text link in the empty state.
   { path: "/alerts/history", heading: "消息" },
   { path: "/reports", heading: "报表" },
