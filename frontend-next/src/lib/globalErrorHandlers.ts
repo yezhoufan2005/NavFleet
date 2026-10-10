@@ -31,7 +31,7 @@ const summarize = (value: unknown): string => {
  * older "loop limit exceeded") is not an error: the browser fires it when observer
  * callbacks schedule work that spills past a single animation frame — ECharts and the
  * map viewport re-measuring as a tab mounts/unmounts, which is exactly what happens
- * switching between 消息 and 告警史. Nothing is broken and the layout settles on the next
+ * switching between 消息 and 消息史. Nothing is broken and the layout settles on the next
  * frame; the W3C spec calls it benign. Surfacing it as「页面出现异常」only alarms the
  * operator, so this one message never raises a toast.
  */

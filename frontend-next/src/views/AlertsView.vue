@@ -134,7 +134,7 @@ const deviceFilter = computed(() => {
 });
 const search = computed(() => readParam("q"));
 /**
- * Onset window for 告警史 (history tab only). Server-side (see `AlertHistoryPanel`), so it reaches
+ * Onset window for 消息史 (history tab only). Server-side (see `AlertHistoryPanel`), so it reaches
  * cleared alerts older than the endpoint's most-recent page — the live tab reads the store and has
  * no history to window, hence these inputs show only when `!isLive`. Independent bounds; native
  * min/max keeps 起 ≤ 止.
@@ -145,7 +145,7 @@ const showAcknowledged = computed(() => readParam("acked") === "1");
 
 /**
  * 消息 is a section with three tabs (1.6.2 IA): live alerts off the store (消息, this view at
- * `/alerts`), 告警史 — cleared alerts — (this same view at `/alerts/history`), and 告警规则 (a
+ * `/alerts`), 消息史 — cleared alerts — (this same view at `/alerts/history`), and 告警规则 (a
  * separate view). Live and history share one filter bar; only 显示已确认 and the bulk-ack actions
  * are live-only, and the 起止时间 inputs are history-only. The tab is the route now — the former
  * `?view=history` toggle button is gone — so `/alert-history` redirects to `/alerts/history`.
@@ -564,7 +564,7 @@ watch(() => canAck.value && fleet.state.realtime.apiReady, runLegacyMigration);
       </UiFilterField>
 
       <!--
-        起止时间：仅 告警史 有（实时页读 store、没有历史可窗）。服务端过滤，能取到最近一页之外的
+        起止时间：仅 消息史 有（实时页读 store、没有历史可窗）。服务端过滤，能取到最近一页之外的
         旧记录。起 ≤ 止 由原生 min/max 约束；两端独立可选。
       -->
       <UiFilterField v-if="!isLive" label="起始时间">

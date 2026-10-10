@@ -4,7 +4,7 @@
  *
  * A section like 用户 owns more than one page (用户 / 角色 / 用户组). Rather than the old
  * approach — cards under a 管理 hub, or a lone `?view=` toggle bolted to a filter bar (消息's
- * 告警史) — its pages are real child routes and this strip switches between them. Because they
+ * 消息史) — its pages are real child routes and this strip switches between them. Because they
  * are routes, a pasted link opens the right tab, Back/Forward walk the tabs, and the active
  * state follows `router-link-active` rather than a local ref.
  *

@@ -68,7 +68,7 @@ const TAB_META = [
   { routeName: "device-detail", label: "实时" },
   { routeName: "device-charts", label: "曲线" },
   { routeName: "device-playback", label: "回放" },
-  { routeName: "device-alerts", label: "告警史" },
+  { routeName: "device-alerts", label: "消息史" },
 ];
 
 /** Playback/alerts pull in heavy deps (the map engine); this file only exercises 实时 and 曲线. */
@@ -112,7 +112,7 @@ const mountDetail = async (deviceId = "agv-01", tab?: string) => {
             path: "alerts",
             name: "device-alerts",
             component: Stub,
-            meta: { title: "告警史" },
+            meta: { title: "消息史" },
             props: true,
           },
         ],
@@ -373,7 +373,7 @@ describe("视图切换", () => {
     seed();
     const wrapper = await mountDetail();
 
-    expect(tabLinks(wrapper)).toEqual(["实时", "曲线", "回放", "告警史"]);
+    expect(tabLinks(wrapper)).toEqual(["实时", "曲线", "回放", "消息史"]);
     expect(tabStrip(wrapper).find("a[aria-current='page']").text()).toBe(
       "实时",
     );

@@ -225,7 +225,7 @@ describe("installGlobalErrorHandlers", () => {
   });
 
   it("does not raise a toast for the benign ResizeObserver loop notice", () => {
-    // Switching between 消息 and 告警史 re-measures ECharts/the map and the browser fires
+    // Switching between 消息 and 消息史 re-measures ECharts/the map and the browser fires
     // "ResizeObserver loop completed with undelivered notifications" — benign, nothing
     // broken. It must not surface as「页面出现异常」. It arrives as the message string with
     // no Error object, which is how the browser delivers this particular notice.

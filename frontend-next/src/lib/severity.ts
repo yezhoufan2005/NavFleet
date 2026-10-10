@@ -1,7 +1,7 @@
 import type { Severity } from "@navfleet/shared";
 
 /**
- * House labels for the three severity tiers, shared across 消息 / 告警史 / 报表 / 大屏 / 外发.
+ * House labels for the three severity tiers, shared across 消息 / 消息史 / 报表 / 大屏 / 外发.
  *
  * `critical` reads **告警**, not 严重: per the house term rule, 消息 is the umbrella and 告警 is its
  * critical tier (预警 = warning, 提示 = notice). This map is the single source so the same alert never

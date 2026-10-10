@@ -10,7 +10,7 @@
  *
  * ## Why tabs, and why they are real routes
  *
- * `docs/frontend-ia.md` puts 实时 / 曲线 / 回放 / 告警史 here rather than in the nav,
+ * `docs/frontend-ia.md` puts 实时 / 曲线 / 回放 / 消息史 here rather than in the nav,
  * because a separate page made you choose the same vehicle twice. They are answers to
  * different questions asked at different times — right now / lately / that afternoon /
  * has this happened before — so stacking them into one scroll would bury the first.

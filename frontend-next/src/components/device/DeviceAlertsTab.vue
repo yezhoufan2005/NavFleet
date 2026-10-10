@@ -1,6 +1,6 @@
 <script setup lang="ts">
 /**
- * 告警史 — this vehicle's alerts as a chronology.
+ * 消息史 — this vehicle's alerts as a chronology.
  *
  * The fourth tab `docs/frontend-ia.md` asks for at L3, and the **first consumer of
  * `/api/v1/alerts`** anywhere in the console: 13D-1 shipped the alert centre on the
@@ -70,7 +70,7 @@ const load = async (id: string): Promise<void> => {
     records.value = [];
     status.value = "error";
     errorMessage.value =
-      error instanceof Error ? error.message : "告警历史加载失败";
+      error instanceof Error ? error.message : "消息历史加载失败";
   }
 };
 
@@ -143,7 +143,7 @@ const activeCount = computed(
   >
     <header class="flex flex-wrap items-baseline gap-2">
       <h3 id="alert-history-heading" class="text-md font-semibold text-ink">
-        告警史
+        消息史
       </h3>
       <span
         v-if="status === 'ready' && rows.length"
@@ -153,7 +153,7 @@ const activeCount = computed(
     </header>
 
     <p v-if="status === 'loading'" class="m-0 text-sm text-ink-muted">
-      正在加载告警历史…
+      正在加载消息历史…
     </p>
 
     <p

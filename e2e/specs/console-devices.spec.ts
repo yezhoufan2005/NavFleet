@@ -290,7 +290,7 @@ test.describe("console devices", () => {
     await expect(codes).toContainText("处理建议");
   });
 
-  test("告警史 reads the alerts endpoint and dates each record", async ({
+  test("消息史 reads the alerts endpoint and dates each record", async ({
     page,
   }) => {
     // The fourth L3 tab, and the first consumer of `/api/v1/alerts` anywhere in the
@@ -303,7 +303,7 @@ test.describe("console devices", () => {
 
     await page.goto(`/devices/${faulted.deviceId}/alerts`);
 
-    const history = page.locator("section", { hasText: "告警史" });
+    const history = page.locator("section", { hasText: "消息史" });
     await expect(history).toContainText(String(faulted.errorCode!.code));
     // The three fields the alert centre never shows, because its source has no
     // history: when it started, when it ended, whether it is still running.

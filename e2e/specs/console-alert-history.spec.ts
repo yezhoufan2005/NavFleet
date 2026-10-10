@@ -1,7 +1,7 @@
 import { expect, signIn, test } from "../support/fixtures";
 
 /**
- * 告警史 in a real browser. Since 1.6.2 it is a real-route tab of the 消息 section
+ * 消息史 in a real browser. Since 1.6.2 it is a real-route tab of the 消息 section
  * (`/alerts/history`) rather than a `?view=` toggle: the statistics and list are unit-tested
  * against mocked data, so what only a browser answers is that the tab link works, the page loads
  * through the real backend, its charts' bundle (ECharts) does not break the route, and the old
@@ -20,7 +20,7 @@ test.describe("console alert history", () => {
     await page.goto("/alerts");
     await page
       .getByRole("navigation", { name: "分区导航" })
-      .getByRole("link", { name: "告警史" })
+      .getByRole("link", { name: "消息史" })
       .click();
 
     await expect(page).toHaveURL(/\/alerts\/history$/);

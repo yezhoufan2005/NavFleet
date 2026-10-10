@@ -64,7 +64,7 @@ const mountAlerts = async (query = "") => {
     history: createMemoryHistory(),
     routes: [
       { path: "/alerts", component: AlertsView },
-      // 告警史 is a sibling route now (1.6.2 IA): AlertsView reads live-vs-history off the path.
+      // 消息史 is a sibling route now (1.6.2 IA): AlertsView reads live-vs-history off the path.
       { path: "/alerts/history", component: AlertsView },
       { path: "/devices/:deviceId", component: { template: "<i />" } },
     ],
@@ -798,7 +798,7 @@ describe("selecting rows to confirm (确认选中)", () => {
   });
 });
 
-describe("the 告警史 tab", () => {
+describe("the 消息史 tab", () => {
   it("shows the history panel on the /alerts/history route and hides the live-only controls", async () => {
     const spy = vi
       .spyOn(fleetApi, "getAlerts")

@@ -7,7 +7,7 @@
  * 那是 17A 的事；这里只取数、按版式 B（顶部 KPI 带 + 两栏）渲染、导出 CSV。
  *
  * 只读，viewer+。四态里空态最要紧：无 Mongo 时两个报表都回 `available:false`，一个长期运行的车队
- * 会读起来像刚上线。空态说清缺的是 MongoDB 并链到 管理/系统状态（同 告警史 / DeviceAlertsTab 的做法）。
+ * 会读起来像刚上线。空态说清缺的是 MongoDB 并链到 管理/系统状态（同 消息史 / DeviceAlertsTab 的做法）。
  *
  * 纯逻辑（KPI 汇总、时序序列、CSV）在 `lib/reportsView.ts`，便于单测；这里保持薄。
  */
