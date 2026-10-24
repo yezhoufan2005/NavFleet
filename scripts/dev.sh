@@ -13,6 +13,7 @@
 # ║   scripts/dev.sh --no-mock  只起前后端，不发布演示数据                        ║
 # ║   scripts/dev.sh --legacy   起 v1.0.0 旧控制台 (:5173) 而非 v3，仅回滚验证用  ║
 # ║   scripts/dev.sh -h         打印用法                                        ║
+# ║   前后端崩溃（报 npm error 退出）会自动重启，不必手动重跑 dev.sh            ║
 # ║   Ctrl+C 停止前后端（--demo 的 Mongo 容器保留，命令见收尾横幅）             ║
 # ╚══════════════════════════════════════════════════════════════════════════╝
 set -uo pipefail
@@ -51,12 +52,53 @@ while [[ $# -gt 0 ]]; do
 done
 
 PIDS=()
+MAIN_PID=$$
+# A sentinel file, not a variable: the supervisor loops run in background subshells that
+# forked before cleanup sets it, so they cannot see a parent variable — but they can stat a
+# file. cleanup creates it so a loop whose child was just killed exits instead of restarting.
+SHUTDOWN_FLAG="$(mktemp -u "${TMPDIR:-/tmp}/navfleet-dev.XXXXXX")"
+
+# Kill a process and everything under it. Killing only the tracked subshell leaves its
+# npm → tsx/vite → node grandchildren (and the dev servers on :3000/:7070) orphaned, because a
+# parent's death does not signal its children. Depth-first so children die before their parent.
+kill_tree() {
+  local pid="$1" child
+  for child in $(pgrep -P "$pid" 2>/dev/null); do kill_tree "$child"; done
+  kill -TERM "$pid" 2>/dev/null || true
+}
+
 cleanup() {
+  trap - INT TERM
+  touch "$SHUTDOWN_FLAG" 2>/dev/null || true
   echo; echo "正在停止前后端…"
-  for pid in "${PIDS[@]:-}"; do kill "$pid" 2>/dev/null || true; done
+  for pid in "${PIDS[@]:-}"; do kill_tree "$pid"; done
+  wait 2>/dev/null || true
+  rm -f "$SHUTDOWN_FLAG"
   exit 0
 }
 trap cleanup INT TERM
+
+# Keep a dev process alive: run it, and if it exits while we are NOT shutting down, restart it
+# after a short pause. tsx watch / vite are long-running watchers — one healthy run never
+# returns — so this only re-enters on a crash (the "改完就退出、报 npm error、要手动重开" case).
+# Two stop conditions keep it from looping when it should not: the sentinel (set by cleanup /
+# the subshell's own INT-TERM trap on Ctrl+C), and a liveness check on the main script — if the
+# script was hard-killed (kill -9, no cleanup), an orphaned loop would otherwise respawn forever.
+supervise() {
+  local label="$1"
+  shift
+  trap 'touch "$SHUTDOWN_FLAG" 2>/dev/null; exit 0' INT TERM
+  local attempt=0
+  while [[ ! -f "$SHUTDOWN_FLAG" ]]; do
+    "$@"
+    local code=$?
+    [[ -f "$SHUTDOWN_FLAG" ]] && break
+    kill -0 "$MAIN_PID" 2>/dev/null || break
+    attempt=$((attempt + 1))
+    echo "⟳ [$label] 退出（code ${code}），1.5s 后自动重启（第 ${attempt} 次；Ctrl+C 停止全部）"
+    sleep 1.5
+  done
+}
 
 ensure_deps() {
   if [[ ! -d "$ROOT/$1/node_modules" ]]; then
@@ -128,9 +170,10 @@ if [[ ! -f "$ROOT/$FRONTEND_WORKSPACE/.env" ]]; then
   echo "  需要地图时在该文件里写 VITE_AMAP_KEY 与 VITE_AMAP_SECURITY_JS_CODE（两个 workspace 各自一份）。"
 fi
 
-echo "启动后端 (:${BACKEND_PORT})…"
-(
-  cd "$ROOT/backend"
+# 后端/前端启动各封装成函数，交给 supervise 守护：进程崩溃（报 npm error 退出）即自动
+# 重启，不必手动重跑脚本。健康运行时 tsx watch / vite 不会返回，所以 supervise 只在崩溃后重入。
+run_backend() {
+  cd "$ROOT/backend" || return 1
   export PORT="$BACKEND_PORT" \
     NODE_ENV="development" \
     CONFIG_ROOT_PATH="../config-runtime" \
@@ -140,17 +183,22 @@ echo "启动后端 (:${BACKEND_PORT})…"
     DEBUG_INGEST_ENABLED="true" \
     MQTT_USERNAME="$MQTT_SUBSCRIBER_USER" \
     MQTT_PASSWORD="$MQTT_SUBSCRIBER_PASS"
-  # --demo 才接 Mongo（内存态下报表/会话/审计无法落库聚合）；否则留空走内存回退。
-  [[ "$DEMO_MODE" == "1" ]] && export MONGO_URI="$DEV_MONGO_URI"
-  # 回填脚本几秒内会打上千次 debug/ingest；默认 600/min 的每 IP 限流会把大半打成 429，
-  # 所以 --demo 的本机 dev 后端放宽限流（仅开发用，不影响生产 .env 的真实限流值）。
-  [[ "$DEMO_MODE" == "1" ]] && export RATE_LIMIT_MAX=1000000 AUTH_RATE_LIMIT_MAX=100000
+  # --demo 才接 Mongo（内存态下报表/会话/审计无法落库聚合）；否则留空走内存回退。回填脚本
+  # 几秒打上千次 debug/ingest，默认 600/min 每 IP 限流会把大半打成 429，故 --demo 放宽限流
+  # （仅本机开发，不影响生产 .env 的真实值）。
+  if [[ "$DEMO_MODE" == "1" ]]; then
+    export MONGO_URI="$DEV_MONGO_URI" RATE_LIMIT_MAX=1000000 AUTH_RATE_LIMIT_MAX=100000
+  fi
   npm run dev
-) &
+}
+run_frontend() { cd "$ROOT/$FRONTEND_WORKSPACE" && npm run dev; }
+
+echo "启动后端 (:${BACKEND_PORT})…"
+supervise 后端 run_backend &
 PIDS+=($!)
 
 echo "启动前端 —— ${FRONTEND_LABEL} (${FRONTEND_URL})…"
-(cd "$ROOT/$FRONTEND_WORKSPACE" && npm run dev) &
+supervise 前端 run_frontend &
 PIDS+=($!)
 
 # 等待后端健康检查通过（最多 ~30s）
