@@ -91,37 +91,98 @@ const serverTimeLabel = computed(() =>
 
 type Tone = "ok" | "warning" | "critical" | "muted";
 
+/** One coloured run of a tile's mini proportion bar; the unfilled remainder shows as track. */
+interface BarSegment {
+  pct: number;
+  cls: string;
+}
+
 interface Tile {
   key: string;
   label: string;
   value: string;
   note: string;
   tone: Tone;
+  /**
+   * A thin proportion bar under the number — the "丰富" acceptance asked for, so each card
+   * carries its shape, not just a lonely figure. Ratio tiles (在线 / GPS / 编队) fill the
+   * filled fraction and leave the rest as track; 活跃消息 is a composition bar split by
+   * severity. Empty = nothing to show (e.g. no alerts), and the track reads as "none".
+   */
+  segments: BarSegment[];
 }
 
+/** Percent of `whole` that `part` is, clamped and zero when there is no whole. */
+const asPct = (part: number, whole: number): number =>
+  whole > 0 ? Math.max(0, Math.min(100, (part / whole) * 100)) : 0;
+
 /**
- * The four numbers a shift opens with. `tone` is only ever "not normal" when the
- * number itself says so — a permanently amber tile teaches people to ignore amber.
+ * 车队状态分布：五个 tone 的台数与占比，喂给总览顶部的「车队状态」分布卡（五色堆叠条 + 图例）。
+ * 本地按 getDeviceTone 统计，与设备列表 / 地图同一口径。顺序 = 最该先看的在前。
+ */
+const STATUS_ORDER = [
+  { key: "normal", label: "正常", cls: "bg-success" },
+  { key: "notice", label: "提示", cls: "bg-notice" },
+  { key: "warning", label: "预警", cls: "bg-warning" },
+  { key: "critical", label: "告警", cls: "bg-critical" },
+  { key: "offline", label: "离线", cls: "bg-offline" },
+] as const;
+
+const statusTotal = computed(() => fleet.sortedDevices.length);
+
+const statusRows = computed(() => {
+  const counts: Record<string, number> = {
+    normal: 0,
+    notice: 0,
+    warning: 0,
+    critical: 0,
+    offline: 0,
+  };
+  for (const device of fleet.sortedDevices) {
+    const tone = getDeviceTone(device);
+    counts[tone] = (counts[tone] ?? 0) + 1;
+  }
+  return STATUS_ORDER.map((status) => ({
+    ...status,
+    count: counts[status.key] ?? 0,
+    pct: asPct(counts[status.key] ?? 0, statusTotal.value),
+  }));
+});
+
+/**
+ * The three supporting numbers beside the 车队状态 card (活跃消息 / GPS覆盖 / 设备编队); 在线
+ * 情况 now lives in that card's full tone breakdown instead of a tile of its own. `tone` is only
+ * ever "not normal" when the number itself says so — a permanently amber tile teaches people to
+ * ignore amber.
  */
 const tiles = computed<Tile[]>(() => {
-  const { totalCount, onlineCount, alertTotal, gpsCount } = fleet.summary;
-  const offline = totalCount - onlineCount;
+  const { totalCount, alertTotal, gpsCount } = fleet.summary;
   const critical = fleet.groupedAlerts.critical.length;
+  const warning = fleet.groupedAlerts.warning.length;
+  const notice = fleet.groupedAlerts.notice.length;
+  // Formations whose every configured device is currently online — the "满员在线" the
+  // formation tile's bar fills to. A formation with no devices cannot be full.
+  const formationsFull = fleet.formations.filter(
+    (formation) =>
+      (formation.deviceCount ?? 0) > 0 &&
+      formation.onlineCount === formation.deviceCount,
+  ).length;
+  const formationCount = fleet.formations.length;
 
   return [
-    {
-      key: "online",
-      label: "在线设备",
-      value: `${onlineCount} / ${totalCount}`,
-      note: offline > 0 ? `${offline} 台离线` : "全部在线",
-      tone: offline > 0 ? "warning" : "ok",
-    },
     {
       key: "alerts",
       label: "活跃消息",
       value: String(alertTotal),
       note: critical > 0 ? `${critical} 条告警级` : "无告警级",
       tone: critical > 0 ? "critical" : alertTotal > 0 ? "warning" : "ok",
+      // Composition, not ratio: the three severities together are the whole bar, so it
+      // reads as "what are these 14 made of" at a glance. Zero-width runs are dropped.
+      segments: [
+        { pct: asPct(critical, alertTotal), cls: "bg-critical" },
+        { pct: asPct(warning, alertTotal), cls: "bg-warning" },
+        { pct: asPct(notice, alertTotal), cls: "bg-notice" },
+      ].filter((segment) => segment.pct > 0),
     },
     {
       key: "gps",
@@ -133,16 +194,20 @@ const tiles = computed<Tile[]>(() => {
           ? `${totalCount - gpsCount} 台无定位`
           : "全部已定位",
       tone: "muted",
+      // Neutral ink, not a status hue: coverage is information, not a good/bad state.
+      segments: [{ pct: asPct(gpsCount, totalCount), cls: "bg-ink-subtle" }],
     },
     {
       key: "formations",
       label: "设备编队",
-      value: String(fleet.formations.length),
-      // Not 点击查看成员: this tile is an `<article>`, and it stayed one. The click is
-      // on the formation rows below, so the note names where the capability is instead
-      // of describing one this element does not have.
-      note: fleet.formations.length ? "可在设备页按编队筛选" : "未配置编队",
+      value: String(formationCount),
+      note: formationCount
+        ? `${formationsFull} / ${formationCount} 满员在线`
+        : "未配置编队",
       tone: "muted",
+      segments: [
+        { pct: asPct(formationsFull, formationCount), cls: "bg-success" },
+      ],
     },
   ];
 });
@@ -265,10 +330,70 @@ const alertRows = computed(() =>
       skeleton regression — before this, `src` had `aria-busy` in exactly one place
       (`LoginForm`'s submit), so no data-loading region announced itself at all.
     -->
-    <div
-      class="grid gap-3 sm:grid-cols-2 xl:grid-cols-4"
+    <!--
+      车队状态分布卡：顶部最先看的一张。五色堆叠条 + 图例给出全车队的 tone 构成（正常/提示/
+      预警/告警/离线），取代原来的「在线设备」单卡 —— 在线即「总数减离线」，已含在分布里。
+    -->
+    <section
+      class="status-card flex flex-col gap-3 rounded-md border border-border bg-surface-raised p-4"
       :aria-busy="fleet.bootstrapPending"
+      aria-labelledby="status-heading"
     >
+      <div class="flex items-baseline justify-between gap-3">
+        <h2
+          id="status-heading"
+          class="font-mono text-2xs tracking-wider text-ink-subtle uppercase"
+        >
+          车队状态
+        </h2>
+        <span class="text-xs text-ink-muted"
+          >共
+          <strong class="tabular-nums text-ink">{{
+            fleet.bootstrapPending ? "—" : statusTotal
+          }}</strong>
+          台</span
+        >
+      </div>
+
+      <template v-if="fleet.bootstrapPending">
+        <UiSkeleton />
+        <UiSkeleton />
+      </template>
+      <p v-else-if="!statusTotal" class="text-sm text-ink-muted">
+        后端还没有上报任何设备
+      </p>
+      <template v-else>
+        <div class="status-bar" aria-hidden="true">
+          <div
+            v-for="row in statusRows"
+            v-show="row.pct > 0"
+            :key="row.key"
+            class="h-full"
+            :class="row.cls"
+            :style="{ width: `${row.pct}%` }"
+          />
+        </div>
+        <ul class="m-0 flex list-none flex-wrap gap-x-5 gap-y-2 p-0">
+          <li
+            v-for="row in statusRows"
+            :key="row.key"
+            class="flex items-baseline gap-1.5"
+          >
+            <span
+              class="size-2.5 shrink-0 translate-y-0.5 rounded-full"
+              :class="row.cls"
+              aria-hidden="true"
+            />
+            <span class="text-xs text-ink-muted">{{ row.label }}</span>
+            <strong class="text-sm tabular-nums text-ink">{{
+              row.count
+            }}</strong>
+          </li>
+        </ul>
+      </template>
+    </section>
+
+    <div class="grid gap-3 sm:grid-cols-3" :aria-busy="fleet.bootstrapPending">
       <article
         v-for="tile in tiles"
         :key="tile.key"
@@ -310,6 +435,22 @@ const alertRows = computed(() =>
           <strong :class="TILE_VALUE_CLASS">{{ tile.value }}</strong>
           <span class="text-xs text-ink-muted">{{ tile.note }}</span>
         </template>
+        <!--
+          Mini proportion bar, anchored to the card's bottom (`mt-auto`) so it fills the
+          slack that made these cards read as empty. `aria-hidden` because the value and
+          note already carry the same figures in text — the bar is reinforcement, the
+          colourblind/screen-reader path is the words. Before data it is an empty track
+          (every segment computes to 0%), so the card does not resize when the bar fills.
+        -->
+        <div class="stat-bar mt-auto" aria-hidden="true">
+          <div
+            v-for="(segment, index) in tile.segments"
+            :key="index"
+            class="h-full first:rounded-l-full last:rounded-r-full"
+            :class="segment.cls"
+            :style="{ width: `${segment.pct}%` }"
+          />
+        </div>
       </article>
     </div>
 
@@ -554,6 +695,46 @@ const alertRows = computed(() =>
 
 .stat-tile[data-tone="critical"] .tile-mark {
   background: var(--color-critical);
+}
+
+/*
+ * The mini proportion bar. A rounded track (border-muted) with coloured runs laid left to
+ * right; the unfilled tail stays track, which is what makes a ratio tile read as "26 of 29"
+ * without a second number. Height is a token-free 6px — it is a mark, not type, so it does
+ * not sit on the type scale. Theme-following because every colour is a token.
+ */
+.stat-bar {
+  display: flex;
+  height: 6px;
+  overflow: hidden;
+  border-radius: 999px;
+  background: var(--color-border-muted);
+}
+
+.stat-bar > div {
+  min-width: 0;
+}
+
+/*
+ * The 车队状态 card's full-width stacked bar — taller than the tiles' mini bar because it is
+ * the page's headline distribution, not a card footnote. A 1.5px surface-coloured sliver
+ * between runs keeps 正常/提示/预警/告警/离线 legible where two segments meet without a gap
+ * (the dataviz "2px surface gap between fills" rule, done as an inset so widths stay exact).
+ */
+.status-bar {
+  display: flex;
+  height: 12px;
+  overflow: hidden;
+  border-radius: 999px;
+  background: var(--color-border-muted);
+}
+
+.status-bar > div {
+  min-width: 0;
+}
+
+.status-bar > div + div {
+  box-shadow: inset 1.5px 0 0 var(--color-surface-raised);
 }
 
 /*
