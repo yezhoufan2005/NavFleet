@@ -291,23 +291,25 @@ if [[ "$DO_MOCK" == "1" ]]; then
   # 再报同一码只会更新 lastSeenAt，firstSeenAt 仍停在很久以前那次。报表按 firstSeenAt 分桶，于是
   # 「明明在报、报表近窗口却空，要拉到 30 天才见」——正是验收反馈的现象。这里把演示库：
   #   · 删掉已清除(inactive)的陈旧告警；
-  #   · 把活跃告警的 firstSeenAt 重新铺到「最近 3 天」内的随机时刻。
-  # 于是每次起栈的消息都是新的、且散布在近期（符合真实、随重启刷新）。mock 后续再报也不会覆盖
-  # firstSeenAt（$setOnInsert 对已存在的 eventKey 跳过），校正后的时间稳定留存。
+  #   · 把活跃告警的 firstSeenAt **均匀铺到最近 ~20 小时**内。
+  # 均匀（而非随机）铺开，保证默认 12 小时窗口里一定有内容、各窗口又各不相同（不再「虚的、同一的」），
+  # 且每次起栈都相对“现在”重算（随重启刷新）。mock 后续再报也不会覆盖 firstSeenAt（$setOnInsert 对
+  # 已存在的 eventKey 跳过），校正后的时间稳定留存。只动演示数据，产品代码不变。
   MONGO_U="$(deploy_var MONGO_INITDB_ROOT_USERNAME)"; MONGO_U="${MONGO_U:-root}"
   MONGO_P="$(deploy_var MONGO_INITDB_ROOT_PASSWORD)"
   RESTAMPED="$(compose exec -T mongo mongosh --quiet -u "$MONGO_U" -p "$MONGO_P" \
     --authenticationDatabase admin fleet_monitor --eval '
       db.alerts.deleteMany({ active: { $ne: true } });
-      let n = 0;
-      db.alerts.find({ active: true }).forEach(function (a) {
-        var fs = new Date(Date.now() - Math.floor(Math.random() * 3 * 864e5));
-        db.alerts.updateOne({ _id: a._id }, { $set: { firstSeenAt: fs } });
-        n++;
+      var ids = db.alerts.find({ active: true }, { _id: 1 }).toArray().map(function (a) { return a._id; });
+      var span = 20 * 3600 * 1000;
+      var now = Date.now();
+      ids.forEach(function (id, i) {
+        var fs = new Date(now - Math.floor((span * i) / (ids.length || 1)));
+        db.alerts.updateOne({ _id: id }, { $set: { firstSeenAt: fs } });
       });
-      print(n);
+      print(ids.length);
     ' 2>/dev/null | tr -dc '0-9')"
-  echo "演示告警时间校正：${RESTAMPED:-0} 条活跃告警 firstSeenAt 已铺到最近 3 天（随本次起栈刷新）"
+  echo "演示告警时间校正：${RESTAMPED:-0} 条活跃告警 firstSeenAt 已均匀铺到最近 ~20 小时（随本次起栈刷新）"
 
   echo
   echo "断言（续）:"
