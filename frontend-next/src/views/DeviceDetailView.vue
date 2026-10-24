@@ -42,7 +42,7 @@ const tone = computed(() =>
 const toneLabel = computed(() => deviceToneLabels[tone.value]);
 
 const TONE_BADGE: Record<string, string> = {
-  normal: "bg-brand-wash text-brand-ink",
+  normal: "bg-success-wash text-success-ink",
   notice: "bg-notice-wash text-notice-ink",
   warning: "bg-warning-wash text-warning-ink",
   critical: "bg-critical-wash text-critical-ink",
