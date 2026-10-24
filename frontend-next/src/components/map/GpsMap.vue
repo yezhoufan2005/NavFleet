@@ -490,7 +490,7 @@ watch(
   --marker-color: var(--color-offline);
 }
 .amap-device-marker.tone-normal {
-  --marker-color: var(--color-brand);
+  --marker-color: var(--color-success);
 }
 .amap-device-marker.tone-notice {
   --marker-color: var(--color-notice);

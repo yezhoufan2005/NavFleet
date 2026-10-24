@@ -151,6 +151,10 @@
         --color-offline-contrast: #ffffff;
         --color-offline-ink: #59636e;
         --color-offline-wash: #eaeef2;
+        --color-success: #1a7f37;
+        --color-success-contrast: #ffffff;
+        --color-success-ink: #1a7f37;
+        --color-success-wash: #dafbe1;
 
         /* 图表：系列色为字面值，坐标轴/网格取自 ramp。 */
         --color-chart-1: #2a78d6;
@@ -173,6 +177,7 @@
         --color-ros-link: rgba(30, 41, 59, 0.5);
         --color-ros-cloud-obstacle: #123a52;
         --color-ros-cloud-floor: #5a6b7a;
+        --color-ros-lidar: #7c3aed;
         --color-map-grid: var(--color-slate-300);
         --color-map-scale: var(--color-slate-600);
 
@@ -225,6 +230,10 @@
           --color-offline-contrast: #ffffff;
           --color-offline-ink: #909dab;
           --color-offline-wash: #2d333b;
+          --color-success: #347d39;
+          --color-success-contrast: #ffffff;
+          --color-success-ink: #57ab5a;
+          --color-success-wash: #132a1c;
 
           /* 图表：系列色为字面值，坐标轴/网格取自 ramp。 */
           --color-chart-1: #3987e5;
@@ -247,6 +256,7 @@
           --color-ros-link: rgba(255, 255, 255, 0.72);
           --color-ros-cloud-obstacle: #b6edff;
           --color-ros-cloud-floor: #6c8494;
+          --color-ros-lidar: #a371f7;
           --color-map-grid: var(--color-slate-600);
           --color-map-scale: var(--color-slate-300);
 
@@ -297,6 +307,10 @@
         --color-offline-contrast: #ffffff;
         --color-offline-ink: #909dab;
         --color-offline-wash: #2d333b;
+        --color-success: #347d39;
+        --color-success-contrast: #ffffff;
+        --color-success-ink: #57ab5a;
+        --color-success-wash: #132a1c;
 
         /* 图表：系列色为字面值，坐标轴/网格取自 ramp。 */
         --color-chart-1: #3987e5;
@@ -319,6 +333,7 @@
         --color-ros-link: rgba(255, 255, 255, 0.72);
         --color-ros-cloud-obstacle: #b6edff;
         --color-ros-cloud-floor: #6c8494;
+        --color-ros-lidar: #a371f7;
         --color-map-grid: var(--color-slate-600);
         --color-map-scale: var(--color-slate-300);
 
@@ -575,7 +590,7 @@
         "
       >
         <p class="eyebrow">NavFleet · Phase 11D · 设计系统标样</p>
-        <h1>6 条色阶，18 组对比度，自己检查自己</h1>
+        <h1>6 条色阶，20 组对比度，自己检查自己</h1>
         <p
           style="
             max-width: 64ch;
@@ -936,6 +951,8 @@
                 style="background: var(--color-ros-cloud-floor)"
                 title="ros-cloud-floor"
                 ><em>cloud-floor</em></i
+              ><i style="background: var(--color-ros-lidar)" title="ros-lidar"
+                ><em>lidar</em></i
               ><i style="background: var(--color-map-grid)" title="map-grid"
                 ><em>grid</em></i
               ><i style="background: var(--color-map-scale)" title="map-scale"
@@ -950,7 +967,7 @@
         <div>
           <p class="eyebrow">② 语义层 · 机检</p>
           <h2 style="margin-top: calc(var(--spacing) * 2)">
-            对比度审计（33 个 token）
+            对比度审计（37 个 token）
           </h2>
         </div>
         <div class="audit-summary" data-role="summary"></div>
@@ -1273,6 +1290,40 @@
                     style="
                       background: var(--color-offline-wash);
                       color: var(--color-offline-ink);
+                    "
+                    >车队 42 台在线 Aa</span
+                  >
+                </td>
+                <td class="ratio" data-role="ratio">—</td>
+                <td class="verdict" data-role="verdict">—</td>
+              </tr>
+              <tr data-fg="success-contrast" data-bg="success">
+                <td><code>success-contrast</code></td>
+                <td><code>success</code></td>
+                <td>实心 success 表面（正常态）</td>
+                <td>
+                  <span
+                    class="sample"
+                    style="
+                      background: var(--color-success);
+                      color: var(--color-success-contrast);
+                    "
+                    >车队 42 台在线 Aa</span
+                  >
+                </td>
+                <td class="ratio" data-role="ratio">—</td>
+                <td class="verdict" data-role="verdict">—</td>
+              </tr>
+              <tr data-fg="success-ink" data-bg="success-wash">
+                <td><code>success-ink</code></td>
+                <td><code>success-wash</code></td>
+                <td>success 薄底</td>
+                <td>
+                  <span
+                    class="sample"
+                    style="
+                      background: var(--color-success-wash);
+                      color: var(--color-success-ink);
                     "
                     >车队 42 台在线 Aa</span
                   >

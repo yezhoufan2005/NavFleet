@@ -44,6 +44,17 @@ import type { DeviceSnapshot } from "@navfleet/shared";
  * the order churns every tick and tells you nothing. Oldest-first puts the silent ones
  * on top, which is the only reason to sort by that column at all.
  *
+ * ## 最近上报 sorts on a one-minute bucket, not the raw millisecond
+ *
+ * Even oldest-first churned: a healthy fleet all reports ~every second, so the raw
+ * millisecond order reshuffled the whole list on every tick — the rows visibly jittered
+ * even though nothing meaningful had changed. The signal in this column is "whose data
+ * stopped", and that is a question answered in minutes, not milliseconds. So the
+ * comparator floors the stamp to a `STAMP_SORT_BUCKET_MS` bucket: every vehicle that
+ * reported within the same minute shares a key and holds its id order, while a vehicle
+ * that has gone quiet for minutes still sinks to the stale end. The cell still shows the
+ * live ticking timestamp; only the ordering is coarsened.
+ *
  * ## Absent values sort last, in both directions
  *
  * A vehicle with no battery reading is not at 0%, and one whose stamp will not parse is
@@ -78,6 +89,13 @@ export interface SortableDeviceRow {
 const DEFAULT_SORT_KEY: DeviceSortKey = "id";
 const DEFAULT_SORT_DIRECTION: SortDirection = "asc";
 
+/**
+ * Granularity of the 最近上报 sort, in milliseconds. One minute: coarse enough that a
+ * healthy 1 Hz fleet stops reshuffling every tick, fine enough that a vehicle minutes
+ * stale still sorts apart. See the header's bucket section.
+ */
+const STAMP_SORT_BUCKET_MS = 60_000;
+
 const SORT_KEYS: readonly DeviceSortKey[] = [
   "tone",
   "name",
@@ -102,7 +120,12 @@ const NUMERIC_READS: Partial<Record<DeviceSortKey, NumericRead>> = {
     const soc = row.device.vehicleInfo?.soc;
     return typeof soc === "number" && Number.isFinite(soc) ? soc : null;
   },
-  stamp: (row) => parseTimestampMs(row.device.stamp),
+  stamp: (row) => {
+    // Floored to a one-minute bucket so a 1 Hz fleet does not reshuffle every tick; see the
+    // header. Absent stays null (sorts last), not 0 (which would read as 1970).
+    const ms = parseTimestampMs(row.device.stamp);
+    return ms === null ? null : Math.floor(ms / STAMP_SORT_BUCKET_MS);
+  },
 };
 
 const TEXT_READS: Partial<
