@@ -11,14 +11,13 @@
  *
  * 纯逻辑（KPI 汇总、时序序列、CSV）在 `lib/reportsView.ts`，便于单测；这里保持薄。
  */
-import { computed, onMounted, ref, watch } from "vue";
+import { computed, onMounted, ref, useTemplateRef, watch } from "vue";
 import { RouterLink, useRoute, useRouter } from "vue-router";
 import PageHeader from "@/components/PageHeader.vue";
 import AppSectionTabs from "@/components/shell/AppSectionTabs.vue";
 import UiButton from "@/components/ui/UiButton.vue";
 import UiInput from "@/components/ui/UiInput.vue";
 import UiSegmented from "@/components/ui/UiSegmented.vue";
-import UiSelect from "@/components/ui/UiSelect.vue";
 import UiMultiSelect from "@/components/ui/UiMultiSelect.vue";
 import UiFilterBar from "@/components/ui/UiFilterBar.vue";
 import UiFilterField from "@/components/ui/UiFilterField.vue";
@@ -26,6 +25,7 @@ import { SEVERITY_LABELS } from "@/lib/severity";
 import TimeSeriesChart from "@/components/charts/TimeSeriesChart.vue";
 import CategoryBarChart from "@/components/charts/CategoryBarChart.vue";
 import { useChartTheme } from "@/composables/useChartTheme";
+import { useScrollbarGutter } from "@/composables/useScrollbarGutter";
 import { useFleetStore } from "@/stores/fleet";
 import { fleetApi } from "@navfleet/fleet-core";
 import type {
@@ -54,15 +54,13 @@ const RANGES: readonly { value: RangePreset; label: string }[] = [
   { value: "30d", label: "近 30 天" },
 ];
 const RANGE_VALUES: readonly RangePreset[] = ["12h", "24h", "7d", "30d"];
-const BUCKETS: readonly { value: ReportBucketUnit; label: string }[] = [
-  { value: "hour", label: "按小时" },
-  { value: "day", label: "按天" },
-  { value: "month", label: "按月" },
-];
 const route = useRoute();
 const router = useRouter();
 const { palette } = useChartTheme();
 const fleet = useFleetStore();
+// Keeps the 按设备明细 split header aligned with its scrolling body (shared with the chart tables).
+const detailBody = useTemplateRef<HTMLElement>("detailBody");
+const detailGutter = useScrollbarGutter(detailBody);
 
 // 可用率与告警是两条独立的后端聚合，慢/错的那条不该连累另一条（可用率宽窗要几十秒，告警是秒级）。
 // 所以两者各有自己的加载/错误态，分别渲染；整页不再因一条失败而空白。
@@ -88,12 +86,12 @@ const range = computed<RangePreset>(() => {
     ? (value as RangePreset)
     : "12h";
 });
+/**
+ * 粒度 (bucket) is **not a user control** — it is derived from the selected window. A separate
+ * selector only invited nonsense combinations (按月 over 12 小时) and begged for cascade logic;
+ * driving it off the span is simpler and always coherent: 短窗→按小时, 中→按天, 长→按月.
+ */
 const bucket = computed<ReportBucketUnit>(() => {
-  const value = readParam("bucket");
-  if (value === "hour" || value === "day" || value === "month") return value;
-  // No explicit choice ⇒ pick a granularity that fits the active window (Phase 18). The old flat
-  // "day" default drew a 12-小时 window as a single bucket — the near-empty chart that read as
-  // "no data". Selecting a bucket in the control still wins; this only fills the blank.
   if (isCustom.value) {
     const span =
       new Date(`${customTo.value}T23:59:59.999`).getTime() -
@@ -484,15 +482,6 @@ const exportAlertsCsv = (): void => {
         />
       </UiFilterField>
 
-      <UiFilterField label="粒度">
-        <UiSelect
-          :model-value="bucket"
-          :options="BUCKETS"
-          aria-label="分桶粒度"
-          @update:model-value="setFilter({ bucket: $event })"
-        />
-      </UiFilterField>
-
       <UiFilterField label="设备">
         <UiMultiSelect
           :model-value="deviceFilter"
@@ -725,41 +714,71 @@ const exportAlertsCsv = (): void => {
             >
             按设备明细（{{ availabilityRows.length }} 行）
           </summary>
-          <div class="max-h-80 overflow-auto border-t border-border">
-            <table class="w-full border-collapse text-sm">
-              <thead
-                class="sticky top-0 z-10 bg-surface-sunken text-2xs text-ink-muted uppercase"
-              >
-                <tr class="text-left">
-                  <th class="px-4 py-2 font-medium">设备</th>
-                  <th class="px-4 py-2 text-right font-medium">在线率</th>
-                  <th class="px-4 py-2 text-right font-medium">电量均值</th>
-                  <th class="px-4 py-2 text-right font-medium">最低电量</th>
-                  <th class="px-4 py-2 text-right font-medium">样本数</th>
-                </tr>
-              </thead>
-              <tbody>
-                <tr
-                  v-for="row in availabilityRows"
-                  :key="row.deviceId"
-                  class="border-t border-border/60 text-ink"
+          <!-- Same split shape as the chart tables: gray header outside the scroll box (covers the
+               scrollbar), padded by the body's scrollbar width so columns stay aligned. -->
+          <div class="border-t border-border">
+            <div :style="{ paddingRight: `${detailGutter}px` }">
+              <table class="w-full table-fixed border-collapse text-sm">
+                <colgroup>
+                  <col class="w-[32%]" />
+                  <col />
+                  <col />
+                  <col />
+                  <col />
+                </colgroup>
+                <thead
+                  class="bg-surface-sunken text-2xs text-ink-muted uppercase"
                 >
-                  <td class="px-4 py-2">{{ row.name }}</td>
-                  <td class="px-4 py-2 text-right font-mono tabular-nums">
-                    {{ fmtPct(row.onlineRatio) }}
-                  </td>
-                  <td class="px-4 py-2 text-right font-mono tabular-nums">
-                    {{ fmtSoc(row.socMean) }}
-                  </td>
-                  <td class="px-4 py-2 text-right font-mono tabular-nums">
-                    {{ fmtSoc(row.socMin) }}
-                  </td>
-                  <td class="px-4 py-2 text-right font-mono tabular-nums">
-                    {{ row.totalSamples }}
-                  </td>
-                </tr>
-              </tbody>
-            </table>
+                  <tr class="text-left">
+                    <th class="px-4 py-2 font-medium">设备</th>
+                    <th class="px-4 py-2 text-right font-medium">在线率</th>
+                    <th class="px-4 py-2 text-right font-medium">电量均值</th>
+                    <th class="px-4 py-2 text-right font-medium">最低电量</th>
+                    <th class="px-4 py-2 text-right font-medium">样本数</th>
+                  </tr>
+                </thead>
+              </table>
+            </div>
+            <div
+              ref="detailBody"
+              class="max-h-80 overflow-x-hidden overflow-y-auto border-t border-border"
+              tabindex="0"
+              role="region"
+              :aria-label="`按设备明细 数据表`"
+            >
+              <table class="w-full table-fixed border-collapse text-sm">
+                <colgroup>
+                  <col class="w-[32%]" />
+                  <col />
+                  <col />
+                  <col />
+                  <col />
+                </colgroup>
+                <tbody>
+                  <tr
+                    v-for="row in availabilityRows"
+                    :key="row.deviceId"
+                    class="border-b border-border/60 text-ink last:border-b-0"
+                  >
+                    <td class="truncate px-4 py-2" :title="row.name">
+                      {{ row.name }}
+                    </td>
+                    <td class="px-4 py-2 text-right font-mono tabular-nums">
+                      {{ fmtPct(row.onlineRatio) }}
+                    </td>
+                    <td class="px-4 py-2 text-right font-mono tabular-nums">
+                      {{ fmtSoc(row.socMean) }}
+                    </td>
+                    <td class="px-4 py-2 text-right font-mono tabular-nums">
+                      {{ fmtSoc(row.socMin) }}
+                    </td>
+                    <td class="px-4 py-2 text-right font-mono tabular-nums">
+                      {{ row.totalSamples }}
+                    </td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
           </div>
         </details>
       </section>

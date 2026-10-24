@@ -216,11 +216,12 @@ describe("报表 状态与内容", () => {
     expect(pressed).not.toContain("近 12 小时");
   });
 
-  it("按月粒度会带 month 去取可用率", async () => {
+  it("粒度随窗口自适应：长自定义区间自动用 month 聚合", async () => {
     const avail = vi
       .spyOn(fleetApi, "getAvailabilityReport")
       .mockResolvedValue(availabilityReport());
-    await mountView("?bucket=month");
+    // 粒度 is no longer a user control; a >3-month custom window derives the 「按月」 bucket.
+    await mountView("?from=2026-01-01&to=2026-04-30");
     expect(avail.mock.calls.at(-1)![0]!.bucket).toBe("month");
   });
 

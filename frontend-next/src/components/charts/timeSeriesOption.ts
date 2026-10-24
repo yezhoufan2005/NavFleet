@@ -105,6 +105,9 @@ export const buildTimeSeriesOption = ({
   // End labels and a right-side legend both claim the right margin, so they are mutually
   // exclusive: with the legend on the right, identity comes from it, not from end labels.
   const directLabels = series.length <= DIRECT_LABEL_LIMIT && !legendRight;
+  // When the axis is pinned to a fixed window (reports), tilt the time labels so none is dropped
+  // for lack of room — 选 12 小时时 22:00 被挤掉就是平排标签相撞被 hideOverlap 丢了。
+  const tilt = xMin !== undefined && xMax !== undefined;
 
   return {
     animation: animate,
@@ -118,7 +121,7 @@ export const buildTimeSeriesOption = ({
     grid: {
       top: series.length > 1 && !legendRight ? 32 : 12,
       right: directLabels ? 72 : 16,
-      bottom: 28,
+      bottom: tilt ? 40 : 28,
       left: 52,
       containLabel: false,
     },
@@ -158,7 +161,12 @@ export const buildTimeSeriesOption = ({
       // Recessive: the data is the subject, the frame is not.
       axisLine: { lineStyle: { color: palette.axis } },
       axisTick: { show: false },
-      axisLabel: { color: palette.inkMuted, fontSize: 11, hideOverlap: true },
+      axisLabel: {
+        color: palette.inkMuted,
+        fontSize: 11,
+        hideOverlap: true,
+        rotate: tilt ? 30 : 0,
+      },
       splitLine: { show: false },
     },
     yAxis: {
