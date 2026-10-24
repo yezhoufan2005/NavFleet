@@ -283,6 +283,32 @@ if [[ "$DO_MOCK" == "1" ]]; then
   else
     ok "演示发布器已连上 broker"
   fi
+
+  # 演示告警的时间校正（只动演示数据，不碰产品代码）。
+  #
+  # 为什么需要：告警的 firstSeenAt 在 upsert 时是 $setOnInsert 钉死的（这是对的——首次出现即发生
+  # 时刻）。但 compose 的 Mongo 卷跨多次起栈持久，同一 (设备,报码) 的 eventKey 早已存在，mock 今天
+  # 再报同一码只会更新 lastSeenAt，firstSeenAt 仍停在很久以前那次。报表按 firstSeenAt 分桶，于是
+  # 「明明在报、报表近窗口却空，要拉到 30 天才见」——正是验收反馈的现象。这里把演示库：
+  #   · 删掉已清除(inactive)的陈旧告警；
+  #   · 把活跃告警的 firstSeenAt 重新铺到「最近 3 天」内的随机时刻。
+  # 于是每次起栈的消息都是新的、且散布在近期（符合真实、随重启刷新）。mock 后续再报也不会覆盖
+  # firstSeenAt（$setOnInsert 对已存在的 eventKey 跳过），校正后的时间稳定留存。
+  MONGO_U="$(deploy_var MONGO_INITDB_ROOT_USERNAME)"; MONGO_U="${MONGO_U:-root}"
+  MONGO_P="$(deploy_var MONGO_INITDB_ROOT_PASSWORD)"
+  RESTAMPED="$(compose exec -T mongo mongosh --quiet -u "$MONGO_U" -p "$MONGO_P" \
+    --authenticationDatabase admin fleet_monitor --eval '
+      db.alerts.deleteMany({ active: { $ne: true } });
+      let n = 0;
+      db.alerts.find({ active: true }).forEach(function (a) {
+        var fs = new Date(Date.now() - Math.floor(Math.random() * 3 * 864e5));
+        db.alerts.updateOne({ _id: a._id }, { $set: { firstSeenAt: fs } });
+        n++;
+      });
+      print(n);
+    ' 2>/dev/null | tr -dc '0-9')"
+  echo "演示告警时间校正：${RESTAMPED:-0} 条活跃告警 firstSeenAt 已铺到最近 3 天（随本次起栈刷新）"
+
   echo
   echo "断言（续）:"
 fi

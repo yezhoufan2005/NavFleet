@@ -154,13 +154,16 @@ watch(
   { flush: "post" },
 );
 
-// `notMerge: false` on purpose: an update that only changes the data should not
-// throw away the axis extent ECharts has already computed.
+// `replaceMerge` the series (and legend) so a change that *removes* series actually drops them.
+// ECharts' default merge is by index: going from 3 lines to 1 (deselecting vehicles) would leave
+// the 2 stale lines on the canvas, and a now-absent `legend` would linger — the "图全出 / 关掉选择
+// 不更新，要手动刷新" bug. Everything else (axis, grid, tooltip) still merges, so the axis extent
+// ECharts already computed on a pure data update is preserved.
 watch(
   option,
   (next) => {
     startedAt = performance.now();
-    chart?.setOption(next);
+    chart?.setOption(next, { replaceMerge: ["series", "legend"] });
     applyCursor();
   },
   { flush: "post" },

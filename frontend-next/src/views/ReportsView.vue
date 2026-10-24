@@ -657,7 +657,6 @@ const exportAlertsCsv = (): void => {
               label="在线率趋势"
               unit="%"
               :height="240"
-              legend-position="right"
             />
             <p v-else class="m-0 py-8 text-center text-sm text-ink-muted">
               该时间段没有遥测样本
@@ -670,7 +669,6 @@ const exportAlertsCsv = (): void => {
               label="电量SOC均值"
               unit="%"
               :height="240"
-              legend-position="right"
             />
             <p v-else class="m-0 py-8 text-center text-sm text-ink-muted">
               该时间段没有电量样本
