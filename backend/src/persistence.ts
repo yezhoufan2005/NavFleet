@@ -138,9 +138,23 @@ const MAX_NOTIFY_PER_QUERY = 500;
 /** How many devices the alert-stats Top-N ranking keeps (Phase 17A). Matches 16B's client-side default. */
 const ALERT_STATS_TOP_N = 8;
 
+/** How many device series the availability report keeps before folding the rest into 「其余」
+ * (Phase 18 reports rework). Bounds the response body — 30 天 × 按小时 × 全车队 would otherwise be
+ * megabytes — while the chart/summary stay exact (the fold is sample-weighted). */
+const AVAILABILITY_TOP_N = 8;
+
+/** Report aggregations are read-only views over slowly-changing history, so a short in-memory TTL
+ * cache collapses repeat loads (filter toggling, several viewers, the dashboard re-opening) onto one
+ * Mongo aggregation without risking stale operational data. Keyed by the fully-resolved query. */
+const REPORT_CACHE_TTL_MS = 30_000;
+
 export class Persistence {
   private db: Db | null = null;
   private pendingTelemetry: TelemetryDocument[] = [];
+  /** Short-TTL cache for report aggregations (see `REPORT_CACHE_TTL_MS`). Keyed by the resolved
+   * query; value carries the report and the epoch-ms it expires at. Bounded by key cardinality
+   * (preset×bucket×device combos) and swept lazily on read. */
+  private reportCache = new Map<string, { expiresAt: number; value: unknown }>();
   /**
    * How many buffered telemetry documents have been dropped because the buffer was
    * full. P0-c: the overflow used to `splice` the oldest away silently, so a monitoring
@@ -224,6 +238,8 @@ export class Persistence {
    */
   __setDbForTests(db: Db | null): void {
     this.db = db;
+    // Swapping the backing db invalidates any cached aggregation keyed to the old one.
+    this.reportCache.clear();
   }
 
   /**
@@ -247,6 +263,7 @@ export class Persistence {
     try {
       await client.connect();
       this.db = client.db(config.mongoDbName);
+      this.reportCache.clear();
       await this.ensureMongoCollections();
       // Run schema migrations on the first connect that has a live db. A migration that
       // *errors* rejects this session (so we never serve a half-migrated database) and is
@@ -271,6 +288,7 @@ export class Persistence {
       close: async () => {
         // Back to the in-memory fallback for as long as there is no client.
         this.db = null;
+        this.reportCache.clear();
         await client.close();
       },
     };
@@ -324,6 +342,14 @@ export class Persistence {
     await this.db.collection("device_latest").createIndex({ stamp: -1 });
     await this.db.collection("alerts").createIndex({ deviceId: 1, ts: -1 });
     await this.db.collection("alerts").createIndex({ severity: 1, active: 1, ts: -1 });
+    // The alert-stats report (`$match`/`$group`/日切日 in reports/alertStatsPipeline) filters and
+    // buckets entirely on `firstSeenAt`; without this index a bounded report scanned the whole
+    // collection, the slowest path on the reports page (Phase 18).
+    await this.db.collection("alerts").createIndex({ firstSeenAt: 1 });
+    // telemetry_ts is a time-series collection (clustered on `ts`), so the whole-fleet range scan is
+    // already covered; this secondary index on the metaField speeds the device-filtered availability
+    // report, whose `$match` leads with `meta.deviceId` before the `ts` range (Phase 18).
+    await this.db.collection("telemetry_ts").createIndex({ "meta.deviceId": 1, ts: 1 });
     await this.db
       .collection("alerts")
       .createIndex({ lastSeenAt: 1 }, { expireAfterSeconds: config.alertsRetentionSeconds });
@@ -1400,19 +1426,19 @@ export class Persistence {
     if (!this.db) {
       return emptyAlertStatsReport(false);
     }
-    const pipeline = buildAlertStatsPipeline({
-      from: toBoundDate(range.from),
-      to: toBoundDate(range.to),
-      topN: ALERT_STATS_TOP_N,
-      timezone: config.reportTimezone,
+    const db = this.db;
+    return this.withReportCache(`alerts:${range.from ?? ""}:${range.to ?? ""}`, async () => {
+      const pipeline = buildAlertStatsPipeline({
+        from: toBoundDate(range.from),
+        to: toBoundDate(range.to),
+        topN: ALERT_STATS_TOP_N,
+        timezone: config.reportTimezone,
+      });
+      // `$facet` always yields exactly one document; the `?? {}` only satisfies the type for the
+      // (unreachable) empty-cursor case, and the mapper turns it into a zeroed but available report.
+      const [facet] = await db.collection("alerts").aggregate<AlertStatsFacet>(pipeline).toArray();
+      return mapAlertStatsFacet(facet ?? {});
     });
-    // `$facet` always yields exactly one document; the `?? {}` only satisfies the type for the
-    // (unreachable) empty-cursor case, and the mapper turns it into a zeroed but available report.
-    const [facet] = await this.db
-      .collection("alerts")
-      .aggregate<AlertStatsFacet>(pipeline)
-      .toArray();
-    return mapAlertStatsFacet(facet ?? {});
   }
 
   /**
@@ -1432,17 +1458,47 @@ export class Persistence {
     if (!this.db) {
       return emptyAvailabilityReport(params.bucket, false);
     }
-    const pipeline = buildAvailabilityPipeline({
-      deviceIds: params.deviceId?.length ? params.deviceId : null,
-      from: toBoundDate(params.from),
-      to: toBoundDate(params.to),
-      bucket: params.bucket,
-      timezone: config.reportTimezone,
+    const db = this.db;
+    const deviceIds = params.deviceId?.length ? params.deviceId : null;
+    const key = `avail:${params.from ?? ""}:${params.to ?? ""}:${params.bucket}:${
+      deviceIds ? [...deviceIds].sort().join(",") : "*"
+    }`;
+    return this.withReportCache(key, async () => {
+      const pipeline = buildAvailabilityPipeline({
+        deviceIds,
+        from: toBoundDate(params.from),
+        to: toBoundDate(params.to),
+        bucket: params.bucket,
+        timezone: config.reportTimezone,
+      });
+      const rows = await db
+        .collection("telemetry_ts")
+        .aggregate<AvailabilityRow>(pipeline)
+        .toArray();
+      // Cap to Top-N devices unless the user already narrowed to a short explicit list — a chosen
+      // handful is exactly the comparison they asked for, so don't fold it into 「其余」.
+      const topN =
+        deviceIds && deviceIds.length <= AVAILABILITY_TOP_N ? undefined : AVAILABILITY_TOP_N;
+      return mapAvailabilityRows(rows, params.bucket, { topN });
     });
-    const rows = await this.db
-      .collection("telemetry_ts")
-      .aggregate<AvailabilityRow>(pipeline)
-      .toArray();
-    return mapAvailabilityRows(rows, params.bucket);
+  }
+
+  /**
+   * Run `compute` unless a fresh cached value exists for `key`; cache the result for
+   * `REPORT_CACHE_TTL_MS`. Sweeps expired keys lazily so the map can't grow unbounded across the
+   * day's filter combinations. Errors are not cached — a failed aggregation must be retryable.
+   */
+  private async withReportCache<T>(key: string, compute: () => Promise<T>): Promise<T> {
+    const now = Date.now();
+    const hit = this.reportCache.get(key);
+    if (hit && hit.expiresAt > now) {
+      return hit.value as T;
+    }
+    for (const [cachedKey, entry] of this.reportCache) {
+      if (entry.expiresAt <= now) this.reportCache.delete(cachedKey);
+    }
+    const value = await compute();
+    this.reportCache.set(key, { expiresAt: now + REPORT_CACHE_TTL_MS, value });
+    return value;
   }
 }

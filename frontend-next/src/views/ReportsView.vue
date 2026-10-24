@@ -36,8 +36,12 @@ import type {
 import {
   buildAlertStatsCsv,
   buildAvailabilityCsv,
+  defaultBucketForPreset,
+  defaultBucketForSpanMs,
+  deviceAvailabilityRows,
   onlineRatioSeries,
   socSeries,
+  sparklinePoints,
   summarizeAvailability,
   windowForPreset,
   type RangePreset,
@@ -79,7 +83,19 @@ const range = computed<RangePreset>(() => {
 });
 const bucket = computed<ReportBucketUnit>(() => {
   const value = readParam("bucket");
-  return value === "hour" || value === "month" ? value : "day";
+  if (value === "hour" || value === "day" || value === "month") return value;
+  // No explicit choice ⇒ pick a granularity that fits the active window (Phase 18). The old flat
+  // "day" default drew a 12-小时 window as a single bucket — the near-empty chart that read as
+  // "no data". Selecting a bucket in the control still wins; this only fills the blank.
+  if (isCustom.value) {
+    const span =
+      new Date(`${customTo.value}T23:59:59.999`).getTime() -
+      new Date(`${customFrom.value}T00:00:00`).getTime();
+    return defaultBucketForSpanMs(
+      Number.isFinite(span) && span > 0 ? span : 86_400_000,
+    );
+  }
+  return defaultBucketForPreset(range.value);
 });
 /**
  * 设备 is multi-select: a comma-joined `device` key narrows the aggregate to the chosen vehicles
@@ -161,8 +177,27 @@ const load = async (): Promise<void> => {
   }
 };
 
-onMounted(() => void load());
-watch([range, bucket, deviceFilter, customFrom, customTo], () => void load());
+/**
+ * Coalesce a burst of filter changes into one fetch (Phase 18). A single user action can touch
+ * several URL params at once (选预设 clears the custom dates; 选日期 clears the preset), and each
+ * flips a computed this view watches. Queuing the load on a microtask collapses that burst to one
+ * request instead of firing — and then discarding via `requestId` — two or three. Still a single
+ * tick, so tests that `flushPromises()` after a change see the refetch.
+ */
+let loadQueued = false;
+const scheduleLoad = (): void => {
+  if (loadQueued) return;
+  loadQueued = true;
+  void Promise.resolve().then(() => {
+    loadQueued = false;
+    void load();
+  });
+};
+
+onMounted(() => scheduleLoad());
+watch([range, bucket, deviceFilter, customFrom, customTo], () =>
+  scheduleLoad(),
+);
 
 // ── Derived: availability / KPI band ────────────────────────────────────────────────────
 const noHistory = computed(
@@ -199,6 +234,53 @@ const ackRateLabel = computed(() =>
     : `${Math.round(alertStats.value.ackRate * 100)}%`,
 );
 const alertTotal = computed(() => alertStats.value?.total ?? 0);
+
+// ── Derived: KPI sparklines + per-device detail (Phase 18 「分析工作台」) ───────────────────
+/** Mini trend under 平均在线率/平均电量 — same fleet-average series the big charts draw, no extra
+ * fetch. Empty string when there are fewer than two points, so the template drops the <svg>. */
+const SPARK_W = 72;
+const SPARK_H = 22;
+const onlineSpark = computed(() =>
+  sparklinePoints(onlineSeries.value, SPARK_W, SPARK_H),
+);
+const batterySpark = computed(() =>
+  sparklinePoints(batterySeries.value, SPARK_W, SPARK_H),
+);
+
+/** 确认率 context: 已确认 N / 共 M, derived from ackRate × total (the report carries no raw acked). */
+const ackedCount = computed(() =>
+  alertStats.value?.ackRate == null
+    ? null
+    : Math.round(alertStats.value.ackRate * alertTotal.value),
+);
+
+/** 严重度占比条（顶部「消息总数」卡）：已取到的分布，按 critical→warning→notice 堆叠。 */
+const severityBar = computed(() => {
+  const stats = alertStats.value;
+  if (!stats || stats.total === 0) return [];
+  return (["critical", "warning", "notice"] as const)
+    .map((key) => ({
+      key,
+      label: SEVERITY_LABELS[key],
+      count: stats.bySeverity[key],
+      pct: (stats.bySeverity[key] / stats.total) * 100,
+    }))
+    .filter((segment) => segment.count > 0);
+});
+const SEVERITY_SEGMENT_CLASS: Record<string, string> = {
+  critical: "bg-critical",
+  warning: "bg-warning",
+  notice: "bg-notice",
+};
+
+/** 按设备明细行（「可用率与电量」分区可展开表）。Top-N 之外折叠成「其余设备」一行。 */
+const availabilityRows = computed(() =>
+  availability.value ? deviceAvailabilityRows(availability.value, nameOf) : [],
+);
+const fmtPct = (value: number | null, digits = 1): string =>
+  value == null ? "--" : `${(value * 100).toFixed(digits)}%`;
+const fmtSoc = (value: number | null): string =>
+  value == null ? "--" : `${value.toFixed(1)}%`;
 
 // ── Derived: alert charts ───────────────────────────────────────────────────────────────
 const severityData = computed(() =>
@@ -402,41 +484,107 @@ const exportAlertsCsv = (): void => {
     </p>
 
     <template v-else>
-      <!-- KPI band (layout B): fleet-wide headline numbers across both reports. -->
+      <!-- KPI band: fleet-wide headline numbers, each carrying a scrap of the data behind it
+           (a sparkline / a distribution bar / a count) so the strip reads as analysis, not four
+           lone digits. All from the data already fetched — no extra request. -->
       <dl class="m-0 grid grid-cols-2 gap-3 sm:grid-cols-4">
-        <div class="rounded-md border border-border bg-surface-raised p-3">
+        <div
+          class="flex flex-col gap-2 rounded-md border border-border bg-surface-raised p-3"
+        >
           <dt class="text-2xs text-ink-subtle">平均在线率</dt>
           <dd class="m-0 font-mono text-lg tabular-nums text-ink">
             {{ onlineRatioLabel }}
           </dd>
+          <svg
+            v-if="onlineSpark"
+            class="mt-auto h-6 w-full text-success"
+            :viewBox="`0 0 ${SPARK_W} ${SPARK_H}`"
+            preserveAspectRatio="none"
+            aria-hidden="true"
+          >
+            <polyline
+              :points="onlineSpark"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="1.5"
+              stroke-linejoin="round"
+              stroke-linecap="round"
+              vector-effect="non-scaling-stroke"
+            />
+          </svg>
         </div>
-        <div class="rounded-md border border-border bg-surface-raised p-3">
+        <div
+          class="flex flex-col gap-2 rounded-md border border-border bg-surface-raised p-3"
+        >
           <dt class="text-2xs text-ink-subtle">平均电量</dt>
           <dd class="m-0 font-mono text-lg tabular-nums text-ink">
             {{ socLabel }}
           </dd>
+          <svg
+            v-if="batterySpark"
+            class="mt-auto h-6 w-full text-notice"
+            :viewBox="`0 0 ${SPARK_W} ${SPARK_H}`"
+            preserveAspectRatio="none"
+            aria-hidden="true"
+          >
+            <polyline
+              :points="batterySpark"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="1.5"
+              stroke-linejoin="round"
+              stroke-linecap="round"
+              vector-effect="non-scaling-stroke"
+            />
+          </svg>
         </div>
-        <div class="rounded-md border border-border bg-surface-raised p-3">
+        <div
+          class="flex flex-col gap-2 rounded-md border border-border bg-surface-raised p-3"
+        >
           <dt class="text-2xs text-ink-subtle">消息总数</dt>
           <dd class="m-0 font-mono text-lg tabular-nums text-ink">
             {{ alertTotal }}
           </dd>
+          <div
+            v-if="severityBar.length"
+            class="mt-auto flex h-2 overflow-hidden rounded-xs"
+            role="presentation"
+          >
+            <span
+              v-for="segment in severityBar"
+              :key="segment.key"
+              class="h-full"
+              :class="SEVERITY_SEGMENT_CLASS[segment.key]"
+              :style="{ width: `${segment.pct}%` }"
+              :title="`${segment.label} ${segment.count}`"
+            />
+          </div>
         </div>
-        <div class="rounded-md border border-border bg-surface-raised p-3">
+        <div
+          class="flex flex-col gap-2 rounded-md border border-border bg-surface-raised p-3"
+        >
           <dt class="text-2xs text-ink-subtle">确认率</dt>
           <dd class="m-0 font-mono text-lg tabular-nums text-ink">
             {{ ackRateLabel }}
           </dd>
+          <span
+            v-if="ackedCount !== null"
+            class="mt-auto text-2xs text-ink-subtle"
+          >
+            已确认 {{ ackedCount }} / 共 {{ alertTotal }}
+          </span>
         </div>
       </dl>
 
-      <!-- Two columns: left = availability/battery over time (wider), right = message
-           breakdown, narrowed to the 消息摘要 proportion so its empty state is not a wide slab. -->
-      <div class="grid gap-4 lg:grid-cols-[2fr_1fr]">
-        <div class="flex flex-col gap-4">
-          <section
-            class="rounded-md border border-border bg-surface-raised p-4"
-          >
+      <!-- Section 可用率与电量: the fleet-average trends, plus a per-device breakdown that opens
+           on demand — the comparison surface that turns the page into an analysis workstation
+           without crowding the charts with N lines. -->
+      <section class="flex flex-col gap-3" aria-labelledby="avail-heading">
+        <h2 id="avail-heading" class="m-0 text-sm font-semibold text-ink">
+          可用率与电量
+        </h2>
+        <div class="grid gap-4 lg:grid-cols-2">
+          <div class="rounded-md border border-border bg-surface-raised p-4">
             <TimeSeriesChart
               v-if="hasAvailabilityData"
               :series="onlineSeries"
@@ -448,10 +596,8 @@ const exportAlertsCsv = (): void => {
             <p v-else class="m-0 py-8 text-center text-sm text-ink-muted">
               该时间段没有遥测样本
             </p>
-          </section>
-          <section
-            class="rounded-md border border-border bg-surface-raised p-4"
-          >
+          </div>
+          <div class="rounded-md border border-border bg-surface-raised p-4">
             <TimeSeriesChart
               v-if="hasAvailabilityData"
               :series="batterySeries"
@@ -463,13 +609,71 @@ const exportAlertsCsv = (): void => {
             <p v-else class="m-0 py-8 text-center text-sm text-ink-muted">
               该时间段没有电量样本
             </p>
-          </section>
+          </div>
         </div>
 
-        <div class="flex flex-col gap-4">
-          <section
-            class="rounded-md border border-border bg-surface-raised p-4"
+        <!-- Per-device detail: collapsed by default so the section stays scannable; open it to
+             compare vehicles. 「其余设备」 is the Top-N fold, always last. -->
+        <details
+          v-if="availabilityRows.length"
+          class="group rounded-md border border-border bg-surface-raised"
+        >
+          <summary
+            class="cursor-pointer select-none list-none px-4 py-2 text-xs text-ink-muted marker:content-none hover:text-ink"
           >
+            <span class="inline-block transition-transform group-open:rotate-90"
+              >▸</span
+            >
+            按设备明细（{{ availabilityRows.length }} 行）
+          </summary>
+          <div class="max-h-80 overflow-auto border-t border-border">
+            <table class="w-full border-collapse text-sm">
+              <thead
+                class="sticky top-0 bg-surface-raised text-2xs text-ink-subtle"
+              >
+                <tr class="text-left">
+                  <th class="px-4 py-2 font-medium">设备</th>
+                  <th class="px-4 py-2 text-right font-medium">在线率</th>
+                  <th class="px-4 py-2 text-right font-medium">电量均值</th>
+                  <th class="px-4 py-2 text-right font-medium">最低电量</th>
+                  <th class="px-4 py-2 text-right font-medium">样本数</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr
+                  v-for="row in availabilityRows"
+                  :key="row.deviceId"
+                  class="border-t border-border/60"
+                  :class="row.isOthers ? 'text-ink-muted' : 'text-ink'"
+                >
+                  <td class="px-4 py-2">{{ row.name }}</td>
+                  <td class="px-4 py-2 text-right font-mono tabular-nums">
+                    {{ fmtPct(row.onlineRatio) }}
+                  </td>
+                  <td class="px-4 py-2 text-right font-mono tabular-nums">
+                    {{ fmtSoc(row.socMean) }}
+                  </td>
+                  <td class="px-4 py-2 text-right font-mono tabular-nums">
+                    {{ fmtSoc(row.socMin) }}
+                  </td>
+                  <td class="px-4 py-2 text-right font-mono tabular-nums">
+                    {{ row.totalSamples }}
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </details>
+      </section>
+
+      <!-- Section 消息分析: severity mix, worst offenders, and the daily trend — the three cuts
+           an operator asks of a message history. -->
+      <section class="flex flex-col gap-3" aria-labelledby="alerts-heading">
+        <h2 id="alerts-heading" class="m-0 text-sm font-semibold text-ink">
+          消息分析
+        </h2>
+        <div class="grid gap-4 lg:grid-cols-3">
+          <div class="rounded-md border border-border bg-surface-raised p-4">
             <CategoryBarChart
               v-if="hasAlertData"
               :data="severityData"
@@ -480,32 +684,34 @@ const exportAlertsCsv = (): void => {
             <p v-else class="m-0 py-8 text-center text-sm text-ink-muted">
               该时间段没有消息
             </p>
-          </section>
-          <section
-            v-if="hasAlertData"
-            class="rounded-md border border-border bg-surface-raised p-4"
-          >
+          </div>
+          <div class="rounded-md border border-border bg-surface-raised p-4">
             <CategoryBarChart
+              v-if="hasAlertData"
               :data="deviceData"
               label="按消息数分布"
               unit="条"
               orientation="horizontal"
               :height="200"
             />
-          </section>
-          <section
-            v-if="hasAlertData"
-            class="rounded-md border border-border bg-surface-raised p-4"
-          >
+            <p v-else class="m-0 py-8 text-center text-sm text-ink-muted">
+              该时间段没有消息
+            </p>
+          </div>
+          <div class="rounded-md border border-border bg-surface-raised p-4">
             <CategoryBarChart
+              v-if="hasAlertData"
               :data="dailyData"
               label="按时间天频次"
               unit="条"
               :height="200"
             />
-          </section>
+            <p v-else class="m-0 py-8 text-center text-sm text-ink-muted">
+              该时间段没有消息
+            </p>
+          </div>
         </div>
-      </div>
+      </section>
     </template>
   </PageHeader>
 </template>

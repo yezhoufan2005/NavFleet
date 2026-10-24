@@ -954,6 +954,27 @@ describe("aggregateAvailability（Phase 17A-2 可用率/电量时序）", () => 
     const report = await persistence.aggregateAvailability({ bucket: "day" });
     expect(report).toEqual({ bucket: "day", devices: [], available: false });
   });
+
+  it("短 TTL 缓存：同一查询重复调用只打一次 aggregate（Phase 18 性能）", async () => {
+    const { db, calls } = createFakeDb({}, {}, { telemetry_ts: rows });
+    persistence.__setDbForTests(db);
+
+    const first = await persistence.aggregateAvailability({ bucket: "day" });
+    const second = await persistence.aggregateAvailability({ bucket: "day" });
+
+    expect(calls.aggregate).toHaveLength(1);
+    expect(second).toEqual(first);
+  });
+
+  it("缓存按查询分键：桶粒度不同不会串用同一结果", async () => {
+    const { db, calls } = createFakeDb({}, {}, { telemetry_ts: rows });
+    persistence.__setDbForTests(db);
+
+    await persistence.aggregateAvailability({ bucket: "day" });
+    await persistence.aggregateAvailability({ bucket: "hour" });
+
+    expect(calls.aggregate).toHaveLength(2);
+  });
 });
 
 describe("登录锁定字段", () => {

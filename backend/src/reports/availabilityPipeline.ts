@@ -11,11 +11,12 @@
  */
 
 import type { Document } from "mongodb";
-import type {
-  AvailabilityBucket,
-  AvailabilityDeviceSeries,
-  AvailabilityReport,
-  ReportBucketUnit,
+import {
+  AVAILABILITY_OTHERS_DEVICE_ID,
+  type AvailabilityBucket,
+  type AvailabilityDeviceSeries,
+  type AvailabilityReport,
+  type ReportBucketUnit,
 } from "@navfleet/shared";
 
 export interface AvailabilityPipelineParams {
@@ -97,13 +98,23 @@ const toIso = (value: Date | string | null | undefined): string => {
   return String(value ?? "");
 };
 
+/** `deviceId` used for the folded "everyone past the Top-N" series — the shared sentinel, re-exported
+ * here so this module's callers and tests have it beside the mapper that produces it. */
+export const OTHERS_DEVICE_ID = AVAILABILITY_OTHERS_DEVICE_ID;
+
 /**
  * 已排序的行 → `AvailabilityReport`（纯映射，`available` 由调用方决定）。按 deviceId 顺序切段成每台
  * 一条序列，算出 `onlineRatio`（零除保护），并把 soc 收敛精度。
+ *
+ * `topN` 给定时**限制返回的设备序列数**（Phase 18 报表重做的性能项）：按总样本数排前 N 台各自成列，
+ * 其余全部折进一条 `__others__` 序列——按 `bucketStart` 把多台的同一时间桶样本加权合并。为什么在
+ * mapper 折而不在 Mongo 折：这里要砍的是**响应体大小**（30 天 × 按小时 × 全车队会上兆），而桶内按
+ * `totalSamples` 加权合 soc，恰好让前端 `foldByBucket` 的车队加权和一字不差——折叠对图/汇总都无损。
  */
 export const mapAvailabilityRows = (
   rows: readonly AvailabilityRow[],
   bucket: ReportBucketUnit,
+  options: { topN?: number } = {},
 ): AvailabilityReport => {
   const devices: AvailabilityDeviceSeries[] = [];
   let current: AvailabilityDeviceSeries | null = null;
@@ -127,5 +138,72 @@ export const mapAvailabilityRows = (
     current.buckets.push(entry);
   }
 
-  return { bucket, devices, available: true };
+  const capped = capToTopN(devices, options.topN);
+  return { bucket, devices: capped, available: true };
+};
+
+/** 一台设备的总样本数——Top-N 排名用（样本越多越"主力"，越该单独成列）。 */
+const totalSamplesOf = (series: AvailabilityDeviceSeries): number =>
+  series.buckets.reduce((sum, bucket) => sum + bucket.totalSamples, 0);
+
+/**
+ * 把设备序列裁到前 `topN` 台，其余折进一条 `__others__`。无 `topN` 或设备数未超限时原样返回。
+ * 折叠按 `bucketStart` 合并：帧数直接相加，soc 按 `totalSamples` 加权求均（null soc 的样本不计权，
+ * 和 `$avg` 跳过缺失的口径一致），`socMin` 取各台之最小。
+ */
+const capToTopN = (
+  devices: AvailabilityDeviceSeries[],
+  topN: number | undefined,
+): AvailabilityDeviceSeries[] => {
+  if (!topN || devices.length <= topN) return devices;
+
+  const ranked = [...devices].sort((left, right) => totalSamplesOf(right) - totalSamplesOf(left));
+  const kept = ranked.slice(0, topN);
+  const folded = ranked.slice(topN);
+
+  // bucketStart → 合并累加器（soc 带权，便于最后还原加权均值）。
+  const merged = new Map<
+    string,
+    {
+      onlineSamples: number;
+      totalSamples: number;
+      socWeighted: number;
+      socWeight: number;
+      socMin: number | null;
+    }
+  >();
+  for (const device of folded) {
+    for (const bucket of device.buckets) {
+      const acc = merged.get(bucket.bucketStart) ?? {
+        onlineSamples: 0,
+        totalSamples: 0,
+        socWeighted: 0,
+        socWeight: 0,
+        socMin: null,
+      };
+      acc.onlineSamples += bucket.onlineSamples;
+      acc.totalSamples += bucket.totalSamples;
+      if (bucket.socMean !== null && bucket.totalSamples > 0) {
+        acc.socWeighted += bucket.socMean * bucket.totalSamples;
+        acc.socWeight += bucket.totalSamples;
+      }
+      if (bucket.socMin !== null) {
+        acc.socMin = acc.socMin === null ? bucket.socMin : Math.min(acc.socMin, bucket.socMin);
+      }
+      merged.set(bucket.bucketStart, acc);
+    }
+  }
+
+  const othersBuckets: AvailabilityBucket[] = [...merged.entries()]
+    .sort((left, right) => (left[0] < right[0] ? -1 : left[0] > right[0] ? 1 : 0))
+    .map(([bucketStart, acc]) => ({
+      bucketStart,
+      onlineSamples: acc.onlineSamples,
+      totalSamples: acc.totalSamples,
+      onlineRatio: acc.totalSamples > 0 ? acc.onlineSamples / acc.totalSamples : 0,
+      socMean: acc.socWeight > 0 ? round3(acc.socWeighted / acc.socWeight) : null,
+      socMin: round3(acc.socMin),
+    }));
+
+  return [...kept, { deviceId: OTHERS_DEVICE_ID, buckets: othersBuckets }];
 };
