@@ -64,13 +64,21 @@ while [[ $# -gt 0 ]]; do
 done
 
 MOCK_PID=""
+# 递归杀进程树：mock 是 `( … npm run mock:mqtt ) &`，$! 只是那层 subshell/npm，直接 kill 它
+# 会把底下的 tsx→node（真正那个连 broker、按 500ms 猛发的进程）留成孤儿，继续灌爆 compose 后端的
+# 摄入队列（表现为报表页偶发 Failed to fetch）。深度优先、先子后父，确保整棵树都停。
+kill_tree() {
+  local pid="$1" child
+  for child in $(pgrep -P "$pid" 2>/dev/null); do kill_tree "$child"; done
+  kill "$pid" 2>/dev/null || true
+}
 cleanup() {
   # `disown` 之后再 kill：否则 bash 会在脚本收口的横幅之后补印一行
   # `Terminated: 15  ( cd ... npm run mock:mqtt ... )`，那是 job control 的通知，
   # 不是错误，但看起来像脚本最后崩了一下。
   if [[ -n "$MOCK_PID" ]]; then
     disown "$MOCK_PID" 2>/dev/null
-    kill "$MOCK_PID" 2>/dev/null
+    kill_tree "$MOCK_PID"
   fi
   rm -f "$COOKIE"
   if [[ "$DO_DOWN" == "1" && "$CHECK_ONLY" == "0" ]]; then

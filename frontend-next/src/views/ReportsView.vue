@@ -433,7 +433,7 @@ const exportAlertsCsv = (): void => {
     <UiFilterBar>
       <UiFilterField label="范围">
         <UiSegmented
-          :model-value="isCustom ? '' : range"
+          :model-value="customFrom || customTo ? '' : range"
           :options="RANGES"
           aria-label="时间范围"
           @update:model-value="
@@ -630,7 +630,7 @@ const exportAlertsCsv = (): void => {
             {{
               comparingDevices
                 ? `正在对比 ${deviceFilter.length} 台设备`
-                : "选择设备可逐台对比曲线；默认是全队均值"
+                : "选择设备对比数据；默认全部设备均值"
             }}
           </span>
         </div>
@@ -647,7 +647,7 @@ const exportAlertsCsv = (): void => {
           class="m-0 rounded-md border border-border bg-surface-raised p-8 text-center text-sm text-ink-muted"
           role="status"
         >
-          正在聚合可用率…（时间窗口较大时可能要等几十秒）
+          正在加载，请等待...
         </p>
         <div v-else class="grid gap-4 lg:grid-cols-2">
           <div class="rounded-md border border-border bg-surface-raised p-4">
@@ -657,6 +657,8 @@ const exportAlertsCsv = (): void => {
               label="在线率趋势"
               unit="%"
               :height="240"
+              legend-position="right"
+              table-match-height
             />
             <p v-else class="m-0 py-8 text-center text-sm text-ink-muted">
               该时间段没有遥测样本
@@ -669,6 +671,8 @@ const exportAlertsCsv = (): void => {
               label="电量SOC均值"
               unit="%"
               :height="240"
+              legend-position="right"
+              table-match-height
             />
             <p v-else class="m-0 py-8 text-center text-sm text-ink-muted">
               该时间段没有电量样本

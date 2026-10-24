@@ -108,7 +108,7 @@ export const buildTimeSeriesOption = ({
     // ECharts would draw in its own font — the surrounding card owns the heading.
     grid: {
       top: series.length > 1 && !legendRight ? 32 : 12,
-      right: legendRight ? 108 : directLabels ? 72 : 16,
+      right: legendRight ? 132 : directLabels ? 72 : 16,
       bottom: 28,
       left: 52,
       containLabel: false,
@@ -121,17 +121,28 @@ export const buildTimeSeriesOption = ({
                   orient: "vertical" as const,
                   right: 0,
                   top: "middle" as const,
+                  // Bound the legend box and truncate long vehicle names, so a wide label can
+                  // never bleed left over the plot — the reserved `grid.right` is the whole
+                  // budget the legend gets, and anything longer ellipsizes inside it.
+                  width: 116,
+                  textStyle: {
+                    color: palette.inkMuted,
+                    fontSize: 12,
+                    width: 92,
+                    overflow: "truncate" as const,
+                  },
                 }
-              : { top: 0, left: 0 }),
+              : {
+                  top: 0,
+                  left: 0,
+                  textStyle: { color: palette.inkMuted, fontSize: 12 },
+                }),
             icon: "roundRect",
             itemWidth: 10,
             itemHeight: 10,
-            // Many vehicles can overflow a vertical legend; let it scroll rather than
+            // Many vehicles can overflow the legend; let it scroll rather than
             // push the plot to nothing.
             type: "scroll",
-            // Text wears an ink token, never the series colour: the swatch beside
-            // it already carries identity.
-            textStyle: { color: palette.inkMuted, fontSize: 12 },
           }
         : undefined,
     tooltip: {
