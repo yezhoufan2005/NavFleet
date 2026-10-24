@@ -119,6 +119,13 @@ SEMANTIC = [
     ("offline-contrast", "#ffffff", "#ffffff"),
     ("offline-ink", "#59636e", "#909dab"),
     ("offline-wash", "#eaeef2", "#2d333b"),
+    # success＝正常/健康态（GitHub success/green）。12C 曾把状态点写死成绿、因无法判色而撤回；
+    # 这次是应验收要求「正常」与「提示」分色：提示＝accent 蓝，正常＝success 绿，两者色相独立。
+    # 实心用 emphasis（白字 5:1 过线），淡底文字用 fg；深色取 dark_dimmed success。
+    ("success", "#1a7f37", "#347d39"),
+    ("success-contrast", "#ffffff", "#ffffff"),
+    ("success-ink", "#1a7f37", "#57ab5a"),
+    ("success-wash", "#dafbe1", "#132a1c"),
 ]
 
 # ---------------------------------------------------------------------------
@@ -186,6 +193,10 @@ MAP = [
     # 上再判，并且 obstacle 与 floor 之间也要够分（混淆"撞得到"和"开得过"才是真失效）。
     ("ros-cloud-obstacle", "#123a52", "#b6edff"),
     ("ros-cloud-floor", "#5a6b7a", "#6c8494"),
+    # 激光定位修正点（ros-lidar）：一支紫，刻意不在四个状态色相里，读作「第二种定位」而非
+    # 「一种状态」——融合定位用的是品牌蓝，两者若同色就分不开。由 check-map-contrast.mjs
+    # 对着 ros-canvas 核对对比度；深色用更亮的紫。
+    ("ros-lidar", "#7c3aed", "#a371f7"),
 ]
 
 # 点云两个类别色的 alpha 下限。**不是颜色，所以不带 --color- 前缀。**
@@ -242,6 +253,8 @@ PAIRS = [
     ("critical-ink", "critical-wash", "critical 薄底"),
     ("offline-contrast", "offline", "实心 offline 表面"),
     ("offline-ink", "offline-wash", "offline 薄底"),
+    ("success-contrast", "success", "实心 success 表面（正常态）"),
+    ("success-ink", "success-wash", "success 薄底"),
 ]
 
 TYPE_SCALE = [

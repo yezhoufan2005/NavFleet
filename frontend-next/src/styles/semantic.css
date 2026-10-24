@@ -46,6 +46,10 @@
   --color-offline-contrast: #ffffff;
   --color-offline-ink: #59636e;
   --color-offline-wash: #eaeef2;
+  --color-success: #1a7f37;
+  --color-success-contrast: #ffffff;
+  --color-success-ink: #1a7f37;
+  --color-success-wash: #dafbe1;
 
   /* 图表：系列色为字面值，坐标轴/网格取自 ramp。 */
   --color-chart-1: #2a78d6;
@@ -68,10 +72,6 @@
   --color-ros-link: rgba(30, 41, 59, 0.5);
   --color-ros-cloud-obstacle: #123a52;
   --color-ros-cloud-floor: #5a6b7a;
-  /* Laser-localisation fix (激光定位): a violet distinct from the fusion fix, which is
-     brand blue — the two used to share --color-notice (== brand), so they were the same
-     colour. Violet is not one of the four status hues, so it reads as "a second fix", not
-     "a status". Contrast-checked against ros-canvas by docs/tools/check-map-contrast.mjs. */
   --color-ros-lidar: #7c3aed;
   --color-map-grid: var(--color-slate-300);
   --color-map-scale: var(--color-slate-600);
@@ -117,6 +117,10 @@
     --color-offline-contrast: #ffffff;
     --color-offline-ink: #909dab;
     --color-offline-wash: #2d333b;
+    --color-success: #347d39;
+    --color-success-contrast: #ffffff;
+    --color-success-ink: #57ab5a;
+    --color-success-wash: #132a1c;
 
     /* 图表：系列色为字面值，坐标轴/网格取自 ramp。 */
     --color-chart-1: #3987e5;
@@ -184,6 +188,10 @@
   --color-offline-contrast: #ffffff;
   --color-offline-ink: #909dab;
   --color-offline-wash: #2d333b;
+  --color-success: #347d39;
+  --color-success-contrast: #ffffff;
+  --color-success-ink: #57ab5a;
+  --color-success-wash: #132a1c;
 
   /* 图表：系列色为字面值，坐标轴/网格取自 ramp。 */
   --color-chart-1: #3987e5;

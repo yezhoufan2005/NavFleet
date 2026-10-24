@@ -107,7 +107,7 @@ const DEMO_USERS: DemoUser[] = [
   {
     username: "wugang",
     role: "viewer",
-    displayName: "吴刚 · 外包临时",
+    displayName: "吴刚 · 临时外包",
     state: "locked",
     userAgent: "",
   },

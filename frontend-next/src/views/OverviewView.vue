@@ -203,7 +203,7 @@ const attention = computed<AttentionRow[]>(() =>
 );
 
 const TONE_DOT: Record<string, string> = {
-  normal: "bg-brand",
+  normal: "bg-success",
   notice: "bg-notice",
   warning: "bg-warning",
   critical: "bg-critical",
