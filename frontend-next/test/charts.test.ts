@@ -128,22 +128,23 @@ describe("buildTimeSeriesOption", () => {
     ).toBeTruthy();
   });
 
-  it("puts the legend on the right when asked, and drops end labels for it", () => {
-    // A top strip wraps and covers the plot once there are many vehicles; a right-side
-    // vertical legend is what the reports page asks for. End labels claim the same right
-    // margin, so they must give way to it.
+  it("drops the ECharts legend and end labels for the right position (component renders an HTML legend)", () => {
+    // A top strip wraps and covers the plot once there are many vehicles; the reports page asks
+    // for a right-side legend, which the component now draws as a scrollable HTML column beside
+    // the canvas (真·滑动，无翻页三角). So the option emits no ECharts legend for that case, and
+    // end labels give way to it too.
     const option = buildTimeSeriesOption({
       series: seriesOf(3),
       palette,
       legendPosition: "right",
     });
-    expect(option.legend).toMatchObject({ orient: "vertical", right: 0 });
+    expect(option.legend).toBeUndefined();
     const endLabelled = (option.series as { endLabel?: unknown }[]).some(
       (entry) => entry.endLabel !== undefined,
     );
     expect(endLabelled).toBe(false);
-    // The grid leaves room on the right for the legend.
-    expect((option.grid as { right: number }).right).toBeGreaterThan(72);
+    // The canvas no longer reserves a wide right margin — the HTML legend lives outside it.
+    expect((option.grid as { right: number }).right).toBeLessThanOrEqual(16);
   });
 
   it("direct-labels up to four series so identity is never colour alone", () => {

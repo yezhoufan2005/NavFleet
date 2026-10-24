@@ -74,6 +74,8 @@ const alertError = ref("");
 const availability = ref<AvailabilityReport | null>(null);
 const alertStats = ref<AlertStatsReport | null>(null);
 let requestId = 0;
+/** The device set the on-screen availability belongs to, so a device change can clear it. */
+let lastDeviceKey = "";
 
 // ── URL-backed filters (shareable) ──────────────────────────────────────────────────────
 const readParam = (key: string): string => {
@@ -154,6 +156,16 @@ const load = (): void => {
         to: new Date(`${customTo.value}T23:59:59.999`).toISOString(),
       }
     : windowForPreset(range.value, Date.now());
+
+  // When the *device set* changes, drop the stale report before refetching. Otherwise the charts
+  // would re-render the previous devices under the new per-device/fleet mode for a frame — the
+  // 「选单台却闪过全部设备」 flash. A range/bucket change keeps the same devices, so stale-while-
+  // loading is fine there and avoids a needless blank.
+  const deviceKey = deviceFilter.value.join(",");
+  if (deviceKey !== lastDeviceKey) {
+    availability.value = null;
+    lastDeviceKey = deviceKey;
+  }
 
   // Two independent fetches — neither awaits the other, and a reject on one leaves the other's
   // result on screen. `requestId` discards any response from a superseded filter round.
@@ -326,7 +338,7 @@ const SEVERITY_SEGMENT_CLASS: Record<string, string> = {
   notice: "bg-notice",
 };
 
-/** 按设备明细行（「可用率与电量」分区可展开表）。Top-N 之外折叠成「其余设备」一行。 */
+/** 按设备明细行（「可用率与电量」分区可展开表）：每台真实设备一行，无聚合折叠。 */
 const availabilityRows = computed(() =>
   availability.value ? deviceAvailabilityRows(availability.value, nameOf) : [],
 );
@@ -697,7 +709,7 @@ const exportAlertsCsv = (): void => {
           <div class="max-h-80 overflow-auto border-t border-border">
             <table class="w-full border-collapse text-sm">
               <thead
-                class="sticky top-0 bg-surface-raised text-2xs text-ink-subtle"
+                class="sticky top-0 z-10 bg-surface-sunken text-2xs text-ink-muted uppercase"
               >
                 <tr class="text-left">
                   <th class="px-4 py-2 font-medium">设备</th>

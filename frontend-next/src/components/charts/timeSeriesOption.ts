@@ -108,41 +108,24 @@ export const buildTimeSeriesOption = ({
     // ECharts would draw in its own font — the surrounding card owns the heading.
     grid: {
       top: series.length > 1 && !legendRight ? 32 : 12,
-      right: legendRight ? 132 : directLabels ? 72 : 16,
+      right: directLabels ? 72 : 16,
       bottom: 28,
       left: 52,
       containLabel: false,
     },
+    // A right-side legend is rendered by the component as a scrollable HTML column beside the
+    // canvas (真·滑动，无上下翻页三角 — ECharts' built-in legend only scrolls via page buttons),
+    // so the option emits no ECharts legend for that case. A top legend is still ECharts' own.
     legend:
-      series.length > 1
+      !legendRight && series.length > 1
         ? {
-            ...(legendRight
-              ? {
-                  orient: "vertical" as const,
-                  right: 0,
-                  top: "middle" as const,
-                  // Bound the legend box and truncate long vehicle names, so a wide label can
-                  // never bleed left over the plot — the reserved `grid.right` is the whole
-                  // budget the legend gets, and anything longer ellipsizes inside it.
-                  width: 116,
-                  textStyle: {
-                    color: palette.inkMuted,
-                    fontSize: 12,
-                    width: 92,
-                    overflow: "truncate" as const,
-                  },
-                }
-              : {
-                  top: 0,
-                  left: 0,
-                  textStyle: { color: palette.inkMuted, fontSize: 12 },
-                }),
+            top: 0,
+            left: 0,
             icon: "roundRect",
             itemWidth: 10,
             itemHeight: 10,
-            // Many vehicles can overflow the legend; let it scroll rather than
-            // push the plot to nothing.
             type: "scroll",
+            textStyle: { color: palette.inkMuted, fontSize: 12 },
           }
         : undefined,
     tooltip: {

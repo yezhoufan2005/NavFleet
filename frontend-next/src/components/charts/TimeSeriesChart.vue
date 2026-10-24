@@ -83,6 +83,19 @@ let observer: ResizeObserver | null = null;
 /** When the current option was handed to ECharts; null once its render is timed. */
 let startedAt: number | null = null;
 
+/**
+ * The right-side legend is ours, not ECharts': a plain scrollable HTML column beside the canvas,
+ * so many vehicles slide (wheel/drag) instead of paging through ECharts' ▲▼ buttons, and it
+ * repaints the instant the series set changes. `seriesColor` reads the same slot-ordered palette
+ * the chart uses, so a swatch always matches its line.
+ */
+const legendRight = computed(
+  () => legendPosition === "right" && series.length > 1,
+);
+const seriesColor = (index: number): string =>
+  palette.value.series[index % palette.value.series.length] ??
+  palette.value.ink;
+
 const option = computed(() =>
   buildTimeSeriesOption({
     series,
@@ -228,13 +241,35 @@ const formatStamp = (stamp: number): string =>
     <!-- `v-if`, not `hidden`: see the watcher above for why the instance goes away. -->
     <div
       v-if="!showTable"
-      ref="surface"
-      class="w-full"
+      class="flex w-full gap-3"
       :style="{ height: `${height}px` }"
-      role="img"
-      :aria-label="`${label}（图表；可切换为数据表）`"
-      data-testid="chart-surface"
-    />
+    >
+      <div
+        ref="surface"
+        class="h-full min-w-0 flex-1"
+        role="img"
+        :aria-label="`${label}（图表；可切换为数据表）`"
+        data-testid="chart-surface"
+      />
+      <!-- Scrollable HTML legend (right position, multi-series): slides, no page triangles. -->
+      <ul
+        v-if="legendRight"
+        class="m-0 flex h-full w-28 shrink-0 list-none flex-col gap-1.5 overflow-y-auto p-0 pr-0.5"
+      >
+        <li
+          v-for="(entry, index) in series"
+          :key="entry.name"
+          class="flex items-center gap-1.5 text-2xs text-ink-muted"
+        >
+          <span
+            class="size-2.5 shrink-0 rounded-xs"
+            :style="{ backgroundColor: seriesColor(index) }"
+            aria-hidden="true"
+          />
+          <span class="truncate" :title="entry.name">{{ entry.name }}</span>
+        </li>
+      </ul>
+    </div>
 
     <!--
       Data table. The header is its own table outside the scroll box, so the scrollbar runs
