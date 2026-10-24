@@ -101,13 +101,17 @@ describe("the counts", () => {
       "api",
     );
     const wrapper = await mountPage();
-    const tiles = wrapper.findAll("article");
+    // 在线/离线 now lives in the 车队状态 distribution card (a <section>); the remaining
+    // <article> tiles are 活跃消息 / GPS覆盖 / 设备编队.
+    const status = wrapper.get("[aria-labelledby='status-heading']").text();
+    expect(status).toContain("3"); // 共 3 台
+    expect(status).toContain("离线"); // 1 offline shown in the breakdown
+    expect(status).toContain("正常");
 
-    expect(tiles[0]?.text()).toContain("2 / 3");
-    expect(tiles[0]?.text()).toContain("1 台离线");
-    expect(tiles[2]?.text()).toContain("2 / 3");
-    expect(tiles[2]?.text()).toContain("1 台无定位");
-    expect(tiles[3]?.text()).toContain("1");
+    const tiles = wrapper.findAll("article");
+    expect(tiles[1]?.text()).toContain("2 / 3"); // GPS 覆盖
+    expect(tiles[1]?.text()).toContain("1 台无定位");
+    expect(tiles[2]?.text()).toContain("1"); // 设备编队
   });
 
   it("says everything is fine rather than colouring a tile amber for nothing", async () => {
@@ -115,8 +119,14 @@ describe("the counts", () => {
     store.ingestPayload(snapshot([device()]), "api");
     const wrapper = await mountPage();
 
-    expect(wrapper.findAll("article")[0]?.text()).toContain("全部在线");
-    expect(wrapper.findAll("article")[1]?.text()).toContain("无告警级");
+    const tiles = wrapper.findAll("article"); // 活跃消息 / GPS覆盖 / 设备编队
+    expect(tiles[0]?.text()).toContain("无告警级");
+    // A healthy fleet tones none of the supporting tiles.
+    for (const tile of tiles) {
+      expect(["warning", "critical"]).not.toContain(
+        tile.attributes("data-tone"),
+      );
+    }
   });
 
   it("counts alert severities separately", async () => {
@@ -129,7 +139,7 @@ describe("the counts", () => {
     );
     const wrapper = await mountPage();
 
-    expect(wrapper.findAll("article")[1]?.text()).toContain("1 条告警级");
+    expect(wrapper.findAll("article")[0]?.text()).toContain("1 条告警级");
     const summary = wrapper.find("dl").text();
     expect(summary).toContain("告警");
     expect(summary).toContain("预警");
@@ -163,8 +173,9 @@ describe("where a tile's tone lives", () => {
     const wrapper = await mountPage();
     const tiles = wrapper.findAll("article");
 
-    expect(tiles[0]?.attributes("data-tone")).toBe("warning");
-    expect(tiles[1]?.attributes("data-tone")).toBe("critical");
+    // 活跃消息 carries the critical tone (one 告警级 code); the offline unit shows in the
+    // 车队状态 card, which has no tone of its own.
+    expect(tiles[0]?.attributes("data-tone")).toBe("critical");
 
     for (const tile of tiles) {
       const value = tile.find("strong");
@@ -179,11 +190,10 @@ describe("where a tile's tone lives", () => {
     const wrapper = await mountPage();
     const tiles = wrapper.findAll("article");
 
-    expect(tiles[0]?.find(".tile-mark").exists()).toBe(true);
-    expect(tiles[1]?.find(".tile-mark").exists()).toBe(true);
+    expect(tiles[0]?.find(".tile-mark").exists()).toBe(true); // 活跃消息: critical
     // GPS 覆盖 and 编队 are `muted`: a card that is always marked stops being read.
+    expect(tiles[1]?.find(".tile-mark").exists()).toBe(false);
     expect(tiles[2]?.find(".tile-mark").exists()).toBe(false);
-    expect(tiles[3]?.find(".tile-mark").exists()).toBe(false);
   });
 
   it("drops the wash in dark rather than reusing one mix for both themes", () => {
@@ -329,7 +339,7 @@ describe("who needs attention", () => {
     await flushPromises();
 
     // One per tile, and the real number is not also rendered underneath it.
-    expect(wrapper.findAll(".skeleton-value")).toHaveLength(4);
+    expect(wrapper.findAll(".skeleton-value")).toHaveLength(3);
     expect(wrapper.findAll("article strong")).toHaveLength(0);
   });
 
@@ -343,13 +353,17 @@ describe("who needs attention", () => {
     await flushPromises();
 
     const tiles = wrapper.findAll("article");
-    expect(tiles).toHaveLength(4);
+    expect(tiles).toHaveLength(3);
     for (const tile of tiles) {
       expect(tile.text()).not.toContain("全部");
       expect(tile.text()).not.toContain("无告警级");
     }
-    // Both the value and the note are stood in for.
-    expect(wrapper.findAll("article .skeleton")).toHaveLength(8);
+    // The 车队状态 card must not claim a count before the snapshot either — it shows 共 — 台.
+    expect(
+      wrapper.get("[aria-labelledby='status-heading']").text(),
+    ).not.toContain("共 0 台");
+    // Both the value and the note are stood in for, three tiles × two.
+    expect(wrapper.findAll("article .skeleton")).toHaveLength(6);
   });
 
   it("announces the wait to a screen reader, not only to the eye", async () => {
@@ -460,7 +474,7 @@ describe("formations", () => {
     const wrapper = await mountPage();
 
     expect(wrapper.find("#formations-heading").exists()).toBe(false);
-    expect(wrapper.findAll("article")[3]?.text()).toContain("未配置编队");
+    expect(wrapper.findAll("article")[2]?.text()).toContain("未配置编队");
   });
 
   it("keeps every formation on the list and scrolls, rather than capping the count", async () => {
