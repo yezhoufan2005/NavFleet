@@ -64,21 +64,28 @@ while [[ $# -gt 0 ]]; do
 done
 
 MOCK_PID=""
+# 演示发布器转后台持续运行后，PID 记在这里，供下次起栈（或 --down）先清掉上一只，避免叠加成一群。
+MOCK_PIDFILE="/tmp/navfleet-verify-demo-mock.pid"
 # 递归杀进程树：mock 是 `( … npm run mock:mqtt ) &`，$! 只是那层 subshell/npm，直接 kill 它
-# 会把底下的 tsx→node（真正那个连 broker、按 500ms 猛发的进程）留成孤儿，继续灌爆 compose 后端的
-# 摄入队列（表现为报表页偶发 Failed to fetch）。深度优先、先子后父，确保整棵树都停。
+# 会把底下的 tsx→node（真正那个连 broker、按节拍发的进程）留成孤儿，继续灌 compose 后端的摄入
+# 队列（表现为报表页偶发 Failed to fetch）。深度优先、先子后父，确保整棵树都停。
 kill_tree() {
   local pid="$1" child
+  [[ -n "$pid" ]] || return 0
   for child in $(pgrep -P "$pid" 2>/dev/null); do kill_tree "$child"; done
   kill "$pid" 2>/dev/null || true
 }
 cleanup() {
-  # `disown` 之后再 kill：否则 bash 会在脚本收口的横幅之后补印一行
-  # `Terminated: 15  ( cd ... npm run mock:mqtt ... )`，那是 job control 的通知，
-  # 不是错误，但看起来像脚本最后崩了一下。
+  # 收尾策略取决于 --down：
+  #  · --down：栈要拆，顺手把后台演示发布器也杀掉、删 pidfile。
+  #  · 否则：**故意留着**发布器在后台跑，让设备持续有遥测、保持在线（否则 60s 后全部离线，
+  #    正是「演示数据突然没了」）。只 disown，脚本退出不带走它；下次起栈开头会先清旧的再起新的。
   if [[ -n "$MOCK_PID" ]]; then
     disown "$MOCK_PID" 2>/dev/null
-    kill_tree "$MOCK_PID"
+    if [[ "$DO_DOWN" == "1" ]]; then
+      kill_tree "$MOCK_PID"
+      rm -f "$MOCK_PIDFILE"
+    fi
   fi
   rm -f "$COOKIE"
   if [[ "$DO_DOWN" == "1" && "$CHECK_ONLY" == "0" ]]; then
@@ -274,22 +281,32 @@ eq "token 续签"         200 "$(code -b "$COOKIE" -X POST "$BASE/api/auth/refre
 
 # --- 演示数据（真实 MQTT 链路，发布器读 config-runtime 的车队定义）-----------
 if [[ "$DO_MOCK" == "1" ]]; then
+  # 先清掉上一次起栈留在后台的发布器（若有），避免一只只叠加、把后端摄入队列灌爆。
+  if [[ -f "$MOCK_PIDFILE" ]]; then
+    kill_tree "$(cat "$MOCK_PIDFILE" 2>/dev/null)"
+    rm -f "$MOCK_PIDFILE"
+  fi
   echo
-  echo "推演示数据（真实 MQTT 链路）…"
+  echo "推演示数据（真实 MQTT 链路；转后台持续运行以保持设备在线）…"
+  # --interval 2000：~29 台车每 2 秒各发一帧 ≈ 15 帧/秒，远低于摄入队列承载，不会灌爆（旧的 500ms
+  # 是之前「Failed to fetch」的元凶）；同时 2s < 60s 离线阈值，设备稳定在线。exec nohup 让进程树是
+  # nohup→npm→tsx→node，忽略 SIGHUP；凭据走 export（不进 `ps` 的命令行参数）。
   (
     cd "$ROOT/backend"
-    MQTT_PUBLISHER_USERNAME="$(deploy_var MQTT_PUBLISHER_USERNAME)" \
-    MQTT_PUBLISHER_PASSWORD="$(deploy_var MQTT_PUBLISHER_PASSWORD)" \
-    MQTT_URL="mqtt://127.0.0.1:${MQTT_HOST_PORT:-1883}" \
-    npm run mock:mqtt -- --interval 500 >/tmp/navfleet-verify-mock.log 2>&1
-  ) &
+    export MQTT_PUBLISHER_USERNAME="$(deploy_var MQTT_PUBLISHER_USERNAME)" \
+      MQTT_PUBLISHER_PASSWORD="$(deploy_var MQTT_PUBLISHER_PASSWORD)" \
+      MQTT_URL="mqtt://127.0.0.1:${MQTT_HOST_PORT:-1883}"
+    exec nohup npm run mock:mqtt -- --interval 2000
+  ) >/tmp/navfleet-verify-mock.log 2>&1 &
   MOCK_PID=$!
-  # 12 秒够每台车发 20+ 帧，历史与告警都有内容可断言。
-  sleep 12
+  echo "$MOCK_PID" >"$MOCK_PIDFILE"
+  disown "$MOCK_PID" 2>/dev/null || true
+  # 10 秒够每台车发 5+ 帧，历史与告警都有内容可断言。
+  sleep 10
   if grep -qiE 'not authorized|bad user name' /tmp/navfleet-verify-mock.log; then
     bad "演示发布器被 broker 拒绝 —— 检查 deploy/.env 的 MQTT_PUBLISHER_*"
   else
-    ok "演示发布器已连上 broker"
+    ok "演示发布器已连上 broker（将在后台持续运行）"
   fi
 
   # 演示告警的时间校正（只动演示数据，不碰产品代码）。
@@ -453,8 +470,10 @@ printf "  通过 %d · 失败 %d · 跳过 %d\n" "$PASS" "$FAIL" "$SKIP"
 if [[ "$DO_DOWN" == "0" && "$CHECK_ONLY" == "0" ]]; then
   echo "  控制台: ${BASE}   账号: ${ADMIN_USER} / （deploy/.env 里的 ADMIN_PASSWORD）"
   echo "  API 文档: ${BASE}/docs"
-  # 演示发布器随脚本一起结束 —— 不留孤儿进程。要让页面继续动，自己起一个：
-  echo "  继续推演示数据: set -a; . deploy/.env; set +a; npm run mock:mqtt -- --interval 1000"
+  if [[ "$DO_MOCK" == "1" ]]; then
+    echo "  演示发布器: 已转后台持续运行（每 2s 一帧），设备保持在线；下次起栈会自动替换它"
+    echo "  只停发布器: kill \$(cat ${MOCK_PIDFILE}) 的进程树（或再跑一次本脚本 / 加 --down）"
+  fi
   echo "  停栈:   docker compose -p ${PROJECT} --env-file deploy/.env -f deploy/docker-compose.yml down"
 fi
 echo "─────────────────────────────────────────────"
