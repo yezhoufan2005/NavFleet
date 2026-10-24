@@ -104,6 +104,13 @@ export interface AvailabilityReport {
   available: boolean;
 }
 
+/**
+ * 可用率报表折叠「其余」设备用的占位 deviceId（Phase 18 报表重做）。为限制响应体，服务端只保留样本数
+ * 前 N 台各自成列，其余全部按桶加权折进一条用这个 id 的序列；前端识别到它就显示成「其余 N 台」而不是
+ * 当成真实设备去实时车队里找名字。取双下划线，绝不与真实厂商 id 相撞。
+ */
+export const AVAILABILITY_OTHERS_DEVICE_ID = "__others__";
+
 /** 空的可用率报表：无 Mongo 或区间内无遥测时的零值形状。 */
 export const emptyAvailabilityReport = (
   bucket: ReportBucketUnit,

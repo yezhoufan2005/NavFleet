@@ -9,6 +9,7 @@
  */
 
 import type { AlertStatsReport, AvailabilityReport } from "@navfleet/shared";
+import { AVAILABILITY_OTHERS_DEVICE_ID } from "@navfleet/shared";
 import type { TimeSeries } from "@/components/charts/timeSeriesOption";
 import { SEVERITY_LABELS } from "@/lib/severity";
 
@@ -34,6 +35,26 @@ export const windowForPreset = (
   from: new Date(now - PRESET_HOURS[preset] * 3_600_000).toISOString(),
   to: new Date(now).toISOString(),
 });
+
+/**
+ * 粒度的「随窗口自适应」默认值（Phase 18 报表重做）。此前默认一律「按天」——12 小时窗按天切只有一个
+ * 桶，趋势图几乎是空的，是加载后"看着没数据"的主因之一。短窗用「按小时」才有曲线，宽窗用「按天」才不
+ * 至于上千桶拖慢。仅作默认：用户在 URL 里显式选了 bucket 就照它来，这个函数不参与。
+ */
+export const defaultBucketForSpanMs = (
+  spanMs: number,
+): "hour" | "day" | "month" => {
+  const days = spanMs / 86_400_000;
+  if (days <= 2) return "hour";
+  if (days <= 92) return "day";
+  return "month";
+};
+
+/** 预设范围对应的默认粒度。 */
+export const defaultBucketForPreset = (
+  preset: RangePreset,
+): "hour" | "day" | "month" =>
+  defaultBucketForSpanMs(PRESET_HOURS[preset] * 3_600_000);
 
 /** deviceId → display name; falls back to the id when the fleet store has no name for it. */
 export type DeviceNameOf = (deviceId: string) => string;
@@ -153,6 +174,96 @@ export const socSeries = (
         [ms, fold.socWeighted / fold.socWeight] as [number, number],
     );
   return points.length ? [{ name: seriesName(report, nameOf), points }] : [];
+};
+
+/** 「可用率与电量」分区可展开的按设备明细行（Phase 18 报表重做）。 */
+export interface DeviceAvailabilityRow {
+  deviceId: string;
+  /** 展示名；Top-N 之外被折叠的占位序列显示为「其余设备」。 */
+  name: string;
+  /** 这台设备是否是折叠出来的「其余」合计行。 */
+  isOthers: boolean;
+  /** 跨桶在线率 = Σonline / Σtotal；无样本时 null。 */
+  onlineRatio: number | null;
+  /** 样本加权电量均值；无 soc 样本时 null。 */
+  socMean: number | null;
+  /** 期内最低电量；无样本时 null。 */
+  socMin: number | null;
+  totalSamples: number;
+}
+
+/**
+ * 把（设备 × 桶）的可用率报表压成「每台一行」的明细，供分区下方的明细表做横向对比——这是把报表当
+ * 分析台用的落点（负责人 2026-10-24 定的「分析工作台」方向）。在线率跨桶按帧汇总、电量按帧加权，和
+ * 顶部 KPI 的口径一致；按样本数降序，`__others__` 折叠行恒排在最后并显示为「其余设备」。
+ */
+export const deviceAvailabilityRows = (
+  report: AvailabilityReport,
+  nameOf: DeviceNameOf,
+): DeviceAvailabilityRow[] => {
+  const rows = report.devices.map((device) => {
+    let online = 0;
+    let total = 0;
+    let socWeighted = 0;
+    let socWeight = 0;
+    let socMin: number | null = null;
+    for (const bucket of device.buckets) {
+      online += bucket.onlineSamples;
+      total += bucket.totalSamples;
+      if (bucket.socMean !== null && bucket.totalSamples > 0) {
+        socWeighted += bucket.socMean * bucket.totalSamples;
+        socWeight += bucket.totalSamples;
+      }
+      if (bucket.socMin !== null) {
+        socMin =
+          socMin === null ? bucket.socMin : Math.min(socMin, bucket.socMin);
+      }
+    }
+    const isOthers = device.deviceId === AVAILABILITY_OTHERS_DEVICE_ID;
+    return {
+      deviceId: device.deviceId,
+      name: isOthers ? "其余设备" : nameOf(device.deviceId),
+      isOthers,
+      onlineRatio: total > 0 ? online / total : null,
+      socMean: socWeight > 0 ? socWeighted / socWeight : null,
+      socMin,
+      totalSamples: total,
+    };
+  });
+  // 样本数降序，但「其余」合计行永远垫底，不与真实设备争 Top 位。
+  return rows.sort((left, right) => {
+    if (left.isOthers !== right.isOthers) return left.isOthers ? 1 : -1;
+    return right.totalSamples - left.totalSamples;
+  });
+};
+
+/**
+ * 一条折线序列 → 迷你 sparkline 的 SVG `points` 串（Phase 18）。把顶部 KPI 从一个孤零零的数字变成
+ * 「数字 + 趋势缩影」，用的还是已经取到的数据，不发额外请求。纯函数：按值域归一化到 `width×height`
+ * 的盒子里，y 轴翻转（SVG 原点在左上）。点少于 2 个画不成线，返回空串由模板决定不渲染。
+ */
+export const sparklinePoints = (
+  series: readonly TimeSeries[],
+  width: number,
+  height: number,
+): string => {
+  const points = series[0]?.points ?? [];
+  if (points.length < 2) return "";
+  const xs = points.map(([x]) => x);
+  const ys = points.map(([, y]) => y);
+  const minX = Math.min(...xs);
+  const maxX = Math.max(...xs);
+  const minY = Math.min(...ys);
+  const maxY = Math.max(...ys);
+  const spanX = maxX - minX || 1;
+  const spanY = maxY - minY || 1;
+  return points
+    .map(([x, y]) => {
+      const px = ((x - minX) / spanX) * width;
+      const py = height - ((y - minY) / spanY) * height;
+      return `${px.toFixed(1)},${py.toFixed(1)}`;
+    })
+    .join(" ");
 };
 
 /** RFC-4180 转义：含逗号/引号/换行的字段用引号包起来，内部引号翻倍。 */

@@ -1,10 +1,15 @@
 import { describe, it, expect } from "vitest";
 import type { AlertStatsReport, AvailabilityReport } from "@navfleet/shared";
+import { AVAILABILITY_OTHERS_DEVICE_ID } from "@navfleet/shared";
 import {
   buildAlertStatsCsv,
   buildAvailabilityCsv,
+  defaultBucketForPreset,
+  defaultBucketForSpanMs,
+  deviceAvailabilityRows,
   onlineRatioSeries,
   socSeries,
+  sparklinePoints,
   summarizeAvailability,
   windowForPreset,
 } from "@/lib/reportsView";
@@ -39,6 +44,123 @@ describe("windowForPreset", () => {
     );
     expect(windowForPreset("30d", now).from).toBe(
       new Date(now - 30 * 24 * 3_600_000).toISOString(),
+    );
+  });
+});
+
+describe("defaultBucketForSpanMs / defaultBucketForPreset", () => {
+  const H = 3_600_000;
+  it("picks hour for short windows, day for medium, month for long", () => {
+    // 12h/24h windows as a single daily bucket were the near-empty chart; short ⇒ hour.
+    expect(defaultBucketForSpanMs(12 * H)).toBe("hour");
+    expect(defaultBucketForSpanMs(2 * 24 * H)).toBe("hour");
+    expect(defaultBucketForSpanMs(7 * 24 * H)).toBe("day");
+    expect(defaultBucketForSpanMs(30 * 24 * H)).toBe("day");
+    expect(defaultBucketForSpanMs(200 * 24 * H)).toBe("month");
+  });
+
+  it("maps each preset to its fitting default", () => {
+    expect(defaultBucketForPreset("12h")).toBe("hour");
+    expect(defaultBucketForPreset("24h")).toBe("hour");
+    expect(defaultBucketForPreset("7d")).toBe("day");
+    expect(defaultBucketForPreset("30d")).toBe("day");
+  });
+});
+
+describe("deviceAvailabilityRows", () => {
+  it("summarizes each device, sorts by samples, and relabels the Top-N fold last", () => {
+    const rows = deviceAvailabilityRows(
+      report([
+        {
+          deviceId: "agv-1",
+          buckets: [
+            {
+              bucketStart: iso(0),
+              onlineSamples: 90,
+              totalSamples: 100,
+              onlineRatio: 0.9,
+              socMean: 80,
+              socMin: 60,
+            },
+          ],
+        },
+        {
+          deviceId: AVAILABILITY_OTHERS_DEVICE_ID,
+          buckets: [
+            {
+              bucketStart: iso(0),
+              onlineSamples: 5,
+              totalSamples: 20,
+              onlineRatio: 0.25,
+              socMean: 30,
+              socMin: 10,
+            },
+          ],
+        },
+      ]),
+      (id) => (id === "agv-1" ? "A01 巡检车" : id),
+    );
+
+    // The real device ranks first even though it was listed first; 「其余」 is pinned to the end.
+    expect(rows.map((row) => row.name)).toEqual(["A01 巡检车", "其余设备"]);
+    expect(rows[0]).toMatchObject({
+      isOthers: false,
+      onlineRatio: 0.9,
+      socMean: 80,
+      socMin: 60,
+      totalSamples: 100,
+    });
+    expect(rows[1]).toMatchObject({
+      isOthers: true,
+      onlineRatio: 0.25,
+      socMin: 10,
+    });
+  });
+
+  it("returns null metrics for a device with no samples rather than dividing by zero", () => {
+    const rows = deviceAvailabilityRows(
+      report([
+        {
+          deviceId: "agv-1",
+          buckets: [
+            {
+              bucketStart: iso(0),
+              onlineSamples: 0,
+              totalSamples: 0,
+              onlineRatio: 0,
+              socMean: null,
+              socMin: null,
+            },
+          ],
+        },
+      ]),
+      (id) => id,
+    );
+    expect(rows[0]).toMatchObject({
+      onlineRatio: null,
+      socMean: null,
+      socMin: null,
+    });
+  });
+});
+
+describe("sparklinePoints", () => {
+  it("normalizes points into the box with a flipped y-axis", () => {
+    const series = [
+      {
+        name: "x",
+        points: [[0, 0] as [number, number], [10, 10] as [number, number]],
+      },
+    ];
+    // Two points spanning the full range land at the box corners: low value at the bottom
+    // (y=height), high value at the top (y=0).
+    expect(sparklinePoints(series, 100, 20)).toBe("0.0,20.0 100.0,0.0");
+  });
+
+  it("returns an empty string for fewer than two points (nothing to draw)", () => {
+    expect(sparklinePoints([], 100, 20)).toBe("");
+    expect(sparklinePoints([{ name: "x", points: [[0, 5]] }], 100, 20)).toBe(
+      "",
     );
   });
 });

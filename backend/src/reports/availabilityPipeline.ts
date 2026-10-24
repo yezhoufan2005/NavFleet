@@ -11,11 +11,12 @@
  */
 
 import type { Document } from "mongodb";
-import type {
-  AvailabilityBucket,
-  AvailabilityDeviceSeries,
-  AvailabilityReport,
-  ReportBucketUnit,
+import {
+  AVAILABILITY_OTHERS_DEVICE_ID,
+  type AvailabilityBucket,
+  type AvailabilityDeviceSeries,
+  type AvailabilityReport,
+  type ReportBucketUnit,
 } from "@navfleet/shared";
 
 export interface AvailabilityPipelineParams {
@@ -97,9 +98,9 @@ const toIso = (value: Date | string | null | undefined): string => {
   return String(value ?? "");
 };
 
-/** `deviceId` used for the folded "everyone past the Top-N" series. Chosen to never collide with a
- * real vendor id (those are plain names); the frontend relabels it to 「其余 N 台」. */
-export const OTHERS_DEVICE_ID = "__others__";
+/** `deviceId` used for the folded "everyone past the Top-N" series — the shared sentinel, re-exported
+ * here so this module's callers and tests have it beside the mapper that produces it. */
+export const OTHERS_DEVICE_ID = AVAILABILITY_OTHERS_DEVICE_ID;
 
 /**
  * 已排序的行 → `AvailabilityReport`（纯映射，`available` 由调用方决定）。按 deviceId 顺序切段成每台
