@@ -24,9 +24,12 @@ test.describe("console overview", () => {
     await expect(page).toHaveURL(/\/$/);
     await expect(page.getByRole("heading", { name: "总览" })).toBeVisible();
 
-    const online = page.getByRole("article").filter({ hasText: "在线设备" });
-    await expect(online).toContainText(
-      `${SEEDED_DEVICES.length} / ${SEEDED_DEVICES.length}`,
+    // The 在线设备 tile is gone: 在线 is 「总数减离线」, now read off the 车队状态 distribution
+    // card (正常/提示/预警/告警/离线), whose header totals the whole seeded fleet.
+    const status = page.locator("section[aria-labelledby='status-heading']");
+    await expect(status).toBeVisible();
+    await expect(status).toContainText(
+      new RegExp(`共\\s*${SEEDED_DEVICES.length}\\s*台`),
     );
   });
 
