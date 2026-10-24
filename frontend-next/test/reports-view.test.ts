@@ -118,12 +118,16 @@ afterEach(() => {
 });
 
 describe("报表 状态与内容", () => {
-  it("接口失败时报出错误而不是留空白", async () => {
+  it("一个报表失败不拖垮另一个：可用率报错，消息照常出图", async () => {
+    // Availability 504s while alerts succeed. Decoupled fetches mean the alert charts still
+    // render and the error is scoped to the availability section — the page is not blanked.
     vi.spyOn(fleetApi, "getAvailabilityReport").mockRejectedValue(
       new Error("HTTP 503"),
     );
     const wrapper = await mountView();
     expect(wrapper.text()).toContain("HTTP 503");
+    // The three message bar charts still rendered from the alert report that did come back.
+    expect(wrapper.findAll(".bar-stub")).toHaveLength(3);
   });
 
   it("两个报表都 available:false 时说无历史并链到系统状态", async () => {

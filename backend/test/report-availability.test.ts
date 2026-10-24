@@ -2,7 +2,6 @@ import { describe, it, expect } from "vitest";
 import {
   buildAvailabilityPipeline,
   mapAvailabilityRows,
-  OTHERS_DEVICE_ID,
   type AvailabilityRow,
 } from "../src/reports/availabilityPipeline";
 
@@ -185,78 +184,5 @@ describe("mapAvailabilityRows", () => {
   it("returns an empty device list for no rows (the honest-empty shape without matches)", () => {
     const report = mapAvailabilityRows([], "day");
     expect(report).toEqual({ bucket: "day", devices: [], available: true });
-  });
-});
-
-describe("mapAvailabilityRows — Top-N capping (Phase 18)", () => {
-  const iso = (h: number) => new Date(Date.UTC(2026, 8, 1, h)).toISOString();
-  // One bucket per device, each device's totalSamples set so the ranking is unambiguous.
-  const rowsFor = (
-    specs: Array<{ id: string; online: number; total: number; soc: number | null }>,
-  ) =>
-    specs.map<AvailabilityRow>((spec) => ({
-      _id: { deviceId: spec.id, bucketStart: new Date(iso(0)) },
-      onlineSamples: spec.online,
-      totalSamples: spec.total,
-      socMean: spec.soc,
-      socMin: spec.soc,
-    }));
-
-  it("leaves the series untouched when the device count is within topN", () => {
-    const report = mapAvailabilityRows(
-      rowsFor([
-        { id: "a", online: 1, total: 2, soc: 50 },
-        { id: "b", online: 1, total: 2, soc: 50 },
-      ]),
-      "hour",
-      { topN: 2 },
-    );
-    expect(report.devices.map((d) => d.deviceId)).toEqual(["a", "b"]);
-  });
-
-  it("keeps the top-N busiest devices and folds the rest into 「其余」", () => {
-    const report = mapAvailabilityRows(
-      rowsFor([
-        { id: "big1", online: 90, total: 100, soc: 80 },
-        { id: "big2", online: 40, total: 50, soc: 60 },
-        { id: "small1", online: 5, total: 10, soc: 40 },
-        { id: "small2", online: 2, total: 10, soc: 20 },
-      ]),
-      "hour",
-      { topN: 2 },
-    );
-    expect(report.devices.map((d) => d.deviceId)).toEqual(["big1", "big2", OTHERS_DEVICE_ID]);
-
-    const others = report.devices.find((d) => d.deviceId === OTHERS_DEVICE_ID)!;
-    const bucket = others.buckets[0]!;
-    // Frames add; the online ratio is recomputed over the merged totals.
-    expect(bucket.onlineSamples).toBe(7);
-    expect(bucket.totalSamples).toBe(20);
-    expect(bucket.onlineRatio).toBeCloseTo(7 / 20);
-    // soc is sample-weighted across the folded devices (40·10 + 20·10)/20 = 30, min is the lowest.
-    expect(bucket.socMean).toBe(30);
-    expect(bucket.socMin).toBe(20);
-  });
-
-  it("preserves the fleet-weighted online total after folding (fold is lossless)", () => {
-    const specs = [
-      { id: "a", online: 90, total: 100, soc: 80 },
-      { id: "b", online: 40, total: 50, soc: 60 },
-      { id: "c", online: 5, total: 10, soc: 40 },
-      { id: "d", online: 2, total: 10, soc: 20 },
-    ];
-    const sum = (report: ReturnType<typeof mapAvailabilityRows>) =>
-      report.devices
-        .flatMap((device) => device.buckets)
-        .reduce(
-          (acc, bucket) => ({
-            online: acc.online + bucket.onlineSamples,
-            total: acc.total + bucket.totalSamples,
-          }),
-          { online: 0, total: 0 },
-        );
-    const full = sum(mapAvailabilityRows(rowsFor(specs), "hour"));
-    const capped = sum(mapAvailabilityRows(rowsFor(specs), "hour", { topN: 2 }));
-    expect(capped).toEqual(full);
   });
 });

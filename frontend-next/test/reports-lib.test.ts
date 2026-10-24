@@ -1,6 +1,5 @@
 import { describe, it, expect } from "vitest";
 import type { AlertStatsReport, AvailabilityReport } from "@navfleet/shared";
-import { AVAILABILITY_OTHERS_DEVICE_ID } from "@navfleet/shared";
 import {
   buildAlertStatsCsv,
   buildAvailabilityCsv,
@@ -68,9 +67,22 @@ describe("defaultBucketForSpanMs / defaultBucketForPreset", () => {
 });
 
 describe("deviceAvailabilityRows", () => {
-  it("summarizes each device, sorts by samples, and relabels the Top-N fold last", () => {
+  it("summarizes each device and sorts by sample count, no folding", () => {
     const rows = deviceAvailabilityRows(
       report([
+        {
+          deviceId: "agv-2",
+          buckets: [
+            {
+              bucketStart: iso(0),
+              onlineSamples: 5,
+              totalSamples: 20,
+              onlineRatio: 0.25,
+              socMean: 30,
+              socMin: 10,
+            },
+          ],
+        },
         {
           deviceId: "agv-1",
           buckets: [
@@ -84,34 +96,21 @@ describe("deviceAvailabilityRows", () => {
             },
           ],
         },
-        {
-          deviceId: AVAILABILITY_OTHERS_DEVICE_ID,
-          buckets: [
-            {
-              bucketStart: iso(0),
-              onlineSamples: 5,
-              totalSamples: 20,
-              onlineRatio: 0.25,
-              socMean: 30,
-              socMin: 10,
-            },
-          ],
-        },
       ]),
       (id) => (id === "agv-1" ? "A01 巡检车" : id),
     );
 
-    // The real device ranks first even though it was listed first; 「其余」 is pinned to the end.
-    expect(rows.map((row) => row.name)).toEqual(["A01 巡检车", "其余设备"]);
+    // Busiest device first; every row is a real device (no 「其余」 aggregate).
+    expect(rows.map((row) => row.name)).toEqual(["A01 巡检车", "agv-2"]);
     expect(rows[0]).toMatchObject({
-      isOthers: false,
+      deviceId: "agv-1",
       onlineRatio: 0.9,
       socMean: 80,
       socMin: 60,
       totalSamples: 100,
     });
     expect(rows[1]).toMatchObject({
-      isOthers: true,
+      deviceId: "agv-2",
       onlineRatio: 0.25,
       socMin: 10,
     });
@@ -309,6 +308,48 @@ describe("onlineRatioSeries / socSeries", () => {
     // (80*10 + 40*30) / (10+30) = 2000/40 = 50
     const soc = socSeries(fleet, nameOfFleet);
     expect(soc[0]!.points).toEqual([[Date.parse(iso(0)), 50]]);
+  });
+
+  it("emits one line per device when perDevice is set (comparison mode)", () => {
+    const fleet = report([
+      {
+        deviceId: "agv-1",
+        buckets: [
+          {
+            bucketStart: iso(0),
+            onlineSamples: 8,
+            totalSamples: 10,
+            onlineRatio: 0.8,
+            socMean: 80,
+            socMin: 60,
+          },
+        ],
+      },
+      {
+        deviceId: "agv-2",
+        buckets: [
+          {
+            bucketStart: iso(0),
+            onlineSamples: 6,
+            totalSamples: 30,
+            onlineRatio: 0.2,
+            socMean: 40,
+            socMin: 20,
+          },
+        ],
+      },
+    ]);
+    const nameOfFleet = (id: string) => id.toUpperCase();
+
+    const online = onlineRatioSeries(fleet, nameOfFleet, { perDevice: true });
+    // One series per device, each named after its own device — not a single fleet mean.
+    expect(online.map((s) => s.name)).toEqual(["AGV-1", "AGV-2"]);
+    expect(online[0]!.points).toEqual([[Date.parse(iso(0)), 80]]);
+    expect(online[1]!.points).toEqual([[Date.parse(iso(0)), 20]]);
+
+    const soc = socSeries(fleet, nameOfFleet, { perDevice: true });
+    expect(soc.map((s) => s.name)).toEqual(["AGV-1", "AGV-2"]);
+    expect(soc[1]!.points).toEqual([[Date.parse(iso(0)), 40]]);
   });
 });
 
