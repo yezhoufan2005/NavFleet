@@ -210,9 +210,11 @@ docker compose --env-file deploy/.env -f deploy/docker-compose.yml up -d --build
 scripts/dev.sh
 ```
 
-同时起后端（:3000）与 **v3 控制台**（:5273）—— 也就是 compose 实际部署的那一套。若检测到
+同时起后端（:3000）与 **v3 控制台**（:7070）—— 也就是 compose 实际部署的那一套。若检测到
 `127.0.0.1:1883` 上有 broker，会自动运行演示发布器，走的是真实链路，只有数据是演示数据。`--no-mock`
 关掉它，`--mock` 强制打开。`--legacy` 起已冻结的 v1.0.0 那套（:5173），只在验证回滚时需要。
+要验收**报表 / 会话 / 审计**页（这些靠 Mongo 聚合与落库，默认内存态 dev 后端没有），加 `--demo`：它
+额外起一个一次性 Mongo 容器并注入演示账号/角色/组与多日报表历史，前后端仍是热更新。
 
 高德地图 Key **按 workspace 各自一份**（`frontend-next/.env` 与 `frontend/.env`，都不进仓库）。缺了它
 GPS 面板显示「未配置 Key」、其余功能正常；`dev.sh` 会在文件缺失时提示一句。

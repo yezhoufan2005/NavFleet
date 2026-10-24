@@ -5,7 +5,7 @@
   "type": "module",
   "description": "NavFleet console — the v3 frontend, and the one compose deploys since the Phase 14 switch.",
   "scripts": {
-    "dev": "vite --host 127.0.0.1 --port 5273",
+    "dev": "vite --host 127.0.0.1 --port 7070",
     "build": "vue-tsc --noEmit -p tsconfig.json && vite build && node scripts/assert-no-dev-only-chunks.mjs && node scripts/assert-first-load-budget.mjs",
     "preview": "vite preview --port 4273",
     "lint": "eslint . --max-warnings 0",
