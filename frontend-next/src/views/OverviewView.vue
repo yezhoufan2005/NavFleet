@@ -91,13 +91,30 @@ const serverTimeLabel = computed(() =>
 
 type Tone = "ok" | "warning" | "critical" | "muted";
 
+/** One coloured run of a tile's mini proportion bar; the unfilled remainder shows as track. */
+interface BarSegment {
+  pct: number;
+  cls: string;
+}
+
 interface Tile {
   key: string;
   label: string;
   value: string;
   note: string;
   tone: Tone;
+  /**
+   * A thin proportion bar under the number — the "丰富" acceptance asked for, so each card
+   * carries its shape, not just a lonely figure. Ratio tiles (在线 / GPS / 编队) fill the
+   * filled fraction and leave the rest as track; 活跃消息 is a composition bar split by
+   * severity. Empty = nothing to show (e.g. no alerts), and the track reads as "none".
+   */
+  segments: BarSegment[];
 }
+
+/** Percent of `whole` that `part` is, clamped and zero when there is no whole. */
+const asPct = (part: number, whole: number): number =>
+  whole > 0 ? Math.max(0, Math.min(100, (part / whole) * 100)) : 0;
 
 /**
  * The four numbers a shift opens with. `tone` is only ever "not normal" when the
@@ -107,6 +124,16 @@ const tiles = computed<Tile[]>(() => {
   const { totalCount, onlineCount, alertTotal, gpsCount } = fleet.summary;
   const offline = totalCount - onlineCount;
   const critical = fleet.groupedAlerts.critical.length;
+  const warning = fleet.groupedAlerts.warning.length;
+  const notice = fleet.groupedAlerts.notice.length;
+  // Formations whose every configured device is currently online — the "满员在线" the
+  // formation tile's bar fills to. A formation with no devices cannot be full.
+  const formationsFull = fleet.formations.filter(
+    (formation) =>
+      (formation.deviceCount ?? 0) > 0 &&
+      formation.onlineCount === formation.deviceCount,
+  ).length;
+  const formationCount = fleet.formations.length;
 
   return [
     {
@@ -115,6 +142,7 @@ const tiles = computed<Tile[]>(() => {
       value: `${onlineCount} / ${totalCount}`,
       note: offline > 0 ? `${offline} 台离线` : "全部在线",
       tone: offline > 0 ? "warning" : "ok",
+      segments: [{ pct: asPct(onlineCount, totalCount), cls: "bg-success" }],
     },
     {
       key: "alerts",
@@ -122,6 +150,13 @@ const tiles = computed<Tile[]>(() => {
       value: String(alertTotal),
       note: critical > 0 ? `${critical} 条告警级` : "无告警级",
       tone: critical > 0 ? "critical" : alertTotal > 0 ? "warning" : "ok",
+      // Composition, not ratio: the three severities together are the whole bar, so it
+      // reads as "what are these 14 made of" at a glance. Zero-width runs are dropped.
+      segments: [
+        { pct: asPct(critical, alertTotal), cls: "bg-critical" },
+        { pct: asPct(warning, alertTotal), cls: "bg-warning" },
+        { pct: asPct(notice, alertTotal), cls: "bg-notice" },
+      ].filter((segment) => segment.pct > 0),
     },
     {
       key: "gps",
@@ -133,16 +168,20 @@ const tiles = computed<Tile[]>(() => {
           ? `${totalCount - gpsCount} 台无定位`
           : "全部已定位",
       tone: "muted",
+      // Neutral ink, not a status hue: coverage is information, not a good/bad state.
+      segments: [{ pct: asPct(gpsCount, totalCount), cls: "bg-ink-subtle" }],
     },
     {
       key: "formations",
       label: "设备编队",
-      value: String(fleet.formations.length),
-      // Not 点击查看成员: this tile is an `<article>`, and it stayed one. The click is
-      // on the formation rows below, so the note names where the capability is instead
-      // of describing one this element does not have.
-      note: fleet.formations.length ? "可在设备页按编队筛选" : "未配置编队",
+      value: String(formationCount),
+      note: formationCount
+        ? `${formationsFull} / ${formationCount} 满员在线`
+        : "未配置编队",
       tone: "muted",
+      segments: [
+        { pct: asPct(formationsFull, formationCount), cls: "bg-success" },
+      ],
     },
   ];
 });
@@ -310,6 +349,22 @@ const alertRows = computed(() =>
           <strong :class="TILE_VALUE_CLASS">{{ tile.value }}</strong>
           <span class="text-xs text-ink-muted">{{ tile.note }}</span>
         </template>
+        <!--
+          Mini proportion bar, anchored to the card's bottom (`mt-auto`) so it fills the
+          slack that made these cards read as empty. `aria-hidden` because the value and
+          note already carry the same figures in text — the bar is reinforcement, the
+          colourblind/screen-reader path is the words. Before data it is an empty track
+          (every segment computes to 0%), so the card does not resize when the bar fills.
+        -->
+        <div class="stat-bar mt-auto" aria-hidden="true">
+          <div
+            v-for="(segment, index) in tile.segments"
+            :key="index"
+            class="h-full first:rounded-l-full last:rounded-r-full"
+            :class="segment.cls"
+            :style="{ width: `${segment.pct}%` }"
+          />
+        </div>
       </article>
     </div>
 
@@ -554,6 +609,24 @@ const alertRows = computed(() =>
 
 .stat-tile[data-tone="critical"] .tile-mark {
   background: var(--color-critical);
+}
+
+/*
+ * The mini proportion bar. A rounded track (border-muted) with coloured runs laid left to
+ * right; the unfilled tail stays track, which is what makes a ratio tile read as "26 of 29"
+ * without a second number. Height is a token-free 6px — it is a mark, not type, so it does
+ * not sit on the type scale. Theme-following because every colour is a token.
+ */
+.stat-bar {
+  display: flex;
+  height: 6px;
+  overflow: hidden;
+  border-radius: 999px;
+  background: var(--color-border-muted);
+}
+
+.stat-bar > div {
+  min-width: 0;
 }
 
 /*

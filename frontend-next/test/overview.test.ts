@@ -559,7 +559,11 @@ describe("formations", () => {
       .findAll("article")
       .find((item) => item.text().includes("编队"));
 
-    expect(tile?.text()).toContain("可在设备页按编队筛选");
+    // The note now carries the 满员在线 ratio (feeds the tile's mini bar) rather than a
+    // navigation hint, but the point of this test stands: the tile is an <article>, not a
+    // link, so it must not imply it is clickable (no 点击, no <a> — the formation rows below
+    // are what filter the device list).
+    expect(tile?.text()).toContain("满员在线");
     expect(tile?.text()).not.toContain("点击");
     expect(tile?.find("a").exists()).toBe(false);
   });
