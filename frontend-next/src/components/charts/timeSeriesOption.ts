@@ -66,6 +66,13 @@ export interface TimeSeriesOptionInput {
    */
   legendPosition?: "top" | "right";
   animate?: boolean;
+  /**
+   * Pin the time axis to the selected window (epoch ms) rather than letting it shrink to the data
+   * extent. Picking 近 12 小时 should show a 12-hour axis even when telemetry only covers part of
+   * it; without this the axis ends at the last sample and 「选 12 小时却只显示 8 小时」.
+   */
+  xMin?: number;
+  xMax?: number;
 }
 
 /** Points above this get LTTB-downsampled by ECharts before drawing. */
@@ -91,6 +98,8 @@ export const buildTimeSeriesOption = ({
   unit,
   legendPosition = "top",
   animate = true,
+  xMin,
+  xMax,
 }: TimeSeriesOptionInput): EChartsOption => {
   const legendRight = legendPosition === "right" && series.length > 1;
   // End labels and a right-side legend both claim the right margin, so they are mutually
@@ -143,6 +152,9 @@ export const buildTimeSeriesOption = ({
     },
     xAxis: {
       type: "time",
+      // Span the selected window when given, so the axis does not shrink to the data extent.
+      min: xMin,
+      max: xMax,
       // Recessive: the data is the subject, the frame is not.
       axisLine: { lineStyle: { color: palette.axis } },
       axisTick: { show: false },

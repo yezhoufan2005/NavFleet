@@ -40,6 +40,8 @@ const {
   legendPosition = "top",
   tableMatchHeight = false,
   cursorAt = null,
+  xMin,
+  xMax,
 } = defineProps<{
   series: readonly TimeSeries[];
   /** One unit for the chart — see `timeSeriesOption.ts` for why not per series. */
@@ -63,6 +65,9 @@ const {
    * re-derive the series data every frame — see `buildCursorPatch`.
    */
   cursorAt?: number | null;
+  /** Pin the time axis to this window (epoch ms) so it spans the selected range, not just the data. */
+  xMin?: number;
+  xMax?: number;
 }>();
 
 /**
@@ -96,6 +101,14 @@ const seriesColor = (index: number): string =>
   palette.value.series[index % palette.value.series.length] ??
   palette.value.ink;
 
+/**
+ * Give the data table a floor width once it has many columns (one per vehicle), so the cells do
+ * not crush together — the block then scrolls horizontally instead. Few columns fit, so no floor.
+ */
+const tableMinWidth = computed(() =>
+  series.length > 3 ? `${200 + series.length * 88}px` : undefined,
+);
+
 const option = computed(() =>
   buildTimeSeriesOption({
     series,
@@ -103,6 +116,8 @@ const option = computed(() =>
     unit,
     legendPosition,
     animate: animate.value,
+    xMin,
+    xMax,
   }),
 );
 
@@ -283,11 +298,12 @@ const formatStamp = (stamp: number): string =>
     -->
     <div
       v-else
-      class="flex flex-col overflow-hidden rounded-sm border border-border"
+      class="flex flex-col overflow-x-auto overflow-y-hidden rounded-sm border border-border"
       :style="tableMatchHeight ? { height: `${height}px` } : undefined"
     >
       <table
         class="w-full shrink-0 table-fixed border-collapse text-left text-sm"
+        :style="tableMinWidth ? { minWidth: tableMinWidth } : undefined"
       >
         <caption class="sr-only">
           {{
@@ -314,7 +330,8 @@ const formatStamp = (stamp: number): string =>
           </tr>
         </thead>
       </table>
-      <!-- Only the body scrolls, and it is the focusable region (WCAG 2.1.1). -->
+      <!-- Only the body scrolls vertically; the whole block scrolls horizontally (outer) so the
+           header and body move together and stay aligned. -->
       <div
         class="overflow-x-hidden overflow-y-auto border-t border-border"
         :class="tableMatchHeight ? 'min-h-0 flex-1' : undefined"
@@ -323,7 +340,10 @@ const formatStamp = (stamp: number): string =>
         :aria-label="`${label} 数据表`"
         :style="tableMatchHeight ? undefined : { maxHeight: '24rem' }"
       >
-        <table class="w-full table-fixed border-collapse text-left text-sm">
+        <table
+          class="w-full table-fixed border-collapse text-left text-sm"
+          :style="tableMinWidth ? { minWidth: tableMinWidth } : undefined"
+        >
           <colgroup>
             <col class="w-[45%]" />
             <col v-for="entry in series" :key="entry.name" />

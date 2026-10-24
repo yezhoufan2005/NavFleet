@@ -164,6 +164,8 @@ const load = (): void => {
   const deviceKey = deviceFilter.value.join(",");
   if (deviceKey !== lastDeviceKey) {
     availability.value = null;
+    onlineSeries.value = [];
+    batterySeries.value = [];
     lastDeviceKey = deviceKey;
   }
 
@@ -183,11 +185,21 @@ const load = (): void => {
     .then((report) => {
       if (request !== requestId) return;
       availability.value = report;
+      // Snapshot the series + window now (see the refs' comment for why not computed).
+      const perDevice = deviceFilter.value.length > 0;
+      onlineSeries.value = onlineRatioSeries(report, nameOf, { perDevice });
+      batterySeries.value = socSeries(report, nameOf, { perDevice });
+      chartWindow.value = {
+        from: Date.parse(window.from),
+        to: Date.parse(window.to),
+      };
       availStatus.value = "ready";
     })
     .catch((error: unknown) => {
       if (request !== requestId) return;
       availability.value = null;
+      onlineSeries.value = [];
+      batterySeries.value = [];
       availStatus.value = "error";
       availError.value =
         error instanceof Error ? error.message : "可用率报表加载失败";
@@ -256,20 +268,17 @@ const comparingDevices = computed(() => deviceFilter.value.length > 0);
 const summary = computed(() =>
   availability.value ? summarizeAvailability(availability.value) : null,
 );
-const onlineSeries = computed(() =>
-  availability.value
-    ? onlineRatioSeries(availability.value, nameOf, {
-        perDevice: comparingDevices.value,
-      })
-    : [],
-);
-const batterySeries = computed(() =>
-  availability.value
-    ? socSeries(availability.value, nameOf, {
-        perDevice: comparingDevices.value,
-      })
-    : [],
-);
+/**
+ * The chart series are a **snapshot taken at fetch time**, not a computed — deliberately. If they
+ * recomputed on every reactive read they depend on, the live fleet store (names via `nameOf`)
+ * ticking every couple of seconds would hand ECharts a fresh series array each tick and the lines
+ * would re-animate left-to-right forever. Set once per load, they animate once and settle.
+ */
+const onlineSeries = ref<ReturnType<typeof onlineRatioSeries>>([]);
+const batterySeries = ref<ReturnType<typeof socSeries>>([]);
+/** The selected window in epoch ms, so the chart's time axis spans the whole range (e.g. a full
+ * 12h) even when telemetry only covers part of it — otherwise the axis shrinks to the data. */
+const chartWindow = ref<{ from: number; to: number } | null>(null);
 const hasAvailabilityData = computed(() =>
   onlineSeries.value.some((series) => series.points.length > 0),
 );
@@ -654,13 +663,19 @@ const exportAlertsCsv = (): void => {
         >
           可用率加载失败：{{ availError }}
         </p>
-        <p
-          v-else-if="availStatus === 'loading' && !hasAvailabilityData"
-          class="m-0 rounded-md border border-border bg-surface-raised p-8 text-center text-sm text-ink-muted"
-          role="status"
-        >
-          正在加载，请等待...
-        </p>
+        <!-- Loading placeholder matches the two charts' footprint (h-[272px] each) so switching
+             devices never collapses the card — the 「消息分析」 heading below stays put. -->
+        <template v-else-if="availStatus === 'loading' && !hasAvailabilityData">
+          <p class="sr-only" role="status">正在加载可用率…</p>
+          <div class="grid gap-4 lg:grid-cols-2" aria-hidden="true">
+            <div
+              class="h-[272px] rounded-md border border-border bg-surface-raised motion-safe:animate-pulse"
+            />
+            <div
+              class="h-[272px] rounded-md border border-border bg-surface-raised motion-safe:animate-pulse"
+            />
+          </div>
+        </template>
         <div v-else class="grid gap-4 lg:grid-cols-2">
           <div class="rounded-md border border-border bg-surface-raised p-4">
             <TimeSeriesChart
@@ -671,6 +686,8 @@ const exportAlertsCsv = (): void => {
               :height="240"
               legend-position="right"
               table-match-height
+              :x-min="chartWindow?.from"
+              :x-max="chartWindow?.to"
             />
             <p v-else class="m-0 py-8 text-center text-sm text-ink-muted">
               该时间段没有遥测样本
@@ -685,6 +702,8 @@ const exportAlertsCsv = (): void => {
               :height="240"
               legend-position="right"
               table-match-height
+              :x-min="chartWindow?.from"
+              :x-max="chartWindow?.to"
             />
             <p v-else class="m-0 py-8 text-center text-sm text-ink-muted">
               该时间段没有电量样本
