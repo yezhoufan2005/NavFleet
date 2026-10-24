@@ -12,8 +12,13 @@
 #   scripts/verify-stack.sh --no-seed    不注入演示账号/角色/组/会话/审计（只保留 admin）
 #   scripts/verify-stack.sh --fresh      先删掉本脚本的 project 与卷，从空库重来
 #   scripts/verify-stack.sh --check-only 不碰 compose，只对已经在跑的栈跑断言（也不注入演示数据）
+#   scripts/verify-stack.sh --allow-dirty 工作树有未提交改动时仍继续（默认拦下，见下）
 #   scripts/verify-stack.sh --mqtt-tls   叠加 TLS broker（mqtts://8883），验证加密摄入链路
 #   scripts/verify-stack.sh --monitoring 叠加监控栈，断言三个 exporter 在 Prometheus 里 up
+#
+# 每次都「干净地更新+重启」：compose 从磁盘当前文件构建镜像，故开工前会打印构建依据的 HEAD，
+# 工作树脏则默认拦下（镜像会含改到一半的文件，正是 vue-tsc 偶发失败的根因）；启动用
+# --force-recreate 强制重建容器，确保改过的挂载配置（如 nginx locations.conf）与新镜像一定生效。
 #
 # 与另外两个脚本的分工：
 #   dev.sh    —— 开发用（热更新）：前后端走 tsx/vite；--demo 另起一次性 Mongo 容器注入演示数据
@@ -40,6 +45,7 @@ DO_FRESH=0
 CHECK_ONLY=0
 MQTT_TLS=0
 MONITORING=0
+ALLOW_DIRTY=0
 while [[ $# -gt 0 ]]; do
   case "$1" in
     --down) DO_DOWN=1; shift ;;
@@ -47,11 +53,12 @@ while [[ $# -gt 0 ]]; do
     --no-seed) DO_SEED=0; shift ;;
     --fresh) DO_FRESH=1; shift ;;
     --check-only) CHECK_ONLY=1; shift ;;
+    --allow-dirty) ALLOW_DIRTY=1; shift ;;
     --mqtt-tls) MQTT_TLS=1; shift ;;
     --monitoring) MONITORING=1; shift ;;
-    # 2,22 是上面那段注释的确切范围 —— 注释止于第 22 行，第 23 行是 `set -uo pipefail`。
+    # 2,27 是上面那段注释的确切范围 —— 注释止于第 27 行，第 28 行是 `set -uo pipefail`。
     # dev.sh 里踩过同一个off-by-one（--help 末尾多印一行代码），所以这里写死并核对过。
-    -h|--help) sed -n '2,22p' "$0"; exit 0 ;;
+    -h|--help) sed -n '2,27p' "$0"; exit 0 ;;
     *) echo "未知参数: $1"; exit 1 ;;
   esac
 done
@@ -146,12 +153,32 @@ fi
 SERVICES=(nginx web backend mongo mosquitto)
 
 if [[ "$CHECK_ONLY" == "0" ]]; then
+  # compose 从**当前磁盘上的文件**构建镜像（context 是仓库根），不是从某个 git 提交。所以工作树脏
+  # ——有人正在改、或切分支/编辑改到一半——镜像就会装进半成品，`vue-tsc` 等构建步骤随机报错（这正是
+  # 之前几次 `npm run build -w navfleet-console` 在 vue-tsc 处莫名失败的根因：构建发生在编辑中途）。
+  # 开工前先把构建依据亮出来，脏树默认拦下，确认是在测本地改动再 --allow-dirty 放行。
+  HEAD_DESC="$(git -C "$ROOT" log --oneline -1 2>/dev/null || echo '(非 git 仓库)')"
+  echo "构建依据 HEAD：${HEAD_DESC}"
+  if [[ -n "$(git -C "$ROOT" status --porcelain 2>/dev/null)" ]]; then
+    echo "⚠ 工作树有未提交改动——镜像会按磁盘现状构建，包含任何改到一半的文件："
+    git -C "$ROOT" status --short 2>/dev/null | sed 's/^/    /'
+    if [[ "$ALLOW_DIRTY" == "0" ]]; then
+      echo "  这常是「构建撞上正在进行的编辑」。确认无误（在测本地改动）就加 --allow-dirty 重跑；"
+      echo "  否则先提交/暂存，或等编辑结束，再 sh verify-stack.sh。"
+      exit 1
+    fi
+    echo "  （--allow-dirty：按当前磁盘状态继续）"
+  fi
+
   if [[ "$DO_FRESH" == "1" ]]; then
     echo "清掉 project '${PROJECT}' 与它的卷…"
     compose down -v >/dev/null 2>&1
   fi
   echo "构建并启动整栈（project '${PROJECT}'，宿主端口 ${PORT}）…"
-  if ! compose up -d --build >/tmp/navfleet-verify-up.log 2>&1; then
+  # --force-recreate：保证每次都重建容器。否则改了挂载进容器的配置（如 nginx 的 locations.conf，
+  # 单文件 bind mount，host 侧改动不会触发 compose 重建）或重建了镜像时，旧容器可能原地留存，
+  # 看起来「跑了却没更新」。配合上面的构建，这条让「每次 verify-stack 都确实更新+重启」成立。
+  if ! compose up -d --build --force-recreate >/tmp/navfleet-verify-up.log 2>&1; then
     echo "compose up 失败，最后 30 行："; tail -30 /tmp/navfleet-verify-up.log; exit 1
   fi
 
