@@ -297,7 +297,7 @@ const COLUMNS: { key: DeviceSortKey; label: string; numeric?: boolean }[] = [
 ];
 
 const TONE_DOT: Record<string, string> = {
-  normal: "bg-brand",
+  normal: "bg-success",
   notice: "bg-notice",
   warning: "bg-warning",
   critical: "bg-critical",
@@ -885,7 +885,7 @@ watch(
  * one wins depend on stylesheet order, which is not something a template should be
  * betting on.
  *
- * **What these three rules restore.** v1.0.0 tinted the whole row for critical and
+ * **What these rules restore.** v1.0.0 tinted the whole row for critical and
  * warning (`device-list.css:35-41`, a drop shadow on a card) and faded offline ones to
  * `.74` (`:43-45`); the port kept only the status dot. A dot answers "what is this
  * row's state" once you are already reading the row — the row treatment is what makes
@@ -893,8 +893,9 @@ watch(
  * scan. Translated to a table the shadow becomes an inset left edge: a 44px drop
  * shadow is card furniture and would just blur into the neighbouring rows.
  *
- * `notice` deliberately gets nothing, matching v1.0.0 — if every non-normal state is
- * highlighted, none of them is.
+ * `notice` now gets the same treatment in blue (see below): once 提示 counts as a
+ * pending-exception state, leaving it as a bare dot made it the one actionable state you
+ * had to already be reading the row to notice.
  */
 .device-row {
   transition: background-color 150ms var(--ease-standard);
@@ -905,12 +906,10 @@ watch(
   background: color-mix(in oklab, var(--color-ink) 6%, transparent);
 }
 
-/* The open row and its card read as one block, tinted with the brand wash so an opened
-   row also reads as the selected one. Without this the card looks like a separate panel
-   that happens to be underneath, rather than this row's own detail. */
-.device-row[data-expanded] {
-  background: var(--color-brand-wash);
-}
+/* An open row keeps its ordinary background (white / surface), so the summary row and the
+   detail card below it stay visually distinct — a tint on the row made the two blur into
+   one grey block. The ▾ chevron is what marks the row open; colour is left to the status
+   dot and the tone rows below. */
 
 .device-row[data-tone="critical"] {
   background: color-mix(in oklab, var(--color-critical-wash) 60%, transparent);
@@ -922,8 +921,17 @@ watch(
   box-shadow: inset 3px 0 0 var(--color-warning);
 }
 
+/* notice now carries the same wash + inset edge as warning/critical, in blue — 提示 became
+   a pending-exception state worth surfacing before you read the row, so it earns the row
+   treatment the dot alone cannot give. (This reverses v1.0.0's "notice gets nothing".) */
+.device-row[data-tone="notice"] {
+  background: color-mix(in oklab, var(--color-notice-wash) 60%, transparent);
+  box-shadow: inset 3px 0 0 var(--color-notice);
+}
+
 .device-row[data-tone="critical"]:hover,
-.device-row[data-tone="warning"]:hover {
+.device-row[data-tone="warning"]:hover,
+.device-row[data-tone="notice"]:hover {
   background: color-mix(in oklab, var(--color-surface-sunken) 70%, transparent);
 }
 
