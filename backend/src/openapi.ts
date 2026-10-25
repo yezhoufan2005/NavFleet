@@ -31,6 +31,7 @@ import {
   sceneIdParamSchema,
   updateUserSchema,
 } from "./validation";
+import { AUDIT_ACTIONS } from "./types";
 
 /**
  * A validator, rendered as the JSON Schema that describes it.
@@ -195,23 +196,12 @@ export const openApiDocument = {
         properties: {
           ts: { type: "string", format: "date-time" },
           actor: { type: "string" },
+          // Drawn straight from the server's `AUDIT_ACTIONS` tuple so the published enum can never
+          // drift behind it again (it had fallen 13 behind — every config-write and RBAC action was
+          // missing, so a client generated from this spec rejected those rows).
           action: {
             type: "string",
-            enum: [
-              "login",
-              "login_failed",
-              "logout",
-              "password_change",
-              "password_reset",
-              "user_create",
-              "user_update",
-              "user_delete",
-              "session_revoke",
-              "force_logout",
-              "account_locked",
-              "alert_ack",
-              "alert_unack",
-            ],
+            enum: [...AUDIT_ACTIONS],
           },
           target: { type: "string" },
           outcome: { type: "string", enum: ["success", "failure"] },

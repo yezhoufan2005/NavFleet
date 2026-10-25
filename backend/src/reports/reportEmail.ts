@@ -20,6 +20,12 @@ export interface ReportEmailInput {
   range: ReportRangePreset;
   /** 生成时刻的 ISO 串（由调用方注入，便于测试）。 */
   generatedAt: string;
+  /**
+   * 本地化用的 IANA 时区（来自 `config.reportTimezone`，与聚合切日的时区同源）。标题/文件名的日期
+   * 与正文「截至」时刻都按它换算，否则 UTC+8 的运维在 23:00 UTC 触发时，标题日期会写成「前一天」、
+   * 正文还印着生 UTC 串。
+   */
+  timeZone: string;
   availability: AvailabilityReport;
   alertStats: AlertStatsReport;
   nameOf: DeviceNameOf;
@@ -69,6 +75,27 @@ const summarize = (
 const pct = (ratio: number | null): string =>
   ratio === null ? "--" : `${(ratio * 100).toFixed(1)}%`;
 
+/** 生成时刻在指定时区的日历日（YYYY-MM-DD）。`en-CA` 的 2-digit 数字格式恰为 ISO 风格日期。 */
+const formatDayInZone = (at: Date, timeZone: string): string =>
+  new Intl.DateTimeFormat("en-CA", {
+    timeZone,
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).format(at);
+
+/** 生成时刻在指定时区的可读本地时刻（给「截至」用），24 小时制。 */
+const formatInstantInZone = (at: Date, timeZone: string): string =>
+  new Intl.DateTimeFormat("zh-CN", {
+    timeZone,
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+    hour12: false,
+  }).format(at);
+
 /** RFC-4180 CSV 转义。 */
 const csvField = (value: string | number): string => {
   const text = String(value);
@@ -117,9 +144,11 @@ const buildAvailabilityCsv = (report: AvailabilityReport, nameOf: DeviceNameOf):
  * 但没有历史后端，而不是收到一封空邮件或干脆不发（不发只留给「零收件人」）。
  */
 export const buildReportEmail = (input: ReportEmailInput): ReportEmailContent => {
-  const { range, generatedAt, availability, alertStats, nameOf } = input;
+  const { range, generatedAt, timeZone, availability, alertStats, nameOf } = input;
   const rangeLabel = RANGE_LABEL[range];
-  const day = generatedAt.slice(0, 10);
+  const generatedAtDate = new Date(generatedAt);
+  const day = formatDayInZone(generatedAtDate, timeZone);
+  const generatedAtLabel = formatInstantInZone(generatedAtDate, timeZone);
   const subject = `NavFleet 车队报表 · ${rangeLabel} · ${day}`;
 
   const noHistory = !availability.available && !alertStats.available;
@@ -136,7 +165,7 @@ export const buildReportEmail = (input: ReportEmailInput): ReportEmailContent =>
   const topDevices = alertStats.topDevices.slice(0, 5);
 
   const textLines = [
-    `NavFleet 车队报表（${rangeLabel}，截至 ${generatedAt}）`,
+    `NavFleet 车队报表（${rangeLabel}，截至 ${generatedAtLabel}）`,
     "",
     ...kpis.map(([label, value]) => `${label}：${value}`),
   ];
@@ -164,7 +193,7 @@ export const buildReportEmail = (input: ReportEmailInput): ReportEmailContent =>
     .join("");
   const html = [
     `<h2 style="margin:0 0 4px">NavFleet 车队报表</h2>`,
-    `<p style="margin:0 0 12px;color:#555">区间：${escapeHtml(rangeLabel)}（截至 ${escapeHtml(generatedAt)}）</p>`,
+    `<p style="margin:0 0 12px;color:#555">区间：${escapeHtml(rangeLabel)}（截至 ${escapeHtml(generatedAtLabel)}）</p>`,
     `<table style="border-collapse:collapse">${kpiRows}</table>`,
     topRows
       ? `<h3 style="margin:16px 0 4px">告警最多的设备</h3><ol style="margin:0">${topRows}</ol>`

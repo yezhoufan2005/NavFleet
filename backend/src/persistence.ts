@@ -334,6 +334,30 @@ export class Persistence {
       await this.db.createCollection("rbac");
     }
 
+    // TTL indexes carry `expireAfterSeconds`, and MongoDB rejects a `createIndex` that re-asserts a
+    // *different* `expireAfterSeconds` on an existing key (IndexOptionsConflict, code 85). Re-running
+    // the create unconditionally on every connect therefore throws the moment a `*_RETENTION_SECONDS`
+    // changes — and, thrown from here, that fails the connect and strands a healthy database on the
+    // in-memory fallback. So, exactly like `telemetry_ts` sets its TTL only at collection creation,
+    // create each TTL index only when it is absent (first boot); on every later connect
+    // `reconcileTtls` adjusts the value in place via `collMod`. The plain indexes below never change
+    // options, so their idempotent re-create stays safe.
+    const db = this.db;
+    const ensureTtlIndex = async (
+      collection: string,
+      key: Record<string, 1 | -1>,
+      expireAfterSeconds: number,
+    ): Promise<void> => {
+      const indexName = Object.entries(key)
+        .map(([field, direction]) => `${field}_${direction}`)
+        .join("_");
+      const indexes = await db.collection(collection).indexes();
+      if (indexes.some((index) => index.name === indexName)) {
+        return;
+      }
+      await db.collection(collection).createIndex(key, { expireAfterSeconds });
+    };
+
     await this.db.collection("device_latest").createIndex({ deviceId: 1 }, { unique: true });
     await this.db.collection("device_latest").createIndex({ stamp: -1 });
     await this.db.collection("alerts").createIndex({ deviceId: 1, ts: -1 });
@@ -346,15 +370,11 @@ export class Persistence {
     // already covered; this secondary index on the metaField speeds the device-filtered availability
     // report, whose `$match` leads with `meta.deviceId` before the `ts` range (Phase 18).
     await this.db.collection("telemetry_ts").createIndex({ "meta.deviceId": 1, ts: 1 });
-    await this.db
-      .collection("alerts")
-      .createIndex({ lastSeenAt: 1 }, { expireAfterSeconds: config.alertsRetentionSeconds });
+    await ensureTtlIndex("alerts", { lastSeenAt: 1 }, config.alertsRetentionSeconds);
     await this.db.collection("users").createIndex({ username: 1 }, { unique: true });
     await this.db.collection("audit_log").createIndex({ actor: 1, ts: -1 });
     await this.db.collection("audit_log").createIndex({ action: 1, ts: -1 });
-    await this.db
-      .collection("audit_log")
-      .createIndex({ ts: -1 }, { expireAfterSeconds: config.auditRetentionSeconds });
+    await ensureTtlIndex("audit_log", { ts: -1 }, config.auditRetentionSeconds);
     // notify_log (Phase 16D-1): send records queried by device / channel / status, newest first.
     // TTL is on a dedicated BSON Date (`expireAt`) rather than the display `ts` (an ISO string,
     // which a TTL index would silently never expire); the retention window is the alerts one,
@@ -362,9 +382,7 @@ export class Persistence {
     await this.db.collection("notify_log").createIndex({ deviceId: 1, ts: -1 });
     await this.db.collection("notify_log").createIndex({ channelId: 1, ts: -1 });
     await this.db.collection("notify_log").createIndex({ status: 1, ts: -1 });
-    await this.db
-      .collection("notify_log")
-      .createIndex({ expireAt: 1 }, { expireAfterSeconds: config.alertsRetentionSeconds });
+    await ensureTtlIndex("notify_log", { expireAt: 1 }, config.alertsRetentionSeconds);
     await this.db.collection("sessions").createIndex({ sessionId: 1 }, { unique: true });
     await this.db.collection("sessions").createIndex({ username: 1, createdAt: -1 });
     // TTL on the session's own expiry timestamp: a session never refreshed disappears at the
@@ -678,8 +696,12 @@ export class Persistence {
 
   /** Create a session row for a fresh login. */
   async createSession(session: SessionRecord): Promise<void> {
-    this.fallbackSessions.set(session.sessionId, session);
     if (!this.db) {
+      // In-memory fallback only. When Mongo is the live store the row lives there and nothing ever
+      // sweeps this map (only explicit revoke prunes it, never token/TTL expiry), so stamping it on
+      // every login — as this used to, before the `!this.db` guard — leaked one SessionRecord per
+      // login for the life of the process. `touchSession` already guards the same way.
+      this.fallbackSessions.set(session.sessionId, session);
       return;
     }
     await this.db
