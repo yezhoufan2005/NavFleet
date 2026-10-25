@@ -1,5 +1,5 @@
 import { computed, readonly, ref, watch } from "vue";
-import { useMinWidth } from "@/composables/useBreakpoint";
+import { useMinWidth } from "@/composables/useMinWidth";
 
 /**
  * Sidebar state, three modes (`docs/frontend-ia.md` §3.1).
