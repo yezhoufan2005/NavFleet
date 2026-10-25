@@ -24,6 +24,7 @@
 import { computed, onBeforeUnmount, ref, useTemplateRef, watch } from "vue";
 import type { ECharts } from "echarts/core";
 import UiButton from "@/components/ui/UiButton.vue";
+import UiScrollTable from "@/components/ui/UiScrollTable.vue";
 import { useChartTheme } from "@/composables/useChartTheme";
 import {
   buildCursorPatch,
@@ -40,6 +41,9 @@ const {
   legendPosition = "top",
   tableMatchHeight = false,
   cursorAt = null,
+  xMin,
+  xMax,
+  yScale = false,
 } = defineProps<{
   series: readonly TimeSeries[];
   /** One unit for the chart — see `timeSeriesOption.ts` for why not per series. */
@@ -63,6 +67,11 @@ const {
    * re-derive the series data every frame — see `buildCursorPatch`.
    */
   cursorAt?: number | null;
+  /** Pin the time axis to this window (epoch ms) so it spans the selected range, not just the data. */
+  xMin?: number;
+  xMax?: number;
+  /** Fold the value axis to the data's own range instead of anchoring at 0 (for near-flat series). */
+  yScale?: boolean;
 }>();
 
 /**
@@ -83,6 +92,27 @@ let observer: ResizeObserver | null = null;
 /** When the current option was handed to ECharts; null once its render is timed. */
 let startedAt: number | null = null;
 
+/**
+ * The right-side legend is ours, not ECharts': a plain scrollable HTML column beside the canvas,
+ * so many vehicles slide (wheel/drag) instead of paging through ECharts' ▲▼ buttons, and it
+ * repaints the instant the series set changes. `seriesColor` reads the same slot-ordered palette
+ * the chart uses, so a swatch always matches its line.
+ */
+const legendRight = computed(
+  () => legendPosition === "right" && series.length > 1,
+);
+const seriesColor = (index: number): string =>
+  palette.value.series[index % palette.value.series.length] ??
+  palette.value.ink;
+
+/**
+ * Give the data table a floor width once it has many columns (one per vehicle), so the cells do
+ * not crush together — the block then scrolls horizontally instead. Few columns fit, so no floor.
+ */
+const tableMinWidth = computed(() =>
+  series.length > 3 ? `${200 + series.length * 88}px` : undefined,
+);
+
 const option = computed(() =>
   buildTimeSeriesOption({
     series,
@@ -90,6 +120,9 @@ const option = computed(() =>
     unit,
     legendPosition,
     animate: animate.value,
+    xMin,
+    xMax,
+    yScale,
   }),
 );
 
@@ -154,13 +187,16 @@ watch(
   { flush: "post" },
 );
 
-// `notMerge: false` on purpose: an update that only changes the data should not
-// throw away the axis extent ECharts has already computed.
+// `replaceMerge` the series (and legend) so a change that *removes* series actually drops them.
+// ECharts' default merge is by index: going from 3 lines to 1 (deselecting vehicles) would leave
+// the 2 stale lines on the canvas, and a now-absent `legend` would linger — the "图全出 / 关掉选择
+// 不更新，要手动刷新" bug. Everything else (axis, grid, tooltip) still merges, so the axis extent
+// ECharts already computed on a pure data update is preserved.
 watch(
   option,
   (next) => {
     startedAt = performance.now();
-    chart?.setOption(next);
+    chart?.setOption(next, { replaceMerge: ["series", "legend"] });
     applyCursor();
   },
   { flush: "post" },
@@ -203,6 +239,10 @@ const rows = computed(() => {
 });
 
 const sampled = computed(() => stamps.value.length > TABLE_ROW_LIMIT);
+/** The table's caption/aria label, noting when rows were down-sampled. */
+const tableLabel = computed(() =>
+  sampled.value ? `${label}（等距抽样后的 ${rows.value.length} 行）` : label,
+);
 
 const formatStamp = (stamp: number): string =>
   new Date(stamp).toLocaleString(undefined, { hour12: false });
@@ -225,13 +265,35 @@ const formatStamp = (stamp: number): string =>
     <!-- `v-if`, not `hidden`: see the watcher above for why the instance goes away. -->
     <div
       v-if="!showTable"
-      ref="surface"
-      class="w-full"
+      class="flex w-full gap-3"
       :style="{ height: `${height}px` }"
-      role="img"
-      :aria-label="`${label}（图表；可切换为数据表）`"
-      data-testid="chart-surface"
-    />
+    >
+      <div
+        ref="surface"
+        class="h-full min-w-0 flex-1"
+        role="img"
+        :aria-label="`${label}（图表；可切换为数据表）`"
+        data-testid="chart-surface"
+      />
+      <!-- Scrollable HTML legend (right position, multi-series): slides, no page triangles. -->
+      <ul
+        v-if="legendRight"
+        class="m-0 flex h-full w-28 shrink-0 list-none flex-col gap-1.5 overflow-y-auto p-0 pr-0.5"
+      >
+        <li
+          v-for="(entry, index) in series"
+          :key="entry.name"
+          class="flex items-center gap-1.5 text-2xs text-ink-muted"
+        >
+          <span
+            class="size-2.5 shrink-0 rounded-xs"
+            :style="{ backgroundColor: seriesColor(index) }"
+            aria-hidden="true"
+          />
+          <span class="truncate" :title="entry.name">{{ entry.name }}</span>
+        </li>
+      </ul>
+    </div>
 
     <!--
       Data table. The header is its own table outside the scroll box, so the scrollbar runs
@@ -243,76 +305,52 @@ const formatStamp = (stamp: number): string =>
       header is a fixed row and the records fill the rest, so toggling 图表 ↔ 数据表 does not
       change the block's size. Otherwise the body is capped at 24rem, as every other chart.
     -->
-    <div
+    <!-- Data table — the shared scroll-table shell. `minWidth` gives many vehicle columns room and
+         scrolls the whole table horizontally (header + body together); `tableMatchHeight` pins it
+         to the chart height, else it caps at 24rem. -->
+    <UiScrollTable
       v-else
-      class="flex flex-col overflow-hidden rounded-sm border border-border"
-      :style="tableMatchHeight ? { height: `${height}px` } : undefined"
+      :label="tableLabel"
+      :height="tableMatchHeight ? height : undefined"
+      :max-height="tableMatchHeight ? undefined : '24rem'"
+      :min-width="tableMinWidth"
     >
-      <table
-        class="w-full shrink-0 table-fixed border-collapse text-left text-sm"
-      >
-        <caption class="sr-only">
-          {{
-            label
-          }}<template v-if="sampled"
-            >（等距抽样后的 {{ rows.length }} 行）</template
+      <template #colgroup>
+        <col class="w-[45%]" />
+        <col v-for="entry in series" :key="entry.name" />
+      </template>
+      <template #head>
+        <tr>
+          <th scope="col" class="px-3 py-2 font-medium">时间</th>
+          <th
+            v-for="entry in series"
+            :key="entry.name"
+            scope="col"
+            class="px-3 py-2 font-medium"
           >
-        </caption>
-        <colgroup>
-          <col class="w-[45%]" />
-          <col v-for="entry in series" :key="entry.name" />
-        </colgroup>
-        <thead class="bg-surface-sunken text-2xs text-ink-muted uppercase">
-          <tr>
-            <th scope="col" class="px-3 py-2 font-medium">时间</th>
-            <th
-              v-for="entry in series"
-              :key="entry.name"
-              scope="col"
-              class="px-3 py-2 font-medium"
-            >
-              {{ entry.name }}<template v-if="unit"> ({{ unit }})</template>
-            </th>
-          </tr>
-        </thead>
-      </table>
-      <!-- Only the body scrolls, and it is the focusable region (WCAG 2.1.1). -->
-      <div
-        class="overflow-x-hidden overflow-y-auto border-t border-border"
-        :class="tableMatchHeight ? 'min-h-0 flex-1' : undefined"
-        tabindex="0"
-        role="region"
-        :aria-label="`${label} 数据表`"
-        :style="tableMatchHeight ? undefined : { maxHeight: '24rem' }"
+            {{ entry.name }}<template v-if="unit"> ({{ unit }})</template>
+          </th>
+        </tr>
+      </template>
+      <tr
+        v-for="row in rows"
+        :key="row.stamp"
+        class="border-b border-border last:border-b-0"
       >
-        <table class="w-full table-fixed border-collapse text-left text-sm">
-          <colgroup>
-            <col class="w-[45%]" />
-            <col v-for="entry in series" :key="entry.name" />
-          </colgroup>
-          <tbody>
-            <tr
-              v-for="row in rows"
-              :key="row.stamp"
-              class="border-b border-border last:border-b-0"
-            >
-              <th
-                scope="row"
-                class="px-3 py-1.5 font-mono text-xs font-normal whitespace-nowrap text-ink-muted"
-              >
-                {{ formatStamp(row.stamp) }}
-              </th>
-              <td
-                v-for="(value, index) in row.values"
-                :key="index"
-                class="px-3 py-1.5 font-mono text-xs text-ink"
-              >
-                {{ value === undefined ? "--" : value.toFixed(2) }}
-              </td>
-            </tr>
-          </tbody>
-        </table>
-      </div>
-    </div>
+        <th
+          scope="row"
+          class="px-3 py-1.5 font-mono text-xs font-normal whitespace-nowrap text-ink-muted"
+        >
+          {{ formatStamp(row.stamp) }}
+        </th>
+        <td
+          v-for="(value, index) in row.values"
+          :key="index"
+          class="px-3 py-1.5 font-mono text-xs text-ink"
+        >
+          {{ value === undefined ? "--" : value.toFixed(2) }}
+        </td>
+      </tr>
+    </UiScrollTable>
   </figure>
 </template>

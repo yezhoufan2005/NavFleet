@@ -12,8 +12,13 @@
 #   scripts/verify-stack.sh --no-seed    不注入演示账号/角色/组/会话/审计（只保留 admin）
 #   scripts/verify-stack.sh --fresh      先删掉本脚本的 project 与卷，从空库重来
 #   scripts/verify-stack.sh --check-only 不碰 compose，只对已经在跑的栈跑断言（也不注入演示数据）
+#   scripts/verify-stack.sh --allow-dirty 工作树有未提交改动时仍继续（默认拦下，见下）
 #   scripts/verify-stack.sh --mqtt-tls   叠加 TLS broker（mqtts://8883），验证加密摄入链路
 #   scripts/verify-stack.sh --monitoring 叠加监控栈，断言三个 exporter 在 Prometheus 里 up
+#
+# 每次都「干净地更新+重启」：compose 从磁盘当前文件构建镜像，故开工前会打印构建依据的 HEAD，
+# 工作树脏则默认拦下（镜像会含改到一半的文件，正是 vue-tsc 偶发失败的根因）；启动用
+# --force-recreate 强制重建容器，确保改过的挂载配置（如 nginx locations.conf）与新镜像一定生效。
 #
 # 与另外两个脚本的分工：
 #   dev.sh    —— 开发用（热更新）：前后端走 tsx/vite；--demo 另起一次性 Mongo 容器注入演示数据
@@ -40,6 +45,7 @@ DO_FRESH=0
 CHECK_ONLY=0
 MQTT_TLS=0
 MONITORING=0
+ALLOW_DIRTY=0
 while [[ $# -gt 0 ]]; do
   case "$1" in
     --down) DO_DOWN=1; shift ;;
@@ -47,23 +53,39 @@ while [[ $# -gt 0 ]]; do
     --no-seed) DO_SEED=0; shift ;;
     --fresh) DO_FRESH=1; shift ;;
     --check-only) CHECK_ONLY=1; shift ;;
+    --allow-dirty) ALLOW_DIRTY=1; shift ;;
     --mqtt-tls) MQTT_TLS=1; shift ;;
     --monitoring) MONITORING=1; shift ;;
-    # 2,22 是上面那段注释的确切范围 —— 注释止于第 22 行，第 23 行是 `set -uo pipefail`。
+    # 2,27 是上面那段注释的确切范围 —— 注释止于第 27 行，第 28 行是 `set -uo pipefail`。
     # dev.sh 里踩过同一个off-by-one（--help 末尾多印一行代码），所以这里写死并核对过。
-    -h|--help) sed -n '2,22p' "$0"; exit 0 ;;
+    -h|--help) sed -n '2,27p' "$0"; exit 0 ;;
     *) echo "未知参数: $1"; exit 1 ;;
   esac
 done
 
 MOCK_PID=""
+# 演示发布器转后台持续运行后，PID 记在这里，供下次起栈（或 --down）先清掉上一只，避免叠加成一群。
+MOCK_PIDFILE="/tmp/navfleet-verify-demo-mock.pid"
+# 递归杀进程树：mock 是 `( … npm run mock:mqtt ) &`，$! 只是那层 subshell/npm，直接 kill 它
+# 会把底下的 tsx→node（真正那个连 broker、按节拍发的进程）留成孤儿，继续灌 compose 后端的摄入
+# 队列（表现为报表页偶发 Failed to fetch）。深度优先、先子后父，确保整棵树都停。
+kill_tree() {
+  local pid="$1" child
+  [[ -n "$pid" ]] || return 0
+  for child in $(pgrep -P "$pid" 2>/dev/null); do kill_tree "$child"; done
+  kill "$pid" 2>/dev/null || true
+}
 cleanup() {
-  # `disown` 之后再 kill：否则 bash 会在脚本收口的横幅之后补印一行
-  # `Terminated: 15  ( cd ... npm run mock:mqtt ... )`，那是 job control 的通知，
-  # 不是错误，但看起来像脚本最后崩了一下。
+  # 收尾策略取决于 --down：
+  #  · --down：栈要拆，顺手把后台演示发布器也杀掉、删 pidfile。
+  #  · 否则：**故意留着**发布器在后台跑，让设备持续有遥测、保持在线（否则 60s 后全部离线，
+  #    正是「演示数据突然没了」）。只 disown，脚本退出不带走它；下次起栈开头会先清旧的再起新的。
   if [[ -n "$MOCK_PID" ]]; then
     disown "$MOCK_PID" 2>/dev/null
-    kill "$MOCK_PID" 2>/dev/null
+    if [[ "$DO_DOWN" == "1" ]]; then
+      kill_tree "$MOCK_PID"
+      rm -f "$MOCK_PIDFILE"
+    fi
   fi
   rm -f "$COOKIE"
   if [[ "$DO_DOWN" == "1" && "$CHECK_ONLY" == "0" ]]; then
@@ -146,12 +168,32 @@ fi
 SERVICES=(nginx web backend mongo mosquitto)
 
 if [[ "$CHECK_ONLY" == "0" ]]; then
+  # compose 从**当前磁盘上的文件**构建镜像（context 是仓库根），不是从某个 git 提交。所以工作树脏
+  # ——有人正在改、或切分支/编辑改到一半——镜像就会装进半成品，`vue-tsc` 等构建步骤随机报错（这正是
+  # 之前几次 `npm run build -w navfleet-console` 在 vue-tsc 处莫名失败的根因：构建发生在编辑中途）。
+  # 开工前先把构建依据亮出来，脏树默认拦下，确认是在测本地改动再 --allow-dirty 放行。
+  HEAD_DESC="$(git -C "$ROOT" log --oneline -1 2>/dev/null || echo '(非 git 仓库)')"
+  echo "构建依据 HEAD：${HEAD_DESC}"
+  if [[ -n "$(git -C "$ROOT" status --porcelain 2>/dev/null)" ]]; then
+    echo "⚠ 工作树有未提交改动——镜像会按磁盘现状构建，包含任何改到一半的文件："
+    git -C "$ROOT" status --short 2>/dev/null | sed 's/^/    /'
+    if [[ "$ALLOW_DIRTY" == "0" ]]; then
+      echo "  这常是「构建撞上正在进行的编辑」。确认无误（在测本地改动）就加 --allow-dirty 重跑；"
+      echo "  否则先提交/暂存，或等编辑结束，再 sh verify-stack.sh。"
+      exit 1
+    fi
+    echo "  （--allow-dirty：按当前磁盘状态继续）"
+  fi
+
   if [[ "$DO_FRESH" == "1" ]]; then
     echo "清掉 project '${PROJECT}' 与它的卷…"
     compose down -v >/dev/null 2>&1
   fi
   echo "构建并启动整栈（project '${PROJECT}'，宿主端口 ${PORT}）…"
-  if ! compose up -d --build >/tmp/navfleet-verify-up.log 2>&1; then
+  # --force-recreate：保证每次都重建容器。否则改了挂载进容器的配置（如 nginx 的 locations.conf，
+  # 单文件 bind mount，host 侧改动不会触发 compose 重建）或重建了镜像时，旧容器可能原地留存，
+  # 看起来「跑了却没更新」。配合上面的构建，这条让「每次 verify-stack 都确实更新+重启」成立。
+  if ! compose up -d --build --force-recreate >/tmp/navfleet-verify-up.log 2>&1; then
     echo "compose up 失败，最后 30 行："; tail -30 /tmp/navfleet-verify-up.log; exit 1
   fi
 
@@ -239,23 +281,108 @@ eq "token 续签"         200 "$(code -b "$COOKIE" -X POST "$BASE/api/auth/refre
 
 # --- 演示数据（真实 MQTT 链路，发布器读 config-runtime 的车队定义）-----------
 if [[ "$DO_MOCK" == "1" ]]; then
+  # 先清掉上一次起栈留在后台的发布器（若有），避免一只只叠加、把后端摄入队列灌爆。
+  if [[ -f "$MOCK_PIDFILE" ]]; then
+    kill_tree "$(cat "$MOCK_PIDFILE" 2>/dev/null)"
+    rm -f "$MOCK_PIDFILE"
+  fi
   echo
-  echo "推演示数据（真实 MQTT 链路）…"
+  echo "推演示数据（真实 MQTT 链路；转后台持续运行以保持设备在线）…"
+  # --interval 2000：~29 台车每 2 秒各发一帧 ≈ 15 帧/秒，远低于摄入队列承载，不会灌爆（旧的 500ms
+  # 是之前「Failed to fetch」的元凶）；同时 2s < 60s 离线阈值，设备稳定在线。exec nohup 让进程树是
+  # nohup→npm→tsx→node，忽略 SIGHUP；凭据走 export（不进 `ps` 的命令行参数）。
   (
     cd "$ROOT/backend"
-    MQTT_PUBLISHER_USERNAME="$(deploy_var MQTT_PUBLISHER_USERNAME)" \
-    MQTT_PUBLISHER_PASSWORD="$(deploy_var MQTT_PUBLISHER_PASSWORD)" \
-    MQTT_URL="mqtt://127.0.0.1:${MQTT_HOST_PORT:-1883}" \
-    npm run mock:mqtt -- --interval 500 >/tmp/navfleet-verify-mock.log 2>&1
-  ) &
+    export MQTT_PUBLISHER_USERNAME="$(deploy_var MQTT_PUBLISHER_USERNAME)" \
+      MQTT_PUBLISHER_PASSWORD="$(deploy_var MQTT_PUBLISHER_PASSWORD)" \
+      MQTT_URL="mqtt://127.0.0.1:${MQTT_HOST_PORT:-1883}"
+    exec nohup npm run mock:mqtt -- --interval 2000
+  ) >/tmp/navfleet-verify-mock.log 2>&1 &
   MOCK_PID=$!
-  # 12 秒够每台车发 20+ 帧，历史与告警都有内容可断言。
-  sleep 12
+  echo "$MOCK_PID" >"$MOCK_PIDFILE"
+  disown "$MOCK_PID" 2>/dev/null || true
+  # 10 秒够每台车发 5+ 帧，历史与告警都有内容可断言。
+  sleep 10
   if grep -qiE 'not authorized|bad user name' /tmp/navfleet-verify-mock.log; then
     bad "演示发布器被 broker 拒绝 —— 检查 deploy/.env 的 MQTT_PUBLISHER_*"
   else
-    ok "演示发布器已连上 broker"
+    ok "演示发布器已连上 broker（将在后台持续运行）"
   fi
+
+  # 回填 60 天演示历史（遥测 + 消息），直接写库。
+  #
+  # 为什么直接入库而不走 debug/ingest：要补足 ~60 天、每台每小时一帧的历史，HTTP 回填要上万请求、
+  # 还会撞边缘限流；报表的两条聚合只读 telemetry_ts 的 {ts, meta.deviceId, measurements.online,
+  # vehicleInfo.soc} 与 alerts 的 {firstSeenAt, severity, deviceId, clearedAt, ackedBy}，所以按这个
+  # 口径最小化地批量插最快最稳。先清掉累积的遥测（也顺带治好 30 天那条上千万文档的慢）与旧消息，
+  # 再相对“现在”铺 60 天——每次起栈刷新。设备在线状态由 device_latest + 后台发布器维持，这里不动它。
+  # 播种的消息一律置为已清除：只进报表的历史聚合，不污染「消息」页的实时活跃列表（那是发布器的真码）。
+  MONGO_U="$(deploy_var MONGO_INITDB_ROOT_USERNAME)"; MONGO_U="${MONGO_U:-root}"
+  MONGO_P="$(deploy_var MONGO_INITDB_ROOT_PASSWORD)"
+  SEEDED="$(compose exec -T mongo mongosh --quiet -u "$MONGO_U" -p "$MONGO_P" \
+    --authenticationDatabase admin fleet_monitor <<'JS' 2>/dev/null
+var now = Date.now(), DAYS = 60, PER_DAY = 24, HOUR = 3600 * 1000;
+var devices = db.device_latest.distinct("deviceId");
+if (!devices.length) { print("0 0 0"); quit(); }
+// telemetry_ts 默认 30 天 TTL（TELEMETRY_RETENTION_SECONDS）——60 天回填会被裁掉一半。演示库里
+// 把 TTL 放宽到 75 天，让 60 天历史留得住（仅本地演示卷，不改部署配置）。
+try { db.runCommand({ collMod: "telemetry_ts", expireAfterSeconds: 75 * 24 * 3600 }); } catch (e) {}
+db.telemetry_ts.deleteMany({});
+db.alerts.deleteMany({});
+// Real codebook-style messages (mirrors backend/scripts/seed-reports.ts CODE_POOL + its severity
+// map): info_code→提示, warning_code→预警, error_code→告警. Gives a realistic severity split and
+// titles instead of a generic "演示消息".
+var POOL = [
+  { code: 1203, info: "正在充电", severity: "notice" },
+  { code: 1301, info: "任务完成·待命", severity: "notice" },
+  { code: 2203, info: "厂区限速区降速", severity: "warning" },
+  { code: 2101, info: "电量偏低", severity: "warning" },
+  { code: 2305, info: "定位质量下降", severity: "warning" },
+  { code: 3101, info: "急停触发", severity: "critical" },
+  { code: 3202, info: "避障超时未恢复", severity: "critical" },
+];
+var tDocs = [], aDocs = [];
+devices.forEach(function (id, di) {
+  var cycle = 8 + (di % 7); // 充放电周期 8–14h，按车错相位
+  var maint = (di * 31) % (12 * 24); // 每 ~12 天一次 ~3h 维护离线，错开
+  for (var d = 0; d < DAYS; d++) {
+    for (var h = 0; h < PER_DAY; h++) {
+      var totalH = d * PER_DAY + h;
+      var ts = new Date(now - totalH * HOUR);
+      // 电量：锯齿放电（85→22，占 80% 周期）后快速回充——比正弦更像真实车
+      var pos = (totalH % cycle) / cycle;
+      var soc = pos < 0.8 ? 85 - (pos / 0.8) * 63 : 22 + ((pos - 0.8) / 0.2) * 63;
+      var online = (((totalH + maint) % (12 * 24)) >= 3);
+      tDocs.push({
+        ts: ts,
+        meta: { deviceId: id, fleetId: "demo", vehicleModel: "demo" },
+        measurements: { online: online, vehicleInfo: { soc: Math.round(Math.max(8, Math.min(100, soc))) } },
+      });
+    }
+  }
+  var n = 1 + ((di * 3) % 4);
+  for (var k = 0; k < n; k++) {
+    var pick = POOL[(di + k * 2) % POOL.length];
+    var back = ((di * 5 + k * 17) % (DAYS * 24)) + 1;
+    var first = new Date(now - back * HOUR);
+    aDocs.push({
+      eventKey: id + ":demo-" + pick.code + "-" + k, deviceId: id, alertId: "demo-" + pick.code + "-" + k,
+      severity: pick.severity, title: pick.info, detail: pick.info, source: "demo",
+      code: pick.code, info: pick.info, ts: first.toISOString(), active: false,
+      firstSeenAt: first, lastSeenAt: new Date(first.getTime() + HOUR),
+      clearedAt: new Date(first.getTime() + 2 * HOUR),
+      ackedBy: (k % 3 === 0) ? "admin" : null, ackedAt: (k % 3 === 0) ? first : null, comment: null,
+    });
+  }
+});
+for (var i = 0; i < tDocs.length; i += 5000) db.telemetry_ts.insertMany(tDocs.slice(i, i + 5000));
+if (aDocs.length) db.alerts.insertMany(aDocs);
+print(devices.length + " " + tDocs.length + " " + aDocs.length);
+JS
+)"
+  SEEDED="$(printf '%s' "$SEEDED" | grep -oE '[0-9]+ [0-9]+ [0-9]+' | tail -1 | awk '{print $1" 台 / "$2" 帧遥测 / "$3" 条消息"}')"
+  echo "演示历史回填：${SEEDED:-（无设备，已跳过）}（60 天，随本次起栈刷新）"
+
   echo
   echo "断言（续）:"
 fi
@@ -390,8 +517,10 @@ printf "  通过 %d · 失败 %d · 跳过 %d\n" "$PASS" "$FAIL" "$SKIP"
 if [[ "$DO_DOWN" == "0" && "$CHECK_ONLY" == "0" ]]; then
   echo "  控制台: ${BASE}   账号: ${ADMIN_USER} / （deploy/.env 里的 ADMIN_PASSWORD）"
   echo "  API 文档: ${BASE}/docs"
-  # 演示发布器随脚本一起结束 —— 不留孤儿进程。要让页面继续动，自己起一个：
-  echo "  继续推演示数据: set -a; . deploy/.env; set +a; npm run mock:mqtt -- --interval 1000"
+  if [[ "$DO_MOCK" == "1" ]]; then
+    echo "  演示发布器: 已转后台持续运行（每 2s 一帧），设备保持在线；下次起栈会自动替换它"
+    echo "  只停发布器: kill \$(cat ${MOCK_PIDFILE}) 的进程树（或再跑一次本脚本 / 加 --down）"
+  fi
   echo "  停栈:   docker compose -p ${PROJECT} --env-file deploy/.env -f deploy/docker-compose.yml down"
 fi
 echo "─────────────────────────────────────────────"

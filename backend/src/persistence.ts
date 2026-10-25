@@ -138,15 +138,11 @@ const MAX_NOTIFY_PER_QUERY = 500;
 /** How many devices the alert-stats Top-N ranking keeps (Phase 17A). Matches 16B's client-side default. */
 const ALERT_STATS_TOP_N = 8;
 
-/** How many device series the availability report keeps before folding the rest into 「其余」
- * (Phase 18 reports rework). Bounds the response body — 30 天 × 按小时 × 全车队 would otherwise be
- * megabytes — while the chart/summary stay exact (the fold is sample-weighted). */
-const AVAILABILITY_TOP_N = 8;
-
-/** Report aggregations are read-only views over slowly-changing history, so a short in-memory TTL
- * cache collapses repeat loads (filter toggling, several viewers, the dashboard re-opening) onto one
- * Mongo aggregation without risking stale operational data. Keyed by the fully-resolved query. */
-const REPORT_CACHE_TTL_MS = 30_000;
+/** Report aggregations are read-only views over slowly-changing history, so an in-memory TTL cache
+ * collapses repeat loads (filter toggling, several viewers, the dashboard re-opening) onto one Mongo
+ * aggregation. 5 分钟而不是秒级：宽窗（30 天）那条聚合本身要几十秒，短 TTL 等于每次都重付那笔钱；
+ * 报表是历史视图，分钟级陈旧无妨。Keyed by the fully-resolved query. */
+const REPORT_CACHE_TTL_MS = 5 * 60_000;
 
 export class Persistence {
   private db: Db | null = null;
@@ -1475,11 +1471,7 @@ export class Persistence {
         .collection("telemetry_ts")
         .aggregate<AvailabilityRow>(pipeline)
         .toArray();
-      // Cap to Top-N devices unless the user already narrowed to a short explicit list — a chosen
-      // handful is exactly the comparison they asked for, so don't fold it into 「其余」.
-      const topN =
-        deviceIds && deviceIds.length <= AVAILABILITY_TOP_N ? undefined : AVAILABILITY_TOP_N;
-      return mapAvailabilityRows(rows, params.bucket, { topN });
+      return mapAvailabilityRows(rows, params.bucket);
     });
   }
 

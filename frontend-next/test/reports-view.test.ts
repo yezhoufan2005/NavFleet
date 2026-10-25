@@ -118,12 +118,16 @@ afterEach(() => {
 });
 
 describe("报表 状态与内容", () => {
-  it("接口失败时报出错误而不是留空白", async () => {
+  it("一个报表失败不拖垮另一个：可用率报错，消息照常出图", async () => {
+    // Availability 504s while alerts succeed. Decoupled fetches mean the alert charts still
+    // render and the error is scoped to the availability section — the page is not blanked.
     vi.spyOn(fleetApi, "getAvailabilityReport").mockRejectedValue(
       new Error("HTTP 503"),
     );
     const wrapper = await mountView();
     expect(wrapper.text()).toContain("HTTP 503");
+    // The three message bar charts still rendered from the alert report that did come back.
+    expect(wrapper.findAll(".bar-stub")).toHaveLength(3);
   });
 
   it("两个报表都 available:false 时说无历史并链到系统状态", async () => {
@@ -212,11 +216,12 @@ describe("报表 状态与内容", () => {
     expect(pressed).not.toContain("近 12 小时");
   });
 
-  it("按月粒度会带 month 去取可用率", async () => {
+  it("粒度随窗口自适应：长自定义区间自动用 month 聚合", async () => {
     const avail = vi
       .spyOn(fleetApi, "getAvailabilityReport")
       .mockResolvedValue(availabilityReport());
-    await mountView("?bucket=month");
+    // 粒度 is no longer a user control; a >3-month custom window derives the 「按月」 bucket.
+    await mountView("?from=2026-01-01&to=2026-04-30");
     expect(avail.mock.calls.at(-1)![0]!.bucket).toBe("month");
   });
 

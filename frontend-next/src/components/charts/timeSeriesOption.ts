@@ -66,6 +66,19 @@ export interface TimeSeriesOptionInput {
    */
   legendPosition?: "top" | "right";
   animate?: boolean;
+  /**
+   * Pin the time axis to the selected window (epoch ms) rather than letting it shrink to the data
+   * extent. Picking 近 12 小时 should show a 12-hour axis even when telemetry only covers part of
+   * it; without this the axis ends at the last sample and 「选 12 小时却只显示 8 小时」.
+   */
+  xMin?: number;
+  xMax?: number;
+  /**
+   * Let the value axis zoom to the data's own min/max instead of anchoring at 0. 在线率 lives at
+   * 95–100% almost always, so a 0-based axis flattens every dip into the top edge; scaling folds
+   * the axis to the curve's range so the variation is actually visible.
+   */
+  yScale?: boolean;
 }
 
 /** Points above this get LTTB-downsampled by ECharts before drawing. */
@@ -91,11 +104,17 @@ export const buildTimeSeriesOption = ({
   unit,
   legendPosition = "top",
   animate = true,
+  xMin,
+  xMax,
+  yScale = false,
 }: TimeSeriesOptionInput): EChartsOption => {
   const legendRight = legendPosition === "right" && series.length > 1;
   // End labels and a right-side legend both claim the right margin, so they are mutually
   // exclusive: with the legend on the right, identity comes from it, not from end labels.
   const directLabels = series.length <= DIRECT_LABEL_LIMIT && !legendRight;
+  // When the axis is pinned to a fixed window (reports), tilt the time labels so none is dropped
+  // for lack of room — 选 12 小时时 22:00 被挤掉就是平排标签相撞被 hideOverlap 丢了。
+  const tilt = xMin !== undefined && xMax !== undefined;
 
   return {
     animation: animate,
@@ -108,29 +127,23 @@ export const buildTimeSeriesOption = ({
     // ECharts would draw in its own font — the surrounding card owns the heading.
     grid: {
       top: series.length > 1 && !legendRight ? 32 : 12,
-      right: legendRight ? 108 : directLabels ? 72 : 16,
-      bottom: 28,
+      right: directLabels ? 72 : 16,
+      bottom: tilt ? 40 : 28,
       left: 52,
       containLabel: false,
     },
+    // A right-side legend is rendered by the component as a scrollable HTML column beside the
+    // canvas (真·滑动，无上下翻页三角 — ECharts' built-in legend only scrolls via page buttons),
+    // so the option emits no ECharts legend for that case. A top legend is still ECharts' own.
     legend:
-      series.length > 1
+      !legendRight && series.length > 1
         ? {
-            ...(legendRight
-              ? {
-                  orient: "vertical" as const,
-                  right: 0,
-                  top: "middle" as const,
-                }
-              : { top: 0, left: 0 }),
+            top: 0,
+            left: 0,
             icon: "roundRect",
             itemWidth: 10,
             itemHeight: 10,
-            // Many vehicles can overflow a vertical legend; let it scroll rather than
-            // push the plot to nothing.
             type: "scroll",
-            // Text wears an ink token, never the series colour: the swatch beside
-            // it already carries identity.
             textStyle: { color: palette.inkMuted, fontSize: 12 },
           }
         : undefined,
@@ -149,15 +162,25 @@ export const buildTimeSeriesOption = ({
     },
     xAxis: {
       type: "time",
+      // Span the selected window when given, so the axis does not shrink to the data extent.
+      min: xMin,
+      max: xMax,
       // Recessive: the data is the subject, the frame is not.
       axisLine: { lineStyle: { color: palette.axis } },
       axisTick: { show: false },
-      axisLabel: { color: palette.inkMuted, fontSize: 11, hideOverlap: true },
+      axisLabel: {
+        color: palette.inkMuted,
+        fontSize: 11,
+        hideOverlap: true,
+        rotate: tilt ? 30 : 0,
+      },
       splitLine: { show: false },
     },
     yAxis: {
       type: "value",
       name: unit,
+      // Fold the axis to the data range when asked (在线率 hugs 100%); otherwise anchor at 0.
+      scale: yScale,
       nameTextStyle: { color: palette.inkMuted, fontSize: 11, align: "left" },
       axisLine: { show: false },
       axisTick: { show: false },
@@ -171,6 +194,10 @@ export const buildTimeSeriesOption = ({
       // Thin marks. The line is 2px; points are drawn only on hover, because a
       // marker on every sample is noise at telemetry density.
       lineStyle: { width: 2 },
+      // Draw the line even where it sits on the grid edge. A value pinned at the axis max (100%
+      // 在线率 is dead flat at the top) was half-clipped by the plot boundary and read as a ~1px
+      // hairline — `clip:false` lets the full 2px stroke show.
+      clip: false,
       showSymbol: false,
       symbolSize: 8,
       // Largest-Triangle-Three-Buckets keeps the visual shape — including spikes,

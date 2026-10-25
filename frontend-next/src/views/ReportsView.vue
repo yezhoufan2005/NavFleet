@@ -16,9 +16,9 @@ import { RouterLink, useRoute, useRouter } from "vue-router";
 import PageHeader from "@/components/PageHeader.vue";
 import AppSectionTabs from "@/components/shell/AppSectionTabs.vue";
 import UiButton from "@/components/ui/UiButton.vue";
+import UiScrollTable from "@/components/ui/UiScrollTable.vue";
 import UiInput from "@/components/ui/UiInput.vue";
 import UiSegmented from "@/components/ui/UiSegmented.vue";
-import UiSelect from "@/components/ui/UiSelect.vue";
 import UiMultiSelect from "@/components/ui/UiMultiSelect.vue";
 import UiFilterBar from "@/components/ui/UiFilterBar.vue";
 import UiFilterField from "@/components/ui/UiFilterField.vue";
@@ -54,21 +54,23 @@ const RANGES: readonly { value: RangePreset; label: string }[] = [
   { value: "30d", label: "近 30 天" },
 ];
 const RANGE_VALUES: readonly RangePreset[] = ["12h", "24h", "7d", "30d"];
-const BUCKETS: readonly { value: ReportBucketUnit; label: string }[] = [
-  { value: "hour", label: "按小时" },
-  { value: "day", label: "按天" },
-  { value: "month", label: "按月" },
-];
 const route = useRoute();
 const router = useRouter();
 const { palette } = useChartTheme();
 const fleet = useFleetStore();
 
-const status = ref<"loading" | "ready" | "error">("loading");
-const errorMessage = ref("");
+// 可用率与告警是两条独立的后端聚合，慢/错的那条不该连累另一条（可用率宽窗要几十秒，告警是秒级）。
+// 所以两者各有自己的加载/错误态，分别渲染；整页不再因一条失败而空白。
+type LoadState = "loading" | "ready" | "error";
+const availStatus = ref<LoadState>("loading");
+const alertStatus = ref<LoadState>("loading");
+const availError = ref("");
+const alertError = ref("");
 const availability = ref<AvailabilityReport | null>(null);
 const alertStats = ref<AlertStatsReport | null>(null);
 let requestId = 0;
+/** The device set the on-screen availability belongs to, so a device change can clear it. */
+let lastDeviceKey = "";
 
 // ── URL-backed filters (shareable) ──────────────────────────────────────────────────────
 const readParam = (key: string): string => {
@@ -81,12 +83,12 @@ const range = computed<RangePreset>(() => {
     ? (value as RangePreset)
     : "12h";
 });
+/**
+ * 粒度 (bucket) is **not a user control** — it is derived from the selected window. A separate
+ * selector only invited nonsense combinations (按月 over 12 小时) and begged for cascade logic;
+ * driving it off the span is simpler and always coherent: 短窗→按小时, 中→按天, 长→按月.
+ */
 const bucket = computed<ReportBucketUnit>(() => {
-  const value = readParam("bucket");
-  if (value === "hour" || value === "day" || value === "month") return value;
-  // No explicit choice ⇒ pick a granularity that fits the active window (Phase 18). The old flat
-  // "day" default drew a 12-小时 window as a single bucket — the near-empty chart that read as
-  // "no data". Selecting a bucket in the control still wins; this only fills the blank.
   if (isCustom.value) {
     const span =
       new Date(`${customTo.value}T23:59:59.999`).getTime() -
@@ -141,40 +143,79 @@ const nameOf = (deviceId: string): string =>
   fleet.devices.find((device) => device.deviceId === deviceId)?.deviceName ||
   deviceId;
 
-const load = async (): Promise<void> => {
+const load = (): void => {
   const request = (requestId += 1);
-  status.value = "loading";
-  errorMessage.value = "";
   const window = isCustom.value
     ? {
         from: new Date(`${customFrom.value}T00:00:00`).toISOString(),
         to: new Date(`${customTo.value}T23:59:59.999`).toISOString(),
       }
     : windowForPreset(range.value, Date.now());
-  try {
-    const [avail, alerts] = await Promise.all([
-      fleetApi.getAvailabilityReport({
-        from: window.from,
-        to: window.to,
-        bucket: bucket.value,
-        deviceId: deviceFilter.value.length
-          ? deviceFilter.value.join(",")
-          : undefined,
-      }),
-      fleetApi.getAlertStatsReport({ from: window.from, to: window.to }),
-    ]);
-    if (request !== requestId) return;
-    availability.value = avail;
-    alertStats.value = alerts;
-    status.value = "ready";
-  } catch (error) {
-    if (request !== requestId) return;
+
+  // When the *device set* changes, drop the stale report before refetching. Otherwise the charts
+  // would re-render the previous devices under the new per-device/fleet mode for a frame — the
+  // 「选单台却闪过全部设备」 flash. A range/bucket change keeps the same devices, so stale-while-
+  // loading is fine there and avoids a needless blank.
+  const deviceKey = deviceFilter.value.join(",");
+  if (deviceKey !== lastDeviceKey) {
     availability.value = null;
-    alertStats.value = null;
-    status.value = "error";
-    errorMessage.value =
-      error instanceof Error ? error.message : "报表加载失败";
+    onlineSeries.value = [];
+    batterySeries.value = [];
+    lastDeviceKey = deviceKey;
   }
+
+  // Two independent fetches — neither awaits the other, and a reject on one leaves the other's
+  // result on screen. `requestId` discards any response from a superseded filter round.
+  availStatus.value = "loading";
+  availError.value = "";
+  fleetApi
+    .getAvailabilityReport({
+      from: window.from,
+      to: window.to,
+      bucket: bucket.value,
+      deviceId: deviceFilter.value.length
+        ? deviceFilter.value.join(",")
+        : undefined,
+    })
+    .then((report) => {
+      if (request !== requestId) return;
+      availability.value = report;
+      // Snapshot the series + window now (see the refs' comment for why not computed).
+      const perDevice = deviceFilter.value.length > 0;
+      onlineSeries.value = onlineRatioSeries(report, nameOf, { perDevice });
+      batterySeries.value = socSeries(report, nameOf, { perDevice });
+      chartWindow.value = {
+        from: Date.parse(window.from),
+        to: Date.parse(window.to),
+      };
+      availStatus.value = "ready";
+    })
+    .catch((error: unknown) => {
+      if (request !== requestId) return;
+      availability.value = null;
+      onlineSeries.value = [];
+      batterySeries.value = [];
+      availStatus.value = "error";
+      availError.value =
+        error instanceof Error ? error.message : "可用率报表加载失败";
+    });
+
+  alertStatus.value = "loading";
+  alertError.value = "";
+  fleetApi
+    .getAlertStatsReport({ from: window.from, to: window.to })
+    .then((report) => {
+      if (request !== requestId) return;
+      alertStats.value = report;
+      alertStatus.value = "ready";
+    })
+    .catch((error: unknown) => {
+      if (request !== requestId) return;
+      alertStats.value = null;
+      alertStatus.value = "error";
+      alertError.value =
+        error instanceof Error ? error.message : "消息报表加载失败";
+    });
 };
 
 /**
@@ -199,21 +240,40 @@ watch([range, bucket, deviceFilter, customFrom, customTo], () =>
   scheduleLoad(),
 );
 
-// ── Derived: availability / KPI band ────────────────────────────────────────────────────
+// ── Derived: page-level states ───────────────────────────────────────────────────────────
+/** First paint, before either report has returned anything — show the full skeleton once. */
+const initialLoading = computed(
+  () =>
+    availStatus.value === "loading" &&
+    alertStatus.value === "loading" &&
+    !availability.value &&
+    !alertStats.value,
+);
+/** Both backends answered "no history" (no Mongo) ⇒ the honest-empty page. */
 const noHistory = computed(
   () =>
     availability.value?.available === false &&
     alertStats.value?.available === false,
 );
+
+// ── Derived: availability / KPI band ────────────────────────────────────────────────────
+/** Selecting devices turns the two charts into a per-vehicle comparison (one line each); with
+ * none selected they fold to a single fleet-average line so the default is not N tangled lines. */
+const comparingDevices = computed(() => deviceFilter.value.length > 0);
 const summary = computed(() =>
   availability.value ? summarizeAvailability(availability.value) : null,
 );
-const onlineSeries = computed(() =>
-  availability.value ? onlineRatioSeries(availability.value, nameOf) : [],
-);
-const batterySeries = computed(() =>
-  availability.value ? socSeries(availability.value, nameOf) : [],
-);
+/**
+ * The chart series are a **snapshot taken at fetch time**, not a computed — deliberately. If they
+ * recomputed on every reactive read they depend on, the live fleet store (names via `nameOf`)
+ * ticking every couple of seconds would hand ECharts a fresh series array each tick and the lines
+ * would re-animate left-to-right forever. Set once per load, they animate once and settle.
+ */
+const onlineSeries = ref<ReturnType<typeof onlineRatioSeries>>([]);
+const batterySeries = ref<ReturnType<typeof socSeries>>([]);
+/** The selected window in epoch ms, so the chart's time axis spans the whole range (e.g. a full
+ * 12h) even when telemetry only covers part of it — otherwise the axis shrinks to the data. */
+const chartWindow = ref<{ from: number; to: number } | null>(null);
 const hasAvailabilityData = computed(() =>
   onlineSeries.value.some((series) => series.points.length > 0),
 );
@@ -236,15 +296,24 @@ const ackRateLabel = computed(() =>
 const alertTotal = computed(() => alertStats.value?.total ?? 0);
 
 // ── Derived: KPI sparklines + per-device detail (Phase 18 「分析工作台」) ───────────────────
-/** Mini trend under 平均在线率/平均电量 — same fleet-average series the big charts draw, no extra
- * fetch. Empty string when there are fewer than two points, so the template drops the <svg>. */
+/** Mini trend under 平均在线率/平均电量 — always the fleet-average line (perDevice off) so the
+ * sparkline matches the fleet KPI above it even while the big charts are split per device. Empty
+ * string when there are fewer than two points, so the template drops the <svg>. */
 const SPARK_W = 72;
 const SPARK_H = 22;
 const onlineSpark = computed(() =>
-  sparklinePoints(onlineSeries.value, SPARK_W, SPARK_H),
+  availability.value
+    ? sparklinePoints(
+        onlineRatioSeries(availability.value, nameOf),
+        SPARK_W,
+        SPARK_H,
+      )
+    : "",
 );
 const batterySpark = computed(() =>
-  sparklinePoints(batterySeries.value, SPARK_W, SPARK_H),
+  availability.value
+    ? sparklinePoints(socSeries(availability.value, nameOf), SPARK_W, SPARK_H)
+    : "",
 );
 
 /** 确认率 context: 已确认 N / 共 M, derived from ackRate × total (the report carries no raw acked). */
@@ -273,7 +342,7 @@ const SEVERITY_SEGMENT_CLASS: Record<string, string> = {
   notice: "bg-notice",
 };
 
-/** 按设备明细行（「可用率与电量」分区可展开表）。Top-N 之外折叠成「其余设备」一行。 */
+/** 按设备明细行（「可用率与电量」分区可展开表）：每台真实设备一行，无聚合折叠。 */
 const availabilityRows = computed(() =>
   availability.value ? deviceAvailabilityRows(availability.value, nameOf) : [],
 );
@@ -359,7 +428,7 @@ const exportAlertsCsv = (): void => {
       <UiButton
         variant="secondary"
         size="sm"
-        :disabled="status !== 'ready' || !hasAvailabilityData"
+        :disabled="availStatus !== 'ready' || !hasAvailabilityData"
         @click="exportCsv"
       >
         导出可用率 ↗
@@ -367,7 +436,7 @@ const exportAlertsCsv = (): void => {
       <UiButton
         variant="secondary"
         size="sm"
-        :disabled="status !== 'ready' || !hasAlertData"
+        :disabled="alertStatus !== 'ready' || !hasAlertData"
         @click="exportAlertsCsv"
       >
         导出消息 ↗
@@ -380,7 +449,7 @@ const exportAlertsCsv = (): void => {
     <UiFilterBar>
       <UiFilterField label="范围">
         <UiSegmented
-          :model-value="isCustom ? '' : range"
+          :model-value="customFrom || customTo ? '' : range"
           :options="RANGES"
           aria-label="时间范围"
           @update:model-value="
@@ -410,15 +479,6 @@ const exportAlertsCsv = (): void => {
         />
       </UiFilterField>
 
-      <UiFilterField label="粒度">
-        <UiSelect
-          :model-value="bucket"
-          :options="BUCKETS"
-          aria-label="分桶粒度"
-          @update:model-value="setFilter({ bucket: $event })"
-        />
-      </UiFilterField>
-
       <UiFilterField label="设备">
         <UiMultiSelect
           :model-value="deviceFilter"
@@ -436,7 +496,7 @@ const exportAlertsCsv = (): void => {
     <!-- Loading: a skeleton in the shape of the result (KPI band + two chart columns) rather
          than a bare line, so the wait reads as "this is filling in" — the aggregation can be
          slow. Blocks are decorative; a screen reader hears the sr-only status instead. -->
-    <div v-if="status === 'loading'" class="flex flex-col gap-4">
+    <div v-if="initialLoading" class="flex flex-col gap-4">
       <p class="sr-only" role="status">正在加载报表…</p>
       <dl class="m-0 grid grid-cols-2 gap-3 sm:grid-cols-4" aria-hidden="true">
         <div
@@ -445,28 +505,15 @@ const exportAlertsCsv = (): void => {
           class="h-[4.5rem] rounded-md border border-border bg-surface-raised motion-safe:animate-pulse"
         />
       </dl>
-      <div class="grid gap-4 lg:grid-cols-[2fr_1fr]" aria-hidden="true">
-        <div class="flex flex-col gap-4">
-          <div
-            class="h-64 rounded-md border border-border bg-surface-raised motion-safe:animate-pulse"
-          />
-          <div
-            class="h-64 rounded-md border border-border bg-surface-raised motion-safe:animate-pulse"
-          />
-        </div>
+      <div class="grid gap-4 lg:grid-cols-2" aria-hidden="true">
+        <div
+          class="h-64 rounded-md border border-border bg-surface-raised motion-safe:animate-pulse"
+        />
         <div
           class="h-64 rounded-md border border-border bg-surface-raised motion-safe:animate-pulse"
         />
       </div>
     </div>
-
-    <p
-      v-else-if="status === 'error'"
-      class="m-0 text-sm text-critical-ink"
-      role="status"
-    >
-      {{ errorMessage }}
-    </p>
 
     <!-- No Mongo ⇒ both reports honest-empty; say what is missing and link to 系统状态. -->
     <p
@@ -580,10 +627,42 @@ const exportAlertsCsv = (): void => {
            on demand — the comparison surface that turns the page into an analysis workstation
            without crowding the charts with N lines. -->
       <section class="flex flex-col gap-3" aria-labelledby="avail-heading">
-        <h2 id="avail-heading" class="m-0 text-sm font-semibold text-ink">
-          可用率与电量
-        </h2>
-        <div class="grid gap-4 lg:grid-cols-2">
+        <div
+          class="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1"
+        >
+          <h2 id="avail-heading" class="m-0 text-sm font-semibold text-ink">
+            可用率与电量
+          </h2>
+          <span class="text-2xs text-ink-subtle">
+            {{
+              comparingDevices
+                ? `正在对比 ${deviceFilter.length} 台设备`
+                : "选择设备对比数据；默认全部设备均值"
+            }}
+          </span>
+        </div>
+
+        <p
+          v-if="availStatus === 'error'"
+          class="m-0 rounded-md border border-border bg-surface-raised p-4 text-sm text-critical-ink"
+          role="status"
+        >
+          可用率加载失败：{{ availError }}
+        </p>
+        <!-- Loading placeholder matches the two charts' footprint (h-[272px] each) so switching
+             devices never collapses the card — the 「消息分析」 heading below stays put. -->
+        <template v-else-if="availStatus === 'loading' && !hasAvailabilityData">
+          <p class="sr-only" role="status">正在加载可用率…</p>
+          <div class="grid gap-4 lg:grid-cols-2" aria-hidden="true">
+            <div
+              class="h-[272px] rounded-md border border-border bg-surface-raised motion-safe:animate-pulse"
+            />
+            <div
+              class="h-[272px] rounded-md border border-border bg-surface-raised motion-safe:animate-pulse"
+            />
+          </div>
+        </template>
+        <div v-else class="grid gap-4 lg:grid-cols-2">
           <div class="rounded-md border border-border bg-surface-raised p-4">
             <TimeSeriesChart
               v-if="hasAvailabilityData"
@@ -592,6 +671,10 @@ const exportAlertsCsv = (): void => {
               unit="%"
               :height="240"
               legend-position="right"
+              table-match-height
+              y-scale
+              :x-min="chartWindow?.from"
+              :x-max="chartWindow?.to"
             />
             <p v-else class="m-0 py-8 text-center text-sm text-ink-muted">
               该时间段没有遥测样本
@@ -605,6 +688,10 @@ const exportAlertsCsv = (): void => {
               unit="%"
               :height="240"
               legend-position="right"
+              table-match-height
+              y-scale
+              :x-min="chartWindow?.from"
+              :x-max="chartWindow?.to"
             />
             <p v-else class="m-0 py-8 text-center text-sm text-ink-muted">
               该时间段没有电量样本
@@ -613,9 +700,9 @@ const exportAlertsCsv = (): void => {
         </div>
 
         <!-- Per-device detail: collapsed by default so the section stays scannable; open it to
-             compare vehicles. 「其余设备」 is the Top-N fold, always last. -->
+             compare vehicles one row each. -->
         <details
-          v-if="availabilityRows.length"
+          v-if="availStatus === 'ready' && availabilityRows.length"
           class="group rounded-md border border-border bg-surface-raised"
         >
           <summary
@@ -626,43 +713,46 @@ const exportAlertsCsv = (): void => {
             >
             按设备明细（{{ availabilityRows.length }} 行）
           </summary>
-          <div class="max-h-80 overflow-auto border-t border-border">
-            <table class="w-full border-collapse text-sm">
-              <thead
-                class="sticky top-0 bg-surface-raised text-2xs text-ink-subtle"
-              >
-                <tr class="text-left">
-                  <th class="px-4 py-2 font-medium">设备</th>
-                  <th class="px-4 py-2 text-right font-medium">在线率</th>
-                  <th class="px-4 py-2 text-right font-medium">电量均值</th>
-                  <th class="px-4 py-2 text-right font-medium">最低电量</th>
-                  <th class="px-4 py-2 text-right font-medium">样本数</th>
-                </tr>
-              </thead>
-              <tbody>
-                <tr
-                  v-for="row in availabilityRows"
-                  :key="row.deviceId"
-                  class="border-t border-border/60"
-                  :class="row.isOthers ? 'text-ink-muted' : 'text-ink'"
-                >
-                  <td class="px-4 py-2">{{ row.name }}</td>
-                  <td class="px-4 py-2 text-right font-mono tabular-nums">
-                    {{ fmtPct(row.onlineRatio) }}
-                  </td>
-                  <td class="px-4 py-2 text-right font-mono tabular-nums">
-                    {{ fmtSoc(row.socMean) }}
-                  </td>
-                  <td class="px-4 py-2 text-right font-mono tabular-nums">
-                    {{ fmtSoc(row.socMin) }}
-                  </td>
-                  <td class="px-4 py-2 text-right font-mono tabular-nums">
-                    {{ row.totalSamples }}
-                  </td>
-                </tr>
-              </tbody>
-            </table>
-          </div>
+          <!-- Shared scroll-table shell: gray header covers the scrollbar, columns aligned. -->
+          <UiScrollTable label="按设备明细" max-height="20rem">
+            <template #colgroup>
+              <col class="w-[32%]" />
+              <col />
+              <col />
+              <col />
+              <col />
+            </template>
+            <template #head>
+              <tr class="text-left">
+                <th class="px-4 py-2 font-medium">设备</th>
+                <th class="px-4 py-2 text-right font-medium">在线率</th>
+                <th class="px-4 py-2 text-right font-medium">电量均值</th>
+                <th class="px-4 py-2 text-right font-medium">最低电量</th>
+                <th class="px-4 py-2 text-right font-medium">样本数</th>
+              </tr>
+            </template>
+            <tr
+              v-for="row in availabilityRows"
+              :key="row.deviceId"
+              class="border-b border-border/60 text-ink last:border-b-0"
+            >
+              <td class="truncate px-4 py-2" :title="row.name">
+                {{ row.name }}
+              </td>
+              <td class="px-4 py-2 text-right font-mono tabular-nums">
+                {{ fmtPct(row.onlineRatio) }}
+              </td>
+              <td class="px-4 py-2 text-right font-mono tabular-nums">
+                {{ fmtSoc(row.socMean) }}
+              </td>
+              <td class="px-4 py-2 text-right font-mono tabular-nums">
+                {{ fmtSoc(row.socMin) }}
+              </td>
+              <td class="px-4 py-2 text-right font-mono tabular-nums">
+                {{ row.totalSamples }}
+              </td>
+            </tr>
+          </UiScrollTable>
         </details>
       </section>
 
@@ -672,7 +762,14 @@ const exportAlertsCsv = (): void => {
         <h2 id="alerts-heading" class="m-0 text-sm font-semibold text-ink">
           消息分析
         </h2>
-        <div class="grid gap-4 lg:grid-cols-3">
+        <p
+          v-if="alertStatus === 'error'"
+          class="m-0 rounded-md border border-border bg-surface-raised p-4 text-sm text-critical-ink"
+          role="status"
+        >
+          消息统计加载失败：{{ alertError }}
+        </p>
+        <div v-else class="grid gap-4 lg:grid-cols-3">
           <div class="rounded-md border border-border bg-surface-raised p-4">
             <CategoryBarChart
               v-if="hasAlertData"

@@ -9,7 +9,6 @@
  */
 
 import type { AlertStatsReport, AvailabilityReport } from "@navfleet/shared";
-import { AVAILABILITY_OTHERS_DEVICE_ID } from "@navfleet/shared";
 import type { TimeSeries } from "@/components/charts/timeSeriesOption";
 import { SEVERITY_LABELS } from "@/lib/severity";
 
@@ -137,8 +136,8 @@ const foldByBucket = (report: AvailabilityReport): Map<number, BucketFold> => {
   return byBucket;
 };
 
-/** 单台时用设备名，多台时是车队均值——一条线，图例与数据表都清爽。 */
-const seriesName = (
+/** 单台时用设备名，多台折叠时是车队均值——一条线，图例与数据表都清爽。 */
+const foldedName = (
   report: AvailabilityReport,
   nameOf: DeviceNameOf,
 ): string =>
@@ -146,11 +145,52 @@ const seriesName = (
     ? nameOf(report.devices[0]!.deviceId)
     : "全部设备均值";
 
-/** 在线率时序（百分比 0–100）：车队按帧加权的一条均值线，旧点在前。 */
+/** 一台设备的在线率点列（百分比 0–100），按桶起点升序，空桶跳过。 */
+const deviceOnlinePoints = (
+  device: AvailabilityReport["devices"][number],
+): [number, number][] =>
+  device.buckets
+    .filter((bucket) => bucket.totalSamples > 0)
+    .map(
+      (bucket) =>
+        [bucketMs(bucket.bucketStart), bucket.onlineRatio * 100] as [
+          number,
+          number,
+        ],
+    )
+    .filter(([ms]) => Number.isFinite(ms))
+    .sort((left, right) => left[0] - right[0]);
+
+/** 一台设备的电量均值点列，按桶起点升序；无 soc 的桶跳过（不画成 0）。 */
+const deviceSocPoints = (
+  device: AvailabilityReport["devices"][number],
+): [number, number][] =>
+  device.buckets
+    .filter((bucket) => bucket.socMean !== null)
+    .map(
+      (bucket) =>
+        [bucketMs(bucket.bucketStart), bucket.socMean!] as [number, number],
+    )
+    .filter(([ms]) => Number.isFinite(ms))
+    .sort((left, right) => left[0] - right[0]);
+
+/**
+ * 在线率时序（百分比 0–100）。`perDevice` 时每台设备各一条线（选了设备就是在做横向对比，一人一条才
+ * 读得出差异）；否则折成车队按帧加权的一条均值线（不选设备时全队 N 条会糊成一片）。
+ */
 export const onlineRatioSeries = (
   report: AvailabilityReport,
   nameOf: DeviceNameOf,
+  options: { perDevice?: boolean } = {},
 ): TimeSeries[] => {
+  if (options.perDevice) {
+    return report.devices
+      .map((device) => ({
+        name: nameOf(device.deviceId),
+        points: deviceOnlinePoints(device),
+      }))
+      .filter((series) => series.points.length > 0);
+  }
   const points = [...foldByBucket(report).entries()]
     .filter(([, fold]) => fold.total > 0)
     .sort((left, right) => left[0] - right[0])
@@ -158,14 +198,23 @@ export const onlineRatioSeries = (
       ([ms, fold]) =>
         [ms, (fold.online / fold.total) * 100] as [number, number],
     );
-  return points.length ? [{ name: seriesName(report, nameOf), points }] : [];
+  return points.length ? [{ name: foldedName(report, nameOf), points }] : [];
 };
 
-/** 电量 soc 均值时序：车队按帧加权的一条均值线；无 soc 的桶跳过（不画成 0）。 */
+/** 电量 soc 均值时序。`perDevice` 时每台一条线；否则车队按帧加权的一条均值线。 */
 export const socSeries = (
   report: AvailabilityReport,
   nameOf: DeviceNameOf,
+  options: { perDevice?: boolean } = {},
 ): TimeSeries[] => {
+  if (options.perDevice) {
+    return report.devices
+      .map((device) => ({
+        name: nameOf(device.deviceId),
+        points: deviceSocPoints(device),
+      }))
+      .filter((series) => series.points.length > 0);
+  }
   const points = [...foldByBucket(report).entries()]
     .filter(([, fold]) => fold.socWeight > 0)
     .sort((left, right) => left[0] - right[0])
@@ -173,16 +222,14 @@ export const socSeries = (
       ([ms, fold]) =>
         [ms, fold.socWeighted / fold.socWeight] as [number, number],
     );
-  return points.length ? [{ name: seriesName(report, nameOf), points }] : [];
+  return points.length ? [{ name: foldedName(report, nameOf), points }] : [];
 };
 
 /** 「可用率与电量」分区可展开的按设备明细行（Phase 18 报表重做）。 */
 export interface DeviceAvailabilityRow {
   deviceId: string;
-  /** 展示名；Top-N 之外被折叠的占位序列显示为「其余设备」。 */
+  /** 展示名（取自实时车队，无则回退 id）。 */
   name: string;
-  /** 这台设备是否是折叠出来的「其余」合计行。 */
-  isOthers: boolean;
   /** 跨桶在线率 = Σonline / Σtotal；无样本时 null。 */
   onlineRatio: number | null;
   /** 样本加权电量均值；无 soc 样本时 null。 */
@@ -193,9 +240,8 @@ export interface DeviceAvailabilityRow {
 }
 
 /**
- * 把（设备 × 桶）的可用率报表压成「每台一行」的明细，供分区下方的明细表做横向对比——这是把报表当
- * 分析台用的落点（负责人 2026-10-24 定的「分析工作台」方向）。在线率跨桶按帧汇总、电量按帧加权，和
- * 顶部 KPI 的口径一致；按样本数降序，`__others__` 折叠行恒排在最后并显示为「其余设备」。
+ * 把（设备 × 桶）的可用率报表压成「每台一行」的明细，供分区下方的明细表做横向对比。在线率跨桶按帧
+ * 汇总、电量按帧加权，和顶部 KPI 的口径一致；按样本数降序。每台都是真实设备，不做任何聚合折叠。
  */
 export const deviceAvailabilityRows = (
   report: AvailabilityReport,
@@ -219,22 +265,17 @@ export const deviceAvailabilityRows = (
           socMin === null ? bucket.socMin : Math.min(socMin, bucket.socMin);
       }
     }
-    const isOthers = device.deviceId === AVAILABILITY_OTHERS_DEVICE_ID;
     return {
       deviceId: device.deviceId,
-      name: isOthers ? "其余设备" : nameOf(device.deviceId),
-      isOthers,
+      name: nameOf(device.deviceId),
       onlineRatio: total > 0 ? online / total : null,
       socMean: socWeight > 0 ? socWeighted / socWeight : null,
       socMin,
       totalSamples: total,
     };
   });
-  // 样本数降序，但「其余」合计行永远垫底，不与真实设备争 Top 位。
-  return rows.sort((left, right) => {
-    if (left.isOthers !== right.isOthers) return left.isOthers ? 1 : -1;
-    return right.totalSamples - left.totalSamples;
-  });
+  // 样本数降序。
+  return rows.sort((left, right) => right.totalSamples - left.totalSamples);
 };
 
 /**
@@ -257,10 +298,15 @@ export const sparklinePoints = (
   const maxY = Math.max(...ys);
   const spanX = maxX - minX || 1;
   const spanY = maxY - minY || 1;
+  // Keep a 2px vertical inset so the stroke never sits on the box edge (where half of it is
+  // clipped and the line reads as a hairline — the 平均在线率/电量 卡 symptom). A flat line then
+  // lands on the lower inset line, drawn at full width.
+  const pad = 2;
+  const usable = Math.max(1, height - pad * 2);
   return points
     .map(([x, y]) => {
       const px = ((x - minX) / spanX) * width;
-      const py = height - ((y - minY) / spanY) * height;
+      const py = height - pad - ((y - minY) / spanY) * usable;
       return `${px.toFixed(1)},${py.toFixed(1)}`;
     })
     .join(" ");
