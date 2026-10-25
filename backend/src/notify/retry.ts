@@ -40,58 +40,102 @@ const defaultSleep = (ms: number): Promise<void> =>
 
 const isRetryableStatus = (status: number): boolean => status >= 500 || status === 429;
 
-const summarize = (value: unknown): string =>
+/** A short, safe failure summary from a thrown value — shared by every channel's attempt body. */
+export const summarize = (value: unknown): string =>
   value instanceof Error ? value.message : String(value);
+
+/**
+ * One attempt's result. `done` stops the loop — either a success or an unretryable failure — and
+ * its `ok` becomes the outcome's; otherwise the loop backs off and tries again. `latencyMs` is this
+ * attempt's own wall-clock, so the final outcome carries the last attempt's timing.
+ */
+export type AttemptResult =
+  | { done: true; ok: boolean; httpStatus: number | null; latencyMs: number; error: string | null }
+  | { done: false; httpStatus: number | null; latencyMs: number; error: string };
+
+export interface WithRetryOptions {
+  maxAttempts: number;
+  /** Injectable delay (ms → Promise); production omits it. Tests pass a no-op to skip real waits. */
+  sleep?: (ms: number) => Promise<void>;
+}
+
+/**
+ * The retry skeleton every channel shares: run `attempt` up to `maxAttempts` times, stop as soon as
+ * one reports `done`, linear-backoff between tries (none after the last), and fold the last
+ * attempt's status/latency/error into one {@link AttemptOutcome}. Never throws — the attempt body
+ * owns its own try/catch and reports failures as data, because the dispatcher runs fire-and-forget.
+ * Only the per-attempt body (an HTTP POST, an SMTP send) differs between channels; it used to be
+ * copy-pasted around this loop in `postWithRetry` and `sendEmail`.
+ */
+export const withRetry = async (
+  attempt: (attemptNumber: number) => Promise<AttemptResult>,
+  options: WithRetryOptions,
+): Promise<AttemptOutcome> => {
+  const sleep = options.sleep ?? defaultSleep;
+  const maxAttempts = Math.max(1, options.maxAttempts);
+
+  let attempts = 0;
+  let httpStatus: number | null = null;
+  let latencyMs = 0;
+  let error: string | null = null;
+
+  for (let n = 1; n <= maxAttempts; n += 1) {
+    attempts = n;
+    const result = await attempt(n);
+    httpStatus = result.httpStatus;
+    latencyMs = result.latencyMs;
+    error = result.error;
+    if (result.done) {
+      return { ok: result.ok, httpStatus, attempts, latencyMs, error };
+    }
+    if (n < maxAttempts) {
+      await sleep(n * 200);
+    }
+  }
+
+  return { ok: false, httpStatus, attempts, latencyMs, error };
+};
 
 /**
  * POST `body` (as JSON) to `url`, with per-attempt timeout and bounded retry. Never throws —
  * every failure mode is folded into the returned {@link AttemptOutcome}, because the dispatcher
  * runs fire-and-forget and an escaping rejection would land on `unhandledRejection`.
  */
-export const postWithRetry = async (
+export const postWithRetry = (
   url: string,
   body: unknown,
   options: RetryOptions,
 ): Promise<AttemptOutcome> => {
   const fetchImpl = options.fetchImpl ?? fetch;
-  const sleep = options.sleep ?? defaultSleep;
-  const maxAttempts = Math.max(1, options.maxAttempts);
-
-  let attempts = 0;
-  let httpStatus: number | null = null;
-  let error: string | null = null;
-  let latencyMs = 0;
-
-  for (let attempt = 1; attempt <= maxAttempts; attempt += 1) {
-    attempts = attempt;
-    const startedAt = Date.now();
-    try {
-      const response = await fetchImpl(url, {
-        method: "POST",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify(body),
-        signal: AbortSignal.timeout(options.timeoutMs),
-      });
-      latencyMs = Date.now() - startedAt;
-      httpStatus = response.status;
-      if (response.ok) {
-        return { ok: true, httpStatus, attempts, latencyMs, error: null };
+  return withRetry(
+    async () => {
+      const startedAt = Date.now();
+      try {
+        const response = await fetchImpl(url, {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify(body),
+          signal: AbortSignal.timeout(options.timeoutMs),
+        });
+        const latencyMs = Date.now() - startedAt;
+        if (response.ok) {
+          return { done: true, ok: true, httpStatus: response.status, latencyMs, error: null };
+        }
+        const error = `HTTP ${response.status}`;
+        // A 4xx other than 429 is the request's own fault (bad URL/body/revoked bot) — stop at once
+        // rather than hammer the endpoint; a 5xx/429 is transient, so retry.
+        return isRetryableStatus(response.status)
+          ? { done: false, httpStatus: response.status, latencyMs, error }
+          : { done: true, ok: false, httpStatus: response.status, latencyMs, error };
+      } catch (thrown) {
+        return {
+          done: false,
+          httpStatus: null,
+          latencyMs: Date.now() - startedAt,
+          error: summarize(thrown),
+        };
       }
-      error = `HTTP ${response.status}`;
-      if (!isRetryableStatus(response.status)) {
-        return { ok: false, httpStatus, attempts, latencyMs, error };
-      }
-    } catch (thrown) {
-      latencyMs = Date.now() - startedAt;
-      httpStatus = null;
-      error = summarize(thrown);
-    }
-
-    // Linear backoff between attempts; none after the last.
-    if (attempt < maxAttempts) {
-      await sleep(attempt * 200);
-    }
-  }
-
-  return { ok: false, httpStatus, attempts, latencyMs, error };
+    },
+    { maxAttempts: options.maxAttempts, sleep: options.sleep },
+  );
 };

@@ -1101,16 +1101,13 @@ export class ConfigRegistry {
   }
 
   /**
-   * Persist a deployment codebook (the import endpoint's payload) as `codebook.json`, then
-   * reload so `getCodebook` reflects it. Validates first via `parseCodebook`, so an invalid
-   * payload throws *before* anything is written and the live snapshot is untouched. The
-   * config volume must be writable for this to succeed (see deploy/docker-compose.yml).
+   * Persist a deployment codebook (the import endpoint's payload) as `codebook.json`, then reload
+   * so `getCodebook` reflects it. The config volume must be writable (see deploy/docker-compose.yml).
    */
-  async importCodebook(rawEntries: unknown): Promise<ReportCodeEntry[]> {
-    const entries = parseCodebook(rawEntries);
-    await this.writeConfigFileAtomic(CODEBOOK_FILE, entries);
-    await this.reload("codebook-import");
-    return this.getCodebook();
+  importCodebook(rawEntries: unknown): Promise<ReportCodeEntry[]> {
+    return this.writeWholeConfig(rawEntries, parseCodebook, CODEBOOK_FILE, "codebook-import", () =>
+      this.getCodebook(),
+    );
   }
 
   /**
@@ -1122,7 +1119,33 @@ export class ConfigRegistry {
   private async writeConfigFileAtomic(filePath: string, value: unknown): Promise<void> {
     const tmp = `${filePath}.${process.pid}.${Date.now()}.tmp`;
     await fs.writeFile(tmp, `${JSON.stringify(value, null, 2)}\n`, "utf8");
-    await fs.rename(tmp, filePath);
+    try {
+      await fs.rename(tmp, filePath);
+    } catch (error) {
+      // A failed rename would otherwise leave the sibling temp file behind; best-effort clean it up.
+      await fs.rm(tmp, { force: true }).catch(() => {});
+      throw error;
+    }
+  }
+
+  /**
+   * The shared body of every "replace a whole config file" writer: validate the raw payload (so a
+   * malformed body throws *before* anything is written and the live snapshot is untouched),
+   * atomically write it, reload so the getters reflect it, and return the fresh view. Each caller
+   * supplies only what differs — its parser, target file, reload reason, and read-back getter — so
+   * the validate→write→reload→read shape lives here once instead of in each writer.
+   */
+  private async writeWholeConfig<R>(
+    raw: unknown,
+    parse: (raw: unknown) => unknown,
+    file: string,
+    reloadReason: string,
+    read: () => R,
+  ): Promise<R> {
+    const value = parse(raw);
+    await this.writeConfigFileAtomic(file, value);
+    await this.reload(reloadReason);
+    return read();
   }
 
   /** All configured vehicles, for the onboarding wizard's read side (Phase 18). */
@@ -1195,62 +1218,48 @@ export class ConfigRegistry {
   }
 
   /**
-   * Persist `scenes.json` from the scene-management page, then reload. Validates shape first
-   * (`parseScenes`): geometry finite, ids path-safe and unique, asset URLs confined to
-   * `/scene-maps/`. A full-array read-modify-write like the vehicles/codebook writes, so a
-   * removed entry is just an array without it. Writing scene config is operator/deployment
-   * domain — the console renders these backdrops, it does not push maps to vehicles — so the
-   * read-only red line holds. The config volume must be writable.
+   * Persist `scenes.json` from the scene-management page, then reload. Writing scene config is
+   * operator/deployment domain — the console renders these backdrops, it does not push maps to
+   * vehicles — so the read-only red line holds. The config volume must be writable.
    */
-  async writeScenes(raw: unknown): Promise<SceneMapDefinition[]> {
-    const scenes = parseScenes(raw);
-    await this.writeConfigFileAtomic(SCENES_FILE, scenes);
-    await this.reload("scenes-write");
-    return this.listScenes();
+  writeScenes(raw: unknown): Promise<SceneMapDefinition[]> {
+    return this.writeWholeConfig(raw, parseScenes, SCENES_FILE, "scenes-write", () =>
+      this.listScenes(),
+    );
   }
 
   /**
-   * Persist `notify.json` from the outbound-config editor (1.6.1), then reload. Validates shape
-   * first (`parseNotifyConfig`) — a full read-modify-write of `{ channels, groups }` like the
-   * codebook/vehicles writes, so a removed channel is just an array without it. Writing notify
-   * config is operator/deployment domain (channels + routing; endpoint secrets stay in env, only
-   * their `urlEnv` variable *names* live in the file), not vehicle control — the read-only red
-   * line (no command dispatch) holds. The config volume must be writable.
+   * Persist `notify.json` from the outbound-config editor (1.6.1), then reload. Channels + routing
+   * only; endpoint secrets stay in env, the file holds just their `urlEnv` variable *names* — so
+   * this is operator/deployment domain, not vehicle control, and the read-only red line holds.
    */
-  async writeNotifyConfig(raw: unknown): Promise<NotifyConfig> {
-    const config = parseNotifyConfig(raw);
-    await this.writeConfigFileAtomic(NOTIFY_FILE, config);
-    await this.reload("notify-write");
-    return this.getNotifyConfig();
+  writeNotifyConfig(raw: unknown): Promise<NotifyConfig> {
+    return this.writeWholeConfig(raw, parseNotifyConfig, NOTIFY_FILE, "notify-write", () =>
+      this.getNotifyConfig(),
+    );
   }
 
   /**
-   * Persist `rules.json` from the 告警规则 editor (1.6.1), then reload. Validates shape first
-   * (`parseAlertRules`, which merges over `DEFAULT_ALERT_RULES` and throws on anything malformed),
-   * so a bad body never reaches disk and `reload` keeps the previous snapshot. Retuning thresholds
-   * / toggling a rule / scoping it is deployment-domain config, not vehicle control — the read-only
+   * Persist `rules.json` from the 告警规则 editor (1.6.1), then reload. Retuning thresholds /
+   * toggling a rule / scoping it is deployment-domain config, not vehicle control — the read-only
    * red line holds. The config volume must be writable.
    */
-  async writeAlertRules(raw: unknown): Promise<AlertRulesConfig> {
-    const config = parseAlertRules(raw);
-    await this.writeConfigFileAtomic(RULES_FILE, config);
-    await this.reload("rules-write");
-    return this.getAlertRules();
+  writeAlertRules(raw: unknown): Promise<AlertRulesConfig> {
+    return this.writeWholeConfig(raw, parseAlertRules, RULES_FILE, "rules-write", () =>
+      this.getAlertRules(),
+    );
   }
 
   /**
-   * Persist `reports.json` from the 定时报表 editor (1.6.1), then reload. Validates shape first
-   * (`parseReportsConfig`: schedule ids unique, `time` HH:MM, `range`/`weekday` in range, `smtpEnv`
-   * + `from` set), so a bad body never reaches disk. The scheduler reads the config live each tick,
-   * so a write takes effect on the next poll with no restart. SMTP connection strings (with
-   * credentials) stay in the env vars `smtpEnv` names — only those *names* live in the file — so
-   * this is deployment-domain config, not command dispatch. The config volume must be writable.
+   * Persist `reports.json` from the 定时报表 editor (1.6.1), then reload. The scheduler reads the
+   * config live each tick, so a write takes effect on the next poll with no restart. SMTP strings
+   * (with credentials) stay in the env vars `smtpEnv` names — only those *names* live in the file —
+   * so this is deployment-domain config, not command dispatch.
    */
-  async writeReportsConfig(raw: unknown): Promise<ReportsConfig> {
-    const config = parseReportsConfig(raw);
-    await this.writeConfigFileAtomic(REPORTS_FILE, config);
-    await this.reload("reports-write");
-    return this.getReportsConfig();
+  writeReportsConfig(raw: unknown): Promise<ReportsConfig> {
+    return this.writeWholeConfig(raw, parseReportsConfig, REPORTS_FILE, "reports-write", () =>
+      this.getReportsConfig(),
+    );
   }
 
   /**

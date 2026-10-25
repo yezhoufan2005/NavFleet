@@ -80,7 +80,7 @@ export const captureRouteMount = (
  * request rejected by the auth gate lands there too, because no route has
  * matched yet when the 401 is written (the status label keeps the two apart).
  */
-export const routeLabel = (request: Request): string => {
+const routeLabel = (request: Request): string => {
   const routePath = (request.route as { path?: string } | undefined)?.path;
   if (typeof routePath !== "string") {
     return "unmatched";
