@@ -346,13 +346,14 @@ var tDocs = [], aDocs = [];
 // Find a POOL entry by code, so a telemetry-correlated event can name a specific message.
 function msg(code) { return POOL.filter(function (p) { return p.code === code; })[0]; }
 devices.forEach(function (id, di) {
-  var cycle = 8 + (di % 7);          // 充放电周期 8–14h，按车错相位
-  var floorSoc = 15 + (di % 5) * 4;  // 谷底电量 15–31%，每台不同（可视作负载/电池差异）
-  var topSoc = 86 + (di % 3) * 2;    // 满电 86–90%
-  var maint = (di * 31) % (12 * 24); // 每 ~12 天一次 ~3h 维护离线，错开
-  // 放电占 80% 周期（85%档→谷底），之后 20% 周期快速回充——锯齿比正弦更像真实车。
+  var cycle = 14 + (di % 11);        // 充放电周期 14–24h：一天约一个来回，不是一天两三次
+  var phase = (di * 37) % cycle;     // 每台错开相位：避免所有车在「现在」同处满电、曲线右端挤成一团
+  var floorSoc = 25 + (di % 5) * 3;  // 谷底电量 25–37%，每台不同（可视作负载/电池差异）
+  var topSoc = 85 + (di % 4) * 2;    // 满电 85–91%
+  var maint = 60 + (di * 53) % (12 * 24 - 120); // ~12 天一次 ~3h 维护离线，错开且避开最近/最早边界
+  // 放电占 80% 周期（满电→谷底），之后 20% 周期快速回充——锯齿比正弦更像真实车。
   function socAt(totalH) {
-    var pos = (totalH % cycle) / cycle;
+    var pos = ((totalH + phase) % cycle) / cycle;
     var s = pos < 0.8
       ? topSoc - (pos / 0.8) * (topSoc - floorSoc)
       : floorSoc + ((pos - 0.8) / 0.2) * (topSoc - floorSoc);
@@ -372,8 +373,9 @@ devices.forEach(function (id, di) {
   // 消息与遥测对齐，让历史"自洽"：电量偏低落在一个真实的电量谷底、急停/避障紧跟一次维护离线窗口、
   // 其余为日常提示/限速。每台 2–3 条，整体给出 提示/预警/告警 的真实分布（约半数设备带一条告警）。
   var events = [];
-  // 1) 电量偏低（预警）：落在最近几个充放电周期里的一个谷底（pos≈0.8 处 soc 最低）。
-  events.push({ pick: msg(2501), at: Math.round(cycle * 0.8) + cycle * (di % 4) });
+  // 1) 电量偏低（预警）：落在最近几个充放电周期里的一个谷底（pos≈0.8 处 soc 最低，含相位修正）。
+  var troughAt = ((Math.round(cycle * 0.8) - phase) % cycle + cycle) % cycle + cycle * (di % 4);
+  events.push({ pick: msg(2501), at: troughAt });
   // 2) 急停或避障（告警）：一次维护离线窗口刚结束、现场复位之后——半数设备各一条。
   if (di % 2 === 0) {
     events.push({ pick: (di % 4 === 0) ? msg(5701) : msg(5202),
