@@ -23,20 +23,24 @@ WebSocket。以下截图取自一套播种了完整演示车队（**29 台车 / 
 
 <table>
   <tr>
-    <td width="50%"><img src="docs/screenshots/overview.png" alt="总览（浅色）" width="100%"><br><sub><b>总览</b> · 在线 / 消息 / 覆盖 / 编队 + 待处理项 + 消息摘要 + 编队情况</sub></td>
-    <td width="50%"><img src="docs/screenshots/overview-dark.png" alt="总览（深色）" width="100%"><br><sub><b>总览 · 深色主题</b> · 同一页面 dark_dimmed 渲染</sub></td>
+    <td width="50%"><img src="docs/screenshots/overview-light.png" alt="总览（浅色）" width="100%"><br><sub><b>总览</b> · 车队状态 + 活跃消息 / GPS 覆盖 / 编队 + 待处理项 + 消息摘要 + 编队情况</sub></td>
+    <td width="50%"><img src="docs/screenshots/overview-dark.png" alt="总览（深色）" width="100%"><br><sub><b>总览 · 深色主题</b> · 同一页面 dark_dimmed 渲染；用户菜单可切主题 / 告警声音 / 免打扰</sub></td>
   </tr>
   <tr>
-    <td width="50%"><img src="docs/screenshots/devices-map.png" alt="设备地图" width="100%"><br><sub><b>设备 · 地图</b> · Lanelet2 路网叠加，车辆按定位实时落点，可按编队筛选</sub></td>
-    <td width="50%"><img src="docs/screenshots/devices-list.png" alt="设备列表" width="100%"><br><sub><b>设备 · 列表</b> · 展开行给出控制模式 / 挡位 / 速度 / 定位 / 编队</sub></td>
+    <td width="50%"><img src="docs/screenshots/devices-list.png" alt="设备列表" width="100%"><br><sub><b>设备 · 列表</b> · 展开行给出控制模式 / 挡位 / 速度 / 融合定位 / 编队 / 任务</sub></td>
+    <td width="50%"><img src="docs/screenshots/devices-map.png" alt="设备地图" width="100%"><br><sub><b>设备 · 地图</b> · Lanelet2 路网叠加，车辆按定位实时落点 + 轨迹，可按编队筛选</sub></td>
   </tr>
   <tr>
-    <td width="50%"><img src="docs/screenshots/devices-history.png" alt="历史回放" width="100%"><br><sub><b>设备详情 · 回放</b> · 沿场景底图重放轨迹，可限定范围、变速拖拽</sub></td>
-    <td width="50%"><img src="docs/screenshots/alerts.png" alt="消息中心" width="100%"><br><sub><b>消息</b> · 已清除 / 确认率 / 时长+ 严重度 / 设备 / 时间分布，可筛选确认</sub></td>
+    <td width="50%"><img src="docs/screenshots/devices-playback.png" alt="设备详情 · 回放" width="100%"><br><sub><b>设备详情 · 回放</b> · 沿场景底图重放轨迹，时间轴可限定范围、变速拖拽</sub></td>
+    <td width="50%"><img src="docs/screenshots/messages-history.png" alt="消息史" width="100%"><br><sub><b>消息 · 消息史</b> · 已清除 / 确认率 / 时长 + 按严重度 / 消息数 / 天频次 的图表与数据表</sub></td>
   </tr>
   <tr>
-    <td width="50%"><img src="docs/screenshots/reports.png" alt="报表" width="100%"><br><sub><b>报表</b> · 服务端聚合在线率 / 电量趋势 + 消息分布，可导出 CSV</sub></td>
-    <td width="50%"><img src="docs/screenshots/admin.png" alt="部署 · 车辆/编队" width="100%"><br><sub><b>部署 · 车辆 / 编队</b> · 车辆 / 编队配置增删改，落盘 JSON 后热重载</sub></td>
+    <td width="50%"><img src="docs/screenshots/reports.png" alt="报表" width="100%"><br><sub><b>报表</b> · 服务端聚合，多车对比在线率趋势与电量 SOC 均值，可导出 CSV</sub></td>
+    <td width="50%"><img src="docs/screenshots/users-roles.png" alt="用户 · 角色" width="100%"><br><sub><b>用户 · 角色</b> · 自定义角色的能力门禁（逐项勾选 <code>can()</code> 能力）</sub></td>
+  </tr>
+  <tr>
+    <td width="50%"><img src="docs/screenshots/deploy-scenes.png" alt="部署 · 场景" width="100%"><br><sub><b>部署 · 场景</b> · 场景增删改 + 底图（栅格 / 点云 / Lanelet2）上传，落盘后热重载</sub></td>
+    <td width="50%"><img src="docs/screenshots/system-notify.png" alt="系统 · 外发" width="100%"><br><sub><b>系统 · 外发</b> · webhook / 企业微信 / 钉钉 / 邮件渠道与发送记录（默认不外发，密钥走 env）</sub></td>
   </tr>
 </table>
 
