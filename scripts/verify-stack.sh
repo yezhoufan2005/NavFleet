@@ -360,7 +360,7 @@ if (aDocs.length) db.alerts.insertMany(aDocs);
 print(devices.length + " " + tDocs.length + " " + aDocs.length);
 JS
 )"
-  SEEDED="$(printf '%s' "$SEEDED" | tr -dc '0-9 ' | awk '{print $1" 台 / "$2" 帧遥测 / "$3" 条消息"}')"
+  SEEDED="$(printf '%s' "$SEEDED" | tail -1 | awk '{print $1" 台 / "$2" 帧遥测 / "$3" 条消息"}')"
   echo "演示历史回填：${SEEDED:-（无设备，已跳过）}（60 天，随本次起栈刷新）"
 
   echo
