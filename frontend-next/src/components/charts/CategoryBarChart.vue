@@ -14,7 +14,7 @@ import type { CSSProperties } from "vue";
 import type { ECharts } from "echarts/core";
 import UiButton from "@/components/ui/UiButton.vue";
 import { useChartTheme } from "@/composables/useChartTheme";
-import { useScrollbarGutter } from "@/composables/useScrollbarGutter";
+import UiScrollTable from "@/components/ui/UiScrollTable.vue";
 import {
   buildCategoryBarOption,
   echarts,
@@ -47,10 +47,6 @@ const {
 }>();
 
 const { palette, animate } = useChartTheme();
-
-// Keep the split header aligned with the scrolling body (shared with the other data tables).
-const tableBody = useTemplateRef<HTMLElement>("tableBody");
-const gutter = useScrollbarGutter(tableBody);
 
 /** Min on-screen slot per bar before the plot outgrows the card and scrolls. */
 const SLOT_PX = 32;
@@ -144,69 +140,36 @@ onBeforeUnmount(disposeChart);
       />
     </div>
 
-    <!--
-      Data-table view — the one shared shape across 报表's tables: the gray header sits *outside*
-      the scroll box (so the scrollbar runs beside the records only, 顶栏盖住滑条), and is padded
-      right by the body's live scrollbar width (`gutter`) so the two `table-fixed` tables stay
-      column-aligned. Pinned to the chart's `height` so toggling 图表 ⇆ 数据表 never resizes the card.
-    -->
-    <div
-      v-else
-      class="flex flex-col overflow-hidden rounded-sm border border-border"
-      :style="{ height: `${height}px` }"
-    >
-      <div class="bg-surface-sunken" :style="{ paddingRight: `${gutter}px` }">
-        <table class="w-full table-fixed border-collapse text-left text-sm">
-          <caption class="sr-only">
-            {{
-              label
-            }}
-          </caption>
-          <colgroup>
-            <col />
-            <col class="w-24" />
-          </colgroup>
-          <thead class="bg-surface-sunken text-2xs text-ink-muted uppercase">
-            <tr>
-              <th scope="col" class="px-3 py-2 font-medium">项</th>
-              <th scope="col" class="px-3 py-2 font-medium">
-                数值<template v-if="unit"> ({{ unit }})</template>
-              </th>
-            </tr>
-          </thead>
-        </table>
-      </div>
-      <div
-        ref="tableBody"
-        class="min-h-0 flex-1 overflow-x-hidden overflow-y-auto border-t border-border"
-        tabindex="0"
-        role="region"
-        :aria-label="`${label} 数据表`"
+    <!-- Data-table view — the shared scroll-table shell (gray header covers the scrollbar, columns
+         aligned, pinned to the chart's height so toggling never resizes the card). -->
+    <UiScrollTable v-else :label="label" :height="height">
+      <template #colgroup>
+        <col />
+        <col class="w-24" />
+      </template>
+      <template #head>
+        <tr>
+          <th scope="col" class="px-3 py-2 font-medium">项</th>
+          <th scope="col" class="px-3 py-2 font-medium">
+            数值<template v-if="unit"> ({{ unit }})</template>
+          </th>
+        </tr>
+      </template>
+      <tr
+        v-for="datum in data"
+        :key="datum.label"
+        class="border-b border-border last:border-b-0"
       >
-        <table class="w-full table-fixed border-collapse text-left text-sm">
-          <colgroup>
-            <col />
-            <col class="w-24" />
-          </colgroup>
-          <tbody>
-            <tr
-              v-for="datum in data"
-              :key="datum.label"
-              class="border-b border-border last:border-b-0"
-            >
-              <th
-                scope="row"
-                class="px-3 py-1.5 text-xs font-normal whitespace-nowrap text-ink-muted"
-              >
-                {{ datum.label }}
-              </th>
-              <td class="px-3 py-1.5 font-mono text-xs tabular-nums text-ink">
-                {{ datum.value }}
-              </td>
-            </tr>
-          </tbody>
-        </table>
-      </div>
-    </div>
+        <th
+          scope="row"
+          class="px-3 py-1.5 text-xs font-normal whitespace-nowrap text-ink-muted"
+        >
+          {{ datum.label }}
+        </th>
+        <td class="px-3 py-1.5 font-mono text-xs tabular-nums text-ink">
+          {{ datum.value }}
+        </td>
+      </tr>
+    </UiScrollTable>
   </figure>
 </template>

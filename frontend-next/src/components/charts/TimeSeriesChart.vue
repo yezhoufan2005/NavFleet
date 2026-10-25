@@ -24,6 +24,7 @@
 import { computed, onBeforeUnmount, ref, useTemplateRef, watch } from "vue";
 import type { ECharts } from "echarts/core";
 import UiButton from "@/components/ui/UiButton.vue";
+import UiScrollTable from "@/components/ui/UiScrollTable.vue";
 import { useChartTheme } from "@/composables/useChartTheme";
 import {
   buildCursorPatch,
@@ -238,6 +239,10 @@ const rows = computed(() => {
 });
 
 const sampled = computed(() => stamps.value.length > TABLE_ROW_LIMIT);
+/** The table's caption/aria label, noting when rows were down-sampled. */
+const tableLabel = computed(() =>
+  sampled.value ? `${label}（等距抽样后的 ${rows.value.length} 行）` : label,
+);
 
 const formatStamp = (stamp: number): string =>
   new Date(stamp).toLocaleString(undefined, { hour12: false });
@@ -300,81 +305,52 @@ const formatStamp = (stamp: number): string =>
       header is a fixed row and the records fill the rest, so toggling 图表 ↔ 数据表 does not
       change the block's size. Otherwise the body is capped at 24rem, as every other chart.
     -->
-    <div
+    <!-- Data table — the shared scroll-table shell. `minWidth` gives many vehicle columns room and
+         scrolls the whole table horizontally (header + body together); `tableMatchHeight` pins it
+         to the chart height, else it caps at 24rem. -->
+    <UiScrollTable
       v-else
-      class="flex flex-col overflow-x-auto overflow-y-hidden rounded-sm border border-border"
-      :style="tableMatchHeight ? { height: `${height}px` } : undefined"
+      :label="tableLabel"
+      :height="tableMatchHeight ? height : undefined"
+      :max-height="tableMatchHeight ? undefined : '24rem'"
+      :min-width="tableMinWidth"
     >
-      <table
-        class="w-full shrink-0 table-fixed border-collapse text-left text-sm"
-        :style="tableMinWidth ? { minWidth: tableMinWidth } : undefined"
-      >
-        <caption class="sr-only">
-          {{
-            label
-          }}<template v-if="sampled"
-            >（等距抽样后的 {{ rows.length }} 行）</template
+      <template #colgroup>
+        <col class="w-[45%]" />
+        <col v-for="entry in series" :key="entry.name" />
+      </template>
+      <template #head>
+        <tr>
+          <th scope="col" class="px-3 py-2 font-medium">时间</th>
+          <th
+            v-for="entry in series"
+            :key="entry.name"
+            scope="col"
+            class="px-3 py-2 font-medium"
           >
-        </caption>
-        <colgroup>
-          <col class="w-[45%]" />
-          <col v-for="entry in series" :key="entry.name" />
-        </colgroup>
-        <thead class="bg-surface-sunken text-2xs text-ink-muted uppercase">
-          <tr>
-            <th scope="col" class="px-3 py-2 font-medium">时间</th>
-            <th
-              v-for="entry in series"
-              :key="entry.name"
-              scope="col"
-              class="px-3 py-2 font-medium"
-            >
-              {{ entry.name }}<template v-if="unit"> ({{ unit }})</template>
-            </th>
-          </tr>
-        </thead>
-      </table>
-      <!-- Only the body scrolls vertically; the whole block scrolls horizontally (outer) so the
-           header and body move together and stay aligned. -->
-      <div
-        class="overflow-x-hidden overflow-y-auto border-t border-border"
-        :class="tableMatchHeight ? 'min-h-0 flex-1' : undefined"
-        tabindex="0"
-        role="region"
-        :aria-label="`${label} 数据表`"
-        :style="tableMatchHeight ? undefined : { maxHeight: '24rem' }"
+            {{ entry.name }}<template v-if="unit"> ({{ unit }})</template>
+          </th>
+        </tr>
+      </template>
+      <tr
+        v-for="row in rows"
+        :key="row.stamp"
+        class="border-b border-border last:border-b-0"
       >
-        <table
-          class="w-full table-fixed border-collapse text-left text-sm"
-          :style="tableMinWidth ? { minWidth: tableMinWidth } : undefined"
+        <th
+          scope="row"
+          class="px-3 py-1.5 font-mono text-xs font-normal whitespace-nowrap text-ink-muted"
         >
-          <colgroup>
-            <col class="w-[45%]" />
-            <col v-for="entry in series" :key="entry.name" />
-          </colgroup>
-          <tbody>
-            <tr
-              v-for="row in rows"
-              :key="row.stamp"
-              class="border-b border-border last:border-b-0"
-            >
-              <th
-                scope="row"
-                class="px-3 py-1.5 font-mono text-xs font-normal whitespace-nowrap text-ink-muted"
-              >
-                {{ formatStamp(row.stamp) }}
-              </th>
-              <td
-                v-for="(value, index) in row.values"
-                :key="index"
-                class="px-3 py-1.5 font-mono text-xs text-ink"
-              >
-                {{ value === undefined ? "--" : value.toFixed(2) }}
-              </td>
-            </tr>
-          </tbody>
-        </table>
-      </div>
-    </div>
+          {{ formatStamp(row.stamp) }}
+        </th>
+        <td
+          v-for="(value, index) in row.values"
+          :key="index"
+          class="px-3 py-1.5 font-mono text-xs text-ink"
+        >
+          {{ value === undefined ? "--" : value.toFixed(2) }}
+        </td>
+      </tr>
+    </UiScrollTable>
   </figure>
 </template>

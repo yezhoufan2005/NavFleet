@@ -11,11 +11,12 @@
  *
  * 纯逻辑（KPI 汇总、时序序列、CSV）在 `lib/reportsView.ts`，便于单测；这里保持薄。
  */
-import { computed, onMounted, ref, useTemplateRef, watch } from "vue";
+import { computed, onMounted, ref, watch } from "vue";
 import { RouterLink, useRoute, useRouter } from "vue-router";
 import PageHeader from "@/components/PageHeader.vue";
 import AppSectionTabs from "@/components/shell/AppSectionTabs.vue";
 import UiButton from "@/components/ui/UiButton.vue";
+import UiScrollTable from "@/components/ui/UiScrollTable.vue";
 import UiInput from "@/components/ui/UiInput.vue";
 import UiSegmented from "@/components/ui/UiSegmented.vue";
 import UiMultiSelect from "@/components/ui/UiMultiSelect.vue";
@@ -25,7 +26,6 @@ import { SEVERITY_LABELS } from "@/lib/severity";
 import TimeSeriesChart from "@/components/charts/TimeSeriesChart.vue";
 import CategoryBarChart from "@/components/charts/CategoryBarChart.vue";
 import { useChartTheme } from "@/composables/useChartTheme";
-import { useScrollbarGutter } from "@/composables/useScrollbarGutter";
 import { useFleetStore } from "@/stores/fleet";
 import { fleetApi } from "@navfleet/fleet-core";
 import type {
@@ -58,9 +58,6 @@ const route = useRoute();
 const router = useRouter();
 const { palette } = useChartTheme();
 const fleet = useFleetStore();
-// Keeps the 按设备明细 split header aligned with its scrolling body (shared with the chart tables).
-const detailBody = useTemplateRef<HTMLElement>("detailBody");
-const detailGutter = useScrollbarGutter(detailBody);
 
 // 可用率与告警是两条独立的后端聚合，慢/错的那条不该连累另一条（可用率宽窗要几十秒，告警是秒级）。
 // 所以两者各有自己的加载/错误态，分别渲染；整页不再因一条失败而空白。
@@ -716,75 +713,46 @@ const exportAlertsCsv = (): void => {
             >
             按设备明细（{{ availabilityRows.length }} 行）
           </summary>
-          <!-- Same split shape as the chart tables: gray header outside the scroll box (covers the
-               scrollbar), padded by the body's scrollbar width so columns stay aligned. -->
-          <div class="border-t border-border">
-            <div
-              class="bg-surface-sunken"
-              :style="{ paddingRight: `${detailGutter}px` }"
+          <!-- Shared scroll-table shell: gray header covers the scrollbar, columns aligned. -->
+          <UiScrollTable label="按设备明细" max-height="20rem">
+            <template #colgroup>
+              <col class="w-[32%]" />
+              <col />
+              <col />
+              <col />
+              <col />
+            </template>
+            <template #head>
+              <tr class="text-left">
+                <th class="px-4 py-2 font-medium">设备</th>
+                <th class="px-4 py-2 text-right font-medium">在线率</th>
+                <th class="px-4 py-2 text-right font-medium">电量均值</th>
+                <th class="px-4 py-2 text-right font-medium">最低电量</th>
+                <th class="px-4 py-2 text-right font-medium">样本数</th>
+              </tr>
+            </template>
+            <tr
+              v-for="row in availabilityRows"
+              :key="row.deviceId"
+              class="border-b border-border/60 text-ink last:border-b-0"
             >
-              <table class="w-full table-fixed border-collapse text-sm">
-                <colgroup>
-                  <col class="w-[32%]" />
-                  <col />
-                  <col />
-                  <col />
-                  <col />
-                </colgroup>
-                <thead
-                  class="bg-surface-sunken text-2xs text-ink-muted uppercase"
-                >
-                  <tr class="text-left">
-                    <th class="px-4 py-2 font-medium">设备</th>
-                    <th class="px-4 py-2 text-right font-medium">在线率</th>
-                    <th class="px-4 py-2 text-right font-medium">电量均值</th>
-                    <th class="px-4 py-2 text-right font-medium">最低电量</th>
-                    <th class="px-4 py-2 text-right font-medium">样本数</th>
-                  </tr>
-                </thead>
-              </table>
-            </div>
-            <div
-              ref="detailBody"
-              class="max-h-80 overflow-x-hidden overflow-y-auto border-t border-border"
-              tabindex="0"
-              role="region"
-              :aria-label="`按设备明细 数据表`"
-            >
-              <table class="w-full table-fixed border-collapse text-sm">
-                <colgroup>
-                  <col class="w-[32%]" />
-                  <col />
-                  <col />
-                  <col />
-                  <col />
-                </colgroup>
-                <tbody>
-                  <tr
-                    v-for="row in availabilityRows"
-                    :key="row.deviceId"
-                    class="border-b border-border/60 text-ink last:border-b-0"
-                  >
-                    <td class="truncate px-4 py-2" :title="row.name">
-                      {{ row.name }}
-                    </td>
-                    <td class="px-4 py-2 text-right font-mono tabular-nums">
-                      {{ fmtPct(row.onlineRatio) }}
-                    </td>
-                    <td class="px-4 py-2 text-right font-mono tabular-nums">
-                      {{ fmtSoc(row.socMean) }}
-                    </td>
-                    <td class="px-4 py-2 text-right font-mono tabular-nums">
-                      {{ fmtSoc(row.socMin) }}
-                    </td>
-                    <td class="px-4 py-2 text-right font-mono tabular-nums">
-                      {{ row.totalSamples }}
-                    </td>
-                  </tr>
-                </tbody>
-              </table>
-            </div>
-          </div>
+              <td class="truncate px-4 py-2" :title="row.name">
+                {{ row.name }}
+              </td>
+              <td class="px-4 py-2 text-right font-mono tabular-nums">
+                {{ fmtPct(row.onlineRatio) }}
+              </td>
+              <td class="px-4 py-2 text-right font-mono tabular-nums">
+                {{ fmtSoc(row.socMean) }}
+              </td>
+              <td class="px-4 py-2 text-right font-mono tabular-nums">
+                {{ fmtSoc(row.socMin) }}
+              </td>
+              <td class="px-4 py-2 text-right font-mono tabular-nums">
+                {{ row.totalSamples }}
+              </td>
+            </tr>
+          </UiScrollTable>
         </details>
       </section>
 
