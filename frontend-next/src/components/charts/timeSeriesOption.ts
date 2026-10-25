@@ -185,6 +185,10 @@ export const buildTimeSeriesOption = ({
       // Thin marks. The line is 2px; points are drawn only on hover, because a
       // marker on every sample is noise at telemetry density.
       lineStyle: { width: 2 },
+      // Draw the line even where it sits on the grid edge. A value pinned at the axis max (100%
+      // 在线率 is dead flat at the top) was half-clipped by the plot boundary and read as a ~1px
+      // hairline — `clip:false` lets the full 2px stroke show.
+      clip: false,
       showSymbol: false,
       symbolSize: 8,
       // Largest-Triangle-Three-Buckets keeps the visual shape — including spikes,

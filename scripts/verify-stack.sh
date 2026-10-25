@@ -309,32 +309,59 @@ if [[ "$DO_MOCK" == "1" ]]; then
     ok "演示发布器已连上 broker（将在后台持续运行）"
   fi
 
-  # 演示告警的时间校正（只动演示数据，不碰产品代码）。
+  # 回填 60 天演示历史（遥测 + 消息），直接写库。
   #
-  # 为什么需要：告警的 firstSeenAt 在 upsert 时是 $setOnInsert 钉死的（这是对的——首次出现即发生
-  # 时刻）。但 compose 的 Mongo 卷跨多次起栈持久，同一 (设备,报码) 的 eventKey 早已存在，mock 今天
-  # 再报同一码只会更新 lastSeenAt，firstSeenAt 仍停在很久以前那次。报表按 firstSeenAt 分桶，于是
-  # 「明明在报、报表近窗口却空，要拉到 30 天才见」——正是验收反馈的现象。这里把演示库：
-  #   · 删掉已清除(inactive)的陈旧告警；
-  #   · 把活跃告警的 firstSeenAt **均匀铺到最近 ~20 小时**内。
-  # 均匀（而非随机）铺开，保证默认 12 小时窗口里一定有内容、各窗口又各不相同（不再「虚的、同一的」），
-  # 且每次起栈都相对“现在”重算（随重启刷新）。mock 后续再报也不会覆盖 firstSeenAt（$setOnInsert 对
-  # 已存在的 eventKey 跳过），校正后的时间稳定留存。只动演示数据，产品代码不变。
+  # 为什么直接入库而不走 debug/ingest：要补足 ~60 天、每台每小时一帧的历史，HTTP 回填要上万请求、
+  # 还会撞边缘限流；报表的两条聚合只读 telemetry_ts 的 {ts, meta.deviceId, measurements.online,
+  # vehicleInfo.soc} 与 alerts 的 {firstSeenAt, severity, deviceId, clearedAt, ackedBy}，所以按这个
+  # 口径最小化地批量插最快最稳。先清掉累积的遥测（也顺带治好 30 天那条上千万文档的慢）与旧消息，
+  # 再相对“现在”铺 60 天——每次起栈刷新。设备在线状态由 device_latest + 后台发布器维持，这里不动它。
+  # 播种的消息一律置为已清除：只进报表的历史聚合，不污染「消息」页的实时活跃列表（那是发布器的真码）。
   MONGO_U="$(deploy_var MONGO_INITDB_ROOT_USERNAME)"; MONGO_U="${MONGO_U:-root}"
   MONGO_P="$(deploy_var MONGO_INITDB_ROOT_PASSWORD)"
-  RESTAMPED="$(compose exec -T mongo mongosh --quiet -u "$MONGO_U" -p "$MONGO_P" \
-    --authenticationDatabase admin fleet_monitor --eval '
-      db.alerts.deleteMany({ active: { $ne: true } });
-      var ids = db.alerts.find({ active: true }, { _id: 1 }).toArray().map(function (a) { return a._id; });
-      var span = 20 * 3600 * 1000;
-      var now = Date.now();
-      ids.forEach(function (id, i) {
-        var fs = new Date(now - Math.floor((span * i) / (ids.length || 1)));
-        db.alerts.updateOne({ _id: id }, { $set: { firstSeenAt: fs } });
+  SEEDED="$(compose exec -T mongo mongosh --quiet -u "$MONGO_U" -p "$MONGO_P" \
+    --authenticationDatabase admin fleet_monitor <<'JS' 2>/dev/null
+var now = Date.now(), DAYS = 60, PER_DAY = 24, HOUR = 3600 * 1000;
+var devices = db.device_latest.distinct("deviceId");
+if (!devices.length) { print("0 0 0"); quit(); }
+db.telemetry_ts.deleteMany({});
+db.alerts.deleteMany({});
+var SEV = ["critical", "warning", "notice"];
+var tDocs = [], aDocs = [];
+devices.forEach(function (id, di) {
+  for (var d = 0; d < DAYS; d++) {
+    for (var h = 0; h < PER_DAY; h++) {
+      var ts = new Date(now - (d * PER_DAY + h) * HOUR);
+      var soc = 45 + 30 * Math.sin((h / PER_DAY) * 2 * Math.PI + di * 0.7);
+      var online = !((d % 9) === (di % 9) && h < 2);
+      tDocs.push({
+        ts: ts,
+        meta: { deviceId: id, fleetId: "demo", vehicleModel: "demo" },
+        measurements: { online: online, vehicleInfo: { soc: Math.round(Math.max(8, Math.min(100, soc))) } },
       });
-      print(ids.length);
-    ' 2>/dev/null | tr -dc '0-9')"
-  echo "演示告警时间校正：${RESTAMPED:-0} 条活跃告警 firstSeenAt 已均匀铺到最近 ~20 小时（随本次起栈刷新）"
+    }
+  }
+  var n = 1 + ((di * 3) % 4);
+  for (var k = 0; k < n; k++) {
+    var back = ((di * 5 + k * 17) % (DAYS * 24)) + 1;
+    var first = new Date(now - back * HOUR);
+    aDocs.push({
+      eventKey: id + ":demo-" + k, deviceId: id, alertId: "demo-" + k,
+      severity: SEV[(di + k) % SEV.length], title: "演示消息", detail: "演示历史数据", source: "demo",
+      code: 2000 + k, info: "", ts: first.toISOString(), active: false,
+      firstSeenAt: first, lastSeenAt: new Date(first.getTime() + HOUR),
+      clearedAt: new Date(first.getTime() + 2 * HOUR),
+      ackedBy: (k % 3 === 0) ? "admin" : null, ackedAt: (k % 3 === 0) ? first : null, comment: null,
+    });
+  }
+});
+for (var i = 0; i < tDocs.length; i += 5000) db.telemetry_ts.insertMany(tDocs.slice(i, i + 5000));
+if (aDocs.length) db.alerts.insertMany(aDocs);
+print(devices.length + " " + tDocs.length + " " + aDocs.length);
+JS
+)"
+  SEEDED="$(printf '%s' "$SEEDED" | tr -dc '0-9 ' | awk '{print $1" 台 / "$2" 帧遥测 / "$3" 条消息"}')"
+  echo "演示历史回填：${SEEDED:-（无设备，已跳过）}（60 天，随本次起栈刷新）"
 
   echo
   echo "断言（续）:"
