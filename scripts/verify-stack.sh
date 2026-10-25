@@ -324,6 +324,9 @@ if [[ "$DO_MOCK" == "1" ]]; then
 var now = Date.now(), DAYS = 60, PER_DAY = 24, HOUR = 3600 * 1000;
 var devices = db.device_latest.distinct("deviceId");
 if (!devices.length) { print("0 0 0"); quit(); }
+// telemetry_ts 默认 30 天 TTL（TELEMETRY_RETENTION_SECONDS）——60 天回填会被裁掉一半。演示库里
+// 把 TTL 放宽到 75 天，让 60 天历史留得住（仅本地演示卷，不改部署配置）。
+try { db.runCommand({ collMod: "telemetry_ts", expireAfterSeconds: 75 * 24 * 3600 }); } catch (e) {}
 db.telemetry_ts.deleteMany({});
 db.alerts.deleteMany({});
 // Real codebook-style messages (mirrors backend/scripts/seed-reports.ts CODE_POOL + its severity
@@ -377,7 +380,7 @@ if (aDocs.length) db.alerts.insertMany(aDocs);
 print(devices.length + " " + tDocs.length + " " + aDocs.length);
 JS
 )"
-  SEEDED="$(printf '%s' "$SEEDED" | tail -1 | awk '{print $1" 台 / "$2" 帧遥测 / "$3" 条消息"}')"
+  SEEDED="$(printf '%s' "$SEEDED" | grep -oE '[0-9]+ [0-9]+ [0-9]+' | tail -1 | awk '{print $1" 台 / "$2" 帧遥测 / "$3" 条消息"}')"
   echo "演示历史回填：${SEEDED:-（无设备，已跳过）}（60 天，随本次起栈刷新）"
 
   echo
