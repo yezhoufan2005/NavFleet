@@ -7,6 +7,9 @@ REST/WebSocket → Vue）。范围严格锁定**只读监控**：不做控制下
 > 与设备接入向导（Phase 18，车辆 / 编队配置）都经 admin API 校验后写 `config-runtime/*.json`
 > 并热重载。写配置文件不等于给车发指令，红线未破。
 
+> **代码风格的房规**（注释语言、Vue props/emits、异步防竞态、后端样板、包边界、报码方案等）单列在
+> [docs/conventions.md](docs/conventions.md)：本文讲流程，那篇讲代码本身，新代码向它看齐。
+
 ## 仓库结构（npm workspaces monorepo）
 
 ```
