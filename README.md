@@ -491,6 +491,9 @@ release-please 自动出 CHANGELOG 与 GHCR 镜像。贡献流程见 [CONTRIBUTI
 | [deploy/docs/backup-and-restore.md](deploy/docs/backup-and-restore.md) | 备份、恢复、演练                                           |
 | [CONTRIBUTING.md](CONTRIBUTING.md)                                     | 分支、提交规范、本地门禁                                   |
 | [docs/conventions.md](docs/conventions.md)                             | 开发规范（房规）：注释、前后端写法、包边界、报码方案、测试 |
+| [docs/design-system.md](docs/design-system.md)                         | 设计系统：Primer 明暗令牌、语义令牌分层、对比度约束        |
+| [docs/ux-decisions.md](docs/ux-decisions.md)                           | 界面组织的决定：分区/导航/大屏模式/无设置页的理由          |
+| [docs/accessibility.md](docs/accessibility.md)                         | axe `incomplete` 桶的人工审阅流程（按需，非 CI 门禁）      |
 | [ROADMAP.md](ROADMAP.md)                                               | 当前状态与往前走的路（计划项与长期搁置项）                 |
 
 ## 路线与已知边界
