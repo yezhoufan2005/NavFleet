@@ -31,6 +31,7 @@ import {
 } from "vue";
 import GpsMap from "@/components/map/GpsMap.vue";
 import { useFleetStore } from "@/stores/fleet";
+import { useNowTicker } from "@/composables/useNowTicker";
 import { formatDateTime } from "@navfleet/fleet-core";
 import {
   buildWallTiles,
@@ -40,13 +41,10 @@ import {
 } from "@/lib/wallView";
 import { SEVERITY_BADGE, SEVERITY_LABELS } from "@/lib/severity";
 
-/** One second, no "刚刚" band: a freshness number that does not move reads as frozen. */
-const AGE_TICK_MS = 1_000;
-
 const fleet = useFleetStore();
 
-const now = ref(Date.now());
-let ticker: ReturnType<typeof setInterval> | null = null;
+// 1 Hz "now" so the freshness number keeps moving (a still one reads as frozen); see useNowTicker.
+const now = useNowTicker();
 
 const freshness = computed(() =>
   wallFreshness(fleet.state.lastUpdateAt, now.value),
@@ -116,9 +114,6 @@ const scrollSeconds = computed(() =>
 );
 
 onMounted(() => {
-  ticker = setInterval(() => {
-    now.value = Date.now();
-  }, AGE_TICK_MS);
   if (typeof ResizeObserver !== "undefined") {
     observer = new ResizeObserver(() => measure());
     if (viewport.value) observer.observe(viewport.value);
@@ -128,7 +123,6 @@ onMounted(() => {
 });
 
 onBeforeUnmount(() => {
-  if (ticker !== null) clearInterval(ticker);
   observer?.disconnect();
 });
 
