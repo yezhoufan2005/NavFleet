@@ -14,11 +14,13 @@
  * Each carries a word as well as a colour, because a coloured number alone says
  * nothing to a colourblind operator and nothing at all to a screen reader.
  */
-import { computed, onBeforeUnmount, onMounted, ref } from "vue";
+import { computed } from "vue";
 import { RouterLink } from "vue-router";
 import PageHeader from "@/components/PageHeader.vue";
 import UiSkeleton from "@/components/ui/UiSkeleton.vue";
 import { useFleetStore } from "@/stores/fleet";
+import { useNowTicker } from "@/composables/useNowTicker";
+import { SEVERITY_LABELS } from "@/lib/severity";
 import {
   deviceToneLabels,
   formatDateTime,
@@ -26,34 +28,12 @@ import {
 } from "@navfleet/fleet-core";
 import type { DeviceSnapshot } from "@navfleet/shared";
 
-/**
- * How often the "x ago" line re-renders.
- *
- * It was 10s, "coarse on purpose: it is not a stopwatch" — and that reasoning was wrong
- * for what this line is *for*. Paired with a 刚刚 band below 15 seconds, a healthy fleet
- * reporting at 1 Hz produced a corner that read 数据 刚刚 and never changed a character.
- * Acceptance read it as frozen, which is the correct reading of a freshness indicator
- * that does not move: the question it answers is "is what I am looking at current", and
- * a still number answers no.
- *
- * One second, and no 刚刚 band. The cost is one text node per second.
- */
-const AGE_TICK_MS = 1_000;
-
 const fleet = useFleetStore();
 
-const now = ref(Date.now());
-let ticker: ReturnType<typeof setInterval> | null = null;
-
-onMounted(() => {
-  ticker = setInterval(() => {
-    now.value = Date.now();
-  }, AGE_TICK_MS);
-});
-
-onBeforeUnmount(() => {
-  if (ticker !== null) clearInterval(ticker);
-});
+// A 1 Hz "now" for the "x ago" freshness line. It was 10s with a 刚刚 band once; a healthy 1 Hz
+// fleet then showed a corner reading 数据 刚刚 that never changed a character, which acceptance read
+// as frozen — the right reading of a freshness number that does not move. Ticker lives in useNowTicker.
+const now = useNowTicker();
 
 /**
  * How long ago this browser last ingested anything, measured on the browser's own
@@ -299,15 +279,10 @@ const orderedFormations = computed(() =>
 
 /** Severity rows for the alert summary, in the order they should be acted on. */
 const alertRows = computed(() =>
-  (
-    [
-      { severity: "critical", label: "告警" },
-      { severity: "warning", label: "预警" },
-      { severity: "notice", label: "提示" },
-    ] as const
-  ).map((row) => ({
-    ...row,
-    count: fleet.groupedAlerts[row.severity].length,
+  (["critical", "warning", "notice"] as const).map((severity) => ({
+    severity,
+    label: SEVERITY_LABELS[severity],
+    count: fleet.groupedAlerts[severity].length,
   })),
 );
 </script>

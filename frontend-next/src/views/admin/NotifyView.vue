@@ -49,6 +49,7 @@ import { makeMessageFor } from "@/lib/errorMessages";
 import { severityLabel } from "@/lib/severity";
 import { notify as toast } from "@/composables/useNotifications";
 import { useAutoRefresh } from "@/composables/useAutoRefresh";
+import { useListPagination } from "@/composables/useListPagination";
 import { useFieldErrors } from "@/composables/useFieldErrors";
 
 const route = useRoute();
@@ -84,14 +85,10 @@ const status = ref<"loading" | "ready" | "error">("loading");
 /** The full editable config (raw `urlEnv` names, routing, groups) — writers only. */
 const rawConfig = ref<NotifyConfig | null>(null);
 
-const pageSize = ref(10);
-const page = ref(1);
-
-/** Changing page size restarts at page 1 so the slice offset stays in range. */
-const setPageSize = (next: string): void => {
-  pageSize.value = Number(next);
-  page.value = 1;
-};
+// URL-synced pagination over the send-log page, shared with 设备 / 消息 / 审计 (see useListPagination).
+const { page, pageSize, pageCount, pageItems, setPage, setPageSize } =
+  useListPagination(computed(() => records.value));
+const pageRows = pageItems;
 
 /**
  * Discard a stale response: a slow query must not overwrite the table after a newer filter change
@@ -118,7 +115,6 @@ const load = async (): Promise<void> => {
     if (id !== requestId) return;
     channels.value = config.channels;
     records.value = log.items;
-    page.value = 1;
     // Writers also pull the raw editable config; a failure here doesn't fail the read page.
     if (canWrite.value) {
       try {
@@ -143,6 +139,8 @@ const applyFilters = (): void => {
       ...(deviceId.value ? { deviceId: deviceId.value } : {}),
       ...(channelId.value ? { channelId: channelId.value } : {}),
       ...(statusFilter.value ? { status: statusFilter.value } : {}),
+      // A filter change resets to page 1 (page param dropped) but keeps the chosen density.
+      ...(route.query.pageSize ? { pageSize: route.query.pageSize } : {}),
     },
   });
   void load();
@@ -165,16 +163,6 @@ onBeforeUnmount(() => {
   requestId += 1;
   clearTimeout(filterTimer);
 });
-
-const pageCount = computed(() =>
-  Math.max(1, Math.ceil(records.value.length / pageSize.value)),
-);
-const pageRows = computed(() =>
-  records.value.slice(
-    (page.value - 1) * pageSize.value,
-    page.value * pageSize.value,
-  ),
-);
 
 const formatTime = (iso: string): string =>
   new Date(iso).toLocaleString("zh-CN", { hour12: false });
@@ -678,7 +666,7 @@ useAutoRefresh(() => void load(), {
         :page-count="pageCount"
         :page-size="pageSize"
         :total="records.length"
-        @update:page="(value) => (page = value)"
+        @update:page="setPage"
         @update:page-size="setPageSize"
       />
     </template>

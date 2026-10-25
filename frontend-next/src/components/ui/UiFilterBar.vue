@@ -13,7 +13,7 @@
  * line when the row runs out, and sit bottom-aligned so captions of different heights still line
  * their controls up.
  */
-withDefaults(defineProps<{ ariaLabel?: string }>(), { ariaLabel: "筛选" });
+const { ariaLabel = "筛选" } = defineProps<{ ariaLabel?: string }>();
 </script>
 
 <template>

@@ -32,13 +32,13 @@ import {
 } from "@navfleet/fleet-core";
 import type { DeviceSnapshot } from "@navfleet/shared";
 
-const props = defineProps<{
+const { device, formationNames } = defineProps<{
   device: DeviceSnapshot;
   /** Formation display names, resolved by the caller (the store holds them). */
   formationNames: string[];
 }>();
 
-defineEmits<{ (event: "focus-on-map", deviceId: string): void }>();
+defineEmits<{ "focus-on-map": [deviceId: string] }>();
 
 interface Field {
   label: string;
@@ -65,7 +65,6 @@ const orMissing = (value: string): string =>
  * 车端任务 / 平台任务. 场景 is not here — the row's own 场景 column already carries it.
  */
 const fields = computed<Field[]>(() => {
-  const device = props.device;
   const info = device.vehicleInfo;
   return [
     {
@@ -98,9 +97,7 @@ const fields = computed<Field[]>(() => {
     },
     {
       label: "编队",
-      value: props.formationNames.length
-        ? props.formationNames.join("、")
-        : "未编入编队",
+      value: formationNames.length ? formationNames.join("、") : "未编入编队",
     },
     {
       label: "车端任务",
@@ -137,7 +134,7 @@ const SEVERITY_CLASS: Record<string, string> = {
 };
 
 const sortedAlerts = computed(() =>
-  [...(props.device.alerts ?? [])].sort(
+  [...(device.alerts ?? [])].sort(
     (left, right) =>
       (SEVERITY_RANK[left.severity] ?? 9) -
       (SEVERITY_RANK[right.severity] ?? 9),

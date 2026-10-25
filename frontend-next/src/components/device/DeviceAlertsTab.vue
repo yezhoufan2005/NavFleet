@@ -29,17 +29,11 @@ import { computed, onBeforeUnmount, ref, watch } from "vue";
 import { RouterLink } from "vue-router";
 import { fleetApi, formatDateTime } from "@navfleet/fleet-core";
 import type { AlertRecord } from "@navfleet/fleet-core";
-import { SEVERITY_LABELS } from "@/lib/severity";
+import { SEVERITY_BADGE, SEVERITY_LABELS } from "@/lib/severity";
 
 const { deviceId } = defineProps<{ deviceId: string }>();
 
 type Severity = "critical" | "warning" | "notice";
-
-const SEVERITY_BADGE: Record<Severity, string> = {
-  critical: "bg-critical-wash text-critical-ink",
-  warning: "bg-warning-wash text-warning-ink",
-  notice: "bg-notice-wash text-notice-ink",
-};
 
 const status = ref<"loading" | "ready" | "error">("loading");
 const errorMessage = ref("");

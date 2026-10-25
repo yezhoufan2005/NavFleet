@@ -19,6 +19,7 @@ import UiFilterField from "@/components/ui/UiFilterField.vue";
 import UiEmptyState from "@/components/ui/UiEmptyState.vue";
 import { tableClasses } from "@/lib/uiClasses";
 import { useAutoRefresh } from "@/composables/useAutoRefresh";
+import { useListPagination } from "@/composables/useListPagination";
 
 const route = useRoute();
 const router = useRouter();
@@ -74,14 +75,10 @@ const to = ref(readParam("to"));
 const entries = ref<AuditRecord[]>([]);
 const status = ref<"loading" | "ready" | "error">("loading");
 
-const pageSize = ref(10);
-const page = ref(1);
-
-/** Changing page size restarts at the first page so the slice offset stays in range. */
-const setPageSize = (next: string): void => {
-  pageSize.value = Number(next);
-  page.value = 1;
-};
+// URL-synced pagination over the returned page, shared with 设备 / 消息 / 外发 (see useListPagination).
+const { page, pageSize, pageCount, pageItems, setPage, setPageSize } =
+  useListPagination(computed(() => entries.value));
+const pageRows = pageItems;
 
 /**
  * Discard a stale response: a slow query must not overwrite the table after a newer filter change
@@ -104,7 +101,6 @@ const load = async (): Promise<void> => {
     });
     if (id !== requestId) return;
     entries.value = result.entries;
-    page.value = 1;
     status.value = "ready";
   } catch {
     if (id !== requestId) return;
@@ -120,6 +116,8 @@ const applyFilters = (): void => {
       ...(action.value.length ? { action: action.value.join(",") } : {}),
       ...(from.value ? { from: from.value } : {}),
       ...(to.value ? { to: to.value } : {}),
+      // A filter change resets to page 1 (page param dropped) but keeps the chosen density.
+      ...(route.query.pageSize ? { pageSize: route.query.pageSize } : {}),
     },
   });
   void load();
@@ -145,16 +143,6 @@ onBeforeUnmount(() => {
   requestId += 1;
   clearTimeout(actorTimer);
 });
-
-const pageCount = computed(() =>
-  Math.max(1, Math.ceil(entries.value.length / pageSize.value)),
-);
-const pageRows = computed(() =>
-  entries.value.slice(
-    (page.value - 1) * pageSize.value,
-    page.value * pageSize.value,
-  ),
-);
 
 const formatTime = (iso: string): string =>
   new Date(iso).toLocaleString("zh-CN", { hour12: false });
@@ -258,7 +246,7 @@ const formatTime = (iso: string): string =>
         :page-count="pageCount"
         :page-size="pageSize"
         :total="entries.length"
-        @update:page="(value) => (page = value)"
+        @update:page="setPage"
         @update:page-size="setPageSize"
       />
     </template>

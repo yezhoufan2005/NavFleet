@@ -151,6 +151,9 @@ describe("AuditView", () => {
 
     const next = wrapper.findAll("button").find((b) => b.text() === "下一页");
     await next!.trigger("click");
+    // Pagination now rides in the URL (useListPagination), so the page change is an async
+    // router.replace rather than a synchronous local ref — let it propagate before asserting.
+    await flushPromises();
     expect(wrapper.text()).toContain("第 2 / 3 页");
   });
 
