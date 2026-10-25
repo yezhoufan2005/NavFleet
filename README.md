@@ -474,21 +474,19 @@ release-please 自动出 CHANGELOG 与 GHCR 镜像。贡献流程见 [CONTRIBUTI
 | `1.7.0`   | **功能深化 + 导航重构**：前端 RBAC、运行期配置写 UI（报码/报表/规则/外发/车辆/编队）；原「管理」拆为七个一级分区 + 二级标签 |
 
 发版说明以 GitHub Releases 为准（正文由 release-please 从 commit 生成）；完整变更见
-[CHANGELOG.md](CHANGELOG.md)。[docs/release-notes/](docs/release-notes/) 另留一份人工撰写的样例（`v1.1.0.md`）。
+[CHANGELOG.md](CHANGELOG.md)。
 
 ## 文档索引
 
-| 文档                                                                   | 内容                                                              |
-| ---------------------------------------------------------------------- | ----------------------------------------------------------------- |
-| [ARCHITECTURE.md](ARCHITECTURE.md)                                     | 分层、模块职责、数据流、前后端各文件的作用                        |
-| [deploy/docs/deployment.md](deploy/docs/deployment.md)                 | 部署步骤、TLS、反代、镜像发布                                     |
-| [deploy/docs/config-reference.md](deploy/docs/config-reference.md)     | 62 个环境变量 + 运行期 JSON 全字段                                |
-| [deploy/docs/backup-and-restore.md](deploy/docs/backup-and-restore.md) | 备份、恢复、演练                                                  |
-| [docs/frontend-design-system.md](docs/frontend-design-system.md)       | 设计系统：令牌体系、GitHub Primer 映射、生成器                    |
-| [CONTRIBUTING.md](CONTRIBUTING.md)                                     | 分支、提交规范、本地门禁                                          |
-| [ROADMAP.md](ROADMAP.md)                                               | 当前路线图（Phase 14–18 的计划与决策）                            |
-| [docs/roadmap-archive.md](docs/roadmap-archive.md)                     | 已完成阶段的记录：Phase 0–13                                      |
-| [docs/release-notes/](docs/release-notes/)                             | 人工撰写的发版说明样例（`v1.1.0.md`；正式说明见 GitHub Releases） |
+| 文档                                                                   | 内容                                                       |
+| ---------------------------------------------------------------------- | ---------------------------------------------------------- |
+| [ARCHITECTURE.md](ARCHITECTURE.md)                                     | 分层、模块职责、数据流、前后端各文件的作用                 |
+| [deploy/docs/deployment.md](deploy/docs/deployment.md)                 | 部署步骤、TLS、反代、镜像发布                              |
+| [deploy/docs/config-reference.md](deploy/docs/config-reference.md)     | 环境变量 + 运行期 JSON 全字段                              |
+| [deploy/docs/backup-and-restore.md](deploy/docs/backup-and-restore.md) | 备份、恢复、演练                                           |
+| [CONTRIBUTING.md](CONTRIBUTING.md)                                     | 分支、提交规范、本地门禁                                   |
+| [docs/conventions.md](docs/conventions.md)                             | 开发规范（房规）：注释、前后端写法、包边界、报码方案、测试 |
+| [ROADMAP.md](ROADMAP.md)                                               | 当前状态与往前走的路（计划项与长期搁置项）                 |
 
 ## 路线与已知边界
 
