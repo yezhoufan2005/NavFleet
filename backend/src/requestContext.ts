@@ -12,14 +12,15 @@ declare module "express-serve-static-core" {
   }
 }
 
-export const REQUEST_ID_HEADER = "x-request-id";
+const REQUEST_ID_HEADER = "x-request-id";
 
 /**
  * Accept a caller-supplied correlation id only if it is short and made of safe
  * characters. An arbitrary header value would otherwise flow into every log line
  * and into a response header — an easy vector for log forging (CR/LF), log
- * bloat, or header smuggling. Duplicate headers arrive as an array and are
- * rejected outright rather than silently joined.
+ * bloat, or header smuggling. A duplicate `X-Request-Id` is concatenated by Node
+ * into one comma-joined string (only `set-cookie` becomes an array); the comma
+ * fails the safe-character check below, so it falls back to a fresh id.
  */
 const SAFE_REQUEST_ID = /^[A-Za-z0-9._~:-]{1,128}$/;
 
