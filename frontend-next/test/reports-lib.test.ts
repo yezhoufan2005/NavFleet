@@ -151,9 +151,9 @@ describe("sparklinePoints", () => {
         points: [[0, 0] as [number, number], [10, 10] as [number, number]],
       },
     ];
-    // Two points spanning the full range land at the box corners: low value at the bottom
-    // (y=height), high value at the top (y=0).
-    expect(sparklinePoints(series, 100, 20)).toBe("0.0,20.0 100.0,0.0");
+    // Two points spanning the full range land on the inset edges (a 2px vertical pad keeps the
+    // stroke off the box boundary): low value near the bottom, high value near the top.
+    expect(sparklinePoints(series, 100, 20)).toBe("0.0,18.0 100.0,2.0");
   });
 
   it("returns an empty string for fewer than two points (nothing to draw)", () => {

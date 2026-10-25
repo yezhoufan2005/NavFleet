@@ -326,14 +326,30 @@ var devices = db.device_latest.distinct("deviceId");
 if (!devices.length) { print("0 0 0"); quit(); }
 db.telemetry_ts.deleteMany({});
 db.alerts.deleteMany({});
-var SEV = ["critical", "warning", "notice"];
+// Real codebook-style messages (mirrors backend/scripts/seed-reports.ts CODE_POOL + its severity
+// map): info_code→提示, warning_code→预警, error_code→告警. Gives a realistic severity split and
+// titles instead of a generic "演示消息".
+var POOL = [
+  { code: 1203, info: "正在充电", severity: "notice" },
+  { code: 1301, info: "任务完成·待命", severity: "notice" },
+  { code: 2203, info: "厂区限速区降速", severity: "warning" },
+  { code: 2101, info: "电量偏低", severity: "warning" },
+  { code: 2305, info: "定位质量下降", severity: "warning" },
+  { code: 3101, info: "急停触发", severity: "critical" },
+  { code: 3202, info: "避障超时未恢复", severity: "critical" },
+];
 var tDocs = [], aDocs = [];
 devices.forEach(function (id, di) {
+  var cycle = 8 + (di % 7); // 充放电周期 8–14h，按车错相位
+  var maint = (di * 31) % (12 * 24); // 每 ~12 天一次 ~3h 维护离线，错开
   for (var d = 0; d < DAYS; d++) {
     for (var h = 0; h < PER_DAY; h++) {
-      var ts = new Date(now - (d * PER_DAY + h) * HOUR);
-      var soc = 45 + 30 * Math.sin((h / PER_DAY) * 2 * Math.PI + di * 0.7);
-      var online = !((d % 9) === (di % 9) && h < 2);
+      var totalH = d * PER_DAY + h;
+      var ts = new Date(now - totalH * HOUR);
+      // 电量：锯齿放电（85→22，占 80% 周期）后快速回充——比正弦更像真实车
+      var pos = (totalH % cycle) / cycle;
+      var soc = pos < 0.8 ? 85 - (pos / 0.8) * 63 : 22 + ((pos - 0.8) / 0.2) * 63;
+      var online = (((totalH + maint) % (12 * 24)) >= 3);
       tDocs.push({
         ts: ts,
         meta: { deviceId: id, fleetId: "demo", vehicleModel: "demo" },
@@ -343,12 +359,13 @@ devices.forEach(function (id, di) {
   }
   var n = 1 + ((di * 3) % 4);
   for (var k = 0; k < n; k++) {
+    var pick = POOL[(di + k * 2) % POOL.length];
     var back = ((di * 5 + k * 17) % (DAYS * 24)) + 1;
     var first = new Date(now - back * HOUR);
     aDocs.push({
-      eventKey: id + ":demo-" + k, deviceId: id, alertId: "demo-" + k,
-      severity: SEV[(di + k) % SEV.length], title: "演示消息", detail: "演示历史数据", source: "demo",
-      code: 2000 + k, info: "", ts: first.toISOString(), active: false,
+      eventKey: id + ":demo-" + pick.code + "-" + k, deviceId: id, alertId: "demo-" + pick.code + "-" + k,
+      severity: pick.severity, title: pick.info, detail: pick.info, source: "demo",
+      code: pick.code, info: pick.info, ts: first.toISOString(), active: false,
       firstSeenAt: first, lastSeenAt: new Date(first.getTime() + HOUR),
       clearedAt: new Date(first.getTime() + 2 * HOUR),
       ackedBy: (k % 3 === 0) ? "admin" : null, ackedAt: (k % 3 === 0) ? first : null, comment: null,

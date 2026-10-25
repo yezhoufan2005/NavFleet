@@ -73,6 +73,12 @@ export interface TimeSeriesOptionInput {
    */
   xMin?: number;
   xMax?: number;
+  /**
+   * Let the value axis zoom to the data's own min/max instead of anchoring at 0. 在线率 lives at
+   * 95–100% almost always, so a 0-based axis flattens every dip into the top edge; scaling folds
+   * the axis to the curve's range so the variation is actually visible.
+   */
+  yScale?: boolean;
 }
 
 /** Points above this get LTTB-downsampled by ECharts before drawing. */
@@ -100,6 +106,7 @@ export const buildTimeSeriesOption = ({
   animate = true,
   xMin,
   xMax,
+  yScale = false,
 }: TimeSeriesOptionInput): EChartsOption => {
   const legendRight = legendPosition === "right" && series.length > 1;
   // End labels and a right-side legend both claim the right margin, so they are mutually
@@ -172,6 +179,8 @@ export const buildTimeSeriesOption = ({
     yAxis: {
       type: "value",
       name: unit,
+      // Fold the axis to the data range when asked (在线率 hugs 100%); otherwise anchor at 0.
+      scale: yScale,
       nameTextStyle: { color: palette.inkMuted, fontSize: 11, align: "left" },
       axisLine: { show: false },
       axisTick: { show: false },

@@ -155,7 +155,7 @@ onBeforeUnmount(disposeChart);
       class="flex flex-col overflow-hidden rounded-sm border border-border"
       :style="{ height: `${height}px` }"
     >
-      <div :style="{ paddingRight: `${gutter}px` }">
+      <div class="bg-surface-sunken" :style="{ paddingRight: `${gutter}px` }">
         <table class="w-full table-fixed border-collapse text-left text-sm">
           <caption class="sr-only">
             {{

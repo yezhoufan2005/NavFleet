@@ -42,6 +42,7 @@ const {
   cursorAt = null,
   xMin,
   xMax,
+  yScale = false,
 } = defineProps<{
   series: readonly TimeSeries[];
   /** One unit for the chart — see `timeSeriesOption.ts` for why not per series. */
@@ -68,6 +69,8 @@ const {
   /** Pin the time axis to this window (epoch ms) so it spans the selected range, not just the data. */
   xMin?: number;
   xMax?: number;
+  /** Fold the value axis to the data's own range instead of anchoring at 0 (for near-flat series). */
+  yScale?: boolean;
 }>();
 
 /**
@@ -118,6 +121,7 @@ const option = computed(() =>
     animate: animate.value,
     xMin,
     xMax,
+    yScale,
   }),
 );
 

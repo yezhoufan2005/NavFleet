@@ -298,10 +298,15 @@ export const sparklinePoints = (
   const maxY = Math.max(...ys);
   const spanX = maxX - minX || 1;
   const spanY = maxY - minY || 1;
+  // Keep a 2px vertical inset so the stroke never sits on the box edge (where half of it is
+  // clipped and the line reads as a hairline — the 平均在线率/电量 卡 symptom). A flat line then
+  // lands on the lower inset line, drawn at full width.
+  const pad = 2;
+  const usable = Math.max(1, height - pad * 2);
   return points
     .map(([x, y]) => {
       const px = ((x - minX) / spanX) * width;
-      const py = height - ((y - minY) / spanY) * height;
+      const py = height - pad - ((y - minY) / spanY) * usable;
       return `${px.toFixed(1)},${py.toFixed(1)}`;
     })
     .join(" ");

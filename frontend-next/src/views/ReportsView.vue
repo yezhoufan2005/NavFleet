@@ -675,6 +675,7 @@ const exportAlertsCsv = (): void => {
               :height="240"
               legend-position="right"
               table-match-height
+              y-scale
               :x-min="chartWindow?.from"
               :x-max="chartWindow?.to"
             />
@@ -691,6 +692,7 @@ const exportAlertsCsv = (): void => {
               :height="240"
               legend-position="right"
               table-match-height
+              y-scale
               :x-min="chartWindow?.from"
               :x-max="chartWindow?.to"
             />
@@ -717,7 +719,10 @@ const exportAlertsCsv = (): void => {
           <!-- Same split shape as the chart tables: gray header outside the scroll box (covers the
                scrollbar), padded by the body's scrollbar width so columns stay aligned. -->
           <div class="border-t border-border">
-            <div :style="{ paddingRight: `${detailGutter}px` }">
+            <div
+              class="bg-surface-sunken"
+              :style="{ paddingRight: `${detailGutter}px` }"
+            >
               <table class="w-full table-fixed border-collapse text-sm">
                 <colgroup>
                   <col class="w-[32%]" />
