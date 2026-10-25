@@ -18,7 +18,7 @@
 ## 界面一览
 
 登录后是一个多页工作台：实时监控、设备详情、消息中心、报表、大屏值班、各管理分区共享同一份状态与同一条
-WebSocket。以下截图取自一套播种了完整演示车队（**23 台车 / 5 编队 / 5 场景**）的运行实例，明暗两套
+WebSocket。以下截图取自一套播种了完整演示车队（**29 台车 / 6 编队 / 6 场景**）的运行实例，明暗两套
 主题均为 GitHub Primer 配色（浅 Light default / 深 dark_dimmed）。
 
 <table>
@@ -101,16 +101,20 @@ WebSocket 广播。前端是一个多页工作台，实时监控、历史回放�
 
 ```mermaid
 flowchart LR
-  Vehicle["车辆 / 模拟器"] -->|MQTT| Broker["Mosquitto"]
-  Broker --> Ingest["mqtt.ts<br/>zod 校验"]
+  Vehicle["车辆 / 模拟器"] -->|MQTT（可选 TLS）| Broker["Mosquitto<br/>认证 + ACL"]
+  Broker --> Ingest["mqtt.ts · zod 校验"]
   Ingest --> Normalize["normalize.ts<br/>归一化 + 告警派生"]
   Normalize --> Store["DashboardStore<br/>内存快照（有界队列，串行写入）"]
   Store --> Mongo[("MongoDB<br/>device_latest / telemetry_ts / alerts …")]
+  Store -->|alert.created| Notify["NotifyService<br/>外发（默认不发）"]
   Config["config-runtime/*.json"] -->|chokidar 热加载| Registry["ConfigRegistry"]
   Registry --> Store
-  Store --> Rest["REST /api/v1"]
-  Store --> Ws["WebSocket /ws"]
-  Rest --> Nginx["Nginx"]
+  Scheduler["ReportScheduler"] --> Reports
+  Mongo --> Reports["报表聚合<br/>可用率/电量 · 告警统计"]
+  Store -->|实时推送| Ws["WebSocket /ws"]
+  Store --> Api["REST /api/v1<br/>鉴权 + RBAC 门禁"]
+  Reports --> Api
+  Api --> Nginx["Nginx 边缘"]
   Ws --> Nginx
   Nginx --> Frontend["Vue 3 工作台"]
 ```
@@ -162,8 +166,9 @@ flowchart LR
 | 用户管理（`/api/users*`）、各管理分区（系统 / 部署 / 用户 等） |   —    |    —     |  ✅   |
 | 调试注入（`/api/debug/ingest`，且需 `DEBUG_INGEST_ENABLED`）   |   —    |    —     |  ✅   |
 
-自 Phase 16A 起 `operator` 有专属操作面（告警确认），与 `viewer` 不再等价；配置仍走文件热加载、不走
-API。**登出 / 改密 / 禁用 / 改角色会立即失效已签发的 token**（每请求校验 `tokenVersion` 与 `enabled`）。
+`operator` 有专属操作面（告警确认），与 `viewer` 不再等价；运行期配置（报码字典、报表、规则、外发、
+车辆、编队）经 admin API 校验后写 `config-runtime/*.json` 并热重载——写配置是运维域，不是向车辆下发控制。
+**登出 / 改密 / 禁用 / 改角色会立即失效已签发的 token**（每请求校验 `tokenVersion` 与 `enabled`）。
 账号级登录锁定、审计日志、会话管理均已落地。
 
 ## 快速开始
@@ -235,7 +240,7 @@ npm run screenshots   # 启后端 + 控制台 → 播种演示车队 → 逐页�
 
 ## 演示数据
 
-`config-runtime/` 里预置了 **23 台车、5 个编队、5 个场景**（栅格 SVG、CloudPoint 点云、Lanelet2 路网
+`config-runtime/` 里预置了 **29 台车、6 个编队、6 个场景**（栅格 SVG、CloudPoint 点云、Lanelet2 路网
 各有实例）。演示发布器沿 lanelet 车道中心线行驶，而不是绕一个与路网无关的矩形跑：
 
 ```bash
@@ -246,7 +251,7 @@ npm run mock:mqtt -- --count 4 --interval 1000
 遥测。压测用 `backend/scripts/load-ingest.ts`。
 
 > 说明：车辆配置**不会凭空创建车辆**——页面里出现的车来自 MQTT、调试注入或 MongoDB 恢复。上方
-> 「界面一览」的截图就是演示发布器把这 23 台车全部喂进来后的样子。
+> 「界面一览」的截图就是演示发布器把这 29 台车全部喂进来后的样子。
 
 ## 项目结构
 
@@ -498,12 +503,10 @@ release-please 自动出 CHANGELOG 与 GHCR 镜像。贡献流程见 [CONTRIBUTI
   仍是普通 `<script setup>`（未加 `lang="ts"`）——这**不再是待办**；部署的 `frontend-next/` 全部 SFC
   都带 `lang="ts"`。
 - **MQTT 摄入队列有界**：broker 灌得足够快时丢最旧的可丢帧（仅遥测），深度与丢弃数上 `/metrics`。
-- **`prom-client` 上游已 deprecated**，待替换。
-- **Lanelet2 解析不过滤 `delete="true"`**：示例网络里带该标记的 lanelet 目前仍会绘制。
+- **`prom-client` 上游已 deprecated**，待替换（上游采用度不足，暂缓）。
 - **axe 的 `incomplete` 桶未断言**：半透明与渐变表面会落入该桶而不产生违规，这类对比度问题仍需人工审阅。
 
-后续规划（`v1.5.0` 之后）见 [ROADMAP.md](ROADMAP.md) 的「剩余未完成任务总览」：Phase 17D（数据利用
-清零）、Phase 18（交付成熟度收尾），以及若干长期搁置项。
+往前走做什么、不做什么见 [ROADMAP.md](ROADMAP.md)。
 
 ## 许可
 
