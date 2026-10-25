@@ -159,7 +159,7 @@ const activeCount = computed(
     <p
       v-else-if="status === 'error'"
       class="m-0 text-sm text-critical-ink"
-      role="status"
+      role="alert"
     >
       {{ errorMessage }}
     </p>

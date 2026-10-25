@@ -453,7 +453,7 @@ const onScrub = (event: Event): void => {
         <div
           v-else-if="status === 'error'"
           class="grid flex-1 place-content-center gap-1 px-6 text-center"
-          role="status"
+          role="alert"
         >
           <strong class="text-md text-critical-ink">历史数据加载失败</strong>
           <span class="text-sm text-ink-muted">{{ errorMessage }}</span>

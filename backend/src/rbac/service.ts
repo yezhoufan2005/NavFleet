@@ -34,7 +34,8 @@ const unique = <T>(items: T[]): T[] => [...new Set(items)];
 /**
  * Custom roles + user groups (1.6.1 RBAC). Holds the whole state in memory — low-cardinality and
  * single-instance — so the per-request capability resolver never hits the DB. Every mutation
- * validates against the cache, persists the whole state, then refreshes the cache.
+ * validates against the cache, applies the change, then persists — rolling the cache back if the
+ * write fails, so the in-memory state never drifts ahead of disk.
  *
  * Users keep their built-in base `role`; these only **add** capabilities via group membership, so
  * the `UserRole` closed enum (validated front and back) is untouched.
@@ -67,6 +68,26 @@ export class RbacService {
     await this.persistence.saveRbacState({ roles: this.roles, groups: this.groups });
   }
 
+  /**
+   * Persist the whole state, restoring the pre-mutation snapshot if the write throws. The cache is
+   * mutated optimistically (the resolver reads it on the hot path), so without this a failed
+   * `saveRbacState` would leave memory ahead of disk until the next restart silently reverted it;
+   * callers propagate the rethrow as a 500. `roles`/`groups` are only ever replaced wholesale
+   * (never mutated in place), so holding the old array references is a sound snapshot.
+   */
+  private async persistWithRollback(snapshot: {
+    roles: RbacRole[];
+    groups: RbacGroup[];
+  }): Promise<void> {
+    try {
+      await this.persist();
+    } catch (error) {
+      this.roles = snapshot.roles;
+      this.groups = snapshot.groups;
+      throw error;
+    }
+  }
+
   // ── Custom roles ──────────────────────────────────────────────────────────────
   async createRole(input: RoleInput): Promise<RbacResult<RbacRole>> {
     if (this.roles.some((role) => role.name === input.name)) return fail("conflict");
@@ -78,8 +99,9 @@ export class RbacService {
       createdAt: now,
       updatedAt: now,
     };
+    const snapshot = { roles: this.roles, groups: this.groups };
     this.roles = [...this.roles, role];
-    await this.persist();
+    await this.persistWithRollback(snapshot);
     return ok(role);
   }
 
@@ -94,8 +116,9 @@ export class RbacService {
       capabilities: orderedCaps(input.capabilities),
       updatedAt: new Date().toISOString(),
     };
+    const snapshot = { roles: this.roles, groups: this.groups };
     this.roles = this.roles.map((role) => (role.id === id ? updated : role));
-    await this.persist();
+    await this.persistWithRollback(snapshot);
     return ok(updated);
   }
 
@@ -104,8 +127,9 @@ export class RbacService {
     // Refuse while a group still references it — the admin removes it from the group first, so a
     // delete can never silently strip capabilities from a group's members.
     if (this.groups.some((group) => group.roleIds.includes(id))) return fail("role_in_use");
+    const snapshot = { roles: this.roles, groups: this.groups };
     this.roles = this.roles.filter((role) => role.id !== id);
-    await this.persist();
+    await this.persistWithRollback(snapshot);
     return ok(null);
   }
 
@@ -124,8 +148,9 @@ export class RbacService {
       createdAt: now,
       updatedAt: now,
     };
+    const snapshot = { roles: this.roles, groups: this.groups };
     this.groups = [...this.groups, group];
-    await this.persist();
+    await this.persistWithRollback(snapshot);
     return ok(group);
   }
 
@@ -144,15 +169,17 @@ export class RbacService {
       memberUsernames: unique(input.memberUsernames),
       updatedAt: new Date().toISOString(),
     };
+    const snapshot = { roles: this.roles, groups: this.groups };
     this.groups = this.groups.map((group) => (group.id === id ? updated : group));
-    await this.persist();
+    await this.persistWithRollback(snapshot);
     return ok(updated);
   }
 
   async deleteGroup(id: string): Promise<RbacResult<null>> {
     if (!this.groups.some((group) => group.id === id)) return fail("not_found");
+    const snapshot = { roles: this.roles, groups: this.groups };
     this.groups = this.groups.filter((group) => group.id !== id);
-    await this.persist();
+    await this.persistWithRollback(snapshot);
     return ok(null);
   }
 }

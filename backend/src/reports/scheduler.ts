@@ -176,6 +176,7 @@ export class ReportScheduler {
         scheduleId: schedule.id,
         range: schedule.range,
         generatedAt: to,
+        timeZone: this.deps.timezone,
         availability,
         alertStats,
         nameOf: this.deps.nameOf,

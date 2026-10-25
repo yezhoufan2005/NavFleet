@@ -217,8 +217,13 @@ export class NotifyService {
     }
     const outcome = await this.performSend(channel, url, context, config);
     const eventKey = `${context.deviceId}:${context.alertId}`;
-    this.lastSentAt.set(this.key(eventKey, channel.id), this.now().getTime());
-    this.pruneLastSent();
+    if (outcome.ok) {
+      // Stamp the re-notify dedup window only on a *delivered* send. Stamping after a failure armed
+      // the window with nothing delivered, suppressing the next same-event alert — so a channel that
+      // was down would swallow the follow-up it should have retried.
+      this.lastSentAt.set(this.key(eventKey, channel.id), this.now().getTime());
+      this.pruneLastSent();
+    }
     await this.record(channel, context, eventKey, outcome);
     if (!outcome.ok) {
       logger.warn(
@@ -396,6 +401,12 @@ export class NotifyService {
     }
     const timer = setTimeout(
       () => {
+        // Drop this timer from the map before firing: once it has run it is no longer pending, and
+        // leaving it in place leaked one map entry per critical alert that fired-and-was-never-acked
+        // (only ack/clear via `onAlertResolved` or shutdown ever pruned, so an auto-cleared critical
+        // whose resolve path never reached `onAlertResolved` accumulated forever on a long-running
+        // instance).
+        this.forgetEscalationTimer(eventKey, timer);
         void this.fireEscalation(eventKey, escalation.channelId, context);
       },
       Math.max(1, escalation.afterSeconds) * 1000,
@@ -406,6 +417,20 @@ export class NotifyService {
     const timers = this.escalationTimers.get(eventKey) ?? [];
     timers.push(timer);
     this.escalationTimers.set(eventKey, timers);
+  }
+
+  /** Remove one fired/cancelled escalation timer, dropping the eventKey entry once none remain. */
+  private forgetEscalationTimer(eventKey: string, timer: NodeJS.Timeout): void {
+    const timers = this.escalationTimers.get(eventKey);
+    if (!timers) {
+      return;
+    }
+    const remaining = timers.filter((entry) => entry !== timer);
+    if (remaining.length > 0) {
+      this.escalationTimers.set(eventKey, remaining);
+    } else {
+      this.escalationTimers.delete(eventKey);
+    }
   }
 
   private async fireEscalation(

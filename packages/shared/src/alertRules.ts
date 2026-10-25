@@ -144,6 +144,10 @@ export const evaluateRuleAlerts = (
   const lowBattery = rules.lowBattery;
   if (lowBattery.enabled && deviceMatchesScope(device, lowBattery.scope)) {
     const soc = Number(device.vehicleInfo?.soc);
+    // `soc > 0` is deliberate: a device reports no soc as a missing field or a literal 0, and both
+    // mean "no usable reading" here, not "flat battery" — raising 低电量预警 for them would fire on
+    // every vehicle whose telemetry simply lacks soc. Only a finite, positive reading below the
+    // threshold alerts. (`Number(null)`/`Number(undefined)` collapse to 0/NaN, both excluded.)
     if (Number.isFinite(soc) && soc > 0 && soc < lowBattery.thresholdPct) {
       alerts.push({
         id: `${device.deviceId}-low-soc`,

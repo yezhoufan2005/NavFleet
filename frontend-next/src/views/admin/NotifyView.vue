@@ -17,7 +17,7 @@
  * Filters are server-side; pagination over the returned page is client-side, and filter state
  * lives in the URL — the same shape 审计 / 告警 use.
  */
-import { computed, onMounted, ref, watch } from "vue";
+import { computed, onBeforeUnmount, onMounted, ref, watch } from "vue";
 import { useRoute, useRouter } from "vue-router";
 import { fleetApi } from "@navfleet/fleet-core";
 import {
@@ -93,10 +93,18 @@ const setPageSize = (next: string): void => {
   page.value = 1;
 };
 
+/**
+ * Discard a stale response: a slow query must not overwrite the table after a newer filter change
+ * (or after this view unmounts). The increment-before / re-check-after-await / bump-on-unmount guard
+ * is the house pattern 审计 / 告警 history already use.
+ */
+let requestId = 0;
+
 const load = async (): Promise<void> => {
   // Only flash the skeleton before the first successful load; filter changes re-query live, so
   // blanking the page to 加载中… on every keystroke would be noise.
   if (status.value !== "ready") status.value = "loading";
+  const id = ++requestId;
   try {
     const [config, log] = await Promise.all([
       fleetApi.getNotifyConfig(),
@@ -107,19 +115,24 @@ const load = async (): Promise<void> => {
           "sent" | "failed" | undefined,
       }),
     ]);
+    if (id !== requestId) return;
     channels.value = config.channels;
     records.value = log.items;
     page.value = 1;
     // Writers also pull the raw editable config; a failure here doesn't fail the read page.
     if (canWrite.value) {
       try {
-        rawConfig.value = (await fleetApi.getNotifyConfigRaw()).config;
+        const raw = (await fleetApi.getNotifyConfigRaw()).config;
+        if (id !== requestId) return;
+        rawConfig.value = raw;
       } catch {
+        if (id !== requestId) return;
         rawConfig.value = null;
       }
     }
     status.value = "ready";
   } catch {
+    if (id !== requestId) return;
     status.value = "error";
   }
 };
@@ -145,6 +158,13 @@ watch([deviceId, channelId], () => {
 watch(statusFilter, () => applyFilters());
 
 onMounted(() => void load());
+
+// Drop a pending debounced apply (and ignore any in-flight load) once this view goes away, so the
+// timer cannot fire `router.replace` against whatever route replaced it.
+onBeforeUnmount(() => {
+  requestId += 1;
+  clearTimeout(filterTimer);
+});
 
 const pageCount = computed(() =>
   Math.max(1, Math.ceil(records.value.length / pageSize.value)),

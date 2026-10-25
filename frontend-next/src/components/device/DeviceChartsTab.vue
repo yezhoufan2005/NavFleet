@@ -124,7 +124,7 @@ const hasHistory = computed(
     <p
       v-else-if="status === 'error'"
       class="text-sm text-critical-ink"
-      role="status"
+      role="alert"
     >
       {{ errorMessage }}
     </p>

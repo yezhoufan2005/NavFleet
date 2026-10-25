@@ -6,7 +6,7 @@
  * returned page is client-side, matching 告警's shape. Filter state lives in the URL so a
  * shift can hand a view to the next one, the same reasoning `AlertsView` documents.
  */
-import { computed, onMounted, ref, watch } from "vue";
+import { computed, onBeforeUnmount, onMounted, ref, watch } from "vue";
 import { useRoute, useRouter } from "vue-router";
 import { fleetApi, type AuditRecord } from "@navfleet/fleet-core";
 import PageHeader from "@/components/PageHeader.vue";
@@ -83,10 +83,18 @@ const setPageSize = (next: string): void => {
   page.value = 1;
 };
 
+/**
+ * Discard a stale response: a slow query must not overwrite the table after a newer filter change
+ * (or after this view unmounts). The increment-before / re-check-after-await / bump-on-unmount guard
+ * is the house pattern the 设备 tabs and 告警 history already use.
+ */
+let requestId = 0;
+
 const load = async (): Promise<void> => {
   // Only flash the skeleton before the first successful load; filter changes and the focus
   // refresh re-query live, so blanking the table to 加载中… on every keystroke would be noise.
   if (status.value !== "ready") status.value = "loading";
+  const id = ++requestId;
   try {
     const result = await fleetApi.getAuditLog({
       actor: actor.value || undefined,
@@ -94,10 +102,12 @@ const load = async (): Promise<void> => {
       from: from.value || undefined,
       to: to.value || undefined,
     });
+    if (id !== requestId) return;
     entries.value = result.entries;
     page.value = 1;
     status.value = "ready";
   } catch {
+    if (id !== requestId) return;
     status.value = "error";
   }
 };
@@ -128,6 +138,13 @@ watch([action, from, to], () => applyFilters());
 onMounted(() => void load());
 // Re-fetch when the operator returns to the tab, rather than via a manual 刷新 button.
 useAutoRefresh(() => void load());
+
+// Drop a pending debounced apply (and ignore any in-flight load) once this view goes away, so the
+// timer cannot fire `router.replace` against whatever route replaced it.
+onBeforeUnmount(() => {
+  requestId += 1;
+  clearTimeout(actorTimer);
+});
 
 const pageCount = computed(() =>
   Math.max(1, Math.ceil(entries.value.length / pageSize.value)),

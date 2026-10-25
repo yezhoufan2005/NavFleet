@@ -51,11 +51,18 @@ const alertStats = (patch: Partial<AlertStatsReport> = {}): AlertStatsReport => 
 
 const nameOf = (id: string) => (id === "agv-1" ? "A01 巡检车" : id);
 
-const build = (over: { availability?: AvailabilityReport; alertStats?: AlertStatsReport } = {}) =>
+const build = (
+  over: {
+    availability?: AvailabilityReport;
+    alertStats?: AlertStatsReport;
+    timeZone?: string;
+  } = {},
+) =>
   buildReportEmail({
     scheduleId: "daily",
     range: "7d",
     generatedAt: "2026-09-08T00:00:00.000Z",
+    timeZone: over.timeZone ?? "UTC",
     availability: over.availability ?? availability(),
     alertStats: over.alertStats ?? alertStats(),
     nameOf,
@@ -80,12 +87,31 @@ describe("buildReportEmail", () => {
       scheduleId: "daily",
       range: "24h",
       generatedAt: "2026-09-08T00:00:00.000Z",
+      timeZone: "UTC",
       availability: availability(),
       alertStats: alertStats({ topDevices: [{ deviceId: "x", count: 1 }] }),
       nameOf: () => '<img src=x onerror="alert(1)">',
     });
     expect(content.html).toContain("&lt;img src=x");
     expect(content.html).not.toContain("<img src=x");
+  });
+
+  it("localizes the subject date and 截至 time to the report timezone", () => {
+    // 2026-09-08T23:00Z is 2026-09-09 07:00 in UTC+8: the subject, filename and 截至 line must
+    // read the local day/time, not the UTC one, or a CN operator gets a report dated yesterday
+    // stamped with a raw UTC instant.
+    const content = buildReportEmail({
+      scheduleId: "daily",
+      range: "7d",
+      generatedAt: "2026-09-08T23:00:00.000Z",
+      timeZone: "Asia/Shanghai",
+      availability: availability(),
+      alertStats: alertStats(),
+      nameOf,
+    });
+    expect(content.subject).toBe("NavFleet 车队报表 · 近 7 天 · 2026-09-09");
+    expect(content.attachments[0]!.filename).toBe("navfleet-可用率-7d-2026-09-09.csv");
+    expect(content.text).toContain("2026/09/09");
   });
 
   it("attaches a BOM-prefixed CSV whose null soc is a blank cell, not 0", () => {
