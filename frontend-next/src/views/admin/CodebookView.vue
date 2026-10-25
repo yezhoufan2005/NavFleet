@@ -26,6 +26,7 @@ import { notify } from "@/composables/useNotifications";
 import { useAuth } from "@/composables/useAuth";
 import { useCodebook } from "@/composables/useCodebook";
 import { useFieldErrors } from "@/composables/useFieldErrors";
+import { CODE_CHANNEL_LABELS } from "@/lib/severity";
 import {
   CODE_IMPACTS,
   CODE_SUBSYSTEMS,
@@ -48,12 +49,6 @@ onMounted(() => {
   // and an admin opening this page wants what the backend has now.
   void codebook.load(true);
 });
-
-const CHANNEL_LABELS: Record<CodeChannel, string> = {
-  error: "告警",
-  warning: "预警",
-  info: "提示",
-};
 
 /** Download the current table as a codebook.json — a valid starting point to edit + re-import. */
 const exportCodebook = (): void => {
@@ -127,7 +122,7 @@ const fieldClass = (invalid: boolean): string[] => [
 ];
 
 const CHANNEL_OPTIONS = (["error", "warning", "info"] as CodeChannel[]).map(
-  (value) => ({ value, label: CHANNEL_LABELS[value] }),
+  (value) => ({ value, label: CODE_CHANNEL_LABELS[value] }),
 );
 const IMPACT_OPTIONS = (Object.keys(CODE_IMPACTS) as CodeImpact[]).map(
   (value) => ({ value, label: CODE_IMPACTS[value].label }),
@@ -366,7 +361,7 @@ const rowDialogTitle = computed(() =>
                 {{ entry.label }}
               </td>
               <td class="truncate px-4 py-2 text-ink-muted">
-                {{ CHANNEL_LABELS[entry.channel] }}
+                {{ CODE_CHANNEL_LABELS[entry.channel] }}
               </td>
               <td class="truncate px-3 py-2 text-ink-muted">
                 {{ CODE_IMPACTS[entry.impact].label }}

@@ -31,7 +31,7 @@ import UiMultiSelect from "@/components/ui/UiMultiSelect.vue";
 import UiFilterBar from "@/components/ui/UiFilterBar.vue";
 import UiFilterField from "@/components/ui/UiFilterField.vue";
 import UiEmptyState from "@/components/ui/UiEmptyState.vue";
-import { SEVERITY_LABELS } from "@/lib/severity";
+import { SEVERITY_BADGE, SEVERITY_LABELS } from "@/lib/severity";
 import { compileSearch } from "@/lib/searchQuery";
 import UiListPagination from "@/components/ui/UiListPagination.vue";
 import AlertHistoryPanel from "@/components/alerts/AlertHistoryPanel.vue";
@@ -65,17 +65,9 @@ const SOURCE_LABELS: Record<string, string> = {
 };
 
 /** The severity filter is multi-select (worst-first); an empty set means 全部. */
-const SEVERITY_OPTIONS: readonly { value: Severity; label: string }[] = [
-  { value: "critical", label: "告警" },
-  { value: "warning", label: "预警" },
-  { value: "notice", label: "提示" },
-];
-
-const SEVERITY_BADGE: Record<Severity, string> = {
-  critical: "bg-critical-wash text-critical-ink",
-  warning: "bg-warning-wash text-warning-ink",
-  notice: "bg-notice-wash text-notice-ink",
-};
+const SEVERITY_OPTIONS: readonly { value: Severity; label: string }[] = (
+  ["critical", "warning", "notice"] as const
+).map((value) => ({ value, label: SEVERITY_LABELS[value] }));
 
 /** Worst first — the order they should be worked, not the order they arrived. */
 const SEVERITY_WEIGHT: Record<Severity, number> = {

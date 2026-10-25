@@ -32,14 +32,13 @@ import {
 import GpsMap from "@/components/map/GpsMap.vue";
 import { useFleetStore } from "@/stores/fleet";
 import { formatDateTime } from "@navfleet/fleet-core";
-import type { Severity } from "@navfleet/shared";
 import {
   buildWallTiles,
   flattenActiveAlerts,
   wallFreshness,
   type WallTone,
 } from "@/lib/wallView";
-import { SEVERITY_LABELS } from "@/lib/severity";
+import { SEVERITY_BADGE, SEVERITY_LABELS } from "@/lib/severity";
 
 /** One second, no "刚刚" band: a freshness number that does not move reads as frozen. */
 const AGE_TICK_MS = 1_000;
@@ -89,12 +88,6 @@ const tiles = computed(() =>
     fleet.formations.length,
   ),
 );
-
-const SEVERITY_BADGE: Record<Severity, string> = {
-  critical: "bg-critical-wash text-critical-ink",
-  warning: "bg-warning-wash text-warning-ink",
-  notice: "bg-notice-wash text-notice-ink",
-};
 
 const activeAlerts = computed(() => flattenActiveAlerts(fleet.groupedAlerts));
 

@@ -33,6 +33,7 @@ import {
   taskStatusMap,
 } from "@navfleet/fleet-core";
 import { useCodebook } from "@/composables/useCodebook";
+import { CODE_CHANNEL_LABELS } from "@/lib/severity";
 
 const { deviceId } = defineProps<{ deviceId: string }>();
 
@@ -49,12 +50,6 @@ onMounted(() => {
 const codes = computed(() =>
   device.value ? codebook.describeDevice(device.value) : [],
 );
-
-const CHANNEL_LABELS: Record<string, string> = {
-  error: "告警",
-  warning: "预警",
-  info: "提示",
-};
 
 interface Row {
   label: string;
@@ -228,7 +223,7 @@ const panels = computed(() => [
       >
         <header class="flex flex-wrap items-baseline gap-x-2 gap-y-0.5">
           <span class="font-mono text-2xs text-ink-subtle">{{
-            CHANNEL_LABELS[row.channel]
+            CODE_CHANNEL_LABELS[row.channel]
           }}</span>
           <span class="font-mono text-sm tabular-nums text-ink">{{
             row.described.code

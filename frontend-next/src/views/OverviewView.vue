@@ -19,6 +19,7 @@ import { RouterLink } from "vue-router";
 import PageHeader from "@/components/PageHeader.vue";
 import UiSkeleton from "@/components/ui/UiSkeleton.vue";
 import { useFleetStore } from "@/stores/fleet";
+import { SEVERITY_LABELS } from "@/lib/severity";
 import {
   deviceToneLabels,
   formatDateTime,
@@ -299,15 +300,10 @@ const orderedFormations = computed(() =>
 
 /** Severity rows for the alert summary, in the order they should be acted on. */
 const alertRows = computed(() =>
-  (
-    [
-      { severity: "critical", label: "告警" },
-      { severity: "warning", label: "预警" },
-      { severity: "notice", label: "提示" },
-    ] as const
-  ).map((row) => ({
-    ...row,
-    count: fleet.groupedAlerts[row.severity].length,
+  (["critical", "warning", "notice"] as const).map((severity) => ({
+    severity,
+    label: SEVERITY_LABELS[severity],
+    count: fleet.groupedAlerts[severity].length,
   })),
 );
 </script>

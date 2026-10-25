@@ -28,17 +28,11 @@ import {
   severityOf,
   type Severity,
 } from "@/lib/alertStats";
-import { SEVERITY_LABELS } from "@/lib/severity";
+import { SEVERITY_BADGE, SEVERITY_LABELS } from "@/lib/severity";
 import { compileSearch } from "@/lib/searchQuery";
 
 /** The endpoint's page size (`MAX_ALERTS_PER_QUERY`); a full page means older rows are cut. */
 const RESULT_CAP = 500;
-
-const SEVERITY_BADGE: Record<Severity, string> = {
-  critical: "bg-critical-wash text-critical-ink",
-  warning: "bg-warning-wash text-warning-ink",
-  notice: "bg-notice-wash text-notice-ink",
-};
 
 const route = useRoute();
 const fleet = useFleetStore();
