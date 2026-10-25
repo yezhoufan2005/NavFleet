@@ -12,7 +12,7 @@
  * call (transports are cheap, and a per-alert send is rare).
  */
 import nodemailer from "nodemailer";
-import type { AttemptOutcome } from "./retry";
+import { summarize, withRetry, type AttemptOutcome } from "./retry";
 
 export interface EmailAttachment {
   filename: string;
@@ -38,9 +38,6 @@ export interface EmailSendOptions {
   /** Injectable delay; tests pass a no-op to skip real waits. */
   sleep?: (ms: number) => Promise<void>;
 }
-
-const defaultSleep = (ms: number): Promise<void> =>
-  new Promise((resolve) => setTimeout(resolve, ms));
 
 /**
  * Real send: build a transport from the SMTP URL and sendMail, bounding the attempt with a manual
@@ -79,42 +76,39 @@ const nodemailerSend = async (
   }
 };
 
-const summarize = (value: unknown): string =>
-  value instanceof Error ? value.message : String(value);
-
 /**
  * Send `message` over SMTP, retrying a failure (all SMTP failures are treated as retryable —
  * they are almost always transient connection issues) up to `maxAttempts` with linear backoff.
- * Never throws: every failure mode is folded into the returned outcome.
+ * Never throws: every failure mode is folded into the returned outcome by {@link withRetry}.
  */
-export const sendEmail = async (
+export const sendEmail = (
   smtpUrl: string,
   message: EmailMessage,
   options: EmailSendOptions,
 ): Promise<AttemptOutcome> => {
   const sendImpl = options.sendImpl ?? nodemailerSend;
-  const sleep = options.sleep ?? defaultSleep;
-  const maxAttempts = Math.max(1, options.maxAttempts);
-
-  let attempts = 0;
-  let latencyMs = 0;
-  let error: string | null = null;
-
-  for (let attempt = 1; attempt <= maxAttempts; attempt += 1) {
-    attempts = attempt;
-    const startedAt = Date.now();
-    try {
-      await sendImpl(smtpUrl, message, options.timeoutMs);
-      latencyMs = Date.now() - startedAt;
-      return { ok: true, httpStatus: null, attempts, latencyMs, error: null };
-    } catch (thrown) {
-      latencyMs = Date.now() - startedAt;
-      error = summarize(thrown);
-    }
-    if (attempt < maxAttempts) {
-      await sleep(attempt * 200);
-    }
-  }
-
-  return { ok: false, httpStatus: null, attempts, latencyMs, error };
+  return withRetry(
+    async () => {
+      const startedAt = Date.now();
+      try {
+        await sendImpl(smtpUrl, message, options.timeoutMs);
+        return {
+          done: true,
+          ok: true,
+          httpStatus: null,
+          latencyMs: Date.now() - startedAt,
+          error: null,
+        };
+      } catch (thrown) {
+        // Every SMTP failure is retryable, so never `done` — the loop retries until maxAttempts.
+        return {
+          done: false,
+          httpStatus: null,
+          latencyMs: Date.now() - startedAt,
+          error: summarize(thrown),
+        };
+      }
+    },
+    { maxAttempts: options.maxAttempts, sleep: options.sleep },
+  );
 };
