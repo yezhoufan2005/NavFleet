@@ -68,7 +68,10 @@ flowchart LR
   Store --> MongoAlerts["Mongo alerts"]
   Config["config-runtime"] --> Registry["ConfigRegistry"]
   Registry --> Store
-  Store --> Rest["REST API"]
+  Store -->|alert.created| Notify["NotifyService 外发（默认不发）"]
+  MongoTs --> Reports["报表聚合 可用率/电量·告警统计"]
+  Store --> Rest["REST API（鉴权 + RBAC 门禁）"]
+  Reports --> Rest
   Store --> Ws["WebSocket /ws"]
   Registry --> Overlay["Lanelet2 OSM overlay"]
   Rest --> Nginx["Nginx"]
@@ -97,7 +100,7 @@ NavFleet/
 │  │  ├─ startupChecks.ts    # 生产环境的启动前置断言
 │  │  ├─ runtimeState.ts     # 跨模块共享的运行时计数与连接状态
 │  │  ├─ auth/               # 登录 / JWT / 口令哈希 / RBAC 中间件
-│  │  ├─ routes/             # ops / fleet / scenes / debug / docs 五个 router
+│  │  ├─ routes/             # 按域拆分的 router：fleet / alerts / scenes / reports / rbac / users / notify / rules / codebook / deviceConfig / audit / ops / docs / debug（+ helpers）
 │  │  ├─ mqtt.ts             # broker 连接、订阅、校验后摄入
 │  │  ├─ topics.ts           # 从一个 topic 模板推导订阅与 deviceId 提取
 │  │  ├─ normalize.ts        # 遥测归一化 + 告警派生
@@ -140,8 +143,8 @@ NavFleet/
 │  │  │                      # SystemStatus / Scenes / Users / Codebook / Notify / Audit /
 │  │  │                      # DevicesOnboarding）
 │  │  ├─ components/         # shell/ ui/ map/ device/ charts/ 五组 + 根上若干通用件
-│  │  ├─ composables/        # 17 个：useAuth / useTheme / useSvgViewport /
-│  │  │                      # useSceneOverlay / useHistoryPlayback / useAlertSound …
+│  │  ├─ composables/        # useAuth / useTheme / useSvgViewport / useListPagination /
+│  │  │                      # useNowTicker / useSceneOverlay / useHistoryPlayback / useAlertSound …
 │  │  ├─ stores/fleet.ts     # 唯一的 Pinia store（单例，跨路由共享）
 │  │  ├─ lib/                # realtimeLink（WS 韧性层）/ amap / pointCloudBackdrop /
 │  │  │                      # localState / globalErrorHandlers / uiClasses / reportsView …
@@ -373,8 +376,8 @@ README「页面地图」）。另有开发专用的 `/__charts-perf`（仅 dev /
 `guards.ts` 是鉴权守卫，在 import 时注册 —— 所以它读的会话状态必须能在 Pinia 实例之外使用，
 这正是 `useAuth` 用模块级 `reactive` 单例而不是 store 的原因。
 
-`/reports` 与 `/wall` 已是**实装页**：报表页（KPI + 时序 + CSV 导出，Phase 17B）与大屏值班页
-（KPI + 地图 + 滚动告警，Phase 17C），均随 v1.4.0 发出，不再是占位页。
+`/reports` 与 `/wall` 都是**实装页**：报表页（KPI + 时序 + CSV 导出）与大屏值班页
+（KPI + 地图 + 滚动告警），不是占位页。
 
 ### `src/components/`
 
@@ -390,12 +393,12 @@ README「页面地图」）。另有开发专用的 `/__charts-perf`（仅 dev /
 不只是 ROS 栅格。缩放 / 拖拽 / 视角持久化抽在 `useSvgViewport` 与
 `useSceneViewportPersistence`。
 
-### `src/composables/`（17 个）
+### `src/composables/`
 
 值得单独知道的几个：`useAuth`（模块级单例，见上）、`useTheme`（明暗双主题）、
 `useSvgViewport`（场景图的视口数学）、`useSceneOverlay`（场景资源加载与降级）、
 `useHistoryPlayback`（时间轴回放）、`useAlertSound`（告警声，含浏览器自动播放策略的处理）、
-`useAlertAck`（告警确认，**服务端落库**——Phase 16A 起薄封装 `POST /api/alerts/(un)ack`，
+`useAlertAck`（告警确认，**服务端落库**——薄封装 `POST /api/alerts/(un)ack`，
 localStorage 仅作一次性迁移）。
 
 ### 冻结的 v1.0.0（`frontend/`）差在哪
@@ -652,6 +655,28 @@ MongoDB time series collection，用于保存遥测历史。默认保留时间�
 ### `GET /scene-maps/**`
 
 后端静态提供 `config-runtime/scene-maps/` 下的资源。
+
+### 其余业务接口（按域概览）
+
+上面逐条写的是实时/场景几条读接口；完整的业务 API 还包括下面这些域（都在门之下，按能力门禁）。
+**权威、逐字段的定义以 `GET /openapi.json` 为准**，这里只给一张域→职责的地图：
+
+| 域            | 端点（前缀略）                                                                | 能力门禁                         |
+| ------------- | ----------------------------------------------------------------------------- | -------------------------------- |
+| 告警          | `GET /alerts`、`POST /alerts/ack`·`/alerts/unack`                             | 读需登录 / 确认需 `alerts:ack`   |
+| 报表          | `GET /reports/availability`·`/reports/alert-stats`、CSV 导出                  | `reports:read`                   |
+| 报表配置      | `GET·PUT /reports/config`（定时报表计划）                                     | `reports:write`                  |
+| 外发          | `GET /notify/config`·`/notify/config/raw`·`/notify/log`、`PUT /notify/config` | `notify:read` / `notify:write`   |
+| 告警规则      | `GET·PUT /rules/config`                                                       | `rules:read` / `rules:write`     |
+| 报码字典      | `GET /codebook`、`PUT /codebook`                                              | 读需登录 / 写需 `codebook:write` |
+| 车辆/编队配置 | `GET·PUT /vehicles`、`GET·PUT /formation-config`（接入向导写盘）              | `devices:write`                  |
+| 场景写        | `PUT /scenes`、`POST` 场景资源上传                                            | `scenes:write`                   |
+| RBAC          | `GET·POST·PUT·DELETE /rbac/roles`·`/rbac/groups`                              | `rbac:write`                     |
+| 用户          | `GET·POST·PUT·DELETE /users`、会话管理                                        | `users:write`                    |
+| 审计          | `GET /audit`                                                                  | `audit:read`                     |
+
+配置写（报码 / 报表 / 规则 / 外发 / 车辆 / 编队 / 场景）都经 zod 校验后由 `ConfigRegistry.writeWholeConfig`
+原子写入 `config-runtime/*.json` 并热重载——是运维域配置，不是向车辆下发控制，只读红线未破。
 
 ## 11. WebSocket
 
