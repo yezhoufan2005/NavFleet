@@ -330,16 +330,17 @@ try { db.runCommand({ collMod: "telemetry_ts", expireAfterSeconds: 75 * 24 * 360
 db.telemetry_ts.deleteMany({});
 db.alerts.deleteMany({});
 // Real codebook-style messages (mirrors backend/scripts/seed-reports.ts CODE_POOL + its severity
-// map): info_code→提示, warning_code→预警, error_code→告警. Gives a realistic severity split and
-// titles instead of a generic "演示消息".
+// map): info_code→提示, warning_code→预警, error_code→告警. Every code resolves to a label —
+// built-in table (1301/2101/2203/5701) or the demo deployment codebook (1302/2501/5202) — and
+// follows the scheme (info 1xxx / warning 2xxx / error 5xxx), so 消息 shows real titles.
 var POOL = [
-  { code: 1203, info: "正在充电", severity: "notice" },
-  { code: 1301, info: "任务完成·待命", severity: "notice" },
+  { code: 1301, info: "正在充电，等待补能完成", severity: "notice" },
+  { code: 1302, info: "任务完成·待命", severity: "notice" },
   { code: 2203, info: "厂区限速区降速", severity: "warning" },
-  { code: 2101, info: "电量偏低", severity: "warning" },
-  { code: 2305, info: "定位质量下降", severity: "warning" },
-  { code: 3101, info: "急停触发", severity: "critical" },
-  { code: 3202, info: "避障超时未恢复", severity: "critical" },
+  { code: 2501, info: "电量偏低，建议尽快回充", severity: "warning" },
+  { code: 2101, info: "定位置信度偏低", severity: "warning" },
+  { code: 5701, info: "急停已触发，等待人工复位", severity: "critical" },
+  { code: 5202, info: "避障超时未恢复", severity: "critical" },
 ];
 var tDocs = [], aDocs = [];
 devices.forEach(function (id, di) {
