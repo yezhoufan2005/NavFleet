@@ -27,7 +27,7 @@
   "dependencies": {
     "@navfleet/shared": "*",
     "bcryptjs": "^3.0.3",
-    "chokidar": "^4.0.3",
+    "chokidar": "^6.0.0",
     "cookie-parser": "^1.4.7",
     "cors": "^2.8.6",
     "express": "^5.3.0",
