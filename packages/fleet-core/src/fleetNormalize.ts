@@ -725,7 +725,12 @@ export const mergeDevice = (
     errorCode: { ...existingDevice.errorCode, ...incomingDevice.errorCode },
     speedLimit: { ...existingDevice.speedLimit, ...incomingDevice.speedLimit },
     extra: { ...existingDevice.extra, ...incomingDevice.extra },
-    alerts: incomingDevice.alerts,
+    // Keep the existing alerts when the incoming partial omits them, mirroring `formationIds`
+    // below — a partial update must not silently wipe the active alert set. An incoming empty
+    // array still replaces (an explicit "no alerts now").
+    alerts: Array.isArray(incomingDevice.alerts)
+      ? incomingDevice.alerts
+      : [...(existingDevice.alerts || [])],
     formationIds: Array.isArray(incomingDevice.formationIds)
       ? [...incomingDevice.formationIds]
       : [...(existingDevice.formationIds || [])],
