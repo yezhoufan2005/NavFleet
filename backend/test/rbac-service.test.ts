@@ -105,4 +105,38 @@ describe("RbacService — groups + capability resolution", () => {
       await service.createGroup({ name: "Bad", roleIds: ["ghost"], memberUsernames: [] }),
     ).toEqual({ ok: false, error: "not_found" });
   });
+
+  it("removeMemberFromAllGroups drops a user from every group and revokes its added caps", async () => {
+    const { service, read } = await build();
+    const role = await service.createRole({ name: "Ackers", capabilities: ["alerts:ack"] });
+    if (!role.ok) throw new Error("setup");
+    await service.createGroup({
+      name: "A",
+      roleIds: [role.value.id],
+      memberUsernames: ["bob", "amy"],
+    });
+    await service.createGroup({ name: "B", roleIds: [role.value.id], memberUsernames: ["bob"] });
+    // Precondition: the groups lift bob to alerts:ack.
+    expect(service.resolveCapabilities({ username: "bob", role: "viewer" })).toEqual([
+      "alerts:ack",
+    ]);
+
+    expect(await service.removeMemberFromAllGroups("bob")).toEqual({ ok: true, value: null });
+
+    // bob is gone from both groups (so recreating the name inherits nothing); amy is untouched.
+    expect(service.resolveCapabilities({ username: "bob", role: "viewer" })).toEqual([]);
+    expect(service.resolveCapabilities({ username: "amy", role: "viewer" })).toEqual([
+      "alerts:ack",
+    ]);
+    expect(read().groups.flatMap((group) => group.memberUsernames)).toEqual(["amy"]);
+  });
+
+  it("removeMemberFromAllGroups is a no-op (no write) when the name is in no group", async () => {
+    const { service, read } = await build();
+    await service.createGroup({ name: "A", roleIds: [], memberUsernames: ["amy"] });
+    const before = read().groups;
+    expect(await service.removeMemberFromAllGroups("ghost")).toEqual({ ok: true, value: null });
+    // Same array reference proves saveRbacState was never called for a name that changed nothing.
+    expect(read().groups).toBe(before);
+  });
 });
