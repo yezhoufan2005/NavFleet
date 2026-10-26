@@ -55,7 +55,7 @@ REST/WebSocket → Vue 控制台。本文件回答两个问题：**现在是什�
   - `@navfleet/shared` 加 vitest 覆盖率门禁 + 把码表自洽性测试迁入；随后删 `fleet-core` 的死包装（`reportCodes` / `deviceTone`）。
   - `rbac/service` 的 update/delete-group 冲突分支、`notify/email` 发送路径补测。
   - 并发跑 coverage 的 5s 超时 flaky 稳定化（见 memory）。
-- **演示数据**
+- **演示数据**（目标：覆盖率高、真实性强，但不突兀——在线率/SOC 自然波动，不收敛、不规律尾升，能反映现实运营情况）
   - 按车型 `category` / `maxLoadKg` 的负载与电量画像（需把车辆配置并入种子）。
   - `seed-reports.ts` 电量曲线与 `verify-stack.sh` 的直灌种子对齐。
 - **文档 / 杂项**
