@@ -34,10 +34,33 @@ REST/WebSocket → Vue 控制台。本文件回答两个问题：**现在是什�
 
 - **数据模型检查与完善**：在前端细修收尾后统一做；设备实时页的 `formationIds` / `tags`、runtime-vs-default
   场景展示暂缓，待这轮数据模型一并定。
-- **已识别的待办改进**（不急，择机排期）：路由样板再提取（`asyncHandler` 等去掉冗余 `try/catch+next`）、
-  前端加载/错误/空三态与竞态守卫再收一层（`useResourceList` / `useLatestRequest`）、两套归一化
-  （`backend` 与 `fleet-core`）的纯逻辑进一步下沉 `@navfleet/shared`、`@navfleet/shared` 自身补测试门禁、
-  演示数据按车型负载画像。
+
+### 已识别的待办（不急，择机排期）
+
+全项目收敛过程中识别、尚未动手的改进，按类归档，后续按批推进：
+
+- **重构 / 去冗余**
+  - 路由 `asyncHandler` 大扫除：Express 5 自动转发 async 异常，去掉各路由里冗余的 `try/catch + next(e)`。
+  - 路由样板再提取：`auditFromRequest`、「裸数组/`{key:[]}`」解包、`validate→400`、CSV 列表 helper。
+  - 前端 `useLatestRequest` + `useResourceList` / `UiAsyncState`：加载/错误/空三态与竞态守卫再收一层（跨约 14 个视图）。
+  - 两套归一化（`backend/normalize.ts` 与 `fleet-core/fleetNormalize.ts`）的纯 helper 下沉 `@navfleet/shared`。
+- **后端小隐患**
+  - `persistence` 批量插入部分失败时整批重排队 → 重复遥测，`totalSamples` 虚高。
+  - 场景资源上传 400/500 靠正则匹配报错文案 → 改按错误类型/码判。
+  - `index.ts` 的 `bufferFlush` 定时器在 `shutdown()` 未清。
+  - `fleetNormalize.mergeDevice` 的 `alerts` 字段无兜底（部分更新会清空告警）。
+  - 删用户时不清其用户组成员资格（删后重建同名用户会重获旧组能力）。
+  - `configRegistry.deriveBounds` 按轴对齐算场景边界、忽略 `origin.yaw`。
+- **测试 / 健壮性**
+  - `@navfleet/shared` 加 vitest 覆盖率门禁 + 把码表自洽性测试迁入；随后删 `fleet-core` 的死包装（`reportCodes` / `deviceTone`）。
+  - `rbac/service` 的 update/delete-group 冲突分支、`notify/email` 发送路径补测。
+  - 并发跑 coverage 的 5s 超时 flaky 稳定化（见 memory）。
+- **演示数据**（目标：覆盖率高、真实性强，但不突兀——在线率/SOC 自然波动，不收敛、不规律尾升，能反映现实运营情况）
+  - 按车型 `category` / `maxLoadKg` 的负载与电量画像（需把车辆配置并入种子）。
+  - `seed-reports.ts` 电量曲线与 `verify-stack.sh` 的直灌种子对齐。
+- **文档 / 杂项**
+  - `/openapi.json`（`openapi.ts`）补 rbac / rules / reports-config / vehicles / scene-write 路由定义（ARCHITECTURE 已给按域概览，机器 spec 仍缺）。
+  - `CHANGELOG.md` 1.7.0 段落的重复条目清理（release-please squash 产物，纯噪声）。
 
 ## 长期搁置（已识别，现在不做，不自行开工）
 
