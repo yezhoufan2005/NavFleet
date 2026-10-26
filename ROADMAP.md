@@ -47,9 +47,6 @@ REST/WebSocket → Vue 控制台。本文件回答两个问题：**现在是什�
 - **后端小隐患**
   - `persistence` 批量插入部分失败时整批重排队 → 重复遥测，`totalSamples` 虚高。
   - 场景资源上传 400/500 靠正则匹配报错文案 → 改按错误类型/码判。
-  - `index.ts` 的 `bufferFlush` 定时器在 `shutdown()` 未清。
-  - `fleetNormalize.mergeDevice` 的 `alerts` 字段无兜底（部分更新会清空告警）。
-  - 删用户时不清其用户组成员资格（删后重建同名用户会重获旧组能力）。
   - `configRegistry.deriveBounds` 按轴对齐算场景边界、忽略 `origin.yaw`。
 - **测试 / 健壮性**
   - `@navfleet/shared` 加 vitest 覆盖率门禁 + 把码表自洽性测试迁入；随后删 `fleet-core` 的死包装（`reportCodes` / `deviceTone`）。
