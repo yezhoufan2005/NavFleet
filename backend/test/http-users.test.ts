@@ -149,6 +149,21 @@ describe("users API — CRUD wiring (admin)", () => {
     expect(response.status).toBe(204);
     expect(context.authService.deleteUser).toHaveBeenCalledWith("root", "bob");
   });
+
+  it("deleting a user drops it from every RBAC group it belonged to", async () => {
+    const context = createTestApp();
+    await context.rbacService.createGroup({
+      name: "Shift",
+      roleIds: [],
+      memberUsernames: ["bob", "amy"],
+    });
+    const response = await request(context.app)
+      .delete("/api/users/bob")
+      .set("Cookie", sessionCookie("admin", "root"));
+    expect(response.status).toBe(204);
+    // bob is gone from the group (so a recreated "bob" inherits nothing); amy stays.
+    expect(context.rbacService.getGroups()[0]?.memberUsernames).toEqual(["amy"]);
+  });
 });
 
 describe("users API — lockout guards surface as 409", () => {

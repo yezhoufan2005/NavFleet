@@ -182,4 +182,29 @@ export class RbacService {
     await this.persistWithRollback(snapshot);
     return ok(null);
   }
+
+  /**
+   * Drop a username from every group it belongs to. Called when a user is deleted so a group
+   * membership cannot outlive the user — otherwise recreating a user with the same name would
+   * silently inherit the old groups' capabilities. No-op (and no write) when the name is in no
+   * group, so deleting a user who was never grouped stays free.
+   */
+  async removeMemberFromAllGroups(username: string): Promise<RbacResult<null>> {
+    if (!this.groups.some((group) => group.memberUsernames.includes(username))) {
+      return ok(null);
+    }
+    const now = new Date().toISOString();
+    const snapshot = { roles: this.roles, groups: this.groups };
+    this.groups = this.groups.map((group) =>
+      group.memberUsernames.includes(username)
+        ? {
+            ...group,
+            memberUsernames: group.memberUsernames.filter((name) => name !== username),
+            updatedAt: now,
+          }
+        : group,
+    );
+    await this.persistWithRollback(snapshot);
+    return ok(null);
+  }
 }

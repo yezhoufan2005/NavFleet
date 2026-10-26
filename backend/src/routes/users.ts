@@ -2,6 +2,7 @@ import express from "express";
 import { requireCapability } from "../auth/middleware";
 import type { AuthService, AdminActionError } from "../auth/service";
 import type { AuditService } from "../audit/service";
+import type { RbacService } from "../rbac/service";
 import { createUserSchema, resetPasswordSchema, updateUserSchema } from "../validation";
 import { makeActionErrorResponder, respondValidationError } from "./helpers";
 
@@ -20,7 +21,11 @@ const respondActionError = makeActionErrorResponder(STATUS_BY_ERROR);
  * of the session gate already applied in `app.ts`. Lockout protection (last admin / self) lives
  * in the service; the router only translates its result to a status code.
  */
-export const buildUsersRouter = (authService: AuthService, audit: AuditService): express.Router => {
+export const buildUsersRouter = (
+  authService: AuthService,
+  audit: AuditService,
+  rbac: RbacService,
+): express.Router => {
   const router = express.Router();
   router.use("/users", requireCapability("users:manage"));
 
@@ -134,6 +139,9 @@ export const buildUsersRouter = (authService: AuthService, audit: AuditService):
         respondActionError(response, result.error);
         return;
       }
+      // Drop the deleted username from every group so its capabilities cannot be inherited by a
+      // future user recreated under the same name.
+      await rbac.removeMemberFromAllGroups(request.params.username);
       void audit.record({
         actor: request.user!.username,
         action: "user_delete",

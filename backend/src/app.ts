@@ -240,7 +240,7 @@ export const createApp = ({
     app.use(prefix, captureRouteMount, buildCodebookRouter(store, auditService));
     app.use(prefix, captureRouteMount, buildDeviceConfigRouter(store, auditService));
     app.use(prefix, captureRouteMount, buildDebugRouter(store, config));
-    app.use(prefix, captureRouteMount, buildUsersRouter(authService, auditService));
+    app.use(prefix, captureRouteMount, buildUsersRouter(authService, auditService, rbacService));
     app.use(prefix, captureRouteMount, buildRbacRouter(rbacService, auditService));
     app.use(prefix, captureRouteMount, buildAuditRouter(auditService));
     app.use(prefix, captureRouteMount, buildNotifyRouter(notifyService, store, auditService));
