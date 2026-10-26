@@ -102,6 +102,25 @@ describe("mergeDevice", () => {
     // soc is absent from the incoming payload; the prior reading is preserved.
     expect(merged.vehicleInfo.soc).toBe(90);
   });
+
+  it("keeps existing alerts when the incoming partial omits the field", () => {
+    const existing = normalizeDevice({ deviceId: "agv-8" });
+    existing.alerts = [
+      { id: "a1", code: 2501, title: "电量偏低", severity: "warning" },
+    ] as (typeof existing)["alerts"];
+    // A partial update carrying no `alerts` key must not wipe the active set.
+    const merged = mergeDevice(existing, { deviceId: "agv-8" });
+    expect(merged.alerts).toEqual(existing.alerts);
+  });
+
+  it("lets an explicit empty incoming alerts array clear the set", () => {
+    const existing = normalizeDevice({ deviceId: "agv-9" });
+    existing.alerts = [
+      { id: "a2", code: 2501, title: "电量偏低", severity: "warning" },
+    ] as (typeof existing)["alerts"];
+    const merged = mergeDevice(existing, { deviceId: "agv-9", alerts: [] });
+    expect(merged.alerts).toEqual([]);
+  });
 });
 
 describe("normalizeFormation", () => {
