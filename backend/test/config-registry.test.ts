@@ -14,6 +14,7 @@ import { SAMPLE_OSM, sampleDevice } from "./helpers/fixtures";
  */
 let configRoot = "";
 let ConfigRegistry: typeof import("../src/configRegistry").ConfigRegistry;
+let SceneAssetValidationError: typeof import("../src/configRegistry").SceneAssetValidationError;
 
 const DEFAULT_FLEET: FleetConfig = {
   fleetName: "临时车队",
@@ -119,7 +120,7 @@ beforeAll(async () => {
   await fs.mkdir(path.join(configRoot, "scene-maps"), { recursive: true });
   process.env.CONFIG_ROOT_PATH = configRoot;
   // The ".js" specifier is the TS/Node16 convention for a relative ESM import.
-  ({ ConfigRegistry } = await import("../src/configRegistry.js"));
+  ({ ConfigRegistry, SceneAssetValidationError } = await import("../src/configRegistry.js"));
 });
 
 afterAll(async () => {
@@ -926,12 +927,20 @@ describe("ConfigRegistry.writeScenes / writeSceneAsset (Phase 18 场景地图上
     expect(await fs.readFile(assetPath("s2/custom.svg"))).toEqual(svg2);
   });
 
-  it("writeSceneAsset 校验内容：不是图片的字节被拒", async () => {
+  it("writeSceneAsset 校验内容：不是图片的字节被拒（抛 SceneAssetValidationError）", async () => {
     const registry = new ConfigRegistry();
     await registry.load();
     await expect(
       registry.writeSceneAsset("scene-a", "image", Buffer.from("definitely not an image")),
-    ).rejects.toThrow(/image must be/);
+    ).rejects.toThrow(SceneAssetValidationError);
+  });
+
+  it("writeSceneAsset 拒绝内容不是 .pcd 的点云（抛 SceneAssetValidationError）", async () => {
+    const registry = new ConfigRegistry();
+    await registry.load();
+    await expect(
+      registry.writeSceneAsset("scene-a", "pointcloud", Buffer.from("nope not a point cloud")),
+    ).rejects.toThrow(SceneAssetValidationError);
   });
 
   it("writeSceneAsset 接受有效 .osm 并落盘", async () => {
@@ -942,9 +951,11 @@ describe("ConfigRegistry.writeScenes / writeSceneAsset (Phase 18 场景地图上
     expect(await fs.readFile(assetPath("scene-a/osm.osm"), "utf8")).toBe(SAMPLE_OSM);
   });
 
-  it("writeSceneAsset 拒绝路径不安全的 sceneId", async () => {
+  it("writeSceneAsset 拒绝路径不安全的 sceneId（抛 SceneAssetValidationError）", async () => {
     const registry = new ConfigRegistry();
     await registry.load();
-    await expect(registry.writeSceneAsset("../x", "image", svg)).rejects.toThrow(/invalid sceneId/);
+    await expect(registry.writeSceneAsset("../x", "image", svg)).rejects.toThrow(
+      SceneAssetValidationError,
+    );
   });
 });

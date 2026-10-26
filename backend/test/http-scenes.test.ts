@@ -2,6 +2,7 @@ import { describe, it, expect } from "vitest";
 import request from "supertest";
 import type { SceneMapDefinition } from "@navfleet/shared";
 import { createTestApp, sessionCookie } from "./helpers/testApp";
+import { SceneAssetValidationError } from "../src/configRegistry";
 
 /**
  * Scene-map management API (Phase 18). The admin-only gate is pinned in http-rbac; here we cover
@@ -85,6 +86,38 @@ describe("PUT /api/scenes/:sceneId/asset/:kind", () => {
     expect(context.auditService.record).toHaveBeenCalledWith(
       expect.objectContaining({ actor: "admin-1", action: "scene_asset_upload", target: "yard" }),
     );
+  });
+
+  it("400s a content-validation failure (SceneAssetValidationError) with invalid_asset", async () => {
+    const context = createTestApp();
+    context.store.writeSceneAsset.mockRejectedValue(
+      new SceneAssetValidationError("image must be an SVG, PNG, or JPEG"),
+    );
+    const response = await request(context.app)
+      .put("/api/scenes/yard/asset/image")
+      .set("Cookie", ADMIN)
+      .set("Content-Type", "image/svg+xml")
+      .send(svg);
+
+    expect(response.status).toBe(400);
+    expect(response.body as { error: string; detail: string }).toEqual({
+      error: "invalid_asset",
+      detail: "image must be an SVG, PNG, or JPEG",
+    });
+  });
+
+  it("500s a genuine write failure (plain Error) via the error middleware", async () => {
+    const context = createTestApp();
+    context.store.writeSceneAsset.mockRejectedValue(new Error("ENOSPC: no space left on device"));
+    const response = await request(context.app)
+      .put("/api/scenes/yard/asset/image")
+      .set("Cookie", ADMIN)
+      .set("Content-Type", "image/svg+xml")
+      .send(svg);
+
+    expect(response.status).toBe(500);
+    // The disk message must not leak as an invalid_asset 400.
+    expect((response.body as { error: string }).error).not.toBe("invalid_asset");
   });
 
   it("400s an unknown asset kind", async () => {

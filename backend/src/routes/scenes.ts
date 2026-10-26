@@ -4,6 +4,7 @@ import { requireCapability } from "../auth/middleware";
 import type { DashboardStore } from "../store";
 import type { AuditService } from "../audit/service";
 import type { SceneAssetKind } from "../configRegistry";
+import { SceneAssetValidationError } from "../configRegistry";
 import { sceneIdParamSchema } from "../validation";
 import { respondValidationError } from "./helpers";
 
@@ -141,15 +142,11 @@ export const buildScenesRouter = (store: DashboardStore, audit: AuditService): e
         });
         response.json({ url });
       } catch (error) {
-        // A content-validation failure (not an SVG/PCD/OSM/JSON) is the caller's problem, a 400;
-        // anything else (disk, reload) is a genuine 500 via the error middleware.
-        const message = error instanceof Error ? error.message : "";
-        if (
-          /must be|does not look like|not contain any nodes|valid JSON|invalid sceneId|empty/i.test(
-            message,
-          )
-        ) {
-          response.status(400).json({ error: "invalid_asset", detail: message });
+        // A content-validation failure (bad id, or not an SVG/PCD/OSM/JSON) is the caller's
+        // problem, a 400 — raised as SceneAssetValidationError. Anything else (disk, reload) is a
+        // genuine 500 via the error middleware.
+        if (error instanceof SceneAssetValidationError) {
+          response.status(400).json({ error: "invalid_asset", detail: error.message });
           return;
         }
         next(error);

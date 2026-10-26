@@ -110,13 +110,26 @@ const SCENE_ASSET_URL_FIELD: Record<SceneAssetKind, keyof SceneMapDefinition> = 
 };
 
 /**
+ * A scene-asset upload the caller got wrong — bad id, or content that is not the kind it claims.
+ * Thrown by `writeSceneAsset` / `validateSceneAsset` so the route can map it to a 400 by type
+ * instead of regex-matching the message text (which silently turned a reworded message into a 500).
+ * Anything else out of the write path (disk, reload) stays a plain Error → 500.
+ */
+export class SceneAssetValidationError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = "SceneAssetValidationError";
+  }
+}
+
+/**
  * Validate an uploaded backdrop's *content* (not just its declared kind) and return the file
  * extension to store it under. Content sniffing is defence-in-depth: the upload is admin-only
  * and the id/path are already guarded, but a file that is not what it claims would render as a
  * broken map rather than fail loudly, so we reject it at the door.
  */
 const validateSceneAsset = (kind: SceneAssetKind, buffer: Buffer): string => {
-  if (buffer.length === 0) throw new Error("uploaded file is empty");
+  if (buffer.length === 0) throw new SceneAssetValidationError("uploaded file is empty");
   const head = buffer.subarray(0, 512).toString("latin1");
   switch (kind) {
     case "image": {
@@ -133,25 +146,32 @@ const validateSceneAsset = (kind: SceneAssetKind, buffer: Buffer): string => {
         return "png";
       if (buffer.length >= 3 && buffer[0] === 0xff && buffer[1] === 0xd8 && buffer[2] === 0xff)
         return "jpg";
-      throw new Error("image must be an SVG, PNG, or JPEG");
+      throw new SceneAssetValidationError("image must be an SVG, PNG, or JPEG");
     }
     case "pointcloud": {
       // PCD text/binary files carry an ASCII header; the version/field lines are always near the top.
       if (!/(^|\n)\s*#|VERSION|FIELDS/i.test(head)) {
-        throw new Error("point cloud does not look like a .pcd file");
+        throw new SceneAssetValidationError("point cloud does not look like a .pcd file");
       }
       return "pcd";
     }
     case "osm": {
-      // Feed the real parser: an .osm with no usable nodes throws, exactly as a load would.
-      parseLaneletOsmText(buffer.toString("utf8"), "upload", "upload");
+      // Feed the real parser: an .osm with no usable nodes throws, exactly as a load would. Its
+      // failure is still the caller's bad file, so re-cast it as a validation error (→ 400).
+      try {
+        parseLaneletOsmText(buffer.toString("utf8"), "upload", "upload");
+      } catch (error) {
+        throw new SceneAssetValidationError(
+          error instanceof Error ? error.message : "invalid .osm",
+        );
+      }
       return "osm";
     }
     case "pointcloudmeta": {
       try {
         JSON.parse(buffer.toString("utf8"));
       } catch {
-        throw new Error("point-cloud metadata must be valid JSON");
+        throw new SceneAssetValidationError("point-cloud metadata must be valid JSON");
       }
       return "json";
     }
@@ -1272,7 +1292,7 @@ export class ConfigRegistry {
    */
   async writeSceneAsset(sceneId: string, kind: SceneAssetKind, buffer: Buffer): Promise<string> {
     if (!/^[A-Za-z0-9._-]+$/.test(sceneId) || /^\.+$/.test(sceneId)) {
-      throw new Error(`invalid sceneId: ${sceneId}`);
+      throw new SceneAssetValidationError(`invalid sceneId: ${sceneId}`);
     }
     const ext = validateSceneAsset(kind, buffer);
     this.ensureLoaded();
