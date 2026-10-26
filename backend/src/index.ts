@@ -105,6 +105,8 @@ let offlineSweep: NodeJS.Timeout | null = null;
 let digestFlush: NodeJS.Timeout | null = null;
 /** The scheduled-report poll (Phase 17B-2), stopped on shutdown. */
 let reportPoll: NodeJS.Timeout | null = null;
+/** The write-behind buffer retry, stopped on shutdown (declared here so shutdown can clear it). */
+let bufferFlush: NodeJS.Timeout | null = null;
 
 const shutdown = async (signal: string): Promise<void> => {
   if (shuttingDown) {
@@ -136,6 +138,10 @@ const shutdown = async (signal: string): Promise<void> => {
   if (reportPoll) {
     clearInterval(reportPoll);
     reportPoll = null;
+  }
+  if (bufferFlush) {
+    clearInterval(bufferFlush);
+    bufferFlush = null;
   }
   // Cancel any pending escalation timers so they cannot fire into a closing process.
   notifyService.dispose();
@@ -270,7 +276,7 @@ const start = async (): Promise<void> => {
   // Retry the write-behind buffer on a timer. The write path only flushed *after a
   // successful write*, which never arrives while MongoDB is down — so a reconnect used to
   // sit on a full buffer until the next vehicle happened to report (P0-c).
-  const bufferFlush = setInterval(() => {
+  bufferFlush = setInterval(() => {
     persistence.flushTelemetry().catch((error) => {
       logger.warn({ err: error }, "Scheduled telemetry flush failed");
     });
