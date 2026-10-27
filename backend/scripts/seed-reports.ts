@@ -46,16 +46,18 @@ interface VehicleRow {
 
 // A small pool of plausible codes spanning the three tones. normalize maps the field a code sits
 // in to a severity (info_code→notice/提示, warning_code→warning/预警, error_code→critical/告警),
-// independent of the codebook, so these drive the severity split directly. 2203 is a real
-// codebook entry; the rest carry their own detail text below.
+// independent of the codebook, so these drive the severity split directly. Every code here resolves
+// to a label — against the built-in table (1301/2101/2203/5701) or the demo deployment codebook
+// (1302/2501/5202, see config-runtime/codebook.json) — and follows the code scheme (info 1xxx /
+// warning 2xxx / error 5xxx), so the 消息 page never shows a bare unlabelled number.
 const CODE_POOL = [
-  { field: "info_code", code: 1203, info: "正在充电" },
-  { field: "info_code", code: 1301, info: "任务完成·待命" },
+  { field: "info_code", code: 1301, info: "正在充电，等待补能完成" },
+  { field: "info_code", code: 1302, info: "任务完成·待命" },
   { field: "warning_code", code: 2203, info: "厂区限速区降速" },
-  { field: "warning_code", code: 2101, info: "电量偏低" },
-  { field: "warning_code", code: 2305, info: "定位质量下降" },
-  { field: "error_code", code: 3101, info: "急停触发" },
-  { field: "error_code", code: 3202, info: "避障超时未恢复" },
+  { field: "warning_code", code: 2501, info: "电量偏低，建议尽快回充" },
+  { field: "warning_code", code: 2101, info: "定位置信度偏低" },
+  { field: "error_code", code: 5701, info: "急停已触发，等待人工复位" },
+  { field: "error_code", code: 5202, info: "避障超时未恢复" },
 ] as const;
 
 async function login(username: string, password: string): Promise<string | null> {

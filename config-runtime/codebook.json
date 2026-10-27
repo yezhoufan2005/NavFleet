@@ -1,12 +1,12 @@
 [
   {
-    "code": 2203,
-    "channel": "warning",
-    "subsystem": "motion",
-    "label": "厂区限速区降速",
-    "description": "车辆进入本厂划定的限速区，按现场规程自动降速通过",
-    "hint": "属正常降速；若在非限速区持续出现，核对速度区配置与标识",
-    "impact": "watch"
+    "code": 1302,
+    "channel": "info",
+    "subsystem": "task",
+    "label": "任务完成·待命",
+    "description": "车辆完成当前搬运/巡检任务，已停靠待命位等待下一条调度指令",
+    "hint": "正常状态；若长时间待命未派发新任务，检查调度队列与站点占用",
+    "impact": "none"
   },
   {
     "code": 1901,
@@ -18,6 +18,24 @@
     "impact": "none"
   },
   {
+    "code": 2203,
+    "channel": "warning",
+    "subsystem": "motion",
+    "label": "厂区限速区降速",
+    "description": "车辆进入本厂划定的限速区，按现场规程自动降速通过",
+    "hint": "属正常降速；若在非限速区持续出现，核对速度区配置与标识",
+    "impact": "watch"
+  },
+  {
+    "code": 2501,
+    "channel": "warning",
+    "subsystem": "power",
+    "label": "电量偏低",
+    "description": "电池电量低于回充阈值，车辆仍可完成当前任务但需尽快安排回桩补能",
+    "hint": "确认回充站点可用；若电量快速下探，检查电池健康度与负载是否超限",
+    "impact": "urgent"
+  },
+  {
     "code": 2902,
     "channel": "warning",
     "subsystem": "payload",
@@ -25,5 +43,14 @@
     "description": "载荷传感器检测到货物相对托盘偏移超过阈值",
     "hint": "检查货物摆放与托盘定位，必要时重新对位",
     "impact": "watch"
+  },
+  {
+    "code": 5202,
+    "channel": "error",
+    "subsystem": "safety",
+    "label": "避障超时未恢复",
+    "description": "车辆因前方障碍停车后，超过等待时限仍未检测到可通行路径",
+    "hint": "现场确认障碍物并清除；排查感知遮挡后，由操作员确认恢复任务",
+    "impact": "blocked"
   }
 ]
