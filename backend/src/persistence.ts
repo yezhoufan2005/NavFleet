@@ -1,4 +1,11 @@
-import { Db, MongoClient, MongoServerError, type MongoClientEvents } from "mongodb";
+import {
+  Db,
+  MongoBulkWriteError,
+  MongoClient,
+  MongoServerError,
+  type MongoClientEvents,
+  type WriteError,
+} from "mongodb";
 import { config } from "./config";
 import { emptyAlertStatsReport, emptyAvailabilityReport } from "@navfleet/shared";
 import { MongoConnectionSupervisor, type MongoSession, redactMongoUri } from "./mongoConnection";
@@ -143,6 +150,36 @@ const ALERT_STATS_TOP_N = 8;
  * aggregation. 5 分钟而不是秒级：宽窗（30 天）那条聚合本身要几十秒，短 TTL 等于每次都重付那笔钱；
  * 报表是历史视图，分钟级陈旧无妨。Keyed by the fully-resolved query. */
 const REPORT_CACHE_TTL_MS = 5 * 60_000;
+
+/**
+ * Which documents of a failed unordered `insertMany` did not land, so only those are re-queued.
+ *
+ * With `ordered: false` the server attempts every document and a `MongoBulkWriteError` names the
+ * failures by index in `writeErrors`; everything else in the batch *was* written. Re-queuing the
+ * whole batch (the old behaviour) wrote those again on the next flush — duplicate telemetry rows,
+ * and history/report sample counts inflated by them.
+ *
+ * When the outcome is unknown — a network error, or a write-concern error (writes applied but not
+ * acknowledged as durable) — fall back to re-queuing everything: a possible duplicate is the price
+ * of never silently losing a frame, which is the one loss a monitoring platform must not absorb.
+ */
+const unwrittenDocuments = <T>(batch: T[], error: unknown): T[] => {
+  if (
+    !(error instanceof MongoBulkWriteError) ||
+    error.err !== undefined ||
+    error.result?.getWriteConcernError?.() !== undefined
+  ) {
+    return batch;
+  }
+  const writeErrors: WriteError[] = Array.isArray(error.writeErrors)
+    ? (error.writeErrors as WriteError[])
+    : [error.writeErrors as WriteError];
+  const failedIndexes = new Set(writeErrors.map((writeError) => writeError.index));
+  if (failedIndexes.size === 0) {
+    return batch;
+  }
+  return batch.filter((_document, index) => failedIndexes.has(index));
+};
 
 export class Persistence {
   private db: Db | null = null;
@@ -1081,12 +1118,16 @@ export class Persistence {
       this.writeObserver?.((Date.now() - start) / 1000);
     } catch (error) {
       this.mongoWriteFailures += 1;
-      logger.warn({ err: error }, "Failed to flush buffered telemetry");
-      // Re-queue the failed batch (older) ahead of anything that arrived during the await
+      const failed = unwrittenDocuments(copy, error);
+      logger.warn(
+        { err: error, attempted: copy.length, requeued: failed.length },
+        "Failed to flush buffered telemetry",
+      );
+      // Re-queue what did not land (older) ahead of anything that arrived during the await
       // (newer), then cap to the newest `mongoBufferLimit`. Count what the cap forces out, the
       // same way `bufferTelemetry` does — otherwise a flush that keeps failing while new frames
       // pile up drops the oldest silently and `navfleet_mongo_buffer_dropped_total` underreports.
-      const requeued = [...copy, ...this.pendingTelemetry];
+      const requeued = [...failed, ...this.pendingTelemetry];
       const overflow = requeued.length - config.mongoBufferLimit;
       if (overflow > 0) {
         this.droppedTelemetry += overflow;
