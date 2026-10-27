@@ -94,6 +94,7 @@ describe("UsersView — list", () => {
     expect(wrapper.text()).toContain("管理员");
     expect(wrapper.text()).toContain("已停用");
     expect(wrapper.text()).toContain("已锁定");
+    expect(wrapper.text()).toContain("共 3 条记录");
   });
 
   it("auto-refreshes the list when the tab regains focus (no manual 刷新)", async () => {

@@ -311,8 +311,11 @@ const formatTime = (iso: string | null): string =>
     >
       无法加载用户列表
     </p>
+    <p v-else-if="users.length" class="m-0 text-xs text-ink-subtle">
+      共 {{ users.length }} 条记录
+    </p>
     <div
-      v-else
+      v-if="status !== 'loading' && status !== 'error'"
       :class="[tableClasses.wrapper, 'overflow-auto']"
       tabindex="0"
       role="region"

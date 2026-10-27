@@ -163,7 +163,13 @@ const roleDialogTitle = computed(() =>
       <p v-if="!roles.length" class="text-sm text-ink-muted" role="status">
         还没有角色
       </p>
-      <div v-else :class="[tableClasses.wrapper, 'overflow-hidden']">
+      <p v-else class="m-0 text-xs text-ink-subtle">
+        共 {{ roles.length }} 条记录
+      </p>
+      <div
+        v-if="roles.length"
+        :class="[tableClasses.wrapper, 'overflow-hidden']"
+      >
         <table :class="[tableClasses.table, 'table-fixed']">
           <!-- Fixed widths, every column pinned (none width-less) so the columns grow evenly on a
                wide table — modelled on the device list. 能力 (the long capability list) carries the
