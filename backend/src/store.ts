@@ -569,8 +569,10 @@ export class DashboardStore extends EventEmitter {
       nextRawMap.set(mergedRaw.deviceId, mergedRaw);
       nextDeviceMap.set(mergedConfigured.deviceId, mergedConfigured);
       this.lastIngestAt.set(mergedRaw.deviceId, Date.now());
-      await this.persistRawDevice(mergedRaw);
+      // Broadcast first, persist second: the live view must not wait on the database. The write
+      // still runs inside the serial queue (ordering, backpressure) and is time-bounded.
       this.emitChangeEvents(existingConfigured || null, mergedConfigured, source);
+      await this.persistRawDevice(mergedRaw);
     }
 
     // A replace payload can drop devices, and rebuilding the two snapshot maps
@@ -621,8 +623,8 @@ export class DashboardStore extends EventEmitter {
     this.rawDevices.set(deviceId, normalizedRaw);
     this.devices.set(deviceId, configuredDevice);
     this.lastIngestAt.set(deviceId, Date.now());
-    await this.persistRawDevice(normalizedRaw);
     this.emitChangeEvents(existingConfigured || null, configuredDevice, "mqtt-status");
+    await this.persistRawDevice(normalizedRaw);
     this.updatedAt = new Date().toISOString();
   }
 
@@ -953,8 +955,8 @@ export class DashboardStore extends EventEmitter {
 
       this.rawDevices.set(device.deviceId, updatedRaw);
       this.devices.set(device.deviceId, updatedConfigured);
-      await this.persistRawDevice(updatedRaw);
       this.emitChangeEvents(previousConfigured, updatedConfigured, "offline-monitor");
+      await this.persistRawDevice(updatedRaw);
       this.updatedAt = new Date().toISOString();
     }
 

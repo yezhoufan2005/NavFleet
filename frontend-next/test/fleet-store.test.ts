@@ -46,7 +46,7 @@ beforeEach(() => {
 });
 
 afterEach(() => {
-  store.disconnectRealtime();
+  store.stopRealtime();
   vi.restoreAllMocks();
 });
 
@@ -432,6 +432,42 @@ describe("bootstrap", () => {
     expect(toastMessages()).toContain("无法连接后端服务，请检查服务状态后重试");
     // No socket: there is nothing to subscribe to yet.
     expect(openedSockets).toEqual([]);
+  });
+
+  it("retries an unreachable backend by itself, so a wall that booted first still comes up", async () => {
+    vi.useFakeTimers();
+    try {
+      const getSnapshot = vi
+        .spyOn(fleetApi, "getSnapshot")
+        .mockRejectedValueOnce(new Error("ECONNREFUSED"))
+        .mockResolvedValue(snapshot([device()]));
+
+      await expect(store.bootstrap()).resolves.toBe(false);
+      expect(openedSockets).toEqual([]);
+
+      await vi.advanceTimersByTimeAsync(5_000);
+      expect(getSnapshot).toHaveBeenCalledTimes(2);
+      expect(store.state.realtime.apiReady).toBe(true);
+      expect(openedSockets.at(-1)?.url).toMatch(/\/ws$/);
+    } finally {
+      store.stopRealtime();
+      vi.useRealTimers();
+    }
+  });
+
+  it("stops retrying once signed out", async () => {
+    vi.useFakeTimers();
+    try {
+      const getSnapshot = vi
+        .spyOn(fleetApi, "getSnapshot")
+        .mockRejectedValue(new Error("ECONNREFUSED"));
+      await store.bootstrap();
+      store.stopRealtime();
+      await vi.advanceTimersByTimeAsync(120_000);
+      expect(getSnapshot).toHaveBeenCalledTimes(1);
+    } finally {
+      vi.useRealTimers();
+    }
   });
 
   it("says something different when the backend answers with a snapshot it cannot read", async () => {

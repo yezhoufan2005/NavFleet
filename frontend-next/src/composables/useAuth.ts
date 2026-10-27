@@ -35,8 +35,15 @@ import { notify } from "@/composables/useNotifications";
  * - success → schedule the next one at the normal interval
  * - 401 → the refresh token itself is gone; go anonymous and say so
  * - network error or 5xx → the backend may be restarting, which is not a reason
- *   to throw the operator out. Retry on a short backoff, and only give up (going
- *   anonymous, with a sticky toast) after the whole ladder fails.
+ *   to throw the operator out. Retry on a short backoff, then keep retrying at the
+ *   ladder's last step for as long as it takes, with one sticky toast saying so.
+ *   Only the backend can end a session (a 401): an outage never does. That is what
+ *   lets an unattended wall display ride out a long network or backend outage and
+ *   come back by itself — it cannot be clicked, so a login screen is a dead end.
+ *
+ * The first probe (`fetchMe`) follows the same rule: an unreachable backend keeps
+ * the page waiting and retrying instead of showing the login form, and the browser
+ * coming back online retries at once.
  */
 export type AuthStatus = "unknown" | "authenticated" | "anonymous";
 
@@ -73,6 +80,9 @@ const state = reactive<AuthState>({
 
 let refreshTimer: ReturnType<typeof setTimeout> | null = null;
 let failedRefreshes = 0;
+/** Retry timer for a first probe that could not reach the backend. */
+let probeTimer: ReturnType<typeof setTimeout> | null = null;
+let failedProbes = 0;
 
 const request = (path: string, options: RequestInit = {}): Promise<Response> =>
   fetch(path, {
@@ -202,22 +212,24 @@ const runRefresh = async (): Promise<void> => {
   giveUpOrRetry(`服务器返回 ${response.status}`);
 };
 
+const LAST_RETRY_DELAY_MS = RETRY_DELAYS_MS[RETRY_DELAYS_MS.length - 1]!;
+
 const giveUpOrRetry = (reason: string): void => {
-  const delay = RETRY_DELAYS_MS[failedRefreshes];
+  const delay = RETRY_DELAYS_MS[failedRefreshes] ?? LAST_RETRY_DELAY_MS;
   failedRefreshes += 1;
-
-  if (delay !== undefined) {
-    scheduleRefresh(delay);
-    return;
+  scheduleRefresh(delay);
+  if (failedRefreshes === RETRY_DELAYS_MS.length + 1) {
+    // Once, when the short ladder is used up: say it is still trying, not that it gave up.
+    notify(`会话续期暂时失败（${reason}），将持续自动重试`, {
+      type: "warning",
+      timeout: 0,
+      dedupeKey: "session-refresh-failed",
+    });
   }
-
-  setAnonymous();
-  notify(`会话续期连续失败（${reason}），请重新登录`, {
-    type: "error",
-    timeout: 0,
-    dedupeKey: "session-refresh-failed",
-  });
 };
+
+/** Whether a refresh is waiting on the retry ladder (the backend was unreachable). */
+const refreshIsRetrying = (): boolean => failedRefreshes > 0;
 
 export const useAuth = () => {
   /**
@@ -228,25 +240,55 @@ export const useAuth = () => {
    * between "log in again" and "the backend is down".
    */
   const fetchMe = async (): Promise<boolean> => {
+    if (probeTimer !== null) {
+      clearTimeout(probeTimer);
+      probeTimer = null;
+    }
+    let response: Response;
     try {
-      const response = await request("/api/auth/me");
-      if (response.ok) {
-        const session = await readSession(response);
-        if (session) {
-          setAuthenticated(session.user, session.capabilities);
-          return true;
-        }
-      }
+      response = await request("/api/auth/me");
     } catch {
-      setAnonymous();
-      notify("无法连接服务器，请检查网络后重试", {
+      // Unreachable is not "logged out": keep waiting (status stays as it is) and probe again.
+      const delay = RETRY_DELAYS_MS[failedProbes] ?? LAST_RETRY_DELAY_MS;
+      failedProbes += 1;
+      probeTimer = setTimeout(() => {
+        probeTimer = null;
+        void fetchMe();
+      }, delay);
+      notify("无法连接服务器，正在自动重试…", {
         type: "error",
         dedupeKey: "session-probe-offline",
       });
       return false;
     }
+    failedProbes = 0;
+    if (response.ok) {
+      const session = await readSession(response);
+      if (session) {
+        setAuthenticated(session.user, session.capabilities);
+        return true;
+      }
+    }
+    // 5xx: the backend is up but failing — retry like an outage rather than demand a login.
+    if (response.status >= 500) {
+      probeTimer = setTimeout(() => {
+        probeTimer = null;
+        void fetchMe();
+      }, RETRY_DELAYS_MS[0]);
+      return false;
+    }
     setAnonymous();
     return false;
+  };
+
+  /**
+   * Check the session with the backend now, outside the timer — used when the realtime socket is
+   * closed for an invalid session (4401) and when the browser comes back online.
+   */
+  const refreshNow = (): Promise<void> => {
+    if (state.status !== "authenticated") return Promise.resolve();
+    stopRefreshTimer();
+    return runRefresh();
   };
 
   const login = async (
@@ -365,6 +407,7 @@ export const useAuth = () => {
     fetchMe,
     login,
     logout,
+    refreshNow,
     changePassword,
     getMySessions,
     revokeMySession,
@@ -375,6 +418,9 @@ export const useAuth = () => {
 export const __resetAuth = (): void => {
   stopRefreshTimer();
   failedRefreshes = 0;
+  if (probeTimer !== null) clearTimeout(probeTimer);
+  probeTimer = null;
+  failedProbes = 0;
   state.status = "unknown";
   state.user = null;
   state.capabilities = [];
@@ -384,3 +430,16 @@ export const __resetAuth = (): void => {
 
 export const AUTH_REFRESH_INTERVAL_MS = REFRESH_INTERVAL_MS;
 export const AUTH_RETRY_DELAYS_MS = RETRY_DELAYS_MS;
+
+// The browser regained its network: retry now rather than wait out the backoff step, both for a
+// first probe that never reached the backend and for a refresh stuck on the retry ladder.
+if (typeof window !== "undefined") {
+  window.addEventListener("online", () => {
+    if (probeTimer !== null) {
+      void useAuth().fetchMe();
+    } else if (state.status === "authenticated" && refreshIsRetrying()) {
+      stopRefreshTimer();
+      void runRefresh();
+    }
+  });
+}

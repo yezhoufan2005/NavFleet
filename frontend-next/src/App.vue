@@ -44,6 +44,9 @@ const sound = useAlertSound();
 const bare = computed(() => route.meta.bare === true);
 
 onMounted(() => {
+  // The socket reports a session the backend no longer accepts (disabled account, revoked
+  // session); re-check now — a real 401 signs out, an outage does not.
+  fleet.setSessionInvalidHandler(() => void auth.refreshNow());
   void auth.fetchMe();
 });
 
@@ -65,7 +68,7 @@ watch(
       void fleet.bootstrap();
     }
     if (status === "anonymous") {
-      fleet.disconnectRealtime();
+      fleet.stopRealtime();
       disarmAlertSound();
     }
   },

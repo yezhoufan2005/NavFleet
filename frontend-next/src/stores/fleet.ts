@@ -919,10 +919,17 @@ export const useFleetStore = defineStore("fleet", () => {
     }
   };
 
+  /** Set by the session layer: re-check the session when the socket reports it invalid. */
+  let onSessionInvalid: (() => void) | null = null;
+  const setSessionInvalidHandler = (handler: (() => void) | null): void => {
+    onSessionInvalid = handler;
+  };
+
   const connectRealtime = (): void => {
     link ??= createRealtimeLink({
       onMessage: handleRealtimeMessage,
       onStatus: handleRealtimeStatus,
+      onSessionInvalid: () => onSessionInvalid?.(),
     });
     link.connect();
   };
@@ -1030,16 +1037,60 @@ export const useFleetStore = defineStore("fleet", () => {
       state.topicPattern = fallbackFleetPayload.topicPattern;
   };
 
+  /**
+   * Retry schedule for a bootstrap that could not reach the backend. A wall display cannot press
+   * 重试, so a backend that comes up after the console must be picked up automatically.
+   */
+  const BOOTSTRAP_RETRY_MS = [5_000, 15_000, 30_000, 60_000] as const;
+  let bootstrapRetryTimer: ReturnType<typeof setTimeout> | null = null;
+  let bootstrapFailures = 0;
+
+  const clearBootstrapRetry = (): void => {
+    if (bootstrapRetryTimer !== null) clearTimeout(bootstrapRetryTimer);
+    bootstrapRetryTimer = null;
+  };
+
   const bootstrap = async (): Promise<boolean> => {
+    clearBootstrapRetry();
     state.realtime.bootstrapPending = true;
     try {
       const ready = await bootstrapFromBackend();
-      if (!ready) bootstrapEmptyState();
+      if (ready) {
+        bootstrapFailures = 0;
+      } else {
+        bootstrapEmptyState();
+        const delay =
+          BOOTSTRAP_RETRY_MS[bootstrapFailures] ??
+          BOOTSTRAP_RETRY_MS[BOOTSTRAP_RETRY_MS.length - 1];
+        bootstrapFailures += 1;
+        bootstrapRetryTimer = setTimeout(() => {
+          bootstrapRetryTimer = null;
+          void bootstrap();
+        }, delay);
+      }
       return ready;
     } finally {
       state.realtime.bootstrapPending = false;
     }
   };
+
+  /** Stop retrying (signed out) and drop the socket. */
+  const stopRealtime = (): void => {
+    clearBootstrapRetry();
+    bootstrapFailures = 0;
+    disconnectRealtime();
+  };
+
+  // The browser came back online: retry what is waiting instead of sitting out the backoff.
+  if (typeof window !== "undefined") {
+    window.addEventListener("online", () => {
+      if (bootstrapRetryTimer !== null) {
+        void bootstrap();
+      } else {
+        link?.retryNow();
+      }
+    });
+  }
 
   /** Same sequence as `bootstrap`; named for the retry button that calls it. */
   const retryBootstrap = bootstrap;
@@ -1085,6 +1136,7 @@ export const useFleetStore = defineStore("fleet", () => {
     bootstrap,
     retryBootstrap,
     connectRealtime,
-    disconnectRealtime,
+    stopRealtime,
+    setSessionInvalidHandler,
   };
 });

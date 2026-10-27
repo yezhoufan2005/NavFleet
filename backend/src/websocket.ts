@@ -36,7 +36,12 @@ const log = moduleLogger("websocket");
 
 interface LiveSocket {
   isAlive: boolean;
+  /** Who opened it, re-checked periodically so a disabled account or revoked session is cut off. */
+  auth?: { username: string; tokenVersion: number; sessionId?: string };
 }
+
+/** How often open sockets are re-validated against their account and session. */
+const WS_REVALIDATE_MS = 60_000;
 
 /**
  * Cap on an inbound frame, in bytes.
@@ -65,6 +70,8 @@ export interface WebSocketBridge {
   clientCount: () => number;
   /** Times a broadcast met a client whose send buffer was over the slow threshold. */
   slowBroadcastCount: () => number;
+  /** Re-check every open socket's account and session now (also runs on a timer). */
+  revalidate: () => Promise<void>;
   close: () => void;
 }
 
@@ -147,8 +154,8 @@ export const createWebSocketBridge = (
     }
     // Same per-request check the REST middleware makes, once at handshake: a socket lives for
     // hours, so a token that was valid at connect but belongs to a since-disabled account or a
-    // bumped tokenVersion must not open one. (An already-open socket is closed on shutdown; a
-    // mid-session disable is bounded by that, not by this check.)
+    // bumped tokenVersion must not open one. Sockets already open are re-checked on a timer
+    // (see `revalidate` below), so a mid-session disable / force-logout / revoke closes them too.
     lookupUser(claims.sub)
       .then(async (user) => {
         if (!user || !user.enabled || user.tokenVersion !== claims.ver) {
@@ -162,7 +169,14 @@ export const createWebSocketBridge = (
           rejectUpgrade(socket);
           return;
         }
-        finishUpgrade();
+        wsServer.handleUpgrade(request, socket, head, (client) => {
+          (client as unknown as LiveSocket).auth = {
+            username: claims.sub,
+            tokenVersion: claims.ver,
+            ...(claims.sid ? { sessionId: claims.sid } : {}),
+          };
+          wsServer.emit("connection", client, request);
+        });
       })
       .catch((error) => {
         log.warn({ err: error }, "WebSocket upgrade user lookup failed");
@@ -221,7 +235,36 @@ export const createWebSocketBridge = (
     });
   }, 30_000);
   heartbeat.unref();
-  wsServer.on("close", () => clearInterval(heartbeat));
+
+  // Re-validate open sockets: the handshake check alone let a disabled account, a force-logout
+  // (tokenVersion bump) or a revoked session keep watching live data for as long as the socket
+  // stayed up. Closed with 4401 so the console knows to re-authenticate rather than just retry.
+  const revalidate = async (): Promise<void> => {
+    for (const client of wsServer.clients) {
+      const auth = (client as unknown as LiveSocket).auth;
+      if (!auth) continue;
+      try {
+        const user = await lookupUser(auth.username);
+        const stillValid =
+          !!user &&
+          user.enabled &&
+          user.tokenVersion === auth.tokenVersion &&
+          (!auth.sessionId ||
+            !isSessionActive ||
+            (await isSessionActive(auth.username, auth.sessionId)));
+        if (!stillValid) client.close(4401, "session no longer valid");
+      } catch (error) {
+        // A lookup that fails (database hiccup) is not proof the session ended; keep the socket.
+        log.warn({ err: error }, "WebSocket session re-validation failed");
+      }
+    }
+  };
+  const revalidateTimer = setInterval(() => void revalidate(), WS_REVALIDATE_MS);
+  revalidateTimer.unref();
+  wsServer.on("close", () => {
+    clearInterval(heartbeat);
+    clearInterval(revalidateTimer);
+  });
 
   let slowBroadcasts = 0;
   const broadcast = (event: SocketEvent): void => {
@@ -242,6 +285,7 @@ export const createWebSocketBridge = (
     broadcast,
     clientCount: () => wsServer.clients.size,
     slowBroadcastCount: () => slowBroadcasts,
+    revalidate,
     close: () => {
       wsServer.clients.forEach((client) => {
         try {
