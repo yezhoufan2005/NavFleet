@@ -14,6 +14,8 @@
  * dispatch. SMTP secrets never enter this page — a schedule records only the *name* of the env var
  * holding its connection string (`smtpEnv`) — so the whole-file write persists no credential.
  */
+import UiHelpTip from "@/components/ui/UiHelpTip.vue";
+import { FIELD_HELP } from "@/lib/fieldHelp";
 import { computed, onMounted, ref } from "vue";
 import { fleetApi } from "@navfleet/fleet-core";
 import {
@@ -365,7 +367,10 @@ const weekdayLabel = (weekday?: number): string =>
             </p>
           </label>
           <label class="flex flex-col gap-1">
-            <span class="text-sm font-medium text-ink">回看窗口</span>
+            <span class="flex items-center gap-1"
+              ><span class="text-sm font-medium text-ink">回看窗口</span
+              ><UiHelpTip :text="FIELD_HELP.reportSchedule.range"
+            /></span>
             <UiSelect
               :model-value="sRange"
               :options="RANGE_OPTIONS"
@@ -378,9 +383,11 @@ const weekdayLabel = (weekday?: number): string =>
         </div>
         <div class="grid grid-cols-2 gap-3">
           <label class="flex flex-col gap-1">
-            <span class="text-sm font-medium text-ink"
-              >发送时刻 <span class="text-critical-ink">*</span></span
-            >
+            <span class="flex items-center gap-1"
+              ><span class="text-sm font-medium text-ink"
+                >发送时刻 <span class="text-critical-ink">*</span></span
+              ><UiHelpTip :text="FIELD_HELP.reportSchedule.time"
+            /></span>
             <UiInput
               v-model="sTime"
               type="text"
@@ -395,7 +402,10 @@ const weekdayLabel = (weekday?: number): string =>
             </p>
           </label>
           <label class="flex flex-col gap-1">
-            <span class="text-sm font-medium text-ink">发送频率</span>
+            <span class="flex items-center gap-1"
+              ><span class="text-sm font-medium text-ink">发送频率</span
+              ><UiHelpTip :text="FIELD_HELP.reportSchedule.weekday"
+            /></span>
             <UiSelect
               :model-value="sWeekday"
               :options="WEEKDAY_OPTIONS"
@@ -414,9 +424,11 @@ const weekdayLabel = (weekday?: number): string =>
           启用该报表
         </label>
         <label class="flex flex-col gap-1">
-          <span class="text-sm font-medium text-ink"
-            >SMTP 环境变量名 <span class="text-critical-ink">*</span></span
-          >
+          <span class="flex items-center gap-1"
+            ><span class="text-sm font-medium text-ink"
+              >SMTP 环境变量名 <span class="text-critical-ink">*</span></span
+            ><UiHelpTip :text="FIELD_HELP.reportSchedule.smtpEnv"
+          /></span>
           <UiInput
             v-model="sSmtpEnv"
             type="text"
@@ -450,7 +462,10 @@ const weekdayLabel = (weekday?: number): string =>
           </p>
         </label>
         <label class="flex flex-col gap-1">
-          <span class="text-sm font-medium text-ink">收件人</span>
+          <span class="flex items-center gap-1"
+            ><span class="text-sm font-medium text-ink">收件人</span
+            ><UiHelpTip :text="FIELD_HELP.reportSchedule.recipients"
+          /></span>
           <textarea
             v-model="sRecipientsText"
             rows="3"

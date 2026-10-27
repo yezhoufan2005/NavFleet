@@ -9,6 +9,8 @@
  * formation→vehicle referential integrity (a formation cannot reference an unconfigured vehicle);
  * the picker only offers configured vehicles, so the UI guards it up front too.
  */
+import UiHelpTip from "@/components/ui/UiHelpTip.vue";
+import { FIELD_HELP } from "@/lib/fieldHelp";
 import { computed, onMounted, ref } from "vue";
 import { fleetApi } from "@navfleet/fleet-core";
 import type { DeviceConfig, FormationConfig } from "@navfleet/shared";
@@ -380,7 +382,10 @@ const dialogTitle = computed(() =>
         </p>
       </fieldset>
       <label class="flex flex-col gap-1">
-        <span class="text-sm font-medium text-ink">默认场景</span>
+        <span class="flex items-center gap-1"
+          ><span class="text-sm font-medium text-ink">默认场景</span
+          ><UiHelpTip :text="FIELD_HELP.formation.defaultScene"
+        /></span>
         <UiSelect
           v-model="fSceneId"
           :options="sceneOptions"
@@ -397,7 +402,10 @@ const dialogTitle = computed(() =>
         />
       </label>
       <label class="flex flex-col gap-1">
-        <span class="text-sm font-medium text-ink">颜色</span>
+        <span class="flex items-center gap-1"
+          ><span class="text-sm font-medium text-ink">颜色</span
+          ><UiHelpTip :text="FIELD_HELP.formation.color"
+        /></span>
         <UiInput
           v-model="fColor"
           type="text"

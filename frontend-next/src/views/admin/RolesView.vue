@@ -12,6 +12,8 @@
  * destructive action confirms; the backend's stable error codes (重名 / 角色被组占用 / 不存在)
  * become sentences via `messageFor`.
  */
+import UiHelpTip from "@/components/ui/UiHelpTip.vue";
+import { FIELD_HELP } from "@/lib/fieldHelp";
 import { computed, onMounted, ref } from "vue";
 import { fleetApi } from "@navfleet/fleet-core";
 import { CAPABILITIES, type Capability, type RbacRole } from "@navfleet/shared";
@@ -249,7 +251,11 @@ const roleDialogTitle = computed(() =>
           </p>
         </label>
         <fieldset class="flex flex-col gap-1 border-0 p-0">
-          <legend class="mb-1 text-sm font-medium text-ink">能力</legend>
+          <legend
+            class="flex items-center gap-1 mb-1 text-sm font-medium text-ink"
+          >
+            能力<UiHelpTip :text="FIELD_HELP.role.capabilities" />
+          </legend>
           <div class="grid max-h-56 grid-cols-2 gap-1 overflow-auto">
             <label
               v-for="capability in CAPABILITIES"

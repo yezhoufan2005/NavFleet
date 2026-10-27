@@ -17,6 +17,8 @@
  * Filters are server-side; pagination over the returned page is client-side, and filter state
  * lives in the URL — the same shape 审计 / 告警 use.
  */
+import UiHelpTip from "@/components/ui/UiHelpTip.vue";
+import { FIELD_HELP } from "@/lib/fieldHelp";
 import { computed, onBeforeUnmount, onMounted, ref, watch } from "vue";
 import { useRoute, useRouter } from "vue-router";
 import { fleetApi } from "@navfleet/fleet-core";
@@ -718,7 +720,10 @@ useAutoRefresh(() => void load(), {
           </label>
         </div>
         <label class="flex flex-col gap-1">
-          <span class="text-sm font-medium text-ink">端点环境变量名</span>
+          <span class="flex items-center gap-1"
+            ><span class="text-sm font-medium text-ink">端点环境变量名</span
+            ><UiHelpTip :text="FIELD_HELP.notify.urlEnv"
+          /></span>
           <UiInput
             v-model="cUrlEnv"
             type="text"
@@ -741,7 +746,11 @@ useAutoRefresh(() => void load(), {
           启用该渠道
         </label>
         <fieldset class="flex flex-col gap-1 border-0 p-0">
-          <legend class="mb-1 text-sm font-medium text-ink">订阅严重度</legend>
+          <legend
+            class="flex items-center gap-1 mb-1 text-sm font-medium text-ink"
+          >
+            订阅严重度<UiHelpTip :text="FIELD_HELP.notify.severities" />
+          </legend>
           <div class="flex flex-wrap gap-3">
             <label
               v-for="severity in NOTIFY_SEVERITIES"
@@ -761,7 +770,10 @@ useAutoRefresh(() => void load(), {
         </fieldset>
         <template v-if="isEmail">
           <label class="flex flex-col gap-1">
-            <span class="text-sm font-medium text-ink">收件人</span>
+            <span class="flex items-center gap-1"
+              ><span class="text-sm font-medium text-ink">收件人</span
+              ><UiHelpTip :text="FIELD_HELP.notify.recipients"
+            /></span>
             <textarea
               v-model="cRecipientsText"
               rows="3"
@@ -771,7 +783,10 @@ useAutoRefresh(() => void load(), {
             ></textarea>
           </label>
           <label class="flex flex-col gap-1">
-            <span class="text-sm font-medium text-ink">收件人组</span>
+            <span class="flex items-center gap-1"
+              ><span class="text-sm font-medium text-ink">收件人组</span
+              ><UiHelpTip :text="FIELD_HELP.notify.groups"
+            /></span>
             <UiInput
               v-model="cGroupsText"
               type="text"
@@ -783,7 +798,10 @@ useAutoRefresh(() => void load(), {
         </template>
         <fieldset class="flex flex-col gap-2 border-0 p-0">
           <legend class="mb-1 flex w-full items-center justify-between">
-            <span class="text-sm font-medium text-ink">静默窗口</span>
+            <span class="flex items-center gap-1"
+              ><span class="text-sm font-medium text-ink">静默窗口</span
+              ><UiHelpTip :text="FIELD_HELP.notify.silence"
+            /></span>
             <UiButton
               variant="secondary"
               size="sm"

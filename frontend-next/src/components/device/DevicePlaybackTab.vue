@@ -300,7 +300,7 @@ const sampleRows = computed<Row[]>(() => {
   const at = cursorAt.value;
   // Column-major order for the 3×3 grid below (`grid-flow-col`, 3 rows): the first
   // three fill the left column (时间 / 速度 / 电量), the next three the middle
-  // (融合 X / Y / 航向 yaw), the last three the right (车端任务 / 平台任务 / 当前场景).
+  // (融合 X / Y / 朝向 yaw — the fused pose, radians; not the GPS heading), the last three the right (车端任务 / 平台任务 / 当前场景).
   return [
     // `--` rather than `formatDateTime(undefined)`: that helper falls back to
     // `Date.now()`, so a sample with no timestamp would claim to be from this second.
@@ -314,7 +314,7 @@ const sampleRows = computed<Row[]>(() => {
     { label: "电量", value: formatNumber(device.vehicleInfo?.soc, 0, "%") },
     { label: "融合 X", value: formatNumber(device.fusionLoc?.x, 2) },
     { label: "融合 Y", value: formatNumber(device.fusionLoc?.y, 2) },
-    { label: "航向 yaw", value: formatNumber(device.fusionLoc?.yaw, 3) },
+    { label: "朝向 yaw（rad）", value: formatNumber(device.fusionLoc?.yaw, 3) },
     { label: "车端任务", value: formatEnum(device.taskStatus, taskStatusMap) },
     {
       label: "平台任务",
