@@ -911,38 +911,65 @@ watch(
    one grey block. The ▾ chevron is what marks the row open; colour is left to the status
    dot and the tone rows below. */
 
-/* 行底色混合**饱和**语义色进卡片表面（而非直接用 `-wash` 令牌）：`-wash` 的深色取值三档都是低彩度
-   的暗色、互相接近，深色主题下三行几乎分不出来。改成按色相区分——红/琥珀/蓝在深浅两套主题下都能
-   认出，4px 饱和色内嵌左边再强化一次。百分比对两套主题通用：浅色混出淡色、深色混出带明显色相的暗色。 */
-
+/* Tone rows: a wash + inset edge in the tone colour. notice carries the same treatment as
+   warning/critical, in blue — 提示 became a pending-exception state worth surfacing before you
+   read the row, so it earns the row treatment the dot alone cannot give. (This reverses
+   v1.0.0's "notice gets nothing".) */
 .device-row[data-tone="critical"] {
-  background: color-mix(
-    in oklab,
-    var(--color-critical) 16%,
-    var(--color-surface-raised)
-  );
-  box-shadow: inset 4px 0 0 var(--color-critical);
+  --row-tone: var(--color-critical);
+  --row-wash: var(--color-critical-wash);
 }
-
 .device-row[data-tone="warning"] {
-  background: color-mix(
-    in oklab,
-    var(--color-warning) 16%,
-    var(--color-surface-raised)
-  );
-  box-shadow: inset 4px 0 0 var(--color-warning);
+  --row-tone: var(--color-warning);
+  --row-wash: var(--color-warning-wash);
+}
+.device-row[data-tone="notice"] {
+  --row-tone: var(--color-notice);
+  --row-wash: var(--color-notice-wash);
 }
 
-/* notice now carries the same wash + inset edge as warning/critical, in blue — 提示 became
-   a pending-exception state worth surfacing before you read the row, so it earns the row
-   treatment the dot alone cannot give. (This reverses v1.0.0's "notice gets nothing".) */
-.device-row[data-tone="notice"] {
+.device-row:is(
+  [data-tone="critical"],
+  [data-tone="warning"],
+  [data-tone="notice"]
+) {
+  background: color-mix(in oklab, var(--row-wash) 60%, transparent);
+  box-shadow: inset 3px 0 0 var(--row-tone);
+}
+
+/* Dark only: the dark `-wash` values are three low-chroma darks close to one another (and
+   notice's equals brand's), so the rows could not be told apart. Mix the *saturated* tone into
+   the surface instead, so red / amber / blue separate by hue, and widen the edge. Light keeps
+   the wash above unchanged. Both dark selectors mirror semantic.css: system-dark unless the
+   user chose light, and an explicit dark choice. `:not(:hover)` keeps the shared hover
+   background below in charge, which these higher-specificity selectors would otherwise beat. */
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"])
+    .device-row:is(
+      [data-tone="critical"],
+      [data-tone="warning"],
+      [data-tone="notice"]
+    ):not(:hover) {
+    background: color-mix(
+      in oklab,
+      var(--row-tone) 16%,
+      var(--color-surface-raised)
+    );
+    box-shadow: inset 4px 0 0 var(--row-tone);
+  }
+}
+:root[data-theme="dark"]
+  .device-row:is(
+    [data-tone="critical"],
+    [data-tone="warning"],
+    [data-tone="notice"]
+  ):not(:hover) {
   background: color-mix(
     in oklab,
-    var(--color-notice) 16%,
+    var(--row-tone) 16%,
     var(--color-surface-raised)
   );
-  box-shadow: inset 4px 0 0 var(--color-notice);
+  box-shadow: inset 4px 0 0 var(--row-tone);
 }
 
 .device-row[data-tone="critical"]:hover,
