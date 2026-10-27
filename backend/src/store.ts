@@ -4,7 +4,7 @@ import path from "node:path";
 import { config } from "./config";
 import { deviceMatchesScope, applyRuleDebounce } from "@navfleet/shared";
 import type { ReportBucketUnit } from "@navfleet/shared";
-import { ConfigRegistry, type SceneAssetKind } from "./configRegistry";
+import { ConfigRegistry, type ConfigStatus, type SceneAssetKind } from "./configRegistry";
 import {
   buildFleetSnapshot,
   buildOfflineAlert,
@@ -815,6 +815,11 @@ export class DashboardStore extends EventEmitter {
   }
 
   /** Validate + persist a deployment codebook, reload, and return the merged table. */
+  /** Health of the configuration in effect (per-file fallback in use, last reload failure). */
+  getConfigStatus(): ConfigStatus {
+    return this.configRegistry.getConfigStatus();
+  }
+
   importCodebook(rawEntries: unknown): Promise<ReportCodeEntry[]> {
     return this.configRegistry.importCodebook(rawEntries);
   }

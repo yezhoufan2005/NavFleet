@@ -219,11 +219,42 @@ export interface NotifyLogQueryParams {
  * caller can map it to a message — several admin refusals share HTTP 409 and only the code
  * tells them apart. Falls back to `HTTP <status>` when there is no JSON `error` field.
  */
+/** One config file held back on a fallback (mirrors the backend's ConfigIssue). */
+export interface ConfigIssue {
+  file: string | null;
+  message: string;
+  using: "last-good" | "default" | "previous";
+}
+export interface ConfigStatus {
+  ok: boolean;
+  issues: ConfigIssue[];
+  checkedAt: string | null;
+}
+
+/** A failed request: `message` is the backend's stable error code, `detail` its explanation. */
+export class ApiError extends Error {
+  constructor(
+    code: string,
+    readonly status: number,
+    readonly detail: string | null = null,
+  ) {
+    super(code);
+    this.name = "ApiError";
+  }
+}
+
 async function failureError(response: Response): Promise<Error> {
   try {
-    const body = (await response.json()) as { error?: string } | null;
+    const body = (await response.json()) as {
+      error?: string;
+      detail?: unknown;
+    } | null;
     if (body && typeof body.error === "string" && body.error) {
-      return new Error(body.error);
+      return new ApiError(
+        body.error,
+        response.status,
+        typeof body.detail === "string" ? body.detail : null,
+      );
     }
   } catch {
     // Non-JSON or empty body — fall through to the status.
@@ -503,6 +534,11 @@ export const fleetApi = {
   },
 
   // ── RBAC custom roles + user groups (admin, 1.6.1) ──────────────────────────
+  /** Health of the configuration in effect: which config file (if any) is held back and why. */
+  getConfigStatus(): Promise<ConfigStatus> {
+    return requestJson<ConfigStatus>("/api/v1/config/status");
+  },
+
   getRbacRoles(): Promise<{ roles: RbacRole[] }> {
     return requestJson<{ roles: RbacRole[] }>("/api/v1/rbac/roles");
   },

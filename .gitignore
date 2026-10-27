@@ -34,3 +34,6 @@ deploy/nginx/certs/
 
 # TLS material for the MQTT broker (docker-compose.mqtt-tls.yml) — same rule
 deploy/mosquitto/certs/
+
+# Backend keeps a copy of the last configuration that loaded cleanly (per-file fallback).
+config-runtime/.last-good/
