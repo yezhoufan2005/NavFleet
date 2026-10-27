@@ -71,6 +71,7 @@ describe("RolesView — listing", () => {
     const wrapper = await mountView();
     expect(wrapper.text()).toContain("运维");
     expect(wrapper.text()).toContain("报码字典"); // capability label
+    expect(wrapper.text()).toContain("共 1 条记录");
   });
 
   it("shows the empty state when there are no roles", async () => {

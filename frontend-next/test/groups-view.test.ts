@@ -88,6 +88,7 @@ describe("GroupsView — listing", () => {
     expect(wrapper.text()).toContain("夜班");
     expect(wrapper.text()).toContain("运维"); // role name resolved from id
     expect(wrapper.text()).toContain("1 人"); // member count
+    expect(wrapper.text()).toContain("共 1 条记录");
   });
 
   it("shows the empty state when there are no groups", async () => {
