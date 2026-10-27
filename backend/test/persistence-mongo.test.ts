@@ -1,5 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import type { Db } from "mongodb";
+import type { BulkWriteResult, Db } from "mongodb";
+import { MongoBulkWriteError } from "mongodb";
 import { Persistence } from "../src/persistence";
 import { config } from "../src/config";
 import type { DeviceAlert, DeviceSnapshot } from "../src/types";
@@ -52,7 +53,7 @@ interface Recorded {
 /** A fake `Db` that records calls and replays canned rows. */
 const createFakeDb = (
   rows: Record<string, unknown[]> = {},
-  failures: { insertMany?: boolean; updateOne?: boolean; insertOne?: boolean } = {},
+  failures: { insertMany?: boolean | Error; updateOne?: boolean; insertOne?: boolean } = {},
   aggregates: Record<string, unknown[]> = {},
 ): { db: Db; calls: Recorded } => {
   const calls: Recorded = {
@@ -101,6 +102,7 @@ const createFakeDb = (
     },
     insertMany: (docs: unknown[], options?: unknown) => {
       calls.insertMany.push({ collection: name, docs, options });
+      if (failures.insertMany instanceof Error) return Promise.reject(failures.insertMany);
       return failures.insertMany
         ? Promise.reject(new Error("insertMany exploded"))
         : Promise.resolve({});
@@ -587,6 +589,51 @@ describe("遥测写入与缓冲", () => {
     expect(calls.insertMany[0]?.options).toEqual({ ordered: false });
     // 关键行为：一次失败的 flush 不能吞掉它刚取出的那批。
     expect(persistence.telemetryBufferStats().pending).toBe(1);
+  });
+
+  /** 一个 ordered:false 的部分失败：只有 `failedIndexes` 那几条没写进去。 */
+  const partialFailure = (failedIndexes: number[]) =>
+    new MongoBulkWriteError(
+      {
+        message: "partial insert",
+        code: 121,
+        writeErrors: failedIndexes.map((index) => ({ index, code: 121, errmsg: "rejected" })),
+      } as unknown as ConstructorParameters<typeof MongoBulkWriteError>[0],
+      { getWriteConcernError: () => undefined } as unknown as BulkWriteResult,
+    );
+
+  it("部分失败只把没写进去的那几条放回缓冲（已写入的不再重写 → 不产生重复遥测）", async () => {
+    const { db, calls } = createFakeDb({}, { insertMany: partialFailure([1]) });
+    await persistence.writeTelemetry(snapshot("agv-a"));
+    await persistence.writeTelemetry(snapshot("agv-b"));
+    await persistence.writeTelemetry(snapshot("agv-c"));
+    persistence.__setDbForTests(db);
+
+    await persistence.flushTelemetry();
+
+    expect(calls.insertMany[0]?.docs).toHaveLength(3);
+    // 只有 index 1（agv-b）失败；agv-a / agv-c 已落库，不能被重排再写一遍。
+    expect(persistence.telemetryBufferStats().pending).toBe(1);
+
+    // 下一次 flush 只重试那一条。
+    const retry = createFakeDb();
+    persistence.__setDbForTests(retry.db);
+    await persistence.flushTelemetry();
+    const retried = retry.calls.insertMany[0]?.docs as Array<{ meta: { deviceId: string } }>;
+    expect(retried.map((doc) => doc.meta.deviceId)).toEqual(["agv-b"]);
+  });
+
+  it("结果不明（写关注错误）时整批放回缓冲——宁可可能重复，也不静默丢帧", async () => {
+    const writeConcern = partialFailure([0]);
+    writeConcern.err = { code: 64, errmsg: "waiting for replication timed out" } as never;
+    const { db } = createFakeDb({}, { insertMany: writeConcern });
+    await persistence.writeTelemetry(snapshot("agv-a"));
+    await persistence.writeTelemetry(snapshot("agv-b"));
+    persistence.__setDbForTests(db);
+
+    await persistence.flushTelemetry();
+
+    expect(persistence.telemetryBufferStats().pending).toBe(2);
   });
 
   it("空缓冲时不发请求", async () => {
