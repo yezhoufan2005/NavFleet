@@ -31,9 +31,12 @@ export interface RealtimeSocket {
   close(): void;
   addEventListener(
     type: "open" | "message" | "close" | "error",
-    listener: (event: { data?: unknown }) => void,
+    listener: (event: { data?: unknown; code?: number }) => void,
   ): void;
 }
+
+/** Close code the backend sends when the socket's account / session is no longer valid. */
+export const SESSION_INVALID_CLOSE_CODE = 4401;
 
 /**
  * What the UI is allowed to say about the link.
@@ -54,6 +57,11 @@ export interface RealtimeLinkConfig {
   url?: () => string;
   /** Overridable for tests; defaults to the global `WebSocket`. */
   createSocket?: (url: string) => RealtimeSocket;
+  /**
+   * The backend closed the socket because the session is no longer valid (4401). The link still
+   * schedules its reconnect; this lets the session layer re-check (and sign out on a real 401).
+   */
+  onSessionInvalid?: () => void;
 }
 
 export const HEARTBEAT_MS = 20_000;
@@ -74,12 +82,23 @@ const defaultUrl = (): string => {
   return `${protocol}//${window.location.host}/ws`;
 };
 
-/** `2 ** attempt` seconds, capped. Exported so a test states the schedule itself. */
-export const backoffDelay = (attempt: number): number =>
-  Math.min(BACKOFF_BASE_MS * 2 ** attempt, BACKOFF_MAX_MS);
+/**
+ * `2 ** attempt` seconds, capped, with up to ±20% jitter so a fleet of consoles that lost the
+ * backend together does not reconnect in one synchronized burst. `random` is injectable so a test
+ * states the schedule exactly.
+ */
+export const backoffDelay = (
+  attempt: number,
+  random: () => number = Math.random,
+): number => {
+  const base = Math.min(BACKOFF_BASE_MS * 2 ** attempt, BACKOFF_MAX_MS);
+  return Math.round(base * (0.8 + 0.4 * random()));
+};
 
 export interface RealtimeLink {
   connect: () => void;
+  /** Skip the remaining backoff and try now (the browser came back online). */
+  retryNow: () => void;
   /** Stops for good: no reconnect follows, and the attempt counter resets. */
   disconnect: () => void;
 }
@@ -203,10 +222,12 @@ export const createRealtimeLink = (
       config.onMessage(message);
     });
 
-    const handleClose = () => {
+    const handleClose = (event: { code?: number }) => {
       if (socket !== target) return; // A later socket already superseded this one.
       socket = null;
       stopSocketTimers();
+      if (event.code === SESSION_INVALID_CLOSE_CODE)
+        config.onSessionInvalid?.();
       scheduleReconnect();
     };
     target.addEventListener("close", handleClose);
@@ -230,5 +251,12 @@ export const createRealtimeLink = (
     config.onStatus("idle", 0);
   };
 
-  return { connect, disconnect };
+  const retryNow = () => {
+    if (stopped || reconnectTimer === null) return;
+    clearTimer(reconnectTimer);
+    reconnectTimer = null;
+    connect();
+  };
+
+  return { connect, disconnect, retryNow };
 };

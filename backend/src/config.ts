@@ -154,6 +154,10 @@ const configSchema = z.object({
   AUDIT_RETENTION_SECONDS: envInt(60 * 60 * 24 * 365),
   MAX_HISTORY_POINTS: envInt(500),
   MONGO_BUFFER_LIMIT: envInt(2000),
+  // Upper bound on one hot-path MongoDB write (latest snapshot / telemetry / alert upsert), ms.
+  // The ingest queue is serial; without a bound a stalled server stalls every frame behind it and
+  // the live view freezes. A write that times out is buffered / retried like any other failure.
+  MONGO_WRITE_TIMEOUT_MS: envInt(2000),
   // P0-b: how many mutations may wait in the store's serial ingest queue before
   // the oldest *sheddable* (i.e. MQTT telemetry) ones are dropped. Sized so that a
   // few seconds of a stalled MongoDB is absorbed rather than shed: at 1 Hz, 1000
@@ -252,6 +256,7 @@ export const parseConfig = (env: NodeJS.ProcessEnv) => {
     auditRetentionSeconds: e.AUDIT_RETENTION_SECONDS,
     maxHistoryPoints: e.MAX_HISTORY_POINTS,
     mongoBufferLimit: e.MONGO_BUFFER_LIMIT,
+    mongoWriteTimeoutMs: e.MONGO_WRITE_TIMEOUT_MS,
     ingestQueueLimit: e.INGEST_QUEUE_LIMIT,
     maxDevices: e.MAX_DEVICES,
     deviceRetentionSeconds: e.DEVICE_RETENTION_SECONDS,

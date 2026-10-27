@@ -256,6 +256,55 @@ describe("WebSocket upgrade", () => {
   });
 });
 
+describe("WebSocket re-validation of open sockets", () => {
+  const closed = (client: WebSocket): Promise<number> =>
+    new Promise((resolve) => client.once("close", (code: number) => resolve(code)));
+
+  it("closes an open socket with 4401 once its account is disabled", async () => {
+    let enabled = true;
+    const harness = await startBridge({
+      lookupUser: () => Promise.resolve({ ...enabledUser(), enabled }),
+    });
+    const client = authedConnect(harness);
+    await opened(client);
+
+    enabled = false;
+    const code = closed(client);
+    await harness.bridge.revalidate();
+    expect(await code).toBe(4401);
+  });
+
+  it("closes a socket whose session was revoked, and keeps one whose session is live", async () => {
+    let live = true;
+    const harness = await startBridge({ isSessionActive: () => Promise.resolve(live) });
+    const client = connect(harness, "", {
+      headers: { Cookie: `${ACCESS_COOKIE}=${tokenWithSid()}` },
+    });
+    await opened(client);
+
+    await harness.bridge.revalidate();
+    expect(client.readyState).toBe(WebSocket.OPEN);
+
+    live = false;
+    const code = closed(client);
+    await harness.bridge.revalidate();
+    expect(await code).toBe(4401);
+  });
+
+  it("keeps the socket when the lookup itself fails (a database hiccup is not a logout)", async () => {
+    let fail = false;
+    const harness = await startBridge({
+      lookupUser: () =>
+        fail ? Promise.reject(new Error("db down")) : Promise.resolve(enabledUser()),
+    });
+    const client = authedConnect(harness);
+    await opened(client);
+    fail = true;
+    await harness.bridge.revalidate();
+    expect(client.readyState).toBe(WebSocket.OPEN);
+  });
+});
+
 describe("WebSocket session", () => {
   it("sends the fleet snapshot on connect", async () => {
     const harness = await startBridge();

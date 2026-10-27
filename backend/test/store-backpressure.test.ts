@@ -96,6 +96,18 @@ describe("ingest queue backpressure (P0-b)", () => {
     config.ingestQueueLimit = originalLimit;
   });
 
+  it("broadcasts a frame before its database write finishes (a slow MongoDB never freezes the live view)", async () => {
+    const { store, persistence, events } = createStore();
+    persistence.block();
+    const inFlight = store.applyPayload(telemetry("agv-live"), "mqtt", { sheddable: true });
+    await new Promise((resolve) => setTimeout(resolve, 0));
+
+    // The write is still stuck, but subscribers have already been told.
+    expect(events.some((event) => JSON.stringify(event).includes("agv-live"))).toBe(true);
+    persistence.releaseWrites();
+    await inFlight;
+  });
+
   it("drops the oldest sheddable frames instead of growing without bound", async () => {
     config.ingestQueueLimit = 3;
     const { store, persistence } = createStore();

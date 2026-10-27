@@ -184,6 +184,8 @@ const unwrittenDocuments = <T>(batch: T[], error: unknown): T[] => {
 export class Persistence {
   private db: Db | null = null;
   private pendingTelemetry: TelemetryDocument[] = [];
+  /** Devices whose last alert sync to MongoDB failed and must be replayed. */
+  private readonly alertSyncPending = new Set<string>();
   /** Short-TTL cache for report aggregations (see `REPORT_CACHE_TTL_MS`). Keyed by the resolved
    * query; value carries the report and the epoch-ms it expires at. Bounded by key cardinality
    * (preset×bucket×device combos) and swept lazily on read. */
@@ -1000,7 +1002,11 @@ export class Persistence {
       try {
         await this.db
           .collection<DeviceSnapshot>("device_latest")
-          .updateOne({ deviceId: snapshot.deviceId }, { $set: snapshot }, { upsert: true });
+          .updateOne(
+            { deviceId: snapshot.deviceId },
+            { $set: snapshot },
+            { upsert: true, timeoutMS: config.mongoWriteTimeoutMs },
+          );
         this.mongoWrites += 1;
         this.writeObserver?.((Date.now() - start) / 1000);
       } catch (error) {
@@ -1054,7 +1060,9 @@ export class Persistence {
 
     try {
       const start = Date.now();
-      await this.db.collection<TelemetryDocument>("telemetry_ts").insertOne(document);
+      await this.db
+        .collection<TelemetryDocument>("telemetry_ts")
+        .insertOne(document, { timeoutMS: config.mongoWriteTimeoutMs });
       this.mongoWrites += 1;
       this.writeObserver?.((Date.now() - start) / 1000);
       if (this.pendingTelemetry.length) {
@@ -1111,6 +1119,7 @@ export class Persistence {
    */
   async flushTelemetry(): Promise<void> {
     await this.flushPendingTelemetry();
+    await this.resyncPendingAlerts();
   }
 
   private async flushPendingTelemetry(): Promise<void> {
@@ -1239,7 +1248,7 @@ export class Persistence {
                 comment: null,
               },
             },
-            { upsert: true },
+            { upsert: true, timeoutMS: config.mongoWriteTimeoutMs },
           ),
         ),
       );
@@ -1259,10 +1268,47 @@ export class Persistence {
             lastSeenAt: new Date(),
           },
         },
+        { timeoutMS: config.mongoWriteTimeoutMs },
       );
+      this.alertSyncPending.delete(deviceId);
     } catch (error) {
-      logger.warn({ err: error, deviceId }, "Failed to persist alerts to MongoDB");
+      // Counted like every other failed write (it feeds NavFleetMongoWritesFailing), and the
+      // device is marked for a re-sync: the sync is a reconciliation of the whole active set, so
+      // replaying it later from the in-memory mirror converges on the right documents.
+      this.mongoWriteFailures += 1;
+      this.alertSyncPending.add(deviceId);
+      logger.warn({ err: error, deviceId }, "Failed to persist alerts to MongoDB; will re-sync");
     }
+  }
+
+  /**
+   * Re-run the alert sync for every device whose last sync failed, from the in-memory active set.
+   * Called on the write-behind retry timer, so alerts that changed while MongoDB was unavailable
+   * still land (a clear made during the outage is stamped when the re-sync succeeds).
+   */
+  private async resyncPendingAlerts(): Promise<void> {
+    if (!this.db || this.alertSyncPending.size === 0) return;
+    for (const deviceId of [...this.alertSyncPending]) {
+      const active = (this.activeAlerts.get(deviceId) ?? []).map((alert) => ({
+        id: alert.alertId,
+        severity: alert.severity as DeviceAlert["severity"],
+        title: alert.title,
+        detail: alert.detail,
+        source: alert.source,
+        ts: alert.ts,
+        active: true,
+        code: alert.code ?? undefined,
+        info: alert.info,
+      })) as DeviceAlert[];
+      await this.upsertAlerts(deviceId, active);
+      // Still failing: stop for this tick rather than hammering a database that is down.
+      if (this.alertSyncPending.has(deviceId)) return;
+    }
+  }
+
+  /** How many devices are waiting for an alert re-sync (for metrics and tests). */
+  alertSyncBacklog(): number {
+    return this.alertSyncPending.size;
   }
 
   /**

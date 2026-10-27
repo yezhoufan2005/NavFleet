@@ -231,14 +231,35 @@ async function failureError(response: Response): Promise<Error> {
   return new Error(`HTTP ${response.status}`);
 }
 
+/**
+ * How long one request may take before the console gives up on it. Without a bound a backend that
+ * accepts the connection but never answers (a stalled database behind it) leaves a page spinning
+ * forever. Report aggregations legitimately run long (the edge allows 180 s), uploads longer.
+ */
+export const REQUEST_TIMEOUT_MS = 30_000;
+export const REPORT_TIMEOUT_MS = 180_000;
+export const UPLOAD_TIMEOUT_MS = 300_000;
+
+/** An abort signal that fires after `ms`, unless the caller brought its own. */
+const timeoutSignal = (
+  ms: number,
+  own?: AbortSignal | null,
+): AbortSignal | undefined =>
+  own ??
+  (typeof AbortSignal.timeout === "function"
+    ? AbortSignal.timeout(ms)
+    : undefined);
+
 async function requestJson<T>(
   path: string,
   init: RequestInit = {},
+  timeoutMs = REQUEST_TIMEOUT_MS,
 ): Promise<T> {
   const response = await fetch(path, {
     credentials: "include",
     cache: "no-store",
     ...init,
+    signal: timeoutSignal(timeoutMs, init.signal),
   });
   if (!response.ok) {
     throw await failureError(response);
@@ -255,6 +276,7 @@ async function requestVoid(
     credentials: "include",
     cache: "no-store",
     ...init,
+    signal: timeoutSignal(REQUEST_TIMEOUT_MS, init.signal),
   });
   if (!response.ok) {
     throw await failureError(response);
@@ -272,6 +294,7 @@ async function requestUpload<T>(path: string, file: Blob): Promise<T> {
     credentials: "include",
     cache: "no-store",
     body: file,
+    signal: timeoutSignal(UPLOAD_TIMEOUT_MS),
   });
   if (!response.ok) {
     throw await failureError(response);
@@ -381,6 +404,8 @@ export const fleetApi = {
   ): Promise<AlertStatsReport> {
     return requestJson<AlertStatsReport>(
       `/api/v1/reports/alerts${buildQuery(params)}`,
+      {},
+      REPORT_TIMEOUT_MS,
     );
   },
 
@@ -390,6 +415,8 @@ export const fleetApi = {
   ): Promise<AvailabilityReport> {
     return requestJson<AvailabilityReport>(
       `/api/v1/reports/availability${buildQuery(params)}`,
+      {},
+      REPORT_TIMEOUT_MS,
     );
   },
 

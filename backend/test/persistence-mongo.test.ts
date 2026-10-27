@@ -678,7 +678,11 @@ describe("upsertAlerts", () => {
       { eventKey: "agv-a:low-soc", active: true },
       { eventKey: "agv-a:offline", active: true },
     ]);
-    expect(calls.updateOne[0]?.options).toEqual({ upsert: true });
+    // Time-bounded: a stalled server must not hold the serial ingest queue.
+    expect(calls.updateOne[0]?.options).toEqual({
+      upsert: true,
+      timeoutMS: config.mongoWriteTimeoutMs,
+    });
 
     // 这条是整个方法的契约：本次没报的旧告警要被标成已清除，而判据必须是这两个 key 的补集 ——
     // 写错成 `$in` 或漏掉 `deviceId` 都会让别的车的告警被顺手清掉。
@@ -726,6 +730,25 @@ describe("upsertAlerts", () => {
     const insert = (calls.updateOne[0]?.update as { $setOnInsert: Record<string, unknown> })
       .$setOnInsert;
     expect(insert).toMatchObject({ clearedAt: null, ackedBy: null });
+  });
+
+  it("写失败计入失败数，并在下一次 flush 时按内存活跃集合补同步", async () => {
+    const failing = createFakeDb({}, { updateOne: true });
+    persistence.__setDbForTests(failing.db);
+    const failuresBefore = persistence.mongoWriteStats().failures;
+
+    await persistence.upsertAlerts("agv-a", [alert("low-soc")]);
+    expect(persistence.mongoWriteStats().failures).toBe(failuresBefore + 1);
+    expect(persistence.alertSyncBacklog()).toBe(1);
+
+    // MongoDB is back: the retry timer's flush replays the sync from the in-memory mirror.
+    const healthy = createFakeDb();
+    persistence.__setDbForTests(healthy.db);
+    await persistence.flushTelemetry();
+    expect(healthy.calls.updateOne.map((call) => call.filter)).toEqual([
+      { eventKey: "agv-a:low-soc", active: true },
+    ]);
+    expect(persistence.alertSyncBacklog()).toBe(0);
   });
 
   it("即使 Mongo 报错，内存里的活跃集合仍然是更新过的", async () => {

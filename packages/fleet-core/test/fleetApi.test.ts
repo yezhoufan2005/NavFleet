@@ -58,6 +58,8 @@ describe("fleetApi", () => {
     expect(calls[0]?.url).toBe("/api/v1/fleet/snapshot");
     expect(calls[0]?.init.credentials).toBe("include");
     expect(calls[0]?.init.cache).toBe("no-store");
+    // Bounded: a backend that accepts but never answers must not spin a page forever.
+    expect(calls[0]?.init.signal).toBeInstanceOf(AbortSignal);
   });
 
   it("returns the parsed JSON body for the scene catalog", async () => {

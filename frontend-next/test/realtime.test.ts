@@ -38,7 +38,7 @@ class FakeSocket implements RealtimeSocket {
 
   addEventListener(
     type: string,
-    listener: (event: { data?: unknown }) => void,
+    listener: (event: { data?: unknown; code?: number }) => void,
   ): void {
     const existing = this.listeners.get(type) ?? [];
     existing.push(listener);
@@ -70,12 +70,15 @@ class FakeSocket implements RealtimeSocket {
     this.emit("message", { data });
   }
 
-  dropFromServer(): void {
+  dropFromServer(code?: number): void {
     this.readyState = 3;
-    this.emit("close");
+    this.emit("close", { code });
   }
 
-  private emit(type: string, event: { data?: unknown } = {}): void {
+  private emit(
+    type: string,
+    event: { data?: unknown; code?: number } = {},
+  ): void {
     for (const listener of this.listeners.get(type) ?? []) listener(event);
   }
 }
@@ -101,6 +104,15 @@ beforeEach(() => {
 
 afterEach(() => {
   vi.useRealTimers();
+});
+
+// Jitter off: these cases pin the backoff schedule itself, so `Math.random` sits at the midpoint
+// (factor 1.0). The jitter range has its own case below.
+beforeEach(() => {
+  vi.spyOn(Math, "random").mockReturnValue(0.5);
+});
+afterEach(() => {
+  vi.restoreAllMocks();
 });
 
 describe("connecting", () => {
@@ -241,6 +253,9 @@ describe("backoff", () => {
     expect(backoffDelay(1)).toBe(2_000);
     expect(backoffDelay(4)).toBe(16_000);
     expect(backoffDelay(99)).toBe(BACKOFF_MAX_MS);
+    // ±20% jitter around the step, so consoles that lost the backend together spread out.
+    expect(backoffDelay(4, () => 0)).toBe(12_800);
+    expect(backoffDelay(4, () => 1)).toBe(19_200);
   });
 
   it("waits longer after each failed attempt", () => {
@@ -340,5 +355,52 @@ describe("disconnect", () => {
 
     link.connect();
     expect(statuses.at(-1)).toBe("connecting");
+  });
+});
+
+describe("session-invalid close and retryNow", () => {
+  it("reports a 4401 close to the session layer, and still schedules the reconnect", () => {
+    const onSessionInvalid = vi.fn();
+    const link = createRealtimeLink({
+      url: () => "ws://test/ws",
+      createSocket: (url) => new FakeSocket(url),
+      onMessage: () => undefined,
+      onStatus: () => undefined,
+      onSessionInvalid,
+    });
+    link.connect();
+    FakeSocket.instances[0]!.acceptConnection();
+
+    FakeSocket.instances[0]!.dropFromServer(4401);
+    expect(onSessionInvalid).toHaveBeenCalledOnce();
+
+    vi.advanceTimersByTime(backoffDelay(0));
+    expect(FakeSocket.instances).toHaveLength(2);
+  });
+
+  it("does not treat an ordinary drop as an invalid session", () => {
+    const onSessionInvalid = vi.fn();
+    const link = createRealtimeLink({
+      url: () => "ws://test/ws",
+      createSocket: (url) => new FakeSocket(url),
+      onMessage: () => undefined,
+      onStatus: () => undefined,
+      onSessionInvalid,
+    });
+    link.connect();
+    FakeSocket.instances[0]!.acceptConnection();
+    FakeSocket.instances[0]!.dropFromServer();
+    expect(onSessionInvalid).not.toHaveBeenCalled();
+  });
+
+  it("retryNow skips the remaining backoff", () => {
+    const link = makeLink();
+    link.connect();
+    FakeSocket.instances[0]!.acceptConnection();
+    FakeSocket.instances[0]!.dropFromServer();
+    expect(FakeSocket.instances).toHaveLength(1);
+
+    link.retryNow();
+    expect(FakeSocket.instances).toHaveLength(2);
   });
 });

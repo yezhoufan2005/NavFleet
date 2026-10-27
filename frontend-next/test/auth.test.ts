@@ -102,12 +102,31 @@ describe("fetchMe", () => {
   it("distinguishes an unreachable backend from a missing session", async () => {
     // v1.0.0 rendered both as "you are logged out", which sends someone to retype
     // a password that was never the problem.
+    vi.useFakeTimers();
     fetchMock.mockRejectedValue(new TypeError("Failed to fetch"));
     const { items } = useNotifications();
+    const auth = useAuth();
 
-    await expect(useAuth().fetchMe()).resolves.toBe(false);
+    await expect(auth.fetchMe()).resolves.toBe(false);
     expect(items).toHaveLength(1);
     expect(items[0]?.message).toContain("无法连接服务器");
+    // Still waiting, not on the login form — and it probes again by itself.
+    expect(auth.state.status).toBe("unknown");
+    fetchMock.mockResolvedValue(jsonResponse({ user: ADMIN }));
+    await vi.advanceTimersByTimeAsync(AUTH_RETRY_DELAYS_MS[0]);
+    expect(auth.state.status).toBe("authenticated");
+  });
+
+  it("probes again at once when the browser comes back online", async () => {
+    vi.useFakeTimers();
+    fetchMock.mockRejectedValue(new TypeError("Failed to fetch"));
+    const auth = useAuth();
+    await auth.fetchMe();
+
+    fetchMock.mockResolvedValue(jsonResponse({ user: ADMIN }));
+    window.dispatchEvent(new Event("online"));
+    await vi.advanceTimersByTimeAsync(0);
+    expect(auth.state.status).toBe("authenticated");
   });
 
   it("rejects a 200 whose body is not a user", async () => {
@@ -256,9 +275,9 @@ describe("token refresh", () => {
     expect(fetchMock).toHaveBeenCalledTimes(3);
   });
 
-  it("gives up loudly after the whole ladder fails", async () => {
-    // This is the wall-display case: the alternative is a screen that stops
-    // updating and shows no sign of it.
+  it("never signs out over an outage: keeps retrying past the ladder, says so once", async () => {
+    // This is the wall-display case: a kiosk cannot be clicked, so going anonymous after a
+    // long outage left it on a login screen forever. Only a 401 ends a session.
     const auth = await signIn();
     const { items } = useNotifications();
     fetchMock.mockRejectedValue(new TypeError("Failed to fetch"));
@@ -267,9 +286,18 @@ describe("token refresh", () => {
     for (const delay of AUTH_RETRY_DELAYS_MS) {
       await vi.advanceTimersByTimeAsync(delay);
     }
+    const last = AUTH_RETRY_DELAYS_MS[AUTH_RETRY_DELAYS_MS.length - 1]!;
+    await vi.advanceTimersByTimeAsync(last * 3);
 
-    expect(auth.state.status).toBe("anonymous");
-    expect(items.at(-1)?.message).toContain("会话续期连续失败");
+    expect(auth.state.status).toBe("authenticated");
+    expect(
+      items.filter((item) => item.message.includes("将持续自动重试")),
+    ).toHaveLength(1);
+
+    // The backend comes back: the next retry succeeds and the normal interval resumes.
+    fetchMock.mockResolvedValue(jsonResponse({ user: ADMIN }));
+    await vi.advanceTimersByTimeAsync(last);
+    expect(auth.state.status).toBe("authenticated");
   });
 
   it("stops the timer on logout", async () => {
