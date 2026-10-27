@@ -207,9 +207,11 @@ const rows = computed<Row[]>(() =>
         ? clearedAt - onset
         : null;
     return {
-      key: String(
-        record.eventKey ?? record.id ?? `${record.deviceId ?? "?"}-${index}`,
-      ),
+      // One row per occurrence: the same eventKey recurs once per time the code fired, so the
+      // onset makes the key unique (the index is the last resort for a record with neither).
+      key: `${String(record.eventKey ?? record.id ?? record.deviceId ?? "?")}@${
+        Number.isFinite(onset) ? onset : `#${index}`
+      }`,
       severity: severityOf(record),
       title: String(record.title || record.info || "未命名告警"),
       detail: String(record.detail || record.info || ""),

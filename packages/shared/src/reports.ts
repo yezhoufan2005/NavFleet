@@ -77,8 +77,9 @@ export type ReportBucketUnit = "hour" | "day" | "month";
 /**
  * 一个时间桶内、单台设备的可用率与电量（Phase 17A-2）。
  *
- * `onlineRatio = onlineSamples / totalSamples`：这段时间里上报的帧中有多少标着在线，即可用率的直接
- * 度量。`socMean`/`socMin` 来自 `vehicleInfo.soc`；桶内没有任何数值样本时为 null（`$avg`/`$min`
+ * `onlineRatio = onlineSeconds / spanSeconds`：按**时间**加权——桶在窗口内的时长里，有多少被在线帧
+ * 覆盖（每帧覆盖到同车下一帧，最多覆盖离线判定阈值；没有帧的时段算离线）。按帧数算会漏掉离线时段，
+ * 因为车离线时不上报。`onlineSamples`/`totalSamples` 仍给出帧数，用于电量加权和样本量参考。`socMean`/`socMin` 来自 `vehicleInfo.soc`；桶内没有任何数值样本时为 null（`$avg`/`$min`
  * 会跳过缺失/非数值，不会把 null 当 0）。
  */
 export interface AvailabilityBucket {
@@ -86,6 +87,10 @@ export interface AvailabilityBucket {
   bucketStart: string;
   onlineSamples: number;
   totalSamples: number;
+  /** 被在线帧覆盖的秒数。 */
+  onlineSeconds: number;
+  /** 这个桶落在报表窗口内的秒数（分母）。 */
+  spanSeconds: number;
   onlineRatio: number;
   socMean: number | null;
   socMin: number | null;

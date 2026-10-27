@@ -759,6 +759,10 @@ export const useFleetStore = defineStore("fleet", () => {
 
     const alert = frame.alert;
     if (!alert || typeof alert.id !== "string") return;
+    // A clear closes that occurrence, acknowledgement included; if the code fires again it is a
+    // new, unacknowledged occurrence under the same eventKey — drop the overlay entry so the new
+    // one does not inherit the old confirmation. Every severity, before the toast filter below.
+    if (type === "alert.cleared") applyUnack(ackEventKey(deviceId, alert.id));
     // 提示级不弹。报码里的提示位在正常运行中就会亮，一台车一条就足以让提示流变成
     // 背景噪声 —— 而背景噪声会让人连告警一起忽略。它们仍然进消息页与徽标。
     const severity = alert.severity;

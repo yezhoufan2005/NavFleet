@@ -196,6 +196,24 @@ describe("acknowledgement events (Phase 16A)", () => {
     expect(store.isAlertAcked("agv-a01", "err-1")).toBe(false);
   });
 
+  it("drops the acknowledgement when its occurrence clears (a re-fire starts unacknowledged)", () => {
+    const store = useFleetStore();
+    send("alert.acked", {
+      deviceId: "agv-a01",
+      alertId: "info-1",
+      ackedBy: "operator-b",
+      ackedAt: "2026-01-01T00:00:00.000Z",
+    });
+    expect(store.isAlertAcked("agv-a01", "info-1")).toBe(true);
+
+    // Any severity — 提示 never toasts, but its clear must still close the occurrence.
+    send("alert.cleared", {
+      deviceId: "agv-a01",
+      alert: { id: "info-1", severity: "notice", title: "提示" },
+    });
+    expect(store.isAlertAcked("agv-a01", "info-1")).toBe(false);
+  });
+
   it("ignores an acknowledgement frame with no alert id", () => {
     const store = useFleetStore();
     send("alert.acked", { deviceId: "agv-a01", ackedBy: "x", ackedAt: "y" });

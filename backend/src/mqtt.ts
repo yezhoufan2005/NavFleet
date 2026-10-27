@@ -93,6 +93,7 @@ export const connectMqtt = ({ store, topicScheme, config, state }: MqttDeps): mq
 
   client.on("connect", () => {
     state.mqttConnected = true;
+    store.setSourceConnected(true);
     logger.info({ url: redactUrlCredentials(config.mqttUrl) }, "Connected to MQTT broker");
     const subscriptions = [topicScheme.telemetrySubscription, topicScheme.statusSubscription];
     client.subscribe(subscriptions, (error) => {
@@ -164,9 +165,11 @@ export const connectMqtt = ({ store, topicScheme, config, state }: MqttDeps): mq
 
   client.on("close", () => {
     state.mqttConnected = false;
+    store.setSourceConnected(false);
   });
   client.on("offline", () => {
     state.mqttConnected = false;
+    store.setSourceConnected(false);
   });
 
   return client;

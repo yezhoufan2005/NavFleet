@@ -8,6 +8,11 @@
  * **数据来源口径**：`ts` 是 Mongo `Date`（`writeTelemetry` 用 `new Date(snapshot.stamp)` 写入，TTL
  * 也建在它上面）；`measurements.online` 是布尔，`measurements.vehicleInfo.soc` 是电量百分比（可能
  * 缺失/非数值，`$avg`/`$min` 会自动跳过）。
+ *
+ * **在线率按时间加权，不按帧数**：车离线时不上报，按帧数算（在线帧/总帧）会把离线时段整段漏掉——离线
+ * 23 小时、在线 1 小时的车读出来接近 100%。这里让每一帧「覆盖」它到同一台车下一帧之间的时长，但最多
+ * 覆盖 `maxGapMs`（离线判定阈值）：间隔超过阈值的部分没有任何帧作证，按离线计。在线率 = 在线覆盖时长 ÷
+ * 桶在窗口内的时长（桶与 [from, horizon] 求交），所以没有帧的时段天然算作离线。
  */
 
 import type { Document } from "mongodb";
@@ -29,6 +34,10 @@ export interface AvailabilityPipelineParams {
   bucket: ReportBucketUnit;
   /** 切桶界用的 IANA 时区，交给 `$dateTrunc`。 */
   timezone: string;
+  /** 一帧最多覆盖多久（毫秒）：离线判定阈值。超过的间隔按离线计。 */
+  maxGapMs: number;
+  /** 窗口的实际右端（`min(to, now)`）：最后一帧覆盖到这里为止，桶时长也截到这里。 */
+  horizon: Date;
 }
 
 /**
@@ -37,7 +46,7 @@ export interface AvailabilityPipelineParams {
  * `deviceIds` 多选时用 `$in` 收窄到选中的若干台，每台仍各自成一条序列。
  */
 export const buildAvailabilityPipeline = (params: AvailabilityPipelineParams): Document[] => {
-  const { deviceIds, from, to, bucket, timezone } = params;
+  const { deviceIds, from, to, bucket, timezone, maxGapMs, horizon } = params;
   const pipeline: Document[] = [];
 
   const match: Record<string, unknown> = {};
@@ -53,6 +62,26 @@ export const buildAvailabilityPipeline = (params: AvailabilityPipelineParams): D
   }
 
   pipeline.push(
+    // Each frame's successor on the same vehicle, to know how long the frame stands for.
+    {
+      $setWindowFields: {
+        partitionBy: "$meta.deviceId",
+        sortBy: { ts: 1 },
+        output: { nextTs: { $shift: { output: "$ts", by: 1 } } },
+      },
+    },
+    {
+      $addFields: {
+        coveredMs: {
+          $max: [
+            0,
+            {
+              $min: [maxGapMs, { $subtract: [{ $ifNull: ["$nextTs", horizon] }, "$ts"] }],
+            },
+          ],
+        },
+      },
+    },
     {
       $group: {
         _id: {
@@ -65,9 +94,19 @@ export const buildAvailabilityPipeline = (params: AvailabilityPipelineParams): D
           $sum: { $cond: ["$measurements.online", 1, 0] },
         },
         totalSamples: { $sum: 1 },
+        onlineMs: {
+          $sum: { $cond: ["$measurements.online", "$coveredMs", 0] },
+        },
         // `$avg`/`$min` 跳过缺失或非数值的 soc；桶内一个数值都没有时结果是 null，而不是 0。
         socMean: { $avg: "$measurements.vehicleInfo.soc" },
         socMin: { $min: "$measurements.vehicleInfo.soc" },
+      },
+    },
+    {
+      $addFields: {
+        bucketEnd: {
+          $dateAdd: { startDate: "$_id.bucketStart", unit: bucket, amount: 1, timezone },
+        },
       },
     },
     { $sort: { "_id.deviceId": 1, "_id.bucketStart": 1 } },
@@ -81,6 +120,10 @@ export interface AvailabilityRow {
   _id: { deviceId?: string | null; bucketStart?: Date | string | null };
   onlineSamples?: number;
   totalSamples?: number;
+  /** 在线帧覆盖的时长（毫秒）。 */
+  onlineMs?: number;
+  /** 桶的右界（`$dateAdd`，按时区算月长）。缺省时按左界推不出，视为空桶。 */
+  bucketEnd?: Date | string | null;
   socMean?: number | null;
   socMin?: number | null;
 }
@@ -97,15 +140,27 @@ const toIso = (value: Date | string | null | undefined): string => {
   return String(value ?? "");
 };
 
+const toMs = (value: Date | string | null | undefined): number =>
+  value instanceof Date ? value.getTime() : Date.parse(String(value ?? ""));
+
+/** 窗口：桶时长与 [from, horizon] 求交，左端未给即不截。 */
+export interface AvailabilityWindow {
+  from: Date | null;
+  horizon: Date;
+}
+
 /**
  * 已排序的行 → `AvailabilityReport`（纯映射，`available` 由调用方决定）。按 deviceId 顺序切段成每台
- * 一条序列，算出 `onlineRatio`（零除保护），并把 soc 收敛精度。每台设备原样成列——报表要的就是逐台
+ * 一条序列，算出按时间加权的 `onlineRatio`（零除保护），并把 soc 收敛精度。每台设备原样成列——报表要的就是逐台
  * 可对比的明细，不做任何折叠。
  */
 export const mapAvailabilityRows = (
   rows: readonly AvailabilityRow[],
   bucket: ReportBucketUnit,
+  window: AvailabilityWindow,
 ): AvailabilityReport => {
+  const windowStart = window.from ? window.from.getTime() : Number.NEGATIVE_INFINITY;
+  const windowEnd = window.horizon.getTime();
   const devices: AvailabilityDeviceSeries[] = [];
   let current: AvailabilityDeviceSeries | null = null;
 
@@ -117,11 +172,19 @@ export const mapAvailabilityRows = (
     }
     const total = row.totalSamples ?? 0;
     const online = row.onlineSamples ?? 0;
+    const start = Math.max(toMs(row._id.bucketStart), windowStart);
+    const end = Math.min(toMs(row.bucketEnd), windowEnd);
+    const spanMs = Number.isFinite(start) && Number.isFinite(end) ? Math.max(0, end - start) : 0;
+    // A frame's coverage can run past its bucket's right edge (it is attributed to the bucket the
+    // frame sits in, and a gap is at most the offline threshold), so clamp to 100%.
+    const onlineMs = Math.min(row.onlineMs ?? 0, spanMs);
     const entry: AvailabilityBucket = {
       bucketStart: toIso(row._id.bucketStart),
       onlineSamples: online,
       totalSamples: total,
-      onlineRatio: total > 0 ? online / total : 0,
+      onlineSeconds: Math.round(onlineMs / 1000),
+      spanSeconds: Math.round(spanMs / 1000),
+      onlineRatio: spanMs > 0 ? onlineMs / spanMs : 0,
       socMean: round3(row.socMean),
       socMin: round3(row.socMin),
     };

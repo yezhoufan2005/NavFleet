@@ -121,11 +121,32 @@ export class DashboardStore extends EventEmitter {
   private cappedDevices = 0;
   private evictedDevices = 0;
 
+  /**
+   * Since when the telemetry source (the MQTT broker connection) has been up, or null while it is
+   * down. Defaults to "up since forever" so a store with no source wired (tests, a deployment that
+   * only ingests over HTTP) judges silence exactly as before.
+   */
+  private sourceUpSince: number | null = 0;
+
   constructor(
     private readonly persistence: Persistence,
     private readonly configRegistry: ConfigRegistry,
   ) {
     super();
+  }
+
+  /**
+   * Tell the store whether the telemetry source is connected. While it is down, a vehicle's
+   * silence says nothing about the vehicle — every one goes quiet at once — so the offline sweep
+   * holds off; after it comes back, the sweep waits one full offline window so vehicles get the
+   * chance to report again before their pre-outage stamps are judged.
+   */
+  setSourceConnected(connected: boolean): void {
+    if (connected) {
+      this.sourceUpSince ??= Date.now();
+    } else {
+      this.sourceUpSince = null;
+    }
   }
 
   /** Log at most one line per `WARN_THROTTLE_MS` per `key`. */
@@ -881,7 +902,11 @@ export class DashboardStore extends EventEmitter {
     to?: string;
     bucket: ReportBucketUnit;
   }) {
-    return this.persistence.aggregateAvailability(params);
+    // A frame stands for at most the offline threshold in effect (rules.json, else the env default):
+    // the same silence that marks a vehicle offline live counts as offline time in the report.
+    const afterSeconds =
+      this.configRegistry.getAlertRules().offline.afterSeconds ?? config.offlineAfterSeconds;
+    return this.persistence.aggregateAvailability({ ...params, maxGapSeconds: afterSeconds });
   }
 
   private async evaluateOfflineDevicesInternal(): Promise<void> {
@@ -892,8 +917,12 @@ export class DashboardStore extends EventEmitter {
     const offlineRule = this.configRegistry.getAlertRules().offline;
     const thresholdMs = (offlineRule.afterSeconds ?? config.offlineAfterSeconds) * 1000;
     const now = Date.now();
+    // A source outage (or the first window after it recovers) silences the whole fleet at once;
+    // that is not evidence about any vehicle, so no offline verdicts until the source has been up
+    // for a full window. Eviction below still runs — it is memory housekeeping, not a judgement.
+    const sourceSettled = this.sourceUpSince !== null && now - this.sourceUpSince >= thresholdMs;
 
-    for (const device of this.rawDevices.values()) {
+    for (const device of sourceSettled ? this.rawDevices.values() : []) {
       const isStale = now - Date.parse(device.stamp) > thresholdMs;
       if (!isStale || !device.online) {
         continue;

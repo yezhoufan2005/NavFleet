@@ -20,6 +20,8 @@ const availability = (patch: Partial<AvailabilityReport> = {}): AvailabilityRepo
           bucketStart: "2026-09-01T00:00:00.000Z",
           onlineSamples: 18,
           totalSamples: 20,
+          onlineSeconds: 18,
+          spanSeconds: 20,
           onlineRatio: 0.9,
           socMean: 80,
           socMin: 60,
@@ -28,6 +30,8 @@ const availability = (patch: Partial<AvailabilityReport> = {}): AvailabilityRepo
           bucketStart: "2026-09-02T00:00:00.000Z",
           onlineSamples: 20,
           totalSamples: 20,
+          onlineSeconds: 20,
+          spanSeconds: 20,
           onlineRatio: 1,
           socMean: null,
           socMin: null,
@@ -119,9 +123,11 @@ describe("buildReportEmail", () => {
     expect(attachment!.filename).toBe("navfleet-可用率-7d-2026-09-08.csv");
     expect(attachment!.content.startsWith("﻿")).toBe(true);
     const lines = attachment!.content.replace("﻿", "").split("\n");
-    expect(lines[0]).toBe("设备ID,设备名称,时间桶,在线帧,总帧,在线率,电量均值,电量最低");
+    expect(lines[0]).toBe(
+      "设备ID,设备名称,时间桶,在线帧,总帧,在线秒数,统计秒数,在线率,电量均值,电量最低",
+    );
     // Second bucket had a null soc → trailing cells empty, never 0.
-    expect(lines[2]).toBe("agv-1,A01 巡检车,2026-09-02T00:00:00.000Z,20,20,1.0000,,");
+    expect(lines[2]).toBe("agv-1,A01 巡检车,2026-09-02T00:00:00.000Z,20,20,20,20,1.0000,,");
   });
 
   it("says so when there is no history backend, instead of dressing zeros as a real report", () => {

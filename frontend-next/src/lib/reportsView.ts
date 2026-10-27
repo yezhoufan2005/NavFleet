@@ -59,7 +59,7 @@ export const defaultBucketForPreset = (
 export type DeviceNameOf = (deviceId: string) => string;
 
 export interface AvailabilitySummary {
-  /** 全队在线帧比 = Σonline / Σtotal，跨所有设备与桶；无样本时 null。 */
+  /** 全队在线率 = Σ在线时长 / Σ统计时长，跨所有设备与桶（按时间加权）；无数据时 null。 */
   onlineRatio: number | null;
   /** 样本加权的平均 soc（跳过没有 soc 的桶）；无样本时 null。 */
   socMean: number | null;
@@ -67,8 +67,8 @@ export interface AvailabilitySummary {
 }
 
 /**
- * 报表顶部 KPI 带用的全队汇总。在线率按帧数加权（长桶不该和短桶等权），soc 同理按 totalSamples 加权
- * 并跳过 socMean 为 null 的桶。两者都做零除保护。
+ * 报表顶部 KPI 带用的全队汇总。在线率按时间加权（Σ onlineSeconds / Σ spanSeconds——离线时段车不上报，
+ * 按帧数算会把它漏掉）；soc 按 totalSamples 加权并跳过 socMean 为 null 的桶。两者都做零除保护。
  */
 export const summarizeAvailability = (
   report: AvailabilityReport,
@@ -79,8 +79,8 @@ export const summarizeAvailability = (
   let socWeight = 0;
   for (const device of report.devices) {
     for (const bucket of device.buckets) {
-      online += bucket.onlineSamples;
-      total += bucket.totalSamples;
+      online += bucket.onlineSeconds;
+      total += bucket.spanSeconds;
       if (bucket.socMean !== null && bucket.totalSamples > 0) {
         socWeighted += bucket.socMean * bucket.totalSamples;
         socWeight += bucket.totalSamples;
@@ -98,6 +98,7 @@ export const summarizeAvailability = (
 const bucketMs = (iso: string): number => Date.parse(iso);
 
 interface BucketFold {
+  /** 在线秒数与统计秒数（按时间加权）。 */
   online: number;
   total: number;
   socWeighted: number;
@@ -123,8 +124,8 @@ const foldByBucket = (report: AvailabilityReport): Map<number, BucketFold> => {
         socWeighted: 0,
         socWeight: 0,
       };
-      fold.online += bucket.onlineSamples;
-      fold.total += bucket.totalSamples;
+      fold.online += bucket.onlineSeconds;
+      fold.total += bucket.spanSeconds;
       // 电量按帧数加权，null 桶不参与（不画成 0）。
       if (bucket.socMean !== null && bucket.totalSamples > 0) {
         fold.socWeighted += bucket.socMean * bucket.totalSamples;
@@ -150,7 +151,7 @@ const deviceOnlinePoints = (
   device: AvailabilityReport["devices"][number],
 ): [number, number][] =>
   device.buckets
-    .filter((bucket) => bucket.totalSamples > 0)
+    .filter((bucket) => bucket.spanSeconds > 0)
     .map(
       (bucket) =>
         [bucketMs(bucket.bucketStart), bucket.onlineRatio * 100] as [
@@ -230,7 +231,7 @@ export interface DeviceAvailabilityRow {
   deviceId: string;
   /** 展示名（取自实时车队，无则回退 id）。 */
   name: string;
-  /** 跨桶在线率 = Σonline / Σtotal；无样本时 null。 */
+  /** 跨桶在线率 = Σ在线时长 / Σ统计时长（按时间加权）；无数据时 null。 */
   onlineRatio: number | null;
   /** 样本加权电量均值；无 soc 样本时 null。 */
   socMean: number | null;
@@ -240,7 +241,7 @@ export interface DeviceAvailabilityRow {
 }
 
 /**
- * 把（设备 × 桶）的可用率报表压成「每台一行」的明细，供分区下方的明细表做横向对比。在线率跨桶按帧
+ * 把（设备 × 桶）的可用率报表压成「每台一行」的明细，供分区下方的明细表做横向对比。在线率跨桶按时间
  * 汇总、电量按帧加权，和顶部 KPI 的口径一致；按样本数降序。每台都是真实设备，不做任何聚合折叠。
  */
 export const deviceAvailabilityRows = (
@@ -254,8 +255,8 @@ export const deviceAvailabilityRows = (
     let socWeight = 0;
     let socMin: number | null = null;
     for (const bucket of device.buckets) {
-      online += bucket.onlineSamples;
-      total += bucket.totalSamples;
+      online += bucket.onlineSeconds;
+      total += bucket.spanSeconds;
       if (bucket.socMean !== null && bucket.totalSamples > 0) {
         socWeighted += bucket.socMean * bucket.totalSamples;
         socWeight += bucket.totalSamples;
@@ -332,6 +333,8 @@ export const buildAvailabilityCsv = (
     "时间桶",
     "在线帧",
     "总帧",
+    "在线秒数",
+    "统计秒数",
     "在线率",
     "电量均值",
     "电量最低",
@@ -346,6 +349,8 @@ export const buildAvailabilityCsv = (
           bucket.bucketStart,
           bucket.onlineSamples,
           bucket.totalSamples,
+          bucket.onlineSeconds,
+          bucket.spanSeconds,
           bucket.onlineRatio.toFixed(4),
           bucket.socMean ?? "",
           bucket.socMin ?? "",

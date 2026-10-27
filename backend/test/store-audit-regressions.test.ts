@@ -1,4 +1,4 @@
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { config } from "../src/config";
 import type { ConfigRegistry } from "../src/configRegistry";
 import type { Persistence } from "../src/persistence";
@@ -148,6 +148,34 @@ describe("a device the offline monitor marked offline comes back on the next tel
     await store.applyPayload(vehicleInfo("agv-1", new Date().toISOString()), "mqtt");
     expect(onlineOf(store, "agv-1")).toBe(true);
     expect(offlineAlertPresent(store, "agv-1")).toBe(false);
+  });
+
+  it("holds off offline verdicts while the telemetry source is down, and for one window after", async () => {
+    const { store } = createStore(["agv-1"]);
+    const stale = new Date(Date.now() - 120_000).toISOString();
+    await store.applyPayload({ ...vehicleInfo("agv-1", stale), online: true }, "seed");
+
+    // Broker down: the whole fleet is silent, which says nothing about this vehicle.
+    store.setSourceConnected(false);
+    await store.evaluateOfflineDevices();
+    expect(onlineOf(store, "agv-1")).toBe(true);
+    expect(offlineAlertPresent(store, "agv-1")).toBe(false);
+
+    // Just reconnected: vehicles get one offline window to report again first.
+    store.setSourceConnected(true);
+    await store.evaluateOfflineDevices();
+    expect(onlineOf(store, "agv-1")).toBe(true);
+
+    // A full window later, a vehicle that still has not reported is judged offline.
+    vi.useFakeTimers();
+    try {
+      vi.setSystemTime(Date.now() + 61_000);
+      await store.evaluateOfflineDevices();
+      expect(onlineOf(store, "agv-1")).toBe(false);
+      expect(offlineAlertPresent(store, "agv-1")).toBe(true);
+    } finally {
+      vi.useRealTimers();
+    }
   });
 });
 

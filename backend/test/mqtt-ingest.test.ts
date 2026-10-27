@@ -34,7 +34,8 @@ const setup = () => {
   handlers.clear();
   const applyStatus = vi.fn(async (_deviceId: string, _payload: unknown) => undefined);
   const applyPayload = vi.fn(async (_payload: unknown, _source?: string) => undefined);
-  const store = { applyStatus, applyPayload } as unknown as DashboardStore;
+  const setSourceConnected = vi.fn((_connected: boolean) => undefined);
+  const store = { applyStatus, applyPayload, setSourceConnected } as unknown as DashboardStore;
   const state = createRuntimeState();
   connectMqtt({
     store,
@@ -45,7 +46,7 @@ const setup = () => {
   const emit = async (topic: string, text: string): Promise<void> => {
     await handlers.get("message")?.(topic, Buffer.from(text, "utf8"));
   };
-  return { applyStatus, applyPayload, state, emit };
+  return { applyStatus, applyPayload, setSourceConnected, state, emit };
 };
 
 describe("MQTT ingest validation", () => {
@@ -93,5 +94,22 @@ describe("MQTT ingest validation", () => {
     expect(ctx.applyStatus).not.toHaveBeenCalled();
     expect(ctx.state.mqttMessagesTotal).toBe(5);
     expect(ctx.state.mqttMessagesRejected).toBe(5);
+  });
+});
+
+describe("MQTT connection state reaches the store", () => {
+  it("reports connect / close / offline so the offline sweep can hold off during an outage", () => {
+    const ctx = setup();
+    // The lifecycle events take no arguments; the shared map types every handler as a message one.
+    const fire = (event: string): void => {
+      void (handlers.get(event) as unknown as () => void)();
+    };
+    fire("connect");
+    expect(ctx.setSourceConnected).toHaveBeenLastCalledWith(true);
+    fire("close");
+    expect(ctx.setSourceConnected).toHaveBeenLastCalledWith(false);
+    fire("connect");
+    fire("offline");
+    expect(ctx.setSourceConnected).toHaveBeenLastCalledWith(false);
   });
 });

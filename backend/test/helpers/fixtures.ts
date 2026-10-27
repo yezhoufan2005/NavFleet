@@ -120,6 +120,8 @@ export const sampleAvailabilityReport = (): Record<string, unknown> => ({
           bucketStart: "2026-09-01T00:00:00.000Z",
           onlineSamples: 9,
           totalSamples: 10,
+          onlineSeconds: 9,
+          spanSeconds: 10,
           onlineRatio: 0.9,
           socMean: 82.5,
           socMin: 70,
