@@ -241,6 +241,52 @@ for (const target of includeTargets) {
     );
 }
 
+// 8. 边缘的请求体上限必须与后端一致：nginx 默认只放行 1 MB，比后端的 JSON（2mb）与底图上传
+//    （RAW_LIMIT）都小，超出的请求在边缘就被 413，后端的分类型上限根本轮不到。
+{
+  const locations = read(join(DEPLOY, "nginx/locations.conf"));
+  const toBytes = (v) => {
+    const m = String(v)
+      .trim()
+      .toLowerCase()
+      .match(/^(\d+)\s*([km]?)b?$/);
+    if (!m) return Number.NaN;
+    return (
+      Number(m[1]) * (m[2] === "m" ? 1024 * 1024 : m[2] === "k" ? 1024 : 1)
+    );
+  };
+  const blockLimit = (header) => {
+    const at = locations.indexOf(header);
+    if (at < 0) return null;
+    const body = locations.slice(at, locations.indexOf("\n}", at));
+    const m = body.match(/client_max_body_size\s+(\S+);/);
+    return m ? m[1] : null;
+  };
+  const scenesSrc = read(join(ROOT, "backend/src/routes/scenes.ts"));
+  const rawLimit = scenesSrc.match(/const RAW_LIMIT = "([^"]+)"/)?.[1];
+  const appSrc = read(join(ROOT, "backend/src/app.ts"));
+  const jsonLimit = appSrc.match(
+    /express\.json\(\{ limit: "([^"]+)" \}\)/,
+  )?.[1];
+  const pairs = [
+    ["location ~ ^/api/scenes/", rawLimit, "底图上传（RAW_LIMIT）"],
+    ["location /api/ {", jsonLimit, "JSON 请求体（express.json）"],
+  ];
+  for (const [header, backend, label] of pairs) {
+    const edge = blockLimit(header);
+    if (!backend) bad(`读不到后端的 ${label} 上限`);
+    else if (!edge)
+      bad(
+        `nginx 的 ${header} 没设 client_max_body_size（默认 1 MB < 后端 ${backend}）`,
+      );
+    else if (toBytes(edge) !== toBytes(backend))
+      bad(
+        `nginx ${header} 的 client_max_body_size ${edge} 与后端 ${label} ${backend} 不一致`,
+      );
+    else ok(`nginx 与后端的 ${label} 上限一致（${backend}）`);
+  }
+}
+
 console.log(`\n通过 ${pass} · 失败 ${failures.length}`);
 if (failures.length) {
   console.error("\n部署接线检查未通过：");
