@@ -58,6 +58,14 @@ describe("RbacService — custom roles", () => {
     expect(await service.deleteRole(role.value.id)).toEqual({ ok: false, error: "role_in_use" });
   });
 
+  it("deletes a role no group references", async () => {
+    const { service, read } = await build();
+    const role = await service.createRole({ name: "Spare", capabilities: [] });
+    if (!role.ok) throw new Error("setup");
+    expect(await service.deleteRole(role.value.id)).toEqual({ ok: true, value: null });
+    expect(read().roles).toEqual([]);
+  });
+
   it("404s an update/delete of an unknown role", async () => {
     const { service } = await build();
     expect(await service.updateRole("nope", { name: "x", capabilities: [] })).toEqual({
@@ -65,6 +73,48 @@ describe("RbacService — custom roles", () => {
       error: "not_found",
     });
     expect(await service.deleteRole("nope")).toEqual({ ok: false, error: "not_found" });
+  });
+
+  it("updates a role in place, re-normalizing its capabilities", async () => {
+    const { service, read } = await build();
+    const role = await service.createRole({ name: "Ops", capabilities: [] });
+    if (!role.ok) throw new Error("setup");
+    const updated = await service.updateRole(role.value.id, {
+      name: "Ops2",
+      capabilities: ["notify:read", "alerts:ack"],
+    });
+    expect(updated).toMatchObject({
+      ok: true,
+      value: { id: role.value.id, name: "Ops2", capabilities: ["alerts:ack", "notify:read"] },
+    });
+    expect(read().roles.map((r) => r.name)).toEqual(["Ops2"]);
+  });
+
+  it("refuses renaming a role onto another role's name, but allows keeping its own", async () => {
+    const { service } = await build();
+    await service.createRole({ name: "A", capabilities: [] });
+    const b = await service.createRole({ name: "B", capabilities: [] });
+    if (!b.ok) throw new Error("setup");
+    expect(await service.updateRole(b.value.id, { name: "A", capabilities: [] })).toEqual({
+      ok: false,
+      error: "conflict",
+    });
+    expect((await service.updateRole(b.value.id, { name: "B", capabilities: [] })).ok).toBe(true);
+  });
+});
+
+describe("RbacService — persist failure", () => {
+  it("rolls the cache back and rethrows when saveRbacState fails", async () => {
+    const { service } = await build();
+    await service.createRole({ name: "Kept", capabilities: [] });
+    const failing = service as unknown as { persistence: { saveRbacState: () => Promise<void> } };
+    failing.persistence.saveRbacState = () => Promise.reject(new Error("disk full"));
+
+    await expect(service.createRole({ name: "Lost", capabilities: [] })).rejects.toThrow(
+      "disk full",
+    );
+    // Memory must not run ahead of disk: the failed role is gone, the earlier one survives.
+    expect(service.getRoles().map((role) => role.name)).toEqual(["Kept"]);
   });
 });
 
@@ -104,6 +154,59 @@ describe("RbacService — groups + capability resolution", () => {
     expect(
       await service.createGroup({ name: "Bad", roleIds: ["ghost"], memberUsernames: [] }),
     ).toEqual({ ok: false, error: "not_found" });
+  });
+
+  it("updates a group, deduping roles and members", async () => {
+    const { service } = await build();
+    const role = await service.createRole({ name: "R", capabilities: ["alerts:ack"] });
+    const group = await service.createGroup({ name: "G", roleIds: [], memberUsernames: [] });
+    if (!role.ok || !group.ok) throw new Error("setup");
+    const updated = await service.updateGroup(group.value.id, {
+      name: "G2",
+      description: "night shift",
+      roleIds: [role.value.id, role.value.id],
+      memberUsernames: ["bob", "bob"],
+    });
+    expect(updated).toMatchObject({
+      ok: true,
+      value: {
+        name: "G2",
+        description: "night shift",
+        roleIds: [role.value.id],
+        memberUsernames: ["bob"],
+      },
+    });
+    expect(service.resolveCapabilities({ username: "bob", role: "viewer" })).toEqual([
+      "alerts:ack",
+    ]);
+  });
+
+  it("refuses a group update that is unknown, name-colliding, or references an unknown role", async () => {
+    const { service } = await build();
+    await service.createGroup({ name: "A", roleIds: [], memberUsernames: [] });
+    const b = await service.createGroup({ name: "B", roleIds: [], memberUsernames: [] });
+    if (!b.ok) throw new Error("setup");
+    const input = { roleIds: [], memberUsernames: [] };
+    expect(await service.updateGroup("nope", { name: "X", ...input })).toEqual({
+      ok: false,
+      error: "not_found",
+    });
+    expect(await service.updateGroup(b.value.id, { name: "A", ...input })).toEqual({
+      ok: false,
+      error: "conflict",
+    });
+    expect(
+      await service.updateGroup(b.value.id, { name: "B", roleIds: ["ghost"], memberUsernames: [] }),
+    ).toEqual({ ok: false, error: "not_found" });
+  });
+
+  it("deletes a group (and 404s an unknown one)", async () => {
+    const { service, read } = await build();
+    const group = await service.createGroup({ name: "G", roleIds: [], memberUsernames: ["bob"] });
+    if (!group.ok) throw new Error("setup");
+    expect(await service.deleteGroup(group.value.id)).toEqual({ ok: true, value: null });
+    expect(read().groups).toEqual([]);
+    expect(await service.deleteGroup(group.value.id)).toEqual({ ok: false, error: "not_found" });
   });
 
   it("removeMemberFromAllGroups drops a user from every group and revokes its added caps", async () => {
