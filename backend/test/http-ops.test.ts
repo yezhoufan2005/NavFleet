@@ -55,6 +55,7 @@ describe("GET /health/ready", () => {
       store: true,
       mongo: false,
       mqtt: true,
+      config: true,
     });
 
     // MQTT down, Mongo up.
@@ -67,6 +68,28 @@ describe("GET /health/ready", () => {
     context.state.mqttConnected = true;
     const healthy = await request(context.app).get("/health/ready");
     expect((healthy.body as ReadyBody).degraded).toBe(false);
+
+    // A config file held back on its fallback: still ready, but degraded.
+    context.store.getConfigStatus.mockReturnValue({
+      ok: false,
+      issues: [{ file: "rules.json", message: "bad", using: "last-good" }],
+      checkedAt: null,
+    });
+    const configHeldBack = await request(context.app).get("/health/ready");
+    expect(configHeldBack.status).toBe(200);
+    expect((configHeldBack.body as ReadyBody).degraded).toBe(true);
+  });
+});
+
+describe("GET /api/config/status", () => {
+  it("requires a session and returns the configuration's health", async () => {
+    const context = createTestApp();
+    expect((await request(context.app).get("/api/config/status")).status).toBe(401);
+    const response = await request(context.app)
+      .get("/api/v1/config/status")
+      .set("Cookie", sessionCookie("viewer"));
+    expect(response.status).toBe(200);
+    expect(response.body).toMatchObject({ ok: true, issues: [] });
   });
 });
 

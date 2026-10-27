@@ -35,7 +35,11 @@ import UiButton from "@/components/ui/UiButton.vue";
 import { tableClasses } from "@/lib/uiClasses";
 import { useAutoRefresh } from "@/composables/useAutoRefresh";
 import { useFleetStore } from "@/stores/fleet";
-import { formatDateTime } from "@navfleet/fleet-core";
+import {
+  fleetApi,
+  formatDateTime,
+  type ConfigStatus,
+} from "@navfleet/fleet-core";
 import {
   clearStoredState,
   readStoredState,
@@ -46,7 +50,12 @@ import {
 interface ReadyPayload {
   ready?: boolean;
   degraded?: boolean;
-  checks?: { store?: boolean; mongo?: boolean; mqtt?: boolean };
+  checks?: {
+    store?: boolean;
+    mongo?: boolean;
+    mqtt?: boolean;
+    config?: boolean;
+  };
   now?: string;
 }
 
@@ -80,7 +89,30 @@ const probe = async (): Promise<void> => {
   }
 };
 
-onMounted(() => void probe());
+/**
+ * Which config file (if any) is held back, and why — the detail behind `checks.config`. Read
+ * through the API (session-gated: the messages quote config contents); a failure leaves the row
+ * on what readiness alone can say.
+ */
+const configStatus = ref<ConfigStatus | null>(null);
+const loadConfigStatus = async (): Promise<void> => {
+  try {
+    configStatus.value = await fleetApi.getConfigStatus();
+  } catch {
+    configStatus.value = null;
+  }
+};
+
+const USING_LABEL: Record<ConfigStatus["issues"][number]["using"], string> = {
+  "last-good": "正在使用上一份可用版本",
+  default: "正在使用内置默认值",
+  previous: "整体保持修改前的配置",
+};
+
+onMounted(() => {
+  void probe();
+  void loadConfigStatus();
+});
 
 type Tone = "ok" | "warning" | "critical" | "offline";
 
@@ -140,12 +172,34 @@ const backendChecks = computed<Check[]>(() => {
         : "实时监控不受影响，历史回放与曲线为空",
     },
     {
+      label: "配置文件",
+      value: checks.config === false ? "有文件未生效" : "正常",
+      tone: checks.config === false ? "warning" : "ok",
+      detail:
+        checks.config === false
+          ? configIssueDetail.value
+          : "config-runtime 下的配置均已按文件内容生效",
+    },
+    {
       label: "MQTT broker",
       value: checks.mqtt ? "已连接" : "未连接",
       tone: checks.mqtt ? "ok" : "critical",
       detail: checks.mqtt ? "车辆上报的链路连通" : "后端收不到车辆上报",
     },
   ];
+});
+
+const configIssueDetail = computed(() => {
+  const issues = configStatus.value?.issues ?? [];
+  if (!issues.length) {
+    return "有配置文件校验未通过，后端正在使用回退配置；详情需管理员权限查看";
+  }
+  return issues
+    .map(
+      (issue) =>
+        `${issue.file ?? "配置"}：${issue.message}（${USING_LABEL[issue.using]}）`,
+    )
+    .join("；");
 });
 
 /** The console's own half: the socket this tab holds. */
@@ -225,6 +279,7 @@ onMounted(refreshStored);
 // nothing to guard against.
 useAutoRefresh(() => {
   void probe();
+  void loadConfigStatus();
   refreshStored();
 });
 

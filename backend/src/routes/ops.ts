@@ -7,6 +7,8 @@ import { openApiDocument } from "../openapi";
 
 export interface OpsRouterDeps {
   persistence: Persistence;
+  /** Whether the configuration in effect loaded cleanly (no file on a fallback). */
+  configOk: () => boolean;
   state: RuntimeState;
   config: AppConfig;
   metrics: Metrics;
@@ -18,6 +20,7 @@ export interface OpsRouterDeps {
  */
 export const buildOpsRouter = ({
   persistence,
+  configOk,
   state,
   config,
   metrics,
@@ -41,11 +44,13 @@ export const buildOpsRouter = ({
       store: state.storeReady,
       mongo: persistence.isMongoConnected(),
       mqtt: state.mqttConnected,
+      // A config file held back on its fallback: serving, but not on what the operator wrote.
+      config: configOk(),
     };
     const ready = checks.store;
     response.status(ready ? 200 : 503).json({
       ready,
-      degraded: !checks.mongo || !checks.mqtt,
+      degraded: !checks.mongo || !checks.mqtt || !checks.config,
       checks,
       now: new Date().toISOString(),
     });
@@ -85,5 +90,17 @@ export const buildOpenApiRouter = (): express.Router => {
     response.json(openApiDocument);
   });
 
+  return router;
+};
+
+/**
+ * The configuration's health in detail — which file is held back and why — for the 系统 / 状态
+ * page. Behind the session gate (the messages name config files and their contents' problems).
+ */
+export const buildConfigStatusRouter = (getStatus: () => unknown): express.Router => {
+  const router = express.Router();
+  router.get("/config/status", (_request, response) => {
+    response.json(getStatus());
+  });
   return router;
 };

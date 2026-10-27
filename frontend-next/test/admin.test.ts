@@ -130,8 +130,22 @@ describe("本地留存清单", () => {
 });
 
 describe("系统状态", () => {
+  // The config-status detail is a separate API read; by default the configuration is healthy.
+  beforeEach(() => {
+    vi.spyOn(fleetApi, "getConfigStatus").mockResolvedValue({
+      ok: true,
+      issues: [],
+      checkedAt: null,
+    });
+  });
+
   const readyBody = (
-    checks: { store?: boolean; mongo?: boolean; mqtt?: boolean },
+    checks: {
+      store?: boolean;
+      mongo?: boolean;
+      mqtt?: boolean;
+      config?: boolean;
+    },
     ready = true,
   ) =>
     new Response(
@@ -287,10 +301,38 @@ describe("系统状态", () => {
     window.dispatchEvent(new Event("focus"));
     await flushPromises();
 
-    expect(fetchMock.mock.calls.length).toBe(before + 1);
+    // The readiness probe re-runs (the config-status read goes through fleetApi, mocked below).
+    const readinessCalls = (): number =>
+      fetchMock.mock.calls.filter(([url]) => url === "/health/ready").length;
+    expect(readinessCalls()).toBe(
+      fetchMock.mock.calls
+        .slice(0, before)
+        .filter(([url]) => url === "/health/ready").length + 1,
+    );
     expect(
       wrapper.findAll("button").some((b) => b.text().includes("重新检查")),
     ).toBe(false);
+  });
+
+  it("配置文件被回退时说出是哪份、为什么、正在用什么", async () => {
+    vi.spyOn(fleetApi, "getConfigStatus").mockResolvedValue({
+      ok: false,
+      issues: [
+        {
+          file: "rules.json",
+          message: "rules.lowBattery.thresholdPct must be a finite number",
+          using: "last-good",
+        },
+      ],
+      checkedAt: "2026-08-31T00:00:00Z",
+    });
+    const wrapper = await mountStatus(
+      readyBody({ store: true, mongo: true, mqtt: true, config: false }),
+    );
+
+    expect(wrapper.text()).toContain("有文件未生效");
+    expect(wrapper.text()).toContain("rules.json");
+    expect(wrapper.text()).toContain("正在使用上一份可用版本");
   });
 });
 

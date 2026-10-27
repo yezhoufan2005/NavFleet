@@ -3,7 +3,7 @@ import fs from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import type { DeviceSnapshot, FleetConfig, SceneMapDefinition } from "../src/types";
-import { DEFAULT_REPORT_CODES } from "@navfleet/shared";
+import { DEFAULT_ALERT_RULES, DEFAULT_REPORT_CODES } from "@navfleet/shared";
 import { SAMPLE_OSM, sampleDevice } from "./helpers/fixtures";
 
 /**
@@ -14,7 +14,9 @@ import { SAMPLE_OSM, sampleDevice } from "./helpers/fixtures";
  */
 let configRoot = "";
 let ConfigRegistry: typeof import("../src/configRegistry").ConfigRegistry;
+type ConfigRegistryType = import("../src/configRegistry").ConfigRegistry;
 let SceneAssetValidationError: typeof import("../src/configRegistry").SceneAssetValidationError;
+let ConfigApplyError: typeof import("../src/configRegistry").ConfigApplyError;
 
 const DEFAULT_FLEET: FleetConfig = {
   fleetName: "临时车队",
@@ -120,7 +122,14 @@ beforeAll(async () => {
   await fs.mkdir(path.join(configRoot, "scene-maps"), { recursive: true });
   process.env.CONFIG_ROOT_PATH = configRoot;
   // The ".js" specifier is the TS/Node16 convention for a relative ESM import.
-  ({ ConfigRegistry, SceneAssetValidationError } = await import("../src/configRegistry.js"));
+  ({ ConfigRegistry, SceneAssetValidationError, ConfigApplyError } =
+    await import("../src/configRegistry.js"));
+});
+
+// Each case starts with no remembered good configuration: a broken file must be judged on its own,
+// not rescued by a copy an earlier case left behind in this shared temp dir.
+beforeEach(async () => {
+  await fs.rm(path.join(configRoot, ".last-good"), { recursive: true, force: true });
 });
 
 afterAll(async () => {
@@ -131,6 +140,21 @@ afterAll(async () => {
 beforeEach(async () => {
   await writeConfig();
 });
+
+/**
+ * An optional config file that does not validate no longer stops the backend: it is held back,
+ * its built-in defaults (or last-good copy) take effect, and the status names the file and why.
+ */
+const expectFileRejected = async (file: string, message?: RegExp): Promise<ConfigRegistryType> => {
+  const registry = new ConfigRegistry();
+  await registry.load();
+  const status = registry.getConfigStatus();
+  expect(status.ok).toBe(false);
+  const issue = status.issues.find((entry) => entry.file === file);
+  expect(issue, `an issue for ${file}`).toBeDefined();
+  if (message) expect(issue!.message).toMatch(message);
+  return registry;
+};
 
 describe("ConfigRegistry.load", () => {
   it("loads fleet, vehicle, formation and scene config from disk", async () => {
@@ -280,6 +304,19 @@ describe("ConfigRegistry validation", () => {
     await expect(registry.load()).rejects.toThrow(message);
   });
 
+  it("starts on the last-good copy when a required file breaks after a clean load", async () => {
+    await writeConfig();
+    await new ConfigRegistry().load(); // records the last-good copies
+    await fs.writeFile(path.join(configRoot, "scenes.json"), "{ not json", "utf8");
+
+    const registry = new ConfigRegistry();
+    await registry.load();
+    expect(registry.listScenes()).toHaveLength(1);
+    expect(registry.getConfigStatus().issues).toEqual([
+      expect.objectContaining({ file: "scenes.json", using: "last-good" }),
+    ]);
+  });
+
   it("rejects unparseable JSON", async () => {
     await fs.writeFile(path.join(configRoot, "scenes.json"), "{ not json", "utf8");
     await expect(new ConfigRegistry().load()).rejects.toThrow();
@@ -291,10 +328,13 @@ describe("ConfigRegistry validation", () => {
     expect(registry.listScenes()).toHaveLength(1);
 
     await writeConfig({ vehicles: {} });
-    // reload() swallows the failure and reports it instead of throwing.
-    await expect(registry.reload("test")).resolves.toBe(false);
+    // The broken vehicles.json is held back on its last-good copy, everything else reloads.
+    await expect(registry.reload("test")).resolves.toBe(true);
     expect(registry.getDeviceConfig("agv-1")).not.toBeNull();
     expect(registry.listScenes()).toHaveLength(1);
+    expect(registry.getConfigStatus().issues).toEqual([
+      expect.objectContaining({ file: "vehicles.json", using: "last-good" }),
+    ]);
 
     await writeConfig({ vehicles: [{ deviceId: "agv-1" }, { deviceId: "agv-2" }] });
     await expect(registry.reload("test")).resolves.toBe(true);
@@ -406,14 +446,16 @@ describe("ConfigRegistry.getAlertRules (Phase 16C-1)", () => {
       rules: { offline: { scope: { deviceIds: [1, 2] } } },
       message: /rules\.offline\.scope\.deviceIds must be an array of strings/,
     },
-  ])("rejects rules.json when $name", async ({ rules, message }) => {
+  ])("holds back rules.json when $name, running on the defaults", async ({ rules, message }) => {
     await writeConfig({ rules });
-    await expect(new ConfigRegistry().load()).rejects.toThrow(message);
+    const registry = await expectFileRejected("rules.json", message);
+    expect(registry.getAlertRules()).toEqual(DEFAULT_ALERT_RULES);
+    expect(registry.getConfigStatus().issues[0]?.using).toBe("default");
   });
 
-  it("rejects unparseable rules.json", async () => {
+  it("holds back unparseable rules.json", async () => {
     await writeConfig({ rules: "{ not json" });
-    await expect(new ConfigRegistry().load()).rejects.toThrow();
+    await expectFileRejected("rules.json", /not valid JSON/);
   });
 
   it("keeps the previous rules when a rules.json reload fails", async () => {
@@ -423,12 +465,17 @@ describe("ConfigRegistry.getAlertRules (Phase 16C-1)", () => {
     expect(registry.getAlertRules().lowBattery.thresholdPct).toBe(25);
 
     await writeConfig({ rules: { lowBattery: { thresholdPct: "bad" } } });
-    await expect(registry.reload("test")).resolves.toBe(false);
+    // The broken file is held back on its last-good copy; the reload itself still succeeds.
+    await expect(registry.reload("test")).resolves.toBe(true);
     expect(registry.getAlertRules().lowBattery.thresholdPct).toBe(25);
+    expect(registry.getConfigStatus().issues).toEqual([
+      expect.objectContaining({ file: "rules.json", using: "last-good" }),
+    ]);
 
     await writeConfig({ rules: { lowBattery: { thresholdPct: 40 } } });
     await expect(registry.reload("test")).resolves.toBe(true);
     expect(registry.getAlertRules().lowBattery.thresholdPct).toBe(40);
+    expect(registry.getConfigStatus().ok).toBe(true);
   });
 });
 
@@ -467,7 +514,7 @@ describe("ConfigRegistry.getCodebook / importCodebook (Phase 16C-2)", () => {
 
   it("rejects a malformed codebook.json on load", async () => {
     await writeConfig({ codebook: [{ ...override, code: 0 }] });
-    await expect(new ConfigRegistry().load()).rejects.toThrow(/code must be a positive integer/);
+    await expectFileRejected("codebook.json", /code must be a positive integer/);
   });
 
   it("keeps the previous codebook when a reload fails", async () => {
@@ -479,7 +526,11 @@ describe("ConfigRegistry.getCodebook / importCodebook (Phase 16C-2)", () => {
     );
 
     await writeConfig({ codebook: [{ ...override, impact: "nope" }] });
-    await expect(registry.reload("test")).resolves.toBe(false);
+    await expect(registry.reload("test")).resolves.toBe(true);
+    expect(registry.getConfigStatus().issues[0]).toMatchObject({
+      file: "codebook.json",
+      using: "last-good",
+    });
     // Old snapshot kept.
     expect(new Map(registry.getCodebook().map((e) => [e.code, e])).get(2301)?.label).toBe(
       "本厂电量低",
@@ -587,15 +638,15 @@ describe("ConfigRegistry.getNotifyConfig (Phase 16D-1)", () => {
     await expect(new ConfigRegistry().load()).resolves.toBeUndefined();
 
     await writeConfig({ notify: { channels: [{ id: "x", type: "sms", urlEnv: "E" }] } });
-    await expect(new ConfigRegistry().load()).rejects.toThrow(/type must be one of/);
+    await expectFileRejected("notify.json", /type must be one of/);
   });
 
   it("rejects a channel missing urlEnv, and duplicate ids", async () => {
     await writeConfig({ notify: { channels: [{ id: "x", type: "webhook", enabled: true }] } });
-    await expect(new ConfigRegistry().load()).rejects.toThrow(/urlEnv must be a non-empty/);
+    await expectFileRejected("notify.json", /urlEnv must be a non-empty/);
 
     await writeConfig({ notify: { channels: [webhook, { ...webhook }] } });
-    await expect(new ConfigRegistry().load()).rejects.toThrow(/Duplicate channel id/);
+    await expectFileRejected("notify.json", /Duplicate channel id/);
   });
 
   it("keeps the previous notify config when a reload fails", async () => {
@@ -605,7 +656,11 @@ describe("ConfigRegistry.getNotifyConfig (Phase 16D-1)", () => {
     expect(registry.getNotifyConfig().channels).toHaveLength(1);
 
     await writeConfig({ notify: { channels: [{ ...webhook, severities: ["nope"] }] } });
-    await expect(registry.reload("test")).resolves.toBe(false);
+    await expect(registry.reload("test")).resolves.toBe(true);
+    expect(registry.getConfigStatus().issues[0]).toMatchObject({
+      file: "notify.json",
+      using: "last-good",
+    });
     // Old snapshot kept.
     expect(registry.getNotifyConfig().channels[0]?.id).toBe("ops-webhook");
   });
@@ -645,12 +700,12 @@ describe("ConfigRegistry.getNotifyConfig (Phase 16D-1)", () => {
     await writeConfig({
       notify: { channels: [{ ...webhook, id: "m", type: "email", recipients: [{}] }] },
     });
-    await expect(new ConfigRegistry().load()).rejects.toThrow(/must set an email or a user/);
+    await expectFileRejected("notify.json", /must set an email or a user/);
 
     await writeConfig({
       notify: { channels: [{ ...webhook, escalation: { channelId: "x" } }] },
     });
-    await expect(new ConfigRegistry().load()).rejects.toThrow(/afterSeconds/);
+    await expectFileRejected("notify.json", /afterSeconds/);
   });
 });
 
@@ -750,7 +805,7 @@ describe("ConfigRegistry.getReportsConfig (Phase 17B-2)", () => {
 
   const rejects = async (reports: unknown, message: RegExp): Promise<void> => {
     await writeConfig({ reports });
-    await expect(new ConfigRegistry().load()).rejects.toThrow(message);
+    await expectFileRejected("reports.json", message);
   };
 
   it("rejects an unknown range, a bad time, an out-of-range weekday, and missing smtpEnv/from", async () => {
@@ -943,6 +998,60 @@ describe("ConfigRegistry.writeScenes / writeSceneAsset (Phase 18 场景地图上
     await expect(
       registry.writeScenes([{ sceneId: "x", resolution: 0, width: 1, height: 1 }]),
     ).rejects.toThrow(/resolution must be greater than 0/);
+  });
+
+  it("写入能单独校验通过、但与现有配置一起加载失败时回滚文件并抛 ConfigApplyError", async () => {
+    await writeConfig();
+    const registry = new ConfigRegistry();
+    await registry.load();
+    const scenesPath = path.join(configRoot, "scenes.json");
+    const before = await fs.readFile(scenesPath, "utf8");
+
+    // Shape-valid, but the .osm it points at does not exist, so the load cannot apply it.
+    await expect(
+      registry.writeScenes([
+        {
+          sceneId: "scene-a",
+          resolution: 0.1,
+          width: 10,
+          height: 10,
+          osmUrl: "/scene-maps/missing.osm",
+        },
+      ]),
+    ).rejects.toThrow(ConfigApplyError);
+    expect(await fs.readFile(scenesPath, "utf8")).toBe(before);
+    expect(registry.listScenes().map((scene) => scene.sceneId)).toEqual(["scene-a"]);
+    expect(registry.getConfigStatus().ok).toBe(true);
+  });
+
+  it("另一份文件处于回退时，其余文件照常可写可生效", async () => {
+    await writeConfig({ rules: { lowBattery: { thresholdPct: "bad" } } });
+    const registry = new ConfigRegistry();
+    await registry.load();
+    expect(registry.getConfigStatus().issues[0]?.file).toBe("rules.json");
+
+    const saved = await registry.writeVehicles([
+      { deviceId: "agv-1" },
+      { deviceId: "agv-2" },
+      { deviceId: "agv-9" },
+    ]);
+    expect(saved.map((vehicle) => vehicle.deviceId)).toContain("agv-9");
+    // rules.json is still the one held back.
+    expect(registry.getConfigStatus().issues.map((issue) => issue.file)).toEqual(["rules.json"]);
+  });
+
+  it("并发写入串行执行，后到者基于先到者生效后的配置校验", async () => {
+    await writeConfig();
+    const registry = new ConfigRegistry();
+    await registry.load();
+    const [, second] = await Promise.allSettled([
+      registry.writeVehicles([{ deviceId: "agv-1" }, { deviceId: "agv-2" }, { deviceId: "agv-3" }]),
+      registry.writeFormations([
+        { formationId: "f-new", formationName: "新编队", deviceIds: ["agv-3"] },
+      ]),
+    ]);
+    // agv-3 only exists once the first write has applied; serialized, the second sees it.
+    expect(second.status).toBe("fulfilled");
   });
 
   it("writeSceneAsset 为无现有底图的场景落到 <sceneId>/<kind>.<ext>", async () => {
