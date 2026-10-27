@@ -22,6 +22,11 @@
 import { computed, ref } from "vue";
 import type { DeviceSnapshot, SceneMapDefinition } from "@navfleet/shared";
 import { getDeviceTone, hasPose, round } from "@navfleet/fleet-core";
+import {
+  mapFootprintBounds,
+  toScenePose,
+  yawToDegrees,
+} from "@navfleet/shared";
 import { useSceneOverlay } from "@/composables/useSceneOverlay";
 import { useSvgViewport } from "@/composables/useSvgViewport";
 import type { WorldBounds, WorldPoint } from "@/composables/useSvgViewport";
@@ -78,7 +83,8 @@ const { overlay, metadata, pointCloudBackdrop, pointCloudError } =
 
 /**
  * Scene definition + the metadata document, merged, with `bounds` derived from
- * width/height/resolution when the scene does not state them outright.
+ * width/height/resolution when the scene does not state them outright — the box
+ * around the map rectangle rotated by `origin.yaw` (see `sceneGeometry`).
  */
 const mergeScene = (base: ScenePart, override: ScenePart): ScenePart => {
   const merged: ScenePart = {
@@ -97,14 +103,11 @@ const mergeScene = (base: ScenePart, override: ScenePart): ScenePart => {
     Number.isFinite(merged.height) &&
     Number.isFinite(merged.resolution)
   ) {
-    const originX = merged.origin?.x ?? 0;
-    const originY = merged.origin?.y ?? 0;
-    merged.bounds = {
-      minX: originX,
-      maxX: originX + (merged.width as number) * (merged.resolution as number),
-      minY: originY,
-      maxY: originY + (merged.height as number) * (merged.resolution as number),
-    };
+    merged.bounds = mapFootprintBounds(
+      toScenePose(merged.origin),
+      (merged.width as number) * (merged.resolution as number),
+      (merged.height as number) * (merged.resolution as number),
+    );
   }
 
   return merged;
@@ -126,13 +129,36 @@ const pointCloudBounds = computed(() =>
   boundsOf(pointCloudBackdrop.value?.bounds),
 );
 
+/**
+ * A raster backdrop placed by its map frame: `(x, y)` is the world position of the
+ * raster's lower-left corner, `width`/`height` its extent in metres along its own
+ * edges, and `yaw` its rotation about that corner (radians, counter-clockwise — ROS
+ * map_server). The `WorldBounds` are the axis-aligned box around the rotated raster,
+ * which is what the viewport fits.
+ */
 interface BackgroundLayer extends WorldBounds {
   href: string;
   x: number;
   y: number;
   width: number;
   height: number;
+  yaw: number;
 }
+
+const placeLayer = (
+  href: string,
+  origin: { x: number; y: number; yaw: number },
+  width: number,
+  height: number,
+): BackgroundLayer => ({
+  href,
+  x: origin.x,
+  y: origin.y,
+  width,
+  height,
+  yaw: origin.yaw,
+  ...mapFootprintBounds(origin, width, height),
+});
 
 const imageLayer = computed<BackgroundLayer | null>(() => {
   const scene = resolvedScene.value;
@@ -147,35 +173,46 @@ const imageLayer = computed<BackgroundLayer | null>(() => {
     return null;
   }
 
-  const width = (scene.width as number) * (scene.resolution as number);
-  const height = (scene.height as number) * (scene.resolution as number);
-  const x = scene.origin!.x;
-  const y = scene.origin!.y;
-  return {
-    href: scene.imageUrl,
-    x,
-    y,
-    width,
-    height,
-    minX: x,
-    maxX: x + width,
-    minY: y,
-    maxY: y + height,
-  };
+  return placeLayer(
+    scene.imageUrl,
+    toScenePose(scene.origin),
+    (scene.width as number) * (scene.resolution as number),
+    (scene.height as number) * (scene.resolution as number),
+  );
 });
 
 const pointCloudLayer = computed<BackgroundLayer | null>(() => {
-  const bounds = pointCloudBounds.value;
-  const dataUrl = pointCloudBackdrop.value?.dataUrl;
-  if (!resolvedScene.value.pointCloudUrl || !dataUrl || !bounds) return null;
-  return {
-    href: dataUrl,
-    x: bounds.minX,
-    y: bounds.minY,
-    width: bounds.maxX - bounds.minX,
-    height: bounds.maxY - bounds.minY,
-    ...bounds,
-  };
+  const backdrop = pointCloudBackdrop.value;
+  if (
+    !resolvedScene.value.pointCloudUrl ||
+    !backdrop?.dataUrl ||
+    !pointCloudBounds.value
+  )
+    return null;
+  // Placed by the grid's own frame (origin + yaw), not its axis-aligned bounds: for a
+  // rotated grid those differ, and the raster is laid out along the grid's edges.
+  const { originX, originY, yaw, width, height, gridSize } = backdrop.geometry;
+  return placeLayer(
+    backdrop.dataUrl,
+    { x: originX, y: originY, yaw },
+    width * gridSize,
+    height * gridSize,
+  );
+});
+
+/**
+ * The backdrop's SVG transform, inside the y-up world stage: move to the map's
+ * lower-left corner, rotate by its yaw (counter-clockwise in a y-up frame), then flip
+ * the raster upright — image rows grow downward, map `v` grows upward. At yaw 0 this
+ * is exactly the plain `translate(x, y + height) scale(1 -1)` it always was.
+ */
+const backgroundTransform = computed(() => {
+  const layer = backgroundLayerDefinition.value;
+  if (!layer) return "";
+  const parts = [`translate(${round(layer.x, 3)} ${round(layer.y, 3)})`];
+  if (layer.yaw) parts.push(`rotate(${round(yawToDegrees(layer.yaw), 4)})`);
+  parts.push(`translate(0 ${round(layer.height, 3)})`, "scale(1 -1)");
+  return parts.join(" ");
 });
 
 const backgroundLayerDefinition = computed(
@@ -568,8 +605,8 @@ const cloudLabel = computed(() =>
           :class="{ 'lanelet-mode': laneletOnlyScene }"
         />
 
-        <!-- Flipped back upright: the stage scales y by -1, and an image drawn under
-             that transform would otherwise appear upside down. -->
+        <!-- Placed at its map frame (origin + yaw) and flipped back upright: the stage
+             scales y by -1, and an image drawn under it would otherwise be upside down. -->
         <image
           v-if="backgroundLayerDefinition && showCloud"
           :href="backgroundLayerDefinition.href"
@@ -578,10 +615,7 @@ const cloudLabel = computed(() =>
           :width="backgroundLayerDefinition.width"
           :height="backgroundLayerDefinition.height"
           preserveAspectRatio="none"
-          :transform="`translate(${round(backgroundLayerDefinition.x, 3)} ${round(
-            backgroundLayerDefinition.y + backgroundLayerDefinition.height,
-            3,
-          )}) scale(1 -1)`"
+          :transform="backgroundTransform"
           image-rendering="pixelated"
           @error="handleBackgroundError"
         />

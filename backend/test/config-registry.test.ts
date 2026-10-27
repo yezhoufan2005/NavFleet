@@ -893,6 +893,25 @@ describe("ConfigRegistry.writeScenes / writeSceneAsset (Phase 18 场景地图上
     expect(registry.listScenes().map((s) => s.sceneId)).toEqual(["new-1"]);
   });
 
+  it("未写 bounds 的旋转场景按 origin.yaw 派生外接框", async () => {
+    const registry = new ConfigRegistry();
+    await registry.load();
+    // 4 × 2 m 的图绕左下角转 90°：占 x ∈ [-2, 0]、y ∈ [0, 4]（ROS map_server 约定）。
+    const [scene] = await registry.writeScenes([
+      {
+        sceneId: "rot",
+        resolution: 0.1,
+        width: 40,
+        height: 20,
+        origin: { x: 0, y: 0, yaw: Math.PI / 2 },
+      },
+    ]);
+    expect(scene?.bounds?.minX).toBeCloseTo(-2, 9);
+    expect(scene?.bounds?.maxX).toBeCloseTo(0, 9);
+    expect(scene?.bounds?.minY).toBeCloseTo(0, 9);
+    expect(scene?.bounds?.maxY).toBeCloseTo(4, 9);
+  });
+
   it("writeScenes 校验先行，非法几何直接抛不落盘", async () => {
     const registry = new ConfigRegistry();
     await registry.load();

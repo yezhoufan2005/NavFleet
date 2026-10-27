@@ -525,6 +525,10 @@ config-runtime/
 - `width`
 - `height`
 
+`origin` 沿用 ROS `map_server` 约定：`{x, y}` 是地图**左下角**的世界坐标，`yaw`（弧度、逆时针）
+让整张图绕该角旋转。未写 `bounds` 时取旋转后四角的外接框；图片底图、点云栅格与派生边界都按
+同一套几何（`@navfleet/shared` 的 `sceneGeometry`）摆放，`yaw = 0` 时与轴对齐完全一致。
+
 ## 9. MongoDB 存储设计
 
 ### `device_latest`

@@ -22,6 +22,7 @@
 import { buildOccupancyGrid, paintOccupancy } from "@navfleet/fleet-core";
 import type {
   PointCloudBounds,
+  PointCloudGeometry,
   PointCloudMeta,
   PointCloudPalette,
 } from "@navfleet/fleet-core";
@@ -34,6 +35,8 @@ export interface PointCloudBackdrop {
   width: number;
   height: number;
   bounds: PointCloudBounds;
+  /** Where the raster sits: grid origin, rotation and size — what the map places it by. */
+  geometry: PointCloudGeometry;
   meta: PointCloudMeta;
 }
 
@@ -111,6 +114,7 @@ const rasterize = (
     width,
     height,
     bounds,
+    geometry: grid.geometry,
     meta,
   };
 };

@@ -1,4 +1,5 @@
 import type { SceneMapDefinition } from "@navfleet/shared";
+import { mapFootprintBounds, worldToMap } from "@navfleet/shared";
 
 /**
  * Point-cloud rasterization, minus the canvas.
@@ -28,7 +29,8 @@ export interface PointCloudBounds {
 /** Loose shape of the optional point-cloud metadata JSON (all fields optional). */
 export interface PointCloudMeta {
   grid_size?: unknown;
-  origin?: { x?: unknown; y?: unknown };
+  /** `yaw` (radians, CCW) rotates the grid about its lower-left corner; falls back to the scene's. */
+  origin?: { x?: unknown; y?: unknown; yaw?: unknown };
   shape?: { width?: unknown; height?: unknown };
   floor_band?: { min_z?: unknown; max_z?: unknown };
   obstacle_band?: { min_z?: unknown; max_z?: unknown };
@@ -53,8 +55,11 @@ export interface PointCloudGeometry {
   gridSize: number;
   originX: number;
   originY: number;
+  /** Grid rotation about (originX, originY), radians counter-clockwise (ROS map_server). */
+  yaw: number;
   width: number;
   height: number;
+  /** Axis-aligned world box around the (possibly rotated) grid. */
   bounds: PointCloudBounds;
 }
 
@@ -197,6 +202,11 @@ export const derivePointCloudGeometry = (
       meta.origin?.y,
       toFiniteNumber(sceneDefinition.origin?.y, 0),
     ) || 0;
+  const yaw =
+    toFiniteNumber(
+      meta.origin?.yaw,
+      toFiniteNumber(sceneDefinition.origin?.yaw, 0),
+    ) || 0;
   const width = Math.max(
     1,
     Math.round(
@@ -220,14 +230,14 @@ export const derivePointCloudGeometry = (
     gridSize,
     originX,
     originY,
+    yaw,
     width,
     height,
-    bounds: {
-      minX: originX,
-      maxX: originX + width * gridSize,
-      minY: originY,
-      maxY: originY + height * gridSize,
-    },
+    bounds: mapFootprintBounds(
+      { x: originX, y: originY, yaw },
+      width * gridSize,
+      height * gridSize,
+    ),
   };
 };
 
@@ -277,7 +287,8 @@ export const buildOccupancyGrid = (
   sceneDefinition: ScenePart,
 ): OccupancyGrid => {
   const geometry = derivePointCloudGeometry(sceneDefinition, meta);
-  const { width, height, gridSize, originX, originY } = geometry;
+  const { width, height, gridSize, originX, originY, yaw } = geometry;
+  const pose = { x: originX, y: originY, yaw };
   const occupancy = new Uint8Array(width * height);
   const intensity = new Uint8Array(width * height);
   const dataView = new DataView(arrayBuffer);
@@ -315,8 +326,10 @@ export const buildOccupancyGrid = (
       continue;
     }
 
-    const cellX = Math.floor((x - originX) / gridSize);
-    const cellY = Math.floor((y - originY) / gridSize);
+    // Points are in the world frame; the grid is laid out in the map's own (rotated) frame.
+    const local = worldToMap(pose, x, y);
+    const cellX = Math.floor(local.u / gridSize);
+    const cellY = Math.floor(local.v / gridSize);
     if (cellX < 0 || cellX >= width || cellY < 0 || cellY >= height) continue;
 
     const cellIndex = cellY * width + cellX;
