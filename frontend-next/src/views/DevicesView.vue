@@ -911,22 +911,38 @@ watch(
    one grey block. The ▾ chevron is what marks the row open; colour is left to the status
    dot and the tone rows below. */
 
+/* 行底色混合**饱和**语义色进卡片表面（而非直接用 `-wash` 令牌）：`-wash` 的深色取值三档都是低彩度
+   的暗色、互相接近，深色主题下三行几乎分不出来。改成按色相区分——红/琥珀/蓝在深浅两套主题下都能
+   认出，4px 饱和色内嵌左边再强化一次。百分比对两套主题通用：浅色混出淡色、深色混出带明显色相的暗色。 */
+
 .device-row[data-tone="critical"] {
-  background: color-mix(in oklab, var(--color-critical-wash) 60%, transparent);
-  box-shadow: inset 3px 0 0 var(--color-critical);
+  background: color-mix(
+    in oklab,
+    var(--color-critical) 16%,
+    var(--color-surface-raised)
+  );
+  box-shadow: inset 4px 0 0 var(--color-critical);
 }
 
 .device-row[data-tone="warning"] {
-  background: color-mix(in oklab, var(--color-warning-wash) 60%, transparent);
-  box-shadow: inset 3px 0 0 var(--color-warning);
+  background: color-mix(
+    in oklab,
+    var(--color-warning) 16%,
+    var(--color-surface-raised)
+  );
+  box-shadow: inset 4px 0 0 var(--color-warning);
 }
 
 /* notice now carries the same wash + inset edge as warning/critical, in blue — 提示 became
    a pending-exception state worth surfacing before you read the row, so it earns the row
    treatment the dot alone cannot give. (This reverses v1.0.0's "notice gets nothing".) */
 .device-row[data-tone="notice"] {
-  background: color-mix(in oklab, var(--color-notice-wash) 60%, transparent);
-  box-shadow: inset 3px 0 0 var(--color-notice);
+  background: color-mix(
+    in oklab,
+    var(--color-notice) 16%,
+    var(--color-surface-raised)
+  );
+  box-shadow: inset 4px 0 0 var(--color-notice);
 }
 
 .device-row[data-tone="critical"]:hover,
