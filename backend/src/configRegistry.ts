@@ -209,28 +209,96 @@ const ensureArray = (
   });
 };
 
-async function readJsonFile<T>(filePath: string): Promise<T> {
-  const content = await fs.readFile(filePath, "utf8");
-  return JSON.parse(content) as T;
+/**
+ * The eight config files, in load order. `optional` ones may be absent (built-in defaults apply);
+ * a required one missing is a load error.
+ */
+const CONFIG_FILES = {
+  fleet: { path: FLEET_FILE, optional: false },
+  vehicles: { path: VEHICLES_FILE, optional: false },
+  formations: { path: FORMATIONS_FILE, optional: false },
+  scenes: { path: SCENES_FILE, optional: false },
+  rules: { path: RULES_FILE, optional: true },
+  codebook: { path: CODEBOOK_FILE, optional: true },
+  notify: { path: NOTIFY_FILE, optional: true },
+  reports: { path: REPORTS_FILE, optional: true },
+} as const;
+type ConfigFileKey = keyof typeof CONFIG_FILES;
+const CONFIG_FILE_KEYS = Object.keys(CONFIG_FILES) as ConfigFileKey[];
+/** Raw text of each config file; null = absent. */
+type RawConfig = Record<ConfigFileKey, string | null>;
+
+/** Where a copy of the last configuration that loaded cleanly is kept, file by file. */
+const LAST_GOOD_DIR = path.join(CONFIG_ROOT, ".last-good");
+const lastGoodPath = (key: ConfigFileKey): string =>
+  path.join(LAST_GOOD_DIR, path.basename(CONFIG_FILES[key].path));
+
+/** File text, or null when the file does not exist. Any other read error propagates. */
+async function readTextIfExists(filePath: string): Promise<string | null> {
+  try {
+    return await fs.readFile(filePath, "utf8");
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code === "ENOENT") return null;
+    throw error;
+  }
 }
 
 /**
- * Like `readJsonFile`, but a **missing** file is not an error — it resolves to `null`.
- * `rules.json` is optional: a deployment that does not retune anything ships without one
- * and runs on `DEFAULT_ALERT_RULES`. A file that exists but is malformed still throws, so
- * a typo is a validation failure (old snapshot kept), not a silent fall-back to defaults.
+ * Parse one config file's text. A required file that is absent is an error; an optional one
+ * resolves to null (built-in defaults). Malformed JSON names the file.
  */
-async function readOptionalJsonFile<T>(filePath: string): Promise<T | null> {
-  let content: string;
-  try {
-    content = await fs.readFile(filePath, "utf8");
-  } catch (error) {
-    if ((error as NodeJS.ErrnoException).code === "ENOENT") {
-      return null;
-    }
-    throw error;
+function parseConfigText(key: ConfigFileKey, text: string | null): unknown {
+  const { path: filePath, optional } = CONFIG_FILES[key];
+  if (text === null) {
+    if (optional) return null;
+    throw new Error(`${path.basename(filePath)} is missing: ${filePath}`);
   }
-  return JSON.parse(content) as T;
+  try {
+    return JSON.parse(text) as unknown;
+  } catch (error) {
+    throw new Error(
+      `${path.basename(filePath)} is not valid JSON (${error instanceof Error ? error.message : String(error)}): ${filePath}`,
+      { cause: error },
+    );
+  }
+}
+
+/** Absolute config paths out of an error message shown to an admin. */
+const describeConfigError = (error: unknown): string =>
+  (error instanceof Error ? error.message : String(error))
+    .split(`${CONFIG_ROOT}${path.sep}`)
+    .join("");
+
+/**
+ * A config write that validated on its own but could not be applied together with the rest of
+ * the configuration (e.g. a scene pointing at an .osm that does not parse). The file has been
+ * restored to what it was; the route answers 409 with this message.
+ */
+export class ConfigApplyError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = "ConfigApplyError";
+  }
+}
+
+/** One problem with the configuration currently in effect. */
+export interface ConfigIssue {
+  /** The file at fault (basename), when it could be singled out. */
+  file: string | null;
+  message: string;
+  /**
+   * What is in effect instead: the last copy of that file that loaded cleanly, the built-in
+   * defaults (an optional file never loaded cleanly before), or — when nothing could be
+   * isolated on a hot reload — the whole previous configuration kept in memory.
+   */
+  using: "last-good" | "default" | "previous";
+}
+
+export interface ConfigStatus {
+  ok: boolean;
+  issues: ConfigIssue[];
+  /** When the configuration in effect was (re)evaluated. */
+  checkedAt: string | null;
 }
 
 /** Coerce the optional `scope` of a rule/channel, rejecting anything but string arrays. */
@@ -689,29 +757,162 @@ export class ConfigRegistry {
   private loaded = false;
   private watcher: FSWatcher | null = null;
   private reloadTimer: NodeJS.Timeout | null = null;
-  private reloadQueue: Promise<void> = Promise.resolve();
+  private configQueue: Promise<void> = Promise.resolve();
   private pendingReloadReason = "startup";
+  private status: ConfigStatus = { ok: true, issues: [], checkedAt: null };
 
-  private async loadSnapshot(): Promise<LoadedConfigSnapshot> {
-    const [
-      fleetRaw,
-      vehiclesRaw,
-      formationsRaw,
-      scenesRaw,
-      rulesRaw,
-      codebookRaw,
-      notifyRaw,
-      reportsRaw,
-    ] = await Promise.all([
-      readJsonFile<unknown>(FLEET_FILE),
-      readJsonFile<unknown>(VEHICLES_FILE),
-      readJsonFile<unknown>(FORMATIONS_FILE),
-      readJsonFile<unknown>(SCENES_FILE),
-      readOptionalJsonFile<unknown>(RULES_FILE),
-      readOptionalJsonFile<unknown>(CODEBOOK_FILE),
-      readOptionalJsonFile<unknown>(NOTIFY_FILE),
-      readOptionalJsonFile<unknown>(REPORTS_FILE),
-    ]);
+  private async readRawConfig(): Promise<RawConfig> {
+    const texts = await Promise.all(
+      CONFIG_FILE_KEYS.map((key) => readTextIfExists(CONFIG_FILES[key].path)),
+    );
+    return Object.fromEntries(
+      CONFIG_FILE_KEYS.map((key, i) => [key, texts[i] ?? null]),
+    ) as RawConfig;
+  }
+
+  /** The last-good copies; `undefined` for a file that has none. */
+  private async readLastGood(): Promise<Record<ConfigFileKey, string | null | undefined>> {
+    const texts = await Promise.all(
+      CONFIG_FILE_KEYS.map(async (key) => {
+        try {
+          return await readTextIfExists(lastGoodPath(key));
+        } catch {
+          return null;
+        }
+      }),
+    );
+    return Object.fromEntries(
+      CONFIG_FILE_KEYS.map((key, i) => [
+        key,
+        // An optional file with no saved copy falls back to "absent" (its defaults).
+        texts[i] ?? (CONFIG_FILES[key].optional ? null : undefined),
+      ]),
+    ) as Record<ConfigFileKey, string | null | undefined>;
+  }
+
+  /**
+   * Remember the files that just loaded as part of a good configuration, so a later broken edit
+   * can fall back to them file by file. Best-effort: a read-only config volume only loses the
+   * fallback, never the load.
+   */
+  private async saveLastGood(raw: RawConfig, keys: readonly ConfigFileKey[]): Promise<void> {
+    try {
+      await fs.mkdir(LAST_GOOD_DIR, { recursive: true });
+      await Promise.all(
+        keys.map(async (key) => {
+          const target = lastGoodPath(key);
+          const text = raw[key];
+          if (text === null) {
+            await fs.rm(target, { force: true });
+            return;
+          }
+          if ((await readTextIfExists(target)) === text) return;
+          const tmp = `${target}.${process.pid}.${Date.now()}.tmp`;
+          await fs.writeFile(tmp, text, "utf8");
+          await fs.rename(tmp, target);
+        }),
+      );
+    } catch (error) {
+      logger.warn({ err: error, dir: LAST_GOOD_DIR }, "Could not save last-good config copies");
+    }
+  }
+
+  /**
+   * Load the configuration on disk, isolating a broken file instead of failing as a whole.
+   *
+   * 1. Everything as it is on disk.
+   * 2. Failing that, each changed file on its own reverted to its last-good copy (an optional file
+   *    with none: its built-in defaults) — the first that loads wins, so the other files' edits
+   *    still take effect and only the culprit is held back.
+   * 3. Failing that, every changed file reverted together.
+   * Throws the original error when none of that loads.
+   */
+  private async loadWithFallback(): Promise<{
+    snapshot: LoadedConfigSnapshot;
+    raw: RawConfig;
+    current: RawConfig;
+    issues: ConfigIssue[];
+  }> {
+    const current = await this.readRawConfig();
+    let firstError: unknown;
+    try {
+      return { snapshot: await this.buildSnapshot(current), raw: current, current, issues: [] };
+    } catch (error) {
+      firstError = error;
+    }
+    const lastGood = await this.readLastGood();
+    const changed = CONFIG_FILE_KEYS.filter(
+      (key) => lastGood[key] !== undefined && lastGood[key] !== current[key],
+    );
+    const issueFor = (key: ConfigFileKey): ConfigIssue => ({
+      file: path.basename(CONFIG_FILES[key].path),
+      message: describeConfigError(firstError),
+      using: lastGood[key] === null ? "default" : "last-good",
+    });
+    const attempts: ConfigFileKey[][] = [
+      ...changed.map((key) => [key]),
+      ...(changed.length > 1 ? [changed] : []),
+    ];
+    for (const reverted of attempts) {
+      const raw = { ...current };
+      for (const key of reverted) raw[key] = lastGood[key] ?? null;
+      try {
+        return {
+          snapshot: await this.buildSnapshot(raw),
+          raw,
+          current,
+          issues: reverted.map(issueFor),
+        };
+      } catch {
+        // Not this one; try the next combination.
+      }
+    }
+    throw firstError;
+  }
+
+  /** Apply a loaded configuration and record what it says about the files on disk. */
+  private async commitLoaded(loaded: {
+    snapshot: LoadedConfigSnapshot;
+    raw: RawConfig;
+    current: RawConfig;
+    issues: ConfigIssue[];
+  }): Promise<void> {
+    this.applySnapshot(loaded.snapshot);
+    this.status = {
+      ok: loaded.issues.length === 0,
+      issues: loaded.issues,
+      checkedAt: new Date().toISOString(),
+    };
+    for (const issue of loaded.issues) {
+      logger.error(
+        { file: issue.file, using: issue.using, detail: issue.message },
+        "Config file rejected; running on its fallback",
+      );
+    }
+    // Only files whose on-disk text actually loaded become the new last-good.
+    const loadedAsIs = CONFIG_FILE_KEYS.filter((key) => loaded.raw[key] === loaded.current[key]);
+    await this.saveLastGood(loaded.current, loadedAsIs);
+  }
+
+  /** Run config mutations (writes, reloads) one at a time, so no two validate against a stale view. */
+  private serialize<T>(work: () => Promise<T>): Promise<T> {
+    const run = this.configQueue.then(work, work);
+    this.configQueue = run.then(
+      () => undefined,
+      () => undefined,
+    );
+    return run;
+  }
+
+  private async buildSnapshot(raw: RawConfig): Promise<LoadedConfigSnapshot> {
+    const fleetRaw = parseConfigText("fleet", raw.fleet);
+    const vehiclesRaw = parseConfigText("vehicles", raw.vehicles);
+    const formationsRaw = parseConfigText("formations", raw.formations);
+    const scenesRaw = parseConfigText("scenes", raw.scenes);
+    const rulesRaw = parseConfigText("rules", raw.rules);
+    const codebookRaw = parseConfigText("codebook", raw.codebook);
+    const notifyRaw = parseConfigText("notify", raw.notify);
+    const reportsRaw = parseConfigText("reports", raw.reports);
 
     const alertRules = parseAlertRules(rulesRaw);
     // A deployment's codebook.json (if any) is validated then layered over the built-in
@@ -945,16 +1146,29 @@ export class ConfigRegistry {
       : path.basename(filePath);
   }
 
+  /**
+   * Initial load. A broken file falls back to its last-good copy (or, for an optional file, the
+   * built-in defaults) and is reported through `getConfigStatus`; only a configuration with no
+   * usable fallback at all throws — and then the process must not start.
+   */
   async load(): Promise<void> {
-    const snapshot = await this.loadSnapshot();
-    this.applySnapshot(snapshot);
-    this.logLoad("startup");
+    await this.serialize(async () => {
+      await this.commitLoaded(await this.loadWithFallback());
+      this.logLoad("startup");
+    });
   }
 
-  async reload(reason = "manual"): Promise<boolean> {
+  /**
+   * Re-read the configuration (file watcher, writers). Returns false when nothing loadable could be
+   * assembled; the previous configuration then stays in effect and the status says so.
+   */
+  reload(reason = "manual"): Promise<boolean> {
+    return this.serialize(() => this.reloadInternal(reason));
+  }
+
+  private async reloadInternal(reason: string): Promise<boolean> {
     try {
-      const snapshot = await this.loadSnapshot();
-      this.applySnapshot(snapshot);
+      await this.commitLoaded(await this.loadWithFallback());
       this.logLoad(reason);
       return true;
     } catch (error) {
@@ -962,8 +1176,64 @@ export class ConfigRegistry {
         { err: error, reason, configRoot: CONFIG_ROOT },
         "Failed to reload backend config registry",
       );
+      this.status = {
+        ok: false,
+        issues: [{ file: null, message: describeConfigError(error), using: "previous" }],
+        checkedAt: new Date().toISOString(),
+      };
       return false;
     }
+  }
+
+  /** Health of the configuration in effect — for the system status page and readiness. */
+  getConfigStatus(): ConfigStatus {
+    return { ...this.status, issues: this.status.issues.map((issue) => ({ ...issue })) };
+  }
+
+  /**
+   * Write one config file and make it take effect, or leave everything as it was.
+   *
+   * The payload is already validated on its own; what can still fail is loading it *together*
+   * with the rest (cross-file references, an asset it points at). If the file cannot be applied
+   * as written, the previous text is restored and a `ConfigApplyError` explains why — the API
+   * never again answers 200 for a change that did not take effect.
+   */
+  private async writeConfigAndApply(
+    key: ConfigFileKey,
+    value: unknown,
+    reason: string,
+  ): Promise<void> {
+    const filePath = CONFIG_FILES[key].path;
+    const previous = await readTextIfExists(filePath);
+    await this.writeConfigFileAtomic(filePath, value);
+    let failure: string;
+    try {
+      const loaded = await this.loadWithFallback();
+      const rejected = loaded.issues.find((issue) => issue.file === path.basename(filePath));
+      if (rejected) {
+        failure = rejected.message;
+      } else {
+        await this.commitLoaded(loaded);
+        this.logLoad(reason);
+        return;
+      }
+    } catch (error) {
+      failure = describeConfigError(error);
+    }
+    await this.restoreFile(filePath, previous);
+    throw new ConfigApplyError(
+      `${path.basename(filePath)} 保存后无法与现有配置一起生效，已回滚：${failure}`,
+    );
+  }
+
+  private async restoreFile(filePath: string, previous: string | null): Promise<void> {
+    if (previous === null) {
+      await fs.rm(filePath, { force: true });
+      return;
+    }
+    const tmp = `${filePath}.${process.pid}.${Date.now()}.restore.tmp`;
+    await fs.writeFile(tmp, previous, "utf8");
+    await fs.rename(tmp, filePath);
   }
 
   /**
@@ -1019,9 +1289,8 @@ export class ConfigRegistry {
       this.reloadTimer = setTimeout(() => {
         this.reloadTimer = null;
         const reason = this.pendingReloadReason;
-        this.reloadQueue = this.reloadQueue
-          .then(async () => {
-            const didReload = await this.reload(reason);
+        void this.reload(reason)
+          .then(async (didReload) => {
             if (didReload) {
               await onReload();
             }
@@ -1133,7 +1402,7 @@ export class ConfigRegistry {
     return this.writeWholeConfig(
       rawEntries,
       (raw) => codebookOverrides(DEFAULT_REPORT_CODES, parseCodebook(raw)),
-      CODEBOOK_FILE,
+      "codebook",
       "codebook-import",
       () => this.getCodebook(),
     );
@@ -1167,14 +1436,15 @@ export class ConfigRegistry {
   private async writeWholeConfig<R>(
     raw: unknown,
     parse: (raw: unknown) => unknown,
-    file: string,
+    file: ConfigFileKey,
     reloadReason: string,
     read: () => R,
   ): Promise<R> {
     const value = parse(raw);
-    await this.writeConfigFileAtomic(file, value);
-    await this.reload(reloadReason);
-    return read();
+    return this.serialize(async () => {
+      await this.writeConfigAndApply(file, value, reloadReason);
+      return read();
+    });
   }
 
   /** All configured vehicles, for the onboarding wizard's read side (Phase 18). */
@@ -1195,6 +1465,10 @@ export class ConfigRegistry {
    */
   async writeVehicles(raw: unknown): Promise<DeviceConfig[]> {
     const vehicles = parseVehicles(raw);
+    return this.serialize(() => this.writeVehiclesInternal(vehicles));
+  }
+
+  private async writeVehiclesInternal(vehicles: DeviceConfig[]): Promise<DeviceConfig[]> {
     this.ensureLoaded();
     const nextIds = new Set(vehicles.map((vehicle) => vehicle.deviceId));
     for (const formation of this.formationConfigs.values()) {
@@ -1213,8 +1487,7 @@ export class ConfigRegistry {
         );
       }
     }
-    await this.writeConfigFileAtomic(VEHICLES_FILE, vehicles);
-    await this.reload("vehicles-write");
+    await this.writeConfigAndApply("vehicles", vehicles, "vehicles-write");
     return this.listVehicleConfigs();
   }
 
@@ -1226,6 +1499,10 @@ export class ConfigRegistry {
    */
   async writeFormations(raw: unknown): Promise<FormationConfig[]> {
     const formations = parseFormations(raw);
+    return this.serialize(() => this.writeFormationsInternal(formations));
+  }
+
+  private async writeFormationsInternal(formations: FormationConfig[]): Promise<FormationConfig[]> {
     this.ensureLoaded();
     for (const formation of formations) {
       for (const deviceId of formation.deviceIds) {
@@ -1241,8 +1518,7 @@ export class ConfigRegistry {
         );
       }
     }
-    await this.writeConfigFileAtomic(FORMATIONS_FILE, formations);
-    await this.reload("formations-write");
+    await this.writeConfigAndApply("formations", formations, "formations-write");
     return this.listFormations();
   }
 
@@ -1252,7 +1528,7 @@ export class ConfigRegistry {
    * vehicles — so the read-only red line holds. The config volume must be writable.
    */
   writeScenes(raw: unknown): Promise<SceneMapDefinition[]> {
-    return this.writeWholeConfig(raw, parseScenes, SCENES_FILE, "scenes-write", () =>
+    return this.writeWholeConfig(raw, parseScenes, "scenes", "scenes-write", () =>
       this.listScenes(),
     );
   }
@@ -1263,7 +1539,7 @@ export class ConfigRegistry {
    * this is operator/deployment domain, not vehicle control, and the read-only red line holds.
    */
   writeNotifyConfig(raw: unknown): Promise<NotifyConfig> {
-    return this.writeWholeConfig(raw, parseNotifyConfig, NOTIFY_FILE, "notify-write", () =>
+    return this.writeWholeConfig(raw, parseNotifyConfig, "notify", "notify-write", () =>
       this.getNotifyConfig(),
     );
   }
@@ -1274,7 +1550,7 @@ export class ConfigRegistry {
    * red line holds. The config volume must be writable.
    */
   writeAlertRules(raw: unknown): Promise<AlertRulesConfig> {
-    return this.writeWholeConfig(raw, parseAlertRules, RULES_FILE, "rules-write", () =>
+    return this.writeWholeConfig(raw, parseAlertRules, "rules", "rules-write", () =>
       this.getAlertRules(),
     );
   }
@@ -1286,7 +1562,7 @@ export class ConfigRegistry {
    * so this is deployment-domain config, not command dispatch.
    */
   writeReportsConfig(raw: unknown): Promise<ReportsConfig> {
-    return this.writeWholeConfig(raw, parseReportsConfig, REPORTS_FILE, "reports-write", () =>
+    return this.writeWholeConfig(raw, parseReportsConfig, "reports", "reports-write", () =>
       this.getReportsConfig(),
     );
   }

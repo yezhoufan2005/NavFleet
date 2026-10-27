@@ -10,11 +10,12 @@ import type { RbacService } from "./rbac/service";
 import type { AppConfig } from "./config";
 import type { RuntimeState } from "./runtimeState";
 import { runtimePaths } from "./config";
+import { ConfigApplyError } from "./configRegistry";
 import { createMetrics, captureRouteMount } from "./metrics";
 import { requestContext, requestLogger } from "./requestContext";
 import { createAuthenticate, type CapabilityResolver } from "./auth/middleware";
 import { buildAuthRouter } from "./auth/routes";
-import { buildOpsRouter, buildOpenApiRouter } from "./routes/ops";
+import { buildConfigStatusRouter, buildOpsRouter, buildOpenApiRouter } from "./routes/ops";
 import { buildDocsRouter } from "./routes/docs";
 import { buildFleetRouter } from "./routes/fleet";
 import { buildAlertsRouter } from "./routes/alerts";
@@ -155,7 +156,16 @@ export const createApp = ({
   // Public operational endpoints (liveness/readiness/metrics/openapi). Mounted
   // ahead of the API rate limit so a probe or a Prometheus scrape can never be
   // throttled by client traffic.
-  app.use(captureRouteMount, buildOpsRouter({ persistence, state, config, metrics }));
+  app.use(
+    captureRouteMount,
+    buildOpsRouter({
+      persistence,
+      state,
+      config,
+      metrics,
+      configOk: () => store.getConfigStatus().ok,
+    }),
+  );
 
   // Coarse per-IP limit for the whole API, including the auth routes below.
   // Complements the tighter credential limit rather than replacing it, and sits
@@ -234,6 +244,11 @@ export const createApp = ({
    */
   for (const prefix of API_PREFIXES) {
     app.use(prefix, captureRouteMount, buildFleetRouter(store));
+    app.use(
+      prefix,
+      captureRouteMount,
+      buildConfigStatusRouter(() => store.getConfigStatus()),
+    );
     app.use(prefix, captureRouteMount, buildReportsRouter(store));
     app.use(prefix, captureRouteMount, buildAlertsRouter(store, persistence, auditService));
     app.use(prefix, captureRouteMount, buildScenesRouter(store, auditService));
@@ -268,6 +283,12 @@ export const createApp = ({
           ? ((error as { status?: number; statusCode?: number }).status ??
             (error as { statusCode?: number }).statusCode)
           : undefined;
+      // A config write that validated but could not take effect with the rest of the configuration
+      // (the file was rolled back). The admin needs the reason to fix it, so it is surfaced.
+      if (error instanceof ConfigApplyError) {
+        response.status(409).json({ error: "config_not_applied", detail: error.message });
+        return;
+      }
       if (typeof status === "number" && status >= 400 && status < 500) {
         response.status(status).json({
           error: "invalid_request",

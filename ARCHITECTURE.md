@@ -212,13 +212,14 @@ NavFleet/
 - 解析 `osmUrl` 对应的 Lanelet2 OSM 文件并生成 overlay。
 - 监听运行期配置变化并热加载。
 
-热加载监听范围：
+热加载监听范围：`config-runtime/` 下的八份 JSON（fleet / vehicles / formations / scenes / rules /
+codebook / notify / reports）与 `scene-maps/` 下的底图资源（osm / svg / png / jpg / pcd / json）。
 
-- `fleet.json`
-- `vehicles.json`
-- `formations.json`
-- `scenes.json`
-- `scene-maps/**/*.osm`
+**坏配置不拖垮服务**：每次成功加载后，各文件的副本存进 `config-runtime/.last-good/`。某份文件改坏时
+（JSON 写错、校验不过、跨文件引用断了），只把这一份退回上一份可用版本（可选文件没有副本时用内置默认），
+其余文件的修改照常生效；`/health/ready` 标为 degraded，「系统 / 状态」页写明是哪份文件、为什么、正在用
+什么。启动时同理，只有一份可用版本都拼不出来时才拒绝启动。API 写配置以「生效」为准：单独校验通过、但和
+现有配置一起加载失败时，文件回滚，接口返回 409 `config_not_applied` 并带原因。所有配置写入与重载串行执行。
 
 ### `src/index.ts` 与它拆出的模块
 
