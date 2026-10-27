@@ -1552,9 +1552,11 @@ export class Persistence {
         maxGapMs,
         horizon,
       });
+      // allowDiskUse: the per-device window sort over a 30-day range can exceed the 100 MB
+      // in-memory stage limit on a real fleet's frame count.
       const rows = await db
         .collection("telemetry_ts")
-        .aggregate<AvailabilityRow>(pipeline)
+        .aggregate<AvailabilityRow>(pipeline, { allowDiskUse: true })
         .toArray();
       return mapAvailabilityRows(rows, params.bucket, { from, horizon });
     });

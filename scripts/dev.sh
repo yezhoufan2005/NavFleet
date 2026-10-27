@@ -210,15 +210,15 @@ done
 echo " ok"
 
 # --demo：后端起来后注入演示数据。seed:demo 走 admin API（用户/角色/组 + 会话/锁定/审计），
-# seed:reports 走 debug/ingest 回填多日历史（报表页才有可聚合的数据）。两者都幂等/可重复。
+# seed:reports 直接写 dev Mongo 回填多日历史（报表页才有可聚合的数据；生成逻辑与 verify-stack
+# 共用 scripts/demo-history.js）。两者都幂等/可重复。
 if [[ "$DEMO_MODE" == "1" ]]; then
   echo "注入演示数据：用户/角色/组 + 会话/审计…"
   (cd "$ROOT/backend" && SEED_BASE_URL="http://127.0.0.1:${BACKEND_PORT}" \
     ADMIN_USERNAME="$ADMIN_USER" ADMIN_PASSWORD="$ADMIN_PASS" \
     npm run seed:demo) || echo "⚠ seed:demo 失败（可稍后手动重试）"
   echo "回填报表演示数据（多日遥测/告警历史）…"
-  (cd "$ROOT/backend" && SEED_BASE_URL="http://127.0.0.1:${BACKEND_PORT}" \
-    ADMIN_USERNAME="$ADMIN_USER" ADMIN_PASSWORD="$ADMIN_PASS" \
+  (cd "$ROOT/backend" && MONGO_URI="$DEV_MONGO_URI" \
     CONFIG_ROOT_PATH="../config-runtime" npm run seed:reports) || echo "⚠ seed:reports 失败"
 fi
 

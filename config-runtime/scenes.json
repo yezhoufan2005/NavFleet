@@ -5,13 +5,13 @@
     "imageUrl": "/scene-maps/assembly-line.svg",
     "mapFrame": "map",
     "resolution": 0.096,
-    "origin": { "x": 0, "y": 0, "yaw": 0 },
+    "origin": { "x": 20.41, "y": 0, "yaw": 0.35 },
     "width": 1000,
     "height": 620,
-    "bounds": { "minX": 0, "maxX": 96, "minY": 0, "maxY": 59.52 },
-    "defaultView": { "zoom": 1, "centerX": 48, "centerY": 29.76 },
+    "defaultView": { "zoom": 1, "centerX": 55.3, "centerY": 44.42 },
     "minZoom": 0.75,
-    "maxZoom": 6
+    "maxZoom": 6,
+    "description": "产线底图按 ROS 约定绕左下角旋转 0.35 rad（约 20°）摆放，演示带 origin.yaw 的地图；边界由旋转后的外接框派生"
   },
   {
     "sceneId": "cloudpoint-demo",
