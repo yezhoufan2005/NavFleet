@@ -69,8 +69,8 @@ describe("buildAvailabilityPipeline", () => {
       timezone: TZ,
       ...TIMING,
     });
-    // First stage is the per-device successor window, not a match — nothing to filter on.
-    expect(pipeline[0]).toHaveProperty("$setWindowFields");
+    // First stage is the field projection, not a match — nothing to filter on.
+    expect(pipeline[0]).toHaveProperty("$project");
     expect(pipeline.some((stage) => "$match" in stage)).toBe(false);
   });
 

@@ -2,6 +2,7 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import mqtt from "mqtt";
+import { mapFootprintBounds, mapToWorld, toScenePose } from "@navfleet/shared";
 import { parseLaneletOsmFile } from "../src/laneletOsm";
 
 /**
@@ -51,6 +52,10 @@ interface Bounds {
 interface SceneConfig {
   sceneId: string;
   bounds?: Bounds;
+  origin?: { x?: number; y?: number; yaw?: number };
+  width?: number;
+  height?: number;
+  resolution?: number;
   /** Present on Lanelet2 scenes; vehicles then drive the real road network. */
   osmUrl?: string;
   osmProjectionOrigin?: { lat: number; lng: number };
@@ -250,6 +255,14 @@ function findBounds(scenes: SceneConfig[], sceneId: string): Bounds {
   const scene = scenes.find((item) => item.sceneId === sceneId);
   if (scene?.bounds && Number.isFinite(scene.bounds.minX)) {
     return scene.bounds;
+  }
+  // No stated bounds: the (possibly rotated) map rectangle, as the backend derives it.
+  if (scene && Number.isFinite(scene.width) && Number.isFinite(scene.resolution)) {
+    return mapFootprintBounds(
+      toScenePose(scene.origin),
+      (scene.width ?? 0) * (scene.resolution ?? 0),
+      (scene.height ?? 0) * (scene.resolution ?? 0),
+    );
   }
   return { minX: 0, maxX: 60, minY: 0, maxY: 40 };
 }
@@ -594,7 +607,13 @@ async function buildStates(count: number): Promise<DeviceState[]> {
     const laneletRoute = lines.length
       ? buildLaneletRoute(lines, index * 7 + Math.floor(index / 2))
       : [];
-    const demoRoute = DEMO_ROUTES[sceneId] ?? [];
+    // Demo loops of unrotated scenes are world metres. A rotated (origin.yaw) scene's loop is
+    // authored in map metres from the backdrop's lower-left corner (u along its bottom edge, v up
+    // its left edge) and placed through the scene pose, so vehicles drive on the rotated backdrop.
+    const scenePose = toScenePose(scenes.find((scene) => scene.sceneId === sceneId)?.origin);
+    const demoRoute = (DEMO_ROUTES[sceneId] ?? []).map((point) =>
+      scenePose.yaw ? mapToWorld(scenePose, point.x, point.y) : point,
+    );
     const usingLanelet = laneletRoute.length >= 2;
     const route = usingLanelet ? laneletRoute : demoRoute.length >= 2 ? demoRoute : fallback.route;
     const station = route[0] ?? fallback.station;

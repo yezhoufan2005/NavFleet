@@ -62,6 +62,16 @@ export const buildAvailabilityPipeline = (params: AvailabilityPipelineParams): D
   }
 
   pipeline.push(
+    // Only what the report reads: the window stage below sorts every frame in range, so keeping
+    // the full measurements document would multiply its memory for nothing.
+    {
+      $project: {
+        ts: 1,
+        "meta.deviceId": 1,
+        "measurements.online": 1,
+        "measurements.vehicleInfo.soc": 1,
+      },
+    },
     // Each frame's successor on the same vehicle, to know how long the frame stands for.
     {
       $setWindowFields: {

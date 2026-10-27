@@ -309,100 +309,46 @@ if [[ "$DO_MOCK" == "1" ]]; then
     ok "演示发布器已连上 broker（将在后台持续运行）"
   fi
 
-  # 回填 60 天演示历史（遥测 + 消息），直接写库。
+  # 回填 30 天演示历史（遥测 + 消息），直接写库。
   #
-  # 为什么直接入库而不走 debug/ingest：要补足 ~60 天、每台每小时一帧的历史，HTTP 回填要上万请求、
-  # 还会撞边缘限流；报表的两条聚合只读 telemetry_ts 的 {ts, meta.deviceId, measurements.online,
-  # vehicleInfo.soc} 与 alerts 的 {firstSeenAt, severity, deviceId, clearedAt, ackedBy}，所以按这个
-  # 口径最小化地批量插最快最稳。先清掉累积的遥测（也顺带治好 30 天那条上千万文档的慢）与旧消息，
-  # 再相对“现在”铺 60 天——每次起栈刷新。设备在线状态由 device_latest + 后台发布器维持，这里不动它。
-  # 播种的消息一律置为已清除：只进报表的历史聚合，不污染「消息」页的实时活跃列表（那是发布器的真码）。
+  # 为什么直接入库而不走 debug/ingest：每台每分钟一帧、30 天是百万级帧，HTTP 回填会撞边缘限流。
+  # 生成逻辑在 scripts/demo-history.js（与 backend/scripts/seed-reports.ts 共用同一份），按车型画像
+  # 逐分钟模拟电量/作业/充电、计划维护与通信闪断，并按真实形态产出每次发生一条的消息（提示多、预警
+  # 次之、告警少；带持续时长、因果先后与按班次的确认人）。这里把它与 vehicles.json 一起喂给 mongosh：
+  # 先清掉累积的遥测与消息，再相对“现在”铺 30 天（留最近 5 分钟给后台发布器）。设备在线状态由
+  # device_latest + 发布器维持，这里不动它。播种的消息一律是已清除的历史，不污染实时活跃列表。
   MONGO_U="$(deploy_var MONGO_INITDB_ROOT_USERNAME)"; MONGO_U="${MONGO_U:-root}"
   MONGO_P="$(deploy_var MONGO_INITDB_ROOT_PASSWORD)"
-  SEEDED="$(compose exec -T mongo mongosh --quiet -u "$MONGO_U" -p "$MONGO_P" \
-    --authenticationDatabase admin fleet_monitor <<'JS' 2>/dev/null
-var now = Date.now(), DAYS = 60, PER_DAY = 24, HOUR = 3600 * 1000;
-var devices = db.device_latest.distinct("deviceId");
-if (!devices.length) { print("0 0 0"); quit(); }
-// telemetry_ts 默认 30 天 TTL（TELEMETRY_RETENTION_SECONDS）——60 天回填会被裁掉一半。演示库里
-// 把 TTL 放宽到 75 天，让 60 天历史留得住（仅本地演示卷，不改部署配置）。
-try { db.runCommand({ collMod: "telemetry_ts", expireAfterSeconds: 75 * 24 * 3600 }); } catch (e) {}
+  OFFLINE_S="$(python3 -c "import json;print(json.load(open('$ROOT/config-runtime/rules.json')).get('offline',{}).get('afterSeconds',60))" 2>/dev/null || echo 60)"
+  SEEDED="$( {
+      cat "$ROOT/scripts/demo-history.js"
+      printf 'var VEHICLES = %s;\nvar OFFLINE_AFTER_SECONDS = %s;\n' \
+        "$(cat "$ROOT/config-runtime/vehicles.json")" "$OFFLINE_S"
+      cat <<'JS'
+var now = Date.now(), DAYS = 30;
+var known = db.device_latest.distinct("deviceId");
+var fleet = VEHICLES.filter(function (v) { return known.indexOf(v.deviceId) >= 0; });
+if (!fleet.length) { print("0 0 0"); quit(); }
+// telemetry_ts 默认 30 天 TTL（TELEMETRY_RETENTION_SECONDS）：演示库放宽到 45 天，30 天历史留得住
+// 而不在边上被裁（仅本地演示卷，不改部署配置）。
+try { db.runCommand({ collMod: "telemetry_ts", expireAfterSeconds: 45 * 24 * 3600 }); } catch (e) {}
 db.telemetry_ts.deleteMany({});
 db.alerts.deleteMany({});
-// Real codebook-style messages (mirrors backend/scripts/seed-reports.ts CODE_POOL + its severity
-// map): info_code→提示, warning_code→预警, error_code→告警. Every code resolves to a label —
-// built-in table (1301/2101/2203/5701) or the demo deployment codebook (1302/2501/5202) — and
-// follows the scheme (info 1xxx / warning 2xxx / error 5xxx), so 消息 shows real titles.
-var POOL = [
-  { code: 1301, info: "正在充电，等待补能完成", severity: "notice" },
-  { code: 1302, info: "任务完成·待命", severity: "notice" },
-  { code: 2203, info: "厂区限速区降速", severity: "warning" },
-  { code: 2501, info: "电量偏低，建议尽快回充", severity: "warning" },
-  { code: 2101, info: "定位置信度偏低", severity: "warning" },
-  { code: 5701, info: "急停已触发，等待人工复位", severity: "critical" },
-  { code: 5202, info: "避障超时未恢复", severity: "critical" },
-];
-var tDocs = [], aDocs = [];
-// Find a POOL entry by code, so a telemetry-correlated event can name a specific message.
-function msg(code) { return POOL.filter(function (p) { return p.code === code; })[0]; }
-devices.forEach(function (id, di) {
-  var cycle = 14 + (di % 11);        // 充放电周期 14–24h：一天约一个来回，不是一天两三次
-  var phase = (di * 37) % cycle;     // 每台错开相位：避免所有车在「现在」同处满电、曲线右端挤成一团
-  var floorSoc = 25 + (di % 5) * 3;  // 谷底电量 25–37%，每台不同（可视作负载/电池差异）
-  var topSoc = 85 + (di % 4) * 2;    // 满电 85–91%
-  var maint = 60 + (di * 53) % (12 * 24 - 120); // ~12 天一次 ~3h 维护离线，错开且避开最近/最早边界
-  // 放电占 80% 周期（满电→谷底），之后 20% 周期快速回充——锯齿比正弦更像真实车。
-  function socAt(totalH) {
-    var pos = ((totalH + phase) % cycle) / cycle;
-    var s = pos < 0.8
-      ? topSoc - (pos / 0.8) * (topSoc - floorSoc)
-      : floorSoc + ((pos - 0.8) / 0.2) * (topSoc - floorSoc);
-    return Math.round(Math.max(8, Math.min(100, s)));
-  }
-  function onlineAt(totalH) { return ((totalH + maint) % (12 * 24)) >= 3; }
-  for (var d = 0; d < DAYS; d++) {
-    for (var h = 0; h < PER_DAY; h++) {
-      var totalH = d * PER_DAY + h;
-      tDocs.push({
-        ts: new Date(now - totalH * HOUR),
-        meta: { deviceId: id, fleetId: "demo", vehicleModel: "demo" },
-        measurements: { online: onlineAt(totalH), vehicleInfo: { soc: socAt(totalH) } },
-      });
-    }
-  }
-  // 消息与遥测对齐，让历史"自洽"：电量偏低落在一个真实的电量谷底、急停/避障紧跟一次维护离线窗口、
-  // 其余为日常提示/限速。每台 2–3 条，整体给出 提示/预警/告警 的真实分布（约半数设备带一条告警）。
-  var events = [];
-  // 1) 电量偏低（预警）：落在最近几个充放电周期里的一个谷底（pos≈0.8 处 soc 最低，含相位修正）。
-  var troughAt = ((Math.round(cycle * 0.8) - phase) % cycle + cycle) % cycle + cycle * (di % 4);
-  events.push({ pick: msg(2501), at: troughAt });
-  // 2) 急停或避障（告警）：一次维护离线窗口刚结束、现场复位之后——半数设备各一条。
-  if (di % 2 === 0) {
-    events.push({ pick: (di % 4 === 0) ? msg(5701) : msg(5202),
-      at: (((4 - maint) % (12 * 24)) + (12 * 24)) % (12 * 24) + (12 * 24) * (di % 3) + 4 });
-  }
-  // 3) 日常提示/限速（充电·待命·限速区），错开时间。
-  events.push({ pick: POOL[di % 3], at: 6 + (di * 7) % (DAYS * 24) });
-  events.forEach(function (ev, k) {
-    var back = Math.min(DAYS * 24 - 1, Math.max(1, ev.at));
-    var first = new Date(now - back * HOUR);
-    aDocs.push({
-      eventKey: id + ":demo-" + ev.pick.code + "-" + k, deviceId: id, alertId: "demo-" + ev.pick.code + "-" + k,
-      severity: ev.pick.severity, title: ev.pick.info, detail: ev.pick.info, source: "demo",
-      code: ev.pick.code, info: ev.pick.info, ts: first.toISOString(), active: false,
-      firstSeenAt: first, lastSeenAt: new Date(first.getTime() + HOUR),
-      clearedAt: new Date(first.getTime() + 2 * HOUR),
-      ackedBy: (k % 3 === 0) ? "admin" : null, ackedAt: (k % 3 === 0) ? first : null, comment: null,
-    });
-  });
+var frames = 0, messages = 0;
+fleet.forEach(function (vehicle) {
+  var h = demoDeviceHistory(vehicle, VEHICLES.indexOf(vehicle),
+    { now: now, days: DAYS, offlineAfterSeconds: OFFLINE_AFTER_SECONDS, tailMinutes: 5 });
+  for (var i = 0; i < h.telemetry.length; i += 10000) db.telemetry_ts.insertMany(h.telemetry.slice(i, i + 10000));
+  if (h.alerts.length) db.alerts.insertMany(h.alerts);
+  frames += h.telemetry.length; messages += h.alerts.length;
 });
-for (var i = 0; i < tDocs.length; i += 5000) db.telemetry_ts.insertMany(tDocs.slice(i, i + 5000));
-if (aDocs.length) db.alerts.insertMany(aDocs);
-print(devices.length + " " + tDocs.length + " " + aDocs.length);
+print(fleet.length + " " + frames + " " + messages);
 JS
-)"
+    } | compose exec -T mongo mongosh --quiet -u "$MONGO_U" -p "$MONGO_P" \
+      --authenticationDatabase admin fleet_monitor 2>/dev/null
+  )"
   SEEDED="$(printf '%s' "$SEEDED" | grep -oE '[0-9]+ [0-9]+ [0-9]+' | tail -1 | awk '{print $1" 台 / "$2" 帧遥测 / "$3" 条消息"}')"
-  echo "演示历史回填：${SEEDED:-（无设备，已跳过）}（60 天，随本次起栈刷新）"
+  echo "演示历史回填：${SEEDED:-（无设备，已跳过）}（30 天，随本次起栈刷新）"
 
   echo
   echo "断言（续）:"
