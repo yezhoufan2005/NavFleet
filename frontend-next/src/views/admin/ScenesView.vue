@@ -235,7 +235,7 @@ const fWidth = ref("");
 const fHeight = ref("");
 const fOriginX = ref("0");
 const fOriginY = ref("0");
-const fOriginYaw = ref("0");
+const fOriginYaw = ref("");
 const fAssetKind = ref<SceneAssetKind>("image");
 const fAssetFile = ref<File | null>(null);
 const assetFileInput = ref<HTMLInputElement | null>(null);
@@ -264,7 +264,7 @@ const openCreate = (): void => {
   fHeight.value = "";
   fOriginX.value = "0";
   fOriginY.value = "0";
-  fOriginYaw.value = "0";
+  fOriginYaw.value = "";
   fAssetKind.value = "image";
   fAssetFile.value = null;
 };
@@ -699,12 +699,11 @@ const runDelete = async (): Promise<void> => {
           />
         </label>
         <label class="flex flex-col gap-1">
-          <span class="text-sm font-medium text-ink"
-            >原点 yaw（弧度，逆时针）</span
-          >
+          <span class="text-sm font-medium text-ink">原点 yaw</span>
           <UiInput
             v-model="fOriginYaw"
             type="text"
+            placeholder="弧度，逆时针"
             :disabled="saving"
             size="sm"
           />
