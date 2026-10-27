@@ -673,10 +673,12 @@ describe("upsertAlerts", () => {
 
     await persistence.upsertAlerts("agv-a", [alert("low-soc"), alert("offline")]);
 
+    // 只匹配**活跃**的那一次发生：清除后再触发找不到活跃行 → 插入新文档，旧发生留作历史。
     expect(calls.updateOne.map((call) => call.filter)).toEqual([
-      { eventKey: "agv-a:low-soc" },
-      { eventKey: "agv-a:offline" },
+      { eventKey: "agv-a:low-soc", active: true },
+      { eventKey: "agv-a:offline", active: true },
     ]);
+    expect(calls.updateOne[0]?.options).toEqual({ upsert: true });
 
     // 这条是整个方法的契约：本次没报的旧告警要被标成已清除，而判据必须是这两个 key 的补集 ——
     // 写错成 `$in` 或漏掉 `deviceId` 都会让别的车的告警被顺手清掉。
@@ -708,16 +710,22 @@ describe("upsertAlerts", () => {
     expect(update.$set).not.toHaveProperty("ackedBy");
   });
 
-  it("清除一条告警时一并清掉确认 —— 重新触发是新的一次，应回到未确认（Phase 16A）", async () => {
+  it("清除即关闭这一次发生并保留其确认（历史）；重新触发插入的新文档从未确认、未清除开始", async () => {
     const { db, calls } = createFakeDb();
     persistence.__setDbForTests(db);
 
     await persistence.upsertAlerts("agv-a", [alert("low-soc")]);
 
     const [clear] = calls.updateMany;
-    expect(clear?.update).toMatchObject({
-      $set: { active: false, ackedBy: null, ackedAt: null, comment: null },
-    });
+    const clearSet = (clear?.update as { $set: Record<string, unknown> }).$set;
+    expect(clearSet).toMatchObject({ active: false });
+    expect(clearSet).toHaveProperty("clearedAt");
+    // 谁确认过是这次发生的一部分，清除时不抹掉。
+    expect(clearSet).not.toHaveProperty("ackedBy");
+    // 新的一次发生：插入时 clearedAt 为空、未确认。
+    const insert = (calls.updateOne[0]?.update as { $setOnInsert: Record<string, unknown> })
+      .$setOnInsert;
+    expect(insert).toMatchObject({ clearedAt: null, ackedBy: null });
   });
 
   it("即使 Mongo 报错，内存里的活跃集合仍然是更新过的", async () => {
@@ -952,8 +960,11 @@ describe("aggregateAvailability（Phase 17A-2 可用率/电量时序）", () => 
   const rows = [
     {
       _id: { deviceId: "agv-1", bucketStart: new Date("2026-09-01T00:00:00Z") },
+      bucketEnd: new Date("2026-09-01T01:00:00Z"),
       onlineSamples: 9,
       totalSamples: 10,
+      // 54 of the hour's 60 minutes covered by online frames.
+      onlineMs: 54 * 60_000,
       socMean: 82.5,
       socMin: 70,
     },
@@ -987,6 +998,8 @@ describe("aggregateAvailability（Phase 17A-2 可用率/电量时序）", () => 
             bucketStart: "2026-09-01T00:00:00.000Z",
             onlineSamples: 9,
             totalSamples: 10,
+            onlineSeconds: 3240,
+            spanSeconds: 3600,
             onlineRatio: 0.9,
             socMean: 82.5,
             socMin: 70,

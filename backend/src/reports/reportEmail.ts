@@ -48,7 +48,7 @@ const RANGE_LABEL: Record<ReportRangePreset, string> = {
 const escapeHtml = (value: string): string =>
   value.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
 
-/** 全队样本加权在线率与平均电量（跳过无 soc 的桶，零除返回 null）。 */
+/** 全队按时间加权的在线率与帧数加权的平均电量（跳过无 soc 的桶，零除返回 null）。 */
 const summarize = (
   report: AvailabilityReport,
 ): { onlineRatio: number | null; socMean: number | null } => {
@@ -58,8 +58,8 @@ const summarize = (
   let socWeight = 0;
   for (const device of report.devices) {
     for (const bucket of device.buckets) {
-      online += bucket.onlineSamples;
-      total += bucket.totalSamples;
+      online += bucket.onlineSeconds;
+      total += bucket.spanSeconds;
       if (bucket.socMean !== null && bucket.totalSamples > 0) {
         socWeighted += bucket.socMean * bucket.totalSamples;
         socWeight += bucket.totalSamples;
@@ -110,6 +110,8 @@ const buildAvailabilityCsv = (report: AvailabilityReport, nameOf: DeviceNameOf):
     "时间桶",
     "在线帧",
     "总帧",
+    "在线秒数",
+    "统计秒数",
     "在线率",
     "电量均值",
     "电量最低",
@@ -124,6 +126,8 @@ const buildAvailabilityCsv = (report: AvailabilityReport, nameOf: DeviceNameOf):
           bucket.bucketStart,
           bucket.onlineSamples,
           bucket.totalSamples,
+          bucket.onlineSeconds,
+          bucket.spanSeconds,
           bucket.onlineRatio.toFixed(4),
           bucket.socMean ?? "",
           bucket.socMin ?? "",

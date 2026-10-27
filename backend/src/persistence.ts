@@ -114,8 +114,8 @@ interface StoredAlert {
   // the clear path in Mongo; the in-memory mirror holds active alerts only, so it is always
   // null there. Declared here to match the OpenAPI Alert schema, which already carries it.
   clearedAt: string | null;
-  // Acknowledgement (Phase 16A). null until an operator+ confirms the occurrence;
-  // cleared back to null when the alert clears, because a re-fire is a new occurrence.
+  // Acknowledgement. null until an operator+ confirms the occurrence; kept when the occurrence
+  // clears (it is history). A re-fire is a new document and starts unacknowledged.
   ackedBy: string | null;
   ackedAt: string | null;
   comment: string | null;
@@ -403,6 +403,16 @@ export class Persistence {
     // buckets entirely on `firstSeenAt`; without this index a bounded report scanned the whole
     // collection, the slowest path on the reports page (Phase 18).
     await this.db.collection("alerts").createIndex({ firstSeenAt: 1 });
+    // One document per **occurrence**: a code that clears and fires again gets a new row, so the
+    // history and the report count every occurrence. `eventKey` (`deviceId:alertId`) identifies the
+    // *currently active* occurrence — what an ack targets — so it is unique among active rows only.
+    // Every per-frame upsert and every ack/clear filters on `{ eventKey, active: true }`.
+    await this.db
+      .collection("alerts")
+      .createIndex(
+        { eventKey: 1 },
+        { unique: true, partialFilterExpression: { active: true }, name: "eventKey_active_unique" },
+      );
     // telemetry_ts is a time-series collection (clustered on `ts`), so the whole-fleet range scan is
     // already covered; this secondary index on the metaField speeds the device-filtered availability
     // report, whose `$match` leads with `meta.deviceId` before the `ts` range (Phase 18).
@@ -1200,7 +1210,10 @@ export class Persistence {
       await Promise.all(
         alerts.map((alert) =>
           collection.updateOne(
-            { eventKey: `${deviceId}:${alert.id}` },
+            // Match the *active* occurrence only. After a clear, the next fire finds no active row
+            // and inserts a fresh one (new firstSeenAt, unacknowledged, not cleared) instead of
+            // reviving the old row and overwriting its history.
+            { eventKey: `${deviceId}:${alert.id}`, active: true },
             {
               $set: {
                 eventKey: `${deviceId}:${alert.id}`,
@@ -1218,6 +1231,7 @@ export class Persistence {
               },
               $setOnInsert: {
                 firstSeenAt: new Date(alert.ts),
+                clearedAt: null,
                 // A brand-new occurrence starts unacknowledged. On a re-report this
                 // branch is skipped, so an existing ack is preserved.
                 ackedBy: null,
@@ -1237,15 +1251,12 @@ export class Persistence {
           eventKey: { $nin: [...activeKeys] },
         },
         {
+          // The occurrence is closed and kept as history, acknowledgement included: who confirmed
+          // it is part of what happened. A later re-fire is a separate (unacknowledged) document.
           $set: {
             active: false,
             clearedAt: new Date(),
             lastSeenAt: new Date(),
-            // You acknowledged one occurrence; a later re-fire is a new one and must
-            // come back unacknowledged.
-            ackedBy: null,
-            ackedAt: null,
-            comment: null,
           },
         },
       );
@@ -1513,28 +1524,39 @@ export class Persistence {
     from?: string;
     to?: string;
     bucket: ReportBucketUnit;
+    /** How long one frame may stand for; defaults to the env offline threshold. */
+    maxGapSeconds?: number;
   }): Promise<AvailabilityReport> {
     if (!this.db) {
       return emptyAvailabilityReport(params.bucket, false);
     }
     const db = this.db;
     const deviceIds = params.deviceId?.length ? params.deviceId : null;
-    const key = `avail:${params.from ?? ""}:${params.to ?? ""}:${params.bucket}:${
+    const maxGapMs = (params.maxGapSeconds ?? config.offlineAfterSeconds) * 1000;
+    const key = `avail:${params.from ?? ""}:${params.to ?? ""}:${params.bucket}:${maxGapMs}:${
       deviceIds ? [...deviceIds].sort().join(",") : "*"
     }`;
     return this.withReportCache(key, async () => {
+      const from = toBoundDate(params.from);
+      const to = toBoundDate(params.to);
+      // The window never runs past now: the current bucket counts only up to this moment.
+      const nowDate = new Date();
+      const horizon = to && to < nowDate ? to : nowDate;
       const pipeline = buildAvailabilityPipeline({
         deviceIds,
-        from: toBoundDate(params.from),
-        to: toBoundDate(params.to),
+        from,
+        to,
         bucket: params.bucket,
         timezone: config.reportTimezone,
+        // A frame stands for at most the offline threshold: past that, silence is offline.
+        maxGapMs,
+        horizon,
       });
       const rows = await db
         .collection("telemetry_ts")
         .aggregate<AvailabilityRow>(pipeline)
         .toArray();
-      return mapAvailabilityRows(rows, params.bucket);
+      return mapAvailabilityRows(rows, params.bucket, { from, horizon });
     });
   }
 

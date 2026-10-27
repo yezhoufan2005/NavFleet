@@ -358,6 +358,8 @@ export const openApiDocument = {
                       bucketStart: { type: "string", format: "date-time" },
                       onlineSamples: { type: "number" },
                       totalSamples: { type: "number" },
+                      onlineSeconds: { type: "number" },
+                      spanSeconds: { type: "number" },
                       onlineRatio: { type: "number" },
                       socMean: { type: ["number", "null"] },
                       socMin: { type: ["number", "null"] },

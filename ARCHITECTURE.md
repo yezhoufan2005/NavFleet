@@ -561,13 +561,22 @@ MongoDB time series collection，用于保存遥测历史。默认保留时间�
 
 ### `alerts`
 
-保存活动告警和已清除告警。默认保留时间由 `ALERTS_RETENTION_SECONDS` 控制。
+保存消息的**每一次发生**：同一设备同一报码清除后再次触发，会新开一条文档，`firstSeenAt` /
+`clearedAt` 记录这次发生的起止，确认人随这次发生一起留档。`eventKey`（`deviceId:alertId`）只在活跃的
+那一条上唯一，确认和清除都按 `{ eventKey, active: true }` 定位。默认保留时间由
+`ALERTS_RETENTION_SECONDS` 控制。
 
 索引：
 
 - `{ deviceId: 1, ts: -1 }`
 - `{ severity: 1, active: 1, ts: -1 }`
+- `{ firstSeenAt: 1 }`（消息统计按发生时刻分桶）
+- `{ eventKey: 1 }`，唯一，仅约束 `active: true` 的文档
 - TTL：`lastSeenAt`
+
+报表的**在线率按时间加权**：每帧覆盖到同车下一帧，最多覆盖离线判定阈值（`rules.json` 的
+`offline.afterSeconds`，否则 `OFFLINE_AFTER_SECONDS`）；超出部分和没有帧的时段都算离线。数据源
+（MQTT broker）断开期间，以及恢复后的一个离线窗口内，后端不做离线判定。
 
 ## 10. API
 

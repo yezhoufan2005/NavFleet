@@ -77,6 +77,8 @@ describe("deviceAvailabilityRows", () => {
               bucketStart: iso(0),
               onlineSamples: 5,
               totalSamples: 20,
+              onlineSeconds: 5,
+              spanSeconds: 20,
               onlineRatio: 0.25,
               socMean: 30,
               socMin: 10,
@@ -90,6 +92,8 @@ describe("deviceAvailabilityRows", () => {
               bucketStart: iso(0),
               onlineSamples: 90,
               totalSamples: 100,
+              onlineSeconds: 90,
+              spanSeconds: 100,
               onlineRatio: 0.9,
               socMean: 80,
               socMin: 60,
@@ -126,6 +130,8 @@ describe("deviceAvailabilityRows", () => {
               bucketStart: iso(0),
               onlineSamples: 0,
               totalSamples: 0,
+              onlineSeconds: 0,
+              spanSeconds: 0,
               onlineRatio: 0,
               socMean: null,
               socMin: null,
@@ -178,6 +184,8 @@ describe("summarizeAvailability", () => {
               bucketStart: iso(0),
               onlineSamples: 90,
               totalSamples: 100,
+              onlineSeconds: 90,
+              spanSeconds: 100,
               onlineRatio: 0.9,
               socMean: 80,
               socMin: 70,
@@ -186,6 +194,8 @@ describe("summarizeAvailability", () => {
               bucketStart: iso(1),
               onlineSamples: 0,
               totalSamples: 10,
+              onlineSeconds: 0,
+              spanSeconds: 10,
               onlineRatio: 0.0,
               socMean: 20,
               socMin: 20,
@@ -209,6 +219,8 @@ describe("summarizeAvailability", () => {
               bucketStart: iso(0),
               onlineSamples: 0,
               totalSamples: 0,
+              onlineSeconds: 0,
+              spanSeconds: 0,
               onlineRatio: 0,
               socMean: null,
               socMin: null,
@@ -231,6 +243,8 @@ describe("onlineRatioSeries / socSeries", () => {
           bucketStart: iso(0),
           onlineSamples: 8,
           totalSamples: 10,
+          onlineSeconds: 8,
+          spanSeconds: 10,
           onlineRatio: 0.8,
           socMean: 80,
           socMin: 60,
@@ -239,6 +253,8 @@ describe("onlineRatioSeries / socSeries", () => {
           bucketStart: iso(1),
           onlineSamples: 10,
           totalSamples: 10,
+          onlineSeconds: 10,
+          spanSeconds: 10,
           onlineRatio: 1.0,
           socMean: null,
           socMin: null,
@@ -277,6 +293,8 @@ describe("onlineRatioSeries / socSeries", () => {
             bucketStart: iso(0),
             onlineSamples: 8,
             totalSamples: 10,
+            onlineSeconds: 8,
+            spanSeconds: 10,
             onlineRatio: 0.8,
             socMean: 80,
             socMin: 60,
@@ -290,6 +308,8 @@ describe("onlineRatioSeries / socSeries", () => {
             bucketStart: iso(0),
             onlineSamples: 6,
             totalSamples: 30,
+            onlineSeconds: 6,
+            spanSeconds: 30,
             onlineRatio: 0.2,
             socMean: 40,
             socMin: 20,
@@ -319,6 +339,8 @@ describe("onlineRatioSeries / socSeries", () => {
             bucketStart: iso(0),
             onlineSamples: 8,
             totalSamples: 10,
+            onlineSeconds: 8,
+            spanSeconds: 10,
             onlineRatio: 0.8,
             socMean: 80,
             socMin: 60,
@@ -332,6 +354,8 @@ describe("onlineRatioSeries / socSeries", () => {
             bucketStart: iso(0),
             onlineSamples: 6,
             totalSamples: 30,
+            onlineSeconds: 6,
+            spanSeconds: 30,
             onlineRatio: 0.2,
             socMean: 40,
             socMin: 20,
@@ -362,6 +386,8 @@ describe("buildAvailabilityCsv", () => {
           bucketStart: iso(0),
           onlineSamples: 9,
           totalSamples: 10,
+          onlineSeconds: 9,
+          spanSeconds: 10,
           onlineRatio: 0.9,
           socMean: 82.5,
           socMin: 70,
@@ -370,6 +396,8 @@ describe("buildAvailabilityCsv", () => {
           bucketStart: iso(1),
           onlineSamples: 4,
           totalSamples: 4,
+          onlineSeconds: 4,
+          spanSeconds: 4,
           onlineRatio: 1.0,
           socMean: null,
           socMin: null,
@@ -382,11 +410,13 @@ describe("buildAvailabilityCsv", () => {
     const csv = buildAvailabilityCsv(built, () => "A01 巡检车");
     const lines = csv.split("\n");
     expect(lines[0]).toBe(
-      "设备ID,设备名称,时间桶,在线帧,总帧,在线率,电量均值,电量最低",
+      "设备ID,设备名称,时间桶,在线帧,总帧,在线秒数,统计秒数,在线率,电量均值,电量最低",
     );
-    expect(lines[1]).toBe(`agv-1,A01 巡检车,${iso(0)},9,10,0.9000,82.5,70`);
+    expect(lines[1]).toBe(
+      `agv-1,A01 巡检车,${iso(0)},9,10,9,10,0.9000,82.5,70`,
+    );
     // A null soc is an empty cell (no sample), never 0 — 0 would read as "flat battery".
-    expect(lines[2]).toBe(`agv-1,A01 巡检车,${iso(1)},4,4,1.0000,,`);
+    expect(lines[2]).toBe(`agv-1,A01 巡检车,${iso(1)},4,4,4,4,1.0000,,`);
   });
 
   it("quotes a field containing a comma and doubles inner quotes (RFC-4180)", () => {
