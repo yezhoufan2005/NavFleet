@@ -699,7 +699,9 @@ const runDelete = async (): Promise<void> => {
           />
         </label>
         <label class="flex flex-col gap-1">
-          <span class="text-sm font-medium text-ink">原点 yaw</span>
+          <span class="text-sm font-medium text-ink"
+            >原点 yaw（弧度，逆时针）</span
+          >
           <UiInput
             v-model="fOriginYaw"
             type="text"

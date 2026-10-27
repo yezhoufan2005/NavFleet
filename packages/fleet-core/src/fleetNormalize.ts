@@ -20,7 +20,11 @@ import type {
 // The rule engine now lives in `@navfleet/shared` (Phase 16C-1), the one package the
 // backend and both frontends all depend on. This reader uses the built-in defaults — it
 // cannot see backend config and does not need to (see `buildRuleAlerts` below).
-import { evaluateRuleAlerts } from "@navfleet/shared";
+import {
+  evaluateRuleAlerts,
+  mapFootprintBounds,
+  toScenePose,
+} from "@navfleet/shared";
 
 /** A point-like value whose coordinates may be absent/nullish (loose input). */
 type MaybePoint = { x?: number | null; y?: number | null } | null | undefined;
@@ -742,16 +746,13 @@ const mergeBounds = (
   definition: ScenePartLike,
 ) =>
   overrideBounds ||
-  baseBounds || {
-    minX: definition.origin?.x || 0,
-    maxX:
-      (definition.origin?.x || 0) +
-      (definition.width || 1000) * (definition.resolution || 0.1),
-    minY: definition.origin?.y || 0,
-    maxY:
-      (definition.origin?.y || 0) +
-      (definition.height || 620) * (definition.resolution || 0.1),
-  };
+  baseBounds ||
+  // The map rectangle, rotated by origin.yaw about its lower-left corner (sceneGeometry).
+  mapFootprintBounds(
+    toScenePose(definition.origin),
+    (definition.width || 1000) * (definition.resolution || 0.1),
+    (definition.height || 620) * (definition.resolution || 0.1),
+  );
 
 export const mergeSceneDefinitionParts = (
   base: ScenePartLike = {},

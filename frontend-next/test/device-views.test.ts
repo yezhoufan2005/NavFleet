@@ -228,6 +228,24 @@ describe("what else the scene map draws", () => {
     });
 
     expect(wrapper.find("image").attributes("href")).toBe("/scenes/yard.png");
+    // Unrotated: the plain corner translate + upright flip, no rotate().
+    expect(wrapper.find("image").attributes("transform")).toBe(
+      "translate(0 0) translate(0 60) scale(1 -1)",
+    );
+  });
+
+  it("rotates an image backdrop by origin.yaw about its lower-left corner", async () => {
+    const wrapper = await mountScene({
+      sceneDefinition: {
+        ...SCENE,
+        origin: { x: 5, y: -2, yaw: Math.PI / 2 },
+        imageUrl: "/scenes/yard.png",
+      },
+    });
+
+    expect(wrapper.find("image").attributes("transform")).toBe(
+      "translate(5 -2) rotate(90) translate(0 60) scale(1 -1)",
+    );
   });
 
   it("says so when the raster backdrop cannot be loaded", async () => {

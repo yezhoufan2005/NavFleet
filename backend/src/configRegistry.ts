@@ -21,6 +21,7 @@ import {
   ReportsConfig,
   RuleScope,
   Severity,
+  mapFootprintBounds,
   mergeCodebook,
   parseCodebook,
   parseFormations,
@@ -73,12 +74,12 @@ interface LoadedConfigSnapshot {
   reportsConfig: ReportsConfig;
 }
 
-const deriveBounds = (scene: SceneMapDefinition): NonNullable<SceneMapDefinition["bounds"]> => ({
-  minX: scene.origin.x,
-  maxX: scene.origin.x + scene.width * scene.resolution,
-  minY: scene.origin.y,
-  maxY: scene.origin.y + scene.height * scene.resolution,
-});
+/**
+ * Bounds of a scene that does not state them: the box around its map rectangle, rotated by
+ * `origin.yaw` about the lower-left corner (ROS map_server convention, see `sceneGeometry`).
+ */
+const deriveBounds = (scene: SceneMapDefinition): NonNullable<SceneMapDefinition["bounds"]> =>
+  mapFootprintBounds(scene.origin, scene.width * scene.resolution, scene.height * scene.resolution);
 
 const cloneOverlay = (overlay: LaneletOverlay): LaneletOverlay =>
   JSON.parse(JSON.stringify(overlay)) as LaneletOverlay;

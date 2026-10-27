@@ -147,6 +147,7 @@ export function useSceneOverlay(
         scene?.height,
         scene?.origin?.x,
         scene?.origin?.y,
+        scene?.origin?.yaw,
         // See the header: the colours are baked into the raster, so the theme is
         // part of what identifies the image to draw.
         palette.obstacle.join(","),

@@ -42,6 +42,15 @@ const backdropFor = (label: string) => ({
   width: 2,
   height: 2,
   bounds: { minX: 0, maxX: 2, minY: 0, maxY: 2 },
+  geometry: {
+    gridSize: 1,
+    originX: 0,
+    originY: 0,
+    yaw: 0,
+    width: 2,
+    height: 2,
+    bounds: { minX: 0, maxX: 2, minY: 0, maxY: 2 },
+  },
   meta: {},
 });
 
