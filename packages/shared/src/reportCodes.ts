@@ -520,3 +520,43 @@ export const mergeCodebook = (
   }
   return [...byCode.values()].sort((left, right) => left.code - right.code);
 };
+
+const sameEntry = (left: ReportCodeEntry, right: ReportCodeEntry): boolean =>
+  left.code === right.code &&
+  left.channel === right.channel &&
+  left.subsystem === right.subsystem &&
+  left.label === right.label &&
+  left.description === right.description &&
+  left.hint === right.hint &&
+  left.impact === right.impact;
+
+/**
+ * The inverse of {@link mergeCodebook}: from a full table, keep only what a deployment file has
+ * to say — custom codes, and built-in codes whose meaning was changed. A built-in entry left
+ * exactly as shipped is dropped, so writing the merged table back never freezes the built-in
+ * meanings into `codebook.json` (a later built-in correction then still reaches the deployment).
+ */
+export const codebookOverrides = (
+  base: readonly ReportCodeEntry[],
+  entries: readonly ReportCodeEntry[],
+): ReportCodeEntry[] => {
+  const builtIn = new Map<number, ReportCodeEntry>(
+    base.map((entry) => [entry.code, entry]),
+  );
+  return entries.filter((entry) => {
+    const shipped = builtIn.get(entry.code);
+    return !shipped || !sameEntry(shipped, entry);
+  });
+};
+
+/** Where a merged-table entry comes from — what deleting it would actually do. */
+export type CodebookEntryOrigin = "builtin" | "overridden" | "custom";
+
+export const codebookEntryOrigin = (
+  base: readonly ReportCodeEntry[],
+  entry: ReportCodeEntry,
+): CodebookEntryOrigin => {
+  const shipped = base.find((candidate) => candidate.code === entry.code);
+  if (!shipped) return "custom";
+  return sameEntry(shipped, entry) ? "builtin" : "overridden";
+};

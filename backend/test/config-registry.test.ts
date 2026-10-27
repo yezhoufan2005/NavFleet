@@ -506,6 +506,31 @@ describe("ConfigRegistry.getCodebook / importCodebook (Phase 16C-2)", () => {
     );
   });
 
+  it("writes only the deployment's own entries, never freezing unchanged built-ins", async () => {
+    await writeConfig();
+    const registry = new ConfigRegistry();
+    await registry.load();
+
+    // What the console sends on a row edit: the whole merged table, with one built-in re-defined.
+    const fullTable = registry
+      .getCodebook()
+      .map((entry) => (entry.code === override.code ? override : entry));
+    await registry.importCodebook(fullTable);
+
+    const onDisk: unknown = JSON.parse(
+      await fs.readFile(path.join(configRoot, "codebook.json"), "utf8"),
+    );
+    expect(onDisk).toEqual([override]);
+    // Dropping the override from the table and writing again restores the built-in meaning.
+    const restored = await registry.importCodebook(
+      registry.getCodebook().filter((entry) => entry.code !== override.code),
+    );
+    expect(restored.find((entry) => entry.code === override.code)?.label).not.toBe("本厂电量低");
+    expect(
+      JSON.parse(await fs.readFile(path.join(configRoot, "codebook.json"), "utf8")) as unknown,
+    ).toEqual([]);
+  });
+
   it("rejects an invalid import without writing anything", async () => {
     await writeConfig();
     const registry = new ConfigRegistry();
