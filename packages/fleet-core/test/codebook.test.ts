@@ -2,6 +2,8 @@ import { describe, it, expect } from "vitest";
 import {
   DEFAULT_REPORT_CODES,
   buildCodebookIndex,
+  codebookEntryOrigin,
+  codebookOverrides,
   describeCodeWith,
   describeDeviceCodesWith,
   mergeCodebook,
@@ -142,5 +144,24 @@ describe("describeCodeWith / describeDeviceCodesWith against a codebook", () => 
       infoCode: state(0),
     });
     expect(rows.map((row) => row.channel)).toEqual(["error", "warning"]);
+  });
+});
+
+describe("codebookOverrides / codebookEntryOrigin", () => {
+  const base = DEFAULT_REPORT_CODES;
+  const shipped = base[0]!;
+  const redefined = { ...shipped, label: `${shipped.label}（本厂）` };
+  const custom = { ...shipped, code: 9_999 };
+
+  it("is the inverse of mergeCodebook: keeps only custom and re-defined entries", () => {
+    const merged = mergeCodebook(base, [redefined, custom]);
+    expect(codebookOverrides(base, merged)).toEqual([redefined, custom]);
+    expect(codebookOverrides(base, base)).toEqual([]);
+  });
+
+  it("classifies where an entry comes from", () => {
+    expect(codebookEntryOrigin(base, shipped)).toBe("builtin");
+    expect(codebookEntryOrigin(base, redefined)).toBe("overridden");
+    expect(codebookEntryOrigin(base, custom)).toBe("custom");
   });
 });

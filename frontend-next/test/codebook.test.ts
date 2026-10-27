@@ -3,7 +3,7 @@ import { createMemoryHistory, createRouter } from "vue-router";
 import type { Router } from "vue-router";
 import { enableAutoUnmount, flushPromises, mount } from "@vue/test-utils";
 import { fleetApi } from "@navfleet/fleet-core";
-import type { ReportCodeEntry } from "@navfleet/shared";
+import { DEFAULT_REPORT_CODES, type ReportCodeEntry } from "@navfleet/shared";
 import CodebookView from "@/views/admin/CodebookView.vue";
 import { useCodebook, __resetCodebook } from "@/composables/useCodebook";
 import { useAuth, __resetAuth } from "@/composables/useAuth";
@@ -289,22 +289,55 @@ describe("CodebookView — row editing (codebook:write)", () => {
     expect(sent[0]).toMatchObject({ code: ENTRY.code, label: "改名后" });
   });
 
-  it("deletes a row by rewriting the table without it", async () => {
+  const confirmBody = async (label: string): Promise<void> => {
+    const confirm = [...document.body.querySelectorAll("button")].find(
+      (button) => button.textContent?.trim() === label,
+    );
+    confirm?.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+    await flushPromises();
+  };
+
+  it("deletes a custom code by rewriting the table without it", async () => {
     asWriter();
-    vi.spyOn(fleetApi, "getCodebook").mockResolvedValue({ items: [ENTRY] });
+    const custom = { ...ENTRY, code: 2988 };
+    vi.spyOn(fleetApi, "getCodebook").mockResolvedValue({ items: [custom] });
     const put = vi
       .spyOn(fleetApi, "importCodebook")
       .mockResolvedValue({ items: [] });
     const wrapper = await mountView();
     await clickRowButton(wrapper, "删除");
-    const confirm = [...document.body.querySelectorAll("button")].find(
-      (button) => button.textContent?.trim() === "删除",
-    );
-    confirm?.dispatchEvent(new MouseEvent("click", { bubbles: true }));
-    await flushPromises();
+    await confirmBody("删除");
 
     expect(put).toHaveBeenCalledTimes(1);
     expect(put.mock.calls[0]![0]).toEqual([]);
+  });
+
+  it("offers 恢复内置 (not 删除) for a re-defined built-in code", async () => {
+    asWriter();
+    // 2301 is a built-in code; ENTRY re-defines its meaning for this deployment.
+    vi.spyOn(fleetApi, "getCodebook").mockResolvedValue({ items: [ENTRY] });
+    const put = vi
+      .spyOn(fleetApi, "importCodebook")
+      .mockResolvedValue({ items: [] });
+    const wrapper = await mountView();
+    expect(
+      wrapper.findAll("button").some((b) => b.text().trim() === "删除"),
+    ).toBe(false);
+    await clickRowButton(wrapper, "恢复内置");
+    await confirmBody("恢复内置");
+
+    expect(put.mock.calls[0]![0]).toEqual([]);
+  });
+
+  it("offers no remove action for an untouched built-in code", async () => {
+    asWriter();
+    const builtIn = DEFAULT_REPORT_CODES[0]!;
+    vi.spyOn(fleetApi, "getCodebook").mockResolvedValue({ items: [builtIn] });
+    const wrapper = await mountView();
+    const labels = wrapper.findAll("button").map((b) => b.text().trim());
+    expect(labels).toContain("编辑");
+    expect(labels).not.toContain("删除");
+    expect(labels).not.toContain("恢复内置");
   });
 
   it("maps a backend rejection to an inline message and keeps the dialog open", async () => {

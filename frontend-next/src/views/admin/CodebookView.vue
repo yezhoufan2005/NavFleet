@@ -30,6 +30,8 @@ import { CODE_CHANNEL_LABELS } from "@/lib/severity";
 import {
   CODE_IMPACTS,
   CODE_SUBSYSTEMS,
+  DEFAULT_REPORT_CODES,
+  codebookEntryOrigin,
   parseCodebook,
   type CodeChannel,
   type CodeImpact,
@@ -247,14 +249,26 @@ const submitRow = async (): Promise<void> => {
   }
 };
 
+/**
+ * What removing a row actually does depends on where it comes from: a custom code is deleted; a
+ * built-in code the deployment re-defined goes back to its built-in meaning; an untouched built-in
+ * code cannot be removed at all (the merge always layers it back), so it offers no action.
+ */
+const originOf = (entry: ReportCodeEntry) =>
+  codebookEntryOrigin(DEFAULT_REPORT_CODES, entry);
+
 const confirmDelete = ref<ReportCodeEntry | null>(null);
+const confirmIsRestore = computed(
+  () => !!confirmDelete.value && originOf(confirmDelete.value) === "overridden",
+);
 const deleteRow = async (): Promise<void> => {
   const target = confirmDelete.value;
   if (!target) return;
+  const restoring = originOf(target) === "overridden";
   const next = entries.value.filter((e) => e.code !== target.code);
   try {
     await persistRows(next);
-    notify("报码已删除", { type: "success" });
+    notify(restoring ? "已恢复为内置含义" : "报码已删除", { type: "success" });
   } catch (error) {
     notify(writeError(error), { type: "error" });
   } finally {
@@ -383,10 +397,13 @@ const rowDialogTitle = computed(() =>
                     >编辑</UiButton
                   >
                   <UiButton
+                    v-if="originOf(entry) !== 'builtin'"
                     variant="ghost"
                     size="sm"
                     @click="confirmDelete = entry"
-                    >删除</UiButton
+                    >{{
+                      originOf(entry) === "overridden" ? "恢复内置" : "删除"
+                    }}</UiButton
                   >
                 </span>
               </td>
@@ -526,9 +543,17 @@ const rowDialogTitle = computed(() =>
 
     <UiConfirmDialog
       :open="confirmDelete !== null"
-      :title="`删除报码「${confirmDelete?.code ?? ''}」？`"
-      description="删除后该报码回退到内置含义（若内置有），此操作会重写 codebook.json"
-      confirm-label="删除"
+      :title="
+        confirmIsRestore
+          ? `恢复报码「${confirmDelete?.code ?? ''}」的内置含义？`
+          : `删除报码「${confirmDelete?.code ?? ''}」？`
+      "
+      :description="
+        confirmIsRestore
+          ? '移除本部署对该码的改写，回到内置的名称、说明与处理建议'
+          : '该码是本部署自定义的，删除后不再有解读'
+      "
+      :confirm-label="confirmIsRestore ? '恢复内置' : '删除'"
       @update:open="
         (open) => {
           if (!open) confirmDelete = null;

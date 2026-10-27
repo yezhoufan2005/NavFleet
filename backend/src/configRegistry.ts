@@ -21,6 +21,7 @@ import {
   ReportsConfig,
   RuleScope,
   Severity,
+  codebookOverrides,
   mapFootprintBounds,
   mergeCodebook,
   parseCodebook,
@@ -1126,8 +1127,15 @@ export class ConfigRegistry {
    * so `getCodebook` reflects it. The config volume must be writable (see deploy/docker-compose.yml).
    */
   importCodebook(rawEntries: unknown): Promise<ReportCodeEntry[]> {
-    return this.writeWholeConfig(rawEntries, parseCodebook, CODEBOOK_FILE, "codebook-import", () =>
-      this.getCodebook(),
+    // Persist only the deployment's own entries: a built-in code sent back unchanged (the console
+    // re-sends the merged table on every row edit; an exported table re-imported does the same)
+    // is dropped, so built-in meanings are never frozen into the file.
+    return this.writeWholeConfig(
+      rawEntries,
+      (raw) => codebookOverrides(DEFAULT_REPORT_CODES, parseCodebook(raw)),
+      CODEBOOK_FILE,
+      "codebook-import",
+      () => this.getCodebook(),
     );
   }
 
