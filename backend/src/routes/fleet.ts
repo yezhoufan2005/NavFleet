@@ -31,6 +31,11 @@ export const buildFleetRouter = (store: DashboardStore): express.Router => {
         return;
       }
       const deviceId = parsedDeviceId.data;
+      const { from, to, sampling } = parsed.data;
+      if (sampling === "even" && from && to) {
+        response.json({ deviceId, ...(await store.sampleHistory(deviceId, from, to)) });
+        return;
+      }
       const history = await store.getHistory(
         deviceId,
         parsed.data.from,

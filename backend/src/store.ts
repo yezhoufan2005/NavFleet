@@ -897,6 +897,15 @@ export class DashboardStore extends EventEmitter {
     return this.persistence.queryHistory({ deviceId, from, to, limit });
   }
 
+  /** The whole window thinned to the history cap, spread evenly over time (see Persistence). */
+  sampleHistory(
+    deviceId: string,
+    from: string,
+    to: string,
+  ): Promise<{ items: unknown[]; total: number; sampled: boolean }> {
+    return this.persistence.sampleHistory({ deviceId, from, to });
+  }
+
   async getAlerts(filters: {
     severity?: string;
     deviceId?: string;

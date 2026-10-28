@@ -1449,6 +1449,59 @@ export class Persistence {
       .toArray();
   }
 
+  /**
+   * The whole `from`–`to` window, thinned to at most `MAX_HISTORY_POINTS` samples spread evenly
+   * over time (newest-first, like `queryHistory`). A window that already fits comes back whole.
+   * Otherwise the window is cut into that many equal time buckets and each bucket contributes
+   * its earliest frame — a real frame, not an average, so playback only shows poses the vehicle
+   * reported; a stretch with no telemetry stays a gap. `total` is the window's full count.
+   */
+  async sampleHistory(query: {
+    deviceId: string;
+    from: string;
+    to: string;
+  }): Promise<{ items: unknown[]; total: number; sampled: boolean }> {
+    const cap = config.maxHistoryPoints;
+    const fromDate = toBoundDate(query.from);
+    const toDate = toBoundDate(query.to);
+    if (!fromDate || !toDate) {
+      throw new Error("sampleHistory needs both window bounds");
+    }
+    if (!this.db) {
+      // The in-memory ring is itself capped at `MAX_HISTORY_POINTS` per device, so any window
+      // of it already fits: it comes back whole.
+      const items = this.queryMemoryHistory({ ...query, limit: cap });
+      return { items, total: items.length, sampled: false };
+    }
+
+    const collection = this.db.collection("telemetry_ts");
+    const filter = { "meta.deviceId": query.deviceId, ts: { $gte: fromDate, $lte: toDate } };
+    const total = await collection.countDocuments(filter);
+    if (total <= cap) {
+      const items = await collection.find(filter).sort({ ts: -1 }).limit(cap).toArray();
+      return { items, total, sampled: false };
+    }
+    const bucketMs = Math.max(1, Math.ceil((toDate.getTime() - fromDate.getTime() + 1) / cap));
+    const items = await collection
+      .aggregate(
+        [
+          { $match: filter },
+          { $sort: { ts: 1 } },
+          {
+            $group: {
+              _id: { $floor: { $divide: [{ $subtract: ["$ts", fromDate] }, bucketMs] } },
+              doc: { $first: "$$ROOT" },
+            },
+          },
+          { $replaceRoot: { newRoot: "$doc" } },
+          { $sort: { ts: -1 } },
+        ],
+        { allowDiskUse: true, maxTimeMS: config.reportQueryTimeoutMs },
+      )
+      .toArray();
+    return { items, total, sampled: true };
+  }
+
   async queryAlerts(filters: {
     severity?: string;
     deviceId?: string;
