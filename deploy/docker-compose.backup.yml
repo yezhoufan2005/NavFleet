@@ -27,6 +27,9 @@ services:
     volumes:
       - ./tools/backup-loop.sh:/opt/navfleet/backup-loop.sh:ro
       - ${BACKUP_HOST_PATH:-./backups}:/backups
+      # The on-disk config is half of what a restore needs (see backup-loop.sh); read-only, the
+      # same host directory the backend mounts.
+      - ${CONFIG_RUNTIME_HOST_PATH:-../config-runtime}:/config-runtime:ro
     logging:
       driver: json-file
       options:

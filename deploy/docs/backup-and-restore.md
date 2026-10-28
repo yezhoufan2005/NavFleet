@@ -37,7 +37,8 @@ deploy/tools/mongo-backup.sh
 deploy/tools/mongo-backup.sh /data/navfleet-backups
 ```
 
-生成 `fleet_monitor-YYYYMMDD-HHMMSS.gz`（`mongodump --archive --gzip` 单文件归档）。
+生成 `fleet_monitor-YYYYMMDD-HHMMSS.gz`（`mongodump --archive --gzip` 单文件归档），以及同一时间戳的
+`fleet_monitor-YYYYMMDD-HHMMSS.config.tgz`（盘上配置目录 `CONFIG_RUNTIME_HOST_PATH`，见下）。
 凭据默认取自 `deploy/.env`（`MONGO_INITDB_ROOT_USERNAME` / `MONGO_INITDB_ROOT_PASSWORD`），
 脚本不会回显密码。
 
@@ -68,6 +69,24 @@ deploy/tools/mongo-restore.sh <归档> --yes
 ```bash
 docker compose -f deploy/docker-compose.yml restart backend
 ```
+
+### 盘上配置
+
+车辆、编队、场景与底图、码表、消息规则、外发、定时报表都存在盘上的配置目录里，不在库里。只恢复
+数据库会留下一批找不到对应车辆和场景的记录，所以两种备份都会把配置目录按同一时间戳打包成
+`*.config.tgz`（不含后端自己的兜底副本 `.last-good/`）。恢复时用**同一时间戳**那份，先停后端再解包：
+
+```bash
+docker compose -f deploy/docker-compose.yml stop backend
+tar -xzf deploy/backups/fleet_monitor-20260819-031700.config.tgz -C config-runtime
+docker compose -f deploy/docker-compose.yml start backend
+```
+
+### 版本对应
+
+库里记着结构版本（`schema_migrations` 集合）。把**新版本**的备份恢复到**旧版本**的后端上，后端会拒绝
+启动并在日志里写明库的版本和自己认识的最高版本，而不是带着看不懂的字段继续跑。处理办法：换回写出这份
+备份的版本，或者改用当前版本时期的备份。旧备份恢复到新版本没有问题，启动时会自动补跑迁移。
 
 ## 索引与 TTL 复核
 

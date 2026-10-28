@@ -84,6 +84,21 @@ export const runMigrations = async (
     version = await baselineIfPreexisting(db, list, logger);
   }
 
+  // A database already past every migration this code knows — a backup from a newer release
+  // restored under an older one, or a rollback — has a schema this code was never written
+  // against. Serving it could misread or overwrite fields it does not know; refuse instead.
+  const latest = list[list.length - 1]?.version ?? 0;
+  if (version > latest) {
+    throw new MigrationError(
+      version,
+      "schema-newer-than-code",
+      new Error(
+        `database schema is at version ${version}, this release only knows up to ${latest}; ` +
+          "run the release that wrote this database (or restore a backup taken with this release)",
+      ),
+    );
+  }
+
   const pending = list.filter((migration) => migration.version > version);
   if (pending.length === 0) {
     logger.debug({ version }, "Schema up to date; no migrations to apply");

@@ -370,6 +370,10 @@ deploy/tools/mongo-restore.sh deploy/backups/<升级前那份>.gz
 # 再把 compose 指回旧镜像 tag 重启
 ```
 
+只换回旧镜像、不还原数据库是不行的：旧后端发现库的结构版本比自己认识的新，会拒绝启动（日志里同样是
+"Schema migration failed"，并写明两边的版本号）。盘上配置同理，用同一时间戳的 `*.config.tgz`
+还原，见 [backup-and-restore.md](./backup-and-restore.md#盘上配置)。
+
 已建库首次升到 1.2.0 时会被**基线**到初始 schema 版本（结构本就已存在，不重跑创建），
 之后的迁移从基线之上开始。全新空库则从头依次执行。
 

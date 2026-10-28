@@ -296,6 +296,19 @@ describe("runMigrations —— 失败", () => {
     expect(markers.map((m) => m.version)).toEqual([1]);
   });
 
+  it("库的版本比代码认识的还新（新版本备份恢复到旧版本）→ 拒绝，不执行任何迁移", async () => {
+    const { db, markers } = createFakeDb();
+    markers.push({ version: 9, name: "from-the-future", appliedAt: "2026-01-01T00:00:00Z" });
+    const applied: number[] = [];
+
+    const failure = await runMigrations(db, log, listOf(applied)).catch((error: unknown) => error);
+
+    expect(failure).toBeInstanceOf(MigrationError);
+    expect((failure as MigrationError).version).toBe(9);
+    expect((failure as MigrationError).message).toContain("only knows up to 2");
+    expect(applied).toEqual([]);
+  });
+
   it("MigrationError 带上出错的版本与名字，供组合根记录", async () => {
     const { db } = createFakeDb();
     const list: Migration[] = [
