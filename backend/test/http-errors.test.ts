@@ -106,8 +106,11 @@ describe("error middleware", () => {
       .send('{"username": "admin", ');
 
     expect(response.status).toBe(400);
-    const body = response.body as { error: string; message?: string };
+    const body = response.body as { error: string; detail?: string };
     expect(body.error).toBe("invalid_request");
+    // Same field name as every other refusal's explanation.
+    expect(typeof body.detail).toBe("string");
+    expect(body).not.toHaveProperty("message");
   });
 
   it("surfaces a JSON body rejected by strict parsing as 400", async () => {

@@ -294,9 +294,10 @@ export const createApp = ({
         return;
       }
       if (typeof status === "number" && status >= 400 && status < 500) {
+        // `detail`, like every other refusal: the stable code in `error`, the sentence beside it.
         response.status(status).json({
           error: "invalid_request",
-          message: error instanceof Error ? error.message : "Invalid request",
+          detail: error instanceof Error ? error.message : "Invalid request",
         });
         return;
       }
