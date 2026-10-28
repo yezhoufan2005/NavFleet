@@ -26,7 +26,7 @@ describe("makeMessageFor", () => {
 
   it("tells the admin to reload when someone else saved first", () => {
     expect(messageFor(new ApiError("config_conflict", 409))).toContain(
-      "已被他人修改",
+      "改了同一项",
     );
   });
 });

@@ -31,6 +31,7 @@ import {
   parseVehicles,
 } from "@navfleet/shared";
 import { config, runtimePaths } from "./config";
+import { MERGE_SPECS, mergeConfig } from "./configMerge";
 import { parseLaneletOsmFile, parseLaneletOsmText } from "./laneletOsm";
 import { moduleLogger } from "./logger";
 import {
@@ -293,6 +294,9 @@ export class ConfigConflictError extends Error {
     this.name = "ConfigConflictError";
   }
 }
+
+/** How many past versions of each file are kept as merge bases. */
+const VERSION_HISTORY = 20;
 
 /** Version token of a config file's on-disk text (what an editor's If-Match refers to). */
 const versionOf = (text: string | null): string =>
@@ -760,6 +764,20 @@ export const parseReportsConfig = (raw: unknown): ReportsConfig => {
   return { schedules };
 };
 
+/**
+ * Each editable file's parser, as the writers apply it — used to normalize the three sides of a
+ * concurrent-edit merge. `fleet.json` has no editor, so no entry.
+ */
+const CONFIG_NORMALIZERS: Partial<Record<ConfigFileKey, (raw: unknown) => unknown>> = {
+  vehicles: (raw) => parseVehicles(raw ?? []),
+  formations: (raw) => parseFormations(raw ?? []),
+  scenes: (raw) => parseScenes(raw ?? []),
+  codebook: (raw) => codebookOverrides(DEFAULT_REPORT_CODES, parseCodebook(raw ?? [])),
+  notify: (raw) => parseNotifyConfig(raw),
+  rules: (raw) => parseAlertRules(raw),
+  reports: (raw) => parseReportsConfig(raw),
+};
+
 export class ConfigRegistry {
   private fleetConfig: FleetConfig = { ...DEFAULT_FLEET_CONFIG };
   private deviceConfigs = new Map<string, DeviceConfig>();
@@ -779,6 +797,12 @@ export class ConfigRegistry {
   private status: ConfigStatus = { ok: true, issues: [], checkedAt: null };
   /** Version of each config file's on-disk text as of the last load (see `getConfigVersion`). */
   private fileVersions: Partial<Record<ConfigFileKey, string>> = {};
+  /**
+   * Recent texts of each file by version — the merge base for an editor that saved against an
+   * older version. In memory and bounded: after a restart (or once a version ages out) there is no
+   * base, and a stale save is refused as a plain conflict, which is always safe.
+   */
+  private versionTexts = new Map<ConfigFileKey, Map<string, string | null>>();
 
   private async readRawConfig(): Promise<RawConfig> {
     const texts = await Promise.all(
@@ -897,7 +921,15 @@ export class ConfigRegistry {
     issues: ConfigIssue[];
   }): Promise<void> {
     this.applySnapshot(loaded.snapshot);
-    for (const key of CONFIG_FILE_KEYS) this.fileVersions[key] = versionOf(loaded.current[key]);
+    for (const key of CONFIG_FILE_KEYS) {
+      const version = versionOf(loaded.current[key]);
+      this.fileVersions[key] = version;
+      const texts = this.versionTexts.get(key) ?? new Map<string, string | null>();
+      texts.delete(version);
+      texts.set(version, loaded.current[key]);
+      while (texts.size > VERSION_HISTORY) texts.delete(texts.keys().next().value as string);
+      this.versionTexts.set(key, texts);
+    }
     this.status = {
       ok: loaded.issues.length === 0,
       issues: loaded.issues,
@@ -1238,7 +1270,11 @@ export class ConfigRegistry {
     // loaded version X, and if anything (another admin, a hand edit) changed the file since, this
     // write would overwrite that change without anyone seeing it.
     if (expectedVersion !== undefined && versionOf(previous) !== expectedVersion) {
-      throw new ConfigConflictError(path.basename(filePath));
+      // Someone saved in between. Merge entry by entry when the two edits do not overlap; any
+      // overlap — or no known base to merge from — is refused, exactly as without merging.
+      const merged = this.mergeConcurrentEdit(key, value, expectedVersion, previous);
+      if (merged === undefined) throw new ConfigConflictError(path.basename(filePath));
+      value = merged;
     }
     await this.writeConfigFileAtomic(filePath, value);
     let failure: string;
@@ -1259,6 +1295,43 @@ export class ConfigRegistry {
     throw new ConfigApplyError(
       `${path.basename(filePath)} 保存后无法与现有配置一起生效，已回滚：${failure}`,
     );
+  }
+
+  /**
+   * Three-way merge of our edit (made against `baseVersion`) with the file as it is now. Returns the
+   * merged value, or undefined when it cannot be merged safely (see `configMerge`). All three sides
+   * are normalized by the file's own parser, so formatting and defaulted fields never read as edits,
+   * and the merged result is validated by the same parser before it is written.
+   */
+  private mergeConcurrentEdit(
+    key: ConfigFileKey,
+    ours: unknown,
+    baseVersion: string,
+    currentText: string | null,
+  ): unknown {
+    const normalize = CONFIG_NORMALIZERS[key];
+    const spec = key in MERGE_SPECS ? MERGE_SPECS[key as keyof typeof MERGE_SPECS] : undefined;
+    const baseText = this.versionTexts.get(key)?.get(baseVersion);
+    if (!normalize || !spec || baseText === undefined) return undefined;
+    try {
+      const read = (text: string | null): unknown =>
+        text === null ? normalize(null) : normalize(JSON.parse(text) as unknown);
+      const result = mergeConfig(
+        spec,
+        read(baseText),
+        JSON.parse(JSON.stringify(ours)) as unknown,
+        read(currentText),
+      );
+      if (!result.ok) return undefined;
+      const merged = normalize(result.value);
+      logger.info(
+        { file: path.basename(CONFIG_FILES[key].path) },
+        "Merged a concurrent config edit",
+      );
+      return merged;
+    } catch {
+      return undefined;
+    }
   }
 
   private async restoreFile(filePath: string, previous: string | null): Promise<void> {
