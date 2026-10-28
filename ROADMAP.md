@@ -11,7 +11,8 @@ REST/WebSocket → Vue 控制台。本文件回答两个问题：**现在是什�
 
 - **已发布 1.7.0**。部署的前端是 `frontend-next`（workspace `navfleet-console`，compose 服务 `web`）；
   旧 `frontend/` 已冻结，只保留作一行回滚，不再改动。发布镜像 `navfleet-backend` / `navfleet-console`。
-- **工程门禁**：lint `--max-warnings 0` + type-aware；四个 workspace 各自 vitest 覆盖率门槛（只升不降）；
+- **工程门禁**：lint `--max-warnings 0` + type-aware；shared / fleet-core / backend / console 各自 vitest
+  覆盖率门槛（只升不降）；OpenAPI 覆盖全部已注册路由（测试扫路由源码）；
   E2E `retries: 0`；CI 跨 Node 22/24 跑后端+shared、两套前端、E2E 分片、部署接线与密钥扫描。
 - **演示数据**：29 台车 / 6 编队 / 6 场景（`config-runtime/`）。
 
@@ -27,9 +28,9 @@ REST/WebSocket → Vue 控制台。本文件回答两个问题：**现在是什�
 
 ## 进行中：1.8.0 加固
 
-全项目收敛（去重、风格一致、文档对齐）已基本完成，转入**按成熟产品标准补齐保障**：数据正确性、
-异常与弱网下的稳健性、输入校验与报错、字段说明。每批先出方案、独立 PR、自检 + CI 后合入；有视觉
-或数据口径变化的批次需验收。按下列顺序推进：
+按成熟产品标准补齐保障：数据正确性、异常与弱网下的稳健性、输入校验与报错、字段说明。每批独立 PR、
+自检 + CI 后合入。**第 1–9 步已合入**，第 10 步进行中；全部完成后统一起栈验收（`scripts/verify-stack.sh`
+与浅/深色界面走查），再发版。
 
 1. **两个现存缺陷快修**：反向代理上传大小上限与后端各类型上限对齐；码表编辑/删除不再把内置码写入部署码表。
 2. **数据正确性**：消息历史改为「每次发生一条」（统计口径随之修正，旧数据不补）；在线率按时间加权、
@@ -51,7 +52,8 @@ REST/WebSocket → Vue 控制台。本文件回答两个问题：**现在是什�
    错误响应格式统一。
 9. **测试与重构**：`@navfleet/shared` 覆盖率门禁 + 码表自洽测试迁入，删 `fleet-core` 死包装
    （`reportCodes` / `deviceTone`）；并发 coverage 超时 flaky 稳定化；路由 `asyncHandler` 大扫除与样板提取；
-   前端 `useLatestRequest` / `useResourceList` 收口；两套归一化的纯 helper 下沉 `@navfleet/shared`。
+   前端 `useLatestRequest` 收口；两套归一化的纯 helper 下沉 `@navfleet/shared`。管理页 `load()` 只有
+   loading/ready/error 一步相同，`useResourceList` 抽象收益不足，未做。
 10. **文档与发版**：代码注释去开发阶段编号；`CHANGELOG.md` 1.7.0 重复条目清理；文档对齐本轮能力；发布 1.8.0。
 
 ## 计划中（需先出方案再动手）

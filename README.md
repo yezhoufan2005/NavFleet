@@ -303,8 +303,8 @@ NavFleet/
 ## 配置
 
 后端所有环境变量都经 **zod 校验并 fail-fast** —— 配错一个数字就启动失败，而不是静默退回默认值。后端
-自己校验 **39 个键**；连 compose 与三个叠加文件读的（broker 凭据、备份、监控）共 62 个，逐项说明见
-[deploy/docs/config-reference.md](deploy/docs/config-reference.md)。最需要注意的几个：
+读的每个键都在 `backend/src/config.ts` 里校验；连同 compose 与叠加文件读的（broker 凭据、备份、监控），
+逐项说明见 [deploy/docs/config-reference.md](deploy/docs/config-reference.md)。最需要注意的几个：
 
 | 变量                    | 默认                             | 说明                                                            |
 | ----------------------- | -------------------------------- | --------------------------------------------------------------- |
@@ -423,7 +423,8 @@ docker compose --env-file deploy/.env \
 - **告警投递**：Alertmanager（分组 / 去重 / 抑制 / 静默）。**出厂接收器是空的** —— 告警在它的界面里
   可见，但在你配置邮件或 webhook 之前不外发，理由见
   [deploy/alertmanager/alertmanager.yml](deploy/alertmanager/alertmanager.yml)
-- **备份**：`deploy/tools/mongo-backup.sh` / `mongo-restore.sh`，以及 `restore-drill.sh` 真实恢复演练。
+- **备份**：`deploy/tools/mongo-backup.sh` / `mongo-restore.sh`，以及 `restore-drill.sh` 真实恢复演练；
+  每次备份按同一时间戳另存一份盘上配置（`*.config.tgz`）。
   见 [deploy/docs/backup-and-restore.md](deploy/docs/backup-and-restore.md)
 
 ## 开发与质量门禁
@@ -444,11 +445,11 @@ npm run check:deploy       # 部署接线：nginx 上游 / 叠加文件 / 镜像
 
 ### 三个脚本，各管一层（递进、不重复）
 
-| 脚本                      | 需要 Docker | 覆盖的那一层                                                             | 用时 |
-| ------------------------- | ----------- | ------------------------------------------------------------------------ | ---- |
-| `scripts/dev.sh`          | 否          | 开发：vite + tsx 热重载，可选演示发布器                                  | 持续 |
-| `scripts/smoke.sh`        | 否          | 单个后端进程的 API 契约（鉴权边界，24 条断言）                           | 秒级 |
-| `scripts/verify-stack.sh` | **是**      | **整栈**：五个服务 healthcheck、边缘 nginx 路由、跨容器 DNS（56 条断言） | 分钟 |
+| 脚本                      | 需要 Docker | 覆盖的那一层                                                                  | 用时 |
+| ------------------------- | ----------- | ----------------------------------------------------------------------------- | ---- |
+| `scripts/dev.sh`          | 否          | 开发：vite + tsx 热重载，可选演示发布器                                       | 持续 |
+| `scripts/smoke.sh`        | 否          | 单个后端进程的 API 契约（鉴权边界，24 条断言）                                | 秒级 |
+| `scripts/verify-stack.sh` | **是**      | **整栈**：五个服务 healthcheck、边缘 nginx 路由、跨容器 DNS、边缘压缩逐条断言 | 分钟 |
 
 只有第三个能回答这类问题：`/docs` 有没有真被边缘路由、`/metrics` 在边缘是不是 SPA 兜底、broker 凭据
 对不对、Mongo 落库到查询是否通。
