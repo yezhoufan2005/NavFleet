@@ -310,7 +310,7 @@ export const auditQuerySchema = z
   })
   .superRefine(rejectInvertedWindow);
 
-/** Query filters for `GET /api/reports/alerts` (Phase 17A, viewer+). Both optional; the aggregate
+/** Query filters for `GET /api/reports/alerts` (viewer+). Both optional; the aggregate
  * spans the whole retention window when neither bound is given. Bounds filter on `firstSeenAt`. */
 export const reportRangeSchema = z
   .object({
@@ -319,7 +319,7 @@ export const reportRangeSchema = z
   })
   .superRefine(rejectOversizedWindow);
 
-/** Query filters for `GET /api/reports/availability` (Phase 17A-2, viewer+). `bucket` defaults to
+/** Query filters for `GET /api/reports/availability` (viewer+). `bucket` defaults to
  * day; `deviceId` is a comma-joined list that narrows to those vehicles (multi-select since the
  * filter-polish sweep), otherwise the whole fleet. Bounds filter on `ts`. */
 export const reportAvailabilityQuerySchema = z

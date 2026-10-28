@@ -1,6 +1,6 @@
 <script setup lang="ts">
 /**
- * 审计 — the audit log (admin), the read side of Phase 15D's `audit_log`.
+ * 审计 — the audit log (admin), the read side of `audit_log`.
  *
  * Filters are server-side (the backend caps and orders the result); pagination over the
  * returned page is client-side, matching 告警's shape. Filter state lives in the URL so a

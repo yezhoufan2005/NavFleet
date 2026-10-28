@@ -1,6 +1,6 @@
 <script setup lang="ts">
 /**
- * 告警 — equivalence first, depth in Phase 16.
+ * 告警 — the live message list.
  *
  * What this page owes v1.0.0: severity buckets, a device filter, a search box,
  * acknowledgement, and pagination. What it adds is mostly the 11B audit's list of
@@ -16,7 +16,7 @@
  * - **A row reaches the vehicle.** Diagnosing an alert used to mean reading the
  *   device id and going to find it.
  *
- * Acknowledgement is server-backed since Phase 16A: it reaches the database, records who
+ * Acknowledgement is server-backed: it reaches the database, records who
  * confirmed each occurrence and when, syncs across every open console over WS, and is an
  * operator+ capability — so the confirm control is hidden from viewers. A re-fired alert
  * comes back unacknowledged, because the confirmation was of one occurrence, not the code.

@@ -5,7 +5,7 @@ import type { DeviceSnapshot } from "@navfleet/shared";
  *
  * It lived in three places before this: the tone *derivation* in the v1.0.0 store,
  * and the tone→label map copied verbatim into `GpsMap.vue` and `DashboardView.vue`.
- * Two frontends are about to run side by side for the whole of Phase 12–13, and the
+ * Two frontends are about to run side by side during the switch-over, and the
  * quiet failure mode of that arrangement is exactly this shape of duplication — a
  * fifth tone, or a change to what counts as critical, applied in one copy and not
  * the others. Nothing errors; the two consoles simply disagree about a vehicle.

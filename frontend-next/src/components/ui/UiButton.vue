@@ -23,7 +23,7 @@
  * ## The `danger` variant is for confirmed destructive actions only
  *
  * It was removed for most of this project's life: NavFleet is a read-only monitoring console,
- * and a destructive-action button is a variant for actions the product did not have. Phase 15's
+ * and a destructive-action button is a variant for actions the product did not have. User management's
  * user management is the first place it does — deleting an account, force-logging-out a user,
  * revoking a session — and, as the original note promised, it comes back **with** its
  * confirmation pattern (`UiConfirmDialog`), not before. Use it only for the confirm button of a

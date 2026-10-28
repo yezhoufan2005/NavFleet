@@ -509,7 +509,7 @@ const onScrub = (event: Event): void => {
 
       <!--
         A row of media controls with no icons and no visible labels, so both accessible
-        names come from `aria-label`. Removing either is the axe critical Phase 10
+        names come from `aria-label`. Removing either is the axe critical the virtualisation work
         found: an unnamed slider and an unnamed combobox.
 
         The progress readout moved here from the section header when that header went

@@ -4,7 +4,7 @@ import { useAuth } from "@/composables/useAuth";
 import { notify } from "@/composables/useNotifications";
 
 /**
- * Alert acknowledgement — server-backed since Phase 16A.
+ * Alert acknowledgement — server-backed.
  *
  * Confirmation used to live in this composable's own `localStorage` set of bare alert ids,
  * so it did not survive a different device, a different operator, or a cleared cache, and

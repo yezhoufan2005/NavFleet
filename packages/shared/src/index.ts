@@ -131,7 +131,7 @@ export interface SceneMapDefinition {
    * scene sets it, and the deployed v3 console does not read it — it is retained only
    * because the frozen v1.0.0 frontend still consumes it (`frontend/`'s scene overlay),
    * and the freeze forbids editing that code. Clear it when the frozen frontend is
-   * finally removed. (Phase 17D kept this one field for that reason.)
+   * finally removed. (This one field was kept for that reason.)
    */
   metadataUrl?: string;
   osmUrl?: string;
@@ -286,10 +286,10 @@ export * from "./notify";
 // 聚合管道的构造/执行等后端独有逻辑不在这里。
 export * from "./reports";
 
-// 车辆 / 编队配置文件的校验器（Phase 18 设备接入向导）——admin 经 API 写 vehicles.json /
+// 车辆 / 编队配置文件的校验器（设备接入）——admin 经 API 写 vehicles.json /
 // formations.json 时先校验；客户端先校验、后端为权威（同 parseCodebook）。
 export * from "./fleetConfig";
-// scenes.json 校验（Phase 18 场景地图上传与管理）：几何 + 路径安全的 sceneId + 资源 URL 限定在
+// scenes.json 校验（场景地图上传与管理）：几何 + 路径安全的 sceneId + 资源 URL 限定在
 // /scene-maps/ 下；overlayUrl/overlayType 由后端为 OSM 场景铸造，不从输入读取。
 export * from "./sceneConfig";
 // 场景地图几何（ROS map_server 约定：origin 为左下角世界位姿，yaw 绕该角逆时针旋转）——后端派生

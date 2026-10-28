@@ -108,7 +108,7 @@ export class DashboardStore extends EventEmitter {
   // and the mutators await persistence + event emission mid-way — without this
   // serialization, interleaved runs clobber each other's device maps (lost updates).
   //
-  // P0-b: this used to be a promise chain (`tail = tail.then(task)`), which is
+  // This used to be a promise chain (`tail = tail.then(task)`), which is
   // serial but **unbounded** — every un-awaited caller could append another link,
   // each holding its payload alive. A half-dead MongoDB (only
   // `serverSelectionTimeoutMS` is set, so each write can hang for seconds) turned
@@ -430,7 +430,7 @@ export class DashboardStore extends EventEmitter {
    * It used to return a freshly built `FleetSnapshot`, and the MQTT path — which is every
    * message from every vehicle — **discarded it**. Building one copies the device map and
    * sorts the whole fleet, so at 1 Hz × N vehicles that was a full snapshot rebuild per
-   * message thrown straight away (P0-b, the "pure waste" half). The one caller that wants
+   * message thrown straight away. The one caller that wants
    * a snapshot asks for it: `store.snapshot()`.
    */
   async applyPayload(
@@ -867,7 +867,7 @@ export class DashboardStore extends EventEmitter {
     return this.configRegistry.writeSceneAsset(sceneId, kind, buffer);
   }
 
-  /** The report-code dictionary in effect (built-in ⊕ deployment codebook). Phase 16C-2. */
+  /** The report-code dictionary in effect (built-in ⊕ deployment codebook). */
   getCodebook(): ReportCodeEntry[] {
     return this.configRegistry.getCodebook();
   }

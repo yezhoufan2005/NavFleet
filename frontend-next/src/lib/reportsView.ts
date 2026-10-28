@@ -37,7 +37,7 @@ export const windowForPreset = (
 });
 
 /**
- * 粒度的「随窗口自适应」默认值（Phase 18 报表重做）。此前默认一律「按天」——12 小时窗按天切只有一个
+ * 粒度的「随窗口自适应」默认值。此前默认一律「按天」——12 小时窗按天切只有一个
  * 桶，趋势图几乎是空的，是加载后"看着没数据"的主因之一。短窗用「按小时」才有曲线，宽窗用「按天」才不
  * 至于上千桶拖慢。仅作默认：用户在 URL 里显式选了 bucket 就照它来，这个函数不参与。
  */
@@ -227,7 +227,7 @@ export const socSeries = (
   return points.length ? [{ name: foldedName(report, nameOf), points }] : [];
 };
 
-/** 「可用率与电量」分区可展开的按设备明细行（Phase 18 报表重做）。 */
+/** 「可用率与电量」分区可展开的按设备明细行。 */
 export interface DeviceAvailabilityRow {
   deviceId: string;
   /** 展示名（取自实时车队，无则回退 id）。 */

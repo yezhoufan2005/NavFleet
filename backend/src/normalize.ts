@@ -536,7 +536,7 @@ export interface NormalizePayloadOptions {
    * Whether this source is allowed to submit a **whole-fleet** payload, i.e. one that
    * replaces the in-memory fleet instead of merging into it.
    *
-   * Off by default, and that default is the fix for P0-e. `replace` used to be decided
+   * Off by default, and that default is the fix. `replace` used to be decided
    * by the *shape of the payload* rather than by who sent it, so a fleet-shaped frame
    * arriving on a telemetry topic emptied both device maps before repopulating them from
    * that one frame. No vehicle publishes that shape — it only ever comes from the seed

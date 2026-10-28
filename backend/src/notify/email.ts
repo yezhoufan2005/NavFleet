@@ -24,7 +24,7 @@ export interface EmailMessage {
   to: string[];
   subject: string;
   text: string;
-  /** Optional HTML body (Phase 17B-2 scheduled reports); alert emails send text only. */
+  /** Optional HTML body (scheduled reports); alert emails send text only. */
   html?: string;
   /** Optional attachments (e.g. a report CSV); omitted for alert emails. */
   attachments?: EmailAttachment[];

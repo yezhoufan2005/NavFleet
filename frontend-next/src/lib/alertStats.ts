@@ -5,8 +5,8 @@ import type { AlertRecord } from "@navfleet/fleet-core";
  *
  * Kept out of the view and free of `Date.now()` / DOM so every branch is unit-testable by
  * feeding records in and asserting the numbers out. The backend has no aggregation layer yet
- * (that is Phase 17A), so 16B computes these client-side over what `getAlerts` returns —
- * bounded by the endpoint's 500-row cap, which the view states in words when it bites.
+ * (that is the reports page), so the history computes these client-side over what `getAlerts` returns —
+ * bounded by the endpoint's row cap, which the view states in words when it bites.
  */
 export type Severity = "critical" | "warning" | "notice";
 

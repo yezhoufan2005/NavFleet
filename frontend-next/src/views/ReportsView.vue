@@ -298,7 +298,7 @@ const ackRateLabel = computed(() =>
 );
 const alertTotal = computed(() => alertStats.value?.total ?? 0);
 
-// ── Derived: KPI sparklines + per-device detail (Phase 18 「分析工作台」) ───────────────────
+// ── Derived: KPI sparklines + per-device detail ───────────────────
 /** Mini trend under 平均在线率/平均电量 — always the fleet-average line (perDevice off) so the
  * sparkline matches the fleet KPI above it even while the big charts are split per device. Empty
  * string when there are fewer than two points, so the template drops the <svg>. */

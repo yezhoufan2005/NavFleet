@@ -1,7 +1,7 @@
 /**
  * The report-code dictionary: what a number on screen actually means.
  *
- * Moved here from `@navfleet/fleet-core` in Phase 16C-2 for the same reason the alert rule
+ * Moved here from `@navfleet/fleet-core` for the same reason the alert rule
  * engine moved ([[alertRules]]): the backend has to layer a deployment's `codebook.json`
  * over the built-in table and **下发 the merged result**, and the backend depends only on
  * `@navfleet/shared`, not on `fleet-core`. So the built-in data, the wire type, and the

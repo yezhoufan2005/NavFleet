@@ -9,7 +9,7 @@ import type { ChartPalette } from "@/composables/useChartTheme";
  * ECharts bar chart, registered once and only the parts we use.
  *
  * The sibling `timeSeriesOption.ts` registers Line; this adds Bar for the categorical
- * magnitudes Phase 16B needs — severity distribution, per-device Top-N, per-day frequency.
+ * magnitudes the message history needs — severity distribution, per-device Top-N, per-day frequency.
  * Both files call `echarts.use()`, and registration is additive and idempotent, so importing
  * either (or both) leaves every needed piece registered. Keeping the list explicit is the
  * same intended friction the time-series file documents: a new chart type is a deliberate line

@@ -19,7 +19,7 @@
  *   accepts arbitrary state into the console would be adding an injection point
  *   for no gain, so it stops here.
  * - **No map-mode preference.** v1.0.0 persisted a two-value `gps|scene` toggle.
- *   Phase 13A-2 needs a three-state list/map/auto mode with a vehicle-count
+ *   The overview needs a three-state list/map/auto mode with a vehicle-count
  *   threshold, so porting the two-state version now would only be something to
  *   delete. It arrives with the maps that need it.
  */
@@ -496,7 +496,7 @@ export const useFleetStore = defineStore("fleet", () => {
    * Records an onset for every alert now present, and forgets the ones that cleared.
    *
    * The prune is not housekeeping. Without it this map grows for the life of the tab
-   * (the failure mode P0-d describes on the backend), and — more visibly — an alert
+   * (the unbounded-device failure mode the backend guards against), and — more visibly — an alert
    * that clears and later fires again would inherit its *first* onset and sort as
    * though it had never gone away.
    */

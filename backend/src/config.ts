@@ -158,15 +158,15 @@ const configSchema = z.object({
   // The ingest queue is serial; without a bound a stalled server stalls every frame behind it and
   // the live view freezes. A write that times out is buffered / retried like any other failure.
   MONGO_WRITE_TIMEOUT_MS: envInt(2000),
-  // P0-b: how many mutations may wait in the store's serial ingest queue before
+  // How many mutations may wait in the store's serial ingest queue before
   // the oldest *sheddable* (i.e. MQTT telemetry) ones are dropped. Sized so that a
   // few seconds of a stalled MongoDB is absorbed rather than shed: at 1 Hz, 1000
   // entries is ~2.5 minutes of a six-vehicle fleet, or ~10 s of a 100-vehicle one.
   INGEST_QUEUE_LIMIT: envInt(1000, 1),
-  // P0-d: ceiling on devices held in memory. Devices declared in vehicles.json are
+  // Ceiling on devices held in memory. Devices declared in vehicles.json are
   // exempt (the operator named them); this bounds what arrives from the broker.
   MAX_DEVICES: envInt(1000, 1),
-  // P0-d: forget an *undeclared* device after this long without a single frame.
+  // Forget an *undeclared* device after this long without a single frame.
   // 0 disables eviction. A day is well past any live-monitoring interest, and the
   // device's history stays in MongoDB either way.
   DEVICE_RETENTION_SECONDS: envInt(60 * 60 * 24, 0),

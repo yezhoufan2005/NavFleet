@@ -206,7 +206,7 @@ export const parseLaneletOsmText = (
   // re-declares geometry its live replacement now owns, so every way it names also
   // appears on a non-deleted lanelet — hiding it removes a duplicate. But this map's 46
   // delete=true relations name ways that NO live lanelet uses: they are a disjoint half
-  // of the actual road network, and Phase 18's blanket skip dropped them, leaving 42
+  // of the actual road network, and an earlier blanket skip dropped them, leaving 42
   // disconnected fragments on screen (the "康城 Airy 路网散乱" report). So skip a deleted
   // lanelet only when all of its ways are already owned by a live lanelet; keep any that
   // carries geometry nothing else draws.

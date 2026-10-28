@@ -3,7 +3,7 @@
  * Confirmation dialog for a genuinely irreversible action.
  *
  * The design system removed `UiButton`'s `danger` variant for most of this project's life
- * because a read-only console had no destructive actions. Phase 15's user management is the
+ * because a read-only console had no destructive actions. User management is the
  * first that does — delete a user, force-log-out an account, revoke a session — and the note
  * on that variant promised it would return **with** this pattern, not before. This is it.
  *

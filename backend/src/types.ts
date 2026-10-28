@@ -27,7 +27,7 @@ export interface UserRecord {
   createdAt: string;
   updatedAt: string;
   /**
-   * Fields added in Phase 15B (schema migration v2). Existing 1.1.0/1.2.0-pre rows are
+   * Fields added by schema migration v2. Existing 1.1.0/1.2.0-pre rows are
    * backfilled by the migration; the in-memory fallback and every write path produce the
    * full shape so a Mongo-less dev run behaves identically.
    */

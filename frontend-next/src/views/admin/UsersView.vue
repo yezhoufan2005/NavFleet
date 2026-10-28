@@ -1,6 +1,6 @@
 <script setup lang="ts">
 /**
- * 用户 — user management (admin). The console face of Phase 15B's admin API plus 15E's
+ * 用户 — user management (admin). The console face of the admin user API plus its
  * sessions: list / create / edit (role, profile, enable-disable) / reset password / delete,
  * force-logout, and view-and-revoke a user's individual sessions.
  *

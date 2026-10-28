@@ -303,7 +303,7 @@ export const openApiDocument = {
       AlertStatsReport: {
         type: "object",
         description:
-          "告警统计（Phase 17A，服务端聚合，不受 /alerts 的 500 条上限约束）。" +
+          "告警统计（服务端聚合，不受 /alerts 的 500 条上限约束）。" +
           "available:false 表示该部署无 Mongo、无历史可聚合——其余字段是零值而非'确无告警'。",
         properties: {
           total: { type: "number" },
@@ -354,7 +354,7 @@ export const openApiDocument = {
       AvailabilityReport: {
         type: "object",
         description:
-          "可用率/电量时序（Phase 17A-2，telemetry_ts 按时/日 $dateTrunc 降采样）。" +
+          "可用率/电量时序（telemetry_ts 按时/日 $dateTrunc 降采样）。" +
           "available:false 表示无 Mongo、无历史可聚合。",
         properties: {
           bucket: { type: "string", enum: ["hour", "day", "month"] },

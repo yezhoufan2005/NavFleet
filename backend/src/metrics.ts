@@ -186,14 +186,14 @@ export const createMetrics = ({
       // `telemetryBufferStats()` for everything else — which is two names for one number.
       persistence.telemetryBufferStats().pending,
   );
-  // P0-c: the buffer's depth was already visible; what it *lost* was not. A silent drop
+  // The buffer's depth was already visible; what it *lost* was not. A silent drop
   // on a monitoring platform is the one failure that cannot be allowed to be invisible.
   mirroredCounter(
     "navfleet_mongo_buffer_dropped_total",
     "Telemetry docs dropped because the write-behind buffer was full",
     () => persistence.telemetryBufferStats().dropped,
   );
-  // Phase 18: writes that reached the driver, and the ones that threw. A failure rate
+  // Writes that reached the driver, and the ones that threw. A failure rate
   // climbing while `navfleet_mongo_connected` stays 1 is the signature of a database
   // that is up but rejecting writes — invisible before these two existed.
   mirroredCounter(
@@ -220,7 +220,7 @@ export const createMetrics = ({
     () => state.mqttMessagesRejected,
   );
 
-  // P0-b: the store's serial ingest queue. Depth against limit is the backpressure
+  // The store's serial ingest queue. Depth against limit is the backpressure
   // signal; the drop counter is what the depth cannot tell you, because a queue held
   // exactly at its limit looks calm while it sheds every frame that arrives.
   gauge(
@@ -253,7 +253,7 @@ export const createMetrics = ({
     () => store.deviceClockStats().outOfOrder,
   );
 
-  // P0-d: the three ways a device can fail to be, or stop being, in memory. Kept
+  // The three ways a device can fail to be, or stop being, in memory. Kept
   // apart rather than folded into one counter because each points at a different
   // cause: a malformed publisher, a fleet larger than MAX_DEVICES, and normal
   // reclamation of ids that went silent.

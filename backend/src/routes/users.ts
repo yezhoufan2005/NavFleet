@@ -151,7 +151,7 @@ export const buildUsersRouter = (
   });
 
   /**
-   * View a specific user's active sessions (Phase 15E-2, admin). Read-only; 404 for an unknown
+   * View a specific user's active sessions (admin). Read-only; 404 for an unknown
    * user rather than a bare empty list, so the console can tell "no sessions" from "no user".
    */
   router.get("/users/:username/sessions", async (request, response) => {

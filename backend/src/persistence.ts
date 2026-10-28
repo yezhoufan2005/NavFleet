@@ -194,7 +194,7 @@ export class Persistence {
   private readonly reportInFlight = new Map<string, Promise<unknown>>();
   /**
    * How many buffered telemetry documents have been dropped because the buffer was
-   * full. P0-c: the overflow used to `splice` the oldest away silently, so a monitoring
+   * full. The overflow used to `splice` the oldest away silently, so a monitoring
    * platform lost data with **no counter anywhere** — the one loss a monitoring platform
    * must never take quietly. Exposed on `/metrics` and in the buffer's own warn line.
    */
@@ -234,7 +234,7 @@ export class Persistence {
   private activeAlerts = new Map<string, StoredAlert[]>();
   // Bounded in-memory audit trail for Mongo-less dev runs (mirrors the other fallbacks).
   private auditFallback: AuditEntry[] = [];
-  // Bounded in-memory outbound-send log for Mongo-less dev runs (Phase 16D-1; mirrors the
+  // Bounded in-memory outbound-send log for Mongo-less dev runs (mirrors the
   // audit fallback). Send records are best-effort telemetry about notifications, never on the
   // path of the action being audited, so like audit a write failure is swallowed.
   private notifyFallback: NotifySendRecord[] = [];
@@ -956,7 +956,7 @@ export class Persistence {
     if (!this.db) {
       return [];
     }
-    // P0-d: bounded on both axes. This used to be `find({})` — every row
+    // Bounded on both axes. This used to be `find({})` — every row
     // `device_latest` had ever accumulated came back into memory at startup, which
     // is the same unbounded growth the eviction sweep exists to prevent, only
     // reinstated on every restart. Restoring within the retention window also means
@@ -1051,7 +1051,7 @@ export class Persistence {
 
     this.appendMemoryTelemetry(document);
 
-    // P0-c: a disconnected database **buffers** rather than returning. This used to be a
+    // A disconnected database **buffers** rather than returning. This used to be a
     // bare `return`, so every frame that arrived while MongoDB was down was gone — and
     // the reconnect path only ever flushed what a *failed write* had buffered, which is a
     // set that stays empty while there is no connection to fail against.
