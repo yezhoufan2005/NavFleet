@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { parseVehicles, parseFormations } from "@navfleet/shared";
+import { parseVehicles, parseFormations } from "../src/index";
 
 /**
  * Shared validators for the device-onboarding wizard (Phase 18). They mirror `parseCodebook`:

@@ -8,19 +8,18 @@ import {
   offlineAlertId,
   type AlertRulesConfig,
   type DeviceAlert,
-} from "@navfleet/shared";
-import { createDefaultDevice } from "../src/fleetNormalize";
+} from "../src/index";
+import { blankDevice } from "./fixtures";
 
 /**
- * The rule engine, now the single source both this package and the backend reach
- * (Phase 16C-1). These cover the pure evaluator's branches directly; the backend's
+ * The rule engine, the single source both fleet-core and the backend reach. These cover the pure evaluator's branches directly; the backend's
  * `config-registry.test.ts` covers loading a deployment's `rules.json` over the defaults,
  * and `normalize`/`fleetNormalize` tests cover the two normalisers calling in.
  */
 const deviceWith = (
-  overrides: Partial<ReturnType<typeof createDefaultDevice>> = {},
-): ReturnType<typeof createDefaultDevice> => ({
-  ...createDefaultDevice("agv-1"),
+  overrides: Partial<ReturnType<typeof blankDevice>> = {},
+): ReturnType<typeof blankDevice> => ({
+  ...blankDevice("agv-1"),
   stamp: "2026-09-18T00:00:00.000Z",
   ...overrides,
 });

@@ -22,7 +22,6 @@ export * from "./fleetApi";
 export * from "./enums";
 export * from "./deviceTone";
 export * from "./pointCloud";
-export * from "./reportCodes";
 export * from "./gps";
 export * from "./formatters";
 export * from "./dataDefaults";

@@ -50,11 +50,13 @@ export default defineConfig({
        */
       // 实测 96.96 / 82.84 / 91.02 / 96.80（vitest 3 下是 93.42 / 87.03 / 93.44 / 93.42）——
       // 语句升、分支降，同一份代码，这就是尺子换了的样子。
+      // 上抬到 97.57 / 89.46 / 94.26 / 97.44 之下：只绑内置码表的 reportCodes 包装层与无人调用的
+      // getDeviceToneLabel 已删，码表/规则/解析器的测试随代码搬去 @navfleet/shared 自己的门禁。
       thresholds: {
-        statements: 94,
-        branches: 80,
-        functions: 89,
-        lines: 94,
+        statements: 96,
+        branches: 88,
+        functions: 93,
+        lines: 96,
       },
     },
   },

@@ -20,8 +20,8 @@
  */
 import { computed, onMounted } from "vue";
 import { useFleetStore } from "@/stores/fleet";
+import { CODE_IMPACTS } from "@navfleet/shared";
 import {
-  CODE_IMPACTS,
   controlModeMap,
   describeEnum,
   formatEnum,
