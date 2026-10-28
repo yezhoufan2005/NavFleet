@@ -12,11 +12,11 @@
  *
  * - **There is no 最大点数 input.** Its `min`/`max` never constrained anything (no
  *   `<form>`), and the server clamps to its own `MAX_HISTORY_POINTS` regardless — so
- *   the control let you type 5000 and quietly gave you 500. This sends no `limit` at
- *   all, which lets the deployment's cap govern, and then **states the span actually
- *   covered** next to the span requested. An operator can see the window was cut
- *   without being told a diagnosis the frontend cannot make: "fewer samples than the
- *   window" and "the vehicle was parked with no telemetry" look identical from here.
+ *   the control let you type 5000 and quietly gave you 500. This sends no `limit` and
+ *   asks for `sampling: "even"`: the server spreads its cap evenly over the whole window,
+ *   so a 24-hour window plays back 24 hours rather than its newest few minutes. The page
+ *   **states the span actually covered** and, when the window held more than the cap,
+ *   how many of how many samples it is showing.
  * - **It is a `<form>`, it loads on arrival, and the presets query immediately.**
  *   Three separate v1.0.0 dead ends: Enter did nothing, the page opened empty, and a
  *   preset filled the inputs but left you to press the button.
@@ -107,6 +107,8 @@ const fromInput = ref("");
 const toInput = ref("");
 const status = ref<"loading" | "ready" | "error">("loading");
 const errorMessage = ref("");
+/** The window's full sample count when the server thinned it to its cap, else null. */
+const sampledFrom = ref<number | null>(null);
 
 /** `datetime-local` wants local wall-clock, and `toISOString` is UTC. */
 const toLocalInput = (at: Date): string =>
@@ -149,7 +151,9 @@ const load = async (): Promise<void> => {
   try {
     // No `limit`: see the header. The server applies its own cap and we report the
     // span we actually got rather than a number we cannot honour.
-    const params: { from?: string; to?: string } = {};
+    const params: { from?: string; to?: string; sampling: "even" } = {
+      sampling: "even",
+    };
     if (fromInput.value) params.from = new Date(fromInput.value).toISOString();
     if (toInput.value) {
       params.to = new Date(
@@ -169,10 +173,12 @@ const load = async (): Promise<void> => {
         new Date(left.ts).getTime() - new Date(right.ts).getTime(),
     );
     setSamples(ordered as Record<string, unknown>[]);
+    sampledFrom.value = payload.sampled ? (payload.total ?? null) : null;
     status.value = "ready";
   } catch (error) {
     if (id !== requestId) return;
     setSamples([]);
+    sampledFrom.value = null;
     status.value = "error";
     errorMessage.value =
       error instanceof Error ? error.message : "加载历史数据失败，请稍后重试";
@@ -394,7 +400,14 @@ const onScrub = (event: Event): void => {
         v-else-if="status === 'ready' && samples.length"
         class="m-0 text-xs text-ink-muted"
       >
-        已载入 {{ samples.length }} 条采样，覆盖 {{ coveredLabel }}
+        <template v-if="sampledFrom !== null">
+          窗口内共 {{ sampledFrom }} 条采样，按时间均匀抽取
+          {{ samples.length }} 条，覆盖
+          {{ coveredLabel }}
+        </template>
+        <template v-else>
+          已载入 {{ samples.length }} 条采样，覆盖 {{ coveredLabel }}
+        </template>
       </p>
     </form>
 
