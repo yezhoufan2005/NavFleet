@@ -30,142 +30,118 @@ export const buildRbacRouter = (rbac: RbacService, audit: AuditService): express
     response.json({ roles: rbac.getRoles() });
   });
 
-  router.post("/rbac/roles", async (request, response, next) => {
-    try {
-      const parsed = rbacRoleSchema.safeParse(request.body);
-      if (!parsed.success) {
-        respondValidationError(response, parsed.error);
-        return;
-      }
-      const result = await rbac.createRole(parsed.data);
-      if (!result.ok) {
-        respondActionError(response, result.error);
-        return;
-      }
-      void audit.record({
-        actor: request.user!.username,
-        action: "role_create",
-        target: result.value.id,
-        requestId: request.requestId,
-      });
-      response.status(201).json({ role: result.value });
-    } catch (error) {
-      next(error);
+  router.post("/rbac/roles", async (request, response) => {
+    const parsed = rbacRoleSchema.safeParse(request.body);
+    if (!parsed.success) {
+      respondValidationError(response, parsed.error);
+      return;
     }
+    const result = await rbac.createRole(parsed.data);
+    if (!result.ok) {
+      respondActionError(response, result.error);
+      return;
+    }
+    void audit.record({
+      actor: request.user!.username,
+      action: "role_create",
+      target: result.value.id,
+      requestId: request.requestId,
+    });
+    response.status(201).json({ role: result.value });
   });
-  router.patch("/rbac/roles/:id", async (request, response, next) => {
-    try {
-      const parsed = rbacRoleSchema.safeParse(request.body);
-      if (!parsed.success) {
-        respondValidationError(response, parsed.error);
-        return;
-      }
-      const result = await rbac.updateRole(String(request.params.id), parsed.data);
-      if (!result.ok) {
-        respondActionError(response, result.error);
-        return;
-      }
-      void audit.record({
-        actor: request.user!.username,
-        action: "role_update",
-        target: result.value.id,
-        requestId: request.requestId,
-      });
-      response.json({ role: result.value });
-    } catch (error) {
-      next(error);
+  router.patch("/rbac/roles/:id", async (request, response) => {
+    const parsed = rbacRoleSchema.safeParse(request.body);
+    if (!parsed.success) {
+      respondValidationError(response, parsed.error);
+      return;
     }
+    const result = await rbac.updateRole(String(request.params.id), parsed.data);
+    if (!result.ok) {
+      respondActionError(response, result.error);
+      return;
+    }
+    void audit.record({
+      actor: request.user!.username,
+      action: "role_update",
+      target: result.value.id,
+      requestId: request.requestId,
+    });
+    response.json({ role: result.value });
   });
 
-  router.delete("/rbac/roles/:id", async (request, response, next) => {
-    try {
-      const id = String(request.params.id);
-      const result = await rbac.deleteRole(id);
-      if (!result.ok) {
-        respondActionError(response, result.error);
-        return;
-      }
-      void audit.record({
-        actor: request.user!.username,
-        action: "role_delete",
-        target: id,
-        requestId: request.requestId,
-      });
-      response.status(204).end();
-    } catch (error) {
-      next(error);
+  router.delete("/rbac/roles/:id", async (request, response) => {
+    const id = String(request.params.id);
+    const result = await rbac.deleteRole(id);
+    if (!result.ok) {
+      respondActionError(response, result.error);
+      return;
     }
+    void audit.record({
+      actor: request.user!.username,
+      action: "role_delete",
+      target: id,
+      requestId: request.requestId,
+    });
+    response.status(204).end();
   });
   // ── User groups ─────────────────────────────────────────────────────────────────
   router.get("/rbac/groups", (_request, response) => {
     response.json({ groups: rbac.getGroups() });
   });
 
-  router.post("/rbac/groups", async (request, response, next) => {
-    try {
-      const parsed = rbacGroupSchema.safeParse(request.body);
-      if (!parsed.success) {
-        respondValidationError(response, parsed.error);
-        return;
-      }
-      const result = await rbac.createGroup(parsed.data);
-      if (!result.ok) {
-        respondActionError(response, result.error);
-        return;
-      }
-      void audit.record({
-        actor: request.user!.username,
-        action: "group_create",
-        target: result.value.id,
-        requestId: request.requestId,
-      });
-      response.status(201).json({ group: result.value });
-    } catch (error) {
-      next(error);
+  router.post("/rbac/groups", async (request, response) => {
+    const parsed = rbacGroupSchema.safeParse(request.body);
+    if (!parsed.success) {
+      respondValidationError(response, parsed.error);
+      return;
     }
+    const result = await rbac.createGroup(parsed.data);
+    if (!result.ok) {
+      respondActionError(response, result.error);
+      return;
+    }
+    void audit.record({
+      actor: request.user!.username,
+      action: "group_create",
+      target: result.value.id,
+      requestId: request.requestId,
+    });
+    response.status(201).json({ group: result.value });
   });
 
-  router.patch("/rbac/groups/:id", async (request, response, next) => {
-    try {
-      const parsed = rbacGroupSchema.safeParse(request.body);
-      if (!parsed.success) {
-        respondValidationError(response, parsed.error);
-        return;
-      }
-      const result = await rbac.updateGroup(String(request.params.id), parsed.data);
-      if (!result.ok) {
-        respondActionError(response, result.error);
-        return;
-      }
-      void audit.record({
-        actor: request.user!.username,
-        action: "group_update",
-        target: result.value.id,
-        requestId: request.requestId,
-      });
-      response.json({ group: result.value });
-    } catch (error) {
-      next(error);
+  router.patch("/rbac/groups/:id", async (request, response) => {
+    const parsed = rbacGroupSchema.safeParse(request.body);
+    if (!parsed.success) {
+      respondValidationError(response, parsed.error);
+      return;
     }
+    const result = await rbac.updateGroup(String(request.params.id), parsed.data);
+    if (!result.ok) {
+      respondActionError(response, result.error);
+      return;
+    }
+    void audit.record({
+      actor: request.user!.username,
+      action: "group_update",
+      target: result.value.id,
+      requestId: request.requestId,
+    });
+    response.json({ group: result.value });
   });
-  router.delete("/rbac/groups/:id", async (request, response, next) => {
-    try {
-      const id = String(request.params.id);
-      const result = await rbac.deleteGroup(id);
-      if (!result.ok) {
-        respondActionError(response, result.error);
-        return;
-      }
-      void audit.record({
-        actor: request.user!.username,
-        action: "group_delete",
-        target: id,
-        requestId: request.requestId,
-      });
-      response.status(204).end();
-    } catch (error) {
-      next(error);
+  router.delete("/rbac/groups/:id", async (request, response) => {
+    const id = String(request.params.id);
+    const result = await rbac.deleteGroup(id);
+    if (!result.ok) {
+      respondActionError(response, result.error);
+      return;
     }
+    void audit.record({
+      actor: request.user!.username,
+      action: "group_delete",
+      target: id,
+      requestId: request.requestId,
+    });
+    response.status(204).end();
   });
   return router;
 };

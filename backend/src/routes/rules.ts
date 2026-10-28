@@ -3,7 +3,7 @@ import { requireCapability } from "../auth/middleware";
 import type { DashboardStore } from "../store";
 import type { AuditService } from "../audit/service";
 import { parseAlertRules } from "../configRegistry";
-import { expectedConfigVersion, sendConfigVersion } from "./helpers";
+import { expectedConfigVersion, parseOrRespond, sendConfigVersion } from "./helpers";
 
 /**
  * Alert-rule config API (1.6.1) — the console face of `rules.json`. Admin-only (`rules:write`),
@@ -26,33 +26,21 @@ export const buildRulesRouter = (store: DashboardStore, audit: AuditService): ex
     response.json({ config: store.getAlertRules() });
   });
 
-  router.put("/rules/config", requireCapability("rules:write"), async (request, response, next) => {
-    let parsed;
-    try {
-      parsed = parseAlertRules(request.body);
-    } catch (error) {
-      response.status(400).json({
-        error: "invalid_rules",
-        detail: error instanceof Error ? error.message : "invalid rules",
-      });
-      return;
-    }
-    try {
-      const config = await store.writeAlertRules(parsed, expectedConfigVersion(request));
-      void audit.record({
-        actor: request.user!.username,
-        action: "rules_write",
-        requestId: request.requestId,
-        detail: {
-          lowBatteryEnabled: config.lowBattery.enabled,
-          offlineEnabled: config.offline.enabled,
-        },
-      });
-      sendConfigVersion(response, store.getConfigVersion("rules"));
-      response.json({ config });
-    } catch (error) {
-      next(error);
-    }
+  router.put("/rules/config", requireCapability("rules:write"), async (request, response) => {
+    const parsed = parseOrRespond(response, "invalid_rules", () => parseAlertRules(request.body));
+    if (parsed === undefined) return;
+    const config = await store.writeAlertRules(parsed, expectedConfigVersion(request));
+    void audit.record({
+      actor: request.user!.username,
+      action: "rules_write",
+      requestId: request.requestId,
+      detail: {
+        lowBatteryEnabled: config.lowBattery.enabled,
+        offlineEnabled: config.offline.enabled,
+      },
+    });
+    sendConfigVersion(response, store.getConfigVersion("rules"));
+    response.json({ config });
   });
 
   return router;

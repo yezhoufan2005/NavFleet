@@ -13,6 +13,28 @@ export const respondValidationError = (response: express.Response, error: ZodErr
 };
 
 /**
+ * Run a config file's parser over a request body before anything touches disk. A parser throws
+ * with the reason (which field, which reference); that becomes a 400 `{ error: code, detail }` and
+ * the result is `undefined`, so the caller returns. Every whole-file write route started with the
+ * same eight lines of try/catch to say this.
+ */
+export const parseOrRespond = <T>(
+  response: express.Response,
+  code: string,
+  parse: () => T,
+): T | undefined => {
+  try {
+    return parse();
+  } catch (error) {
+    response.status(400).json({
+      error: code,
+      detail: error instanceof Error ? error.message : code,
+    });
+    return undefined;
+  }
+};
+
+/**
  * Builds the uniform responder for a service-layer refusal: it maps a stable error code to an HTTP
  * status via the caller's table and echoes the code in the body. Each router supplies its own
  * code→status table (`AdminActionError`, `RbacError`, …) and gets back a 2-arg `(response, error)`

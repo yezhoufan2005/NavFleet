@@ -15,32 +15,24 @@ import { respondValidationError } from "./helpers";
 export const buildReportsRouter = (store: DashboardStore): express.Router => {
   const router = express.Router();
 
-  router.get("/reports/alerts", async (request, response, next) => {
-    try {
-      const parsed = reportRangeSchema.safeParse(request.query);
-      if (!parsed.success) {
-        respondValidationError(response, parsed.error);
-        return;
-      }
-      const report = await store.getAlertStats(parsed.data);
-      response.json(report);
-    } catch (error) {
-      next(error);
+  router.get("/reports/alerts", async (request, response) => {
+    const parsed = reportRangeSchema.safeParse(request.query);
+    if (!parsed.success) {
+      respondValidationError(response, parsed.error);
+      return;
     }
+    const report = await store.getAlertStats(parsed.data);
+    response.json(report);
   });
 
-  router.get("/reports/availability", async (request, response, next) => {
-    try {
-      const parsed = reportAvailabilityQuerySchema.safeParse(request.query);
-      if (!parsed.success) {
-        respondValidationError(response, parsed.error);
-        return;
-      }
-      const report = await store.getAvailabilityReport(parsed.data);
-      response.json(report);
-    } catch (error) {
-      next(error);
+  router.get("/reports/availability", async (request, response) => {
+    const parsed = reportAvailabilityQuerySchema.safeParse(request.query);
+    if (!parsed.success) {
+      respondValidationError(response, parsed.error);
+      return;
     }
+    const report = await store.getAvailabilityReport(parsed.data);
+    response.json(report);
   });
 
   return router;

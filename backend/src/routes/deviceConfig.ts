@@ -3,7 +3,7 @@ import { parseFormations, parseVehicles } from "@navfleet/shared";
 import { requireCapability } from "../auth/middleware";
 import type { DashboardStore } from "../store";
 import type { AuditService } from "../audit/service";
-import { expectedConfigVersion, sendConfigVersion } from "./helpers";
+import { expectedConfigVersion, parseOrRespond, sendConfigVersion } from "./helpers";
 
 /**
  * Device-onboarding wizard config API (Phase 18).
@@ -37,18 +37,10 @@ export const buildDeviceConfigRouter = (
     response.json({ vehicles: store.listVehicleConfigs() });
   });
 
-  router.put("/vehicles", requireCapability("vehicles:write"), async (request, response, next) => {
+  router.put("/vehicles", requireCapability("vehicles:write"), async (request, response) => {
     const raw = unwrap(request.body, "vehicles");
-    let vehicles;
-    try {
-      vehicles = parseVehicles(raw);
-    } catch (validationError) {
-      response.status(400).json({
-        error: "invalid_vehicles",
-        detail: validationError instanceof Error ? validationError.message : "invalid vehicles",
-      });
-      return;
-    }
+    const vehicles = parseOrRespond(response, "invalid_vehicles", () => parseVehicles(raw));
+    if (vehicles === undefined) return;
     // Refuse to orphan a formation: removing a vehicle a formation still names would make the
     // next config load fail. A clean 400 (writeVehicles re-checks as the authority).
     const nextIds = new Set(vehicles.map((vehicle) => vehicle.deviceId));
@@ -74,19 +66,15 @@ export const buildDeviceConfigRouter = (
       });
       return;
     }
-    try {
-      const saved = await store.writeVehicles(raw, expectedConfigVersion(request));
-      void audit.record({
-        actor: request.user!.username,
-        action: "vehicles_write",
-        requestId: request.requestId,
-        detail: { vehicleCount: saved.length },
-      });
-      sendConfigVersion(response, store.getConfigVersion("vehicles"));
-      response.json({ vehicles: saved });
-    } catch (error) {
-      next(error);
-    }
+    const saved = await store.writeVehicles(raw, expectedConfigVersion(request));
+    void audit.record({
+      actor: request.user!.username,
+      action: "vehicles_write",
+      requestId: request.requestId,
+      detail: { vehicleCount: saved.length },
+    });
+    sendConfigVersion(response, store.getConfigVersion("vehicles"));
+    response.json({ vehicles: saved });
   });
 
   router.get("/formation-config", requireCapability("formations:write"), (_request, response) => {
@@ -97,18 +85,10 @@ export const buildDeviceConfigRouter = (
   router.put(
     "/formation-config",
     requireCapability("formations:write"),
-    async (request, response, next) => {
+    async (request, response) => {
       const raw = unwrap(request.body, "formations");
-      let formations;
-      try {
-        formations = parseFormations(raw);
-      } catch (validationError) {
-        response.status(400).json({
-          error: "invalid_formations",
-          detail: validationError instanceof Error ? validationError.message : "invalid formations",
-        });
-        return;
-      }
+      const formations = parseOrRespond(response, "invalid_formations", () => parseFormations(raw));
+      if (formations === undefined) return;
       // Referential integrity as a clean 400 (writeFormations re-checks as the authority): every
       // deviceId a formation names must be a configured vehicle, or a cold start could not load it.
       const knownDevices = new Set(store.listVehicleConfigs().map((vehicle) => vehicle.deviceId));
@@ -134,19 +114,15 @@ export const buildDeviceConfigRouter = (
         });
         return;
       }
-      try {
-        const saved = await store.writeFormations(raw, expectedConfigVersion(request));
-        void audit.record({
-          actor: request.user!.username,
-          action: "formations_write",
-          requestId: request.requestId,
-          detail: { formationCount: saved.length },
-        });
-        sendConfigVersion(response, store.getConfigVersion("formations"));
-        response.json({ formations: saved });
-      } catch (error) {
-        next(error);
-      }
+      const saved = await store.writeFormations(raw, expectedConfigVersion(request));
+      void audit.record({
+        actor: request.user!.username,
+        action: "formations_write",
+        requestId: request.requestId,
+        detail: { formationCount: saved.length },
+      });
+      sendConfigVersion(response, store.getConfigVersion("formations"));
+      response.json({ formations: saved });
     },
   );
 
