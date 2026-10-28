@@ -87,3 +87,38 @@ describe("parseScenes", () => {
     ).toThrow(/must start with \/scene-maps\//);
   });
 });
+
+describe("scene cross-field rules", () => {
+  const base = { sceneId: "s", resolution: 0.1, width: 100, height: 50 };
+
+  it("rejects inverted or empty bounds", () => {
+    expect(() =>
+      parseScenes([
+        { ...base, bounds: { minX: 10, maxX: 0, minY: 0, maxY: 5 } },
+      ]),
+    ).toThrow(/maxX must be greater than minX/);
+    expect(() =>
+      parseScenes([
+        { ...base, bounds: { minX: 0, maxX: 10, minY: 5, maxY: 5 } },
+      ]),
+    ).toThrow(/maxY must be greater than minY/);
+  });
+
+  it("requires minZoom ≤ maxZoom and a positive minZoom", () => {
+    expect(() => parseScenes([{ ...base, minZoom: 6, maxZoom: 2 }])).toThrow(
+      /must not exceed/,
+    );
+    expect(() => parseScenes([{ ...base, minZoom: 0 }])).toThrow(
+      /greater than 0/,
+    );
+  });
+
+  it("requires whole-pixel width/height and a real lat/lng", () => {
+    expect(() => parseScenes([{ ...base, width: 100.5 }])).toThrow(
+      /whole number/,
+    );
+    expect(() =>
+      parseScenes([{ ...base, osmProjectionOrigin: { lat: 120, lng: 0 } }]),
+    ).toThrow(/lat must be between/);
+  });
+});
