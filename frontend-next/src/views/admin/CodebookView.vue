@@ -15,7 +15,8 @@
  */
 import UiHelpTip from "@/components/ui/UiHelpTip.vue";
 import { FIELD_HELP } from "@/lib/fieldHelp";
-import { computed, onMounted, ref } from "vue";
+import { computed, onMounted, ref, nextTick, watch } from "vue";
+import { useDirtySnapshot } from "@/composables/useDirtySnapshot";
 import PageHeader from "@/components/PageHeader.vue";
 import AppSectionTabs from "@/components/shell/AppSectionTabs.vue";
 import UiButton from "@/components/ui/UiButton.vue";
@@ -263,24 +264,53 @@ const confirmDelete = ref<ReportCodeEntry | null>(null);
 const confirmIsRestore = computed(
   () => !!confirmDelete.value && originOf(confirmDelete.value) === "overridden",
 );
+/** Guards the delete confirmation against a double click while the request is in flight. */
+const deletePending = ref(false);
 const deleteRow = async (): Promise<void> => {
-  const target = confirmDelete.value;
-  if (!target) return;
-  const restoring = originOf(target) === "overridden";
-  const next = entries.value.filter((e) => e.code !== target.code);
+  if (deletePending.value) return;
+  deletePending.value = true;
   try {
-    await persistRows(next);
-    notify(restoring ? "已恢复为内置含义" : "报码已删除", { type: "success" });
-  } catch (error) {
-    notify(writeError(error), { type: "error" });
+    const target = confirmDelete.value;
+    if (!target) return;
+    const restoring = originOf(target) === "overridden";
+    const next = entries.value.filter((e) => e.code !== target.code);
+    try {
+      await persistRows(next);
+      notify(restoring ? "已恢复为内置含义" : "报码已删除", {
+        type: "success",
+      });
+    } catch (error) {
+      notify(writeError(error), { type: "error" });
+    } finally {
+      confirmDelete.value = null;
+    }
   } finally {
-    confirmDelete.value = null;
+    deletePending.value = false;
   }
 };
 
 const rowDialogTitle = computed(() =>
   mode.value === "edit" ? "编辑报码" : "新建报码",
 );
+
+// Unsaved-changes guard for the dialog: snapshot the form once it is filled, so Esc / a backdrop
+// click asks before discarding edits (see UiModal `dirty`).
+const formSnapshot = useDirtySnapshot(() => [
+  fCode.value,
+  fLabel.value,
+  fChannel.value,
+  fImpact.value,
+  fSubsystem.value,
+  fDescription.value,
+  fHint.value,
+]);
+watch(
+  () => mode.value !== null,
+  (isOpen) => {
+    if (isOpen) void nextTick(formSnapshot.mark);
+  },
+);
+const formDirty = formSnapshot.dirty;
 </script>
 
 <template>
@@ -418,6 +448,7 @@ const rowDialogTitle = computed(() =>
     <!-- Row editor (codebook:write). -->
     <UiModal
       :open="mode !== null"
+      :dirty="formDirty"
       :autofocus="mode === 'create'"
       :title="rowDialogTitle"
       description="填写报码、名称、通道、等级、子系统与说明后提交"
@@ -560,6 +591,7 @@ const rowDialogTitle = computed(() =>
 
     <UiConfirmDialog
       :open="confirmDelete !== null"
+      :pending="deletePending"
       :title="
         confirmIsRestore
           ? `恢复报码「${confirmDelete?.code ?? ''}」的内置含义？`

@@ -11,7 +11,8 @@
  */
 import UiHelpTip from "@/components/ui/UiHelpTip.vue";
 import { FIELD_HELP } from "@/lib/fieldHelp";
-import { computed, onMounted, ref } from "vue";
+import { computed, onMounted, ref, nextTick, watch } from "vue";
+import { useDirtySnapshot } from "@/composables/useDirtySnapshot";
 import { fleetApi } from "@navfleet/fleet-core";
 import type { DeviceConfig, FormationConfig } from "@navfleet/shared";
 import PageHeader from "@/components/PageHeader.vue";
@@ -205,6 +206,24 @@ const runDelete = async (): Promise<void> => {
 const dialogTitle = computed(() =>
   mode.value === "create" ? "新增编队" : "编辑编队",
 );
+
+// Unsaved-changes guard for the dialog: snapshot the form once it is filled, so Esc / a backdrop
+// click asks before discarding edits (see UiModal `dirty`).
+const formSnapshot = useDirtySnapshot(() => [
+  fId.value,
+  fName.value,
+  fDeviceIds.value,
+  fSceneId.value,
+  fDescription.value,
+  fColor.value,
+]);
+watch(
+  () => mode.value !== null,
+  (isOpen) => {
+    if (isOpen) void nextTick(formSnapshot.mark);
+  },
+);
+const formDirty = formSnapshot.dirty;
 </script>
 
 <template>
@@ -309,6 +328,7 @@ const dialogTitle = computed(() =>
   <!-- Formation create/edit -->
   <UiModal
     :open="mode !== null"
+    :dirty="formDirty"
     :autofocus="mode === 'create'"
     :title="dialogTitle"
     description="填写编队配置后提交"

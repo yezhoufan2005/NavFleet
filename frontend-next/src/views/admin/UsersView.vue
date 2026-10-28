@@ -9,7 +9,8 @@
  * backend's lockout guards (last enabled admin, acting on yourself) come back as stable error
  * codes, which `messageFor` turns into a sentence rather than a bare "HTTP 409".
  */
-import { computed, onMounted, ref, watch } from "vue";
+import { computed, onMounted, ref, watch, nextTick } from "vue";
+import { useDirtySnapshot } from "@/composables/useDirtySnapshot";
 import {
   fleetApi,
   type AdminUser,
@@ -293,6 +294,26 @@ const toggleSessions = (username: string): void => {
 
 const formatTime = (iso: string | null): string =>
   iso ? new Date(iso).toLocaleString("zh-CN", { hour12: false }) : "—";
+
+// Unsaved-changes guard for the dialog: snapshot the form once it is filled, so Esc / a backdrop
+// click asks before discarding edits (see UiModal `dirty`).
+const formSnapshot = useDirtySnapshot(() => [
+  fUsername.value,
+  fPassword.value,
+  fRole.value,
+  fDisplayName.value,
+  fEmail.value,
+  fPhone.value,
+  fEnabled.value,
+  fKiosk.value,
+]);
+watch(
+  () => mode.value !== null,
+  (isOpen) => {
+    if (isOpen) void nextTick(formSnapshot.mark);
+  },
+);
+const formDirty = formSnapshot.dirty;
 </script>
 
 <template>
@@ -464,6 +485,7 @@ const formatTime = (iso: string | null): string =>
     </div>
     <UiModal
       :open="mode !== null"
+      :dirty="formDirty"
       :autofocus="mode !== 'edit'"
       :title="dialogTitle"
       description="填写表单后提交"

@@ -12,7 +12,8 @@
  * reads the role and user lists to populate its picker. Every destructive action confirms; stable
  * backend error codes (重名 / 引用不存在的角色 / 不存在) become sentences via `messageFor`.
  */
-import { computed, onMounted, ref } from "vue";
+import { computed, onMounted, ref, nextTick, watch } from "vue";
+import { useDirtySnapshot } from "@/composables/useDirtySnapshot";
 import { fleetApi, type AdminUser } from "@navfleet/fleet-core";
 import type { RbacGroup, RbacRole } from "@navfleet/shared";
 import PageHeader from "@/components/PageHeader.vue";
@@ -134,17 +135,25 @@ const submitGroup = async (): Promise<void> => {
 };
 
 const confirmGroupDelete = ref<RbacGroup | null>(null);
+/** Guards the delete confirmation against a double click while the request is in flight. */
+const deletePending = ref(false);
 const deleteGroup = async (): Promise<void> => {
-  const group = confirmGroupDelete.value;
-  if (!group) return;
+  if (deletePending.value) return;
+  deletePending.value = true;
   try {
-    await fleetApi.deleteRbacGroup(group.id);
-    notify("用户组已删除", { type: "success" });
-    await load();
-  } catch (error) {
-    notify(messageFor(error), { type: "error" });
+    const group = confirmGroupDelete.value;
+    if (!group) return;
+    try {
+      await fleetApi.deleteRbacGroup(group.id);
+      notify("用户组已删除", { type: "success" });
+      await load();
+    } catch (error) {
+      notify(messageFor(error), { type: "error" });
+    } finally {
+      confirmGroupDelete.value = null;
+    }
   } finally {
-    confirmGroupDelete.value = null;
+    deletePending.value = false;
   }
 };
 
@@ -158,6 +167,22 @@ const kioskUsernames = computed(
       users.value.filter((user) => user.kiosk).map((user) => user.username),
     ),
 );
+
+// Unsaved-changes guard for the dialog: snapshot the form once it is filled, so Esc / a backdrop
+// click asks before discarding edits (see UiModal `dirty`).
+const formSnapshot = useDirtySnapshot(() => [
+  gName.value,
+  gDesc.value,
+  gRoleIds.value,
+  gMembers.value,
+]);
+watch(
+  () => groupMode.value !== null,
+  (isOpen) => {
+    if (isOpen) void nextTick(formSnapshot.mark);
+  },
+);
+const formDirty = formSnapshot.dirty;
 </script>
 
 <template>
@@ -243,6 +268,7 @@ const kioskUsernames = computed(
     <!-- Group dialog -->
     <UiModal
       :open="groupMode !== null"
+      :dirty="formDirty"
       :autofocus="groupMode === 'create'"
       :title="groupDialogTitle"
       description="填写组名、选择角色与成员后提交"
@@ -353,6 +379,7 @@ const kioskUsernames = computed(
 
     <UiConfirmDialog
       :open="confirmGroupDelete !== null"
+      :pending="deletePending"
       :title="`删除用户组「${confirmGroupDelete?.name ?? ''}」？`"
       description="组内成员将失去该组带来的附加能力"
       confirm-label="删除"

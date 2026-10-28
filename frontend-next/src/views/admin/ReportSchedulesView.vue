@@ -16,7 +16,8 @@
  */
 import UiHelpTip from "@/components/ui/UiHelpTip.vue";
 import { FIELD_HELP } from "@/lib/fieldHelp";
-import { computed, onMounted, ref } from "vue";
+import { computed, onMounted, ref, nextTick, watch } from "vue";
+import { useDirtySnapshot } from "@/composables/useDirtySnapshot";
 import { fleetApi } from "@navfleet/fleet-core";
 import {
   REPORT_RANGE_PRESETS,
@@ -219,17 +220,25 @@ const submit = async (): Promise<void> => {
 };
 
 const confirmDelete = ref<ReportScheduleConfig | null>(null);
+/** Guards the delete confirmation against a double click while the request is in flight. */
+const deletePending = ref(false);
 const deleteSchedule = async (): Promise<void> => {
-  const target = confirmDelete.value;
-  if (!target) return;
-  const next = schedules.value.filter((s) => s.id !== target.id);
+  if (deletePending.value) return;
+  deletePending.value = true;
   try {
-    await persist(next);
-    toast("定时报表已删除", { type: "success" });
-  } catch (error) {
-    toast(messageFor(error), { type: "error" });
+    const target = confirmDelete.value;
+    if (!target) return;
+    const next = schedules.value.filter((s) => s.id !== target.id);
+    try {
+      await persist(next);
+      toast("定时报表已删除", { type: "success" });
+    } catch (error) {
+      toast(messageFor(error), { type: "error" });
+    } finally {
+      confirmDelete.value = null;
+    }
   } finally {
-    confirmDelete.value = null;
+    deletePending.value = false;
   }
 };
 
@@ -241,6 +250,27 @@ const weekdayLabel = (weekday?: number): string =>
     ? "每天"
     : (WEEKDAY_OPTIONS.find((o) => o.value === String(weekday))?.label ??
       "每天");
+
+// Unsaved-changes guard for the dialog: snapshot the form once it is filled, so Esc / a backdrop
+// click asks before discarding edits (see UiModal `dirty`).
+const formSnapshot = useDirtySnapshot(() => [
+  sId.value,
+  sEnabled.value,
+  sTime.value,
+  sWeekday.value,
+  sSmtpEnv.value,
+  sFrom.value,
+  sRecipientsText.value,
+  sGroupsText.value,
+  sRange.value,
+]);
+watch(
+  () => mode.value !== null,
+  (isOpen) => {
+    if (isOpen) void nextTick(formSnapshot.mark);
+  },
+);
+const formDirty = formSnapshot.dirty;
 </script>
 
 <template>
@@ -335,6 +365,7 @@ const weekdayLabel = (weekday?: number): string =>
     <!-- Schedule editor (reports:write). -->
     <UiModal
       :open="mode !== null"
+      :dirty="formDirty"
       :autofocus="mode === 'create'"
       :title="dialogTitle"
       description="填写报表的回看窗口、发送时刻与收件人后提交"
@@ -502,6 +533,7 @@ const weekdayLabel = (weekday?: number): string =>
 
     <UiConfirmDialog
       :open="confirmDelete !== null"
+      :pending="deletePending"
       :title="`删除定时报表「${confirmDelete?.id ?? ''}」？`"
       description="删除后该报表立即停止推送；此操作会重写 reports.json"
       confirm-label="删除"

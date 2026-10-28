@@ -26,7 +26,8 @@
  */
 import UiHelpTip from "@/components/ui/UiHelpTip.vue";
 import { FIELD_HELP } from "@/lib/fieldHelp";
-import { computed, onMounted, ref } from "vue";
+import { computed, onMounted, ref, nextTick, watch } from "vue";
+import { useDirtySnapshot } from "@/composables/useDirtySnapshot";
 import PageHeader from "@/components/PageHeader.vue";
 import AppSectionTabs from "@/components/shell/AppSectionTabs.vue";
 import UiButton from "@/components/ui/UiButton.vue";
@@ -422,6 +423,29 @@ const runDelete = async (): Promise<void> => {
     deleting.value = false;
   }
 };
+
+// Unsaved-changes guard for the dialog: snapshot the form once it is filled, so Esc / a backdrop
+// click asks before discarding edits (see UiModal `dirty`).
+const formSnapshot = useDirtySnapshot(() => [
+  fSceneId.value,
+  fSceneName.value,
+  fDescription.value,
+  fMapFrame.value,
+  fResolution.value,
+  fWidth.value,
+  fHeight.value,
+  fOriginX.value,
+  fOriginY.value,
+  fOriginYaw.value,
+  fAssetKind.value,
+]);
+watch(
+  () => mode.value !== null,
+  (isOpen) => {
+    if (isOpen) void nextTick(formSnapshot.mark);
+  },
+);
+const formDirty = formSnapshot.dirty;
 </script>
 
 <template>
@@ -577,6 +601,7 @@ const runDelete = async (): Promise<void> => {
   <!-- Create / edit scene -->
   <UiModal
     :open="mode !== null"
+    :dirty="formDirty"
     :autofocus="mode === 'create'"
     :title="dialogTitle"
     description="填写场景几何参数并可上传底图后提交"

@@ -289,6 +289,37 @@ describe("CodebookView — row editing (codebook:write)", () => {
     expect(sent[0]).toMatchObject({ code: ENTRY.code, label: "改名后" });
   });
 
+  it("asks before Esc throws away an edited row, but closes freely when untouched", async () => {
+    asWriter();
+    vi.spyOn(fleetApi, "getCodebook").mockResolvedValue({ items: [ENTRY] });
+    const wrapper = await mountView();
+    const escape = async (): Promise<void> => {
+      document.activeElement?.dispatchEvent(
+        new KeyboardEvent("keydown", {
+          key: "Escape",
+          bubbles: true,
+          cancelable: true,
+        }),
+      );
+      await flushPromises();
+    };
+
+    await clickRowButton(wrapper, "编辑");
+    await escape();
+    expect(document.body.querySelector("form")).toBeNull();
+
+    await clickRowButton(wrapper, "编辑");
+    const label = document.body.querySelector(
+      'input[type="text"]',
+    ) as HTMLInputElement;
+    label.value = "改了没存";
+    label.dispatchEvent(new Event("input"));
+    await flushPromises();
+    await escape();
+    expect(document.body.querySelector("form")).not.toBeNull();
+    expect(document.body.textContent).toContain("有未保存的修改");
+  });
+
   const confirmBody = async (label: string): Promise<void> => {
     const confirm = [...document.body.querySelectorAll("button")].find(
       (button) => button.textContent?.trim() === label,

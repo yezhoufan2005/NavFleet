@@ -15,7 +15,9 @@
  */
 import UiHelpTip from "@/components/ui/UiHelpTip.vue";
 import { FIELD_HELP } from "@/lib/fieldHelp";
-import { computed, onMounted, ref } from "vue";
+import { computed, nextTick, onBeforeUnmount, onMounted, ref } from "vue";
+import { onBeforeRouteLeave } from "vue-router";
+import { useDirtySnapshot } from "@/composables/useDirtySnapshot";
 import { fleetApi } from "@navfleet/fleet-core";
 import {
   DEFAULT_ALERT_RULES,
@@ -125,6 +127,7 @@ const load = async (): Promise<void> => {
     applyConfig(config);
     lastSaved.value = config;
     status.value = "ready";
+    void nextTick(rulesSnapshot.mark);
   } catch {
     status.value = "error";
   }
@@ -193,6 +196,7 @@ const submit = async (): Promise<void> => {
     const saved = (await fleetApi.putAlertRules(config)).config;
     applyConfig(saved);
     lastSaved.value = saved;
+    void nextTick(rulesSnapshot.mark);
     toast("消息规则已保存", {
       type: "success",
       // Undo restores the config the server last held — a config write is easy to misfire and
@@ -215,6 +219,7 @@ const undoSave = async (previous: AlertRulesConfig): Promise<void> => {
     const restored = (await fleetApi.putAlertRules(previous)).config;
     applyConfig(restored);
     lastSaved.value = restored;
+    void nextTick(rulesSnapshot.mark);
     toast("已撤销，恢复上一版消息规则", { type: "info" });
   } catch (error) {
     formError.value = messageFor(error);
@@ -224,6 +229,32 @@ const undoSave = async (previous: AlertRulesConfig): Promise<void> => {
 };
 
 const resetToDefaults = (): void => applyConfig(DEFAULT_ALERT_RULES);
+
+// Unsaved-changes guard: this page is one form, so leaving it (another page, or closing the tab)
+// with edits not yet saved asks first rather than dropping them.
+const rulesSnapshot = useDirtySnapshot(() => [
+  lbEnabled.value,
+  lbThreshold.value,
+  lbDebounce.value,
+  lbScope.value,
+  offEnabled.value,
+  offAfter.value,
+  offScope.value,
+]);
+onBeforeRouteLeave(() =>
+  rulesSnapshot.dirty.value
+    ? window.confirm("消息规则有未保存的修改，确定离开吗？")
+    : true,
+);
+const warnBeforeUnload = (event: BeforeUnloadEvent): void => {
+  if (!rulesSnapshot.dirty.value) return;
+  event.preventDefault();
+  event.returnValue = "";
+};
+window.addEventListener("beforeunload", warnBeforeUnload);
+onBeforeUnmount(() =>
+  window.removeEventListener("beforeunload", warnBeforeUnload),
+);
 </script>
 
 <template>

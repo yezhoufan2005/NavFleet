@@ -19,7 +19,15 @@
  */
 import UiHelpTip from "@/components/ui/UiHelpTip.vue";
 import { FIELD_HELP } from "@/lib/fieldHelp";
-import { computed, onBeforeUnmount, onMounted, ref, watch } from "vue";
+import {
+  computed,
+  onBeforeUnmount,
+  onMounted,
+  ref,
+  watch,
+  nextTick,
+} from "vue";
+import { useDirtySnapshot } from "@/composables/useDirtySnapshot";
 import { useRoute, useRouter } from "vue-router";
 import { fleetApi } from "@navfleet/fleet-core";
 import {
@@ -405,20 +413,28 @@ const submitChannel = async (): Promise<void> => {
 };
 
 const confirmDelete = ref<NotifyChannelConfig | null>(null);
+/** Guards the delete confirmation against a double click while the request is in flight. */
+const deletePending = ref(false);
 const deleteChannel = async (): Promise<void> => {
-  const target = confirmDelete.value;
-  if (!target) return;
-  const next = (rawConfig.value?.channels ?? []).filter(
-    (channel) => channel.id !== target.id,
-  );
+  if (deletePending.value) return;
+  deletePending.value = true;
   try {
-    await persist(next);
-    await load();
-    toast("渠道已删除", { type: "success" });
-  } catch (error) {
-    toast(messageFor(error), { type: "error" });
+    const target = confirmDelete.value;
+    if (!target) return;
+    const next = (rawConfig.value?.channels ?? []).filter(
+      (channel) => channel.id !== target.id,
+    );
+    try {
+      await persist(next);
+      await load();
+      toast("渠道已删除", { type: "success" });
+    } catch (error) {
+      toast(messageFor(error), { type: "error" });
+    } finally {
+      confirmDelete.value = null;
+    }
   } finally {
-    confirmDelete.value = null;
+    deletePending.value = false;
   }
 };
 
@@ -431,6 +447,26 @@ const channelDialogTitle = computed(() =>
 useAutoRefresh(() => void load(), {
   enabled: () => chMode.value === null && confirmDelete.value === null,
 });
+
+// Unsaved-changes guard for the dialog: snapshot the form once it is filled, so Esc / a backdrop
+// click asks before discarding edits (see UiModal `dirty`).
+const formSnapshot = useDirtySnapshot(() => [
+  cId.value,
+  cEnabled.value,
+  cUrlEnv.value,
+  cRecipientsText.value,
+  cGroupsText.value,
+  cType.value,
+  cSeverities.value,
+  cSilence.value,
+]);
+watch(
+  () => chMode.value !== null,
+  (isOpen) => {
+    if (isOpen) void nextTick(formSnapshot.mark);
+  },
+);
+const formDirty = formSnapshot.dirty;
 </script>
 
 <template>
@@ -676,6 +712,7 @@ useAutoRefresh(() => void load(), {
     <!-- Channel editor (notify:write). -->
     <UiModal
       :open="chMode !== null"
+      :dirty="formDirty"
       :autofocus="chMode === 'create'"
       :title="channelDialogTitle"
       description="填写渠道的类型、订阅严重度与静默窗口后提交"
@@ -884,6 +921,7 @@ useAutoRefresh(() => void load(), {
 
     <UiConfirmDialog
       :open="confirmDelete !== null"
+      :pending="deletePending"
       :title="`删除渠道「${confirmDelete?.id ?? ''}」？`"
       description="删除后该渠道立即停止外发；此操作会重写 notify.json"
       confirm-label="删除"
