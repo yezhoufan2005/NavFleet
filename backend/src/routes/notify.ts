@@ -5,7 +5,13 @@ import type { DashboardStore } from "../store";
 import type { AuditService } from "../audit/service";
 import { parseNotifyConfig } from "../configRegistry";
 import { notifyLogQuerySchema } from "../validation";
-import { expectedConfigVersion, respondValidationError, sendConfigVersion } from "./helpers";
+import {
+  expectedConfigVersion,
+  markTruncation,
+  respondValidationError,
+  sendConfigVersion,
+} from "./helpers";
+import { MAX_NOTIFY_PER_QUERY } from "../persistence";
 
 /**
  * Outbound-notification read API (Phase 16D-1). Both routes are **admin-only** on top of the
@@ -39,7 +45,8 @@ export const buildNotifyRouter = (
         respondValidationError(response, parsed.error);
         return;
       }
-      response.json({ items: await notify.queryLog(parsed.data) });
+      const items = await notify.queryLog(parsed.data);
+      response.json({ items, ...markTruncation(response, items.length, MAX_NOTIFY_PER_QUERY) });
     } catch (error) {
       next(error);
     }

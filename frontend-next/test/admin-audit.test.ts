@@ -59,6 +59,25 @@ describe("AuditView", () => {
     expect(wrapper.text()).toContain("bob");
   });
 
+  it("says so when the server cut the list at its cap", async () => {
+    vi.spyOn(fleetApi, "getAuditLog").mockResolvedValue({
+      entries: [entry()],
+      truncated: true,
+      limit: 500,
+    });
+    const router = routerFor();
+    await router.push("/admin/audit");
+    await router.isReady();
+    const wrapper = mount(AuditView, { global: { plugins: [router] } });
+    await flushPromises();
+    expect(wrapper.text()).toContain("仅显示最近 500 条");
+  });
+
+  it("shows no cap notice for an uncut list", async () => {
+    const wrapper = await mountView([entry()]);
+    expect(wrapper.text()).not.toContain("单次查询上限");
+  });
+
   it("shows the empty state when there are no records", async () => {
     const wrapper = await mountView([]);
     expect(wrapper.text()).toContain("没有符合当前筛选条件的审计记录");

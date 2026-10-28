@@ -180,6 +180,11 @@ const configSchema = z.object({
   // 报表聚合（Phase 17A）。告警日频次按这个 IANA 时区切日界——默认按部署所在地（国内内网车队），
   // 交给 Mongo 的 `$dateToString`。按 UTC 切日会把 UTC+8 午夜后的告警错算到"昨天"。
   REPORT_TIMEZONE: envStr("Asia/Shanghai"),
+  // Report / list query bounds: the widest window a report or history query may span (days), and
+  // how long one aggregation may run before the database gives up on it (ms) — below the edge's
+  // 180 s report timeout, so a runaway query stops instead of computing for nobody.
+  REPORT_MAX_RANGE_DAYS: envInt(366),
+  REPORT_QUERY_TIMEOUT_MS: envInt(150_000),
   AUTH_ENABLED: envBool(true),
   JWT_SECRET: envStr(""),
   JWT_ACCESS_TTL: envStr("15m"),
@@ -266,6 +271,8 @@ export const parseConfig = (env: NodeJS.ProcessEnv) => {
     notifyTimeoutMs: e.NOTIFY_TIMEOUT_MS,
     notifyMaxAttempts: e.NOTIFY_MAX_ATTEMPTS,
     reportTimezone: e.REPORT_TIMEZONE,
+    reportMaxRangeDays: e.REPORT_MAX_RANGE_DAYS,
+    reportQueryTimeoutMs: e.REPORT_QUERY_TIMEOUT_MS,
     authEnabled: e.AUTH_ENABLED,
     jwtSecret: e.JWT_SECRET,
     jwtAccessTtl: e.JWT_ACCESS_TTL,

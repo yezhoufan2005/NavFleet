@@ -2,7 +2,8 @@ import express from "express";
 import { requireCapability } from "../auth/middleware";
 import type { AuditService } from "../audit/service";
 import { auditQuerySchema } from "../validation";
-import { respondValidationError } from "./helpers";
+import { markTruncation, respondValidationError } from "./helpers";
+import { MAX_AUDIT_PER_QUERY } from "../persistence";
 
 /**
  * Audit trail query API (Phase 15D). Admin-only, on top of the session gate — reading who did
@@ -19,7 +20,8 @@ export const buildAuditRouter = (audit: AuditService): express.Router => {
         respondValidationError(response, parsed.error);
         return;
       }
-      response.json({ entries: await audit.query(parsed.data) });
+      const entries = await audit.query(parsed.data);
+      response.json({ entries, ...markTruncation(response, entries.length, MAX_AUDIT_PER_QUERY) });
     } catch (error) {
       next(error);
     }

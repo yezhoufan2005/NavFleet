@@ -134,13 +134,13 @@ interface StoredAlert {
  * retention window, whereas this is a response-size guard on an endpoint the console reads
  * in fixed pages of 20.
  */
-const MAX_ALERTS_PER_QUERY = 500;
+export const MAX_ALERTS_PER_QUERY = 500;
 
 /** Most audit rows one `GET /api/audit` returns; the in-memory fallback ring is bounded to it too. */
-const MAX_AUDIT_PER_QUERY = 500;
+export const MAX_AUDIT_PER_QUERY = 500;
 
 /** Most notify-send rows one `GET /api/notify/log` returns; the in-memory fallback ring is bounded to it too. */
-const MAX_NOTIFY_PER_QUERY = 500;
+export const MAX_NOTIFY_PER_QUERY = 500;
 
 /** How many devices the alert-stats Top-N ranking keeps (Phase 17A). Matches 16B's client-side default. */
 const ALERT_STATS_TOP_N = 8;
@@ -190,6 +190,8 @@ export class Persistence {
    * query; value carries the report and the epoch-ms it expires at. Bounded by key cardinality
    * (preset×bucket×device combos) and swept lazily on read. */
   private reportCache = new Map<string, { expiresAt: number; value: unknown }>();
+  /** Aggregations in flight, by cache key — shared by concurrent identical requests. */
+  private readonly reportInFlight = new Map<string, Promise<unknown>>();
   /**
    * How many buffered telemetry documents have been dropped because the buffer was
    * full. P0-c: the overflow used to `splice` the oldest away silently, so a monitoring
@@ -1552,7 +1554,10 @@ export class Persistence {
       });
       // `$facet` always yields exactly one document; the `?? {}` only satisfies the type for the
       // (unreachable) empty-cursor case, and the mapper turns it into a zeroed but available report.
-      const [facet] = await db.collection("alerts").aggregate<AlertStatsFacet>(pipeline).toArray();
+      const [facet] = await db
+        .collection("alerts")
+        .aggregate<AlertStatsFacet>(pipeline, { maxTimeMS: config.reportQueryTimeoutMs })
+        .toArray();
       return mapAlertStatsFacet(facet ?? {});
     });
   }
@@ -1602,7 +1607,10 @@ export class Persistence {
       // in-memory stage limit on a real fleet's frame count.
       const rows = await db
         .collection("telemetry_ts")
-        .aggregate<AvailabilityRow>(pipeline, { allowDiskUse: true })
+        .aggregate<AvailabilityRow>(pipeline, {
+          allowDiskUse: true,
+          maxTimeMS: config.reportQueryTimeoutMs,
+        })
         .toArray();
       return mapAvailabilityRows(rows, params.bucket, { from, horizon });
     });
@@ -1614,16 +1622,31 @@ export class Persistence {
    * day's filter combinations. Errors are not cached — a failed aggregation must be retryable.
    */
   private async withReportCache<T>(key: string, compute: () => Promise<T>): Promise<T> {
+    // Window ends rounded to the minute: the console asks for "the last 30 days up to now", so a
+    // millisecond-exact key never repeated and the cache was never hit. A minute of staleness is
+    // invisible on a report. (Only the key is rounded — the query keeps the exact bounds.)
+    const cacheKey = key.replace(
+      /(\d{4}-\d{2}-\d{2}T\d{2}:\d{2}):\d{2}(?:\.\d+)?(Z|[+-]\d{2}:\d{2})/g,
+      "$1$2",
+    );
     const now = Date.now();
-    const hit = this.reportCache.get(key);
+    const hit = this.reportCache.get(cacheKey);
     if (hit && hit.expiresAt > now) {
       return hit.value as T;
     }
+    // Concurrent identical requests share one aggregation instead of each running it.
+    const running = this.reportInFlight.get(cacheKey);
+    if (running) return running as Promise<T>;
     for (const [cachedKey, entry] of this.reportCache) {
       if (entry.expiresAt <= now) this.reportCache.delete(cachedKey);
     }
-    const value = await compute();
-    this.reportCache.set(key, { expiresAt: now + REPORT_CACHE_TTL_MS, value });
-    return value;
+    const pending = compute()
+      .then((value) => {
+        this.reportCache.set(cacheKey, { expiresAt: Date.now() + REPORT_CACHE_TTL_MS, value });
+        return value;
+      })
+      .finally(() => this.reportInFlight.delete(cacheKey));
+    this.reportInFlight.set(cacheKey, pending);
+    return pending;
   }
 }
