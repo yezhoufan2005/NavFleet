@@ -10,7 +10,7 @@ import AlertHistoryPanel from "@/components/alerts/AlertHistoryPanel.vue";
  * `fleetApi.getAlerts` is mocked; the charts are stubbed (their option builders are tested in
  * charts.test.ts), so this file owns the panel's own logic: loading/error/empty states, the
  * client-side stats, the URL filters it reads (the shared bar lives in AlertsView), and the
- * 500-row cap notice.
+ * server's row-cap notice.
  */
 enableAutoUnmount(afterEach);
 
@@ -258,13 +258,25 @@ describe("filters and the cap notice", () => {
     expect(wrapper.text()).not.toContain("甲车告警");
   });
 
-  it("says so when the result is capped at 500", async () => {
+  it("says so when the server cut the result at its cap", async () => {
     vi.spyOn(fleetApi, "getAlerts").mockResolvedValue({
       items: Array.from({ length: 500 }, (_unused, index) =>
         record({ eventKey: `agv:${index}` }),
       ),
+      truncated: true,
+      limit: 500,
     });
     const wrapper = await mountPanel();
     expect(wrapper.text()).toContain("最近 500 条");
+  });
+
+  it("does not claim a cap when the server did not cut the list", async () => {
+    vi.spyOn(fleetApi, "getAlerts").mockResolvedValue({
+      items: [record()],
+      truncated: false,
+      limit: 500,
+    });
+    const wrapper = await mountPanel();
+    expect(wrapper.text()).not.toContain("单次查询上限");
   });
 });

@@ -979,6 +979,25 @@ describe("aggregateAlertStats（Phase 17A 服务端聚合）", () => {
   });
 });
 
+describe("报表聚合的缓存与保护", () => {
+  it("同一分钟内的同一窗口命中缓存，并发的相同请求只跑一次聚合", async () => {
+    const { db, calls } = createFakeDb({}, {}, { alerts: [{}] });
+    persistence.__setDbForTests(db);
+    const range = (seconds: number) => ({
+      from: "2026-09-01T00:00:00.000Z",
+      to: `2026-09-30T12:00:${String(seconds).padStart(2, "0")}.123Z`,
+    });
+    await Promise.all([
+      persistence.aggregateAlertStats(range(1)),
+      persistence.aggregateAlertStats(range(1)),
+    ]);
+    expect(calls.aggregate).toHaveLength(1);
+    // A few seconds later, still the same minute: served from cache.
+    await persistence.aggregateAlertStats(range(42));
+    expect(calls.aggregate).toHaveLength(1);
+  });
+});
+
 describe("aggregateAvailability（Phase 17A-2 可用率/电量时序）", () => {
   const rows = [
     {

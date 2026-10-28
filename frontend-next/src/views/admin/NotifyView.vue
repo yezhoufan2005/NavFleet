@@ -90,6 +90,8 @@ const statusFilter = ref(readParam("status"));
 
 const channels = ref<NotifyChannelView[]>([]);
 const records = ref<NotifySendRecord[]>([]);
+/** The server's row cap when it cut the log (older matches exist), else null. */
+const cappedAt = ref<number | null>(null);
 const status = ref<"loading" | "ready" | "error">("loading");
 
 /** The full editable config (raw `urlEnv` names, routing, groups) — writers only. */
@@ -125,6 +127,7 @@ const load = async (): Promise<void> => {
     if (id !== requestId) return;
     channels.value = config.channels;
     records.value = log.items;
+    cappedAt.value = log.truncated ? (log.limit ?? log.items.length) : null;
     // Writers also pull the raw editable config; a failure here doesn't fail the read page.
     if (canWrite.value) {
       try {
@@ -622,6 +625,10 @@ const formDirty = formSnapshot.dirty;
       没有符合当前筛选条件的发送记录
     </UiEmptyState>
     <template v-else>
+      <p v-if="cappedAt !== null" class="m-0 text-2xs text-ink-subtle">
+        仅显示最近
+        {{ cappedAt }} 条（后端单次查询上限），按设备或渠道筛选可查看更早的记录
+      </p>
       <div
         :class="[tableClasses.wrapper, 'overflow-auto']"
         tabindex="0"

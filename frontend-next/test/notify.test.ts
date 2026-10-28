@@ -92,6 +92,16 @@ describe("NotifyView", () => {
     expect(wrapper.text()).toContain("未配置任何渠道");
   });
 
+  it("says so when the server cut the send log at its cap", async () => {
+    vi.spyOn(fleetApi, "getNotifyLog").mockResolvedValue({
+      items: [RECORD],
+      truncated: true,
+      limit: 500,
+    });
+    const wrapper = await mountView();
+    expect(wrapper.text()).toContain("仅显示最近 500 条");
+  });
+
   it("reports an error when the log cannot be loaded", async () => {
     vi.spyOn(fleetApi, "getNotifyLog").mockRejectedValue(new Error("HTTP 500"));
     const wrapper = await mountView();
