@@ -607,7 +607,9 @@ const apiWideResponses = { "429": tooManyRequests, "500": serverError } as const
         ...queryParameters(historyQuerySchema, {
           from: "ISO-8601 或 epoch",
           to: "ISO-8601 或 epoch",
-          limit: "返回的最大采样数",
+          limit: "返回的最大采样数（latest 模式）",
+          sampling:
+            "latest（默认）= 最新的 limit 条；even = 整个 from–to 窗口按时间均匀抽取，至多 MAX_HISTORY_POINTS 条，需同时给 from 与 to",
         }),
       ],
       responses: {
@@ -620,6 +622,11 @@ const apiWideResponses = { "429": tooManyRequests, "500": serverError } as const
                 properties: {
                   deviceId: { type: "string" },
                   items: { type: "array", items: { $ref: "#/components/schemas/HistorySample" } },
+                  sampled: {
+                    type: "boolean",
+                    description: "仅 even 模式：窗口内采样多于上限、已按时间抽取",
+                  },
+                  total: { type: "integer", description: "仅 even 模式：窗口内的采样总数" },
                 },
               },
             },
