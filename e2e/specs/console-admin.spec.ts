@@ -207,7 +207,7 @@ test.describe("console admin", () => {
   test("scenes can be managed: the create control opens a geometry + upload form", async ({
     page,
   }) => {
-    // Phase 18 reversed the read-only stance (same reasoning as the onboarding wizard): the
+    // This page reversed the read-only stance (same reasoning as the onboarding wizard): the
     // console renders these backdrops, it does not push maps to vehicles, so editing scene
     // config is operator/deployment domain and the red line (no command dispatch) holds. The
     // page now offers 新增场景, and the dialog carries the geometry fields + a file upload.

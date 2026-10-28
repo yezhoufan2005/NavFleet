@@ -1,7 +1,7 @@
 import { expect, signIn, test } from "../support/fixtures";
 
 /**
- * 报码字典 (Phase 16C-2; a tab of the 部署 section since 1.6.2) in a real browser. The merge,
+ * 报码字典 (a tab of the 部署 section) in a real browser. The merge,
  * validation, import and export are unit-tested against mocked data; what only a browser answers is
  * that the route resolves through the real backend and renders the table **in effect** — here the
  * built-in reference table, since the seeded deployment ships no `codebook.json`.

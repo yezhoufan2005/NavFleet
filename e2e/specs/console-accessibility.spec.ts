@@ -31,7 +31,7 @@ const ROUTES: readonly { path: string; heading: string | RegExp }[] = [
   { path: "/devices/agv-a03", heading: /a03/i },
   // The playback tab, by URL rather than by clicking through — it is the surface that
   // carries the unlabelled-by-design controls (a range slider and a speed combobox),
-  // and an unnamed slider is exactly the critical Phase 10 found on the old history
+  // and an unnamed slider is exactly the critical axe found on the old history
   // page. Auditing 实时 would never reach it.
   { path: "/devices/agv-a03/playback", heading: /a03/i },
   // 消息史 is a list of severity badges and dated rows — its own surface, and the one

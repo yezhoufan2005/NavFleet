@@ -7,7 +7,7 @@ import {
 } from "@/lib/alertStats";
 
 /**
- * The alert statistics, computed client-side (Phase 16B — the backend has no aggregation
+ * The alert statistics, computed client-side (the history tab has no server aggregation
  * layer; that is 17A). Pure functions, so every branch is exercised by feeding records in and
  * asserting the numbers out — no DOM, no clock.
  */

@@ -5,7 +5,7 @@ import { join, relative, resolve } from "node:path";
 /**
  * **Every export must have a non-test consumer.**
  *
- * This is the generalisation of the Phase 13 parity pass, and it is the one artefact from
+ * This is the generalisation of the v1.0.0 parity pass, and it is the one artefact from
  * it worth more than the fixes themselves. Reading 340 checklist rows by hand turned up
  * about thirty lost capabilities, and the single most reliable way to find them was not
  * reading the old UI — it was noticing that a symbol had been **declared and never
@@ -46,7 +46,7 @@ const sourceFiles = (dir: string): string[] =>
  *
  * A name that appears **only** in a comment is not a consumer — it is documentation of
  * something that may or may not exist. That is not hypothetical: `stores/fleet.ts:106`
- * claimed "Views render skeletons while it is set" for the whole of Phase 13 while no
+ * claimed "Views render skeletons while it is set" for a long time while no
  * skeleton component existed. Counting prose as usage would have let exactly that through.
  */
 const stripComments = (source: string): string =>

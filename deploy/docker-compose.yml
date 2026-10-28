@@ -43,7 +43,7 @@ services:
   # that switching which console is deployed is one `dockerfile:` line and not a
   # rename that ripples through nginx, depends_on, docs and container names.
   #
-  # As of Phase 14 this is the v3 console (`frontend-next`). The v1.0.0 frontend
+  # This is the v3 console (`frontend-next`). The v1.0.0 frontend
   # is still in the repo and one command away:
   #
   #   docker compose --env-file deploy/.env -f deploy/docker-compose.yml \

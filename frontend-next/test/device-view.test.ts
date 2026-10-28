@@ -109,7 +109,7 @@ describe("the map surface", () => {
     expect(useDeviceView(ref(2)).surface.value).toBe("scene");
   });
 
-  it("keeps v1.0.0's key, so the Phase 14 switchover does not reset it", () => {
+  it("keeps v1.0.0's key, so the switch to this console does not reset it", () => {
     // The old frontend wrote this key on the origin the console will inherit.
     localStorage.setItem(MAP_SURFACE_STORAGE_KEY, "scene");
     __resetDeviceView();

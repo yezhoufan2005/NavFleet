@@ -79,7 +79,7 @@ test.describe("console playback", () => {
     page,
   }) => {
     // The slider and the speed control carry no visible label by design, so their
-    // accessible names are the only ones they have — the axe critical Phase 10 found.
+    // accessible names are the only ones they have — the axe critical found earlier.
     await page.goto(PLAYBACK_URL);
 
     const progress = page.getByLabel("回放进度");

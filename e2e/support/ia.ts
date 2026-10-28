@@ -16,7 +16,7 @@ import { ADMIN } from "./harness";
  * frontends must share, and every entry that is here is a deliberate decision with
  * a reason recorded next to it. A second copy of the specs would have hidden both.
  *
- * The table is short on purpose. If it starts growing during Phase 13, that is a
+ * The table is short on purpose. If it starts growing, that is a
  * signal the new frontend is drifting rather than being rebuilt.
  */
 export type TargetName = "frontend" | "console";

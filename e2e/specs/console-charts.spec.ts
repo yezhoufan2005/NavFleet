@@ -11,7 +11,7 @@ import { expect, signIn, test } from "../support/fixtures";
  *
  * The assertions are on deterministic quantities only — series count, point count,
  * a canvas actually present. **Wall-clock is printed, never asserted.** That is the
- * same shape as the Phase 10 virtualisation baseline, for the same reason: a timing
+ * same shape as the virtualisation baseline, for the same reason: a timing
  * assertion on shared CI hardware fails for reasons that have nothing to do with the
  * code, and a test that cries wolf gets deleted. The printed numbers are the record;
  * a human compares them across runs.

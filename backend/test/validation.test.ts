@@ -97,7 +97,7 @@ describe("auditQuerySchema", () => {
   });
 
   it("accepts the config-write actions that were unfilterable before 1.6.1", () => {
-    // These five are the regression this closes: emittable since Phase 16C/18 but missing from
+    // These five are the regression this closes: emittable for a while but missing from
     // the query enum, so the audit filter 400'd on them.
     for (const action of [
       "codebook_import",

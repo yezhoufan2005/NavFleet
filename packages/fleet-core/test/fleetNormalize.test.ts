@@ -284,7 +284,7 @@ describe("非标量字段", () => {
     // 这条用例存在的理由是它此前不存在：`String(raw.deviceName || …)` 在 `deviceName` 是
     // 对象时会产出字面量 "[object Object]"，一路进到 console 的设备列表。车队里没有车这么
     // 发，也没有任何东西拒绝它 —— 而归一化层的全部职责就是让「到达的东西」变成「模型说的
-    // 东西」。P0-f 第 3 批的 `no-base-to-string` 指到了它。
+    // 东西」。lint 规则 `no-base-to-string` 指到了它。
     const device = normalizeDevice({
       deviceId: "agv-obj",
       deviceName: { zh: "叉车" },

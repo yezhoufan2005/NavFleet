@@ -135,7 +135,7 @@ afterEach(() => {
 
 describe("the first view", () => {
   it("frames the whole scene when there is nothing else to go on", () => {
-    // FIXED in v1.0.0's Phase 9 and preserved here: this used to end with a 45 m
+    // FIXED in v1.0.0 and preserved here: this used to end with a 45 m
     // close-up whenever the selected vehicle had a pose — 22.22x on a 1000px panel,
     // which showed about a sixth of a 74x88 m site with the road network out of
     // frame.

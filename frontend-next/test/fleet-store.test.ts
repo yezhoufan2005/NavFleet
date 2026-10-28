@@ -39,7 +39,7 @@ beforeEach(() => {
   __resetNotifications();
   vi.spyOn(fleetApi, "getScenes").mockResolvedValue({ items: [] });
   vi.spyOn(fleetApi, "getScene").mockRejectedValue(new Error("no scene"));
-  // Bootstrap seeds the Phase 16A ack overlay from this; default it to empty so the
+  // Bootstrap seeds the ack overlay from this; default it to empty so the
   // fire-and-forget seed resolves without a real network call.
   vi.spyOn(fleetApi, "getAlerts").mockResolvedValue({ items: [] });
   store = useFleetStore();
@@ -328,7 +328,7 @@ describe("告警的排序基准", () => {
 
   it("gives a recurrence a fresh onset instead of the one from last time", () => {
     // The prune is what makes this true, and it is also what stops the map growing
-    // for the life of the tab — the failure mode P0-d describes on the backend.
+    // for the life of the tab — the unbounded-device failure mode the backend guards against.
     cycle("2026-08-30T02:00:00.000Z");
     const onset = store.groupedAlerts.critical[0]!.firstSeenAt;
 

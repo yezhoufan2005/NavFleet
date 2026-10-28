@@ -11,7 +11,7 @@ import { createTestApp, sessionCookie, DEVICE_ID, SCENE_ID } from "./helpers/tes
  * viewer+, and only `/users*` and `/debug/ingest` are admin — and that thinness is exactly
  * why it is worth pinning: before this, only `/users` and `/debug` had any role test, so
  * nothing stopped a future edit from quietly opening an admin route to viewers, or gating a
- * read behind a role. `operator` is equal to `viewer` for reads, but Phase 16A gives it its
+ * read behind a role. `operator` is equal to `viewer` for reads, but it has its
  * first distinct capability — acknowledging alerts — which viewers must not have.
  */
 

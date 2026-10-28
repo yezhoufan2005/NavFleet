@@ -95,7 +95,7 @@ describe("semantic token blocks", () => {
   });
 
   it("gives every state colour a -contrast and an -ink companion", () => {
-    // The Phase 10 lesson, generalised: `-contrast` goes on a solid surface and
+    // The axe lesson, generalised: `-contrast` goes on a solid surface and
     // `-ink` on a wash, and their lightness requirements are opposite. A state
     // colour missing one of them is how the 2.99:1 defect happened.
     const declared = new Set(tokensIn(blockAfter("@theme")));

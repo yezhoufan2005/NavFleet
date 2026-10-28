@@ -888,7 +888,7 @@ describe("ConfigRegistry.getReportsConfig", () => {
   });
 });
 
-describe("ConfigRegistry 写入（Phase 18 设备接入向导）", () => {
+describe("ConfigRegistry 写入（设备接入）", () => {
   it("writeVehicles 落盘 + 重载，写出的文件能被再次读回", async () => {
     const registry = new ConfigRegistry();
     await registry.load();
@@ -1017,7 +1017,7 @@ describe("ConfigRegistry.writeReportsConfig (1.6.1 定时报表写)", () => {
   });
 });
 
-describe("ConfigRegistry.writeScenes / writeSceneAsset (Phase 18 场景地图上传)", () => {
+describe("ConfigRegistry.writeScenes / writeSceneAsset (场景地图上传)", () => {
   const svg = Buffer.from('<svg xmlns="http://www.w3.org/2000/svg"></svg>', "utf8");
   const assetPath = (rel: string): string => path.join(configRoot, "scene-maps", rel);
 

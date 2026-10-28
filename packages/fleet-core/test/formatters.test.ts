@@ -5,7 +5,7 @@ import { formatNumber, formatValue, formatStamp } from "../src/formatters";
  * These three helpers had no direct tests: in the old frontend they were only
  * exercised incidentally, through DashboardView's component tests. Extracting
  * them into this package made that visible as 0% coverage — the same lesson as
- * the vacuous-100% one from Phase 10, running in the other direction.
+ * the vacuous-100% one, running in the other direction.
  *
  * Several assertions below pin behaviour that is **wrong** and is filed as a
  * defect (frontend-parity.md 9.1): `Number(null) === 0`, so a missing reading

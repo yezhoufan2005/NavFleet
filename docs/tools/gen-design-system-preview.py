@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""生成 Phase 11D 的设计系统预览页（docs/frontend-design-system-preview.html）。
+"""生成设计系统预览页（docs/frontend-design-system-preview.html）。
 
 为什么仍由脚本产出而不是手写 CSS：预览页与线上 `ramp.css`/`semantic.css` 由**同一份数据**
 生成，所以预览页里那张对比度审计审的就是线上真正用的值，两者结构上无法漂移；语义层深浅

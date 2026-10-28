@@ -23,7 +23,7 @@ const faulted = SEEDED_ALERTING;
 /**
  * Undo any acknowledgement left on the backend by an earlier test.
  *
- * Acknowledgement is server-backed since Phase 16A, and this suite runs `workers: 1` against
+ * Acknowledgement is server-backed, and this suite runs `workers: 1` against
  * one long-lived backend — so, unlike the old per-browser localStorage, an ack made in one
  * test would otherwise stay for the next and hide the vehicle it expects to find. Reading the
  * active alerts back and unacking each restores the pristine, unacked fleet every test assumes.

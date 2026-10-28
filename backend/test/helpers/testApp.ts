@@ -220,7 +220,7 @@ export interface AuthServiceStub {
   revokeSession: Mock<(username: string, sessionId: string) => Promise<boolean>>;
 }
 
-/** A full stored user with the Phase 15B/15E fields, for stubbing `findByUsername`. */
+/** A full stored user with the expanded user and lockout fields, for stubbing `findByUsername`. */
 const stubUser = (username: string, role: UserRole = "viewer"): UserRecord => ({
   username,
   passwordHash: "stub",
@@ -473,7 +473,7 @@ export const createTestApp = (options: TestAppOptions = {}): TestAppContext => {
 export const sessionCookie = (role: UserRole = "viewer", username = "tester"): string =>
   `${ACCESS_COOKIE}=${signAccessToken({ username, role }, 0)}`;
 
-/** A `Cookie` header whose access token names a session (`sid`), for the Phase 15E session paths. */
+/** A `Cookie` header whose access token names a session (`sid`), for the per-session paths. */
 export const sessionCookieWithSid = (
   role: UserRole = "viewer",
   username = "tester",

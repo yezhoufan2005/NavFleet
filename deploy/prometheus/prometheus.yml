@@ -1,7 +1,7 @@
 # Prometheus scrape config for the NavFleet stack.
 #
 # The backend is scraped in-network at backend:3000/metrics. That endpoint is
-# unauthenticated and, since Phase 9C, deliberately NOT routed by the edge nginx
+# unauthenticated and deliberately NOT routed by the edge nginx
 # — this file is the reason it does not need to be.
 global:
   scrape_interval: 15s

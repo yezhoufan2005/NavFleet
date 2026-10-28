@@ -140,7 +140,7 @@ test.describe("console devices", () => {
     // The auto-mode note must disappear once the layout is pinned. The string has to
     // be the one the page actually renders: this assertion used to read
     // "按车队规模自动选择", which matches nothing — and `toBeHidden()` on a locator
-    // that matches zero elements passes. It was green for the whole of Phase 13
+    // that matches zero elements passes. It was green for a long time
     // without ever making the check it exists to make.
     await expect(page.getByText(AUTO_MODE_NOTE)).toBeHidden();
 

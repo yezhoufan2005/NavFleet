@@ -123,7 +123,7 @@ test.describe("dashboard", () => {
 
     await page.getByRole("button", { name: "适应场景" }).click();
 
-    // Guards the Phase 9 fix in the other direction: this button must keep
+    // Guards the earlier fix in the other direction: this button must keep
     // meaning "fit the whole scene", so the vehicle is no longer centred.
     expect(await poseOffsetFromPanelCentre(page)).toBeGreaterThan(24);
   });
