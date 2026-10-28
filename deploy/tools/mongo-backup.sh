@@ -53,4 +53,19 @@ $COMPOSE -f "$COMPOSE_FILE" exec -T \
 
 SIZE="$(du -h "$ARCHIVE" | cut -f1)"
 echo "完成：${ARCHIVE} (${SIZE})"
+
+# 盘上配置（车辆/编队/场景与底图/码表/规则/外发/定时报表）不在库里，只恢复数据库会得到一堆找不到
+# 对应车辆和场景的记录，所以同一时间戳一并打包。`.tgz` 而不是 `.gz`：restore-drill.sh 取最新的
+# `*.gz` 当数据库归档。`.last-good/` 是后端自己的兜底副本，下次成功加载会重建。
+CONFIG_DIR="${CONFIG_RUNTIME_HOST_PATH:-../config-runtime}"
+if [[ "$CONFIG_DIR" != /* ]]; then
+  CONFIG_DIR="$DEPLOY_DIR/$CONFIG_DIR"
+fi
+if [[ -d "$CONFIG_DIR" ]]; then
+  CONFIG_ARCHIVE="$OUT_DIR/${MONGO_DB}-${STAMP}.config.tgz"
+  tar -czf "$CONFIG_ARCHIVE" --exclude=./.last-good -C "$CONFIG_DIR" .
+  echo "配置：${CONFIG_ARCHIVE} ($(du -h "$CONFIG_ARCHIVE" | cut -f1))"
+else
+  echo "⚠ 找不到配置目录 ${CONFIG_DIR}，本次只备份了数据库" >&2
+fi
 echo "提示：请将归档同步到异地/对象存储，并按保留策略清理旧备份（如保留最近 14 份）。"
