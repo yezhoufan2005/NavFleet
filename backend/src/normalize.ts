@@ -286,11 +286,39 @@ const dedupeAlerts = (alerts: DeviceAlert[]): DeviceAlert[] => {
   );
 };
 
+/**
+ * When a frame arrived and how far its own `stamp` may sit from that before it is not
+ * trusted. Only live MQTT telemetry carries one: the seed file and the debug ingest
+ * endpoint replay history on purpose, so their stamps are taken as given.
+ */
+export interface DeviceClockCheck {
+  receivedAt: number;
+  toleranceMs: number;
+  /** Called when the device's stamp was replaced by `receivedAt`. */
+  onUntrusted?: () => void;
+}
+
+/**
+ * The stamp a frame is recorded under. A device stamp further than the tolerance from the
+ * arrival time — a clock that was never set, has drifted, or went back to 1970 after a
+ * reboot — would put the frame at the wrong place in history, make a vehicle with a fast
+ * clock look fresh long after it stopped reporting, and one with a slow clock look offline
+ * while it is talking. The arrival time is the best time the backend has for it.
+ */
+const trustedStamp = (value: unknown, clock: DeviceClockCheck | undefined): string => {
+  const iso = toIsoString(value);
+  if (!clock) return iso;
+  if (Math.abs(Date.parse(iso) - clock.receivedAt) <= clock.toleranceMs) return iso;
+  clock.onUntrusted?.();
+  return new Date(clock.receivedAt).toISOString();
+};
+
 export const normalizeDevice = (
   rawInput: UnknownRecord,
   existingDevice: DeviceSnapshot | null = null,
   topicHint = "",
   rules: AlertRulesConfig = DEFAULT_ALERT_RULES,
+  clock?: DeviceClockCheck,
 ): DeviceSnapshot => {
   const payloadRecord = isRecord(rawInput.payload) ? rawInput.payload : null;
   const raw: UnknownRecord = payloadRecord
@@ -333,8 +361,9 @@ export const normalizeDevice = (
       ? raw.speedLimit
       : {};
   const gps = isRecord(raw.gps) ? raw.gps : isRecord(raw.location) ? raw.location : {};
-  const stamp = toIsoString(
+  const stamp = trustedStamp(
     raw.stamp || raw.lastSeen || raw.last_seen || raw.ts || raw.timestamp || Date.now(),
+    clock,
   );
   const runtimeSceneId = asText(
     raw.scene_id ||
@@ -522,6 +551,9 @@ export interface NormalizePayloadOptions {
    * live frame raises.
    */
   rules?: AlertRulesConfig;
+
+  /** Check a single-device frame's stamp against its arrival time (see `DeviceClockCheck`). */
+  clock?: DeviceClockCheck;
 }
 
 export const normalizePayload = (
@@ -595,6 +627,7 @@ export const normalizePayload = (
           existingDevices.get(deviceId) || null,
           asText(input.topic),
           rules,
+          options.clock,
         ),
       ],
     };
@@ -613,6 +646,7 @@ export const normalizePayload = (
         existingDevices.get(deviceId) || null,
         asText(input.topic || ""),
         rules,
+        options.clock,
       ),
     ],
   };
