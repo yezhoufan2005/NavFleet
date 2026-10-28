@@ -19,11 +19,12 @@ interface AllowedFailure {
 }
 
 /**
- * The shell asks who is signed in before it can render the login form, so a 401
- * on `/api/auth/me` is part of every cold start.
+ * The shell asks who is signed in before it can render the login form, so a 401 is part of
+ * every cold start: on `/api/auth/refresh` for the console (it probes by renewing), on
+ * `/api/auth/me` for the frozen v1.0.0 frontend.
  */
 const DEFAULT_ALLOWED_FAILURES: AllowedFailure[] = [
-  { status: 401, url: /\/api\/auth\/me$/ },
+  { status: 401, url: /\/api\/auth\/(me|refresh)$/ },
 ];
 
 export interface BrowserIssues {

@@ -94,7 +94,7 @@ export const backendEnv: Record<string, string> = {
   // The suite outlives the 60s default. Letting seeded devices age out mid-run
   // would flip their status to 离线 and raise extra critical alerts.
   OFFLINE_AFTER_SECONDS: "86400",
-  // Every spec signs in, and `page.reload()` re-checks `/api/auth/me`, so a full
+  // Every spec signs in, and `page.reload()` re-checks the session, so a full
   // run spends dozens of requests against the credential limiter. The production
   // default (50 per 15 minutes) left the suite close enough to the ceiling that
   // one CI run went red on `HTTP 429: /api/auth/me` while an identical run passed;
