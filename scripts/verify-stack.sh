@@ -430,6 +430,10 @@ eq  "/docs/index.html 仍 404" 404 "$(code -b "$COOKIE" "$BASE/docs/index.html")
 
 has "OpenAPI 声明 3.1" '"openapi":"3.1' "$(body -b "$COOKIE" "$BASE/openapi.json")"
 
+# 压缩在边缘做（locations.conf 的 gzip 段）：接口 JSON 与控制台静态资源都要带 gzip 回来，
+# 弱网现场等的就是这几个大 body。openapi.json 足够大、又不需要会话，拿它当探针。
+eq  "边缘对 JSON 启用 gzip" gzip "$(curl -s -o /dev/null -H 'Accept-Encoding: gzip' -w '%header{content-encoding}' -b "$COOKIE" "$BASE/openapi.json")"
+
 # /metrics 刻意不由边缘代理，所以在边缘命中 SPA 兜底 = 200 + HTML。这不是缺陷，
 # 是 deployment.md 记的口径；抓取方应在容器网络内取 backend:3000/metrics。
 EDGE_METRICS_TYPE="$(ctype "$BASE/metrics")"
