@@ -539,3 +539,21 @@ describe("fleetApi — config versions (ETag / If-Match)", () => {
     });
   });
 });
+
+describe("fleetApi — field-level errors", () => {
+  it("carries a validation 400's issues on the ApiError", async () => {
+    stubFetch(400, {
+      error: "invalid_request",
+      issues: [
+        { path: "username", message: "用户名只能包含字母、数字和 . _ -" },
+        { bogus: 1 },
+      ],
+    });
+    await expect(fleetApi.getUsers()).rejects.toMatchObject({
+      message: "invalid_request",
+      issues: [
+        { path: "username", message: "用户名只能包含字母、数字和 . _ -" },
+      ],
+    });
+  });
+});

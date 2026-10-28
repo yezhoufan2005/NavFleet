@@ -209,6 +209,50 @@ describe("RbacService — groups + capability resolution", () => {
     expect(await service.deleteGroup(group.value.id)).toEqual({ ok: false, error: "not_found" });
   });
 
+  it("refuses a member who is not an account, and a name differing only in case", async () => {
+    const { service } = await build();
+    service.setUserLookup((username) => Promise.resolve(username === "bob"));
+    expect(
+      await service.createGroup({ name: "G", roleIds: [], memberUsernames: ["bob", "ghost"] }),
+    ).toEqual({ ok: false, error: "unknown_member" });
+    const ok = await service.createGroup({ name: "G", roleIds: [], memberUsernames: ["bob"] });
+    expect(ok.ok).toBe(true);
+    expect(await service.createGroup({ name: " g ", roleIds: [], memberUsernames: [] })).toEqual({
+      ok: false,
+      error: "conflict",
+    });
+  });
+
+  it("lets a group keep a member whose account is gone, but not add a new unknown one", async () => {
+    const { service } = await build();
+    const accounts = new Set(["bob", "amy"]);
+    service.setUserLookup((username) => Promise.resolve(accounts.has(username)));
+    const group = await service.createGroup({
+      name: "G",
+      roleIds: [],
+      memberUsernames: ["bob", "amy"],
+    });
+    if (!group.ok) throw new Error("setup");
+    accounts.delete("amy");
+    // Renaming the group still works with the stale member in place.
+    expect(
+      (
+        await service.updateGroup(group.value.id, {
+          name: "G2",
+          roleIds: [],
+          memberUsernames: ["bob", "amy"],
+        })
+      ).ok,
+    ).toBe(true);
+    expect(
+      await service.updateGroup(group.value.id, {
+        name: "G2",
+        roleIds: [],
+        memberUsernames: ["bob", "amy", "ghost"],
+      }),
+    ).toEqual({ ok: false, error: "unknown_member" });
+  });
+
   it("removeMemberFromAllGroups drops a user from every group and revokes its added caps", async () => {
     const { service, read } = await build();
     const role = await service.createRole({ name: "Ackers", capabilities: ["alerts:ack"] });

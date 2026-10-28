@@ -189,20 +189,43 @@ export const changePasswordSchema = z.object({
   newPassword: passwordSchema,
 });
 
-/** Admin API — shared field shapes for a user record. */
-const usernameSchema = z.string().min(1).max(200);
+/**
+ * Admin API — shared field shapes for a user record.
+ *
+ * A username is an identifier other config refers to (group members, `@user` recipients), so it is
+ * trimmed and limited to a plain charset: letters, digits, `. _ -`. Uniqueness is checked
+ * case-insensitively in the service, so "Admin" and "admin" cannot both exist.
+ */
+const usernameSchema = z
+  .string()
+  .trim()
+  .min(1, "用户名不能为空")
+  .max(64, "用户名最多 64 个字符")
+  .regex(/^[A-Za-z0-9._-]+$/, "用户名只能包含字母、数字和 . _ -");
 const roleSchema = z.enum(["admin", "operator", "viewer"]);
-// Lenient contact fields: this is an ops tool, not a CRM. A non-empty string capped for
-// safety, or explicit null to clear. Format is not enforced beyond length.
+// Contact fields are optional and nullable (null clears). Email is checked for shape because the
+// notification system mails it (an `@user` recipient resolves to it); phone stays free text.
 const contactSchema = z.string().max(200).nullable();
+const emailSchema = z
+  .string()
+  .trim()
+  .max(200)
+  .refine(
+    (value) => value === "" || /^[^\s@<>(),;:"]+@[^\s@<>(),;:"]+\.[^\s@<>(),;:"]+$/.test(value),
+    {
+      message: "邮箱格式不正确",
+    },
+  )
+  .transform((value) => (value === "" ? null : value))
+  .nullable();
 
 export const createUserSchema = z
   .object({
     username: usernameSchema,
     password: passwordSchema,
     role: roleSchema,
-    displayName: z.string().min(1).max(200).optional(),
-    email: contactSchema.optional(),
+    displayName: z.string().trim().min(1).max(200).optional(),
+    email: emailSchema.optional(),
     phone: contactSchema.optional(),
     // A kiosk account (Phase 17C) is a long-lived read-only credential for a wall display. It is
     // read-only by construction, so it must be a viewer — reject any other role rather than mint
@@ -217,8 +240,8 @@ export const createUserSchema = z
 export const updateUserSchema = z
   .object({
     role: roleSchema.optional(),
-    displayName: z.string().min(1).max(200).optional(),
-    email: contactSchema.optional(),
+    displayName: z.string().trim().min(1).max(200).optional(),
+    email: emailSchema.optional(),
     phone: contactSchema.optional(),
     enabled: z.boolean().optional(),
   })
@@ -307,13 +330,13 @@ export const alertUnackSchema = z.object(alertRefSchema);
 const capabilitySchema = z.enum(CAPABILITIES);
 
 export const rbacRoleSchema = z.object({
-  name: z.string().min(1).max(100),
+  name: z.string().trim().min(1).max(100),
   capabilities: z.array(capabilitySchema).max(CAPABILITIES.length),
 });
 
 export const rbacGroupSchema = z.object({
-  name: z.string().min(1).max(100),
+  name: z.string().trim().min(1).max(100),
   description: z.string().max(500).optional(),
   roleIds: z.array(z.string().min(1).max(200)).max(200),
-  memberUsernames: z.array(z.string().min(1).max(200)).max(1000),
+  memberUsernames: z.array(z.string().trim().min(1).max(200)).max(1000),
 });

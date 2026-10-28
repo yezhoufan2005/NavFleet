@@ -237,6 +237,8 @@ export class ApiError extends Error {
     code: string,
     readonly status: number,
     readonly detail: string | null = null,
+    /** Field-level problems from a schema-validated request (`invalid_request`). */
+    readonly issues: { path: string; message: string }[] = [],
   ) {
     super(code);
     this.name = "ApiError";
@@ -248,12 +250,24 @@ async function failureError(response: Response): Promise<Error> {
     const body = (await response.json()) as {
       error?: string;
       detail?: unknown;
+      issues?: unknown;
     } | null;
     if (body && typeof body.error === "string" && body.error) {
+      const issues = Array.isArray(body.issues)
+        ? body.issues
+            .filter(
+              (issue): issue is { path: string; message: string } =>
+                !!issue &&
+                typeof (issue as { path?: unknown }).path === "string" &&
+                typeof (issue as { message?: unknown }).message === "string",
+            )
+            .map(({ path, message }) => ({ path, message }))
+        : [];
       return new ApiError(
         body.error,
         response.status,
         typeof body.detail === "string" ? body.detail : null,
+        issues,
       );
     }
   } catch {

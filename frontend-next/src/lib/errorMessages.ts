@@ -29,6 +29,19 @@ export const makeMessageFor =
         ? `保存未生效：${detail}`
         : "保存未生效，已回滚到修改前";
     }
+    // A schema-validated request lists its field problems; the first one is the sentence to show
+    // (the schemas carry Chinese messages for the fields a person types into).
+    const issues = (error as { issues?: unknown }).issues;
+    if (
+      code === "invalid_request" &&
+      !map[code] &&
+      Array.isArray(issues) &&
+      issues.length
+    ) {
+      const first = issues[0] as { message?: unknown };
+      if (typeof first.message === "string" && first.message)
+        return first.message;
+    }
     // The backend's sentence for a 4xx names the field or the reference at fault: appended to the
     // view's own wording for a validator refusal (invalid_*), shown alone for a refusal the view
     // has no sentence for (scene_in_use). Never for a 5xx, whose detail is internal.
