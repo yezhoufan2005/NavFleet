@@ -2,7 +2,7 @@ import { describe, it, expect } from "vitest";
 import { parseScenes } from "../src/index";
 
 /**
- * Shared validator for the scene-map management page (Phase 18). Mirrors parseVehicles: a JSON
+ * Shared validator for the scene-map management page. Mirrors parseVehicles: a JSON
  * array, a labelled throw on the first problem, defaults filled. The security-relevant rules are
  * the path-safe sceneId and the `/scene-maps/`-confined asset URLs — an id becomes a directory
  * segment and a URL becomes a fetch, so both are validated here as well as at the write site.

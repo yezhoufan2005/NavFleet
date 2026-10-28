@@ -5,7 +5,7 @@ import { adminUser, createTestApp, sessionCookie } from "./helpers/testApp";
 import { signRefreshToken } from "../src/auth/tokens";
 
 /**
- * Audit trail (Phase 15D): the query API's auth gate, and that each security-relevant action
+ * Audit trail: the query API's auth gate, and that each security-relevant action
  * emits one entry with the right action/actor/target. Recording is asserted via the audit
  * stub — the persistence write shape is covered in persistence-mongo.test.ts.
  *

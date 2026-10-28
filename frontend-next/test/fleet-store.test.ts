@@ -502,7 +502,7 @@ describe("bootstrap", () => {
     expect(store.bootstrapPending).toBe(false);
   });
 
-  it("seeds the acknowledgement overlay from the active alerts (Phase 16A)", async () => {
+  it("seeds the acknowledgement overlay from the active alerts", async () => {
     vi.spyOn(fleetApi, "getAlerts").mockResolvedValue({
       items: [
         {

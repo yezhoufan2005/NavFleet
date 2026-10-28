@@ -9,12 +9,12 @@
  *
  * It is not shipped. The route is registered only when `import.meta.env.DEV` is true
  * or `VITE_CHART_PERF` is set, so the production bundle contains neither this view
- * nor — until Phase 13C uses it for real — ECharts itself. Setting the flag at build
+ * nor ECharts itself until a page uses it. Setting the flag at build
  * time is also how the bundle cost gets measured reproducibly.
  *
  * Assertions live in the spec, and they are on deterministic quantities (series
  * count, point count, canvas present). The wall-clock numbers are printed, never
- * asserted — the Phase 10 virtualisation baseline was built the same way, because a
+ * asserted — the virtualisation baseline was built the same way, because a
  * timing assertion on shared CI hardware fails for reasons that have nothing to do
  * with the code.
  */

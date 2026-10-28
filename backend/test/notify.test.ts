@@ -14,7 +14,7 @@ import { sendEmail } from "../src/notify/email";
 import { NotifyService, type NotifyDevice } from "../src/notify/service";
 
 /**
- * 告警外发（Phase 16D-1）。四块：重试/超时包装、渠道正文构造（纯）、路由选择（纯）、以及把三者
+ * 告警外发。四块：重试/超时包装、渠道正文构造（纯）、路由选择（纯）、以及把三者
  * 串起来的 NotifyService。红线由 dispatcher 的用例守住：零渠道不发、env 未配跳过、失败被容纳不外抛。
  */
 
@@ -496,7 +496,7 @@ describe("NotifyService read APIs", () => {
   });
 });
 
-describe("resolveRecipients (16D-2a)", () => {
+describe("resolveRecipients", () => {
   it("collects inline + group refs, resolves user refs, dedups, skips users without email", async () => {
     const groups = {
       oncall: [{ user: "alice" }, { email: "ops@x.io" }],
@@ -516,7 +516,7 @@ describe("resolveRecipients (16D-2a)", () => {
   });
 });
 
-describe("isWithinSilence (16D-2a)", () => {
+describe("isWithinSilence", () => {
   const at = (iso: string): Date => new Date(iso);
 
   it("is false when there are no windows", () => {
@@ -545,7 +545,7 @@ describe("isWithinSilence (16D-2a)", () => {
   });
 });
 
-describe("sendEmail (16D-2a)", () => {
+describe("sendEmail", () => {
   const message = { from: "a@x.io", to: ["b@x.io"], subject: "s", text: "t" };
   const opts = (sendImpl: (u: string, m: unknown, t: number) => Promise<void>) => ({
     maxAttempts: 3,

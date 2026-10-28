@@ -467,7 +467,7 @@ describe("session menu", () => {
     const wrapper = await signedIn();
     await openSessionMenu(wrapper);
 
-    // The menu also carries the sound preferences (13D-2), so this asserts the theme
+    // The menu also carries the sound preferences, so this asserts the theme
     // group is intact rather than that it is the only radio group in the menu.
     const options = menuItems("menuitemradio");
     const labels = options.map((option) =>
@@ -652,7 +652,7 @@ describe("the sound control", () => {
    */
   it("asks for the one click it needs, on every login", async () => {
     // 待就绪 rather than 未启用: the operator has not turned anything off, and the only
-    // thing they can act on is the click. Arming is per login (14H), so this is the state
+    // thing they can act on is the click. Arming is per login, so this is the state
     // every session opens in.
     const wrapper = await signedIn();
     const control = wrapper.get("header button[aria-label^='告警声音']");

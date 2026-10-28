@@ -3,12 +3,12 @@
  * sends, applies the delivery policy (silence / re-notify dedup / digest / escalation), records
  * each send, and answers the read-only 外发 page's two questions (recent sends, effective channels).
  *
- * **Fire-and-forget, off `alert.created`, never on the ingest path** (16D-1): that event is emitted
+ * **Fire-and-forget, off `alert.created`, never on the ingest path**: that event is emitted
  * synchronously inside the store's serial mutation queue, so the composition root subscribes
  * `dispatch` un-awaited and `dispatch` catches everything — an escaping rejection would land on
  * `unhandledRejection`.
  *
- * Policy (16D-2a), all off by default (zero-config sends immediately to every matching channel):
+ * Policy, all off by default (zero-config sends immediately to every matching channel):
  * - **silence**: an alert falling in a channel's quiet-hours window is dropped (logged, not recorded).
  * - **re-notify dedup**: the same `(eventKey, channel)` is not re-sent within `renotifySeconds`.
  * - **digest**: a channel's `digestSeverities` are buffered and flushed as one combined send every
@@ -82,7 +82,7 @@ export interface NotifyServiceDeps {
 export class NotifyService {
   private readonly resolveEnv: (name: string) => string | undefined;
   private readonly now: () => Date;
-  /** Optional metrics hook, wired by the composition root after the registry exists (16D-2b). */
+  /** Optional metrics hook, wired by the composition root after the registry exists. */
   private sendObserver?: (channelType: string, status: string, latencyMs: number | null) => void;
   /** Last-sent epoch ms per `${eventKey}::${channelId}`, for re-notify dedup. Bounded. */
   private readonly lastSentAt = new Map<string, number>();
@@ -330,7 +330,7 @@ export class NotifyService {
 
   /**
    * Flush ripe digest buffers — those open at least their channel's `digestSeconds` — as one
-   * combined send each (Phase 16D-2a). Called on a poll timer by the composition root (so digest
+   * combined send each. Called on a poll timer by the composition root (so digest
    * granularity is that poll interval); `force` flushes every buffer regardless of age, for
    * shutdown. Total and self-contained like `dispatch`. A channel removed/disabled since buffering,
    * or whose endpoint env is now unset, has its buffered items dropped (not sent).
@@ -476,7 +476,7 @@ export class NotifyService {
     this.escalationTimers.clear();
   }
 
-  /** Recent send records, newest first (Phase 16D-1). Delegates to persistence. */
+  /** Recent send records, newest first. Delegates to persistence. */
   queryLog(filters: {
     deviceId?: string;
     channelId?: string;

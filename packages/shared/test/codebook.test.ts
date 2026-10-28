@@ -13,7 +13,7 @@ import {
 } from "../src/index";
 
 /**
- * The report-code dictionary's deployment-overlay machinery (Phase 16C-2): validating an
+ * The report-code dictionary's deployment-overlay machinery: validating an
  * untrusted `codebook.json`, layering it over the built-in table, and describing a code
  * against a specific codebook. The built-in table's own invariants live in
  * `reportCodes.test.ts`; this covers the parts a deployment exercises.

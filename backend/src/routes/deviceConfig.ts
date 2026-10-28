@@ -6,7 +6,7 @@ import type { AuditService } from "../audit/service";
 import { expectedConfigVersion, parseOrRespond, sendConfigVersion } from "./helpers";
 
 /**
- * Device-onboarding wizard config API (Phase 18).
+ * Device-onboarding wizard config API.
  *
  * The admin console edits `vehicles.json` / `formations.json` through these instead of a
  * human hand-editing files on the server. All four are **admin-only** (unlike the codebook's
@@ -15,7 +15,7 @@ import { expectedConfigVersion, parseOrRespond, sendConfigVersion } from "./help
  *
  * Writing config files is operator-domain and does **not** breach the read-only red line —
  * that line forbids dispatching commands to vehicles, not persisting configuration. It
- * extends the precedent the codebook import (Phase 16C) set. `vehicles.json` remains a set
+ * extends the precedent the codebook import set. `vehicles.json` remains a set
  * of **overrides**: it does not create a live device — one still appears only once it reports.
  *
  * Validate-first, exactly like the codebook route: an invalid body is a 400 that writes

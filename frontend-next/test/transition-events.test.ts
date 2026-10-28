@@ -164,7 +164,7 @@ describe("transition events", () => {
   });
 });
 
-describe("acknowledgement events (Phase 16A)", () => {
+describe("acknowledgement events", () => {
   // These carry no `alert` object and never toast — they only reconcile the ack overlay so
   // every open console reflects who confirmed what, the moment any operator does it.
   it("records who acknowledged, silently", () => {

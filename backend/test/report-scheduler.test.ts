@@ -5,7 +5,7 @@ import type { EmailMessage } from "../src/notify/email";
 import type { AttemptOutcome } from "../src/notify/retry";
 
 /**
- * The scheduled-report tick (Phase 17B-2). What matters and what a machine check misses: the
+ * The scheduled-report tick. What matters and what a machine check misses: the
  * "past the local send time, once per day" due-ness, the first-tick catch-up suppression (a
  * restart must not re-send today's report), the weekday gate, and the two silent skips (no
  * recipients, no SMTP env). The clock, SMTP env, send, and aggregation are all injected, so the

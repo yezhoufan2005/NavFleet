@@ -6,7 +6,7 @@ import { effectScope, readonly, ref, watchEffect } from "vue";
  * The storage key and the three allowed values are identical to the v1.0.0
  * frontend's (`composables/useTheme.ts`), so a person who has already chosen a
  * theme there does not have to choose again here — the two consoles run side by
- * side for the whole of Phase 12–13, and having them disagree about dark mode
+ * side during the switch-over, and having them disagree about dark mode
  * would be a small papercut on every switch between them.
  *
  * Differences from the old one, both deliberate:
@@ -117,7 +117,7 @@ export const useTheme = () => {
    * No `cycleTheme`. It existed for the header's one-tap toggle, which 11C replaced with
    * three explicit options in the session menu — a better control, because a cycling
    * button cannot say what the next tap will select. The function outlived the button and
-   * sat here with no caller for the whole of Phase 13.
+   * sat here with no caller for a long time.
    */
   return {
     preference: readonly(preference),

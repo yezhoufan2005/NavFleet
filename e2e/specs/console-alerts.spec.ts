@@ -6,7 +6,7 @@ import { SEEDED_ALERTING } from "../support/seed";
 /**
  * The alert centre in a real browser. Two of these can only be checked here: a URL that
  * survives a reload, and an acknowledgement that survives one — the latter now because it is
- * written to the backend (Phase 16A), not because a localStorage entry outlived the tab.
+ * written to the backend, not because a localStorage entry outlived the tab.
  *
  * The equivalence question ("does it do what v1.0.0 did") is answered by the shared
  * `alerts.spec.ts` staying green on the old frontend plus the console's own unit
@@ -97,7 +97,7 @@ test.describe("console alerts", () => {
   test("records who confirmed it, not just that it is confirmed", async ({
     page,
   }) => {
-    // The point of moving acknowledgement off localStorage (Phase 16A): it carries a who.
+    // The point of moving acknowledgement off localStorage: it carries a who.
     const row = page.locator("li").filter({ hasText: faulted.deviceName });
     await row.getByRole("button", { name: /确认消息/ }).click();
 

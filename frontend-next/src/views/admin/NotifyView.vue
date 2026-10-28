@@ -1,6 +1,6 @@
 <script setup lang="ts">
 /**
- * 外发 — the outbound-notification page (admin), both sides of Phase 16D.
+ * 外发 — the outbound-notification page (admin), both the send log and the channel editor.
  *
  * Read (everyone with `notify:read`): the effective channels (cards, from `GET /notify/config` —
  * secrets redacted, a `configured` badge says whether each channel's endpoint env is set) and the

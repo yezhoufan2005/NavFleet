@@ -1,5 +1,5 @@
 /**
- * Which channels a given alert goes to (Phase 16D-1) — pure, so it is trivially testable and
+ * Which channels a given alert goes to — pure, so it is trivially testable and
  * carries no I/O.
  *
  * A channel receives an alert when it is **enabled**, its **severities** list includes the

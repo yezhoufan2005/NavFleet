@@ -38,7 +38,7 @@ export const DEPLOY_CAPABILITIES: readonly Capability[] = [
  *
  * Two departures from the v1.0.0 frontend, both decided in `docs/frontend-ia.md`:
  *
- * 1. **Web history, not hash** (decision 3). The reason is not tidiness: Phase 16D
+ * 1. **Web history, not hash** (decision 3). The reason is not tidiness: outbound
  *    sends alert notifications whose links must open one specific alert, and the
  *    alert centre's filter state has to live in the URL so a shift can hand a view
  *    to the next one. Both need real paths. The cost is a server-side fallback,
@@ -426,7 +426,7 @@ const routes: RouteRecordRaw[] = [
    * The chart performance harness — a development tool, not a page.
    *
    * Registered only in dev, or in a build with `VITE_CHART_PERF` set. Both the view
-   * and (until Phase 13C uses a chart for real) ECharts itself are therefore absent
+   * and (until a page uses a chart) ECharts itself are therefore absent
    * from a normal production bundle — `scripts/assert-no-dev-only-chunks.mjs` runs
    * as part of `npm run build` and fails if the harness chunk ever appears. Setting
    * the flag is also how the chart bundle cost gets measured reproducibly.

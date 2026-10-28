@@ -4,7 +4,7 @@ import type { ReportCodeEntry } from "@navfleet/shared";
 import { createTestApp, sessionCookie } from "./helpers/testApp";
 
 /**
- * Report-code dictionary API (Phase 16C-2). The role gate (PUT is admin-only, GET is
+ * Report-code dictionary API. The role gate (PUT is admin-only, GET is
  * read-for-everyone) is pinned in http-rbac; here we cover the router → store wiring: GET
  * returns the table in effect, a valid PUT validates + imports + audits, and an invalid PUT
  * is a 400 that never touches the store.

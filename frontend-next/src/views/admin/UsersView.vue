@@ -1,6 +1,6 @@
 <script setup lang="ts">
 /**
- * 用户 — user management (admin). The console face of Phase 15B's admin API plus 15E's
+ * 用户 — user management (admin). The console face of the admin user API plus its
  * sessions: list / create / edit (role, profile, enable-disable) / reset password / delete,
  * force-logout, and view-and-revoke a user's individual sessions.
  *
@@ -87,7 +87,7 @@ const fEmail = ref("");
 const fPhone = ref("");
 const fEnabled = ref(true);
 /**
- * Mint as a long-lived read-only wall-display account (Phase 17C). Create-only: kiosk is a
+ * Mint as a long-lived read-only wall-display account. Create-only: kiosk is a
  * property of how the account is born (a months-long refresh horizon), not something toggled
  * later. A kiosk is read-only by construction, so checking it forces the role to viewer — the
  * backend refuses any other role, and `submitForm` pins it again so the two cannot drift.

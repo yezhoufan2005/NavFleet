@@ -1,5 +1,5 @@
 /**
- * A single-purpose retry+timeout wrapper for outbound sends (Phase 16D-1).
+ * A single-purpose retry+timeout wrapper for outbound sends.
  *
  * The backend carries no HTTP client and no general retry util (the only retry logic is
  * MongoDB reconnection, which is bespoke). Rather than pull in a dependency for three

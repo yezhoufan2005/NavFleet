@@ -15,7 +15,7 @@ import {
 import { MAX_NOTIFY_PER_QUERY } from "../persistence";
 
 /**
- * Outbound-notification read API (Phase 16D-1). Both routes are **admin-only** on top of the
+ * Outbound-notification read API. Both routes are **admin-only** on top of the
  * session gate: a send record names the endpoints an alert was pushed to, and the channel
  * overview says which are wired up — operational detail on the same footing as the audit trail.
  *

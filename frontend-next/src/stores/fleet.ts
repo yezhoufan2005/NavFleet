@@ -19,7 +19,7 @@
  *   accepts arbitrary state into the console would be adding an injection point
  *   for no gain, so it stops here.
  * - **No map-mode preference.** v1.0.0 persisted a two-value `gps|scene` toggle.
- *   Phase 13A-2 needs a three-state list/map/auto mode with a vehicle-count
+ *   The overview needs a three-state list/map/auto mode with a vehicle-count
  *   threshold, so porting the two-state version now would only be something to
  *   delete. It arrives with the maps that need it.
  */
@@ -157,7 +157,7 @@ export const useFleetStore = defineStore("fleet", () => {
   });
 
   /**
-   * Server-backed acknowledgement overlay (Phase 16A), keyed by eventKey (`deviceId:alertId`).
+   * Server-backed acknowledgement overlay, keyed by eventKey (`deviceId:alertId`).
    *
    * Confirmation used to live in browser localStorage, so it did not survive a different
    * device, a different operator, or a cleared cache, and could not be audited. It now lives
@@ -496,7 +496,7 @@ export const useFleetStore = defineStore("fleet", () => {
    * Records an onset for every alert now present, and forgets the ones that cleared.
    *
    * The prune is not housekeeping. Without it this map grows for the life of the tab
-   * (the failure mode P0-d describes on the backend), and — more visibly — an alert
+   * (the unbounded-device failure mode the backend guards against), and — more visibly — an alert
    * that clears and later fires again would inherit its *first* onset and sort as
    * though it had never gone away.
    */
@@ -709,7 +709,7 @@ export const useFleetStore = defineStore("fleet", () => {
       typeof frame.deviceId === "string" ? frame.deviceId : undefined;
     if (!deviceId) return;
 
-    // Acknowledgement events (Phase 16A) carry no `alert` object and never toast — they
+    // Acknowledgement events carry no `alert` object and never toast — they
     // only reconcile the ack overlay so every open console reflects who confirmed what,
     // the moment any operator (here or elsewhere) does it.
     if (type === "alert.acked" || type === "alert.unacked") {
@@ -1111,7 +1111,7 @@ export const useFleetStore = defineStore("fleet", () => {
     summary,
     groupedAlerts,
     trailsByDeviceId,
-    // Acknowledgement overlay (Phase 16A). `useAlertAck` reads `isAlertAcked`/`getAck` and
+    // Acknowledgement overlay. `useAlertAck` reads `isAlertAcked`/`getAck` and
     // drives optimistic updates through `applyAck`/`applyUnack`; the alerts view seeds it once
     // on mount via `seedAckState`. The map itself stays internal — never poked from outside.
     isAlertAcked,

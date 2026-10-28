@@ -6,7 +6,7 @@ import {
 } from "../src/reports/availabilityPipeline";
 
 /**
- * The availability/battery aggregation, as two pure functions (Phase 17A-2).
+ * The availability/battery aggregation, as two pure functions.
  *
  * The bugs a machine check waves through: bucketing in UTC instead of the deployment timezone, a
  * missing soc counted as 0 in the mean, an `onlineRatio` that divides by zero, device rows that

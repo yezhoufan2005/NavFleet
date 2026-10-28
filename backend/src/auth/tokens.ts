@@ -38,7 +38,7 @@ export interface TokenClaims {
    */
   ver: number;
   /**
-   * The session id (Phase 15E): one per login, shared by that login's access and refresh
+   * The session id: one per login, shared by that login's access and refresh
    * tokens and preserved across refresh. The auth middleware requires it to still name a live
    * `sessions` row, which is how per-session logout / self-revoke / force-logout invalidate a
    * specific token rather than every token the user holds. Optional because tokens minted
@@ -92,7 +92,7 @@ export const signRefreshToken = (
   user: PublicUser,
   tokenVersion: number,
   sessionId?: string,
-  /** Override the refresh horizon (Phase 17C: a kiosk credential lives far longer than 7d). */
+  /** Override the refresh horizon (a kiosk credential lives far longer than 7d). */
   ttl: string = config.jwtRefreshTtl,
 ): string => signToken(user, tokenVersion, "refresh", ttl, sessionId);
 

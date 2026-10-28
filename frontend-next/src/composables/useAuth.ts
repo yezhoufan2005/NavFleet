@@ -338,7 +338,7 @@ export const useAuth = () => {
   };
 
   /**
-   * Change the caller's own password (Phase 15E-2, personal center). The backend invalidates
+   * Change the caller's own password (personal center). The backend invalidates
    * every session on success and re-issues fresh cookies for THIS device, so the local session
    * survives untouched — no state change here beyond reporting the outcome. The 400 body
    * distinguishes a wrong current password from a new one that fails policy.

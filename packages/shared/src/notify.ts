@@ -1,7 +1,7 @@
 /**
- * 告警外发的共享契约（Phase 16D-1）。
+ * 告警外发的共享契约。
  *
- * 这里只放**两个前端也会渲染的形状** —— 生效渠道概览（只读「外发」页，16D-2）与发送记录。
+ * 这里只放**两个前端也会渲染的形状** —— 生效渠道概览（只读「外发」页）与发送记录。
  * 路由选择、渠道正文构造、重试与真正的出站发送都是**后端独有**逻辑，留在 `backend/src/notify/`，
  * 不进这个两个前端都 import 的包（同 `PublicUser` 与 `UserRecord` 的分家理由：把只有服务端用得上
  * 的东西放进来，等于邀请前端去够它）。
@@ -18,7 +18,7 @@ import type { RuleScope } from "./alertRules";
 
 /**
  * 内建的出站渠道类型。前三者是「HTTP POST 一个 JSON」，用全局 `fetch`；`email` 走 nodemailer 直连
- * SMTP（16D-2a）。可扩展：新增一类在这里加一个字面量即可（`buildChannelBody` 的 switch 会强制处理）。
+ * SMTP。可扩展：新增一类在这里加一个字面量即可（`buildChannelBody` 的 switch 会强制处理）。
  */
 export type NotifyChannelType = "webhook" | "wecom" | "dingtalk" | "email";
 
@@ -38,7 +38,7 @@ export const NOTIFY_SEVERITIES: readonly Severity[] = [
 ];
 
 /**
- * 一个收件人（16D-2a）。要么是字面邮箱 `email`，要么是 `user`——引用一个用户名，发送时后端从 users
+ * 一个收件人。要么是字面邮箱 `email`，要么是 `user`——引用一个用户名，发送时后端从 users
  * 集合取其 `email`（无邮箱的用户被跳过）。收件人只对 `email` 渠道有意义（HTTP 渠道的目标是 URL）。
  */
 export interface NotifyRecipient {
@@ -58,7 +58,7 @@ export interface NotifySilenceWindow {
 }
 
 /**
- * 升级策略（16D-2a）。一条 **critical** 告警发给本渠道后，若 `afterSeconds` 内仍**未确认且未清除**，
+ * 升级策略。一条 **critical** 告警发给本渠道后，若 `afterSeconds` 内仍**未确认且未清除**，
  * 就补发给 `channelId` 指名的另一渠道。只对 critical 生效（升级一条提示只是噪声）；确认或清除会取消。
  */
 export interface NotifyEscalation {

@@ -17,7 +17,7 @@ import type {
   FormationSnapshot,
   Severity,
 } from "@navfleet/shared";
-// The rule engine now lives in `@navfleet/shared` (Phase 16C-1), the one package the
+// The rule engine now lives in `@navfleet/shared`, the one package the
 // backend and both frontends all depend on. This reader uses the built-in defaults — it
 // cannot see backend config and does not need to (see `buildRuleAlerts` below).
 import {
@@ -269,7 +269,7 @@ export const buildCodeAlerts = (device: DeviceSnapshot): DeviceAlert[] => {
 /**
  * The rule alerts a device would raise, under the built-in default rules.
  *
- * A thin delegate to the shared evaluator (Phase 16C-1): the low-battery threshold and the
+ * A thin delegate to the shared evaluator: the low-battery threshold and the
  * offline alert used to be hand-written here *and* in `backend/src/normalize.ts`, and they
  * drifted on the `round` vs `toFixed` detail text at least once. This reader keeps
  * `DEFAULT_ALERT_RULES` deliberately — it only reaches this branch for a frame that arrives

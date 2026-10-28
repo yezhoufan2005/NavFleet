@@ -115,7 +115,7 @@ describe("auditQuerySchema", () => {
   });
 });
 
-describe("alertAckSchema / alertUnackSchema (Phase 16A)", () => {
+describe("alertAckSchema / alertUnackSchema", () => {
   it("accepts a deviceId + alertId, with an optional comment", () => {
     expect(alertAckSchema.safeParse({ deviceId: "agv-01", alertId: "e1" }).success).toBe(true);
     expect(

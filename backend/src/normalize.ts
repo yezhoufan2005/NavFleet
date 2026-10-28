@@ -16,7 +16,7 @@ import {
 } from "@navfleet/shared";
 import { buildTopicScheme, TopicScheme } from "./topics";
 
-// The offline-alert helpers moved to `@navfleet/shared` (Phase 16C-1) so the rule engine
+// The offline-alert helpers moved to `@navfleet/shared` so the rule engine
 // has one home both this backend and the two frontends reach. Re-exported here because the
 // store's offline sweep and the normalize tests import them from `./normalize`.
 export { buildOfflineAlert, offlineAlertId };
@@ -434,7 +434,7 @@ export interface NormalizePayloadOptions {
    * Whether this source is allowed to submit a **whole-fleet** payload, i.e. one that
    * replaces the in-memory fleet instead of merging into it.
    *
-   * Off by default, and that default is the fix for P0-e. `replace` used to be decided
+   * Off by default, and that default is the fix. `replace` used to be decided
    * by the *shape of the payload* rather than by who sent it, so a fleet-shaped frame
    * arriving on a telemetry topic emptied both device maps before repopulating them from
    * that one frame. No vehicle publishes that shape — it only ever comes from the seed
@@ -443,7 +443,7 @@ export interface NormalizePayloadOptions {
   allowReplace?: boolean;
 
   /**
-   * The alert rules ingest evaluates against (Phase 16C-1). Absent = the built-in
+   * The alert rules ingest evaluates against. Absent = the built-in
    * defaults; the store passes `ConfigRegistry.getAlertRules()` so a deployment's
    * `rules.json` (retuned threshold, a disabled or scoped rule) governs what alerts a
    * live frame raises.

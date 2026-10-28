@@ -9,7 +9,7 @@ import UiMultiSelect from "@/components/ui/UiMultiSelect.vue";
 import { useFleetStore } from "@/stores/fleet";
 
 /**
- * 报表 — the aggregation-backed report page (Phase 17B-1). Both `fleetApi.getAvailabilityReport`
+ * 报表 — the aggregation-backed report page. Both `fleetApi.getAvailabilityReport`
  * and `getAlertStatsReport` are mocked; the charts are stubbed (their option builders are tested
  * in charts.test.ts), so this file owns the view's own logic: the four states, the KPI band, the
  * honest-empty link when there is no Mongo, CSV export, and refetching when a filter changes.

@@ -19,7 +19,7 @@ export type CapabilityResolver = (user: {
 declare module "express-serve-static-core" {
   interface Request {
     user?: PublicUser;
-    /** The `sid` of the token that authenticated this request (Phase 15E), when it carried one. */
+    /** The `sid` of the token that authenticated this request, when it carried one. */
     sessionId?: string;
     /**
      * Effective capabilities of the authenticated user (1.6.1 RBAC). Resolved once here in the
@@ -37,7 +37,7 @@ export const REFRESH_COOKIE = "refresh_token";
 export type UserLookup = (username: string) => Promise<UserRecord | null>;
 
 /**
- * Is this session still live? (Phase 15E.) Answered against the `sessions` collection; a
+ * Is this session still live? Answered against the `sessions` collection; a
  * revoked session (logout / self-revoke / force-logout) returns false, which 401s the request
  * even though the token's signature, `enabled` and `tokenVersion` all still check out.
  */
@@ -67,7 +67,7 @@ const extractAccessToken = (request: Request): string => {
  * When AUTH_ENABLED=false, a synthetic admin is attached and no lookup happens (fully open
  * mode for local/dev — deliberately preserved).
  *
- * `isSessionActive` adds the Phase 15E per-session check: when the token names a session
+ * `isSessionActive` adds the per-session check: when the token names a session
  * (`sid`), that session must still exist. A token with no `sid` (minted before 15E) is
  * governed by `tokenVersion` alone, unchanged — so the upgrade forces no re-login.
  */
@@ -103,7 +103,7 @@ export const createAuthenticate =
           response.status(401).json({ error: "unauthorized" });
           return;
         }
-        // Per-session revocation (Phase 15E): a token that names a session must still name a
+        // Per-session revocation: a token that names a session must still name a
         // live one. Only checked when the token carries a `sid` and a checker is wired.
         if (claims.sid && isSessionActive && !(await isSessionActive(claims.sub, claims.sid))) {
           response.status(401).json({ error: "unauthorized" });

@@ -13,7 +13,7 @@ import { useAuth, __resetAuth } from "@/composables/useAuth";
 import { __resetNotifications } from "@/composables/useNotifications";
 
 /**
- * 外发 — the read-only outbound page (admin, Phase 16D-2b). It renders the effective channels
+ * 外发 — the read-only outbound page (admin). It renders the effective channels
  * (from `getNotifyConfig`, secrets already redacted server-side) and a filterable send log (from
  * `getNotifyLog`). The role gate lives in the router/e2e; here we cover the two regions, the
  * honest empty state, the error state, and that filters reach the API.

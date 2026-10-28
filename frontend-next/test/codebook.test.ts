@@ -9,7 +9,7 @@ import { useCodebook, __resetCodebook } from "@/composables/useCodebook";
 import { useAuth, __resetAuth } from "@/composables/useAuth";
 
 /**
- * 报码字典 — the admin page and the composable behind it (Phase 16C-2).
+ * 报码字典 — the admin page and the composable behind it.
  *
  * The page renders the table **in effect** (built-in ⊕ deployment codebook), exports it as a
  * file, and imports a replacement. The composable is a module-level singleton, so every case

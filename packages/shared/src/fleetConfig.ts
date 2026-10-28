@@ -1,7 +1,7 @@
 /**
  * Validators for the operator-editable fleet config files — `vehicles.json` and
  * `formations.json` — used when the admin **device-onboarding wizard** writes them
- * through the API (Phase 18). They mirror `parseCodebook`: hand-rolled, throwing a
+ * through the API. They mirror `parseCodebook`: hand-rolled, throwing a
  * labelled message on the first problem, so an invalid payload is a 400 that writes
  * nothing, and the backend stays the authority even though the client validates too.
  *

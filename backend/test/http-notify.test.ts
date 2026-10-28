@@ -4,7 +4,7 @@ import type { NotifyChannelView, NotifySendRecord } from "../src/types";
 import { createTestApp, sessionCookie } from "./helpers/testApp";
 
 /**
- * 告警外发 read API (Phase 16D-1). The admin-only role gate is pinned in http-rbac; here we
+ * 告警外发 read API. The admin-only role gate is pinned in http-rbac; here we
  * cover the router → service wiring: GET /notify/log passes validated filters through and
  * returns the records, GET /notify/config returns the (already-redacted) channel views, and a
  * bad query filter is a 400 that never reaches the service.

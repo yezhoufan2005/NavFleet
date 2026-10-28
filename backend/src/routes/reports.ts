@@ -4,7 +4,7 @@ import { reportAvailabilityQuerySchema, reportRangeSchema } from "../validation"
 import { respondValidationError } from "./helpers";
 
 /**
- * Report aggregation endpoints (Phase 17A).
+ * Report aggregation endpoints.
  *
  * Read-only, so they sit at viewer+ like the rest of the fleet surface — no `requireRole`.
  * The numbers come from server-side Mongo aggregation (`store.getAlertStats` /

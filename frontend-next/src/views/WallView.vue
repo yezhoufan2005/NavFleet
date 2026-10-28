@@ -3,7 +3,7 @@
  * 大屏值班 — a mode, not a section, which is why it is not in the navigation.
  *
  * Nobody "navigates to the wall display": a screen is mounted, pointed at this
- * address once with a kiosk credential (Phase 17C), and left for months. Everything
+ * address once with a kiosk credential, and left for months. Everything
  * about it follows from that (`docs/frontend-ia.md` §4):
  *
  * - **No shell.** `meta.bare` (see the router) keeps the sidebar, top bar and session

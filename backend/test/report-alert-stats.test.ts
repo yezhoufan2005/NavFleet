@@ -6,7 +6,7 @@ import {
 } from "../src/reports/alertStatsPipeline";
 
 /**
- * The alert-stats aggregation, as two pure functions (Phase 17A).
+ * The alert-stats aggregation, as two pure functions.
  *
  * These are the parts a machine check cannot catch: a `$group` key pointed at the wrong field,
  * a day bucket cut in UTC instead of the deployment timezone, a median that reads the wrong
