@@ -26,6 +26,15 @@ export default defineConfig({
      * honest, and it is also the locale this console is deployed into.
      */
     env: { TZ: "Asia/Shanghai" },
+    /**
+     * 15s, not vitest's 5s. Under a full parallel run every worker rebuilds jsdom and Vue, and a
+     * test whose first act is a heavy dynamic import (the router's chart-harness route, the
+     * shell's lazy views) spent most of its 5s waiting for a CPU, not for the code under test.
+     * Those cases failed on a different test each run and passed alone — a budget too tight
+     * for the machine, not a regression. A real hang still fails, only later.
+     */
+    testTimeout: 15_000,
+    hookTimeout: 15_000,
     coverage: {
       provider: "v8",
       include: ["src/**/*.{ts,vue}"],
