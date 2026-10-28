@@ -77,8 +77,9 @@
 
 ## 7. 测试与演示数据
 
-- 四个 workspace 各有 vitest 覆盖率门槛（见各自 `vitest.config.ts`），只升不降；本机跨 workspace 并行跑
-  coverage 会偶发 5s 超时 flaky（见 memory），**串行跑**或信 CI（各 job 隔离）。
+- 五个 workspace（shared / fleet-core / backend / console / 冻结前端）各有 vitest 覆盖率门槛（见各自
+  `vitest.config.*`；冻结前端只跑测试不设门槛），只升不降。console 的用例超时放宽到 15s：全量并行时 jsdom
+  与重动态 import 争 CPU，5s 预算会让随机一条临界用例红。仍有真卡死时照样会失败，只是晚一些。
 - 不写只断言存在性的空测试、不写纯快照测试；核心逻辑（报表聚合、ingest、RBAC、告警去重）要有针对性用例。
 - 演示数据要**自洽**：曲线按车有差异、消息与遥测对齐（如电量偏低落在电量谷底），不要一条曲线套全队 + 随机撒点。
 
