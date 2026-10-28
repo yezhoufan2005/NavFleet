@@ -26,6 +26,7 @@ import { tableClasses } from "@/lib/uiClasses";
 import { makeMessageFor } from "@/lib/errorMessages";
 import { notify } from "@/composables/useNotifications";
 import { useFieldErrors } from "@/composables/useFieldErrors";
+import { loadDefaultSceneOptions } from "@/lib/sceneOptions";
 
 const ERROR_MESSAGES: Record<string, string> = {
   invalid_formations: "编队配置不合法，请检查各字段",
@@ -49,19 +50,7 @@ const load = async (): Promise<void> => {
     ]);
     vehicles.value = v.vehicles;
     formations.value = f.formations;
-    let sceneItems: { sceneId: string; sceneName?: string }[] = [];
-    try {
-      sceneItems = (await fleetApi.getScenes()).items ?? [];
-    } catch {
-      sceneItems = [];
-    }
-    sceneOptions.value = [
-      { value: "", label: "（不设默认场景）" },
-      ...sceneItems.map((scene) => ({
-        value: scene.sceneId,
-        label: scene.sceneName || scene.sceneId,
-      })),
-    ];
+    sceneOptions.value = await loadDefaultSceneOptions();
     status.value = "ready";
   } catch {
     status.value = "error";

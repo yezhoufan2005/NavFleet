@@ -18,10 +18,11 @@
  * the device page is: it is a lazy child route, so arriving at 实时 mounts neither this
  * component nor its history request.
  */
-import { computed, onBeforeUnmount, ref, watch } from "vue";
+import { computed, ref, watch } from "vue";
 import TimeSeriesChart from "@/components/charts/TimeSeriesChart.vue";
 import { fleetApi } from "@navfleet/fleet-core";
 import type { TimeSeries } from "@/components/charts/timeSeriesOption";
+import { useLatestRequest } from "@/composables/useLatestRequest";
 
 const { deviceId } = defineProps<{ deviceId: string }>();
 
@@ -32,18 +33,18 @@ const errorMessage = ref("");
 const speedSeries = ref<TimeSeries[]>([]);
 const socSeries = ref<TimeSeries[]>([]);
 
-let requestId = 0;
+const latestRequest = useLatestRequest();
 
 const load = async (id: string): Promise<void> => {
   if (!id) return;
-  const request = (requestId += 1);
+  const isCurrent = latestRequest.begin();
 
   status.value = "loading";
   errorMessage.value = "";
   try {
     const payload = await fleetApi.getHistory(id, { limit: HISTORY_LIMIT });
     // A slow response for a device you have navigated away from must not land.
-    if (request !== requestId) return;
+    if (!isCurrent()) return;
 
     const samples = [...(payload.items ?? [])].sort(
       (left, right) =>
@@ -85,7 +86,7 @@ const load = async (id: string): Promise<void> => {
     ];
     status.value = "ready";
   } catch (error) {
-    if (request !== requestId) return;
+    if (!isCurrent()) return;
     status.value = "error";
     errorMessage.value =
       error instanceof Error ? error.message : "历史数据加载失败";
@@ -97,10 +98,6 @@ watch(
   (id) => void load(id),
   { immediate: true },
 );
-
-onBeforeUnmount(() => {
-  requestId += 1;
-});
 
 const hasHistory = computed(
   () =>

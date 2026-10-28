@@ -25,11 +25,12 @@
  * shrug: the empty text says what is missing and links to 系统 / 状态, which is
  * the page that can actually say whether Mongo is connected right now.
  */
-import { computed, onBeforeUnmount, ref, watch } from "vue";
+import { computed, ref, watch } from "vue";
 import { RouterLink } from "vue-router";
 import { fleetApi, formatDateTime } from "@navfleet/fleet-core";
 import type { AlertRecord } from "@navfleet/fleet-core";
 import { SEVERITY_BADGE, SEVERITY_LABELS } from "@/lib/severity";
+import { useLatestRequest } from "@/composables/useLatestRequest";
 
 const { deviceId } = defineProps<{ deviceId: string }>();
 
@@ -39,18 +40,18 @@ const status = ref<"loading" | "ready" | "error">("loading");
 const errorMessage = ref("");
 const records = ref<AlertRecord[]>([]);
 
-let requestId = 0;
+const latestRequest = useLatestRequest();
 
 const load = async (id: string): Promise<void> => {
   if (!id) return;
-  const request = (requestId += 1);
+  const isCurrent = latestRequest.begin();
   status.value = "loading";
   errorMessage.value = "";
 
   try {
     const payload = await fleetApi.getAlerts({ deviceId: id });
     // A slow response for a device you have navigated away from must not land.
-    if (request !== requestId) return;
+    if (!isCurrent()) return;
 
     // Newest first: a chronology is read backwards from now. Sorted here rather than
     // trusted from the endpoint, whose two code paths (Mongo and the in-memory
@@ -60,7 +61,7 @@ const load = async (id: string): Promise<void> => {
     );
     status.value = "ready";
   } catch (error) {
-    if (request !== requestId) return;
+    if (!isCurrent()) return;
     records.value = [];
     status.value = "error";
     errorMessage.value =
@@ -79,10 +80,6 @@ watch(
   (id) => void load(id),
   { immediate: true },
 );
-
-onBeforeUnmount(() => {
-  requestId += 1;
-});
 
 interface Row {
   key: string;
