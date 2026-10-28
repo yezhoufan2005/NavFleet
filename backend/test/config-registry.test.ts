@@ -1118,25 +1118,25 @@ describe("ConfigRegistry.writeScenes / writeSceneAsset (Phase 18 场景地图上
     expect(second.status).toBe("fulfilled");
   });
 
-  it("同时编辑：带旧版本号的写入被拒（ConfigConflictError），不落盘；带当前版本号的写入通过", async () => {
+  it("同时编辑：两人改了同一条目时，后保存者被拒（ConfigConflictError），不落盘", async () => {
     await writeConfig();
     const registry = new ConfigRegistry();
     await registry.load();
     const loadedVersion = registry.getConfigVersion("vehicles");
 
-    // Admin A saves first, against the version both loaded.
+    // Admin A renames agv-2 first, against the version both loaded.
     await registry.writeVehicles(
-      [{ deviceId: "agv-1" }, { deviceId: "agv-2" }, { deviceId: "agv-a" }],
+      [{ deviceId: "agv-1" }, { deviceId: "agv-2", deviceName: "A 改的名字" }],
       loadedVersion,
     );
     const afterA = registry.getConfigVersion("vehicles");
     expect(afterA).not.toBe(loadedVersion);
     const onDiskAfterA = await fs.readFile(path.join(configRoot, "vehicles.json"), "utf8");
 
-    // Admin B still holds the old version: refused, A's change survives untouched.
+    // Admin B renames the same vehicle from the old version: a real conflict, refused.
     await expect(
       registry.writeVehicles(
-        [{ deviceId: "agv-1" }, { deviceId: "agv-2" }, { deviceId: "agv-b" }],
+        [{ deviceId: "agv-1" }, { deviceId: "agv-2", deviceName: "B 改的名字" }],
         loadedVersion,
       ),
     ).rejects.toThrow(ConfigConflictError);
@@ -1144,10 +1144,58 @@ describe("ConfigRegistry.writeScenes / writeSceneAsset (Phase 18 场景地图上
 
     // After reloading (new version), B's save goes through.
     await registry.writeVehicles(
-      [{ deviceId: "agv-1" }, { deviceId: "agv-2" }, { deviceId: "agv-a" }, { deviceId: "agv-b" }],
+      [{ deviceId: "agv-1" }, { deviceId: "agv-2", deviceName: "B 改的名字" }],
       afterA,
     );
-    expect(registry.listVehicleConfigs().map((vehicle) => vehicle.deviceId)).toContain("agv-b");
+    expect(registry.getDeviceConfig("agv-2")?.deviceName).toBe("B 改的名字");
+  });
+
+  it("同时编辑：两人改了不同条目时自动合并，双方的修改都保留", async () => {
+    await writeConfig();
+    const registry = new ConfigRegistry();
+    await registry.load();
+    const loadedVersion = registry.getConfigVersion("vehicles");
+    // Both editors start from the same loaded list, as the console does.
+    const loaded = registry.listVehicleConfigs();
+
+    // A adds agv-a; B (still on the old version) renames agv-1. Different entries: merge.
+    await registry.writeVehicles([...loaded, { deviceId: "agv-a" }], loadedVersion);
+    await registry.writeVehicles(
+      loaded.map((vehicle) =>
+        vehicle.deviceId === "agv-1" ? { ...vehicle, deviceName: "B 改名" } : vehicle,
+      ),
+      loadedVersion,
+    );
+    const ids = registry.listVehicleConfigs().map((vehicle) => vehicle.deviceId);
+    expect(ids).toEqual(expect.arrayContaining(["agv-1", "agv-2", "agv-a"]));
+    expect(registry.getDeviceConfig("agv-1")?.deviceName).toBe("B 改名");
+    // Untouched fields of the entry B edited survive.
+    expect(registry.getDeviceConfig("agv-1")?.tags).toEqual(["a", "b"]);
+  });
+
+  it("同时编辑：不认识的旧版本（如重启后）不合并，按冲突拒绝", async () => {
+    await writeConfig();
+    const registry = new ConfigRegistry();
+    await registry.load();
+    await expect(
+      registry.writeVehicles([{ deviceId: "agv-1" }, { deviceId: "agv-2" }], "0000000000000000"),
+    ).rejects.toThrow(ConfigConflictError);
+  });
+
+  it("同时编辑：合并结果仍要通过整体加载，跨文件引用断了就回滚", async () => {
+    await writeConfig();
+    const registry = new ConfigRegistry();
+    await registry.load();
+    const version = registry.getConfigVersion("vehicles");
+    // They add agv-3 and put it in a formation; we, from the old version, delete agv-2 —
+    // which formation-a still references. Per-entry merge alone would accept it.
+    await registry.writeVehicles(
+      [{ deviceId: "agv-1" }, { deviceId: "agv-2" }, { deviceId: "agv-3" }],
+      version,
+    );
+    const before = await fs.readFile(path.join(configRoot, "vehicles.json"), "utf8");
+    await expect(registry.writeVehicles([{ deviceId: "agv-1" }], version)).rejects.toThrow();
+    expect(await fs.readFile(path.join(configRoot, "vehicles.json"), "utf8")).toBe(before);
   });
 
   it("同时编辑：文件被手工改过也算冲突（版本按磁盘内容计算）", async () => {
