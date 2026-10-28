@@ -24,6 +24,8 @@
  * of megabytes and some setups answer HEAD from a different code path than GET. Asking
  * for one byte tests the path the map itself will use, without paying for the file.
  */
+import UiHelpTip from "@/components/ui/UiHelpTip.vue";
+import { FIELD_HELP } from "@/lib/fieldHelp";
 import { computed, onMounted, ref } from "vue";
 import PageHeader from "@/components/PageHeader.vue";
 import AppSectionTabs from "@/components/shell/AppSectionTabs.vue";
@@ -629,14 +631,19 @@ const runDelete = async (): Promise<void> => {
         />
       </label>
       <label class="flex flex-col gap-1">
-        <span class="text-sm font-medium text-ink">地图坐标系</span>
+        <span class="flex items-center gap-1"
+          ><span class="text-sm font-medium text-ink">地图坐标系</span
+          ><UiHelpTip :text="FIELD_HELP.scene.mapFrame"
+        /></span>
         <UiInput v-model="fMapFrame" type="text" :disabled="saving" size="sm" />
       </label>
       <div class="grid grid-cols-3 gap-2">
         <label class="flex flex-col gap-1">
-          <span class="text-sm font-medium text-ink"
-            >分辨率 m/px <span class="text-critical-ink">*</span></span
-          >
+          <span class="flex items-center gap-1"
+            ><span class="text-sm font-medium text-ink"
+              >分辨率 m/px <span class="text-critical-ink">*</span></span
+            ><UiHelpTip :text="FIELD_HELP.scene.resolution"
+          /></span>
           <UiInput
             v-model="fResolution"
             type="text"
@@ -649,9 +656,11 @@ const runDelete = async (): Promise<void> => {
           </p>
         </label>
         <label class="flex flex-col gap-1">
-          <span class="text-sm font-medium text-ink"
-            >宽 px <span class="text-critical-ink">*</span></span
-          >
+          <span class="flex items-center gap-1"
+            ><span class="text-sm font-medium text-ink"
+              >宽 px <span class="text-critical-ink">*</span></span
+            ><UiHelpTip :text="FIELD_HELP.scene.width"
+          /></span>
           <UiInput
             v-model="fWidth"
             type="text"
@@ -664,9 +673,11 @@ const runDelete = async (): Promise<void> => {
           </p>
         </label>
         <label class="flex flex-col gap-1">
-          <span class="text-sm font-medium text-ink"
-            >高 px <span class="text-critical-ink">*</span></span
-          >
+          <span class="flex items-center gap-1"
+            ><span class="text-sm font-medium text-ink"
+              >高 px <span class="text-critical-ink">*</span></span
+            ><UiHelpTip :text="FIELD_HELP.scene.height"
+          /></span>
           <UiInput
             v-model="fHeight"
             type="text"
@@ -681,7 +692,10 @@ const runDelete = async (): Promise<void> => {
       </div>
       <div class="grid grid-cols-3 gap-2">
         <label class="flex flex-col gap-1">
-          <span class="text-sm font-medium text-ink">原点 x</span>
+          <span class="flex items-center gap-1"
+            ><span class="text-sm font-medium text-ink">原点 x</span
+            ><UiHelpTip :text="FIELD_HELP.scene.originX"
+          /></span>
           <UiInput
             v-model="fOriginX"
             type="text"
@@ -690,7 +704,10 @@ const runDelete = async (): Promise<void> => {
           />
         </label>
         <label class="flex flex-col gap-1">
-          <span class="text-sm font-medium text-ink">原点 y</span>
+          <span class="flex items-center gap-1"
+            ><span class="text-sm font-medium text-ink">原点 y</span
+            ><UiHelpTip :text="FIELD_HELP.scene.originY"
+          /></span>
           <UiInput
             v-model="fOriginY"
             type="text"
@@ -699,7 +716,10 @@ const runDelete = async (): Promise<void> => {
           />
         </label>
         <label class="flex flex-col gap-1">
-          <span class="text-sm font-medium text-ink">原点 yaw</span>
+          <span class="flex items-center gap-1"
+            ><span class="text-sm font-medium text-ink">原点 yaw</span
+            ><UiHelpTip :text="FIELD_HELP.scene.originYaw"
+          /></span>
           <UiInput
             v-model="fOriginYaw"
             type="text"
@@ -710,7 +730,11 @@ const runDelete = async (): Promise<void> => {
         </label>
       </div>
       <fieldset class="flex flex-col gap-2 rounded-sm border border-border p-2">
-        <legend class="px-1 text-sm font-medium text-ink">底图</legend>
+        <legend
+          class="flex items-center gap-1 px-1 text-sm font-medium text-ink"
+        >
+          底图<UiHelpTip :text="FIELD_HELP.scene.assetKind" />
+        </legend>
         <p class="m-0 text-xs text-ink-muted">
           选类型并上传文件；已引用同类底图时就地替换，否则落到 scene-maps 下
         </p>

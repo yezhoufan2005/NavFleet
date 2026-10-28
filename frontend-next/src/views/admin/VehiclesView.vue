@@ -10,6 +10,8 @@
  * import), and the backend re-validates as the authority. A vehicle still referenced by a 编队 is
  * refused deletion — the 编队 tab is where that link is managed.
  */
+import UiHelpTip from "@/components/ui/UiHelpTip.vue";
+import { FIELD_HELP } from "@/lib/fieldHelp";
 import { computed, onMounted, ref } from "vue";
 import { fleetApi } from "@navfleet/fleet-core";
 import type { DeviceConfig } from "@navfleet/shared";
@@ -346,9 +348,11 @@ const dialogTitle = computed(() =>
       @submit.prevent="submit"
     >
       <label class="flex flex-col gap-1">
-        <span class="text-sm font-medium text-ink"
-          >设备 ID <span class="text-critical-ink">*</span></span
-        >
+        <span class="flex items-center gap-1"
+          ><span class="text-sm font-medium text-ink"
+            >设备 ID <span class="text-critical-ink">*</span></span
+          ><UiHelpTip :text="FIELD_HELP.vehicle.deviceId"
+        /></span>
         <UiInput
           v-model="fDeviceId"
           type="text"
@@ -376,7 +380,10 @@ const dialogTitle = computed(() =>
         </p>
       </label>
       <label class="flex flex-col gap-1">
-        <span class="text-sm font-medium text-ink">默认场景</span>
+        <span class="flex items-center gap-1"
+          ><span class="text-sm font-medium text-ink">默认场景</span
+          ><UiHelpTip :text="FIELD_HELP.vehicle.defaultScene"
+        /></span>
         <UiSelect
           v-model="fSceneId"
           :options="sceneOptions"
@@ -384,7 +391,10 @@ const dialogTitle = computed(() =>
         />
       </label>
       <label class="flex flex-col gap-1">
-        <span class="text-sm font-medium text-ink">标签</span>
+        <span class="flex items-center gap-1"
+          ><span class="text-sm font-medium text-ink">标签</span
+          ><UiHelpTip :text="FIELD_HELP.vehicle.tags"
+        /></span>
         <UiInput
           v-model="fTags"
           type="text"
@@ -422,7 +432,10 @@ const dialogTitle = computed(() =>
           />
         </label>
         <label class="flex flex-col gap-1">
-          <span class="text-sm font-medium text-ink">额定载重（kg）</span>
+          <span class="flex items-center gap-1"
+            ><span class="text-sm font-medium text-ink">额定载重（kg）</span
+            ><UiHelpTip :text="FIELD_HELP.vehicle.maxLoadKg"
+          /></span>
           <UiInput
             v-model="fMaxLoadKg"
             type="number"

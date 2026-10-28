@@ -13,6 +13,8 @@
  * 只读红线：retuning thresholds / toggling a rule is deployment-domain config, not vehicle command
  * dispatch — this writes a config file, it does not steer a vehicle.
  */
+import UiHelpTip from "@/components/ui/UiHelpTip.vue";
+import { FIELD_HELP } from "@/lib/fieldHelp";
 import { computed, onMounted, ref } from "vue";
 import { fleetApi } from "@navfleet/fleet-core";
 import {
@@ -273,7 +275,10 @@ const resetToDefaults = (): void => applyConfig(DEFAULT_ALERT_RULES);
         <template #default="{ disabled }">
           <div class="flex flex-wrap gap-3">
             <label class="flex flex-col gap-1">
-              <span class="text-sm font-medium text-ink">触发阈值（%）</span>
+              <span class="flex items-center gap-1"
+                ><span class="text-sm font-medium text-ink">触发阈值（%）</span
+                ><UiHelpTip :text="FIELD_HELP.rules.thresholdPct"
+              /></span>
               <UiInput
                 v-model="lbThreshold"
                 type="number"
@@ -285,7 +290,10 @@ const resetToDefaults = (): void => applyConfig(DEFAULT_ALERT_RULES);
               />
             </label>
             <label class="flex flex-col gap-1">
-              <span class="text-sm font-medium text-ink">防抖窗口（秒）</span>
+              <span class="flex items-center gap-1"
+                ><span class="text-sm font-medium text-ink">防抖窗口（秒）</span
+                ><UiHelpTip :text="FIELD_HELP.rules.debounceSeconds"
+              /></span>
               <UiInput
                 v-model="lbDebounce"
                 type="number"
@@ -312,7 +320,10 @@ const resetToDefaults = (): void => applyConfig(DEFAULT_ALERT_RULES);
       >
         <template #default="{ disabled }">
           <label class="flex flex-col gap-1">
-            <span class="text-sm font-medium text-ink">离线判定（秒）</span>
+            <span class="flex items-center gap-1"
+              ><span class="text-sm font-medium text-ink">离线判定（秒）</span
+              ><UiHelpTip :text="FIELD_HELP.rules.afterSeconds"
+            /></span>
             <UiInput
               v-model="offAfter"
               type="number"

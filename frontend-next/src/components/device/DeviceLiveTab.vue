@@ -34,6 +34,8 @@ import {
 } from "@navfleet/fleet-core";
 import { useCodebook } from "@/composables/useCodebook";
 import { CODE_CHANNEL_LABELS } from "@/lib/severity";
+import { FIELD_HELP } from "@/lib/fieldHelp";
+import UiHelpTip from "@/components/ui/UiHelpTip.vue";
 
 const { deviceId } = defineProps<{ deviceId: string }>();
 
@@ -56,6 +58,8 @@ interface Row {
   value: string;
   /** Hover/AT description for an enum code — `describeEnum`'s output. */
   title?: string;
+  /** What the field means (units, convention) — shown behind a "?" beside the label. */
+  help?: string;
 }
 
 /**
@@ -73,12 +77,14 @@ const poseRows = computed<Row[]>(() => {
   return [
     {
       label: "融合定位",
+      help: FIELD_HELP.device.fusionLoc,
       value: hasPose(fusion)
         ? `x ${formatNumber(fusion?.x, 2)} · y ${formatNumber(fusion?.y, 2)} · yaw ${formatNumber(fusion?.yaw, 3)}`
         : MISSING,
     },
     {
       label: "激光定位",
+      help: FIELD_HELP.device.lidarLoc,
       value: hasPose(lidar)
         ? `x ${formatNumber(lidar?.x, 2)} · y ${formatNumber(lidar?.y, 2)} · yaw ${formatNumber(lidar?.yaw, 3)}`
         : MISSING,
@@ -102,11 +108,16 @@ const vehicleRows = computed<Row[]>(() => {
     { label: "速度", value: orMissing(formatNumber(info?.speed, 2, " m/s")) },
     {
       label: "角速度",
+      help: FIELD_HELP.device.omega,
       value: orMissing(formatNumber(info?.omega, 3, " rad/s")),
     },
     // `"%"` without the leading space its neighbours have: a percent sign is not a unit
     // symbol. 0 digits because SOC telemetry to 0.1% is false precision.
-    { label: "电量", value: orMissing(formatNumber(info?.soc, 0, "%")) },
+    {
+      label: "电量",
+      value: orMissing(formatNumber(info?.soc, 0, "%")),
+      help: FIELD_HELP.device.soc,
+    },
   ];
 });
 
@@ -118,6 +129,7 @@ const taskRows = computed<Row[]>(() => [
   },
   {
     label: "平台任务",
+    help: FIELD_HELP.device.platformTask,
     value: orMissing(
       formatEnum(device.value?.platformTaskStatus, taskStatusMap),
     ),
@@ -130,6 +142,7 @@ const speedLimitRows = computed<Row[]>(() => {
   return [
     {
       label: "限速值",
+      help: FIELD_HELP.device.speedLimit,
       value: orMissing(formatNumber(limit?.limit, 2, " m/s")),
     },
     {
@@ -157,6 +170,7 @@ const gpsRows = computed<Row[]>(() => {
     },
     {
       label: "航向",
+      help: FIELD_HELP.device.heading,
       value: present ? formatNumber(gps?.heading, 1, "°") : MISSING,
     },
   ];
@@ -284,7 +298,10 @@ const panels = computed(() => [
             :key="row.label"
             class="flex items-baseline justify-between gap-3"
           >
-            <dt class="shrink-0 text-xs text-ink-muted">{{ row.label }}</dt>
+            <dt class="flex shrink-0 items-center gap-1 text-xs text-ink-muted">
+              {{ row.label }}
+              <UiHelpTip v-if="row.help" :text="row.help" />
+            </dt>
             <!--
               `title` only where a row has one, marked with a dotted underline so the
               tooltip is discoverable. `aria-description` carries the same text to AT,

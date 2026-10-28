@@ -13,6 +13,8 @@
  * Both go through the same shared `parseCodebook` (client-side for fast feedback, then the backend
  * re-validates as the authority).
  */
+import UiHelpTip from "@/components/ui/UiHelpTip.vue";
+import { FIELD_HELP } from "@/lib/fieldHelp";
 import { computed, onMounted, ref } from "vue";
 import PageHeader from "@/components/PageHeader.vue";
 import AppSectionTabs from "@/components/shell/AppSectionTabs.vue";
@@ -433,9 +435,11 @@ const rowDialogTitle = computed(() =>
       >
         <div class="grid grid-cols-2 gap-3">
           <label class="flex flex-col gap-1">
-            <span class="text-sm font-medium text-ink"
-              >报码 <span class="text-critical-ink">*</span></span
-            >
+            <span class="flex items-center gap-1"
+              ><span class="text-sm font-medium text-ink"
+                >报码 <span class="text-critical-ink">*</span></span
+              ><UiHelpTip :text="FIELD_HELP.codebook.code"
+            /></span>
             <input
               v-model="fCode"
               type="number"
@@ -466,7 +470,10 @@ const rowDialogTitle = computed(() =>
         </div>
         <div class="grid grid-cols-3 gap-3">
           <label class="flex flex-col gap-1">
-            <span class="text-sm font-medium text-ink">通道</span>
+            <span class="flex items-center gap-1"
+              ><span class="text-sm font-medium text-ink">通道</span
+              ><UiHelpTip :text="FIELD_HELP.codebook.channel"
+            /></span>
             <UiSelect
               :model-value="fChannel"
               :options="CHANNEL_OPTIONS"
@@ -475,7 +482,10 @@ const rowDialogTitle = computed(() =>
             />
           </label>
           <label class="flex flex-col gap-1">
-            <span class="text-sm font-medium text-ink">等级</span>
+            <span class="flex items-center gap-1"
+              ><span class="text-sm font-medium text-ink">等级</span
+              ><UiHelpTip :text="FIELD_HELP.codebook.impact"
+            /></span>
             <UiSelect
               :model-value="fImpact"
               :options="IMPACT_OPTIONS"
@@ -484,7 +494,10 @@ const rowDialogTitle = computed(() =>
             />
           </label>
           <label class="flex flex-col gap-1">
-            <span class="text-sm font-medium text-ink">子系统</span>
+            <span class="flex items-center gap-1"
+              ><span class="text-sm font-medium text-ink">子系统</span
+              ><UiHelpTip :text="FIELD_HELP.codebook.subsystem"
+            /></span>
             <UiSelect
               :model-value="fSubsystem"
               :options="SUBSYSTEM_OPTIONS"
@@ -494,9 +507,11 @@ const rowDialogTitle = computed(() =>
           </label>
         </div>
         <label class="flex flex-col gap-1">
-          <span class="text-sm font-medium text-ink"
-            >说明 <span class="text-critical-ink">*</span></span
-          >
+          <span class="flex items-center gap-1"
+            ><span class="text-sm font-medium text-ink"
+              >说明 <span class="text-critical-ink">*</span></span
+            ><UiHelpTip :text="FIELD_HELP.codebook.description"
+          /></span>
           <textarea
             v-model="fDescription"
             rows="2"
@@ -509,9 +524,11 @@ const rowDialogTitle = computed(() =>
           </p>
         </label>
         <label class="flex flex-col gap-1">
-          <span class="text-sm font-medium text-ink"
-            >处理建议 <span class="text-critical-ink">*</span></span
-          >
+          <span class="flex items-center gap-1"
+            ><span class="text-sm font-medium text-ink"
+              >处理建议 <span class="text-critical-ink">*</span></span
+            ><UiHelpTip :text="FIELD_HELP.codebook.hint"
+          /></span>
           <textarea
             v-model="fHint"
             rows="2"

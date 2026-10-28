@@ -11,6 +11,8 @@
  *
  * 纯逻辑（KPI 汇总、时序序列、CSV）在 `lib/reportsView.ts`，便于单测；这里保持薄。
  */
+import UiHelpTip from "@/components/ui/UiHelpTip.vue";
+import { FIELD_HELP } from "@/lib/fieldHelp";
 import { computed, onMounted, ref, watch } from "vue";
 import { RouterLink, useRoute, useRouter } from "vue-router";
 import PageHeader from "@/components/PageHeader.vue";
@@ -538,7 +540,9 @@ const exportAlertsCsv = (): void => {
         <div
           class="flex flex-col gap-2 rounded-md border border-border bg-surface-raised p-3"
         >
-          <dt class="text-2xs text-ink-subtle">平均在线率</dt>
+          <dt class="flex items-center gap-1 text-2xs text-ink-subtle">
+            平均在线率<UiHelpTip :text="FIELD_HELP.report.onlineRatio" />
+          </dt>
           <dd class="m-0 font-mono text-lg tabular-nums text-ink">
             {{ onlineRatioLabel }}
           </dd>
@@ -563,7 +567,9 @@ const exportAlertsCsv = (): void => {
         <div
           class="flex flex-col gap-2 rounded-md border border-border bg-surface-raised p-3"
         >
-          <dt class="text-2xs text-ink-subtle">平均电量</dt>
+          <dt class="flex items-center gap-1 text-2xs text-ink-subtle">
+            平均电量<UiHelpTip :text="FIELD_HELP.report.socMean" />
+          </dt>
           <dd class="m-0 font-mono text-lg tabular-nums text-ink">
             {{ socLabel }}
           </dd>
@@ -588,7 +594,9 @@ const exportAlertsCsv = (): void => {
         <div
           class="flex flex-col gap-2 rounded-md border border-border bg-surface-raised p-3"
         >
-          <dt class="text-2xs text-ink-subtle">消息总数</dt>
+          <dt class="flex items-center gap-1 text-2xs text-ink-subtle">
+            消息总数<UiHelpTip :text="FIELD_HELP.report.alertTotal" />
+          </dt>
           <dd class="m-0 font-mono text-lg tabular-nums text-ink">
             {{ alertTotal }}
           </dd>
@@ -610,7 +618,9 @@ const exportAlertsCsv = (): void => {
         <div
           class="flex flex-col gap-2 rounded-md border border-border bg-surface-raised p-3"
         >
-          <dt class="text-2xs text-ink-subtle">确认率</dt>
+          <dt class="flex items-center gap-1 text-2xs text-ink-subtle">
+            确认率<UiHelpTip :text="FIELD_HELP.report.ackRate" />
+          </dt>
           <dd class="m-0 font-mono text-lg tabular-nums text-ink">
             {{ ackRateLabel }}
           </dd>
@@ -725,10 +735,26 @@ const exportAlertsCsv = (): void => {
             <template #head>
               <tr class="text-left">
                 <th class="px-4 py-2 font-medium">设备</th>
-                <th class="px-4 py-2 text-right font-medium">在线率</th>
-                <th class="px-4 py-2 text-right font-medium">电量均值</th>
-                <th class="px-4 py-2 text-right font-medium">最低电量</th>
-                <th class="px-4 py-2 text-right font-medium">样本数</th>
+                <th class="px-4 py-2 text-right font-medium">
+                  <span class="inline-flex items-center justify-end gap-1"
+                    >在线率<UiHelpTip :text="FIELD_HELP.report.onlineRatio"
+                  /></span>
+                </th>
+                <th class="px-4 py-2 text-right font-medium">
+                  <span class="inline-flex items-center justify-end gap-1"
+                    >电量均值<UiHelpTip :text="FIELD_HELP.report.socMean"
+                  /></span>
+                </th>
+                <th class="px-4 py-2 text-right font-medium">
+                  <span class="inline-flex items-center justify-end gap-1"
+                    >最低电量<UiHelpTip :text="FIELD_HELP.report.socMin"
+                  /></span>
+                </th>
+                <th class="px-4 py-2 text-right font-medium">
+                  <span class="inline-flex items-center justify-end gap-1"
+                    >样本数<UiHelpTip :text="FIELD_HELP.report.samples"
+                  /></span>
+                </th>
               </tr>
             </template>
             <tr
