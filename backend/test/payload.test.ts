@@ -49,7 +49,7 @@ describe("normalizePayload", () => {
     expect(result.devices.map((d) => d.deviceId)).toEqual(["a", "b"]);
   });
 
-  it("refuses a whole-fleet payload from a source that may not replace (P0-e)", () => {
+  it("refuses a whole-fleet payload from a source that may not replace", () => {
     // `replace` used to be decided by the shape of the payload rather than by who sent
     // it, and the MQTT path passes broker frames straight in — so a fleet-shaped frame on
     // a telemetry topic emptied both device maps. No vehicle publishes that shape.

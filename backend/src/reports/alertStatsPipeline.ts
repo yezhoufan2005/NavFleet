@@ -1,5 +1,5 @@
 /**
- * 告警统计的聚合管道（Phase 17A）——**纯函数，不碰 db、不读 `Date.now()`**。
+ * 告警统计的聚合管道——**纯函数，不碰 db、不读 `Date.now()`**。
  *
  * 拆成纯 builder + 纯 mapper 的理由和图表 option builder 一样：jsdom/单测里没有 Mongo，但管道的形状
  * 与 facet→报表的映射恰恰是最该被钉住的部分（一条 `$group` 的 key 写错、median 取错元素，机检不会

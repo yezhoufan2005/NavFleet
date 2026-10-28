@@ -19,7 +19,6 @@
  * There, 退出 was a bare button in the header. It now sits inside this menu, which
  * costs the e2e logout case one extra step (open the menu, then click). That is the
  * IA decision showing up in the equivalence net, not an accident — see
- * ROADMAP Phase 12C.
  */
 import {
   DropdownMenuContent,

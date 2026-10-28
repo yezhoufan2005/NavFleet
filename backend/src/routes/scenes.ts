@@ -14,7 +14,7 @@ import {
 } from "./helpers";
 
 /**
- * Scene endpoints: read (list / single / Lanelet2 overlay, viewer+), and the Phase 18
+ * Scene endpoints: read (list / single / Lanelet2 overlay, viewer+), and the
  * scene-map management writes (admin-only): a full-array `scenes.json` write and a per-scene
  * backdrop upload. Writing scene config is operator/deployment domain — the console renders
  * these backdrops, it does not push maps to vehicles — so the read-only red line holds, the

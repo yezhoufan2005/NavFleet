@@ -44,9 +44,9 @@ export interface Metrics {
   contentType: string;
   /** Record one finished HTTP request in the duration histogram. */
   observeHttpRequest: (request: Request, response: Response, durationSeconds: number) => void;
-  /** Record one outbound notification send (Phase 16D-2b): count by channel type + outcome, and latency. */
+  /** Record one outbound notification send: count by channel type + outcome, and latency. */
   observeNotifySend: (channelType: string, status: string, latencyMs: number | null) => void;
-  /** Record one successful MongoDB write's latency in seconds (Phase 18). */
+  /** Record one successful MongoDB write's latency in seconds. */
   observeMongoWrite: (durationSeconds: number) => void;
 }
 
@@ -186,14 +186,14 @@ export const createMetrics = ({
       // `telemetryBufferStats()` for everything else — which is two names for one number.
       persistence.telemetryBufferStats().pending,
   );
-  // P0-c: the buffer's depth was already visible; what it *lost* was not. A silent drop
+  // The buffer's depth was already visible; what it *lost* was not. A silent drop
   // on a monitoring platform is the one failure that cannot be allowed to be invisible.
   mirroredCounter(
     "navfleet_mongo_buffer_dropped_total",
     "Telemetry docs dropped because the write-behind buffer was full",
     () => persistence.telemetryBufferStats().dropped,
   );
-  // Phase 18: writes that reached the driver, and the ones that threw. A failure rate
+  // Writes that reached the driver, and the ones that threw. A failure rate
   // climbing while `navfleet_mongo_connected` stays 1 is the signature of a database
   // that is up but rejecting writes — invisible before these two existed.
   mirroredCounter(
@@ -220,7 +220,7 @@ export const createMetrics = ({
     () => state.mqttMessagesRejected,
   );
 
-  // P0-b: the store's serial ingest queue. Depth against limit is the backpressure
+  // The store's serial ingest queue. Depth against limit is the backpressure
   // signal; the drop counter is what the depth cannot tell you, because a queue held
   // exactly at its limit looks calm while it sheds every frame that arrives.
   gauge(
@@ -253,7 +253,7 @@ export const createMetrics = ({
     () => store.deviceClockStats().outOfOrder,
   );
 
-  // P0-d: the three ways a device can fail to be, or stop being, in memory. Kept
+  // The three ways a device can fail to be, or stop being, in memory. Kept
   // apart rather than folded into one counter because each points at a different
   // cause: a malformed publisher, a fleet larger than MAX_DEVICES, and normal
   // reclamation of ids that went silent.
@@ -288,7 +288,7 @@ export const createMetrics = ({
     registers: [registry],
   });
 
-  // Outbound-notification observability (Phase 16D-2b): sends by channel type + outcome, and
+  // Outbound-notification observability: sends by channel type + outcome, and
   // send latency by channel type. The send log (notify_log) is the per-event record; these are
   // the aggregate the Grafana panel reads (success rate = sent / (sent+failed), latency percentiles).
   const notifySends = new Counter({
@@ -304,7 +304,7 @@ export const createMetrics = ({
     buckets: [0.05, 0.1, 0.25, 0.5, 1, 2.5, 5, 10, 30],
     registers: [registry],
   });
-  // Mongo write latency (Phase 18). Buckets span an in-memory-fast local write (~1ms)
+  // Mongo write latency. Buckets span an in-memory-fast local write (~1ms)
   // through a struggling database (seconds); the counters say whether writes succeed,
   // this says how slowly — and a p95 climbing is the early warning before the ingest
   // queue backs up (every ingest awaits these on the same serial chain).

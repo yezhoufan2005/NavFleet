@@ -41,7 +41,7 @@ describe("route table", () => {
       { path: "/", name: "overview", title: "总览" },
       { path: "/devices", name: undefined, title: "设备" },
       { path: "/devices", name: "devices", title: undefined },
-      // 设备详情 is a shell whose four L3 views are real child routes (Phase 18). The
+      // 设备详情 is a shell whose four L3 views are real child routes. The
       // `:deviceId` parent carries no title — the breadcrumb fills it from the id — and
       // 实时 is the `""` child, so the 设备 nav item stays lit on every tab.
       { path: "/devices/:deviceId", name: undefined, title: undefined },
@@ -260,7 +260,7 @@ describe("primary navigation", () => {
     expect(wrapper.find("nav").attributes("aria-label")).toBe("主导航");
   });
 
-  it("shows 系统 to an admin but hides it from viewer and operator (15C)", async () => {
+  it("shows 系统 to an admin but hides it from viewer and operator", async () => {
     const adminNav = await mountNav("/", "admin");
     expect(link(adminNav, "系统"), "admin sees 系统").toBeDefined();
 

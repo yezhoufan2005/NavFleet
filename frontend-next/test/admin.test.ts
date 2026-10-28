@@ -504,7 +504,7 @@ describe("场景", () => {
     expect(spy.mock.calls.length).toBe(before + 1);
   });
 
-  // ── 场景管理写入（Phase 18） ────────────────────────────────────────────────
+  // ── 场景管理写入 ────────────────────────────────────────────────
   // Reka dialogs teleport to <body>, so the create/edit form and the confirm dialog are
   // queried there rather than through the wrapper (same as onboarding.test.ts).
   const setInput = (el: HTMLInputElement, value: string): void => {

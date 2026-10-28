@@ -342,7 +342,7 @@ describe("ConfigRegistry validation", () => {
   });
 });
 
-describe("ConfigRegistry.getAlertRules (Phase 16C-1)", () => {
+describe("ConfigRegistry.getAlertRules", () => {
   it("returns the built-in defaults before load() and when no rules.json exists", async () => {
     const registry = new ConfigRegistry();
     // Unlike the other getters, this one has a safe default and does not throw pre-load —
@@ -487,7 +487,7 @@ describe("ConfigRegistry.getAlertRules (Phase 16C-1)", () => {
   });
 });
 
-describe("ConfigRegistry.getCodebook / importCodebook (Phase 16C-2)", () => {
+describe("ConfigRegistry.getCodebook / importCodebook", () => {
   const override = {
     code: 2301,
     channel: "warning",
@@ -602,7 +602,7 @@ describe("ConfigRegistry.getCodebook / importCodebook (Phase 16C-2)", () => {
   });
 });
 
-describe("ConfigRegistry.getNotifyConfig (Phase 16D-1)", () => {
+describe("ConfigRegistry.getNotifyConfig", () => {
   const webhook = {
     id: "ops-webhook",
     type: "webhook",
@@ -801,7 +801,7 @@ describe("ConfigRegistry scene-map path resolution", () => {
   });
 });
 
-describe("ConfigRegistry.getReportsConfig (Phase 17B-2)", () => {
+describe("ConfigRegistry.getReportsConfig", () => {
   const schedule = (over: Record<string, unknown> = {}) => ({
     id: "daily",
     range: "7d",

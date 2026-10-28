@@ -131,7 +131,7 @@ export interface SceneMapDefinition {
    * scene sets it, and the deployed v3 console does not read it — it is retained only
    * because the frozen v1.0.0 frontend still consumes it (`frontend/`'s scene overlay),
    * and the freeze forbids editing that code. Clear it when the frozen frontend is
-   * finally removed. (Phase 17D kept this one field for that reason.)
+   * finally removed. (This one field was kept for that reason.)
    */
   metadataUrl?: string;
   osmUrl?: string;
@@ -269,27 +269,27 @@ export interface PublicUser {
 export type LngLat = [number, number];
 
 // The alert rule engine — types, defaults, and the pure evaluator both the backend and
-// the two frontends share (Phase 16C-1). Kept in its own file because it carries runtime
+// the two frontends share. Kept in its own file because it carries runtime
 // logic, and this barrel was otherwise types-only.
 export * from "./alertRules";
 
 // The report-code dictionary — built-in table, wire type, and the pure merge/lookup the
-// backend layers a deployment's codebook over and 下发s (Phase 16C-2). Moved here from
+// backend layers a deployment's codebook over and 下发s. Moved here from
 // fleet-core so the backend, which does not depend on fleet-core, can reach it.
 export * from "./reportCodes";
 
-// 告警外发的共享契约（Phase 16D-1）——生效渠道视图与发送记录的形状（两个前端的只读「外发」页渲染
+// 告警外发的共享契约——生效渠道视图与发送记录的形状（两个前端的只读「外发」页渲染
 // 它们），以及「零配置不外发」的默认。路由/正文/发送等后端独有逻辑不在这里。
 export * from "./notify";
 
-// 报表聚合的共享契约（Phase 17A）——后端算、前端渲染的聚合结果形状（告警统计等）。
+// 报表聚合的共享契约——后端算、前端渲染的聚合结果形状（告警统计等）。
 // 聚合管道的构造/执行等后端独有逻辑不在这里。
 export * from "./reports";
 
-// 车辆 / 编队配置文件的校验器（Phase 18 设备接入向导）——admin 经 API 写 vehicles.json /
+// 车辆 / 编队配置文件的校验器（设备接入）——admin 经 API 写 vehicles.json /
 // formations.json 时先校验；客户端先校验、后端为权威（同 parseCodebook）。
 export * from "./fleetConfig";
-// scenes.json 校验（Phase 18 场景地图上传与管理）：几何 + 路径安全的 sceneId + 资源 URL 限定在
+// scenes.json 校验（场景地图上传与管理）：几何 + 路径安全的 sceneId + 资源 URL 限定在
 // /scene-maps/ 下；overlayUrl/overlayType 由后端为 OSM 场景铸造，不从输入读取。
 export * from "./sceneConfig";
 // 场景地图几何（ROS map_server 约定：origin 为左下角世界位姿，yaw 绕该角逆时针旋转）——后端派生

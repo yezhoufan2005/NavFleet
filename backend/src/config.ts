@@ -149,7 +149,7 @@ const configSchema = z.object({
   OFFLINE_AFTER_SECONDS: envInt(60),
   TELEMETRY_RETENTION_SECONDS: envInt(60 * 60 * 24 * 30),
   ALERTS_RETENTION_SECONDS: envInt(60 * 60 * 24 * 180),
-  // Audit trail (Phase 15D). Kept longer than telemetry/alerts by default — a security
+  // Audit trail. Kept longer than telemetry/alerts by default — a security
   // record is worth more the older the incident it explains.
   AUDIT_RETENTION_SECONDS: envInt(60 * 60 * 24 * 365),
   MAX_HISTORY_POINTS: envInt(500),
@@ -158,15 +158,15 @@ const configSchema = z.object({
   // The ingest queue is serial; without a bound a stalled server stalls every frame behind it and
   // the live view freezes. A write that times out is buffered / retried like any other failure.
   MONGO_WRITE_TIMEOUT_MS: envInt(2000),
-  // P0-b: how many mutations may wait in the store's serial ingest queue before
+  // How many mutations may wait in the store's serial ingest queue before
   // the oldest *sheddable* (i.e. MQTT telemetry) ones are dropped. Sized so that a
   // few seconds of a stalled MongoDB is absorbed rather than shed: at 1 Hz, 1000
   // entries is ~2.5 minutes of a six-vehicle fleet, or ~10 s of a 100-vehicle one.
   INGEST_QUEUE_LIMIT: envInt(1000, 1),
-  // P0-d: ceiling on devices held in memory. Devices declared in vehicles.json are
+  // Ceiling on devices held in memory. Devices declared in vehicles.json are
   // exempt (the operator named them); this bounds what arrives from the broker.
   MAX_DEVICES: envInt(1000, 1),
-  // P0-d: forget an *undeclared* device after this long without a single frame.
+  // Forget an *undeclared* device after this long without a single frame.
   // 0 disables eviction. A day is well past any live-monitoring interest, and the
   // device's history stays in MongoDB either way.
   DEVICE_RETENTION_SECONDS: envInt(60 * 60 * 24, 0),
@@ -176,12 +176,12 @@ const configSchema = z.object({
   DEVICE_CLOCK_TOLERANCE_SECONDS: envInt(60, 1),
   CONFIG_WATCH_USE_POLLING: envBool(false),
   CONFIG_WATCH_DEBOUNCE_MS: envInt(1000, 100),
-  // 告警外发（Phase 16D-1）。渠道/路由走盘上 notify.json；这里只放发送行为的旋钮。
+  // 告警外发。渠道/路由走盘上 notify.json；这里只放发送行为的旋钮。
   // 每次尝试的超时（毫秒）与最多尝试次数（含首发）；出站在 ingest 之外 fire-and-forget，超时是为了
   // 一个不响应的群机器人不至于把发送任务挂死。
   NOTIFY_TIMEOUT_MS: envInt(5_000, 100),
   NOTIFY_MAX_ATTEMPTS: envInt(3, 1),
-  // 报表聚合（Phase 17A）。告警日频次按这个 IANA 时区切日界——默认按部署所在地（国内内网车队），
+  // 报表聚合。告警日频次按这个 IANA 时区切日界——默认按部署所在地（国内内网车队），
   // 交给 Mongo 的 `$dateToString`。按 UTC 切日会把 UTC+8 午夜后的告警错算到"昨天"。
   REPORT_TIMEZONE: envStr("Asia/Shanghai"),
   // Report / list query bounds: the widest window a report or history query may span (days), and
@@ -193,7 +193,7 @@ const configSchema = z.object({
   JWT_SECRET: envStr(""),
   JWT_ACCESS_TTL: envStr("15m"),
   JWT_REFRESH_TTL: envStr("7d"),
-  // Refresh horizon for a kiosk account (Phase 17C): a wall display stays logged in for months
+  // Refresh horizon for a kiosk account: a wall display stays logged in for months
   // without a human. Access tokens stay short (JWT_ACCESS_TTL) so revocation latency is unchanged;
   // this only lengthens the *refresh* horizon + the session row's expiry for kiosk users.
   KIOSK_REFRESH_TTL: envStr("180d"),
@@ -227,7 +227,7 @@ const configSchema = z.object({
   // because a test suite that logs in per case has no way to raise a constant.
   AUTH_RATE_LIMIT_WINDOW_MS: envInt(15 * 60_000, 1_000),
   AUTH_RATE_LIMIT_MAX: envInt(50, 1),
-  // Account-level login lockout (Phase 15E), orthogonal to the per-IP AUTH_RATE_LIMIT above:
+  // Account-level login lockout, orthogonal to the per-IP AUTH_RATE_LIMIT above:
   // after this many consecutive failures a single account is locked for AUTH_LOCK_WINDOW_MS,
   // which stops it being brute-forced from a rotating set of source addresses (the per-IP
   // limiter only bounds one address). The window is long enough to make guessing impractical

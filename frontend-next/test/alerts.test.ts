@@ -413,7 +413,7 @@ describe("the controls the template wires up", () => {
   });
 });
 
-describe("acknowledging (server-backed, Phase 16A)", () => {
+describe("acknowledging (server-backed)", () => {
   it("is a toggle that says so, and writes through to the backend", async () => {
     seedMixed();
     const wrapper = await mountAlerts("?acked=1");

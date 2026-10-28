@@ -1,5 +1,5 @@
 /**
- * 可用率/电量时序的聚合管道（Phase 17A-2）——**纯函数，不碰 db、不读 `Date.now()`**。
+ * 可用率/电量时序的聚合管道——**纯函数，不碰 db、不读 `Date.now()`**。
  *
  * 和告警统计（`alertStatsPipeline.ts`）同样拆成纯 builder + 纯 mapper：`telemetry_ts` 是原生时序集合
  * （timeField `ts`、metaField `meta`），正适合 `$dateTrunc` 降采样。什么会悄悄错——按 UTC 而不是部署

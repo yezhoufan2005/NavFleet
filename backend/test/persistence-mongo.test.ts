@@ -10,7 +10,7 @@ import type { DeviceAlert, DeviceSnapshot } from "../src/types";
  *
  * Every existing persistence test runs the `if (!this.db)` fallback, which is why the file
  * sat at 47% statements / 72% functions with the *production* half uncovered. These cases
- * take the other branch through a fake `Db` (P0-f 第 6 批).
+ * take the other branch through a fake `Db`.
  *
  * The fake answers exactly the questions worth asking here, because what can go wrong in
  * this layer is the **shape of the query**, not the server: does the alert-clearing `$nin`
@@ -195,7 +195,7 @@ beforeEach(() => {
   vi.restoreAllMocks();
 });
 
-describe("Mongo 写入计数（Phase 18）", () => {
+describe("Mongo 写入计数", () => {
   it("成功写入累加 writes，抛错累加 failures", async () => {
     const ok = createFakeDb();
     persistence.__setDbForTests(ok.db);
@@ -462,7 +462,7 @@ describe("audit_log", () => {
   });
 });
 
-describe("notify_log（Phase 16D-1）", () => {
+describe("notify_log", () => {
   const record = {
     ts: "2026-07-01T00:00:00.000Z",
     eventKey: "agv-a:agv-a-offline",
@@ -705,7 +705,7 @@ describe("upsertAlerts", () => {
     expect(update.$setOnInsert).toHaveProperty("firstSeenAt");
     expect(update.$set).not.toHaveProperty("firstSeenAt");
     expect(update.$set).toHaveProperty("lastSeenAt");
-    // 确认字段只在插入时初始化为 null；re-report 的 $set 不碰它们，确认得以保留（Phase 16A）。
+    // 确认字段只在插入时初始化为 null；re-report 的 $set 不碰它们，确认得以保留。
     expect(update.$setOnInsert).toMatchObject({
       ackedBy: null,
       ackedAt: null,
@@ -764,7 +764,7 @@ describe("upsertAlerts", () => {
   });
 });
 
-describe("ackAlert / unackAlert（Phase 16A）", () => {
+describe("ackAlert / unackAlert", () => {
   it("ack 只命中活跃行，写入确认三字段并返回命中（Mongo 路径）", async () => {
     const { db, calls } = createFakeDb();
     persistence.__setDbForTests(db);

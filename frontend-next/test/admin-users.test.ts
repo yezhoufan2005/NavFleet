@@ -266,7 +266,7 @@ describe("UsersView — create dialog", () => {
   });
 
   it("mints a kiosk account: forwards the flag and pins the role to viewer", async () => {
-    // A kiosk is read-only by construction (Phase 17C); the backend refuses any other role,
+    // A kiosk is read-only by construction; the backend refuses any other role,
     // and the form pins viewer so a stale selection cannot slip an operator/admin through.
     const create = vi
       .spyOn(fleetApi, "createUser")

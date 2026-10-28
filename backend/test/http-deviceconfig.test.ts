@@ -5,7 +5,7 @@ import { createTestApp, sessionCookie } from "./helpers/testApp";
 import { ConfigConflictError } from "../src/configRegistry";
 
 /**
- * Device-onboarding wizard config API (Phase 18). The admin-only gate on all four routes is
+ * Device-onboarding wizard config API. The admin-only gate on all four routes is
  * pinned in http-rbac; here we cover the router → store wiring: reads list config, a valid PUT
  * validates + writes + audits, an invalid body is a 400 that never touches the store, and a
  * formation naming an unconfigured vehicle is a 400 (unknown_device_in_formation).

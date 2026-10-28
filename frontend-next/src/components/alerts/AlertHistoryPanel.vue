@@ -2,7 +2,7 @@
 /**
  * 消息史面板 — cleared alerts with at-a-glance statistics, shown as the 消息 页 history tab.
  *
- * Phase 18 folded 消息史 from a top-level page into a tab of `AlertsView`. The shared filter
+ * 消息史 was folded from a top-level page into a tab of `AlertsView`. The shared filter
  * bar (severity / device / search) lives in `AlertsView` and writes the URL; this panel reads
  * the same query params, fetches cleared alerts once on mount, and derives severity
  * distribution, per-device counts, per-day frequency, acknowledgement rate and clear-time

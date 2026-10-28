@@ -136,7 +136,7 @@ describe("POST /api/auth/login", () => {
       user: { username: "admin", role: "admin" },
       capabilities: capabilitiesForRole("admin"),
     });
-    // Login opens a tracked session (Phase 15E).
+    // Login opens a tracked session.
     expect(context.authService.createSession).toHaveBeenCalledWith(
       expect.objectContaining({ username: "admin" }),
       undefined,
@@ -161,7 +161,7 @@ describe("POST /api/auth/login", () => {
     });
   });
 
-  it("gives a kiosk login a long-lived refresh cookie and tags the audit (Phase 17C)", async () => {
+  it("gives a kiosk login a long-lived refresh cookie and tags the audit", async () => {
     const context = createTestApp();
     context.authService.authenticate.mockResolvedValue({
       ok: true,
@@ -242,7 +242,7 @@ describe("POST /api/auth/logout", () => {
       .set("Cookie", sessionCookieWithSid("viewer", "tester", "sid-logout"));
 
     expect(response.status).toBe(204);
-    // Per-session logout (Phase 15E): the session the token names is revoked, and — unlike the
+    // Per-session logout: the session the token names is revoked, and — unlike the
     // pre-15E logout — the user's tokenVersion is left alone so their other devices stay in.
     expect(context.authService.revokeSession).toHaveBeenCalledWith("tester", "sid-logout");
   });

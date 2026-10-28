@@ -3,7 +3,7 @@
  * 个人中心 — the one authenticated-but-not-admin page (viewer+, no `roles`).
  *
  * Two things a person manages about their own account: their password, and where they are
- * signed in. Both are new in Phase 15E-2. Changing the password invalidates every other
+ * signed in. Changing the password invalidates every other
  * session server-side and re-issues fresh cookies for THIS device, so the form stays signed
  * in; the session list lets someone end a device they no longer trust — including this one,
  * which is just "log out" wearing a different name, so revoking the current session logs out.

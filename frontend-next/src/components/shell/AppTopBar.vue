@@ -12,7 +12,7 @@
  * It stays slim on purpose. Everything that belongs to a page lives on that page;
  * this bar only carries what must be reachable from all of them.
  *
- * The two things 12C deliberately left blank now arrive with the store (13A-1):
+ * The two things 12C deliberately left blank now arrive with the store:
  *
  * - **The realtime status indicator**, which is a dot *and a word*. Colour alone
  *   cannot carry it: a dot that only changes hue says nothing to a colourblind

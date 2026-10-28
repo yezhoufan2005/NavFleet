@@ -2,7 +2,7 @@ import { describe, it, expect } from "vitest";
 import { parseVehicles, parseFormations } from "../src/index";
 
 /**
- * Shared validators for the device-onboarding wizard (Phase 18). They mirror `parseCodebook`:
+ * Shared validators for the device-onboarding wizard. They mirror `parseCodebook`:
  * accept a JSON array, throw a labelled message on the first problem, and default the fields
  * the config registry defaults at load time. Referential integrity (formation → vehicle) is
  * NOT here — it lives at the write site, which knows the current vehicle set.

@@ -7,7 +7,7 @@ import { alertAckSchema, alertUnackSchema } from "../validation";
 import { respondValidationError } from "./helpers";
 
 /**
- * Alert acknowledgement API (Phase 16A). Acknowledging a live alert is the first capability
+ * Alert acknowledgement API. Acknowledging a live alert is the first capability
  * that is `operator`+ rather than `admin`-only or read-for-everyone, so these routes gate on
  * `requireCapability("alerts:ack")` on top of the session check already applied in `app.ts`.
  *

@@ -1,10 +1,10 @@
 <script setup lang="ts">
 /**
- * 部署 / 场景 — what the deployment has configured, whether it is actually there, and (Phase 18)
+ * 部署 / 场景 — what the deployment has configured, whether it is actually there, and
  * editing it: create / edit / delete scene entries and upload their backdrop files.
  *
  * This was read-only on the stated ground that "editing a scene means editing the map a vehicle
- * localises against". Phase 18 reverses that for the same reason the device-onboarding wizard
+ * localises against". This page reverses that for the same reason the device-onboarding wizard
  * did: the console renders these backdrops, it does not push maps to vehicles, so writing scene
  * config is operator/deployment domain and the read-only red line (no command dispatch) holds.
  * The backend re-validates every write and confines uploads to the scene-maps root.
@@ -14,7 +14,7 @@
  * The single most confusing failure this console can show is a scene that renders as
  * 暂无可用地图 or with a blank backdrop, because every plausible cause looks identical
  * from the map: the scene has no `imageUrl`, or it has one and the file 404s, or the
- * point cloud is there and the metadata beside it is not. Phase 1 shipped with
+ * point cloud is there and the metadata beside it is not. The first release shipped with
  * `scenes.json` naming three SVGs that did not exist, and defect 9.4 is the raster
  * backdrop failing *silently*. So each configured URL is fetched and reported as
  * present or missing.

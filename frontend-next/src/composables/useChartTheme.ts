@@ -31,7 +31,7 @@ export interface ChartPalette {
   surface: string;
   tooltipBorder: string;
   /**
-   * Severity colours for status dimensions (Phase 16B). Severity is a *status*, not a
+   * Severity colours for status dimensions. Severity is a *status*, not a
    * categorical series, so a chart of it wears the same critical/warning/notice tokens the
    * badges use elsewhere — not the reserved `--color-chart-*` series slots.
    */

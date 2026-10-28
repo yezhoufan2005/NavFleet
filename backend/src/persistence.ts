@@ -142,7 +142,7 @@ export const MAX_AUDIT_PER_QUERY = 500;
 /** Most notify-send rows one `GET /api/notify/log` returns; the in-memory fallback ring is bounded to it too. */
 export const MAX_NOTIFY_PER_QUERY = 500;
 
-/** How many devices the alert-stats Top-N ranking keeps (Phase 17A). Matches 16B's client-side default. */
+/** How many devices the alert-stats Top-N ranking keeps. Matches 16B's client-side default. */
 const ALERT_STATS_TOP_N = 8;
 
 /** Report aggregations are read-only views over slowly-changing history, so an in-memory TTL cache
@@ -194,13 +194,13 @@ export class Persistence {
   private readonly reportInFlight = new Map<string, Promise<unknown>>();
   /**
    * How many buffered telemetry documents have been dropped because the buffer was
-   * full. P0-c: the overflow used to `splice` the oldest away silently, so a monitoring
+   * full. The overflow used to `splice` the oldest away silently, so a monitoring
    * platform lost data with **no counter anywhere** — the one loss a monitoring platform
    * must never take quietly. Exposed on `/metrics` and in the buffer's own warn line.
    */
   private droppedTelemetry = 0;
   /**
-   * Mongo write operations that succeeded / failed against the driver (Phase 18).
+   * Mongo write operations that succeeded / failed against the driver.
    * Counted per *operation* (one upsert, one insert, one flush batch), not per
    * document. Until now a write that threw was warn-logged and — for telemetry —
    * buffered, but nothing counted it: a database that accepts connections yet
@@ -210,7 +210,7 @@ export class Persistence {
   private mongoWrites = 0;
   private mongoWriteFailures = 0;
   /**
-   * Latency sink for successful Mongo writes (Phase 18). Late-bound: the metrics
+   * Latency sink for successful Mongo writes. Late-bound: the metrics
    * registry is built after this class in the composition root, so `createApp`
    * calls `setWriteObserver(metrics.observeMongoWrite)` — the same wiring the
    * notify-send histogram uses. Null until then (and in tests that do not set it).
@@ -234,7 +234,7 @@ export class Persistence {
   private activeAlerts = new Map<string, StoredAlert[]>();
   // Bounded in-memory audit trail for Mongo-less dev runs (mirrors the other fallbacks).
   private auditFallback: AuditEntry[] = [];
-  // Bounded in-memory outbound-send log for Mongo-less dev runs (Phase 16D-1; mirrors the
+  // Bounded in-memory outbound-send log for Mongo-less dev runs (mirrors the
   // audit fallback). Send records are best-effort telemetry about notifications, never on the
   // path of the action being audited, so like audit a write failure is swallowed.
   private notifyFallback: NotifySendRecord[] = [];
@@ -405,7 +405,7 @@ export class Persistence {
     await this.db.collection("alerts").createIndex({ severity: 1, active: 1, ts: -1 });
     // The alert-stats report (`$match`/`$group`/日切日 in reports/alertStatsPipeline) filters and
     // buckets entirely on `firstSeenAt`; without this index a bounded report scanned the whole
-    // collection, the slowest path on the reports page (Phase 18).
+    // collection, the slowest path on the reports page.
     await this.db.collection("alerts").createIndex({ firstSeenAt: 1 });
     // One document per **occurrence**: a code that clears and fires again gets a new row, so the
     // history and the report count every occurrence. `eventKey` (`deviceId:alertId`) identifies the
@@ -419,14 +419,14 @@ export class Persistence {
       );
     // telemetry_ts is a time-series collection (clustered on `ts`), so the whole-fleet range scan is
     // already covered; this secondary index on the metaField speeds the device-filtered availability
-    // report, whose `$match` leads with `meta.deviceId` before the `ts` range (Phase 18).
+    // report, whose `$match` leads with `meta.deviceId` before the `ts` range.
     await this.db.collection("telemetry_ts").createIndex({ "meta.deviceId": 1, ts: 1 });
     await ensureTtlIndex("alerts", { lastSeenAt: 1 }, config.alertsRetentionSeconds);
     await this.db.collection("users").createIndex({ username: 1 }, { unique: true });
     await this.db.collection("audit_log").createIndex({ actor: 1, ts: -1 });
     await this.db.collection("audit_log").createIndex({ action: 1, ts: -1 });
     await ensureTtlIndex("audit_log", { ts: -1 }, config.auditRetentionSeconds);
-    // notify_log (Phase 16D-1): send records queried by device / channel / status, newest first.
+    // notify_log: send records queried by device / channel / status, newest first.
     // TTL is on a dedicated BSON Date (`expireAt`) rather than the display `ts` (an ISO string,
     // which a TTL index would silently never expire); the retention window is the alerts one,
     // since a send record is only meaningful next to the alert that triggered it.
@@ -741,7 +741,7 @@ export class Persistence {
       .updateOne({ username }, { $set: { failedAttempts: 0, lockedUntil: null, updatedAt: at } });
   }
 
-  // ── Sessions (Phase 15E) ────────────────────────────────────────────────────────
+  // ── Sessions ────────────────────────────────────────────────────────
   // Per-login rows tracked so a user can see/revoke sessions and an admin can force-log-out.
   // The in-memory fallback keeps this working in a Mongo-less dev run.
 
@@ -885,7 +885,7 @@ export class Persistence {
   }
 
   /**
-   * Append an outbound-send record (Phase 16D-1). **Best-effort**, exactly like `appendAudit`:
+   * Append an outbound-send record. **Best-effort**, exactly like `appendAudit`:
    * the notification pipeline runs fire-and-forget off the alert-created event and must never
    * turn a logging failure into anything the ingest path sees, so a write error is logged and
    * swallowed. The Mongo document carries a parallel `expireAt` BSON Date so the TTL index can
@@ -956,7 +956,7 @@ export class Persistence {
     if (!this.db) {
       return [];
     }
-    // P0-d: bounded on both axes. This used to be `find({})` — every row
+    // Bounded on both axes. This used to be `find({})` — every row
     // `device_latest` had ever accumulated came back into memory at startup, which
     // is the same unbounded growth the eviction sweep exists to prevent, only
     // reinstated on every restart. Restoring within the retention window also means
@@ -983,7 +983,7 @@ export class Persistence {
   }
 
   /**
-   * Release a device's in-memory footprint (P0-d). Called when the store evicts a
+   * Release a device's in-memory footprint. Called when the store evicts a
    * device: without this, eviction would reclaim two snapshots and leave behind the
    * much larger per-device telemetry ring (up to `MAX_HISTORY_POINTS` documents).
    *
@@ -1051,7 +1051,7 @@ export class Persistence {
 
     this.appendMemoryTelemetry(document);
 
-    // P0-c: a disconnected database **buffers** rather than returning. This used to be a
+    // A disconnected database **buffers** rather than returning. This used to be a
     // bare `return`, so every frame that arrived while MongoDB was down was gone — and
     // the reconnect path only ever flushed what a *failed write* had buffered, which is a
     // set that stays empty while there is no connection to fail against.
@@ -1108,7 +1108,7 @@ export class Persistence {
     return { writes: this.mongoWrites, failures: this.mongoWriteFailures };
   }
 
-  /** Late-bind the successful-write latency sink (composition root, Phase 18). */
+  /** Late-bind the successful-write latency sink (composition root). */
   setWriteObserver(observe: (durationSeconds: number) => void): void {
     this.writeObserver = observe;
   }
@@ -1314,7 +1314,7 @@ export class Persistence {
   }
 
   /**
-   * Acknowledge one active alert occurrence (Phase 16A). Returns true when a matching
+   * Acknowledge one active alert occurrence. Returns true when a matching
    * active row was found and updated, false otherwise (unknown eventKey, or already
    * cleared) so the route can answer 404. Only active rows are touched — you cannot
    * acknowledge an occurrence that is no longer happening.
@@ -1346,7 +1346,7 @@ export class Persistence {
     return result.matchedCount > 0;
   }
 
-  /** Undo an acknowledgement (Phase 16A). Same active-only match and 404 contract. */
+  /** Undo an acknowledgement. Same active-only match and 404 contract. */
   async unackAlert(eventKey: string): Promise<boolean> {
     if (!this.db) {
       const alert = this.findMemoryActiveAlert(eventKey);
@@ -1584,7 +1584,7 @@ export class Persistence {
   }
 
   /**
-   * Server-side alert statistics over the whole `alerts` collection (Phase 17A).
+   * Server-side alert statistics over the whole `alerts` collection.
    *
    * The point of doing this in Mongo rather than in the browser (as 16B does) is to escape the
    * 500-row read cap on `/api/alerts`: a `$facet` aggregate sees every alert in the retention
@@ -1616,7 +1616,7 @@ export class Persistence {
   }
 
   /**
-   * Server-side availability + battery time-series over `telemetry_ts` (Phase 17A-2).
+   * Server-side availability + battery time-series over `telemetry_ts`.
    *
    * Downsamples raw frames into (device × time-bucket) rows — online-frame ratio and soc
    * mean/min — via `$dateTrunc`, so the report page never scans the whole series client-side.

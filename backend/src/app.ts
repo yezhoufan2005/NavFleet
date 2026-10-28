@@ -88,9 +88,9 @@ export const createApp = ({
     collectDefault: collectDefaultMetrics,
   });
   // Feed each outbound send into the Prometheus counters/histogram now that the registry exists
-  // (Phase 16D-2b). NotifyService is built before the app, so the observer is wired here.
+  //. NotifyService is built before the app, so the observer is wired here.
   notifyService.setSendObserver(metrics.observeNotifySend);
-  // Feed successful Mongo write latency into the histogram (Phase 18). Persistence is
+  // Feed successful Mongo write latency into the histogram. Persistence is
   // built before the app, so — like the notify observer above — the observer is wired here.
   persistence.setWriteObserver(metrics.observeMongoWrite);
 
@@ -143,7 +143,7 @@ export const createApp = ({
           path: request.path,
           status: response.statusCode,
           durationMs: Math.round(durationSeconds * 1000),
-          // Attributes the request to a user once authenticated (Phase 15D). Undefined for
+          // Attributes the request to a user once authenticated. Undefined for
           // public/unauthenticated routes; `authenticate` runs before this `finish` fires.
           username: request.user?.username,
         },
@@ -202,7 +202,7 @@ export const createApp = ({
   );
 
   // Everything below requires a valid session. The middleware verifies each token against
-  // the stored user (enabled + tokenVersion) and, when the token names a session (Phase 15E),
+  // the stored user (enabled + tokenVersion) and, when the token names a session,
   // against that session still being live, so logout / revoke / force-logout / disable take
   // effect immediately rather than at token expiry.
   app.use(

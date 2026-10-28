@@ -1,5 +1,5 @@
 /**
- * 定时报表调度器（Phase 17B-2）——按 reports.json 的时刻把报表生成并邮件推送。
+ * 定时报表调度器——按 reports.json 的时刻把报表生成并邮件推送。
  *
  * **无新依赖**：不用 node-cron，靠 index.ts 的一个 60s 轮询调用 {@link ReportScheduler.tick}，同
  * 16D digest 的 15s 轮询先例。判定「到点」用的是**「本地日历日内、已过发送时刻且今天还没发过」**，而不是

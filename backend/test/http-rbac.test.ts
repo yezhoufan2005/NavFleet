@@ -4,7 +4,7 @@ import type { UserRole } from "../src/types";
 import { createTestApp, sessionCookie, DEVICE_ID, SCENE_ID } from "./helpers/testApp";
 
 /**
- * The RBAC matrix as an enforced contract (Phase 15C).
+ * The RBAC matrix as an enforced contract.
  *
  * This is a read-only monitoring system: configuration flows over a file watch, not the API,
  * so there is no operator-only route. The real matrix is therefore thin — every read is
@@ -29,7 +29,7 @@ const READ_ROUTES: Array<{ method: "get"; path: string }> = [
 ];
 
 /**
- * Operator+ routes (Phase 16A): the alert acknowledgement pair. A valid body is sent so the
+ * Operator+ routes: the alert acknowledgement pair. A valid body is sent so the
  * request reaches the role gate rather than stopping at validation; operator/admin then pass
  * the gate (and hit a 404 from the stubbed persistence, which is fine — the point is the gate
  * let them through), while viewers are refused before the handler runs.
@@ -56,7 +56,7 @@ const ADMIN_ROUTES: Array<{ method: "get" | "post" | "patch" | "delete" | "put";
   { method: "post", path: "/api/debug/ingest" },
   { method: "get", path: "/api/audit" },
   { method: "put", path: "/api/codebook" },
-  // 告警外发 read API (Phase 16D-1): send log + effective channels are admin-only, like audit.
+  // 告警外发 read API: send log + effective channels are admin-only, like audit.
   { method: "get", path: "/api/notify/log" },
   { method: "get", path: "/api/notify/config" },
   // 外发配置写 (1.6.1): raw config read + whole-file write are notify:write (admin-only among presets).
@@ -68,12 +68,12 @@ const ADMIN_ROUTES: Array<{ method: "get" | "post" | "patch" | "delete" | "put";
   // 定时报表写 (1.6.1): read + whole-file write are reports:write (admin-only among presets).
   { method: "get", path: "/api/reports/config" },
   { method: "put", path: "/api/reports/config" },
-  // 设备接入向导 config API (Phase 18): read + write vehicles/formations are all admin-only.
+  // 设备接入向导 config API: read + write vehicles/formations are all admin-only.
   { method: "get", path: "/api/vehicles" },
   { method: "put", path: "/api/vehicles" },
   { method: "get", path: "/api/formation-config" },
   { method: "put", path: "/api/formation-config" },
-  // 场景地图上传与管理 (Phase 18): scene reads stay viewer+, but the writes are admin-only.
+  // 场景地图上传与管理: scene reads stay viewer+, but the writes are admin-only.
   { method: "put", path: "/api/scenes" },
   { method: "put", path: `/api/scenes/${SCENE_ID}/asset/image` },
   // 自定义角色 + 用户组管理 (1.6.1 RBAC): gated by users:manage, i.e. admin among the built-in roles.
@@ -131,7 +131,7 @@ describe("RBAC matrix — admin-only routes reject viewer/operator", () => {
   });
 });
 
-describe("RBAC matrix — acknowledgement is operator+ (Phase 16A)", () => {
+describe("RBAC matrix — acknowledgement is operator+", () => {
   it("403s a viewer on the ack routes", async () => {
     const { app } = createTestApp();
     for (const route of OPERATOR_ROUTES) {

@@ -14,7 +14,7 @@ import {
 } from "@/lib/reportsView";
 
 /**
- * The report page's pure logic (Phase 17B-1). The view feeds these the server aggregates and
+ * The report page's pure logic. The view feeds these the server aggregates and
  * renders what comes back; the branches worth pinning are here — the window maths, the
  * sample-weighted means with their zero-guards, the null-soc skips, and CSV escaping.
  */

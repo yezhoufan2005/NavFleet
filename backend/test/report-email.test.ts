@@ -3,7 +3,7 @@ import type { AlertStatsReport, AvailabilityReport } from "@navfleet/shared";
 import { buildReportEmail } from "../src/reports/reportEmail";
 
 /**
- * The scheduled-report email builder (Phase 17B-2), a pure function. What a machine check waves
+ * The scheduled-report email builder, a pure function. What a machine check waves
  * through: an unescaped device name turning the HTML body into an injection point, a soc mean
  * printed as a bare ratio, a null soc written as 0 in the CSV, the "no history" caveat dropped
  * when both aggregates are unavailable. The scheduler wiring is tested separately.

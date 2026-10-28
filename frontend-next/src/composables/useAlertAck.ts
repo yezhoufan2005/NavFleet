@@ -4,7 +4,7 @@ import { useAuth } from "@/composables/useAuth";
 import { notify } from "@/composables/useNotifications";
 
 /**
- * Alert acknowledgement — server-backed since Phase 16A.
+ * Alert acknowledgement — server-backed.
  *
  * Confirmation used to live in this composable's own `localStorage` set of bare alert ids,
  * so it did not survive a different device, a different operator, or a cleared cache, and
@@ -134,7 +134,7 @@ export const useAlertAck = () => {
   };
 
   /**
-   * One-time migration off the old per-browser store (Phase 16A): take the bare ids this
+   * One-time migration off the old per-browser store: take the bare ids this
    * browser had acknowledged, keep the ones still matching an active alert, push each to the
    * backend, then drop the localStorage key for good. Callable only where the caller is
    * operator+ (the view guards this); the backend would 403 an unprivileged migration and the

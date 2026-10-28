@@ -3,7 +3,7 @@ import request from "supertest";
 import { createTestApp, sessionCookie } from "./helpers/testApp";
 
 /**
- * The admin user-management API (15B-2). These cover the router → service wiring and the auth
+ * The admin user-management API. These cover the router → service wiring and the auth
  * gate: every route is admin-only, and the service's refusal reasons map to specific statuses.
  * The lockout guards themselves are unit-tested against the real service in auth-service.test.ts;
  * here we assert the router surfaces them, using a stubbed AuthService.
@@ -88,7 +88,7 @@ describe("users API — CRUD wiring (admin)", () => {
     expect(context.authService.createUser).not.toHaveBeenCalled();
   });
 
-  it("creates a kiosk viewer and forwards the flag to the service (Phase 17C)", async () => {
+  it("creates a kiosk viewer and forwards the flag to the service", async () => {
     const context = createTestApp();
     const response = await request(context.app)
       .post("/api/users")

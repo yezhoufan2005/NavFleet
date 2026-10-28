@@ -27,7 +27,7 @@ export interface UserRecord {
   createdAt: string;
   updatedAt: string;
   /**
-   * Fields added in Phase 15B (schema migration v2). Existing 1.1.0/1.2.0-pre rows are
+   * Fields added by schema migration v2. Existing 1.1.0/1.2.0-pre rows are
    * backfilled by the migration; the in-memory fallback and every write path produce the
    * full shape so a Mongo-less dev run behaves identically.
    */
@@ -46,7 +46,7 @@ export interface UserRecord {
   lastLoginAt: string | null;
   passwordUpdatedAt: string;
   /**
-   * Account-level login lockout (Phase 15E), backfilled by migration v3. `failedAttempts`
+   * Account-level login lockout, backfilled by migration v3. `failedAttempts`
    * counts consecutive failures since the last success; when it reaches `AUTH_LOCK_THRESHOLD`
    * the account is locked until `lockedUntil` (ISO-8601), after which the counter resets on
    * the next attempt. Orthogonal to the per-IP rate limit: this stops one account being
@@ -55,7 +55,7 @@ export interface UserRecord {
   failedAttempts: number;
   lockedUntil: string | null;
   /**
-   * A kiosk account (Phase 17C): an unattended wall display's read-only credential. Always
+   * A kiosk account: an unattended wall display's read-only credential. Always
    * `role: "viewer"` (read-only by RBAC), but given a much longer refresh horizon
    * (`KIOSK_REFRESH_TTL`) so the screen stays logged in for months, and tagged here so the audit
    * trail and admin UI can tell it apart from a person. Optional/absent = a normal account (no
@@ -66,7 +66,7 @@ export interface UserRecord {
 }
 
 /**
- * One row of the `sessions` collection (Phase 15E): a single login, tracked per device so a
+ * One row of the `sessions` collection: a single login, tracked per device so a
  * user can see and revoke their active sessions and an admin can force-log-out an account.
  *
  * A login mints one `sessionId`, carried as the `sid` claim on both that login's access and
@@ -108,7 +108,7 @@ export interface SessionView {
 export type AdminUserView = Omit<UserRecord, "passwordHash">;
 
 /**
- * The auditable actions (Phase 15D). A closed **tuple** (not just a union) so it is the single
+ * The auditable actions. A closed **tuple** (not just a union) so it is the single
  * source of truth: `AuditAction` derives from it, and `auditQuerySchema.action` builds its
  * `z.enum` from the same array — before 1.6.1 the two were maintained by hand and drifted, so
  * the five Phase-16C/18 config writes were auditable but not filterable. Deriving both from one
@@ -127,14 +127,14 @@ export const AUDIT_ACTIONS = [
   "user_create",
   "user_update",
   "user_delete",
-  // Session management (Phase 15E).
+  // Session management.
   "session_revoke",
   "force_logout",
   "account_locked",
-  // Alert acknowledgement (Phase 16A).
+  // Alert acknowledgement.
   "alert_ack",
   "alert_unack",
-  // Report-code dictionary import (Phase 16C-2).
+  // Report-code dictionary import.
   "codebook_import",
   // Outbound-notification config write (1.6.1).
   "notify_write",
@@ -142,7 +142,7 @@ export const AUDIT_ACTIONS = [
   "rules_write",
   // Scheduled-report config write (1.6.1).
   "reports_write",
-  // Device-onboarding wizard config writes (Phase 18).
+  // Device-onboarding wizard config writes.
   "vehicles_write",
   "formations_write",
   "scenes_write",

@@ -1,5 +1,5 @@
 /**
- * 报表聚合的共享契约（Phase 17A）。
+ * 报表聚合的共享契约。
  *
  * 只放**后端算、前端渲染**的聚合结果形状——和 `notify.ts` 同样的分家理由：聚合管道的构造与执行
  * 是后端独有逻辑（`backend/src/reports/`），不进这个两个前端都 import 的包。
@@ -71,11 +71,11 @@ export const emptyAlertStatsReport = (
   available,
 });
 
-/** 可用率/电量时序的分桶粒度（Phase 17A-2）。时序库按此 `$dateTrunc` 降采样。 */
+/** 可用率/电量时序的分桶粒度。时序库按此 `$dateTrunc` 降采样。 */
 export type ReportBucketUnit = "hour" | "day" | "month";
 
 /**
- * 一个时间桶内、单台设备的可用率与电量（Phase 17A-2）。
+ * 一个时间桶内、单台设备的可用率与电量。
  *
  * `onlineRatio = onlineSeconds / spanSeconds`：按**时间**加权——桶在窗口内的时长里，有多少被在线帧
  * 覆盖（每帧覆盖到同车下一帧，最多覆盖离线判定阈值；没有帧的时段算离线）。按帧数算会漏掉离线时段，
@@ -119,7 +119,7 @@ export const emptyAvailabilityReport = (
   available,
 });
 
-// ── 定时报表（Phase 17B-2）───────────────────────────────────────────────────────────────
+// ── 定时报表───────────────────────────────────────────────────────────────
 //
 // 把报表按周期（每天/每周某时）生成并邮件推送给收件方。配置走盘上 reports.json（configRegistry，
 // 同 notify.json/rules.json「无 UI、盘上手改」先例），**不做 Web 端写入**。收件方沿用 16D 的

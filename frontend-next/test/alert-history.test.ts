@@ -6,7 +6,7 @@ import { fleetApi, type AlertRecord } from "@navfleet/fleet-core";
 import AlertHistoryPanel from "@/components/alerts/AlertHistoryPanel.vue";
 
 /**
- * 消息史面板 — the cleared-alert history + statistics, now the 消息 页 history tab (Phase 18).
+ * 消息史面板 — the cleared-alert history + statistics, now the 消息 页 history tab.
  * `fleetApi.getAlerts` is mocked; the charts are stubbed (their option builders are tested in
  * charts.test.ts), so this file owns the panel's own logic: loading/error/empty states, the
  * client-side stats, the URL filters it reads (the shared bar lives in AlertsView), and the

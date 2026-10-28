@@ -54,7 +54,7 @@ const TONE_BADGE: Record<string, string> = {
   <PageHeader
     :title="device ? device.deviceName || deviceId : `设备 ${deviceId}`"
   >
-    <!-- The device id reads beside the name rather than under it (Phase 18 polish):
+    <!-- The device id reads beside the name rather than under it:
          「A01 巡检车  agv-a01」, dropping the earlier 「编号」 lede. -->
     <template v-if="device" #titleSuffix>
       <span class="font-mono text-sm text-ink-muted">{{

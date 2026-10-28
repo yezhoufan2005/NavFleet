@@ -119,7 +119,7 @@ export interface StoreStub {
  * routes awaited them, and `mockRejectedValue` was convenient for the error-middleware
  * tests. So the double modelled a contract the doubled thing does not have, and the
  * route's pointless `await` is what made the two look compatible — `await-thenable`
- * (P0-f 第 3 批) is what named it.
+ * is what named it.
  *
  * The error-middleware test now provokes a **synchronous throw**, which is the only way a
  * synchronous method can fail — i.e. it now exercises the path that actually exists.
@@ -212,7 +212,7 @@ export interface AuthServiceStub {
   >;
   deleteUser: Mock<(actor: string, username: string) => Promise<AdminActionResult<void>>>;
   forceLogout: Mock<(username: string) => Promise<AdminActionResult<void>>>;
-  // Sessions (Phase 15E).
+  // Sessions.
   createSession: Mock<(input: unknown) => Promise<void>>;
   touchSession: Mock<(sessionId: string) => Promise<void>>;
   isSessionActive: Mock<(username: string, sessionId: string) => Promise<boolean>>;
@@ -251,7 +251,7 @@ export const createAuthServiceStub = (): AuthServiceStub => ({
   ),
   recordLogin: vi.fn(() => Promise.resolve()),
   changePassword: vi.fn(() => Promise.resolve<UserRecord | null>(null)),
-  // Admin API (15B-2). Defaults let the happy path through; guard/error cases override.
+  // Admin API. Defaults let the happy path through; guard/error cases override.
   listUsers: vi.fn(() => Promise.resolve<AdminUserView[]>([])),
   getUser: vi.fn((username: string) =>
     Promise.resolve<AdminUserView | null>(adminView(stubUser(username))),

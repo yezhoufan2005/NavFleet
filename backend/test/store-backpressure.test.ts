@@ -89,7 +89,7 @@ const telemetry = (
   vehicle_info: { soc: 80, speed: 1 },
 });
 
-describe("ingest queue backpressure (P0-b)", () => {
+describe("ingest queue backpressure", () => {
   const originalLimit = config.ingestQueueLimit;
 
   afterEach(() => {
@@ -162,7 +162,7 @@ describe("ingest queue backpressure (P0-b)", () => {
 
   it("keeps FIFO order and does not let a rejected mutation stall the queue", async () => {
     const { store } = createStore();
-    // A payload the normalizer refuses: `replace` without `allowReplace` (P0-e).
+    // A payload the normalizer refuses: `replace` without `allowReplace`.
     const rejected = store.applyPayload({ devices: [telemetry("agv-x")] }, "mqtt");
     await expect(rejected).rejects.toThrow(/whole-fleet payload/);
 
@@ -172,7 +172,7 @@ describe("ingest queue backpressure (P0-b)", () => {
   });
 });
 
-describe("device admission and eviction (P0-d)", () => {
+describe("device admission and eviction", () => {
   const originalMaxDevices = config.maxDevices;
   const originalRetention = config.deviceRetentionSeconds;
 

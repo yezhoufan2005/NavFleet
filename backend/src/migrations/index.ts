@@ -11,7 +11,7 @@ import type { Migration } from "./types";
  * `ensureMongoCollections` (collections + indexes + TTL). Its `up` therefore does nothing —
  * a fresh empty database has its structure created by `ensureMongoCollections` on the same
  * connect, and an existing 1.1.0 database is baselined to version 1 without re-running
- * anything (see `runner.ts`). Real structural changes start at version 2 in Phase 15B+.
+ * anything (see `runner.ts`). Real structural changes start at version 2.
  */
 export const migrations: readonly Migration[] = [
   {
@@ -26,7 +26,7 @@ export const migrations: readonly Migration[] = [
     version: 2,
     name: "expand-user-model",
     up: async (db) => {
-      // Backfill the Phase 15B user fields onto rows that predate them. Scoped to rows
+      // Backfill the expanded user fields onto rows that predate them. Scoped to rows
       // missing `tokenVersion` so a re-run touches nothing, and written as an aggregation
       // pipeline so each default can derive from an existing field (`displayName` from
       // `username`, `passwordUpdatedAt` from `createdAt`) in one pass.
@@ -49,7 +49,7 @@ export const migrations: readonly Migration[] = [
     version: 3,
     name: "add-login-lockout-fields",
     up: async (db) => {
-      // Backfill the Phase 15E account-lockout fields onto rows that predate them. Scoped to
+      // Backfill the account-lockout fields onto rows that predate them. Scoped to
       // rows missing `failedAttempts` so a re-run touches nothing, and written as an aggregation
       // pipeline with `$ifNull` so the defaults are set only where absent — the same idempotent
       // shape as v2.
@@ -67,7 +67,7 @@ export const migrations: readonly Migration[] = [
     version: 4,
     name: "add-alert-ack-fields",
     up: async (db) => {
-      // Backfill the Phase 16A acknowledgement fields onto alert rows that predate them.
+      // Backfill the acknowledgement fields onto alert rows that predate them.
       // Scoped to rows missing `ackedBy` so a re-run touches nothing; `$ifNull` sets each
       // default only where absent — the same idempotent shape as v2/v3. Existing rows are
       // historical, so they backfill as unacknowledged (null).

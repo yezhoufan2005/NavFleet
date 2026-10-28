@@ -114,7 +114,7 @@ describe("Persistence in-memory alerts fallback", () => {
   });
 });
 
-describe("the write-behind buffer while MongoDB is unavailable (P0-c)", () => {
+describe("the write-behind buffer while MongoDB is unavailable", () => {
   it("buffers telemetry instead of dropping it on the floor", async () => {
     // `db` stays null, which is exactly the "database is down" case. This used to be a
     // bare `return` after the in-memory append: every frame that arrived while MongoDB

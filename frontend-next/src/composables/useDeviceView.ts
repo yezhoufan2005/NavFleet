@@ -24,7 +24,7 @@ import type { MaybeRefOrGetter } from "vue";
  * mounting 200 rows measured at 34.5 ms, which constrains nothing.
  *
  * **The threshold is 10, and that is an owner decision rather than the research figure.**
- * Phase 11 produced 40, and 14E replaced it after the owner looked at a real fleet on a
+ * The first version produced 40, and it was replaced after the owner looked at a real fleet on a
  * real screen: past ten markers the map stops being the faster way to find one vehicle.
  * Recorded as a decision, not quietly overwritten, because the 40 was measured and
  * someone will otherwise wonder which of the two numbers is the mistake.
@@ -39,7 +39,7 @@ import type { MaybeRefOrGetter } from "vue";
  *
  * The surface preference keeps v1.0.0's `navfleet:map-mode` key and its exact value
  * set. `localStorage` is per-origin and the two frontends run on different ports
- * today, so nothing is shared yet — but in Phase 14 the console takes over the old
+ * today, so nothing is shared yet — but the console takes over the old
  * frontend's origin, and at that point reusing the key means an operator's choice
  * survives the switchover instead of silently resetting to GPS.
  */
@@ -50,7 +50,7 @@ export type MapSurface = "gps" | "scene";
 const LAYOUT_STORAGE_KEY = "navfleet:device-layout";
 const SURFACE_STORAGE_KEY = "navfleet:map-mode";
 
-/** See the header: an owner decision (14E), replacing the measured 40. */
+/** See the header: an owner decision, replacing the measured 40. */
 export const MAP_READABLE_LIMIT = 10;
 
 const LAYOUT_VALUES: readonly DeviceLayoutPreference[] = [

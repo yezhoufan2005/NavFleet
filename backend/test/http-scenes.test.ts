@@ -5,7 +5,7 @@ import { createTestApp, sessionCookie } from "./helpers/testApp";
 import { SceneAssetValidationError } from "../src/configRegistry";
 
 /**
- * Scene-map management API (Phase 18). The admin-only gate is pinned in http-rbac; here we cover
+ * Scene-map management API. The admin-only gate is pinned in http-rbac; here we cover
  * the router → store wiring: a valid scenes PUT validates + writes + audits, an invalid body is a
  * 400 that never touches the store, and the backdrop upload passes the raw bytes through with the
  * kind/size guards (empty, unknown kind, over the per-kind cap). Content validation itself lives
