@@ -130,6 +130,37 @@ describe("GET /api/devices/:deviceId/history", () => {
     );
   });
 
+  it("spreads a whole window over the cap when sampling=even", async () => {
+    const context = createTestApp();
+    const response = await authed(
+      context,
+      `/api/devices/${DEVICE_ID}/history?from=2026-01-01T00:00:00Z&to=2026-01-02T00:00:00Z&sampling=even`,
+    );
+    expect(response.status).toBe(200);
+    expect(response.body).toEqual({
+      deviceId: DEVICE_ID,
+      items: [sampleHistoryPoint()],
+      total: 1,
+      sampled: false,
+    });
+    expect(context.store.sampleHistory).toHaveBeenCalledWith(
+      DEVICE_ID,
+      "2026-01-01T00:00:00Z",
+      "2026-01-02T00:00:00Z",
+    );
+    expect(context.store.getHistory).not.toHaveBeenCalled();
+  });
+
+  it("refuses sampling=even without both window bounds", async () => {
+    const context = createTestApp();
+    const response = await authed(
+      context,
+      `/api/devices/${DEVICE_ID}/history?from=2026-01-01T00:00:00Z&sampling=even`,
+    );
+    expect(response.status).toBe(400);
+    expect(context.store.sampleHistory).not.toHaveBeenCalled();
+  });
+
   it("decodes a url-encoded device id before querying", async () => {
     const context = createTestApp();
     const response = await authed(context, "/api/devices/agv%2F1/history");

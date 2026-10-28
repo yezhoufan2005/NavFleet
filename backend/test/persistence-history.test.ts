@@ -152,4 +152,23 @@ describe("the write-behind buffer while MongoDB is unavailable (P0-c)", () => {
 
     expect(persistence.telemetryBufferStats().pending).toBe(1);
   });
+
+  it("sampleHistory serves a window of the ring whole (the ring never exceeds the cap)", async () => {
+    const persistence = new Persistence();
+    await persistence.writeTelemetry(sample("agv-s", "2026-01-01T00:00:00Z", 1));
+    await persistence.writeTelemetry(sample("agv-s", "2026-01-01T00:00:10Z", 2));
+    await persistence.writeTelemetry(sample("agv-s", "2026-01-01T00:00:20Z", 3));
+    const result = await persistence.sampleHistory({
+      deviceId: "agv-s",
+      from: "2026-01-01T00:00:05Z",
+      to: "2026-01-01T00:00:30Z",
+    });
+    expect(result.total).toBe(2);
+    expect(result.sampled).toBe(false);
+    expect(
+      (result.items as Array<{ measurements: { fusionLoc: { x: number } } }>).map(
+        (item) => item.measurements.fusionLoc.x,
+      ),
+    ).toEqual([3, 2]);
+  });
 });

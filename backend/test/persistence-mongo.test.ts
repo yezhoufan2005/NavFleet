@@ -858,6 +858,40 @@ describe("查询", () => {
     });
   });
 
+  it("sampleHistory 窗口内不超上限时整窗原样返回，不走抽样聚合", async () => {
+    const { db, calls } = createFakeDb({ telemetry_ts: [{ ts: new Date() }] });
+    persistence.__setDbForTests(db);
+    const result = await persistence.sampleHistory({
+      deviceId: "agv-a",
+      from: "2026-01-01T00:00:00Z",
+      to: "2026-01-02T00:00:00Z",
+    });
+    expect(result).toMatchObject({ total: 1, sampled: false });
+    expect(calls.find[0]?.sort).toEqual({ ts: -1 });
+    expect(calls.aggregate).toHaveLength(0);
+  });
+
+  it("sampleHistory 超上限时按等长时间桶各取最早一帧，桶数不超过上限", async () => {
+    const rows = Array.from({ length: config.maxHistoryPoints + 1 }, () => ({ ts: new Date() }));
+    const { db, calls } = createFakeDb({ telemetry_ts: rows }, {}, { telemetry_ts: [{}] });
+    persistence.__setDbForTests(db);
+    const result = await persistence.sampleHistory({
+      deviceId: "agv-a",
+      from: "2026-01-01T00:00:00Z",
+      to: "2026-01-02T00:00:00Z",
+    });
+    expect(result).toMatchObject({ total: config.maxHistoryPoints + 1, sampled: true });
+    const pipeline = calls.aggregate[0]?.pipeline as Array<Record<string, unknown>>;
+    expect(pipeline[1]).toEqual({ $sort: { ts: 1 } });
+    const group = pipeline[2]?.$group as { _id: unknown; doc: unknown };
+    expect(group.doc).toEqual({ $first: "$$ROOT" });
+    const bucketMs = Math.ceil((86_400_000 + 1) / config.maxHistoryPoints);
+    expect(group._id).toEqual({
+      $floor: { $divide: [{ $subtract: ["$ts", anyDate] }, bucketMs] },
+    });
+    expect(pipeline.at(-1)).toEqual({ $sort: { ts: -1 } });
+  });
+
   it("queryHistory 没有时间界时不写 ts 条件", async () => {
     const { db, calls } = createFakeDb();
     persistence.__setDbForTests(db);

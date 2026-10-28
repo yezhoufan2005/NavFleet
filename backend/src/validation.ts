@@ -71,8 +71,25 @@ export const historyQuerySchema = z
      * deployment's real cap, which is the only version of this number that is true.
      */
     limit: z.coerce.number().int().positive().max(config.maxHistoryPoints).optional(),
+    /**
+     * `latest` (default): the newest `limit` samples — what a live chart wants. `even`: the
+     * whole `from`–`to` window, thinned to at most `MAX_HISTORY_POINTS` samples spread evenly
+     * over time — what playback of a long window wants, since the newest 500 frames of a
+     * 24-hour window are its last few minutes. Thinning picks real frames, never averages, so
+     * every pose played back is one the vehicle reported.
+     */
+    sampling: z.enum(["latest", "even"]).optional(),
   })
-  .superRefine(rejectInvertedWindow);
+  .superRefine((value, ctx) => {
+    rejectInvertedWindow(value, ctx);
+    if (value.sampling === "even" && (!value.from || !value.to)) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: [value.from ? "to" : "from"],
+        message: "均匀抽样需要同时给出起始和结束时间",
+      });
+    }
+  });
 
 export const alertsQuerySchema = z
   .object({

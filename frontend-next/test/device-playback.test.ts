@@ -166,16 +166,32 @@ describe("the window", () => {
     expect(windowOf()[1]).toBeGreaterThanOrEqual(openedAt);
   });
 
-  it("sends no limit, because the server's cap is the one that counts", async () => {
+  it("sends no limit and asks for the window spread evenly", async () => {
     // v1.0.0's 最大点数 input accepted 5000 and got 500: its min/max constrained
     // nothing (no `<form>`) and the server clamps to `MAX_HISTORY_POINTS` regardless.
+    // `even` makes that cap cover the whole window instead of its newest minutes.
     await mountPlayback();
 
     expect(getHistory.mock.calls[0]![1]).not.toHaveProperty("limit");
     expect(getHistory.mock.calls[0]![1]).toEqual({
       from: expect.any(String),
       to: expect.any(String),
+      sampling: "even",
     });
+  });
+
+  it("says how many samples the window held when the server thinned it", async () => {
+    getHistory.mockResolvedValue({
+      deviceId: "agv-01",
+      items: track(9),
+      total: 4321,
+      sampled: true,
+    });
+    const wrapper = await mountPlayback();
+
+    expect(wrapper.text()).toContain(
+      "窗口内共 4321 条采样，按时间均匀抽取 9 条",
+    );
   });
 
   it("states the span actually covered, not the one requested", async () => {

@@ -98,7 +98,21 @@ export interface AlertRecord {
   [key: string]: unknown;
 }
 
-export type HistoryQueryParams = Omit<HistoryQuery, "deviceId">;
+/**
+ * `sampling: "even"` asks for the whole `from`–`to` window thinned evenly over time to the
+ * server's cap (both bounds required); the default is the newest `limit` samples.
+ */
+export type HistoryQueryParams = Omit<HistoryQuery, "deviceId"> & {
+  sampling?: "latest" | "even";
+};
+
+/** A history read. `total` / `sampled` come back only for `sampling: "even"`. */
+export interface HistoryResponse {
+  deviceId: string;
+  items: HistorySample[];
+  total?: number;
+  sampled?: boolean;
+}
 
 /**
  * The server-side cap on a list read (alerts / audit / notify log): `truncated` means the list
@@ -488,8 +502,8 @@ export const fleetApi = {
   getHistory(
     deviceId: string,
     params: HistoryQueryParams = {},
-  ): Promise<{ deviceId: string; items: HistorySample[] }> {
-    return requestJson<{ deviceId: string; items: HistorySample[] }>(
+  ): Promise<HistoryResponse> {
+    return requestJson<HistoryResponse>(
       `/api/v1/devices/${encodeURIComponent(deviceId)}/history${buildQuery(params)}`,
     );
   },

@@ -83,6 +83,13 @@ export interface StoreStub {
   getHistory: Mock<
     (deviceId: string, from?: string, to?: string, limit?: number) => Promise<unknown[]>
   >;
+  sampleHistory: Mock<
+    (
+      deviceId: string,
+      from: string,
+      to: string,
+    ) => Promise<{ items: unknown[]; total: number; sampled: boolean }>
+  >;
   getAlerts: Mock<(filters: Record<string, string | undefined>) => Promise<unknown[]>>;
   getAlertStats: Mock<(range: { from?: string; to?: string }) => Promise<unknown>>;
   getAvailabilityReport: Mock<
@@ -146,6 +153,9 @@ export const createStoreStub = (): StoreStub => ({
   getReportsConfig: vi.fn(() => DEFAULT_REPORTS_CONFIG),
   writeReportsConfig: vi.fn(() => Promise.resolve(DEFAULT_REPORTS_CONFIG)),
   getHistory: vi.fn(() => Promise.resolve([sampleHistoryPoint()])),
+  sampleHistory: vi.fn(() =>
+    Promise.resolve({ items: [sampleHistoryPoint()], total: 1, sampled: false }),
+  ),
   getAlerts: vi.fn(() => Promise.resolve([sampleAlert()])),
   getAlertStats: vi.fn(() => Promise.resolve(sampleAlertStatsReport())),
   getAvailabilityReport: vi.fn(() => Promise.resolve(sampleAvailabilityReport())),
