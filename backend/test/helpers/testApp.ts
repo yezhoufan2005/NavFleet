@@ -97,6 +97,7 @@ export interface StoreStub {
   deviceAdmissionStats: Mock<
     () => { rejected: number; capped: number; evicted: number; limit: number }
   >;
+  getConfigVersion: Mock<(key: string) => string>;
   getConfigStatus: Mock<
     () => { ok: boolean; issues: Array<Record<string, unknown>>; checkedAt: string | null }
   >;
@@ -152,6 +153,7 @@ export const createStoreStub = (): StoreStub => ({
   broadcastAlertUnack: vi.fn(() => undefined),
   ingestQueueStats: vi.fn(() => ({ depth: 0, dropped: 0, limit: 1000 })),
   deviceAdmissionStats: vi.fn(() => ({ rejected: 0, capped: 0, evicted: 0, limit: 1000 })),
+  getConfigVersion: vi.fn(() => "v1"),
   getConfigStatus: vi.fn(() => ({ ok: true, issues: [], checkedAt: UPDATED_AT })),
 });
 

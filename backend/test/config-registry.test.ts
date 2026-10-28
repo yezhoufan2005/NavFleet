@@ -17,6 +17,7 @@ let ConfigRegistry: typeof import("../src/configRegistry").ConfigRegistry;
 type ConfigRegistryType = import("../src/configRegistry").ConfigRegistry;
 let SceneAssetValidationError: typeof import("../src/configRegistry").SceneAssetValidationError;
 let ConfigApplyError: typeof import("../src/configRegistry").ConfigApplyError;
+let ConfigConflictError: typeof import("../src/configRegistry").ConfigConflictError;
 
 const DEFAULT_FLEET: FleetConfig = {
   fleetName: "临时车队",
@@ -122,7 +123,7 @@ beforeAll(async () => {
   await fs.mkdir(path.join(configRoot, "scene-maps"), { recursive: true });
   process.env.CONFIG_ROOT_PATH = configRoot;
   // The ".js" specifier is the TS/Node16 convention for a relative ESM import.
-  ({ ConfigRegistry, SceneAssetValidationError, ConfigApplyError } =
+  ({ ConfigRegistry, SceneAssetValidationError, ConfigApplyError, ConfigConflictError } =
     await import("../src/configRegistry.js"));
 });
 
@@ -1052,6 +1053,53 @@ describe("ConfigRegistry.writeScenes / writeSceneAsset (Phase 18 场景地图上
     ]);
     // agv-3 only exists once the first write has applied; serialized, the second sees it.
     expect(second.status).toBe("fulfilled");
+  });
+
+  it("同时编辑：带旧版本号的写入被拒（ConfigConflictError），不落盘；带当前版本号的写入通过", async () => {
+    await writeConfig();
+    const registry = new ConfigRegistry();
+    await registry.load();
+    const loadedVersion = registry.getConfigVersion("vehicles");
+
+    // Admin A saves first, against the version both loaded.
+    await registry.writeVehicles(
+      [{ deviceId: "agv-1" }, { deviceId: "agv-2" }, { deviceId: "agv-a" }],
+      loadedVersion,
+    );
+    const afterA = registry.getConfigVersion("vehicles");
+    expect(afterA).not.toBe(loadedVersion);
+    const onDiskAfterA = await fs.readFile(path.join(configRoot, "vehicles.json"), "utf8");
+
+    // Admin B still holds the old version: refused, A's change survives untouched.
+    await expect(
+      registry.writeVehicles(
+        [{ deviceId: "agv-1" }, { deviceId: "agv-2" }, { deviceId: "agv-b" }],
+        loadedVersion,
+      ),
+    ).rejects.toThrow(ConfigConflictError);
+    expect(await fs.readFile(path.join(configRoot, "vehicles.json"), "utf8")).toBe(onDiskAfterA);
+
+    // After reloading (new version), B's save goes through.
+    await registry.writeVehicles(
+      [{ deviceId: "agv-1" }, { deviceId: "agv-2" }, { deviceId: "agv-a" }, { deviceId: "agv-b" }],
+      afterA,
+    );
+    expect(registry.listVehicleConfigs().map((vehicle) => vehicle.deviceId)).toContain("agv-b");
+  });
+
+  it("同时编辑：文件被手工改过也算冲突（版本按磁盘内容计算）", async () => {
+    await writeConfig();
+    const registry = new ConfigRegistry();
+    await registry.load();
+    const version = registry.getConfigVersion("rules");
+    await fs.writeFile(
+      path.join(configRoot, "rules.json"),
+      JSON.stringify({ lowBattery: { thresholdPct: 30 } }),
+      "utf8",
+    );
+    await expect(
+      registry.writeAlertRules({ lowBattery: { thresholdPct: 25 } }, version),
+    ).rejects.toThrow(ConfigConflictError);
   });
 
   it("writeSceneAsset 为无现有底图的场景落到 <sceneId>/<kind>.<ext>", async () => {

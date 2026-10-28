@@ -3,6 +3,7 @@ import { requireCapability } from "../auth/middleware";
 import type { DashboardStore } from "../store";
 import type { AuditService } from "../audit/service";
 import { parseAlertRules } from "../configRegistry";
+import { expectedConfigVersion, sendConfigVersion } from "./helpers";
 
 /**
  * Alert-rule config API (1.6.1) — the console face of `rules.json`. Admin-only (`rules:write`),
@@ -21,6 +22,7 @@ export const buildRulesRouter = (store: DashboardStore, audit: AuditService): ex
   const router = express.Router();
 
   router.get("/rules/config", requireCapability("rules:write"), (_request, response) => {
+    sendConfigVersion(response, store.getConfigVersion("rules"));
     response.json({ config: store.getAlertRules() });
   });
 
@@ -36,7 +38,7 @@ export const buildRulesRouter = (store: DashboardStore, audit: AuditService): ex
       return;
     }
     try {
-      const config = await store.writeAlertRules(parsed);
+      const config = await store.writeAlertRules(parsed, expectedConfigVersion(request));
       void audit.record({
         actor: request.user!.username,
         action: "rules_write",
@@ -46,6 +48,7 @@ export const buildRulesRouter = (store: DashboardStore, audit: AuditService): ex
           offlineEnabled: config.offline.enabled,
         },
       });
+      sendConfigVersion(response, store.getConfigVersion("rules"));
       response.json({ config });
     } catch (error) {
       next(error);

@@ -23,4 +23,10 @@ describe("makeMessageFor", () => {
       "保存未生效，已回滚到修改前",
     );
   });
+
+  it("tells the admin to reload when someone else saved first", () => {
+    expect(messageFor(new ApiError("config_conflict", 409))).toContain(
+      "已被他人修改",
+    );
+  });
 });

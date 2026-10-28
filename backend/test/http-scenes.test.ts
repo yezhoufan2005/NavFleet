@@ -35,7 +35,7 @@ describe("PUT /api/scenes", () => {
 
     expect(response.status).toBe(200);
     expect((response.body as { items: unknown[] }).items).toEqual([SCENE]);
-    expect(context.store.writeScenes).toHaveBeenCalledWith([SCENE]);
+    expect(context.store.writeScenes).toHaveBeenCalledWith([SCENE], undefined);
     expect(context.auditService.record).toHaveBeenCalledWith(
       expect.objectContaining({ actor: "admin-1", action: "scenes_write" }),
     );

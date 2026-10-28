@@ -3,6 +3,7 @@ import { requireCapability } from "../auth/middleware";
 import type { DashboardStore } from "../store";
 import type { AuditService } from "../audit/service";
 import { parseReportsConfig } from "../configRegistry";
+import { expectedConfigVersion, sendConfigVersion } from "./helpers";
 
 /**
  * Scheduled-report config API (1.6.1) — the console face of `reports.json`. Admin-only
@@ -25,6 +26,7 @@ export const buildReportsConfigRouter = (
   const router = express.Router();
 
   router.get("/reports/config", requireCapability("reports:write"), (_request, response) => {
+    sendConfigVersion(response, store.getConfigVersion("reports"));
     response.json({ config: store.getReportsConfig() });
   });
 
@@ -43,13 +45,14 @@ export const buildReportsConfigRouter = (
         return;
       }
       try {
-        const config = await store.writeReportsConfig(parsed);
+        const config = await store.writeReportsConfig(parsed, expectedConfigVersion(request));
         void audit.record({
           actor: request.user!.username,
           action: "reports_write",
           requestId: request.requestId,
           detail: { scheduleCount: config.schedules.length },
         });
+        sendConfigVersion(response, store.getConfigVersion("reports"));
         response.json({ config });
       } catch (error) {
         next(error);

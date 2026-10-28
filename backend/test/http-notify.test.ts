@@ -98,7 +98,7 @@ describe("notify config write (1.6.1)", () => {
       .send({ channels: [] });
 
     expect(response.status).toBe(200);
-    expect(context.store.writeNotifyConfig).toHaveBeenCalledWith({ channels: [] });
+    expect(context.store.writeNotifyConfig).toHaveBeenCalledWith({ channels: [] }, undefined);
     expect(context.auditService.record).toHaveBeenCalledWith(
       expect.objectContaining({ action: "notify_write" }),
     );

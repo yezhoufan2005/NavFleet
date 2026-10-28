@@ -6,7 +6,7 @@ import type { AuditService } from "../audit/service";
 import type { SceneAssetKind } from "../configRegistry";
 import { SceneAssetValidationError } from "../configRegistry";
 import { sceneIdParamSchema } from "../validation";
-import { respondValidationError } from "./helpers";
+import { expectedConfigVersion, respondValidationError, sendConfigVersion } from "./helpers";
 
 /**
  * Scene endpoints: read (list / single / Lanelet2 overlay, viewer+), and the Phase 18
@@ -35,6 +35,7 @@ export const buildScenesRouter = (store: DashboardStore, audit: AuditService): e
   const router = express.Router();
 
   router.get("/scenes", (_request, response) => {
+    sendConfigVersion(response, store.getConfigVersion("scenes"));
     response.json({ items: store.getScenes() });
   });
 
@@ -92,13 +93,14 @@ export const buildScenesRouter = (store: DashboardStore, audit: AuditService): e
       return;
     }
     try {
-      const saved = await store.writeScenes(raw);
+      const saved = await store.writeScenes(raw, expectedConfigVersion(request));
       void audit.record({
         actor: request.user!.username,
         action: "scenes_write",
         requestId: request.requestId,
         detail: { sceneCount: saved.length },
       });
+      sendConfigVersion(response, store.getConfigVersion("scenes"));
       response.json({ items: saved });
     } catch (error) {
       next(error);

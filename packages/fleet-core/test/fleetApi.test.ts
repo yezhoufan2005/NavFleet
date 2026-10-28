@@ -4,7 +4,7 @@
  */
 
 import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
-import { fleetApi } from "../src/fleetApi";
+import { __resetConfigVersions, fleetApi } from "../src/fleetApi";
 
 interface FetchCall {
   url: string;
@@ -474,5 +474,68 @@ describe("fleetApi — RBAC roles & groups (1.6.1)", () => {
     await fleetApi.deleteRbacGroup("g1");
     expect(calls.at(-1)?.url).toBe("/api/v1/rbac/groups/g1");
     expect(calls.at(-1)?.init.method).toBe("DELETE");
+  });
+});
+
+describe("fleetApi — config versions (ETag / If-Match)", () => {
+  const stubWithEtag = (
+    etag: string | null,
+    status = 200,
+    body: unknown = {},
+  ): void => {
+    const fetchStub = vi.fn((input: RequestInfo | URL, init?: RequestInit) => {
+      calls.push({ url: urlOf(input), init: init ?? {} });
+      return Promise.resolve({
+        ok: status >= 200 && status < 300,
+        status,
+        headers: new Headers(etag ? { ETag: etag } : {}),
+        json: () => Promise.resolve(body),
+      } as unknown as Response);
+    });
+    vi.stubGlobal("fetch", fetchStub);
+  };
+
+  beforeEach(() => __resetConfigVersions());
+
+  it("sends back the version it read as If-Match on save, per file", async () => {
+    stubWithEtag('"v-rules-1"', 200, { config: {} });
+    await fleetApi.getAlertRules();
+    await fleetApi.putAlertRules({} as never);
+    const put = calls.at(-1)!;
+    expect((put.init.headers as Record<string, string>)["If-Match"]).toBe(
+      '"v-rules-1"',
+    );
+
+    // Another file's save carries no version it never read.
+    await fleetApi.putReportsConfig({ schedules: [] });
+    expect(
+      (calls.at(-1)!.init.headers as Record<string, string>)["If-Match"],
+    ).toBeUndefined();
+  });
+
+  it("pairs the raw notify read with the notify write, but not the redacted view", async () => {
+    stubWithEtag('"v-notify"', 200, { config: { channels: [] }, channels: [] });
+    await fleetApi.getNotifyConfig();
+    await fleetApi.putNotifyConfig({ channels: [] });
+    expect(
+      (calls.at(-1)!.init.headers as Record<string, string>)["If-Match"],
+    ).toBeUndefined();
+
+    await fleetApi.getNotifyConfigRaw();
+    await fleetApi.putNotifyConfig({ channels: [] });
+    expect(
+      (calls.at(-1)!.init.headers as Record<string, string>)["If-Match"],
+    ).toBe('"v-notify"');
+  });
+
+  it("surfaces a conflict as config_conflict", async () => {
+    stubWithEtag(null, 409, {
+      error: "config_conflict",
+      detail: "rules.json 已被他人修改",
+    });
+    await expect(fleetApi.putAlertRules({} as never)).rejects.toMatchObject({
+      message: "config_conflict",
+      status: 409,
+    });
   });
 });

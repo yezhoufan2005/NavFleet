@@ -2,6 +2,7 @@ import { describe, it, expect } from "vitest";
 import request from "supertest";
 import type { DeviceConfig, FormationConfig } from "@navfleet/shared";
 import { createTestApp, sessionCookie } from "./helpers/testApp";
+import { ConfigConflictError } from "../src/configRegistry";
 
 /**
  * Device-onboarding wizard config API (Phase 18). The admin-only gate on all four routes is
@@ -48,7 +49,7 @@ describe("PUT /api/vehicles", () => {
 
     expect(response.status).toBe(200);
     expect((response.body as { vehicles: unknown[] }).vehicles).toEqual([VEHICLE]);
-    expect(context.store.writeVehicles).toHaveBeenCalledWith([VEHICLE]);
+    expect(context.store.writeVehicles).toHaveBeenCalledWith([VEHICLE], undefined);
     expect(context.auditService.record).toHaveBeenCalledWith(
       expect.objectContaining({ actor: "admin-1", action: "vehicles_write" }),
     );
@@ -115,7 +116,7 @@ describe("PUT /api/vehicles", () => {
       .send({ vehicles: [rich] });
 
     expect(response.status).toBe(200);
-    expect(context.store.writeVehicles).toHaveBeenCalledWith([rich]);
+    expect(context.store.writeVehicles).toHaveBeenCalledWith([rich], undefined);
   });
 });
 
@@ -131,7 +132,7 @@ describe("PUT /api/formation-config", () => {
       .send({ formations: [FORMATION] });
 
     expect(response.status).toBe(200);
-    expect(context.store.writeFormations).toHaveBeenCalledWith([FORMATION]);
+    expect(context.store.writeFormations).toHaveBeenCalledWith([FORMATION], undefined);
     expect(context.auditService.record).toHaveBeenCalledWith(
       expect.objectContaining({ actor: "admin-1", action: "formations_write" }),
     );
@@ -177,5 +178,33 @@ describe("PUT /api/formation-config", () => {
     expect(response.status).toBe(400);
     expect((response.body as { error: string }).error).toBe("unknown_scene_in_formation");
     expect(context.store.writeFormations).not.toHaveBeenCalled();
+  });
+});
+
+describe("config writes — optimistic concurrency (ETag / If-Match)", () => {
+  it("sends the file version as an ETag and passes If-Match through to the write", async () => {
+    const context = createTestApp();
+    context.store.getConfigVersion.mockReturnValue("abc123");
+    const read = await request(context.app).get("/api/v1/vehicles").set("Cookie", ADMIN);
+    expect(read.headers.etag).toBe('"abc123"');
+
+    await request(context.app)
+      .put("/api/v1/vehicles")
+      .set("Cookie", ADMIN)
+      .set("If-Match", '"abc123"')
+      .send([VEHICLE]);
+    expect(context.store.writeVehicles).toHaveBeenCalledWith([VEHICLE], "abc123");
+  });
+
+  it("answers 409 config_conflict when the file changed since it was read", async () => {
+    const context = createTestApp();
+    context.store.writeVehicles.mockRejectedValue(new ConfigConflictError("vehicles.json"));
+    const response = await request(context.app)
+      .put("/api/v1/vehicles")
+      .set("Cookie", ADMIN)
+      .set("If-Match", '"stale"')
+      .send([VEHICLE]);
+    expect(response.status).toBe(409);
+    expect((response.body as { error: string }).error).toBe("config_conflict");
   });
 });
