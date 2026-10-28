@@ -4,7 +4,12 @@ import path from "node:path";
 import { config } from "./config";
 import { deviceMatchesScope, applyRuleDebounce } from "@navfleet/shared";
 import type { ReportBucketUnit } from "@navfleet/shared";
-import { ConfigRegistry, type ConfigStatus, type SceneAssetKind } from "./configRegistry";
+import {
+  ConfigRegistry,
+  type ConfigFileKey,
+  type ConfigStatus,
+  type SceneAssetKind,
+} from "./configRegistry";
 import {
   buildFleetSnapshot,
   buildOfflineAlert,
@@ -800,8 +805,8 @@ export class DashboardStore extends EventEmitter {
 
   // ── Scene-map upload & management (Phase 18): write scenes.json + upload backdrops ──
   /** Validate + persist `scenes.json` (full array), reload, and return the configured scenes. */
-  writeScenes(raw: unknown): Promise<SceneMapDefinition[]> {
-    return this.configRegistry.writeScenes(raw);
+  writeScenes(raw: unknown, expectedVersion?: string): Promise<SceneMapDefinition[]> {
+    return this.configRegistry.writeScenes(raw, expectedVersion);
   }
 
   /** Validate + store an uploaded backdrop for a scene, reload, and return its /scene-maps/ URL. */
@@ -815,13 +820,18 @@ export class DashboardStore extends EventEmitter {
   }
 
   /** Validate + persist a deployment codebook, reload, and return the merged table. */
+  /** Version (ETag) of a config file as last loaded, for optimistic-concurrency writes. */
+  getConfigVersion(key: ConfigFileKey): string {
+    return this.configRegistry.getConfigVersion(key);
+  }
+
   /** Health of the configuration in effect (per-file fallback in use, last reload failure). */
   getConfigStatus(): ConfigStatus {
     return this.configRegistry.getConfigStatus();
   }
 
-  importCodebook(rawEntries: unknown): Promise<ReportCodeEntry[]> {
-    return this.configRegistry.importCodebook(rawEntries);
+  importCodebook(rawEntries: unknown, expectedVersion?: string): Promise<ReportCodeEntry[]> {
+    return this.configRegistry.importCodebook(rawEntries, expectedVersion);
   }
 
   // ── Device-onboarding wizard config (Phase 18): read + write vehicles/formations ──
@@ -831,8 +841,8 @@ export class DashboardStore extends EventEmitter {
   }
 
   /** Validate + persist `vehicles.json`, reload, and return the configured vehicles. */
-  writeVehicles(raw: unknown): Promise<DeviceConfig[]> {
-    return this.configRegistry.writeVehicles(raw);
+  writeVehicles(raw: unknown, expectedVersion?: string): Promise<DeviceConfig[]> {
+    return this.configRegistry.writeVehicles(raw, expectedVersion);
   }
 
   /** All configured formations (`formations.json` entries). */
@@ -841,8 +851,8 @@ export class DashboardStore extends EventEmitter {
   }
 
   /** Validate (incl. device references) + persist `formations.json`, reload, return them. */
-  writeFormations(raw: unknown): Promise<FormationConfig[]> {
-    return this.configRegistry.writeFormations(raw);
+  writeFormations(raw: unknown, expectedVersion?: string): Promise<FormationConfig[]> {
+    return this.configRegistry.writeFormations(raw, expectedVersion);
   }
 
   // ── Outbound-notification config (1.6.1): read + write notify.json ──
@@ -852,8 +862,8 @@ export class DashboardStore extends EventEmitter {
   }
 
   /** Validate + persist `notify.json`, reload, and return the new config. */
-  writeNotifyConfig(raw: unknown): Promise<NotifyConfig> {
-    return this.configRegistry.writeNotifyConfig(raw);
+  writeNotifyConfig(raw: unknown, expectedVersion?: string): Promise<NotifyConfig> {
+    return this.configRegistry.writeNotifyConfig(raw, expectedVersion);
   }
 
   // ── Alert-rule config (1.6.1): read + write rules.json ──
@@ -863,8 +873,8 @@ export class DashboardStore extends EventEmitter {
   }
 
   /** Validate + persist `rules.json`, reload, and return the new config. */
-  writeAlertRules(raw: unknown): Promise<AlertRulesConfig> {
-    return this.configRegistry.writeAlertRules(raw);
+  writeAlertRules(raw: unknown, expectedVersion?: string): Promise<AlertRulesConfig> {
+    return this.configRegistry.writeAlertRules(raw, expectedVersion);
   }
 
   // ── Scheduled-report config (1.6.1): read + write reports.json ──
@@ -874,8 +884,8 @@ export class DashboardStore extends EventEmitter {
   }
 
   /** Validate + persist `reports.json`, reload, and return the new config. */
-  writeReportsConfig(raw: unknown): Promise<ReportsConfig> {
-    return this.configRegistry.writeReportsConfig(raw);
+  writeReportsConfig(raw: unknown, expectedVersion?: string): Promise<ReportsConfig> {
+    return this.configRegistry.writeReportsConfig(raw, expectedVersion);
   }
 
   async getHistory(

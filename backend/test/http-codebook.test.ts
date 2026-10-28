@@ -45,7 +45,7 @@ describe("PUT /api/codebook", () => {
 
     expect(response.status).toBe(200);
     expect((response.body as { items: unknown[] }).items).toEqual([ENTRY]);
-    expect(context.store.importCodebook).toHaveBeenCalledWith([ENTRY]);
+    expect(context.store.importCodebook).toHaveBeenCalledWith([ENTRY], undefined);
     expect(context.auditService.record).toHaveBeenCalledWith(
       expect.objectContaining({ actor: "admin-1", action: "codebook_import" }),
     );
@@ -61,7 +61,7 @@ describe("PUT /api/codebook", () => {
       .send([ENTRY]);
 
     expect(response.status).toBe(200);
-    expect(context.store.importCodebook).toHaveBeenCalledWith([ENTRY]);
+    expect(context.store.importCodebook).toHaveBeenCalledWith([ENTRY], undefined);
   });
 
   it("400s an invalid codebook without importing or auditing", async () => {

@@ -1,3 +1,4 @@
+import { createHash } from "node:crypto";
 import fs from "node:fs/promises";
 import path from "node:path";
 import chokidar, { FSWatcher } from "chokidar";
@@ -223,7 +224,7 @@ const CONFIG_FILES = {
   notify: { path: NOTIFY_FILE, optional: true },
   reports: { path: REPORTS_FILE, optional: true },
 } as const;
-type ConfigFileKey = keyof typeof CONFIG_FILES;
+export type ConfigFileKey = keyof typeof CONFIG_FILES;
 const CONFIG_FILE_KEYS = Object.keys(CONFIG_FILES) as ConfigFileKey[];
 /** Raw text of each config file; null = absent. */
 type RawConfig = Record<ConfigFileKey, string | null>;
@@ -280,6 +281,22 @@ export class ConfigApplyError extends Error {
     this.name = "ConfigApplyError";
   }
 }
+
+/**
+ * A config write made against a version of the file that is no longer the one on disk — someone
+ * else saved (or hand-edited) it in the meantime. Nothing was written; the route answers 409 so the
+ * editor reloads instead of silently overwriting the other change.
+ */
+export class ConfigConflictError extends Error {
+  constructor(file: string) {
+    super(`${file} 已被他人修改`);
+    this.name = "ConfigConflictError";
+  }
+}
+
+/** Version token of a config file's on-disk text (what an editor's If-Match refers to). */
+const versionOf = (text: string | null): string =>
+  text === null ? "absent" : createHash("sha256").update(text).digest("hex").slice(0, 16);
 
 /** One problem with the configuration currently in effect. */
 export interface ConfigIssue {
@@ -760,6 +777,8 @@ export class ConfigRegistry {
   private configQueue: Promise<void> = Promise.resolve();
   private pendingReloadReason = "startup";
   private status: ConfigStatus = { ok: true, issues: [], checkedAt: null };
+  /** Version of each config file's on-disk text as of the last load (see `getConfigVersion`). */
+  private fileVersions: Partial<Record<ConfigFileKey, string>> = {};
 
   private async readRawConfig(): Promise<RawConfig> {
     const texts = await Promise.all(
@@ -878,6 +897,7 @@ export class ConfigRegistry {
     issues: ConfigIssue[];
   }): Promise<void> {
     this.applySnapshot(loaded.snapshot);
+    for (const key of CONFIG_FILE_KEYS) this.fileVersions[key] = versionOf(loaded.current[key]);
     this.status = {
       ok: loaded.issues.length === 0,
       issues: loaded.issues,
@@ -1185,6 +1205,14 @@ export class ConfigRegistry {
     }
   }
 
+  /**
+   * The version of a config file as last loaded — sent to editors as an ETag and checked against
+   * their If-Match on write (optimistic concurrency).
+   */
+  getConfigVersion(key: ConfigFileKey): string {
+    return this.fileVersions[key] ?? "absent";
+  }
+
   /** Health of the configuration in effect — for the system status page and readiness. */
   getConfigStatus(): ConfigStatus {
     return { ...this.status, issues: this.status.issues.map((issue) => ({ ...issue })) };
@@ -1202,9 +1230,16 @@ export class ConfigRegistry {
     key: ConfigFileKey,
     value: unknown,
     reason: string,
+    expectedVersion?: string,
   ): Promise<void> {
     const filePath = CONFIG_FILES[key].path;
     const previous = await readTextIfExists(filePath);
+    // Checked against the file as it is on disk *now*, inside the serialized write: the editor
+    // loaded version X, and if anything (another admin, a hand edit) changed the file since, this
+    // write would overwrite that change without anyone seeing it.
+    if (expectedVersion !== undefined && versionOf(previous) !== expectedVersion) {
+      throw new ConfigConflictError(path.basename(filePath));
+    }
     await this.writeConfigFileAtomic(filePath, value);
     let failure: string;
     try {
@@ -1395,7 +1430,7 @@ export class ConfigRegistry {
    * Persist a deployment codebook (the import endpoint's payload) as `codebook.json`, then reload
    * so `getCodebook` reflects it. The config volume must be writable (see deploy/docker-compose.yml).
    */
-  importCodebook(rawEntries: unknown): Promise<ReportCodeEntry[]> {
+  importCodebook(rawEntries: unknown, expectedVersion?: string): Promise<ReportCodeEntry[]> {
     // Persist only the deployment's own entries: a built-in code sent back unchanged (the console
     // re-sends the merged table on every row edit; an exported table re-imported does the same)
     // is dropped, so built-in meanings are never frozen into the file.
@@ -1405,6 +1440,7 @@ export class ConfigRegistry {
       "codebook",
       "codebook-import",
       () => this.getCodebook(),
+      expectedVersion,
     );
   }
 
@@ -1439,10 +1475,11 @@ export class ConfigRegistry {
     file: ConfigFileKey,
     reloadReason: string,
     read: () => R,
+    expectedVersion?: string,
   ): Promise<R> {
     const value = parse(raw);
     return this.serialize(async () => {
-      await this.writeConfigAndApply(file, value, reloadReason);
+      await this.writeConfigAndApply(file, value, reloadReason, expectedVersion);
       return read();
     });
   }
@@ -1463,12 +1500,15 @@ export class ConfigRegistry {
    * formation→vehicle integrity). Writing config is operator-domain, not vehicle control —
    * the read-only red line (no command dispatch) holds. The config volume must be writable.
    */
-  async writeVehicles(raw: unknown): Promise<DeviceConfig[]> {
+  async writeVehicles(raw: unknown, expectedVersion?: string): Promise<DeviceConfig[]> {
     const vehicles = parseVehicles(raw);
-    return this.serialize(() => this.writeVehiclesInternal(vehicles));
+    return this.serialize(() => this.writeVehiclesInternal(vehicles, expectedVersion));
   }
 
-  private async writeVehiclesInternal(vehicles: DeviceConfig[]): Promise<DeviceConfig[]> {
+  private async writeVehiclesInternal(
+    vehicles: DeviceConfig[],
+    expectedVersion?: string,
+  ): Promise<DeviceConfig[]> {
     this.ensureLoaded();
     const nextIds = new Set(vehicles.map((vehicle) => vehicle.deviceId));
     for (const formation of this.formationConfigs.values()) {
@@ -1487,7 +1527,7 @@ export class ConfigRegistry {
         );
       }
     }
-    await this.writeConfigAndApply("vehicles", vehicles, "vehicles-write");
+    await this.writeConfigAndApply("vehicles", vehicles, "vehicles-write", expectedVersion);
     return this.listVehicleConfigs();
   }
 
@@ -1497,12 +1537,15 @@ export class ConfigRegistry {
    * formation names must be a known vehicle — *before* writing, so a bad reference can never
    * reach disk (a cold start would otherwise fail to load it). Mirrors the load-time check.
    */
-  async writeFormations(raw: unknown): Promise<FormationConfig[]> {
+  async writeFormations(raw: unknown, expectedVersion?: string): Promise<FormationConfig[]> {
     const formations = parseFormations(raw);
-    return this.serialize(() => this.writeFormationsInternal(formations));
+    return this.serialize(() => this.writeFormationsInternal(formations, expectedVersion));
   }
 
-  private async writeFormationsInternal(formations: FormationConfig[]): Promise<FormationConfig[]> {
+  private async writeFormationsInternal(
+    formations: FormationConfig[],
+    expectedVersion?: string,
+  ): Promise<FormationConfig[]> {
     this.ensureLoaded();
     for (const formation of formations) {
       for (const deviceId of formation.deviceIds) {
@@ -1518,7 +1561,7 @@ export class ConfigRegistry {
         );
       }
     }
-    await this.writeConfigAndApply("formations", formations, "formations-write");
+    await this.writeConfigAndApply("formations", formations, "formations-write", expectedVersion);
     return this.listFormations();
   }
 
@@ -1527,9 +1570,14 @@ export class ConfigRegistry {
    * operator/deployment domain — the console renders these backdrops, it does not push maps to
    * vehicles — so the read-only red line holds. The config volume must be writable.
    */
-  writeScenes(raw: unknown): Promise<SceneMapDefinition[]> {
-    return this.writeWholeConfig(raw, parseScenes, "scenes", "scenes-write", () =>
-      this.listScenes(),
+  writeScenes(raw: unknown, expectedVersion?: string): Promise<SceneMapDefinition[]> {
+    return this.writeWholeConfig(
+      raw,
+      parseScenes,
+      "scenes",
+      "scenes-write",
+      () => this.listScenes(),
+      expectedVersion,
     );
   }
 
@@ -1538,9 +1586,14 @@ export class ConfigRegistry {
    * only; endpoint secrets stay in env, the file holds just their `urlEnv` variable *names* — so
    * this is operator/deployment domain, not vehicle control, and the read-only red line holds.
    */
-  writeNotifyConfig(raw: unknown): Promise<NotifyConfig> {
-    return this.writeWholeConfig(raw, parseNotifyConfig, "notify", "notify-write", () =>
-      this.getNotifyConfig(),
+  writeNotifyConfig(raw: unknown, expectedVersion?: string): Promise<NotifyConfig> {
+    return this.writeWholeConfig(
+      raw,
+      parseNotifyConfig,
+      "notify",
+      "notify-write",
+      () => this.getNotifyConfig(),
+      expectedVersion,
     );
   }
 
@@ -1549,9 +1602,14 @@ export class ConfigRegistry {
    * toggling a rule / scoping it is deployment-domain config, not vehicle control — the read-only
    * red line holds. The config volume must be writable.
    */
-  writeAlertRules(raw: unknown): Promise<AlertRulesConfig> {
-    return this.writeWholeConfig(raw, parseAlertRules, "rules", "rules-write", () =>
-      this.getAlertRules(),
+  writeAlertRules(raw: unknown, expectedVersion?: string): Promise<AlertRulesConfig> {
+    return this.writeWholeConfig(
+      raw,
+      parseAlertRules,
+      "rules",
+      "rules-write",
+      () => this.getAlertRules(),
+      expectedVersion,
     );
   }
 
@@ -1561,9 +1619,14 @@ export class ConfigRegistry {
    * (with credentials) stay in the env vars `smtpEnv` names — only those *names* live in the file —
    * so this is deployment-domain config, not command dispatch.
    */
-  writeReportsConfig(raw: unknown): Promise<ReportsConfig> {
-    return this.writeWholeConfig(raw, parseReportsConfig, "reports", "reports-write", () =>
-      this.getReportsConfig(),
+  writeReportsConfig(raw: unknown, expectedVersion?: string): Promise<ReportsConfig> {
+    return this.writeWholeConfig(
+      raw,
+      parseReportsConfig,
+      "reports",
+      "reports-write",
+      () => this.getReportsConfig(),
+      expectedVersion,
     );
   }
 

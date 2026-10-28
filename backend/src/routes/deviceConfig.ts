@@ -3,6 +3,7 @@ import { parseFormations, parseVehicles } from "@navfleet/shared";
 import { requireCapability } from "../auth/middleware";
 import type { DashboardStore } from "../store";
 import type { AuditService } from "../audit/service";
+import { expectedConfigVersion, sendConfigVersion } from "./helpers";
 
 /**
  * Device-onboarding wizard config API (Phase 18).
@@ -32,6 +33,7 @@ export const buildDeviceConfigRouter = (
       : body;
 
   router.get("/vehicles", requireCapability("vehicles:write"), (_request, response) => {
+    sendConfigVersion(response, store.getConfigVersion("vehicles"));
     response.json({ vehicles: store.listVehicleConfigs() });
   });
 
@@ -73,13 +75,14 @@ export const buildDeviceConfigRouter = (
       return;
     }
     try {
-      const saved = await store.writeVehicles(raw);
+      const saved = await store.writeVehicles(raw, expectedConfigVersion(request));
       void audit.record({
         actor: request.user!.username,
         action: "vehicles_write",
         requestId: request.requestId,
         detail: { vehicleCount: saved.length },
       });
+      sendConfigVersion(response, store.getConfigVersion("vehicles"));
       response.json({ vehicles: saved });
     } catch (error) {
       next(error);
@@ -87,6 +90,7 @@ export const buildDeviceConfigRouter = (
   });
 
   router.get("/formation-config", requireCapability("formations:write"), (_request, response) => {
+    sendConfigVersion(response, store.getConfigVersion("formations"));
     response.json({ formations: store.listFormationConfigs() });
   });
 
@@ -131,13 +135,14 @@ export const buildDeviceConfigRouter = (
         return;
       }
       try {
-        const saved = await store.writeFormations(raw);
+        const saved = await store.writeFormations(raw, expectedConfigVersion(request));
         void audit.record({
           actor: request.user!.username,
           action: "formations_write",
           requestId: request.requestId,
           detail: { formationCount: saved.length },
         });
+        sendConfigVersion(response, store.getConfigVersion("formations"));
         response.json({ formations: saved });
       } catch (error) {
         next(error);

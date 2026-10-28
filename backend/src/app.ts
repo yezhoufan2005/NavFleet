@@ -10,7 +10,7 @@ import type { RbacService } from "./rbac/service";
 import type { AppConfig } from "./config";
 import type { RuntimeState } from "./runtimeState";
 import { runtimePaths } from "./config";
-import { ConfigApplyError } from "./configRegistry";
+import { ConfigApplyError, ConfigConflictError } from "./configRegistry";
 import { createMetrics, captureRouteMount } from "./metrics";
 import { requestContext, requestLogger } from "./requestContext";
 import { createAuthenticate, type CapabilityResolver } from "./auth/middleware";
@@ -285,6 +285,10 @@ export const createApp = ({
           : undefined;
       // A config write that validated but could not take effect with the rest of the configuration
       // (the file was rolled back). The admin needs the reason to fix it, so it is surfaced.
+      if (error instanceof ConfigConflictError) {
+        response.status(409).json({ error: "config_conflict", detail: error.message });
+        return;
+      }
       if (error instanceof ConfigApplyError) {
         response.status(409).json({ error: "config_not_applied", detail: error.message });
         return;

@@ -10,11 +10,16 @@
  * `config_not_applied` is shared by every config editor: the change validated but could not take
  * effect together with the rest of the configuration, and the backend rolled the file back. Its
  * `detail` is the actual reason, which the admin needs to fix the input — so it is shown verbatim.
+ * `config_conflict` is the optimistic-concurrency refusal: someone else saved the file after this
+ * editor loaded it, and nothing was written — the admin must reload rather than retry.
  */
 export const makeMessageFor =
   (map: Record<string, string>, fallback = "保存失败，请稍后重试") =>
   (error: unknown): string => {
     const code = error instanceof Error ? error.message : "";
+    if (code === "config_conflict" && !map[code]) {
+      return "保存未执行：这份配置在你编辑期间已被他人修改，请刷新页面查看最新内容后重新编辑";
+    }
     if (code === "config_not_applied" && !map[code]) {
       const detail = (error as { detail?: unknown }).detail;
       return typeof detail === "string" && detail

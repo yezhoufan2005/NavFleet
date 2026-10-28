@@ -23,3 +23,22 @@ export const makeActionErrorResponder =
   (response: express.Response, error: E): void => {
     response.status(statusByError[error]).json({ error });
   };
+
+/**
+ * Optimistic concurrency for whole-file config writes.
+ *
+ * A config GET sends the file's version as an `ETag`; an editor that saves sends it back as
+ * `If-Match`. If the file changed in between (another admin saved, or it was hand-edited) the write
+ * is refused with 409 `config_conflict` and nothing is written, so a change made elsewhere is never
+ * silently overwritten. A write without `If-Match` (scripts, older clients) is accepted as before.
+ */
+export const sendConfigVersion = (response: express.Response, version: string): void => {
+  response.setHeader("ETag", `"${version}"`);
+};
+
+/** The version an `If-Match` header names, or undefined when there is none (or it is `*`). */
+export const expectedConfigVersion = (request: express.Request): string | undefined => {
+  const header = request.get("If-Match");
+  if (!header || header.trim() === "*") return undefined;
+  return header.trim().replace(/^W\//, "").replace(/^"|"$/g, "");
+};

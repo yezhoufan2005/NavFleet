@@ -281,6 +281,54 @@ const timeoutSignal = (
     ? AbortSignal.timeout(ms)
     : undefined);
 
+/**
+ * Optimistic concurrency for whole-file config editors. The backend sends each config file's
+ * version as an `ETag` on read; the client remembers it per file and sends it back as `If-Match`
+ * on save. If someone else saved in between, the save fails with `config_conflict` (409) instead
+ * of silently overwriting their change. Keyed by file, because the read and write paths differ
+ * for notify (`/config/raw` vs `/config`).
+ */
+const CONFIG_VERSION_KEYS: Record<string, string> = {
+  "/api/v1/vehicles": "vehicles",
+  "/api/v1/formation-config": "formations",
+  "/api/v1/scenes": "scenes",
+  "/api/v1/codebook": "codebook",
+  "/api/v1/notify/config/raw": "notify",
+  "/api/v1/notify/config": "notify",
+  "/api/v1/rules/config": "rules",
+  "/api/v1/reports/config": "reports",
+};
+const configVersions = new Map<string, string>();
+
+/** Test-only: forget remembered config versions. */
+export const __resetConfigVersions = (): void => configVersions.clear();
+
+const withIfMatch = (path: string, init: RequestInit): RequestInit => {
+  const key = CONFIG_VERSION_KEYS[path];
+  const method = (init.method ?? "GET").toUpperCase();
+  const version = key ? configVersions.get(key) : undefined;
+  if (method !== "PUT" || !version) return init;
+  return {
+    ...init,
+    headers: {
+      ...(init.headers as Record<string, string> | undefined),
+      "If-Match": version,
+    },
+  };
+};
+
+const rememberVersion = (
+  path: string,
+  response: Response,
+  method: string,
+): void => {
+  const key = CONFIG_VERSION_KEYS[path];
+  // The notify read view (`/notify/config`, GET) is the redacted one; only its raw twin versions.
+  if (!key || (path === "/api/v1/notify/config" && method === "GET")) return;
+  const etag = (response.headers as Headers | undefined)?.get?.("ETag");
+  if (etag) configVersions.set(key, etag);
+};
+
 async function requestJson<T>(
   path: string,
   init: RequestInit = {},
@@ -289,9 +337,11 @@ async function requestJson<T>(
   const response = await fetch(path, {
     credentials: "include",
     cache: "no-store",
-    ...init,
+    ...withIfMatch(path, init),
     signal: timeoutSignal(timeoutMs, init.signal),
   });
+  if (response.ok)
+    rememberVersion(path, response, (init.method ?? "GET").toUpperCase());
   if (!response.ok) {
     throw await failureError(response);
   }

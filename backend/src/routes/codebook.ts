@@ -3,6 +3,7 @@ import { parseCodebook } from "@navfleet/shared";
 import { requireCapability } from "../auth/middleware";
 import type { DashboardStore } from "../store";
 import type { AuditService } from "../audit/service";
+import { expectedConfigVersion, sendConfigVersion } from "./helpers";
 
 /**
  * Report-code dictionary API (Phase 16C-2).
@@ -22,6 +23,7 @@ export const buildCodebookRouter = (store: DashboardStore, audit: AuditService):
   const router = express.Router();
 
   router.get("/codebook", (_request, response) => {
+    sendConfigVersion(response, store.getConfigVersion("codebook"));
     response.json({ items: store.getCodebook() });
   });
 
@@ -46,13 +48,14 @@ export const buildCodebookRouter = (store: DashboardStore, audit: AuditService):
     }
 
     try {
-      const items = await store.importCodebook(rawEntries);
+      const items = await store.importCodebook(rawEntries, expectedConfigVersion(request));
       void audit.record({
         actor: request.user!.username,
         action: "codebook_import",
         requestId: request.requestId,
         detail: { entryCount: items.length },
       });
+      sendConfigVersion(response, store.getConfigVersion("codebook"));
       response.json({ items });
     } catch (error) {
       next(error);

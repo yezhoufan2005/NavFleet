@@ -5,7 +5,7 @@ import type { DashboardStore } from "../store";
 import type { AuditService } from "../audit/service";
 import { parseNotifyConfig } from "../configRegistry";
 import { notifyLogQuerySchema } from "../validation";
-import { respondValidationError } from "./helpers";
+import { expectedConfigVersion, respondValidationError, sendConfigVersion } from "./helpers";
 
 /**
  * Outbound-notification read API (Phase 16D-1). Both routes are **admin-only** on top of the
@@ -53,6 +53,7 @@ export const buildNotifyRouter = (
   // variable *names* (not secrets) + routing + groups, so the editor can round-trip the fields it
   // does not expose. Gated tighter than the redacted read view above.
   router.get("/notify/config/raw", requireCapability("notify:write"), (_request, response) => {
+    sendConfigVersion(response, store.getConfigVersion("notify"));
     response.json({ config: store.getNotifyConfig() });
   });
 
@@ -73,13 +74,14 @@ export const buildNotifyRouter = (
         return;
       }
       try {
-        const config = await store.writeNotifyConfig(parsed);
+        const config = await store.writeNotifyConfig(parsed, expectedConfigVersion(request));
         void audit.record({
           actor: request.user!.username,
           action: "notify_write",
           requestId: request.requestId,
           detail: { channelCount: config.channels.length },
         });
+        sendConfigVersion(response, store.getConfigVersion("notify"));
         response.json({ config });
       } catch (error) {
         next(error);
