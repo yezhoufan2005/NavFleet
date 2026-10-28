@@ -409,6 +409,16 @@ export const parseAlertRules = (raw: unknown): AlertRulesConfig => {
   const lb = lowBatteryRaw ?? {};
   const off = offlineRaw ?? {};
   const defaults = DEFAULT_ALERT_RULES;
+  // Upper bounds: a percentage cannot exceed 100, and windows longer than a day are almost
+  // certainly a unit mistake (minutes / ms typed as seconds).
+  const atMost = (value: number | undefined, max: number, label: string): void => {
+    if (value !== undefined && value > max) {
+      throw new Error(`${label} must be <= ${max}: ${RULES_FILE}`);
+    }
+  };
+  atMost(lb.thresholdPct as number | undefined, 100, "rules.lowBattery.thresholdPct");
+  atMost(lb.debounceSeconds as number | undefined, 86_400, "rules.lowBattery.debounceSeconds");
+  atMost(off.afterSeconds as number | undefined, 86_400, "rules.offline.afterSeconds");
 
   return {
     lowBattery: {
@@ -493,11 +503,29 @@ const parseStringList = (value: unknown, label: string): string[] | undefined =>
 };
 
 /** A recipient is a literal `email` or a `user` reference; at least one is required. */
+/** `HH:MM`, 24-hour — silence windows and report send times, against the deployment's wall clock. */
+const TIME_OF_DAY = /^([01]\d|2[0-3]):[0-5]\d$/;
+
+/** An environment variable name as a shell or compose file would accept it. */
+const ENV_VAR_NAME = /^[A-Za-z_][A-Za-z0-9_]*$/;
+
+/** A plain mailbox `local@domain.tld`: what an SMTP RCPT/FROM accepts without guesswork. */
+const EMAIL_ADDRESS = /^[^\s@<>(),;:"]+@[^\s@<>(),;:"]+\.[^\s@<>(),;:"]+$/;
+
+const parseEmail = (value: unknown, label: string): string | undefined => {
+  const email = parseOptionalString(value, label)?.trim();
+  if (email === undefined || email === "") return undefined;
+  if (!EMAIL_ADDRESS.test(email)) {
+    throw new Error(`${label} must be an email address like ops@example.com: ${NOTIFY_FILE}`);
+  }
+  return email;
+};
+
 const parseRecipient = (raw: unknown, label: string): NotifyRecipient => {
   if (!isRecord(raw)) {
     throw new Error(`${label} must be a JSON object: ${NOTIFY_FILE}`);
   }
-  const email = parseOptionalString(raw.email, `${label}.email`);
+  const email = parseEmail(raw.email, `${label}.email`);
   const user = parseOptionalString(raw.user, `${label}.user`);
   if (!email && !user) {
     throw new Error(`${label} must set an email or a user: ${NOTIFY_FILE}`);
@@ -519,8 +547,15 @@ const parseSilenceWindow = (raw: unknown, label: string): NotifySilenceWindow =>
   if (!isRecord(raw)) {
     throw new Error(`${label} must be a JSON object: ${NOTIFY_FILE}`);
   }
-  if (typeof raw.from !== "string" || typeof raw.to !== "string") {
-    throw new Error(`${label} must have string from/to ("HH:MM"): ${NOTIFY_FILE}`);
+  // Checked here rather than at send time: a malformed window used to be silently ignored when
+  // the dispatcher parsed it, so a channel the admin believed muted kept sending.
+  if (
+    typeof raw.from !== "string" ||
+    typeof raw.to !== "string" ||
+    !TIME_OF_DAY.test(raw.from) ||
+    !TIME_OF_DAY.test(raw.to)
+  ) {
+    throw new Error(`${label} must have from/to as "HH:MM" (24-hour): ${NOTIFY_FILE}`);
   }
   let days: number[] | undefined;
   if (raw.days !== undefined && raw.days !== null) {
@@ -582,6 +617,11 @@ const parseNotifyChannel = (raw: Record<string, unknown>, index: number): Notify
   }
 
   const urlEnv = typeof raw.urlEnv === "string" ? raw.urlEnv.trim() : "";
+  if (urlEnv && !ENV_VAR_NAME.test(urlEnv)) {
+    throw new Error(
+      `${label}.urlEnv must be an environment variable name (letters, digits, _): ${NOTIFY_FILE} (${id})`,
+    );
+  }
   if (!urlEnv) {
     // The endpoint URL / SMTP string carries a secret, so a channel names the env var that holds
     // it rather than the value itself — this field is that name and is required.
@@ -590,14 +630,14 @@ const parseNotifyChannel = (raw: Record<string, unknown>, index: number): Notify
     );
   }
 
-  return {
+  const channel: NotifyChannelConfig = {
     id,
     type: type as NotifyChannelType,
     enabled: parseBoolean(raw.enabled, true, `${label}.enabled`, NOTIFY_FILE),
     urlEnv,
     severities: parseSeverities(raw.severities, label),
     scope: parseRuleScope(raw.scope, label, NOTIFY_FILE),
-    from: parseOptionalString(raw.from, `${label}.from`),
+    from: parseEmail(raw.from, `${label}.from`),
     recipients: parseRecipients(raw.recipients, `${label}.recipients`),
     groups: parseStringList(raw.groups, `${label}.groups`),
     digestSeconds: parsePositiveNumber(raw.digestSeconds, undefined, `${label}.digestSeconds`, {
@@ -616,6 +656,23 @@ const parseNotifyChannel = (raw: Record<string, unknown>, index: number): Notify
     silenceWindows: parseSilenceWindows(raw.silenceWindows, `${label}.silenceWindows`),
     escalation: parseEscalation(raw.escalation, `${label}.escalation`),
   };
+  // An enabled channel that can never send anything is a misconfiguration, not a quiet channel.
+  if (channel.enabled && channel.severities.length === 0) {
+    throw new Error(
+      `${label} subscribes to no severity, so it would never send: ${NOTIFY_FILE} (${id})`,
+    );
+  }
+  if (
+    channel.enabled &&
+    channel.type === "email" &&
+    !channel.recipients?.length &&
+    !channel.groups?.length
+  ) {
+    throw new Error(
+      `${label} is an email channel with no recipients or groups: ${NOTIFY_FILE} (${id})`,
+    );
+  }
+  return channel;
 };
 
 /**
@@ -663,11 +720,27 @@ export const parseNotifyConfig = (raw: unknown): NotifyConfig => {
     }
   }
 
+  // References inside the file must resolve: a channel's groups, an escalation target. A dangling
+  // one used to be skipped silently at send time.
+  const channelIds = new Set(channels.map((channel) => channel.id));
+  for (const channel of channels) {
+    for (const group of channel.groups ?? []) {
+      if (!groups || !(group in groups)) {
+        throw new Error(
+          `notify channel ${channel.id} references unknown group ${group}: ${NOTIFY_FILE}`,
+        );
+      }
+    }
+    const target = channel.escalation?.channelId;
+    if (target !== undefined && (target === channel.id || !channelIds.has(target))) {
+      throw new Error(
+        `notify channel ${channel.id} escalates to ${target === channel.id ? "itself" : `unknown channel ${target}`}: ${NOTIFY_FILE}`,
+      );
+    }
+  }
+
   return groups ? { channels, groups } : { channels };
 };
-
-/** `HH:MM`, 24-hour. The scheduler compares this to the wall clock in the deployment timezone. */
-const TIME_OF_DAY = /^([01]\d|2[0-3]):[0-5]\d$/;
 
 const parseReportSchedule = (raw: unknown, index: number): ReportScheduleConfig => {
   const label = `reports.schedules[${index}]`;
@@ -705,7 +778,10 @@ const parseReportSchedule = (raw: unknown, index: number): ReportScheduleConfig 
       `${label} must set smtpEnv (env var name holding the SMTP URL): ${REPORTS_FILE}`,
     );
   }
-  const from = parseOptionalString(raw.from, `${label}.from`);
+  if (!ENV_VAR_NAME.test(smtpEnv)) {
+    throw new Error(`${label}.smtpEnv must be an environment variable name: ${REPORTS_FILE}`);
+  }
+  const from = parseEmail(raw.from, `${label}.from`);
   if (!from) {
     throw new Error(`${label} must set from (sender address): ${REPORTS_FILE}`);
   }
@@ -717,9 +793,15 @@ const parseReportSchedule = (raw: unknown, index: number): ReportScheduleConfig 
     }
     groups = raw.groups as string[];
   }
+  const enabled = parseBoolean(raw.enabled, true, `${label}.enabled`, REPORTS_FILE);
+  if (enabled && !recipients?.length && !groups?.length) {
+    throw new Error(
+      `${label} has no recipients or groups, so it would never be delivered: ${REPORTS_FILE}`,
+    );
+  }
   return {
     id,
-    enabled: parseBoolean(raw.enabled, true, `${label}.enabled`, REPORTS_FILE),
+    enabled,
     range: range as ReportScheduleConfig["range"],
     time: raw.time,
     weekday,
@@ -945,6 +1027,17 @@ export class ConfigRegistry {
     const notifyConfig = parseNotifyConfig(notifyRaw);
     // Missing reports.json = no schedules = no scheduled email (same red line, Phase 17B-2).
     const reportsConfig = parseReportsConfig(reportsRaw);
+    // A schedule's groups are notify.json's recipient groups: they must exist, or the report is
+    // silently skipped at send time. (Deleting a group a schedule still uses is refused the same way.)
+    for (const schedule of reportsConfig.schedules) {
+      for (const group of schedule.groups ?? []) {
+        if (!notifyConfig.groups || !(group in notifyConfig.groups)) {
+          throw new Error(
+            `report schedule ${schedule.id} references unknown recipient group ${group}: ${REPORTS_FILE}`,
+          );
+        }
+      }
+    }
 
     const fleetConfig = ensureObject(fleetRaw, FLEET_FILE, "fleet.json") as Partial<FleetConfig>;
     const vehicleRecords = ensureArray(vehiclesRaw, VEHICLES_FILE, "vehicles.json") as Array<

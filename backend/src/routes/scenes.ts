@@ -83,12 +83,33 @@ export const buildScenesRouter = (store: DashboardStore, audit: AuditService): e
       body && typeof body === "object" && !Array.isArray(body) && "scenes" in body
         ? (body as Record<string, unknown>).scenes
         : body;
+    let scenes;
     try {
-      parseScenes(raw);
+      scenes = parseScenes(raw);
     } catch (validationError) {
       response.status(400).json({
         error: "invalid_scenes",
         detail: validationError instanceof Error ? validationError.message : "invalid scenes",
+      });
+      return;
+    }
+    // Refuse to remove a scene something still points at, and say what. Without this the load
+    // silently blanked the reference, and vehicles/formations quietly lost their map.
+    const kept = new Set(scenes.map((scene) => scene.sceneId));
+    const users = [
+      ...store
+        .listVehicleConfigs()
+        .filter((vehicle) => vehicle.defaultSceneId && !kept.has(vehicle.defaultSceneId))
+        .map((vehicle) => `车辆 ${vehicle.deviceId}（${vehicle.defaultSceneId}）`),
+      ...store
+        .listFormationConfigs()
+        .filter((formation) => formation.sceneId && !kept.has(formation.sceneId))
+        .map((formation) => `编队 ${formation.formationId}（${formation.sceneId}）`),
+    ];
+    if (users.length) {
+      response.status(409).json({
+        error: "scene_in_use",
+        detail: `场景仍被引用：${users.slice(0, 10).join("、")}${users.length > 10 ? " 等" : ""}`,
       });
       return;
     }

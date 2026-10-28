@@ -67,6 +67,28 @@ describe("PUT /api/scenes", () => {
   });
 });
 
+describe("PUT /api/scenes — references", () => {
+  it("refuses removing a scene a vehicle or formation still uses, naming them (409)", async () => {
+    const context = createTestApp();
+    context.store.listVehicleConfigs.mockReturnValue([
+      { deviceId: "agv-1", deviceName: "agv-1", defaultSceneId: "old-yard" },
+    ]);
+    context.store.listFormationConfigs.mockReturnValue([
+      { formationId: "f1", formationName: "f1", deviceIds: ["agv-1"], sceneId: "old-yard" },
+    ]);
+    const response = await request(context.app)
+      .put("/api/scenes")
+      .set("Cookie", ADMIN)
+      .send([SCENE]);
+    expect(response.status).toBe(409);
+    const body = response.body as { error: string; detail: string };
+    expect(body.error).toBe("scene_in_use");
+    expect(body.detail).toContain("车辆 agv-1");
+    expect(body.detail).toContain("编队 f1");
+    expect(context.store.writeScenes).not.toHaveBeenCalled();
+  });
+});
+
 describe("PUT /api/scenes/:sceneId/asset/:kind", () => {
   const svg = Buffer.from('<svg xmlns="http://www.w3.org/2000/svg"></svg>', "utf8");
 

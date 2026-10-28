@@ -27,6 +27,45 @@ const nonEmptyString = (value: unknown, label: string): string => {
   return value;
 };
 
+/** Upper bound on free-text fields (names, notes, descriptions). */
+export const CONFIG_TEXT_MAX = 200;
+/** Longest device id the ingest path admits (`DEVICE_ID_MAX_LENGTH` in the backend). */
+export const DEVICE_ID_MAX = 200;
+/**
+ * Characters a device id cannot contain: it is a topic segment on the broker, so whitespace and
+ * the MQTT wildcards/separators (`/ + #`) or control characters could never match a report — a
+ * vehicle configured with one would sit in the list forever without data. Same rule as ingest.
+ */
+// eslint-disable-next-line no-control-regex -- rejecting control characters is the point
+const FORBIDDEN_DEVICE_ID_CHARS = /[\s/+#\u0000-\u001f\u007f]/;
+
+/** An id: trimmed, non-empty, bounded, and (optionally) free of characters that break a topic. */
+const requireId = (
+  value: unknown,
+  label: string,
+  max: number,
+  topicSafe = false,
+): string => {
+  const id = nonEmptyString(value, label).trim();
+  if (id.length > max)
+    throw new Error(`${label} must be at most ${max} characters`);
+  if (topicSafe && FORBIDDEN_DEVICE_ID_CHARS.test(id)) {
+    throw new Error(
+      `${label} must not contain spaces, / + # or control characters`,
+    );
+  }
+  return id;
+};
+
+/** A bounded optional text field. */
+const boundedText = (value: unknown, label: string): string | undefined => {
+  const text = optionalString(value, label);
+  if (text !== undefined && text.length > CONFIG_TEXT_MAX) {
+    throw new Error(`${label} must be at most ${CONFIG_TEXT_MAX} characters`);
+  }
+  return text;
+};
+
 const optionalString = (value: unknown, label: string): string | undefined => {
   if (value === undefined || value === null) return undefined;
   if (typeof value !== "string") throw new Error(`${label} must be a string`);
@@ -77,17 +116,32 @@ export const parseVehicles = (raw: unknown): DeviceConfig[] => {
   const seen = new Set<string>();
   return raw.map((value, index) => {
     const entry = asObject(value, `vehicles[${index}]`);
-    const deviceId = nonEmptyString(
+    const deviceId = requireId(
       entry.deviceId,
       `vehicles[${index}].deviceId`,
+      DEVICE_ID_MAX,
+      true,
     );
     if (seen.has(deviceId)) {
       throw new Error(`vehicles has a duplicate deviceId: ${deviceId}`);
     }
     seen.add(deviceId);
     const deviceName =
-      optionalString(entry.deviceName, `vehicles[${index}].deviceName`) ??
+      boundedText(entry.deviceName, `vehicles[${index}].deviceName`) ??
       deviceId;
+    const commissionedAt = optionalString(
+      entry.commissionedAt,
+      `vehicles[${index}].commissionedAt`,
+    );
+    if (
+      commissionedAt !== undefined &&
+      (!/^\d{4}-\d{2}-\d{2}$/.test(commissionedAt) ||
+        Number.isNaN(Date.parse(commissionedAt)))
+    ) {
+      throw new Error(
+        `vehicles[${index}].commissionedAt must be a date YYYY-MM-DD`,
+      );
+    }
     return {
       deviceId,
       deviceName,
@@ -106,24 +160,27 @@ export const parseVehicles = (raw: unknown): DeviceConfig[] => {
       tags:
         entry.tags === undefined
           ? undefined
-          : stringArray(entry.tags, `vehicles[${index}].tags`),
+          : [
+              ...new Set(
+                stringArray(entry.tags, `vehicles[${index}].tags`).map((tag) =>
+                  tag.trim(),
+                ),
+              ),
+            ],
       // Identity / spec metadata (VDA 5050 factsheet-style, all optional, display-only).
-      vendor: optionalString(entry.vendor, `vehicles[${index}].vendor`),
-      model: optionalString(entry.model, `vehicles[${index}].model`),
-      serialNumber: optionalString(
+      vendor: boundedText(entry.vendor, `vehicles[${index}].vendor`),
+      model: boundedText(entry.model, `vehicles[${index}].model`),
+      serialNumber: boundedText(
         entry.serialNumber,
         `vehicles[${index}].serialNumber`,
       ),
-      category: optionalString(entry.category, `vehicles[${index}].category`),
+      category: boundedText(entry.category, `vehicles[${index}].category`),
       maxLoadKg: optionalNonNegativeNumber(
         entry.maxLoadKg,
         `vehicles[${index}].maxLoadKg`,
       ),
-      commissionedAt: optionalString(
-        entry.commissionedAt,
-        `vehicles[${index}].commissionedAt`,
-      ),
-      notes: optionalString(entry.notes, `vehicles[${index}].notes`),
+      commissionedAt,
+      notes: boundedText(entry.notes, `vehicles[${index}].notes`),
     };
   });
 };
@@ -141,35 +198,48 @@ export const parseFormations = (raw: unknown): FormationConfig[] => {
   const seen = new Set<string>();
   return raw.map((value, index) => {
     const entry = asObject(value, `formations[${index}]`);
-    const formationId = nonEmptyString(
+    const formationId = requireId(
       entry.formationId,
       `formations[${index}].formationId`,
+      100,
     );
     if (seen.has(formationId)) {
       throw new Error(`formations has a duplicate formationId: ${formationId}`);
     }
     seen.add(formationId);
-    const deviceIds = stringArray(
-      entry.deviceIds,
-      `formations[${index}].deviceIds`,
-    );
+    const deviceIds = [
+      ...new Set(
+        stringArray(entry.deviceIds, `formations[${index}].deviceIds`).map(
+          (deviceId) => deviceId.trim(),
+        ),
+      ),
+    ];
+    const color = optionalString(entry.color, `formations[${index}].color`);
+    if (
+      color !== undefined &&
+      !/^#(?:[0-9a-fA-F]{3}|[0-9a-fA-F]{6})$/.test(color)
+    ) {
+      throw new Error(
+        `formations[${index}].color must be a hex colour like #46d7c3`,
+      );
+    }
     if (deviceIds.length === 0) {
       throw new Error(`formations[${index}].deviceIds must not be empty`);
     }
     return {
       formationId,
       formationName:
-        optionalString(
+        boundedText(
           entry.formationName,
           `formations[${index}].formationName`,
         ) ?? formationId,
       deviceIds,
       sceneId: optionalString(entry.sceneId, `formations[${index}].sceneId`),
-      description: optionalString(
+      description: boundedText(
         entry.description,
         `formations[${index}].description`,
       ),
-      color: optionalString(entry.color, `formations[${index}].color`),
+      color,
     };
   });
 };

@@ -68,6 +68,14 @@ const requirePositive = (value: unknown, label: string): number => {
   return n;
 };
 
+/** Pixel dimensions: a whole number of pixels. */
+const requirePositiveInteger = (value: unknown, label: string): number => {
+  const n = requirePositive(value, label);
+  if (!Number.isInteger(n))
+    throw new Error(`${label} must be a whole number of pixels`);
+  return n;
+};
+
 const optionalFinite = (value: unknown, label: string): number | undefined => {
   if (value === undefined || value === null) return undefined;
   return requireFinite(value, label);
@@ -92,12 +100,18 @@ const parseBounds = (
 ): SceneMapDefinition["bounds"] => {
   if (value === undefined || value === null) return undefined;
   const raw = asObject(value, label);
-  return {
+  const bounds = {
     minX: requireFinite(raw.minX, `${label}.minX`),
     maxX: requireFinite(raw.maxX, `${label}.maxX`),
     minY: requireFinite(raw.minY, `${label}.minY`),
     maxY: requireFinite(raw.maxY, `${label}.maxY`),
   };
+  // An inverted or empty box would collapse the viewport (zero width/height to fit).
+  if (bounds.maxX <= bounds.minX)
+    throw new Error(`${label}.maxX must be greater than minX`);
+  if (bounds.maxY <= bounds.minY)
+    throw new Error(`${label}.maxY must be greater than minY`);
+  return bounds;
 };
 
 const parseDefaultView = (
@@ -119,10 +133,13 @@ const parseProjectionOrigin = (
 ): SceneMapDefinition["osmProjectionOrigin"] => {
   if (value === undefined || value === null) return undefined;
   const raw = asObject(value, label);
-  return {
-    lat: requireFinite(raw.lat, `${label}.lat`),
-    lng: requireFinite(raw.lng, `${label}.lng`),
-  };
+  const lat = requireFinite(raw.lat, `${label}.lat`);
+  const lng = requireFinite(raw.lng, `${label}.lng`);
+  if (lat < -90 || lat > 90)
+    throw new Error(`${label}.lat must be between -90 and 90`);
+  if (lng < -180 || lng > 180)
+    throw new Error(`${label}.lng must be between -180 and 180`);
+  return { lat, lng };
 };
 
 /**
@@ -138,9 +155,12 @@ const parseScene = (value: unknown, label: string): SceneMapDefinition => {
     mapFrame: optionalString(raw.mapFrame, `${label}.mapFrame`) ?? "map",
     resolution: requirePositive(raw.resolution, `${label}.resolution`),
     origin: parseOrigin(raw.origin, `${label}.origin`),
-    width: requirePositive(raw.width, `${label}.width`),
-    height: requirePositive(raw.height, `${label}.height`),
+    width: requirePositiveInteger(raw.width, `${label}.width`),
+    height: requirePositiveInteger(raw.height, `${label}.height`),
   };
+  if (scene.sceneName.length > 200) {
+    throw new Error(`${label}.sceneName must be at most 200 characters`);
+  }
 
   const imageUrl = optionalAssetUrl(raw.imageUrl, `${label}.imageUrl`);
   if (imageUrl) scene.imageUrl = imageUrl;
@@ -172,6 +192,11 @@ const parseScene = (value: unknown, label: string): SceneMapDefinition => {
   if (minZoom !== undefined) scene.minZoom = minZoom;
   const maxZoom = optionalFinite(raw.maxZoom, `${label}.maxZoom`);
   if (maxZoom !== undefined) scene.maxZoom = maxZoom;
+  if (minZoom !== undefined && minZoom <= 0)
+    throw new Error(`${label}.minZoom must be greater than 0`);
+  if (minZoom !== undefined && maxZoom !== undefined && minZoom > maxZoom) {
+    throw new Error(`${label}.minZoom must not exceed maxZoom`);
+  }
 
   const description = optionalString(raw.description, `${label}.description`);
   if (description) scene.description = description;

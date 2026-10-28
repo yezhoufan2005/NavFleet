@@ -29,4 +29,28 @@ describe("makeMessageFor", () => {
       "已被他人修改",
     );
   });
+
+  it("shows the backend's explanation for an unmapped 4xx, but never a 5xx's internals", () => {
+    expect(
+      messageFor(
+        new ApiError("scene_in_use", 409, "场景仍被引用：车辆 agv-1（yard）"),
+      ),
+    ).toBe("保存失败：场景仍被引用：车辆 agv-1（yard）");
+    expect(messageFor(new ApiError("internal_error", 500, "stack trace"))).toBe(
+      "保存失败，请稍后重试",
+    );
+  });
+
+  it("appends the validator's detail to a mapped invalid_* code", () => {
+    const forScenes = makeMessageFor({ invalid_scenes: "场景配置不合法" });
+    expect(
+      forScenes(
+        new ApiError(
+          "invalid_scenes",
+          400,
+          "scenes[0].width must be a whole number of pixels",
+        ),
+      ),
+    ).toBe("场景配置不合法：scenes[0].width must be a whole number of pixels");
+  });
 });

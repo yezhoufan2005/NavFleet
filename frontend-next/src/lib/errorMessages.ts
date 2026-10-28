@@ -12,6 +12,8 @@
  * `detail` is the actual reason, which the admin needs to fix the input — so it is shown verbatim.
  * `config_conflict` is the optimistic-concurrency refusal: someone else saved the file after this
  * editor loaded it, and nothing was written — the admin must reload rather than retry.
+ * Any other 4xx the view has no sentence for still shows the backend's `detail` (which names the
+ * field or the reference at fault) instead of a generic failure line.
  */
 export const makeMessageFor =
   (map: Record<string, string>, fallback = "保存失败，请稍后重试") =>
@@ -26,5 +28,23 @@ export const makeMessageFor =
         ? `保存未生效：${detail}`
         : "保存未生效，已回滚到修改前";
     }
-    return map[code] ?? fallback;
+    // The backend's sentence for a 4xx names the field or the reference at fault: appended to the
+    // view's own wording for a validator refusal (invalid_*), shown alone for a refusal the view
+    // has no sentence for (scene_in_use). Never for a 5xx, whose detail is internal.
+    const detail = (error as { detail?: unknown }).detail;
+    const status = (error as { status?: unknown }).status;
+    const explained =
+      typeof detail === "string" &&
+      detail &&
+      typeof status === "number" &&
+      status < 500
+        ? detail
+        : null;
+    const mapped = map[code];
+    if (mapped) {
+      return explained && code.startsWith("invalid_")
+        ? `${mapped}：${explained}`
+        : mapped;
+    }
+    return explained ? `保存失败：${explained}` : fallback;
   };

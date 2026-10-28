@@ -454,6 +454,13 @@ describe("ConfigRegistry.getAlertRules (Phase 16C-1)", () => {
     expect(registry.getConfigStatus().issues[0]?.using).toBe("default");
   });
 
+  it("holds back out-of-range rules (a percentage over 100, a window over a day)", async () => {
+    await writeConfig({ rules: { lowBattery: { thresholdPct: 120 } } });
+    await expectFileRejected("rules.json", /<= 100/);
+    await writeConfig({ rules: { offline: { afterSeconds: 90_000 } } });
+    await expectFileRejected("rules.json", /<= 86400/);
+  });
+
   it("holds back unparseable rules.json", async () => {
     await writeConfig({ rules: "{ not json" });
     await expectFileRejected("rules.json", /not valid JSON/);
@@ -697,6 +704,44 @@ describe("ConfigRegistry.getNotifyConfig (Phase 16D-1)", () => {
     expect(mail?.escalation).toEqual({ afterSeconds: 300, channelId: "primary" });
   });
 
+  it("holds back silence windows that are not HH:MM (they used to be ignored silently)", async () => {
+    await writeConfig({
+      notify: { channels: [{ ...webhook, silenceWindows: [{ from: "22", to: "7:00" }] }] },
+    });
+    await expectFileRejected("notify.json", /"HH:MM"/);
+  });
+
+  it("holds back a channel that could never send, and dangling references", async () => {
+    await writeConfig({ notify: { channels: [{ ...webhook, severities: [] }] } });
+    await expectFileRejected("notify.json", /would never send/);
+
+    await writeConfig({
+      notify: { channels: [{ ...webhook, id: "m", type: "email", from: "n@x.io" }] },
+    });
+    await expectFileRejected("notify.json", /no recipients or groups/);
+
+    await writeConfig({ notify: { channels: [{ ...webhook, groups: ["ghost"] }] } });
+    await expectFileRejected("notify.json", /unknown group ghost/);
+
+    await writeConfig({
+      notify: { channels: [{ ...webhook, escalation: { afterSeconds: 60, channelId: "nope" } }] },
+    });
+    await expectFileRejected("notify.json", /unknown channel nope/);
+  });
+
+  it("checks email addresses and env var names", async () => {
+    await writeConfig({
+      notify: {
+        channels: [
+          { ...webhook, id: "m", type: "email", recipients: [{ email: "ops at example" }] },
+        ],
+      },
+    });
+    await expectFileRejected("notify.json", /email address/);
+    await writeConfig({ notify: { channels: [{ ...webhook, urlEnv: "my url" }] } });
+    await expectFileRejected("notify.json", /environment variable name/);
+  });
+
   it("rejects a recipient with neither email nor user, and a bad escalation", async () => {
     await writeConfig({
       notify: { channels: [{ ...webhook, id: "m", type: "email", recipients: [{}] }] },
@@ -777,7 +822,11 @@ describe("ConfigRegistry.getReportsConfig (Phase 17B-2)", () => {
   });
 
   it("parses a valid schedule, defaulting enabled to true", async () => {
-    await writeConfig({ reports: { schedules: [schedule({ weekday: 1 })] } });
+    // The schedule's group lives in notify.json, which must declare it.
+    await writeConfig({
+      reports: { schedules: [schedule({ weekday: 1 })] },
+      notify: { groups: { ops: [{ email: "ops@navfleet.local" }] } },
+    });
     const registry = new ConfigRegistry();
     await registry.load();
 
@@ -796,7 +845,10 @@ describe("ConfigRegistry.getReportsConfig (Phase 17B-2)", () => {
 
   it("keeps the SMTP URL out of the parsed config — only the env var name is named", async () => {
     // The red line: a connection string with credentials must never live in reports.json.
-    await writeConfig({ reports: { schedules: [schedule()] } });
+    await writeConfig({
+      reports: { schedules: [schedule()] },
+      notify: { groups: { ops: [{ email: "ops@navfleet.local" }] } },
+    });
     const registry = new ConfigRegistry();
     await registry.load();
     const serialized = JSON.stringify(registry.getReportsConfig());
@@ -815,6 +867,17 @@ describe("ConfigRegistry.getReportsConfig (Phase 17B-2)", () => {
     await rejects({ schedules: [schedule({ weekday: 9 })] }, /weekday must be an integer 0-6/);
     await rejects({ schedules: [schedule({ smtpEnv: undefined })] }, /must set smtpEnv/);
     await rejects({ schedules: [schedule({ from: undefined })] }, /must set from/);
+  });
+
+  it("holds back a schedule nobody would receive, or one naming an unknown group", async () => {
+    await rejects({ schedules: [schedule({ groups: undefined })] }, /never be delivered/);
+    await writeConfig({ reports: { schedules: [schedule({ groups: ["ghost"] })] } });
+    await expectFileRejected("reports.json", /unknown recipient group ghost/);
+  });
+
+  it("checks the sender address and the SMTP env var name", async () => {
+    await rejects({ schedules: [schedule({ from: "not-an-address" })] }, /email address/);
+    await rejects({ schedules: [schedule({ smtpEnv: "SMTP URL" })] }, /environment variable name/);
   });
 
   it("rejects duplicate schedule ids", async () => {
