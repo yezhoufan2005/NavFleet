@@ -11,8 +11,13 @@
  * the dialog (wired to `DialogTitle` for a11y); `description` is the accessible description, kept
  * visually hidden (`sr-only`) — the forms carry their own visible labels. `maxWidth` picks the
  * content width (md/lg/xl). The content caps at 85vh and scrolls, so a tall form never overflows.
+ *
+ * `dirty` (the form has unsaved changes) guards the *accidental* exits — Esc and a click on the
+ * backdrop — with an in-dialog "放弃修改？" confirmation instead of silently throwing the edit away.
+ * The explicit 取消 button inside the form is the user's own choice and closes directly.
  */
-import { nextTick } from "vue";
+import { nextTick, ref, watch } from "vue";
+import UiButton from "@/components/ui/UiButton.vue";
 import {
   DialogContent,
   DialogDescription,
@@ -28,6 +33,7 @@ const {
   description = "",
   maxWidth = "md",
   autofocus = true,
+  dirty = false,
 } = defineProps<{
   open: boolean;
   title: string;
@@ -40,9 +46,31 @@ const {
    * itself so the focus trap holds but no field is highlighted. Call sites pass `mode === 'create'`.
    */
   autofocus?: boolean;
+  /** Unsaved changes: Esc / backdrop click ask before discarding them. */
+  dirty?: boolean;
 }>();
 
 const emit = defineEmits<{ "update:open": [boolean] }>();
+
+const confirmingDiscard = ref(false);
+watch(
+  () => open,
+  () => {
+    confirmingDiscard.value = false;
+  },
+);
+
+/** Esc or a backdrop click: with unsaved changes, ask first instead of closing. */
+const guardDismiss = (event: Event): void => {
+  if (!dirty) return;
+  event.preventDefault();
+  confirmingDiscard.value = true;
+};
+
+const discard = (): void => {
+  confirmingDiscard.value = false;
+  emit("update:open", false);
+};
 
 const onOpenAutoFocus = (event: Event): void => {
   if (autofocus) return;
@@ -73,6 +101,9 @@ const MAX_WIDTH: Record<"md" | "lg" | "xl", string> = {
           MAX_WIDTH[maxWidth],
         ]"
         @open-auto-focus="onOpenAutoFocus"
+        @escape-key-down="guardDismiss"
+        @pointer-down-outside="guardDismiss"
+        @interact-outside="guardDismiss"
       >
         <DialogTitle class="text-md font-semibold text-ink">{{
           title
@@ -80,6 +111,23 @@ const MAX_WIDTH: Record<"md" | "lg" | "xl", string> = {
         <DialogDescription class="sr-only">{{
           description || title
         }}</DialogDescription>
+        <div
+          v-if="confirmingDiscard"
+          role="alert"
+          class="flex flex-wrap items-center gap-2 rounded-sm border border-warning bg-warning-wash px-3 py-2 text-sm text-ink"
+        >
+          <span class="mr-auto">有未保存的修改，确定放弃吗？</span>
+          <UiButton
+            variant="secondary"
+            size="sm"
+            type="button"
+            @click="confirmingDiscard = false"
+            >继续编辑</UiButton
+          >
+          <UiButton variant="danger" size="sm" type="button" @click="discard"
+            >放弃修改</UiButton
+          >
+        </div>
         <slot />
       </DialogContent>
     </DialogPortal>

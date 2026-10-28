@@ -14,7 +14,8 @@
  */
 import UiHelpTip from "@/components/ui/UiHelpTip.vue";
 import { FIELD_HELP } from "@/lib/fieldHelp";
-import { computed, onMounted, ref } from "vue";
+import { computed, onMounted, ref, nextTick, watch } from "vue";
+import { useDirtySnapshot } from "@/composables/useDirtySnapshot";
 import { fleetApi } from "@navfleet/fleet-core";
 import { CAPABILITIES, type Capability, type RbacRole } from "@navfleet/shared";
 import PageHeader from "@/components/PageHeader.vue";
@@ -125,23 +126,42 @@ const submitRole = async (): Promise<void> => {
 };
 
 const confirmRoleDelete = ref<RbacRole | null>(null);
+/** Guards the delete confirmation against a double click while the request is in flight. */
+const deletePending = ref(false);
 const deleteRole = async (): Promise<void> => {
-  const role = confirmRoleDelete.value;
-  if (!role) return;
+  if (deletePending.value) return;
+  deletePending.value = true;
   try {
-    await fleetApi.deleteRbacRole(role.id);
-    notify("角色已删除", { type: "success" });
-    await load();
-  } catch (error) {
-    notify(messageFor(error), { type: "error" });
+    const role = confirmRoleDelete.value;
+    if (!role) return;
+    try {
+      await fleetApi.deleteRbacRole(role.id);
+      notify("角色已删除", { type: "success" });
+      await load();
+    } catch (error) {
+      notify(messageFor(error), { type: "error" });
+    } finally {
+      confirmRoleDelete.value = null;
+    }
   } finally {
-    confirmRoleDelete.value = null;
+    deletePending.value = false;
   }
 };
 
 const roleDialogTitle = computed(() =>
   roleMode.value === "edit" ? "编辑角色" : "新建角色",
 );
+
+// Unsaved-changes guard for the dialog: snapshot the form once it is filled, so Esc / a backdrop
+// click asks before discarding edits (see UiModal `dirty`).
+const formSnapshot = useDirtySnapshot(() => [rName.value, rCaps.value]);
+watch(
+  () => roleMode.value !== null,
+  (isOpen) => {
+    if (isOpen) void nextTick(formSnapshot.mark);
+  },
+);
+const formDirty = formSnapshot.dirty;
 </script>
 
 <template>
@@ -221,6 +241,7 @@ const roleDialogTitle = computed(() =>
     <!-- Role dialog -->
     <UiModal
       :open="roleMode !== null"
+      :dirty="formDirty"
       :autofocus="roleMode === 'create'"
       :title="roleDialogTitle"
       description="填写角色名与能力后提交"
@@ -293,6 +314,7 @@ const roleDialogTitle = computed(() =>
 
     <UiConfirmDialog
       :open="confirmRoleDelete !== null"
+      :pending="deletePending"
       :title="`删除角色「${confirmRoleDelete?.name ?? ''}」？`"
       description="引用此角色的用户组将失去它带来的能力；被引用时不能删除"
       confirm-label="删除"
