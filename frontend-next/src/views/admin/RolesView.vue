@@ -45,7 +45,8 @@ const CAP_LABELS: Record<Capability, string> = {
 };
 
 const ERROR_MESSAGES: Record<string, string> = {
-  conflict: "名称已存在",
+  conflict: "名称已存在（不区分大小写）",
+  unknown_member: "成员中有不存在的用户，请从列表中选择",
   not_found: "目标不存在，或引用了不存在的角色",
   role_in_use: "该角色仍被某个用户组引用，先从组里移除再删除",
 };

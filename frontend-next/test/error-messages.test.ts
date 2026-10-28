@@ -53,4 +53,14 @@ describe("makeMessageFor", () => {
       ),
     ).toBe("场景配置不合法：scenes[0].width must be a whole number of pixels");
   });
+
+  it("shows the first field problem of a schema-validated request", () => {
+    expect(
+      messageFor(
+        new ApiError("invalid_request", 400, null, [
+          { path: "email", message: "邮箱格式不正确" },
+        ]),
+      ),
+    ).toBe("邮箱格式不正确");
+  });
 });

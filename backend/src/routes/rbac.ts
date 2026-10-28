@@ -10,6 +10,7 @@ const STATUS_BY_ERROR: Record<RbacError, number> = {
   not_found: 404,
   conflict: 409,
   role_in_use: 409,
+  unknown_member: 400,
 };
 
 const respondActionError = makeActionErrorResponder(STATUS_BY_ERROR);

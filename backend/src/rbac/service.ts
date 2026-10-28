@@ -9,7 +9,7 @@ import {
   type UserRole,
 } from "@navfleet/shared";
 
-export type RbacError = "not_found" | "conflict" | "role_in_use";
+export type RbacError = "not_found" | "conflict" | "role_in_use" | "unknown_member";
 export type RbacResult<T> = { ok: true; value: T } | { ok: false; error: RbacError };
 
 export interface RoleInput {
@@ -30,6 +30,9 @@ const fail = <T>(error: RbacError): RbacResult<T> => ({ ok: false, error });
 const orderedCaps = (caps: Capability[]): Capability[] =>
   CAPABILITIES.filter((capability) => caps.includes(capability));
 const unique = <T>(items: T[]): T[] => [...new Set(items)];
+/** Role / group names compare trimmed and case-insensitively: "Ops" and "ops " are one name. */
+const sameName = (left: string, right: string): boolean =>
+  left.trim().toLowerCase() === right.trim().toLowerCase();
 
 /**
  * Custom roles + user groups (1.6.1 RBAC). Holds the whole state in memory — low-cardinality and
@@ -44,7 +47,28 @@ export class RbacService {
   private roles: RbacRole[] = [];
   private groups: RbacGroup[] = [];
 
+  /**
+   * Which usernames exist, so a group cannot list a member that is not an account (a typo there
+   * silently grants nothing, and would grant the group's capabilities to whoever later takes that
+   * name). Wired by the composition root; without it membership is not checked (tests, scripts).
+   */
+  private userExists: ((username: string) => Promise<boolean>) | null = null;
+
   constructor(private readonly persistence: Persistence) {}
+
+  setUserLookup(exists: (username: string) => Promise<boolean>): void {
+    this.userExists = exists;
+  }
+
+  /** Members that are not accounts, or [] when every member exists (or there is no lookup). */
+  private async unknownMembers(usernames: string[]): Promise<string[]> {
+    if (!this.userExists) return [];
+    const missing: string[] = [];
+    for (const username of usernames) {
+      if (!(await this.userExists(username))) missing.push(username);
+    }
+    return missing;
+  }
 
   async init(): Promise<void> {
     const state = await this.persistence.loadRbacState();
@@ -90,7 +114,7 @@ export class RbacService {
 
   // ── Custom roles ──────────────────────────────────────────────────────────────
   async createRole(input: RoleInput): Promise<RbacResult<RbacRole>> {
-    if (this.roles.some((role) => role.name === input.name)) return fail("conflict");
+    if (this.roles.some((role) => sameName(role.name, input.name))) return fail("conflict");
     const now = new Date().toISOString();
     const role: RbacRole = {
       id: randomUUID(),
@@ -108,7 +132,7 @@ export class RbacService {
   async updateRole(id: string, input: RoleInput): Promise<RbacResult<RbacRole>> {
     const existing = this.roles.find((role) => role.id === id);
     if (!existing) return fail("not_found");
-    if (this.roles.some((role) => role.id !== id && role.name === input.name))
+    if (this.roles.some((role) => role.id !== id && sameName(role.name, input.name)))
       return fail("conflict");
     const updated: RbacRole = {
       ...existing,
@@ -135,9 +159,11 @@ export class RbacService {
 
   // ── User groups ─────────────────────────────────────────────────────────────────
   async createGroup(input: GroupInput): Promise<RbacResult<RbacGroup>> {
-    if (this.groups.some((group) => group.name === input.name)) return fail("conflict");
+    if (this.groups.some((group) => sameName(group.name, input.name))) return fail("conflict");
     if (input.roleIds.some((roleId) => !this.roles.some((role) => role.id === roleId)))
       return fail("not_found");
+    if ((await this.unknownMembers(unique(input.memberUsernames))).length)
+      return fail("unknown_member");
     const now = new Date().toISOString();
     const group: RbacGroup = {
       id: randomUUID(),
@@ -157,10 +183,16 @@ export class RbacService {
   async updateGroup(id: string, input: GroupInput): Promise<RbacResult<RbacGroup>> {
     const existing = this.groups.find((group) => group.id === id);
     if (!existing) return fail("not_found");
-    if (this.groups.some((group) => group.id !== id && group.name === input.name))
+    if (this.groups.some((group) => group.id !== id && sameName(group.name, input.name)))
       return fail("conflict");
     if (input.roleIds.some((roleId) => !this.roles.some((role) => role.id === roleId)))
       return fail("not_found");
+    // Only members being *added* must exist: a member whose account was removed some other way
+    // should not make the whole group uneditable.
+    const added = unique(input.memberUsernames).filter(
+      (username) => !existing.memberUsernames.includes(username),
+    );
+    if ((await this.unknownMembers(added)).length) return fail("unknown_member");
     const updated: RbacGroup = {
       ...existing,
       name: input.name,

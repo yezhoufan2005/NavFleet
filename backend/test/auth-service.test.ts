@@ -108,6 +108,13 @@ describe("AuthService — admin user management", () => {
 
     const dup = await service.createUser({ username: "bob", password: A_PASSWORD, role: "viewer" });
     expect(dup).toEqual({ ok: false, error: "conflict" });
+    // Case-insensitive: "Bob" is the same account to a person.
+    const differentCase = await service.createUser({
+      username: "Bob",
+      password: A_PASSWORD,
+      role: "viewer",
+    });
+    expect(differentCase).toEqual({ ok: false, error: "conflict" });
   });
 
   it("listUsers / getUser never expose passwordHash", async () => {

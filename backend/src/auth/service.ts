@@ -269,6 +269,14 @@ export class AuthService {
   }
 
   async createUser(input: CreateUserInput): Promise<AdminActionResult<AdminUserView>> {
+    // Case-insensitive uniqueness: "Admin" next to "admin" reads as the same account to a person,
+    // and group membership / `@user` references would silently pick one.
+    const lower = input.username.toLowerCase();
+    if (
+      (await this.persistence.listUsers()).some((user) => user.username.toLowerCase() === lower)
+    ) {
+      return { ok: false, error: "conflict" };
+    }
     const now = new Date().toISOString();
     const record: UserRecord = {
       username: input.username,

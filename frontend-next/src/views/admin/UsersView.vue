@@ -42,7 +42,7 @@ const ROLE_OPTIONS = (Object.keys(ROLE_LABELS) as UserRoleName[]).map(
 );
 
 const ERROR_MESSAGES: Record<string, string> = {
-  conflict: "用户名已存在",
+  conflict: "用户名已存在（不区分大小写）",
   last_admin: "不能停用、降级或删除最后一个启用的管理员",
   self_forbidden: "不能对自己执行该操作",
   not_found: "用户不存在",
@@ -152,8 +152,11 @@ const submitForm = async (): Promise<void> => {
   formError.value = "";
   const fieldErrors: Record<string, string> = {};
   if (mode.value === "create") {
-    if (!fUsername.value) {
+    const username = fUsername.value.trim();
+    if (!username) {
       fieldErrors.username = "请输入用户名";
+    } else if (!/^[A-Za-z0-9._-]{1,64}$/.test(username)) {
+      fieldErrors.username = "用户名只能包含字母、数字和 . _ -，最多 64 个字符";
     }
     if (weakPassword(fPassword.value)) {
       fieldErrors.password = "密码至少 8 位，且需同时包含字母与数字";
@@ -167,7 +170,7 @@ const submitForm = async (): Promise<void> => {
   try {
     if (mode.value === "create") {
       await fleetApi.createUser({
-        username: fUsername.value,
+        username: fUsername.value.trim(),
         password: fPassword.value,
         // A kiosk is read-only by construction; pin viewer so a stale role selection
         // (e.g. picked before the box was checked) can never reach the backend.

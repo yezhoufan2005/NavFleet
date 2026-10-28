@@ -25,6 +25,9 @@ const configRegistry = new ConfigRegistry();
 const store = new DashboardStore(persistence, configRegistry);
 const authService = new AuthService(persistence);
 const rbacService = new RbacService(persistence);
+rbacService.setUserLookup(
+  async (username) => (await authService.findByUsername(username)) !== null,
+);
 const auditService = new AuditService(persistence);
 const notifyService = new NotifyService({
   persistence,

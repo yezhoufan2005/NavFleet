@@ -10,6 +10,9 @@ import {
   mqttStatusSchema,
   deviceIdParamSchema,
   sceneIdParamSchema,
+  createUserSchema,
+  updateUserSchema,
+  rbacGroupSchema,
 } from "../src/validation";
 import { AUDIT_ACTIONS } from "../src/types";
 
@@ -253,5 +256,31 @@ describe("sceneIdParamSchema", () => {
     expect(sceneIdParamSchema.safeParse(".").success).toBe(false);
     expect(sceneIdParamSchema.safeParse("..").success).toBe(false);
     expect(sceneIdParamSchema.safeParse("...").success).toBe(false);
+  });
+});
+
+describe("user / group field rules", () => {
+  const PW = ["Abc", "12345"].join("");
+  it("trims a username and limits it to a plain charset", () => {
+    expect(
+      createUserSchema.parse({ username: " bob ", password: PW, role: "viewer" }).username,
+    ).toBe("bob");
+    for (const bad of ["bo b", "bob/1", "张三", "x".repeat(65)]) {
+      expect(
+        createUserSchema.safeParse({ username: bad, password: PW, role: "viewer" }).success,
+      ).toBe(false);
+    }
+  });
+
+  it("checks an email's shape and treats an empty one as cleared", () => {
+    expect(updateUserSchema.safeParse({ email: "ops at example" }).success).toBe(false);
+    expect(updateUserSchema.parse({ email: "ops@example.com" }).email).toBe("ops@example.com");
+    expect(updateUserSchema.parse({ email: "" }).email).toBeNull();
+  });
+
+  it("trims group member names", () => {
+    expect(
+      rbacGroupSchema.parse({ name: " 夜班 ", roleIds: [], memberUsernames: [" bob "] }),
+    ).toMatchObject({ name: "夜班", memberUsernames: ["bob"] });
   });
 });
