@@ -47,6 +47,8 @@
 ## 4. 后端（Express 5 + MongoDB 时序 + TS）
 
 - **Express 5 会自动转发 async 处理器的 reject** 到错误中间件；新路由不必写 `try/catch + next(e)` 样板。
+- 错误响应体统一为 `{ error, detail?, issues?, requiredCapability?, requestId? }`：`error` 是客户端据以分支的稳定码，
+  `detail` 是给人看的原因（哪个字段、哪个引用），5xx 不带 `detail` 只带 `requestId`。不要另起 `message` 等字段名。
 - 入参一律 zod 校验，失败走 `respondValidationError`（统一 400 形状）；能力门禁用 `requireCapability`，
   同一前缀的多个路由用 `router.use("/x", …)` 一次性 gate。
 - 写配置（整档替换）走 `configRegistry.writeWholeConfig`（parse→原子写→reload→读回）；原子写用

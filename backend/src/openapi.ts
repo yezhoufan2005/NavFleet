@@ -22,9 +22,12 @@ import {
   alertsQuerySchema,
   createUserSchema,
   deviceIdParamSchema,
+  changePasswordSchema,
   historyQuerySchema,
   ingestBodySchema,
   loginSchema,
+  rbacGroupSchema,
+  rbacRoleSchema,
   reportAvailabilityQuerySchema,
   reportRangeSchema,
   resetPasswordSchema,
@@ -75,8 +78,14 @@ const queryParameters = (
 const errorSchema = {
   type: "object",
   properties: {
+    /** The stable code a client branches on (`invalid_request`, `config_conflict`, …). */
     error: { type: "string" },
-    message: { type: "string" },
+    /**
+     * The human sentence for that code — which field, which reference, what to change. Every
+     * refusal that has one names it `detail`; the body-parser path used to call it `message`,
+     * the one exception, so a client had to look in two places.
+     */
+    detail: { type: "string" },
     /**
      * The three fields the server actually sends and this schema did not mention, so
      * a client generated from the spec could not read any of them:
@@ -145,6 +154,11 @@ export const openApiDocument = {
     { name: "users", description: "用户管理（需 admin）" },
     { name: "audit", description: "审计日志（需 admin）" },
     { name: "notify", description: "告警外发：发送记录与生效渠道（需 admin）" },
+    {
+      name: "config",
+      description: "控制台可编辑的配置文件（读 + 校验后整份写入，带版本防并发覆盖）",
+    },
+    { name: "rbac", description: "自定义角色与用户组（需 users:manage）" },
   ],
   components: {
     securitySchemes: {
@@ -430,6 +444,188 @@ const serverError = {
 /** Spread into every `/api` operation's `responses`. */
 const apiWideResponses = { "429": tooManyRequests, "500": serverError } as const;
 
+/** The content hash of a config file, sent back as `If-Match` to guard a write. */
+const etagHeader = {
+  ETag: {
+    description: "该配置文件的版本（内容哈希），写入时作为 If-Match 带回",
+    schema: { type: "string" },
+  },
+};
+const ifMatchParameter = {
+  name: "If-Match",
+  in: "header",
+  required: false,
+  description:
+    "读到的 ETag。带上时，若他人已改过文件：两人改的是不同条目则自动合并，改了同一条目则 409 config_conflict、不写入。不带则直接整份覆盖。",
+  schema: { type: "string" },
+};
+const configWriteConflict = {
+  description:
+    "未写入：config_conflict（他人在编辑期间改了同一条目，需刷新后重新编辑）或 config_not_applied（校验通过但与其余配置一起生效失败，已回滚；detail 为原因）",
+  content: { "application/json": { schema: { $ref: "#/components/schemas/Error" } } },
+};
+const jsonObject = { type: "object", additionalProperties: true } as const;
+
+/**
+ * The read + validate-first whole-file write pair every console-editable config file exposes
+ * (vehicles / formations / scenes / rules / notify / scheduled reports). They share their whole
+ * protocol — the capability gate, ETag on both sides, If-Match on the write, 400 for a body
+ * that fails the file's parser, 409 for a refused write — so it is stated once.
+ */
+const configFileOperations = (spec: {
+  noun: string;
+  capability: string;
+  key: string;
+  invalidError: string;
+}): Record<string, unknown> => {
+  const body = {
+    type: "object",
+    required: [spec.key],
+    properties: { [spec.key]: jsonObject },
+  };
+  const okWithVersion = (description: string) => ({
+    description,
+    headers: etagHeader,
+    content: { "application/json": { schema: body } },
+  });
+  return {
+    get: {
+      tags: ["config"],
+      summary: `读取${spec.noun}（需 ${spec.capability}）`,
+      responses: {
+        "200": okWithVersion(`当前${spec.noun}`),
+        "401": unauthorized,
+        "403": forbidden,
+        ...apiWideResponses,
+      },
+    },
+    put: {
+      tags: ["config"],
+      summary: `整份写入${spec.noun}（需 ${spec.capability}；先校验，不合法不落盘）`,
+      parameters: [ifMatchParameter],
+      requestBody: { required: true, content: { "application/json": { schema: jsonObject } } },
+      responses: {
+        "200": okWithVersion(`写入并生效后的${spec.noun}`),
+        "400": {
+          description: `校验失败（error=${spec.invalidError}，detail 指明字段或引用）`,
+          content: { "application/json": { schema: { $ref: "#/components/schemas/Error" } } },
+        },
+        "401": unauthorized,
+        "403": forbidden,
+        "409": configWriteConflict,
+        ...apiWideResponses,
+      },
+    },
+  };
+};
+
+/** List + create, and update + delete by id, for one RBAC entity (custom role / user group). */
+const rbacOperations = (spec: {
+  noun: string;
+  listKey: string;
+  itemKey: string;
+  schema: z.ZodType;
+  inUse?: string;
+}): [Record<string, unknown>, Record<string, unknown>] => {
+  const requestBody = {
+    required: true,
+    content: { "application/json": { schema: fromValidator(spec.schema) } },
+  };
+  const one = (description: string) => ({
+    description,
+    content: {
+      "application/json": {
+        schema: { type: "object", properties: { [spec.itemKey]: jsonObject } },
+      },
+    },
+  });
+  const idParameter = { name: "id", in: "path", required: true, schema: { type: "string" } };
+  const conflictDescription = `名称重复${spec.inUse ? `，或${spec.inUse}（role_in_use）` : ""}`;
+  return [
+    {
+      get: {
+        tags: ["rbac"],
+        summary: `${spec.noun}列表（需 users:manage）`,
+        responses: {
+          "200": {
+            description: `全部${spec.noun}`,
+            content: {
+              "application/json": {
+                schema: {
+                  type: "object",
+                  properties: { [spec.listKey]: { type: "array", items: jsonObject } },
+                },
+              },
+            },
+          },
+          "401": unauthorized,
+          "403": forbidden,
+          ...apiWideResponses,
+        },
+      },
+      post: {
+        tags: ["rbac"],
+        summary: `新建${spec.noun}（需 users:manage）`,
+        requestBody,
+        responses: {
+          "201": one(`已创建的${spec.noun}`),
+          "400": badRequest,
+          "401": unauthorized,
+          "403": forbidden,
+          "409": { ...conflict, description: conflictDescription },
+          ...apiWideResponses,
+        },
+      },
+    },
+    {
+      patch: {
+        tags: ["rbac"],
+        summary: `修改${spec.noun}（需 users:manage）`,
+        parameters: [idParameter],
+        requestBody,
+        responses: {
+          "200": one(`修改后的${spec.noun}`),
+          "400": badRequest,
+          "401": unauthorized,
+          "403": forbidden,
+          "404": notFound,
+          "409": { ...conflict, description: "名称重复" },
+          ...apiWideResponses,
+        },
+      },
+      delete: {
+        tags: ["rbac"],
+        summary: `删除${spec.noun}（需 users:manage）`,
+        parameters: [idParameter],
+        responses: {
+          "204": { description: "已删除" },
+          "401": unauthorized,
+          "403": forbidden,
+          "404": notFound,
+          ...(spec.inUse
+            ? { "409": { ...conflict, description: `${spec.inUse}（role_in_use）` } }
+            : {}),
+          ...apiWideResponses,
+        },
+      },
+    },
+  ];
+};
+
+const [rbacRoles, rbacRole] = rbacOperations({
+  noun: "自定义角色",
+  listKey: "roles",
+  itemKey: "role",
+  schema: rbacRoleSchema,
+  inUse: "仍有用户组引用该角色",
+});
+const [rbacGroups, rbacGroup] = rbacOperations({
+  noun: "用户组",
+  listKey: "groups",
+  itemKey: "group",
+  schema: rbacGroupSchema,
+});
+
 (openApiDocument as { paths: Record<string, unknown> }).paths = {
   "/health": {
     get: {
@@ -517,6 +713,26 @@ const apiWideResponses = { "429": tooManyRequests, "500": serverError } as const
       summary: "登出，清除会话 cookie",
       security: [],
       responses: { "204": { description: "已登出" }, ...apiWideResponses },
+    },
+  },
+  "/api/auth/change-password": {
+    post: {
+      tags: ["auth"],
+      summary: "修改自己的密码",
+      description: "成功后所有设备的会话失效，当前设备换发新的会话 Cookie 继续保持登录。",
+      requestBody: {
+        required: true,
+        content: { "application/json": { schema: fromValidator(changePasswordSchema) } },
+      },
+      responses: {
+        "204": { description: "已修改" },
+        "400": {
+          description: "参数校验失败，或旧密码不对（invalid_credentials）",
+          content: { "application/json": { schema: { $ref: "#/components/schemas/Error" } } },
+        },
+        "401": unauthorized,
+        ...apiWideResponses,
+      },
     },
   },
   "/api/auth/me": {
@@ -752,7 +968,65 @@ const apiWideResponses = { "429": tooManyRequests, "500": serverError } as const
     get: {
       tags: ["scenes"],
       summary: "场景地图目录",
-      responses: { "200": ok("场景列表"), "401": unauthorized, ...apiWideResponses },
+      responses: {
+        "200": { ...ok("场景列表"), headers: etagHeader },
+        "401": unauthorized,
+        ...apiWideResponses,
+      },
+    },
+    put: {
+      ...(
+        configFileOperations({
+          noun: "场景配置 scenes.json",
+          capability: "scenes:write",
+          key: "items",
+          invalidError: "invalid_scenes",
+        }) as { put: Record<string, unknown> }
+      ).put,
+      tags: ["scenes"],
+    },
+  },
+  "/api/v1/scenes/{sceneId}/asset/{kind}": {
+    put: {
+      tags: ["scenes"],
+      summary: "上传场景底图文件（需 scenes:write；请求体为文件原始字节）",
+      description:
+        "文件名由服务端决定，客户端只给类型。单个文件上限：image 8MB、pointcloud 64MB、osm 16MB、pointcloudmeta 8MB。",
+      parameters: [
+        { name: "sceneId", in: "path", required: true, schema: fromValidator(sceneIdParamSchema) },
+        {
+          name: "kind",
+          in: "path",
+          required: true,
+          schema: { type: "string", enum: ["image", "pointcloud", "osm", "pointcloudmeta"] },
+        },
+      ],
+      requestBody: {
+        required: true,
+        content: { "application/octet-stream": { schema: { type: "string", format: "binary" } } },
+      },
+      responses: {
+        "200": {
+          description: "已保存，返回资源地址",
+          content: {
+            "application/json": {
+              schema: { type: "object", properties: { url: { type: "string" } } },
+            },
+          },
+        },
+        "400": {
+          description:
+            "invalid_asset_kind / empty_upload / invalid_asset（内容与类型不符，detail 为原因）",
+          content: { "application/json": { schema: { $ref: "#/components/schemas/Error" } } },
+        },
+        "401": unauthorized,
+        "403": forbidden,
+        "413": {
+          description: "asset_too_large：超过该类型的大小上限",
+          content: { "application/json": { schema: { $ref: "#/components/schemas/Error" } } },
+        },
+        ...apiWideResponses,
+      },
     },
   },
   "/api/v1/scenes/{sceneId}": {
@@ -789,25 +1063,86 @@ const apiWideResponses = { "429": tooManyRequests, "500": serverError } as const
       },
     },
   },
+  "/api/v1/config/status": {
+    get: {
+      tags: ["ops"],
+      summary: "配置健康状况：哪个文件未生效、为什么",
+      description:
+        "某个配置文件解析或校验失败时，后端沿用该文件上次的有效内容（或出厂默认）继续运行；issues 列出每个这样的文件与原因。",
+      responses: {
+        "200": {
+          description: "配置状态",
+          content: {
+            "application/json": {
+              schema: {
+                type: "object",
+                properties: {
+                  ok: { type: "boolean" },
+                  checkedAt: { type: ["string", "null"], format: "date-time" },
+                  issues: { type: "array", items: jsonObject },
+                },
+              },
+            },
+          },
+        },
+        "401": unauthorized,
+        ...apiWideResponses,
+      },
+    },
+  },
+  "/api/v1/vehicles": configFileOperations({
+    noun: "车辆配置 vehicles.json",
+    capability: "vehicles:write",
+    key: "vehicles",
+    invalidError: "invalid_vehicles / vehicle_referenced_by_formation / unknown_scene_in_vehicle",
+  }),
+  "/api/v1/formation-config": configFileOperations({
+    noun: "编队配置 formations.json",
+    capability: "formations:write",
+    key: "formations",
+    invalidError: "invalid_formations / unknown_device_in_formation / unknown_scene_in_formation",
+  }),
+  "/api/v1/rules/config": configFileOperations({
+    noun: "消息规则 rules.json",
+    capability: "rules:write",
+    key: "config",
+    invalidError: "invalid_rules",
+  }),
+  "/api/v1/reports/config": configFileOperations({
+    noun: "定时报表 reports.json",
+    capability: "reports:write",
+    key: "config",
+    invalidError: "invalid_reports",
+  }),
+  "/api/v1/rbac/roles": rbacRoles,
+  "/api/v1/rbac/roles/{id}": rbacRole,
+  "/api/v1/rbac/groups": rbacGroups,
+  "/api/v1/rbac/groups/{id}": rbacGroup,
   "/api/v1/codebook": {
     get: {
       tags: ["codebook"],
       summary: "生效的报码字典（内置表叠加部署侧码表）",
-      responses: { "200": ok("报码列表"), "401": unauthorized, ...apiWideResponses },
+      responses: {
+        "200": { ...ok("报码列表"), headers: etagHeader },
+        "401": unauthorized,
+        ...apiWideResponses,
+      },
     },
     put: {
       tags: ["codebook"],
-      summary: "替换部署侧报码字典（需 admin）",
+      summary: "替换部署侧报码字典（需 codebook:write）",
+      parameters: [ifMatchParameter],
       requestBody: {
         required: true,
         content: { "application/json": { schema: { type: "object" } } },
       },
       responses: {
-        "200": ok("合并后的报码列表"),
+        "200": { ...ok("合并后的报码列表"), headers: etagHeader },
         // 校验失败（非法码表）。
         "400": badRequest,
         "401": unauthorized,
         "403": forbidden,
+        "409": configWriteConflict,
         ...apiWideResponses,
       },
     },
@@ -1136,6 +1471,14 @@ const apiWideResponses = { "429": tooManyRequests, "500": serverError } as const
     },
   },
   "/api/v1/notify/config": {
+    put: (
+      configFileOperations({
+        noun: "外发配置 notify.json",
+        capability: "notify:write",
+        key: "config",
+        invalidError: "invalid_notify",
+      }) as { put: Record<string, unknown> }
+    ).put,
     get: {
       tags: ["notify"],
       summary: "生效外发渠道（需 admin；不含端点 URL）",
@@ -1161,5 +1504,15 @@ const apiWideResponses = { "429": tooManyRequests, "500": serverError } as const
         ...apiWideResponses,
       },
     },
+  },
+  "/api/v1/notify/config/raw": {
+    get: (
+      configFileOperations({
+        noun: "外发配置 notify.json（渠道只含 urlEnv 变量名，不含密钥）",
+        capability: "notify:write",
+        key: "config",
+        invalidError: "invalid_notify",
+      }) as { get: Record<string, unknown> }
+    ).get,
   },
 };

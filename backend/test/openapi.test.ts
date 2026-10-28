@@ -1,3 +1,5 @@
+import { readdirSync, readFileSync } from "node:fs";
+import { join } from "node:path";
 import { describe, it, expect } from "vitest";
 import { z } from "zod";
 import { config } from "../src/config";
@@ -5,7 +7,44 @@ import { openApiDocument } from "../src/openapi";
 import { alertsQuerySchema, loginSchema } from "../src/validation";
 import { version as releaseVersion } from "../../package.json";
 
+/**
+ * Every route the routers register, as `METHOD /path` with `{param}` placeholders — read from
+ * the router sources, so a route added without documenting it fails here instead of being
+ * found missing by a client months later (eight route groups had drifted out that way).
+ */
+const registeredRoutes = (): string[] => {
+  const dirs = [join(__dirname, "../src/routes"), join(__dirname, "../src/auth")];
+  const found = new Set<string>();
+  for (const dir of dirs) {
+    for (const file of readdirSync(dir).filter((name) => name.endsWith(".ts"))) {
+      const source = readFileSync(join(dir, file), "utf8");
+      const authRouter = dir.endsWith("auth");
+      for (const match of source.matchAll(/router\.(get|put|post|patch|delete)\(\s*"([^"]+)"/g)) {
+        const route = match[2]!.replace(/:(\w+)/g, "{$1}");
+        found.add(`${match[1]!.toUpperCase()} ${route}`);
+        if (authRouter) found.add(`${match[1]!.toUpperCase()} /api/auth${route}`);
+      }
+    }
+  }
+  return [...found];
+};
+
+/** Where a router path is documented: the ops/docs ones at the root, the domain ones under /api/v1. */
+const documentedAt = (route: string): string[] => {
+  const [, path] = route.split(" ") as [string, string];
+  return [path, `/api/v1${path}`, `/api/auth${path}`];
+};
+
 describe("openApiDocument", () => {
+  it("documents every route the routers register", () => {
+    const paths = openApiDocument.paths as Record<string, Record<string, unknown>>;
+    const missing = registeredRoutes().filter((route) => {
+      const method = route.split(" ")[0]!.toLowerCase();
+      return !documentedAt(route).some((path) => paths[path]?.[method]);
+    });
+    expect(missing).toEqual([]);
+  });
+
   it("is a well-formed OpenAPI 3.1 document", () => {
     expect(openApiDocument.openapi).toBe("3.1.0");
     const info = openApiDocument.info as { title: string; version: string };
@@ -90,7 +129,7 @@ describe("openApiDocument", () => {
     // `issues` on a validation 400, `requiredCapability` on an RBAC 403, `requestId` on a
     // 500 — the last one exists precisely so a caller can quote it, and a client built
     // from the spec could not read any of the three.
-    for (const field of ["error", "message", "issues", "requiredCapability", "requestId"]) {
+    for (const field of ["error", "detail", "issues", "requiredCapability", "requestId"]) {
       expect(schemas.Error?.properties[field], `Error.${field}`).toBeTruthy();
     }
   });
