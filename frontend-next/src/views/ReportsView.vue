@@ -27,6 +27,7 @@ import UiFilterField from "@/components/ui/UiFilterField.vue";
 import { SEVERITY_LABELS } from "@/lib/severity";
 import TimeSeriesChart from "@/components/charts/TimeSeriesChart.vue";
 import CategoryBarChart from "@/components/charts/CategoryBarChart.vue";
+import { useLatestRequest } from "@/composables/useLatestRequest";
 import { useChartTheme } from "@/composables/useChartTheme";
 import { useFleetStore } from "@/stores/fleet";
 import { fleetApi } from "@navfleet/fleet-core";
@@ -70,7 +71,7 @@ const availError = ref("");
 const alertError = ref("");
 const availability = ref<AvailabilityReport | null>(null);
 const alertStats = ref<AlertStatsReport | null>(null);
-let requestId = 0;
+const latestRequest = useLatestRequest();
 /** The device set the on-screen availability belongs to, so a device change can clear it. */
 let lastDeviceKey = "";
 
@@ -146,7 +147,7 @@ const nameOf = (deviceId: string): string =>
   deviceId;
 
 const load = (): void => {
-  const request = (requestId += 1);
+  const isCurrent = latestRequest.begin();
   const window = isCustom.value
     ? {
         from: new Date(`${customFrom.value}T00:00:00`).toISOString(),
@@ -167,7 +168,7 @@ const load = (): void => {
   }
 
   // Two independent fetches — neither awaits the other, and a reject on one leaves the other's
-  // result on screen. `requestId` discards any response from a superseded filter round.
+  // result on screen. `latestRequest` discards any response from a superseded filter round.
   availStatus.value = "loading";
   availError.value = "";
   fleetApi
@@ -180,7 +181,7 @@ const load = (): void => {
         : undefined,
     })
     .then((report) => {
-      if (request !== requestId) return;
+      if (!isCurrent()) return;
       availability.value = report;
       // Snapshot the series + window now (see the refs' comment for why not computed).
       const perDevice = deviceFilter.value.length > 0;
@@ -193,7 +194,7 @@ const load = (): void => {
       availStatus.value = "ready";
     })
     .catch((error: unknown) => {
-      if (request !== requestId) return;
+      if (!isCurrent()) return;
       availability.value = null;
       onlineSeries.value = [];
       batterySeries.value = [];
@@ -207,12 +208,12 @@ const load = (): void => {
   fleetApi
     .getAlertStatsReport({ from: window.from, to: window.to })
     .then((report) => {
-      if (request !== requestId) return;
+      if (!isCurrent()) return;
       alertStats.value = report;
       alertStatus.value = "ready";
     })
     .catch((error: unknown) => {
-      if (request !== requestId) return;
+      if (!isCurrent()) return;
       alertStats.value = null;
       alertStatus.value = "error";
       alertError.value =
@@ -224,7 +225,7 @@ const load = (): void => {
  * Coalesce a burst of filter changes into one fetch (Phase 18). A single user action can touch
  * several URL params at once (选预设 clears the custom dates; 选日期 clears the preset), and each
  * flips a computed this view watches. Queuing the load on a microtask collapses that burst to one
- * request instead of firing — and then discarding via `requestId` — two or three. Still a single
+ * request instead of firing — and then discarding as stale — two or three. Still a single
  * tick, so tests that `flushPromises()` after a change see the refetch.
  */
 let loadQueued = false;

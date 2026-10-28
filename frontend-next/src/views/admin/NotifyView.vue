@@ -27,6 +27,7 @@ import {
   watch,
   nextTick,
 } from "vue";
+import { useLatestRequest } from "@/composables/useLatestRequest";
 import { useDirtySnapshot } from "@/composables/useDirtySnapshot";
 import { useRoute, useRouter } from "vue-router";
 import { fleetApi } from "@navfleet/fleet-core";
@@ -107,13 +108,13 @@ const pageRows = pageItems;
  * (or after this view unmounts). The increment-before / re-check-after-await / bump-on-unmount guard
  * is the house pattern 审计 / 告警 history already use.
  */
-let requestId = 0;
+const latestRequest = useLatestRequest();
 
 const load = async (): Promise<void> => {
   // Only flash the skeleton before the first successful load; filter changes re-query live, so
   // blanking the page to 加载中… on every keystroke would be noise.
   if (status.value !== "ready") status.value = "loading";
-  const id = ++requestId;
+  const isCurrent = latestRequest.begin();
   try {
     const [config, log] = await Promise.all([
       fleetApi.getNotifyConfig(),
@@ -124,7 +125,7 @@ const load = async (): Promise<void> => {
           "sent" | "failed" | undefined,
       }),
     ]);
-    if (id !== requestId) return;
+    if (!isCurrent()) return;
     channels.value = config.channels;
     records.value = log.items;
     cappedAt.value = log.truncated ? (log.limit ?? log.items.length) : null;
@@ -132,16 +133,16 @@ const load = async (): Promise<void> => {
     if (canWrite.value) {
       try {
         const raw = (await fleetApi.getNotifyConfigRaw()).config;
-        if (id !== requestId) return;
+        if (!isCurrent()) return;
         rawConfig.value = raw;
       } catch {
-        if (id !== requestId) return;
+        if (!isCurrent()) return;
         rawConfig.value = null;
       }
     }
     status.value = "ready";
   } catch {
-    if (id !== requestId) return;
+    if (!isCurrent()) return;
     status.value = "error";
   }
 };
@@ -173,7 +174,6 @@ onMounted(() => void load());
 // Drop a pending debounced apply (and ignore any in-flight load) once this view goes away, so the
 // timer cannot fire `router.replace` against whatever route replaced it.
 onBeforeUnmount(() => {
-  requestId += 1;
   clearTimeout(filterTimer);
 });
 

@@ -17,6 +17,7 @@ import { RouterLink, useRoute } from "vue-router";
 import CategoryBarChart from "@/components/charts/CategoryBarChart.vue";
 import UiListPagination from "@/components/ui/UiListPagination.vue";
 import UiEmptyState from "@/components/ui/UiEmptyState.vue";
+import { useLatestRequest } from "@/composables/useLatestRequest";
 import { useChartTheme } from "@/composables/useChartTheme";
 import { useListPagination } from "@/composables/useListPagination";
 import { useFleetStore } from "@/stores/fleet";
@@ -40,7 +41,7 @@ const errorMessage = ref("");
 const records = ref<AlertRecord[]>([]);
 /** The server's row cap when it cut the list (older matches exist), else null. */
 const cappedAt = ref<number | null>(null);
-let requestId = 0;
+const latestRequest = useLatestRequest();
 
 /** Clear time in epoch ms, `-Infinity` when absent so undated rows sort last. */
 const clearedMs = (record: AlertRecord): number => {
@@ -52,7 +53,7 @@ const onsetMs = (record: AlertRecord): number =>
   Date.parse(String(record.firstSeenAt ?? record.ts ?? ""));
 
 const load = async (): Promise<void> => {
-  const request = (requestId += 1);
+  const isCurrent = latestRequest.begin();
   status.value = "loading";
   errorMessage.value = "";
   try {
@@ -60,7 +61,7 @@ const load = async (): Promise<void> => {
       status: "cleared",
       ...queryWindow.value,
     });
-    if (request !== requestId) return;
+    if (!isCurrent()) return;
     records.value = [...(payload.items ?? [])].sort(
       (left, right) => clearedMs(right) - clearedMs(left),
     );
@@ -69,7 +70,7 @@ const load = async (): Promise<void> => {
       : null;
     status.value = "ready";
   } catch (error) {
-    if (request !== requestId) return;
+    if (!isCurrent()) return;
     records.value = [];
     cappedAt.value = null;
     status.value = "error";

@@ -35,6 +35,7 @@ import SceneMap from "@/components/map/SceneMap.vue";
 import TimeSeriesChart from "@/components/charts/TimeSeriesChart.vue";
 import UiButton from "@/components/ui/UiButton.vue";
 import { useFleetStore } from "@/stores/fleet";
+import { useLatestRequest } from "@/composables/useLatestRequest";
 import {
   PLAYBACK_SPEEDS,
   useHistoryPlayback,
@@ -136,7 +137,7 @@ const rangeError = computed(() => {
     : "";
 });
 
-let requestId = 0;
+const latestRequest = useLatestRequest();
 
 const load = async (): Promise<void> => {
   // A window needs both ends: a cleared 起始/结束 must not load (it would silently become
@@ -144,7 +145,7 @@ const load = async (): Promise<void> => {
   // button is disabled in the same case; this guard is the belt to that braces.
   if (!deviceId || !fromInput.value || !toInput.value || rangeError.value)
     return;
-  const id = (requestId += 1);
+  const isCurrent = latestRequest.begin();
   status.value = "loading";
   errorMessage.value = "";
 
@@ -163,7 +164,7 @@ const load = async (): Promise<void> => {
 
     const payload = await fleetApi.getHistory(deviceId, params);
     // A slow response for a device you have navigated away from must not land.
-    if (id !== requestId) return;
+    if (!isCurrent()) return;
 
     // Sorted rather than reversed: the endpoint answers newest-first from Mongo, but
     // the in-memory fallback is its own path, and playback needs oldest-first either
@@ -176,7 +177,7 @@ const load = async (): Promise<void> => {
     sampledFrom.value = payload.sampled ? (payload.total ?? null) : null;
     status.value = "ready";
   } catch (error) {
-    if (id !== requestId) return;
+    if (!isCurrent()) return;
     setSamples([]);
     sampledFrom.value = null;
     status.value = "error";
