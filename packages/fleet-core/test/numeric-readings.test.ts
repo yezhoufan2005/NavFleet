@@ -6,9 +6,8 @@ import { formatNumber } from "../src/formatters";
  * `toNumeric` had no test at all, which is how it kept a defect that the formatter
  * downstream of it was explicitly written — and documented — to prevent.
  *
- * The table below is deliberately the same table `backend/test/normalize-numeric.test.ts`
- * asserts. `backend/src/normalize.ts:22-25` claims the two implementations are kept
- * behaviourally identical; a claim in a comment is not a guard, so both sides now pin it.
+ * The helper now lives once in `@navfleet/shared` (the backend's ingest uses the same copy);
+ * this table pins it as the console reaches it, next to the formatter downstream.
  */
 const NUMERIC_CASES: ReadonlyArray<
   [label: string, input: unknown, expected: number | null]

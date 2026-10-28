@@ -2,16 +2,9 @@ import { describe, expect, it } from "vitest";
 import { normalizePayload } from "../src/normalize";
 
 /**
- * The backend half of the `toNumeric` parity claim at `src/normalize.ts:22-25`.
- *
- * `packages/fleet-core/test/numeric-readings.test.ts` asserts the same table against
- * fleet-core's copy. The two implementations are separate on purpose (the backend does
- * not depend on fleet-core), so the only thing that can keep them honest is both sides
- * pinning the same behaviour — a comment saying "kept identical" cannot, and did not:
- * fleet-core's copy was missing the null guard entirely.
- *
- * `toNumeric` is module-private, so this exercises it through `normalizePayload`, which
- * is how it is actually reached.
+ * `toNumeric` as the ingest path reaches it: through `normalizePayload`. The helper itself
+ * lives in `@navfleet/shared` (one copy for the backend and fleet-core, tested there); this
+ * pins that a missing reading on an arriving frame stays missing rather than becoming 0.
  */
 
 const frameWith = (vehicleInfo: Record<string, unknown>): Record<string, unknown> => ({

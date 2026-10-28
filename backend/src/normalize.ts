@@ -1,10 +1,18 @@
-import { CodeState, DeviceAlert, DeviceSnapshot, FleetSnapshot, Severity } from "./types";
+import { CodeState, DeviceAlert, DeviceSnapshot, FleetSnapshot } from "./types";
 import {
   AlertRulesConfig,
   DEFAULT_ALERT_RULES,
+  asText,
   buildOfflineAlert,
+  createDefaultCode,
+  dedupeAlerts,
   evaluateRuleAlerts,
+  hasGps,
+  hasPose,
+  normalizeSeverity,
   offlineAlertId,
+  toIsoString,
+  toNumeric,
 } from "@navfleet/shared";
 import { buildTopicScheme, TopicScheme } from "./topics";
 
@@ -12,77 +20,10 @@ import { buildTopicScheme, TopicScheme } from "./topics";
 // has one home both this backend and the two frontends reach. Re-exported here because the
 // store's offline sweep and the normalize tests import them from `./normalize`.
 export { buildOfflineAlert, offlineAlertId };
+// `asText` / `hasGps` stay importable from here for the routes and the store that already do.
+export { asText, hasGps };
 
 type UnknownRecord = Record<string, unknown>;
-
-const toNumeric = (value: unknown, fallback: number | null = null): number | null => {
-  if (value === null || value === undefined || value === "") {
-    return fallback;
-  }
-  const parsed = Number(value);
-  return Number.isFinite(parsed) ? parsed : fallback;
-};
-
-/**
- * A JSON scalar as text; anything else becomes `fallback`.
- *
- * `String(raw.deviceName || …)` was the house pattern in this file — 25 of them — and on a
- * field typed `unknown` it is a promise the normaliser cannot keep. A vehicle publishing
- * `"deviceName": {}` got the literal string `"[object Object]"` as its name, carried through
- * the snapshot, the WebSocket delta, Mongo, and into the console's device list. Nothing in
- * the fleet does that today; nothing rejected it either, and **being the place where
- * 「到达的东西」变成「模型说的东西」is this file's entire job.**
- *
- * `no-base-to-string` named all 25 at once.
- *
- * Two deliberate differences from `String`: `null` and `undefined` render as `fallback`
- * rather than the words `"null"` / `"undefined"` — which is why a topic-less ingest input no
- * longer gets matched against the literal string `"undefined"` — and a non-finite number
- * renders as `fallback` rather than `"NaN"`.
- */
-export const asText = (value: unknown, fallback = ""): string => {
-  if (typeof value === "string") {
-    return value;
-  }
-  if (typeof value === "number") {
-    return Number.isFinite(value) ? String(value) : fallback;
-  }
-  if (typeof value === "boolean" || typeof value === "bigint") {
-    return String(value);
-  }
-  return fallback;
-};
-
-/**
- * Epoch milliseconds, or `null` when the value carries no time.
- *
- * A local copy rather than an import: this file is the backend's own normaliser and
- * predates `@navfleet/fleet-core`. It is kept behaviourally identical to
- * `parseTimestampMs` there, and the pair is asserted by tests on both sides — a fourth
- * copy of this logic drifting is exactly how parity 9.19 stayed alive in three places.
- */
-const parseTimestampMs = (value: unknown): number | null => {
-  if (value === null || value === undefined || value === "") return null;
-  if (typeof value === "number") {
-    if (!Number.isFinite(value)) return null;
-    return value < 1e12 ? value * 1000 : value;
-  }
-  const numeric = Number(value);
-  if (Number.isFinite(numeric) && asText(value).trim() !== "") {
-    return numeric < 1e12 ? numeric * 1000 : numeric;
-  }
-  const parsed = Date.parse(asText(value));
-  return Number.isFinite(parsed) ? parsed : null;
-};
-
-/**
- * Receive time is a legitimate answer **here** and only here: this runs as a frame
- * arrives, so a vehicle that does not stamp its own reports still has a knowable time.
- * The readers (both frontends) must not invent one — see `parseTimestampMs` in
- * `@navfleet/fleet-core`.
- */
-const toIsoString = (value: unknown): string =>
-  new Date(parseTimestampMs(value) ?? Date.now()).toISOString();
 
 const isRecord = (value: unknown): value is UnknownRecord =>
   typeof value === "object" && value !== null && !Array.isArray(value);
@@ -124,36 +65,6 @@ const resolveDeviceIdFromTopic = (topic: string, topicPattern: string): string =
   }
   return extractDeviceIdFromTopic(topic);
 };
-
-const isFiniteNumber = (value: unknown): value is number =>
-  typeof value === "number" && Number.isFinite(value);
-
-const hasPose = (pose: DeviceSnapshot["fusionLoc"]): boolean =>
-  isFiniteNumber(pose?.x) && isFiniteNumber(pose?.y);
-
-export const hasGps = (gps: DeviceSnapshot["gps"]): boolean =>
-  isFiniteNumber(gps?.lat) && isFiniteNumber(gps?.lng);
-
-const normalizeSeverity = (value: unknown): Severity => {
-  const normalized = asText(value || "").toLowerCase();
-  if (
-    normalized.includes("critical") ||
-    normalized.includes("fatal") ||
-    normalized.includes("error")
-  ) {
-    return "critical";
-  }
-  if (normalized.includes("warn") || normalized.includes("low")) {
-    return "warning";
-  }
-  return "notice";
-};
-
-const createDefaultCode = (): CodeState => ({
-  code: 0,
-  info: "",
-  stamp: null,
-});
 
 const normalizeCode = (rawCode: unknown, fallback?: CodeState): CodeState => {
   const source = isRecord(rawCode) ? rawCode : {};
@@ -272,19 +183,6 @@ const buildRuleAlerts = (
   snapshot: DeviceSnapshot,
   rules: AlertRulesConfig = DEFAULT_ALERT_RULES,
 ): DeviceAlert[] => evaluateRuleAlerts(snapshot, rules);
-
-const dedupeAlerts = (alerts: DeviceAlert[]): DeviceAlert[] => {
-  const deduplicated = new Map<string, DeviceAlert>();
-  alerts.forEach((alert) => {
-    const key = `${alert.id}|${alert.severity}|${alert.title}`;
-    if (!deduplicated.has(key)) {
-      deduplicated.set(key, alert);
-    }
-  });
-  return [...deduplicated.values()].sort(
-    (left, right) => (parseTimestampMs(right.ts) ?? 0) - (parseTimestampMs(left.ts) ?? 0),
-  );
-};
 
 /**
  * When a frame arrived and how far its own `stamp` may sit from that before it is not

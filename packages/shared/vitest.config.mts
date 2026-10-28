@@ -14,9 +14,10 @@ export default defineConfig({
       provider: "v8",
       include: ["src/**/*.ts"],
       // 首次实测 94.24 / 89.26 / 100 / 96.18，门槛取其下方一两个点；只上不下。
+      // 两套归一化的纯 helper 收进来并补测后 94.94 / 91.13 / 100 / 96.67，分支上抬。
       thresholds: {
         statements: 93,
-        branches: 88,
+        branches: 90,
         functions: 99,
         lines: 95,
       },

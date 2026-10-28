@@ -302,3 +302,6 @@ export * from "./rbac";
 
 // CSV 单元格（含公式注入防护）——控制台导出与定时报表邮件共用，两边写出同一种文件。
 export * from "./csv";
+
+// The pure coercions both normalisers (backend ingest, fleet-core in the consoles) apply.
+export * from "./normalizeHelpers";

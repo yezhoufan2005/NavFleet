@@ -21,23 +21,39 @@ import type {
 // backend and both frontends all depend on. This reader uses the built-in defaults — it
 // cannot see backend config and does not need to (see `buildRuleAlerts` below).
 import {
+  asText,
+  createDefaultCode,
+  dedupeAlerts,
   evaluateRuleAlerts,
+  hasGps,
+  hasPose,
   mapFootprintBounds,
+  normalizeSeverity,
+  parseTimestampMs,
+  toIsoString,
+  toIsoStringOrNull,
+  toNumeric,
   toScenePose,
 } from "@navfleet/shared";
 
+// The pure coercions live in `@navfleet/shared` (the backend normaliser applies the same ones);
+// re-exported because both consoles import them from this package.
+export {
+  asText,
+  createDefaultCode,
+  dedupeAlerts,
+  hasGps,
+  hasPose,
+  normalizeSeverity,
+  parseTimestampMs,
+  toIsoString,
+  toIsoStringOrNull,
+  toNumeric,
+};
+export { toTimestampMsOrNow } from "@navfleet/shared";
+
 /** A point-like value whose coordinates may be absent/nullish (loose input). */
 type MaybePoint = { x?: number | null; y?: number | null } | null | undefined;
-/** A GPS-like value whose coordinates may be absent/nullish (loose input). */
-type MaybeGps = { lat?: number | null; lng?: number | null } | null | undefined;
-
-/** Minimal fields `dedupeAlerts` reads; kept loose so raw alert-ish objects fit. */
-interface AlertLike {
-  id: string;
-  severity: string;
-  title: string;
-  ts: string;
-}
 
 /** Loose, partial scene-definition parts consumed by the scene merge helpers. */
 interface ScenePartLike {
@@ -58,30 +74,6 @@ interface ScenePartLike {
 export const cloneValue = <T>(value: T): T =>
   JSON.parse(JSON.stringify(value)) as T;
 
-/**
- * A JSON scalar as text; anything else becomes `fallback`.
- *
- * The twin of `asText` in `backend/src/normalize.ts`, and for the same reason: on a payload
- * field typed `unknown`, `String(x)` promises something it cannot deliver — a vehicle
- * publishing `"formationName": {}` got the literal string `"[object Object]"` shown in the
- * console. Nothing in the fleet does that; nothing rejected it either, and a normaliser is
- * exactly the layer whose job is to stop it.
- *
- * `no-base-to-string` named all 16 of this package's at once.
- */
-export const asText = (value: unknown, fallback = ""): string => {
-  if (typeof value === "string") {
-    return value;
-  }
-  if (typeof value === "number") {
-    return Number.isFinite(value) ? String(value) : fallback;
-  }
-  if (typeof value === "boolean" || typeof value === "bigint") {
-    return String(value);
-  }
-  return fallback;
-};
-
 /** A loose object as a readable record; anything else as an empty one. */
 const asRecord = (value: unknown): Record<string, unknown> =>
   value && typeof value === "object" ? (value as Record<string, unknown>) : {};
@@ -92,98 +84,6 @@ export const round = (value: unknown, digits = 2): number => {
     return 0;
   }
   return Number(numeric.toFixed(digits));
-};
-
-/**
- * A numeric reading, or `fallback` when the value carries no reading.
- *
- * The `null`/`undefined`/`""` guard is the entire point, and it has to live **here**
- * rather than only in `formatNumber`. `Number()` maps every kind of "nothing" onto a
- * perfectly finite zero, and every default telemetry field in this system is `null`:
- * the backend serialises a device that has never reported as `soc: null`,
- * `speedLimit.limit: null`, `fusionLoc: {x: null, y: null, yaw: null}`. Both consoles
- * re-normalise every snapshot through `normalizeDevice`, so without this guard those
- * nulls became real zeros *before* any formatter saw them —
- *
- *   - `soc` rendered `0%`, i.e. a flat battery for a vehicle that reported none;
- *   - `controlMode` resolved to a real mode name instead of `--`;
- *   - `hasPose({x: 0, y: 0})` returned true, so a vehicle with no pose was drawn at
- *     the site map's origin.
- *
- * `formatNumber`'s own guard (see formatters.ts) was written for exactly this defect
- * and documents it as fixed — it could never fire, because by the time it ran the
- * `null` had already become `0`. A fix applied downstream of the coercion is not a fix.
- *
- * A real zero still passes through: the distinction is "no reading" versus "a reading
- * of zero", and on a monitoring console those are different facts.
- *
- * Kept identical to `backend/src/normalize.ts`'s `toNumeric` on purpose; the parity is
- * asserted from both sides (`packages/fleet-core/test/fleetNormalize.test.ts` and
- * `backend/test/normalize-numeric.test.ts`) rather than only claimed in a comment.
- */
-export const toNumeric = (
-  value: unknown,
-  fallback: number | null = null,
-): number | null => {
-  if (value === null || value === undefined || value === "") {
-    return fallback;
-  }
-  const numeric = Number(value);
-  return Number.isFinite(numeric) ? numeric : fallback;
-};
-
-/**
- * A timestamp in epoch milliseconds, or `null` when the value carries no time.
- *
- * The primitive, so that every caller has to say what "no timestamp" means *there* —
- * which is the fix for parity 9.19. The old single helper answered `Date.now()`, and
- * that answer is right at exactly one kind of call site and wrong at the others:
- *
- * - **A receiver** (the backend normalising an arriving MQTT frame) legitimately uses
- *   its own clock: the message *did* just arrive, and a vehicle that does not stamp its
- *   own reports still has a knowable receive time.
- * - **A reader** (either frontend sorting stored alerts) must not. There, `Date.now()`
- *   turns "we do not know when this happened" into "it happened this instant", which
- *   sorts an undated alert above every real one — and the row then re-sorts on every
- *   tick, because the fabricated stamp moves.
- *
- * Seconds are accepted as well as milliseconds: `< 1e12` is treated as seconds, which
- * is the convention the vehicles publish and predates this function.
- */
-export const parseTimestampMs = (value: unknown): number | null => {
-  if (value === null || value === undefined || value === "") return null;
-  if (typeof value === "number") {
-    if (!Number.isFinite(value)) return null;
-    return value < 1e12 ? value * 1000 : value;
-  }
-  const numeric = Number(value);
-  if (Number.isFinite(numeric) && asText(value).trim() !== "") {
-    return numeric < 1e12 ? numeric * 1000 : numeric;
-  }
-  const parsed = Date.parse(asText(value));
-  return Number.isFinite(parsed) ? parsed : null;
-};
-
-/**
- * Epoch milliseconds, falling back to **now**. Only for receivers — see
- * `parseTimestampMs`. The name says the fallback out loud precisely because the
- * previous name did not, and the ambiguity is what caused 9.19.
- */
-export const toTimestampMsOrNow = (value: unknown): number =>
-  parseTimestampMs(value) ?? Date.now();
-
-export const toIsoString = (value: unknown): string =>
-  new Date(toTimestampMsOrNow(value)).toISOString();
-
-/**
- * Reader-side ISO string for a field typed `string | null`: an absent **or unparseable**
- * stamp stays `null` rather than being fabricated as now. `toIsoString` (now-fallback) is for
- * receivers stamping their own arrival; a code or speed-limit stamp read back off the wire is
- * a reader, so a truthy-but-garbage value like `"n/a"` must not sort to this instant (9.19).
- */
-export const toIsoStringOrNull = (value: unknown): string | null => {
-  const ms = parseTimestampMs(value);
-  return ms === null ? null : new Date(ms).toISOString();
 };
 
 /** Localised timestamp, or the placeholder when there is no time to show. */
@@ -200,10 +100,6 @@ export const extractDeviceIdFromTopic = (topic: unknown): string => {
   return match?.[1] || "";
 };
 
-export const hasPose = (pose: MaybePoint): boolean =>
-  Number.isFinite(pose?.x) && Number.isFinite(pose?.y);
-export const hasGps = (gps: MaybeGps): boolean =>
-  Number.isFinite(gps?.lat) && Number.isFinite(gps?.lng);
 export const isNormalizedSnapshot = (raw: unknown): boolean =>
   !!raw &&
   (Object.prototype.hasOwnProperty.call(raw, "runtimeSceneId") ||
@@ -212,12 +108,6 @@ export const isNormalizedSnapshot = (raw: unknown): boolean =>
     Object.prototype.hasOwnProperty.call(raw, "vehicleInfo") ||
     Object.prototype.hasOwnProperty.call(raw, "infoCode") ||
     Object.prototype.hasOwnProperty.call(raw, "speedLimit"));
-
-export const createDefaultCode = (): CodeState => ({
-  code: 0,
-  info: "",
-  stamp: null,
-});
 
 export const createDefaultFormation = (
   formationId = "",
@@ -317,47 +207,6 @@ export const normalizeFormation = (
     ),
     color: asText(raw.color || existingFormation?.color || ""),
   };
-};
-
-/**
- * Coerce a vendor-supplied severity onto the `Severity` union.
- *
- * Mirrors `backend/src/normalize.ts`'s `normalizeSeverity`. Without it, a frame
- * carrying `severity: "ERROR"` kept that string, and the console then indexed
- * `grouped[alert.severity]` with a key that does not exist — an `undefined` bucket
- * rather than a critical alert.
- */
-export const normalizeSeverity = (value: unknown): Severity => {
-  const normalized = asText(value || "").toLowerCase();
-  if (
-    normalized.includes("critical") ||
-    normalized.includes("fatal") ||
-    normalized.includes("error")
-  ) {
-    return "critical";
-  }
-  if (normalized.includes("warn") || normalized.includes("low")) {
-    return "warning";
-  }
-  return "notice";
-};
-
-export const dedupeAlerts = <T extends AlertLike>(alerts: T[]): T[] => {
-  const deduped = new Map<string, T>();
-  alerts.forEach((alert) => {
-    const key = `${alert.id}|${alert.severity}|${alert.title}`;
-    if (!deduped.has(key)) {
-      deduped.set(key, alert);
-    }
-  });
-  // Newest first, and an alert with no timestamp sorts **last** rather than first.
-  // `?? 0` is the whole point: the old `Date.now()` fallback promoted every undated
-  // alert to the top of the list and then re-sorted it on each tick, because the
-  // fabricated stamp kept moving (parity 9.19).
-  return [...deduped.values()].sort(
-    (left, right) =>
-      (parseTimestampMs(right.ts) ?? 0) - (parseTimestampMs(left.ts) ?? 0),
-  );
 };
 
 export const buildCodeAlerts = (device: DeviceSnapshot): DeviceAlert[] => {
