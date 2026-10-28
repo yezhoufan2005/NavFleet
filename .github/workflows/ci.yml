@@ -77,6 +77,9 @@ jobs:
         run: npm run format:check -w @navfleet/shared
       - if: matrix.node == 22
         run: npm run typecheck -w @navfleet/shared
+      # 码表、消息规则、配置解析器与场景几何的测试跟着代码住在 shared 里，门槛在它自己的
+      # vitest.config.mts —— 之前这些测试挂在 fleet-core 名下，shared 的改动由别的包的覆盖率把关。
+      - run: npm run test:coverage -w @navfleet/shared
       - if: matrix.node == 22
         run: npm run lint -w navfleet-backend
       - if: matrix.node == 22

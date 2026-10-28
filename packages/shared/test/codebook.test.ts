@@ -10,7 +10,7 @@ import {
   parseCodebook,
   type CodeState,
   type ReportCodeEntry,
-} from "@navfleet/shared";
+} from "../src/index";
 
 /**
  * The report-code dictionary's deployment-overlay machinery (Phase 16C-2): validating an

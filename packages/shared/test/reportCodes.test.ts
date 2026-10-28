@@ -2,12 +2,13 @@ import { describe, it, expect } from "vitest";
 import {
   CODE_IMPACTS,
   CODE_SUBSYSTEMS,
-  REPORT_CODES,
-  describeCode,
-  describeDeviceCodes,
-  lookupReportCode,
-} from "../src/reportCodes";
-import type { CodeState } from "@navfleet/shared";
+  DEFAULT_CODEBOOK_INDEX,
+  DEFAULT_REPORT_CODES as REPORT_CODES,
+  describeCodeWith,
+  describeDeviceCodesWith,
+  lookupCode,
+  type CodeState,
+} from "../src/index";
 
 /**
  * The dictionary, and mostly one property: that it never invents a meaning.
@@ -16,8 +17,16 @@ import type { CodeState } from "@navfleet/shared";
  * vehicle can still do) and J1939 (a number that separates *what* from *how*). What is
  * worth testing is not its contents but its discipline — the internal consistency of
  * the number scheme, and the unknown-code path, which is the state most real
- * deployments will be in until their own 码表 is loaded.
+ * deployments will be in until their own 码表 is loaded. Run against the built-in table.
  */
+const lookupReportCode = (code: unknown) =>
+  lookupCode(DEFAULT_CODEBOOK_INDEX, code);
+const describeCode = (state: CodeState | null | undefined) =>
+  describeCodeWith(DEFAULT_CODEBOOK_INDEX, state);
+const describeDeviceCodes = (
+  device: Parameters<typeof describeDeviceCodesWith>[1],
+) => describeDeviceCodesWith(DEFAULT_CODEBOOK_INDEX, device);
+
 const state = (
   code: number,
   info = "",

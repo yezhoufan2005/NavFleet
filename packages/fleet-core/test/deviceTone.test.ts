@@ -5,7 +5,6 @@ import {
   deviceToneLabels,
   deviceToneRank,
   getDeviceTone,
-  getDeviceToneLabel,
 } from "../src/deviceTone";
 
 /**
@@ -128,9 +127,5 @@ describe("labels and ordering", () => {
     expect(deviceToneRank("warning")).toBeLessThan(deviceToneRank("notice"));
     expect(deviceToneRank("notice")).toBeLessThan(deviceToneRank("offline"));
     expect(deviceToneRank("offline")).toBeLessThan(deviceToneRank("normal"));
-  });
-
-  it("pairs derivation and label in one call", () => {
-    expect(getDeviceToneLabel(device({ online: false }))).toBe("离线");
   });
 });

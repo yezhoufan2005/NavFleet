@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { parseScenes } from "@navfleet/shared";
+import { parseScenes } from "../src/index";
 
 /**
  * Shared validator for the scene-map management page (Phase 18). Mirrors parseVehicles: a JSON

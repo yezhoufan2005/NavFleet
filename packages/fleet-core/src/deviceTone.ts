@@ -74,11 +74,6 @@ export const getDeviceTone = (
   return "normal";
 };
 
-/** The label for a device, in one call — the pairing callers actually want. */
-export const getDeviceToneLabel = (
-  device: Parameters<typeof getDeviceTone>[0],
-): string => deviceToneLabels[getDeviceTone(device)];
-
 /** Lower is worse. `-1` for a tone this module does not know. */
 export const deviceToneRank = (tone: DeviceTone): number =>
   DEVICE_TONE_SEVERITY.indexOf(tone);
