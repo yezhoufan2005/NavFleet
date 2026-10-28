@@ -85,7 +85,8 @@ describe("fetchMe", () => {
     await useAuth().fetchMe();
 
     const [url, init] = lastCall();
-    expect(url).toBe("/api/auth/me");
+    expect(url).toBe("/api/auth/refresh");
+    expect(init?.method).toBe("POST");
     expect(init?.credentials).toBe("include");
     expect(JSON.stringify(init?.headers)).not.toMatch(/authorization/i);
   });
@@ -126,6 +127,26 @@ describe("fetchMe", () => {
     fetchMock.mockResolvedValue(jsonResponse({ user: ADMIN }));
     window.dispatchEvent(new Event("online"));
     await vi.advanceTimersByTimeAsync(0);
+    expect(auth.state.status).toBe("authenticated");
+  });
+
+  it("renews the session on load, so a page opened after the access cookie lapsed stays signed in", async () => {
+    // `/me` reads only the 15-minute access cookie; the 7-day refresh cookie is what proves the
+    // session. Probing with /me sent a reload after a coffee break to the login form.
+    fetchMock.mockResolvedValue(jsonResponse({ user: ADMIN }));
+    await useAuth().fetchMe();
+    expect(lastCall()[0]).toBe("/api/auth/refresh");
+    expect(useAuth().state.status).toBe("authenticated");
+  });
+
+  it("retries a rate-limited probe instead of showing the login form", async () => {
+    vi.useFakeTimers();
+    fetchMock.mockResolvedValue(new Response(null, { status: 429 }));
+    const auth = useAuth();
+    await auth.fetchMe();
+    expect(auth.state.status).toBe("unknown");
+    fetchMock.mockResolvedValue(jsonResponse({ user: ADMIN }));
+    await vi.advanceTimersByTimeAsync(AUTH_RETRY_DELAYS_MS[0]);
     expect(auth.state.status).toBe("authenticated");
   });
 
@@ -221,6 +242,34 @@ describe("token refresh", () => {
       expect.objectContaining({ method: "POST" }),
     );
     expect(auth.state.status).toBe("authenticated");
+  });
+
+  it("renews at once when a tab comes back after the interval has passed", async () => {
+    // A background tab fires timers late; the access cookie must not lapse under an open page.
+    await signIn();
+    fetchMock.mockResolvedValue(jsonResponse({ user: ADMIN }));
+    vi.setSystemTime(Date.now() + AUTH_REFRESH_INTERVAL_MS + 1);
+    Object.defineProperty(document, "visibilityState", {
+      value: "visible",
+      configurable: true,
+    });
+    document.dispatchEvent(new Event("visibilitychange"));
+    await vi.advanceTimersByTimeAsync(0);
+    expect(fetchMock).toHaveBeenCalledWith(
+      "/api/auth/refresh",
+      expect.objectContaining({ method: "POST" }),
+    );
+  });
+
+  it("does not renew on becoming visible when the last renewal is recent", async () => {
+    await signIn();
+    Object.defineProperty(document, "visibilityState", {
+      value: "visible",
+      configurable: true,
+    });
+    document.dispatchEvent(new Event("visibilitychange"));
+    await vi.advanceTimersByTimeAsync(0);
+    expect(fetchMock).not.toHaveBeenCalled();
   });
 
   it("keeps refreshing on the normal interval while it succeeds", async () => {

@@ -44,6 +44,19 @@ import { notify } from "@/composables/useNotifications";
  * The first probe (`fetchMe`) follows the same rule: an unreachable backend keeps
  * the page waiting and retrying instead of showing the login form, and the browser
  * coming back online retries at once.
+ *
+ * ## Why the probe is a refresh, not `/me`
+ *
+ * The access cookie lives 15 minutes; the refresh cookie lives 7 days. The probe used to be
+ * `GET /me`, which only reads the access cookie — so a page opened (or reloaded) more than 15
+ * minutes after the last renewal answered 401 and showed the login form, although the session
+ * was still good for days. And because a successful `/me` restarted the 10-minute timer without
+ * renewing anything, a few reloads in a row pushed the next renewal past the access token's
+ * expiry. Probing with the refresh endpoint renews both cookies on every load and anchors the
+ * timer to an actual renewal.
+ *
+ * A background tab or a sleeping laptop fires timers late, so becoming visible again renews at
+ * once when the last renewal is older than the interval.
  */
 export type AuthStatus = "unknown" | "authenticated" | "anonymous";
 
@@ -83,6 +96,8 @@ let failedRefreshes = 0;
 /** Retry timer for a first probe that could not reach the backend. */
 let probeTimer: ReturnType<typeof setTimeout> | null = null;
 let failedProbes = 0;
+/** When the cookies were last issued (login / refresh), for the catch-up on becoming visible. */
+let renewedAt = 0;
 
 const request = (path: string, options: RequestInit = {}): Promise<Response> =>
   fetch(path, {
@@ -175,6 +190,7 @@ const setAuthenticated = (
   state.status = "authenticated";
   state.error = "";
   failedRefreshes = 0;
+  renewedAt = Date.now();
   scheduleRefresh(REFRESH_INTERVAL_MS);
 };
 
@@ -194,6 +210,7 @@ const runRefresh = async (): Promise<void> => {
       state.capabilities = session.capabilities;
     }
     failedRefreshes = 0;
+    renewedAt = Date.now();
     scheduleRefresh(REFRESH_INTERVAL_MS);
     return;
   }
@@ -233,11 +250,11 @@ const refreshIsRetrying = (): boolean => failedRefreshes > 0;
 
 export const useAuth = () => {
   /**
-   * Ask the backend who we are. A 401 is the expected answer for a visitor with
-   * no cookie, so it is not an error and raises no toast — but a *network* failure
-   * is a different thing wearing the same clothes, and the old frontend rendered
-   * both as "you are logged out". Saying which one it was is the difference
-   * between "log in again" and "the backend is down".
+   * Ask the backend who we are, by renewing the session (see the header for why that is the
+   * refresh endpoint). A 401 is the expected answer for a visitor with no cookie, so it is not
+   * an error and raises no toast — but a *network* failure is a different thing wearing the
+   * same clothes, and the old frontend rendered both as "you are logged out". Saying which one
+   * it was is the difference between "log in again" and "the backend is down".
    */
   const fetchMe = async (): Promise<boolean> => {
     if (probeTimer !== null) {
@@ -246,7 +263,7 @@ export const useAuth = () => {
     }
     let response: Response;
     try {
-      response = await request("/api/auth/me");
+      response = await request("/api/auth/refresh", { method: "POST" });
     } catch {
       // Unreachable is not "logged out": keep waiting (status stays as it is) and probe again.
       const delay = RETRY_DELAYS_MS[failedProbes] ?? LAST_RETRY_DELAY_MS;
@@ -269,8 +286,9 @@ export const useAuth = () => {
         return true;
       }
     }
-    // 5xx: the backend is up but failing — retry like an outage rather than demand a login.
-    if (response.status >= 500) {
+    // A 5xx (backend failing) or a 429 (rate limit) is retried like an outage rather than
+    // turned into a login form; only a 401 (or a 200 that is not a session) means "no session".
+    if (response.status >= 500 || response.status === 429) {
       probeTimer = setTimeout(() => {
         probeTimer = null;
         void fetchMe();
@@ -421,6 +439,7 @@ export const __resetAuth = (): void => {
   if (probeTimer !== null) clearTimeout(probeTimer);
   probeTimer = null;
   failedProbes = 0;
+  renewedAt = 0;
   state.status = "unknown";
   state.user = null;
   state.capabilities = [];
@@ -430,6 +449,23 @@ export const __resetAuth = (): void => {
 
 export const AUTH_REFRESH_INTERVAL_MS = REFRESH_INTERVAL_MS;
 export const AUTH_RETRY_DELAYS_MS = RETRY_DELAYS_MS;
+
+// A background tab or a sleeping laptop fires the renewal timer late (or not at all); on coming
+// back, renew at once if the last renewal is older than the interval, before the access cookie
+// has had a chance to lapse under an open page.
+if (typeof document !== "undefined") {
+  document.addEventListener("visibilitychange", () => {
+    if (
+      document.visibilityState === "visible" &&
+      state.status === "authenticated" &&
+      !refreshIsRetrying() &&
+      Date.now() - renewedAt >= REFRESH_INTERVAL_MS
+    ) {
+      stopRefreshTimer();
+      void runRefresh();
+    }
+  });
+}
 
 // The browser regained its network: retry now rather than wait out the backoff step, both for a
 // first probe that never reached the backend and for a refresh stuck on the retry ladder.
