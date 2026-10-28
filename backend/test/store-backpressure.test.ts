@@ -276,3 +276,54 @@ describe("device admission and eviction (P0-d)", () => {
     expect(store.deviceAdmissionStats().evicted).toBe(0);
   });
 });
+
+describe("live frames and the vehicle's clock", () => {
+  const frame = (deviceId: string, stamp: string) => ({
+    topic: `/fleet/${deviceId}/vehicle_info`,
+    payload: { stamp, vehicle_info: { soc: 80, speed: 1 } },
+  });
+  const live = { sheddable: true, checkDeviceClock: true } as const;
+
+  it("uses the arrival time when the vehicle's stamp is far from it, and counts it", async () => {
+    const { store } = createStore();
+    const before = Date.now();
+    await store.applyPayload(frame("agv-fast", "2099-01-01T00:00:00Z"), "mqtt", live);
+    await store.applyPayload(frame("agv-reset", "1970-01-01T00:00:10Z"), "mqtt", live);
+
+    const stampOf = (id: string) =>
+      Date.parse(store.snapshot().devices.find((device) => device.deviceId === id)!.stamp);
+    expect(stampOf("agv-fast")).toBeGreaterThanOrEqual(before);
+    expect(stampOf("agv-fast")).toBeLessThanOrEqual(Date.now());
+    expect(stampOf("agv-reset")).toBeGreaterThanOrEqual(before);
+    expect(store.deviceClockStats().untrusted).toBe(2);
+  });
+
+  it("keeps a stamp within the tolerance as the vehicle sent it", async () => {
+    const { store } = createStore();
+    const stamp = new Date(Date.now() - 5_000).toISOString();
+    await store.applyPayload(frame("agv-ok", stamp), "mqtt", live);
+    expect(store.snapshot().devices[0]?.stamp).toBe(stamp);
+    expect(store.deviceClockStats().untrusted).toBe(0);
+  });
+
+  it("drops a frame that arrives after a newer one from the same vehicle", async () => {
+    const { store, persistence } = createStore();
+    const now = Date.now();
+    const newer = new Date(now - 1_000).toISOString();
+    const older = new Date(now - 3_000).toISOString();
+    await store.applyPayload(frame("agv-r", newer), "mqtt", live);
+    await store.applyPayload(frame("agv-r", older), "mqtt", live);
+
+    expect(store.snapshot().devices[0]?.stamp).toBe(newer);
+    expect(persistence.written).toEqual(["agv-r"]);
+    expect(store.deviceClockStats().outOfOrder).toBe(1);
+  });
+
+  it("leaves replayed history (the debug ingest path) alone", async () => {
+    const { store } = createStore();
+    await store.applyPayload(frame("agv-h", "2026-01-01T00:00:10Z"), "debug-api");
+    await store.applyPayload(frame("agv-h", "2026-01-01T00:00:00Z"), "debug-api");
+    expect(store.snapshot().devices[0]?.stamp).toBe("2026-01-01T00:00:00.000Z");
+    expect(store.deviceClockStats()).toEqual({ untrusted: 0, outOfOrder: 0 });
+  });
+});

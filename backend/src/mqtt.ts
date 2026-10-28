@@ -140,7 +140,12 @@ export const connectMqtt = ({ store, topicScheme, config, state }: MqttDeps): mq
       // level-triggered — each one carries the device's complete current state, so
       // under overload the newest is worth strictly more than an older one still
       // queued. Status frames above are edge-triggered and are never shed.
-      await store.applyPayload({ topic, payload }, "mqtt", { sheddable: true });
+      // `checkDeviceClock`: a live frame's own stamp is checked against when it arrived, and a
+      // frame older than the device's last one is dropped (see ApplyPayloadOptions).
+      await store.applyPayload({ topic, payload }, "mqtt", {
+        sheddable: true,
+        checkDeviceClock: true,
+      });
     } catch (error) {
       logger.error(
         { err: error, topic, payloadPreview: previewPayload(payloadText) },

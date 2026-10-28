@@ -33,7 +33,9 @@ const config = {
 const setup = () => {
   handlers.clear();
   const applyStatus = vi.fn(async (_deviceId: string, _payload: unknown) => undefined);
-  const applyPayload = vi.fn(async (_payload: unknown, _source?: string) => undefined);
+  const applyPayload = vi.fn(
+    async (_payload: unknown, _source?: string, _options?: unknown) => undefined,
+  );
   const setSourceConnected = vi.fn((_connected: boolean) => undefined);
   const store = { applyStatus, applyPayload, setSourceConnected } as unknown as DashboardStore;
   const state = createRuntimeState();
@@ -61,6 +63,15 @@ describe("MQTT ingest validation", () => {
     expect(ctx.applyPayload).toHaveBeenCalledTimes(1);
     expect(ctx.state.mqttMessagesTotal).toBe(1);
     expect(ctx.state.mqttMessagesRejected).toBe(0);
+  });
+
+  it("hands telemetry to the store as sheddable, with the device clock checked", async () => {
+    await ctx.emit("/fleet/car-1/vehicle_info", JSON.stringify({ stamp: 1, fusion_loc: { x: 1 } }));
+    expect(ctx.applyPayload.mock.calls[0]?.[1]).toBe("mqtt");
+    expect(ctx.applyPayload.mock.calls[0]?.[2]).toEqual({
+      sheddable: true,
+      checkDeviceClock: true,
+    });
   });
 
   it("accepts an object or bare boolean status frame", async () => {

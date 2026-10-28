@@ -88,6 +88,13 @@ export interface ApplyPayloadOptions extends NormalizePayloadOptions {
    * edge-triggered or operator-driven and are never shed.
    */
   sheddable?: boolean;
+
+  /**
+   * Whether the frame's own `stamp` is checked against its arrival time, and a frame older
+   * than the last one accepted for the device is dropped. Only the MQTT firehose opts in:
+   * the seed and the debug ingest endpoint replay history, whose stamps are old on purpose.
+   */
+  checkDeviceClock?: boolean;
 }
 
 export class DashboardStore extends EventEmitter {
@@ -125,6 +132,15 @@ export class DashboardStore extends EventEmitter {
   private rejectedDevices = 0;
   private cappedDevices = 0;
   private evictedDevices = 0;
+  /**
+   * The stamp of the last live frame accepted per device, for dropping a frame that arrives
+   * after a newer one. Frames are level-triggered — each carries the whole current state —
+   * so an older one landing late would roll the vehicle back to where it was. Kept apart
+   * from `DeviceSnapshot.stamp`, which a status frame also sets (to server time).
+   */
+  private lastFrameStamp = new Map<string, number>();
+  private untrustedStamps = 0;
+  private outOfOrderFrames = 0;
 
   /**
    * Since when the telemetry source (the MQTT broker connection) has been up, or null while it is
@@ -261,6 +277,11 @@ export class DashboardStore extends EventEmitter {
     };
   }
 
+  /** Device-clock counters, for `/metrics`. */
+  deviceClockStats(): { untrusted: number; outOfOrder: number } {
+    return { untrusted: this.untrustedStamps, outOfOrder: this.outOfOrderFrames };
+  }
+
   /** Admission and eviction counters plus the configured device cap, for `/metrics`. */
   deviceAdmissionStats(): { rejected: number; capped: number; evicted: number; limit: number } {
     return {
@@ -376,6 +397,7 @@ export class DashboardStore extends EventEmitter {
       this.rawDevices.delete(deviceId);
       this.devices.delete(deviceId);
       this.lastIngestAt.delete(deviceId);
+      this.lastFrameStamp.delete(deviceId);
       // Cascade, or this reclaims the small half and leaves the large one: the
       // per-device in-memory telemetry ring holds up to MAX_HISTORY_POINTS
       // documents per device, which dwarfs the two snapshots evicted above.
@@ -416,8 +438,11 @@ export class DashboardStore extends EventEmitter {
     source = "mqtt",
     options: ApplyPayloadOptions = {},
   ): Promise<void> {
+    // Arrival time is taken here, before the queue: a frame that waited behind a slow write
+    // still arrived when it arrived.
+    const receivedAt = Date.now();
     return this.enqueue(
-      () => this.applyPayloadInternal(payload, source, options),
+      () => this.applyPayloadInternal(payload, source, options, receivedAt),
       options.sheddable === true,
     );
   }
@@ -535,14 +560,30 @@ export class DashboardStore extends EventEmitter {
     payload: unknown,
     source: string,
     options: ApplyPayloadOptions = {},
+    receivedAt = Date.now(),
   ): Promise<void> {
     const alertRules = this.configRegistry.getAlertRules();
+    const checkClock = options.checkDeviceClock === true;
     const normalized = normalizePayload(
       payload,
       this.rawDevices,
       this.fleetName,
       this.topicPattern,
-      { ...options, rules: alertRules },
+      {
+        ...options,
+        rules: alertRules,
+        ...(checkClock
+          ? {
+              clock: {
+                receivedAt,
+                toleranceMs: config.deviceClockToleranceSeconds * 1000,
+                onUntrusted: () => {
+                  this.untrustedStamps += 1;
+                },
+              },
+            }
+          : {}),
+      },
     );
     const nextRawMap = normalized.replace
       ? new Map<string, DeviceSnapshot>()
@@ -555,6 +596,17 @@ export class DashboardStore extends EventEmitter {
       // `nextRawMap`, not the live map: see `admitDevice`'s `observedFleet`.
       if (!this.admitDevice(device.deviceId, nextRawMap)) {
         continue;
+      }
+      if (checkClock) {
+        // After the clock check every stamp sits within the tolerance of its arrival, so this
+        // can hold a device back for at most twice the tolerance — never lock it out.
+        const stampMs = Date.parse(device.stamp);
+        const lastMs = this.lastFrameStamp.get(device.deviceId);
+        if (lastMs !== undefined && stampMs < lastMs) {
+          this.outOfOrderFrames += 1;
+          continue;
+        }
+        this.lastFrameStamp.set(device.deviceId, stampMs);
       }
       const existingRaw = this.rawDevices.get(device.deviceId);
       const existingConfigured = this.devices.get(device.deviceId);
@@ -597,6 +649,7 @@ export class DashboardStore extends EventEmitter {
       for (const deviceId of this.rawDevices.keys()) {
         if (!nextRawMap.has(deviceId)) {
           this.lastIngestAt.delete(deviceId);
+          this.lastFrameStamp.delete(deviceId);
           this.persistence.forgetDevice(deviceId);
         }
       }

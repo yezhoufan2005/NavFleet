@@ -239,6 +239,20 @@ export const createMetrics = ({
     () => store.ingestQueueStats().dropped,
   );
 
+  // A vehicle clock the backend stopped trusting (its stamp replaced by arrival time), and
+  // live frames dropped for arriving after a newer one from the same vehicle. A climbing
+  // first counter names a vehicle whose clock needs fixing; the second, a reordering link.
+  mirroredCounter(
+    "navfleet_device_stamp_untrusted_total",
+    "Live frames whose device stamp was off by more than DEVICE_CLOCK_TOLERANCE_SECONDS",
+    () => store.deviceClockStats().untrusted,
+  );
+  mirroredCounter(
+    "navfleet_frames_out_of_order_total",
+    "Live frames dropped because a newer frame from the same device was already applied",
+    () => store.deviceClockStats().outOfOrder,
+  );
+
   // P0-d: the three ways a device can fail to be, or stop being, in memory. Kept
   // apart rather than folded into one counter because each points at a different
   // cause: a malformed publisher, a fleet larger than MAX_DEVICES, and normal

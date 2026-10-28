@@ -170,6 +170,10 @@ const configSchema = z.object({
   // 0 disables eviction. A day is well past any live-monitoring interest, and the
   // device's history stays in MongoDB either way.
   DEVICE_RETENTION_SECONDS: envInt(60 * 60 * 24, 0),
+  // How far a vehicle's own `stamp` may sit from the time its MQTT frame arrived before the
+  // backend stops trusting it and uses the arrival time instead. Guards against a vehicle
+  // whose clock is unset, drifting or reset after a reboot.
+  DEVICE_CLOCK_TOLERANCE_SECONDS: envInt(60, 1),
   CONFIG_WATCH_USE_POLLING: envBool(false),
   CONFIG_WATCH_DEBOUNCE_MS: envInt(1000, 100),
   // 告警外发（Phase 16D-1）。渠道/路由走盘上 notify.json；这里只放发送行为的旋钮。
@@ -265,6 +269,7 @@ export const parseConfig = (env: NodeJS.ProcessEnv) => {
     ingestQueueLimit: e.INGEST_QUEUE_LIMIT,
     maxDevices: e.MAX_DEVICES,
     deviceRetentionSeconds: e.DEVICE_RETENTION_SECONDS,
+    deviceClockToleranceSeconds: e.DEVICE_CLOCK_TOLERANCE_SECONDS,
     configRootPath: resolveConfigRootPath(),
     configWatchUsePolling: e.CONFIG_WATCH_USE_POLLING,
     configWatchDebounceMs: e.CONFIG_WATCH_DEBOUNCE_MS,
