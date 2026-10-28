@@ -140,7 +140,7 @@ export default defineConfig({
     },
     {
       /**
-       * The v3 console — **the one in service** since the Phase 14 switch.
+       * The v3 console — **the one in service** since the switch from v1.0.0.
        *
        * Its spec list stayed shorter than the frontend's, and that is not a gap:
        * the shared specs cover what both consoles owe, the eight `console-*` ones

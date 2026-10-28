@@ -11,10 +11,10 @@ import { __resetDeviceView } from "@/composables/useDeviceView";
 import { __resetTheme } from "@/composables/useTheme";
 
 /**
- * Large-fleet rendering cost for the v3 console — the same measurement Phase 10 ran
+ * Large-fleet rendering cost for the v3 console — the same measurement the v1.0.0 virtualisation study ran
  * against v1.0.0, so the two are comparable rather than two unrelated numbers.
  *
- * Phase 10 measured first and then **decided not to virtualize**: this platform
+ * That study measured first and then **decided not to virtualize**: this platform
  * monitors six vehicles, and virtualization costs Ctrl-F, focus management and an
  * extra scroll container. That decision is inherited here rather than re-litigated,
  * which is exactly why the measurement has to be repeated on the new list: the
@@ -199,7 +199,7 @@ describe("large fleet rendering", () => {
     // cell's wrapper span and its dot, and the device link. v1.0.0's list of buttons
     // was 8, so the table costs two nodes a row more and buys sortable columns later.
     //
-    // Only the **ceiling** is asserted, which is Phase 10's choice and still the right
+    // Only the **ceiling** is asserted, which is that study's choice and still the right
     // one: a planned change (sortable columns) will legitimately add a node or two,
     // and a test that fails on that has stopped measuring what makes a long list slow.
     // A row that grows to dozens of nodes is what turns a 500-device list into a

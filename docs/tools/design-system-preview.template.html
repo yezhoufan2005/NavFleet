@@ -8,7 +8,7 @@
       本文件由 docs/tools/gen-design-system-preview.py 从
       docs/tools/design-system-preview.template.html 生成，不要手改。
       设计与理由见 frontend-design-system.md；这一页的作用是机检：每一组语义
-      前景/背景的 WCAG 对比度都在页面里实时算出来，不合格的标红。Phase 10 的教训是
+      前景/背景的 WCAG 对比度都在页面里实时算出来，不合格的标红。axe 的教训是
       人工审阅三轮都没看出 2.99:1，所以这件事不能靠记得。
     -->
     <link rel="preconnect" href="https://fonts.googleapis.com" />
@@ -307,7 +307,7 @@
           gap: calc(var(--spacing) * 4);
         "
       >
-        <p class="eyebrow">NavFleet · Phase 11D · 设计系统标样</p>
+        <p class="eyebrow">NavFleet · 设计系统标样</p>
         <h1>__RAMP_COUNT__ 条色阶，__PAIR_COUNT__ 组对比度，自己检查自己</h1>
         <p
           style="
@@ -317,7 +317,7 @@
           "
         >
           这一页不是色板展示，是<strong>机检</strong>。下面每一组语义前景/背景的
-          WCAG 对比度都由页面实时算出， 低于 4.5:1 标红。Phase 10
+          WCAG 对比度都由页面实时算出， 低于 4.5:1 标红。此前
           的经历是：浅色主题的品牌前景只有 2.99:1，而三轮人工审阅都没看出来 ——
           所以这件事不该靠记得。切换主题按钮会让全部数字重算。
         </p>
@@ -447,7 +447,7 @@
           X 相反；<code>X-ink</code> 用于 X 的
           <strong>薄底</strong
           >（<code>X-wash</code>），明度与周围表面同向。两者需求正好相反 —— 这是
-          Phase 10 用 axe 才发现的，现在升级成对每个状态色都成立的规则。
+          用 axe 才发现的，现在升级成对每个状态色都成立的规则。
         </p>
         <div class="card scroll">
           <table>
@@ -587,7 +587,7 @@
           gap: calc(var(--spacing) * 2) calc(var(--spacing) * 5);
         "
       >
-        <p class="eyebrow">NavFleet v3 · Phase 11D · 2026-08-29</p>
+        <p class="eyebrow">NavFleet v3 · 设计系统</p>
         <p class="eyebrow" style="margin-left: auto">
           由 docs/tools/gen-design-system-preview.py 生成
         </p>

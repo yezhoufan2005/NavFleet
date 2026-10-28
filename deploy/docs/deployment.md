@@ -563,7 +563,7 @@ docker compose --env-file deploy/.env \
 | Alertmanager | `127.0.0.1:9093`   | **仅本机**：API 未鉴权，且能创建静默（= 能关掉告警） |
 
 三者与 backend 同处一个 `monitoring` 网段，**够不到 mongo 和 mosquitto**。Prometheus
-在网络内抓 `backend:3000/metrics` —— 这正是 Phase 9C 里边缘 nginx 不再代理 `/metrics` 的原因。
+在网络内抓 `backend:3000/metrics` —— 这正是边缘 nginx 不代理 `/metrics` 的原因。
 
 #### 容器侧 exporter（补运维盲区）
 

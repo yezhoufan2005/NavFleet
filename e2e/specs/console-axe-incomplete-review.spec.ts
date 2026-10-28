@@ -10,7 +10,7 @@ import { REPO_ROOT } from "../support/harness";
  *
  * This is NOT a gate. axe's `incomplete` results are checks it could not decide
  * automatically (a `color-contrast` node over a semi-transparent, gradient or
- * overlapping background whose effective colour it cannot compute). Phase 10
+ * overlapping background whose effective colour it cannot compute). The virtualisation work
  * confirmed the suite cannot catch these: they are neither pass nor violation, so
  * asserting on them would either flake or rubber-stamp. What it *can* do is put the
  * whole bucket in front of a person on demand, so an undecidable finding gets a

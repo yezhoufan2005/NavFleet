@@ -103,7 +103,7 @@ describe("metric exposition", () => {
     expect(samplesFor(body, "navfleet_mongo_connected")).toEqual(["navfleet_mongo_connected 0"]);
   });
 
-  it("exposes the Phase 18 write-failure and slow-broadcast counters from live state", async () => {
+  it("exposes the write-failure and slow-broadcast counters from live state", async () => {
     // A database that is up but rejecting writes, and a WebSocket consumer that cannot
     // keep up — both were invisible before these counters.
     const { app, persistence } = createTestApp({ wsSlowBroadcasts: () => 4 });

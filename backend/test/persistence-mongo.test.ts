@@ -918,7 +918,7 @@ describe("查询", () => {
     expect(calls.find[2]?.filter).toEqual({});
   });
 
-  it("内存镜像里的告警带 clearedAt=null（Phase 16B，与 openapi Alert schema 对齐）", async () => {
+  it("内存镜像里的告警带 clearedAt=null（与 openapi Alert schema 对齐）", async () => {
     // 内存只存活跃告警，所以 clearedAt 恒为 null；这条钉住接口不再漏这个字段。
     persistence.__setDbForTests(null);
     await persistence.upsertAlerts("agv-a", [alert("low-soc")]);
@@ -930,7 +930,7 @@ describe("查询", () => {
   });
 });
 
-describe("aggregateAlertStats（Phase 17A 服务端聚合）", () => {
+describe("aggregateAlertStats（服务端聚合）", () => {
   // 一份 facet 结果替真实 Mongo 作答：fake db 不执行管道，只把它录下来并回放 canned 文档。管道的
   // 形状（纯 builder）与 facet→报表的映射（纯 mapper）各有自己的单测；这里验的是接线——方法把
   // 管道发给 alerts 集合的 aggregate，并把结果喂给 mapper。
@@ -1032,7 +1032,7 @@ describe("报表聚合的缓存与保护", () => {
   });
 });
 
-describe("aggregateAvailability（Phase 17A-2 可用率/电量时序）", () => {
+describe("aggregateAvailability（可用率/电量时序）", () => {
   const rows = [
     {
       _id: { deviceId: "agv-1", bucketStart: new Date("2026-09-01T00:00:00Z") },
@@ -1091,7 +1091,7 @@ describe("aggregateAvailability（Phase 17A-2 可用率/电量时序）", () => 
     expect(report).toEqual({ bucket: "day", devices: [], available: false });
   });
 
-  it("短 TTL 缓存：同一查询重复调用只打一次 aggregate（Phase 18 性能）", async () => {
+  it("短 TTL 缓存：同一查询重复调用只打一次 aggregate", async () => {
     const { db, calls } = createFakeDb({}, {}, { telemetry_ts: rows });
     persistence.__setDbForTests(db);
 

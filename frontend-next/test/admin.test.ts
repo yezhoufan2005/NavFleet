@@ -385,7 +385,7 @@ describe("场景", () => {
 
   it("检查每一个配置了的资源，并说明取不到会看到什么", async () => {
     // The confusing failure this page exists for: "no backdrop configured" and
-    // "configured and 404" look identical on the map. Phase 1 shipped with
+    // "configured and 404" look identical on the map. The first release shipped with
     // `scenes.json` naming three SVGs that did not exist.
     stubResources(["/scene-maps/yard.png"]);
     const wrapper = await mountScenes([

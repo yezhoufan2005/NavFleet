@@ -25,7 +25,7 @@ import {
  * missing rather than wrong: filter state in the URL, a toggle that says it is one,
  * an empty state that is announced, and a row that reaches the vehicle.
  *
- * Acknowledgement is server-backed since Phase 16A: `fleetApi.ack/unackAlert` are mocked,
+ * Acknowledgement is server-backed: `fleetApi.ack/unackAlert` are mocked,
  * the confirm control is operator+ only, and the overlay the view reads lives in the fleet
  * store (seeded from the backend, kept live by WS). These tests sign in as `operator` by
  * default so the control is present; the viewer case has its own test.

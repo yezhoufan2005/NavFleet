@@ -3,7 +3,7 @@
 #   docker compose --env-file deploy/.env -f deploy/docker-compose.yml \
 #     -f deploy/docker-compose.legacy-frontend.yml up -d --build web
 #
-# This is the escape hatch for the Phase 14 switch, and the reason the old
+# This is the escape hatch for the switch to the v3 console, and the reason the old
 # `frontend/` workspace is still in the repo. It exists so that a problem found
 # in production is a two-minute rollback rather than a revert-and-rebuild — not
 # as a supported long-term configuration.

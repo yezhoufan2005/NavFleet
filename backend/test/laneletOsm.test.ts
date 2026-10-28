@@ -83,7 +83,7 @@ describe("parseLaneletOsmText", () => {
 
   it("draws a delete=true lanelet that carries geometry no live lane uses", () => {
     // The 康城 Airy fix: this map's delete=true relations are not tombstones but a disjoint
-    // half of the real road network — they name ways that no live lanelet touches. Phase 18's
+    // half of the real road network — they name ways that no live lanelet touches. An earlier
     // blanket skip dropped them and left the network as scattered fragments. A deleted lanelet
     // whose ways are its own must be drawn (and counted). Here relation 300 uses way 12, which
     // no live lane references, so it survives onto the overlay and stretches bounds to include

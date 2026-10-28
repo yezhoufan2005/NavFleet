@@ -278,7 +278,7 @@ describe("the window", () => {
 
 describe("the playback bar", () => {
   it("names the slider and the speed control, which have no visible labels", async () => {
-    // The axe critical Phase 10 found. Both are label-free by design — the bar reads as
+    // The axe critical the virtualisation work found. Both are label-free by design — the bar reads as
     // a row of media controls — so the accessible name has to come from `aria-label`,
     // or a screen reader announces an unnamed slider and an unnamed combobox.
     const wrapper = await mountPlayback();

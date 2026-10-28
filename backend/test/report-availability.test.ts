@@ -44,7 +44,7 @@ describe("buildAvailabilityPipeline", () => {
   });
 
   it("passes a month granularity straight through to $dateTrunc", () => {
-    // Phase 18: 按月 is a valid granularity. `$dateTrunc` truncates to the month natively, so
+    // 按月 is a valid granularity. `$dateTrunc` truncates to the month natively, so
     // the pipeline just forwards the unit — no new aggregation code, only the wider enum.
     const pipeline = buildAvailabilityPipeline({
       deviceIds: null,

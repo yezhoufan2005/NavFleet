@@ -233,7 +233,7 @@ describe("报码解读", () => {
 describe("遥测面板", () => {
   it("renders enum values as words, not bare numbers", async () => {
     // The three enum maps are what v1.0.0 lost in its own Vue migration: before
-    // Phase 1 控制模式 / 挡位 / 任务状态 rendered as digits.
+    // 最早版本里 控制模式 / 挡位 / 任务状态 rendered as digits.
     seed();
     const wrapper = await mountDetail();
 

@@ -1,7 +1,7 @@
 import { expect, signIn, test } from "../support/fixtures";
 
 /**
- * 外发 (Phase 16D-2b / 1.6.1; a tab of the 系统 section since 1.6.2) in a real browser. The channel
+ * 外发 (a tab of the 系统 section) in a real browser. The channel
  * cards, the send table, the filters and the editor are unit-tested against mocked data; what only
  * a browser answers is that the route resolves through the real backend and renders the regions.
  *
