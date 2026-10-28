@@ -96,10 +96,71 @@ const onFileChosen = async (event: Event): Promise<void> => {
     return;
   }
 
+  // Preview before replacing the whole table: what the file adds, changes and drops, against
+  // the table in effect. Nothing is written until the admin confirms.
+  importPreview.value = {
+    entries: parsed,
+    ...diffCodebook(entries.value, parsed),
+  };
+};
+
+/** Added / changed / removed codes of a file, compared with the table in effect. */
+const diffCodebook = (
+  current: readonly ReportCodeEntry[],
+  next: readonly ReportCodeEntry[],
+): { added: number[]; changed: number[]; removed: number[] } => {
+  const before = new Map(current.map((entry) => [entry.code, entry]));
+  const after = new Map(next.map((entry) => [entry.code, entry]));
+  const same = (a: ReportCodeEntry, b: ReportCodeEntry): boolean =>
+    JSON.stringify(a) === JSON.stringify({ ...a, ...b });
+  return {
+    added: [...after.keys()].filter((code) => !before.has(code)),
+    changed: [...after.entries()]
+      .filter(
+        ([code, entry]) => before.has(code) && !same(before.get(code)!, entry),
+      )
+      .map(([code]) => code),
+    // Built-in codes the file omits stay in effect (the merge layers them back); only codes the
+    // deployment itself defined disappear.
+    removed: [...before.values()]
+      .filter((entry) => !after.has(entry.code) && originOf(entry) === "custom")
+      .map((entry) => entry.code),
+  };
+};
+
+const importPreview = ref<{
+  entries: ReportCodeEntry[];
+  added: number[];
+  changed: number[];
+  removed: number[];
+} | null>(null);
+
+const previewLine = (label: string, codes: number[]): string =>
+  codes.length
+    ? `${label} ${codes.length} 条：${codes.slice(0, 8).join("、")}${codes.length > 8 ? " 等" : ""}`
+    : "";
+
+const importSummary = computed(() => {
+  const preview = importPreview.value;
+  if (!preview) return "";
+  const lines = [
+    previewLine("新增", preview.added),
+    previewLine("修改", preview.changed),
+    previewLine("删除自定义码", preview.removed),
+  ].filter(Boolean);
+  return lines.length
+    ? lines.join("；")
+    : "与当前生效的码表相同，导入不会产生变化";
+});
+
+const confirmImport = async (): Promise<void> => {
+  const preview = importPreview.value;
+  if (!preview || importing.value) return;
   importing.value = true;
   try {
-    await codebook.importCodebook(parsed);
-    notify(`已导入 ${parsed.length} 条报码`, { type: "success" });
+    await codebook.importCodebook(preview.entries);
+    notify(`已导入 ${preview.entries.length} 条报码`, { type: "success" });
+    importPreview.value = null;
   } catch (error) {
     const code = error instanceof Error ? error.message : "";
     importError.value =
@@ -107,7 +168,8 @@ const onFileChosen = async (event: Event): Promise<void> => {
         ? "后端拒绝了这份码表，请检查内容"
         : code === "forbidden"
           ? "没有导入码表的权限"
-          : "导入失败，请稍后重试";
+          : writeError(error);
+    importPreview.value = null;
   } finally {
     importing.value = false;
   }
@@ -588,6 +650,20 @@ const formDirty = formSnapshot.dirty;
         </div>
       </form>
     </UiModal>
+
+    <UiConfirmDialog
+      :open="importPreview !== null"
+      :pending="importing"
+      title="导入码表前确认变更"
+      :description="importSummary"
+      confirm-label="导入"
+      @update:open="
+        (open) => {
+          if (!open) importPreview = null;
+        }
+      "
+      @confirm="confirmImport"
+    />
 
     <UiConfirmDialog
       :open="confirmDelete !== null"

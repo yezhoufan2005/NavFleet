@@ -297,9 +297,33 @@ const close = (): void => {
   mode.value = null;
 };
 
+/**
+ * Per-kind upload rules, mirrored from the backend (`MAX_ASSET_BYTES` in routes/scenes.ts and the
+ * content sniffing in configRegistry): the picker only offers matching files, and an oversized
+ * file is refused before it is uploaded rather than after the whole transfer.
+ */
+const ASSET_RULES: Record<SceneAssetKind, { accept: string; maxMb: number }> = {
+  image: {
+    accept: ".svg,.png,.jpg,.jpeg,image/svg+xml,image/png,image/jpeg",
+    maxMb: 8,
+  },
+  pointcloud: { accept: ".pcd", maxMb: 64 },
+  osm: { accept: ".osm,.xml", maxMb: 16 },
+  pointcloudmeta: { accept: ".json,application/json", maxMb: 8 },
+};
+const assetAccept = computed(() => ASSET_RULES[fAssetKind.value].accept);
+
 const onFileChosen = (event: Event): void => {
   const input = event.target as HTMLInputElement;
-  fAssetFile.value = input.files?.[0] ?? null;
+  const file = input.files?.[0] ?? null;
+  const { maxMb } = ASSET_RULES[fAssetKind.value];
+  if (file && file.size > maxMb * 1024 * 1024) {
+    fAssetFile.value = null;
+    input.value = "";
+    formError.value = `文件过大：该类型底图最大 ${maxMb} MB（所选文件 ${(file.size / 1024 / 1024).toFixed(1)} MB）`;
+    return;
+  }
+  fAssetFile.value = file;
 };
 
 const positive = (value: string): number | null => {
@@ -775,6 +799,7 @@ const formDirty = formSnapshot.dirty;
             ref="assetFileInput"
             type="file"
             class="hidden"
+            :accept="assetAccept"
             :disabled="saving"
             @change="onFileChosen"
           />

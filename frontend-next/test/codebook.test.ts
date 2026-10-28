@@ -141,7 +141,45 @@ describe("CodebookView", () => {
     await input.trigger("change");
     await flushPromises();
 
+    // Nothing is written until the preview is confirmed.
+    expect(importSpy).not.toHaveBeenCalled();
+    expect(document.body.textContent).toContain("新增 1 条：2301");
+    const confirm = [...document.body.querySelectorAll("button")].find(
+      (button) => button.textContent?.trim() === "导入",
+    );
+    confirm?.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+    await flushPromises();
     expect(importSpy).toHaveBeenCalledWith([ENTRY]);
+  });
+
+  it("previews changed and removed custom codes, and writes nothing when cancelled", async () => {
+    const custom = { ...ENTRY, code: 2988, label: "自定义" };
+    vi.spyOn(fleetApi, "getCodebook").mockResolvedValue({
+      items: [ENTRY, custom],
+    });
+    const importSpy = vi.spyOn(fleetApi, "importCodebook");
+    const wrapper = await mountView();
+    const next = [{ ...ENTRY, label: "改过" }];
+    const file = new File([JSON.stringify(next)], "codebook.json");
+    Object.defineProperty(file, "text", {
+      value: () => Promise.resolve(JSON.stringify(next)),
+    });
+    const input = wrapper.find('input[type="file"]');
+    Object.defineProperty(input.element, "files", {
+      value: [file],
+      configurable: true,
+    });
+    await input.trigger("change");
+    await flushPromises();
+
+    expect(document.body.textContent).toContain("修改 1 条：2301");
+    expect(document.body.textContent).toContain("删除自定义码 1 条：2988");
+    const cancel = [...document.body.querySelectorAll("button")].find(
+      (button) => button.textContent?.trim() === "取消",
+    );
+    cancel?.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+    await flushPromises();
+    expect(importSpy).not.toHaveBeenCalled();
   });
 
   it("rejects an invalid file client-side and never calls the API", async () => {

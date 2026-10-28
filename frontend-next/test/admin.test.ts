@@ -649,4 +649,26 @@ describe("场景", () => {
       .find((s) => s.sceneId === "new-scene");
     expect(saved?.imageUrl).toBe("/scene-maps/new-scene/image.svg");
   });
+
+  it("refuses an oversized backdrop before uploading it, and filters the picker by kind", async () => {
+    stubResources();
+    const upload = vi.spyOn(fleetApi, "uploadSceneAsset");
+    const wrapper = await mountScenes([]);
+    const create = wrapper
+      .findAll("button")
+      .find((b) => b.text().includes("新增场景"));
+    await create?.trigger("click");
+    await flushPromises();
+    const input = document.body.querySelector(
+      'input[type="file"]',
+    ) as HTMLInputElement;
+    expect(input.accept).toContain(".svg");
+    const big = new File(["x"], "huge.svg", { type: "image/svg+xml" });
+    Object.defineProperty(big, "size", { value: 9 * 1024 * 1024 });
+    Object.defineProperty(input, "files", { value: [big], configurable: true });
+    input.dispatchEvent(new Event("change"));
+    await flushPromises();
+    expect(document.body.textContent).toContain("文件过大");
+    expect(upload).not.toHaveBeenCalled();
+  });
 });
