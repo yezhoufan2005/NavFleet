@@ -3,7 +3,7 @@ import { parseCodebook } from "@navfleet/shared";
 import { requireCapability } from "../auth/middleware";
 import type { DashboardStore } from "../store";
 import type { AuditService } from "../audit/service";
-import { expectedConfigVersion, sendConfigVersion } from "./helpers";
+import { expectedConfigVersion, parseOrRespond, sendConfigVersion } from "./helpers";
 
 /**
  * Report-code dictionary API (Phase 16C-2).
@@ -27,7 +27,7 @@ export const buildCodebookRouter = (store: DashboardStore, audit: AuditService):
     response.json({ items: store.getCodebook() });
   });
 
-  router.put("/codebook", requireCapability("codebook:write"), async (request, response, next) => {
+  router.put("/codebook", requireCapability("codebook:write"), async (request, response) => {
     // The body may be a bare array or `{ items: [...] }`; `parseCodebook` wants the array.
     const body: unknown = request.body;
     const rawEntries =
@@ -36,30 +36,19 @@ export const buildCodebookRouter = (store: DashboardStore, audit: AuditService):
         : body;
 
     // Validate up front so an invalid payload is a 400 and nothing is written; a genuine
-    // write/reload failure below falls through to `next` (500) rather than reading as a 400.
-    try {
-      parseCodebook(rawEntries);
-    } catch (validationError) {
-      response.status(400).json({
-        error: "invalid_codebook",
-        detail: validationError instanceof Error ? validationError.message : "invalid codebook",
-      });
+    // write/reload failure below rejects into the error middleware (500) rather than reading as a 400.
+    if (parseOrRespond(response, "invalid_codebook", () => parseCodebook(rawEntries)) === undefined)
       return;
-    }
 
-    try {
-      const items = await store.importCodebook(rawEntries, expectedConfigVersion(request));
-      void audit.record({
-        actor: request.user!.username,
-        action: "codebook_import",
-        requestId: request.requestId,
-        detail: { entryCount: items.length },
-      });
-      sendConfigVersion(response, store.getConfigVersion("codebook"));
-      response.json({ items });
-    } catch (error) {
-      next(error);
-    }
+    const items = await store.importCodebook(rawEntries, expectedConfigVersion(request));
+    void audit.record({
+      actor: request.user!.username,
+      action: "codebook_import",
+      requestId: request.requestId,
+      detail: { entryCount: items.length },
+    });
+    sendConfigVersion(response, store.getConfigVersion("codebook"));
+    response.json({ items });
   });
 
   return router;

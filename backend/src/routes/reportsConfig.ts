@@ -3,7 +3,7 @@ import { requireCapability } from "../auth/middleware";
 import type { DashboardStore } from "../store";
 import type { AuditService } from "../audit/service";
 import { parseReportsConfig } from "../configRegistry";
-import { expectedConfigVersion, sendConfigVersion } from "./helpers";
+import { expectedConfigVersion, parseOrRespond, sendConfigVersion } from "./helpers";
 
 /**
  * Scheduled-report config API (1.6.1) — the console face of `reports.json`. Admin-only
@@ -30,35 +30,21 @@ export const buildReportsConfigRouter = (
     response.json({ config: store.getReportsConfig() });
   });
 
-  router.put(
-    "/reports/config",
-    requireCapability("reports:write"),
-    async (request, response, next) => {
-      let parsed;
-      try {
-        parsed = parseReportsConfig(request.body);
-      } catch (error) {
-        response.status(400).json({
-          error: "invalid_reports",
-          detail: error instanceof Error ? error.message : "invalid reports",
-        });
-        return;
-      }
-      try {
-        const config = await store.writeReportsConfig(parsed, expectedConfigVersion(request));
-        void audit.record({
-          actor: request.user!.username,
-          action: "reports_write",
-          requestId: request.requestId,
-          detail: { scheduleCount: config.schedules.length },
-        });
-        sendConfigVersion(response, store.getConfigVersion("reports"));
-        response.json({ config });
-      } catch (error) {
-        next(error);
-      }
-    },
-  );
+  router.put("/reports/config", requireCapability("reports:write"), async (request, response) => {
+    const parsed = parseOrRespond(response, "invalid_reports", () =>
+      parseReportsConfig(request.body),
+    );
+    if (parsed === undefined) return;
+    const config = await store.writeReportsConfig(parsed, expectedConfigVersion(request));
+    void audit.record({
+      actor: request.user!.username,
+      action: "reports_write",
+      requestId: request.requestId,
+      detail: { scheduleCount: config.schedules.length },
+    });
+    sendConfigVersion(response, store.getConfigVersion("reports"));
+    response.json({ config });
+  });
 
   return router;
 };

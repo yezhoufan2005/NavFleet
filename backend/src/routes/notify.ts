@@ -8,6 +8,7 @@ import { notifyLogQuerySchema } from "../validation";
 import {
   expectedConfigVersion,
   markTruncation,
+  parseOrRespond,
   respondValidationError,
   sendConfigVersion,
 } from "./helpers";
@@ -38,18 +39,14 @@ export const buildNotifyRouter = (
 ): express.Router => {
   const router = express.Router();
 
-  router.get("/notify/log", requireCapability("notify:read"), async (request, response, next) => {
-    try {
-      const parsed = notifyLogQuerySchema.safeParse(request.query);
-      if (!parsed.success) {
-        respondValidationError(response, parsed.error);
-        return;
-      }
-      const items = await notify.queryLog(parsed.data);
-      response.json({ items, ...markTruncation(response, items.length, MAX_NOTIFY_PER_QUERY) });
-    } catch (error) {
-      next(error);
+  router.get("/notify/log", requireCapability("notify:read"), async (request, response) => {
+    const parsed = notifyLogQuerySchema.safeParse(request.query);
+    if (!parsed.success) {
+      respondValidationError(response, parsed.error);
+      return;
     }
+    const items = await notify.queryLog(parsed.data);
+    response.json({ items, ...markTruncation(response, items.length, MAX_NOTIFY_PER_QUERY) });
   });
 
   router.get("/notify/config", requireCapability("notify:read"), (_request, response) => {
@@ -66,35 +63,21 @@ export const buildNotifyRouter = (
 
   // Validate-first whole-file write (like the codebook / vehicles routes): parse in the route so an
   // invalid body is a 400 that never touches disk, then persist + reload via the store.
-  router.put(
-    "/notify/config",
-    requireCapability("notify:write"),
-    async (request, response, next) => {
-      let parsed;
-      try {
-        parsed = parseNotifyConfig(request.body);
-      } catch (error) {
-        response.status(400).json({
-          error: "invalid_notify",
-          detail: error instanceof Error ? error.message : "invalid notify",
-        });
-        return;
-      }
-      try {
-        const config = await store.writeNotifyConfig(parsed, expectedConfigVersion(request));
-        void audit.record({
-          actor: request.user!.username,
-          action: "notify_write",
-          requestId: request.requestId,
-          detail: { channelCount: config.channels.length },
-        });
-        sendConfigVersion(response, store.getConfigVersion("notify"));
-        response.json({ config });
-      } catch (error) {
-        next(error);
-      }
-    },
-  );
+  router.put("/notify/config", requireCapability("notify:write"), async (request, response) => {
+    const parsed = parseOrRespond(response, "invalid_notify", () =>
+      parseNotifyConfig(request.body),
+    );
+    if (parsed === undefined) return;
+    const config = await store.writeNotifyConfig(parsed, expectedConfigVersion(request));
+    void audit.record({
+      actor: request.user!.username,
+      action: "notify_write",
+      requestId: request.requestId,
+      detail: { channelCount: config.channels.length },
+    });
+    sendConfigVersion(response, store.getConfigVersion("notify"));
+    response.json({ config });
+  });
 
   return router;
 };

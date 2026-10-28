@@ -13,29 +13,21 @@ import { respondValidationError } from "./helpers";
 export const buildDebugRouter = (store: DashboardStore, config: AppConfig): express.Router => {
   const router = express.Router();
 
-  router.post(
-    "/debug/ingest",
-    requireCapability("debug:ingest"),
-    async (request, response, next) => {
-      try {
-        if (!config.debugIngestEnabled) {
-          response.status(404).json({ error: "not_found" });
-          return;
-        }
-        const parsed = ingestBodySchema.safeParse(request.body);
-        if (!parsed.success) {
-          respondValidationError(response, parsed.error);
-          return;
-        }
-        // The one caller allowed to replace the whole fleet, and the one that wants a
-        // snapshot back — see `applyPayload`, which no longer builds one for everybody.
-        await store.applyPayload(parsed.data, "debug-api", { allowReplace: true });
-        response.json(store.snapshot());
-      } catch (error) {
-        next(error);
-      }
-    },
-  );
+  router.post("/debug/ingest", requireCapability("debug:ingest"), async (request, response) => {
+    if (!config.debugIngestEnabled) {
+      response.status(404).json({ error: "not_found" });
+      return;
+    }
+    const parsed = ingestBodySchema.safeParse(request.body);
+    if (!parsed.success) {
+      respondValidationError(response, parsed.error);
+      return;
+    }
+    // The one caller allowed to replace the whole fleet, and the one that wants a
+    // snapshot back — see `applyPayload`, which no longer builds one for everybody.
+    await store.applyPayload(parsed.data, "debug-api", { allowReplace: true });
+    response.json(store.snapshot());
+  });
 
   return router;
 };

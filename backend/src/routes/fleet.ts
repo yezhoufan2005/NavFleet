@@ -19,48 +19,40 @@ export const buildFleetRouter = (store: DashboardStore): express.Router => {
     response.json({ items: store.getFormations() });
   });
 
-  router.get("/devices/:deviceId/history", async (request, response, next) => {
-    try {
-      const parsed = historyQuerySchema.safeParse(request.query);
-      if (!parsed.success) {
-        respondValidationError(response, parsed.error);
-        return;
-      }
-      const parsedDeviceId = deviceIdParamSchema.safeParse(request.params.deviceId);
-      if (!parsedDeviceId.success) {
-        respondValidationError(response, parsedDeviceId.error);
-        return;
-      }
-      const deviceId = parsedDeviceId.data;
-      const { from, to, sampling } = parsed.data;
-      if (sampling === "even" && from && to) {
-        response.json({ deviceId, ...(await store.sampleHistory(deviceId, from, to)) });
-        return;
-      }
-      const history = await store.getHistory(
-        deviceId,
-        parsed.data.from,
-        parsed.data.to,
-        parsed.data.limit,
-      );
-      response.json({ deviceId, items: history });
-    } catch (error) {
-      next(error);
+  router.get("/devices/:deviceId/history", async (request, response) => {
+    const parsed = historyQuerySchema.safeParse(request.query);
+    if (!parsed.success) {
+      respondValidationError(response, parsed.error);
+      return;
     }
+    const parsedDeviceId = deviceIdParamSchema.safeParse(request.params.deviceId);
+    if (!parsedDeviceId.success) {
+      respondValidationError(response, parsedDeviceId.error);
+      return;
+    }
+    const deviceId = parsedDeviceId.data;
+    const { from, to, sampling } = parsed.data;
+    if (sampling === "even" && from && to) {
+      response.json({ deviceId, ...(await store.sampleHistory(deviceId, from, to)) });
+      return;
+    }
+    const history = await store.getHistory(
+      deviceId,
+      parsed.data.from,
+      parsed.data.to,
+      parsed.data.limit,
+    );
+    response.json({ deviceId, items: history });
   });
 
-  router.get("/alerts", async (request, response, next) => {
-    try {
-      const parsed = alertsQuerySchema.safeParse(request.query);
-      if (!parsed.success) {
-        respondValidationError(response, parsed.error);
-        return;
-      }
-      const items = await store.getAlerts(parsed.data);
-      response.json({ items, ...markTruncation(response, items.length, MAX_ALERTS_PER_QUERY) });
-    } catch (error) {
-      next(error);
+  router.get("/alerts", async (request, response) => {
+    const parsed = alertsQuerySchema.safeParse(request.query);
+    if (!parsed.success) {
+      respondValidationError(response, parsed.error);
+      return;
     }
+    const items = await store.getAlerts(parsed.data);
+    response.json({ items, ...markTruncation(response, items.length, MAX_ALERTS_PER_QUERY) });
   });
 
   return router;

@@ -6,7 +6,12 @@ import type { AuditService } from "../audit/service";
 import type { SceneAssetKind } from "../configRegistry";
 import { SceneAssetValidationError } from "../configRegistry";
 import { sceneIdParamSchema } from "../validation";
-import { expectedConfigVersion, respondValidationError, sendConfigVersion } from "./helpers";
+import {
+  expectedConfigVersion,
+  parseOrRespond,
+  respondValidationError,
+  sendConfigVersion,
+} from "./helpers";
 
 /**
  * Scene endpoints: read (list / single / Lanelet2 overlay, viewer+), and the Phase 18
@@ -39,60 +44,44 @@ export const buildScenesRouter = (store: DashboardStore, audit: AuditService): e
     response.json({ items: store.getScenes() });
   });
 
-  router.get("/scenes/:sceneId", (request, response, next) => {
-    try {
-      const parsed = sceneIdParamSchema.safeParse(request.params.sceneId);
-      if (!parsed.success) {
-        respondValidationError(response, parsed.error);
-        return;
-      }
-      const definition = store.getScene(parsed.data);
-      if (!definition) {
-        response.status(404).json({ error: "scene_not_found" });
-        return;
-      }
-      response.json(definition);
-    } catch (error) {
-      next(error);
+  router.get("/scenes/:sceneId", (request, response) => {
+    const parsed = sceneIdParamSchema.safeParse(request.params.sceneId);
+    if (!parsed.success) {
+      respondValidationError(response, parsed.error);
+      return;
     }
+    const definition = store.getScene(parsed.data);
+    if (!definition) {
+      response.status(404).json({ error: "scene_not_found" });
+      return;
+    }
+    response.json(definition);
   });
 
-  router.get("/scenes/:sceneId/overlay", (request, response, next) => {
-    try {
-      const parsed = sceneIdParamSchema.safeParse(request.params.sceneId);
-      if (!parsed.success) {
-        respondValidationError(response, parsed.error);
-        return;
-      }
-      const overlay = store.getSceneOverlay(parsed.data);
-      if (!overlay) {
-        response.status(404).json({ error: "scene_overlay_not_found" });
-        return;
-      }
-      response.json(overlay);
-    } catch (error) {
-      next(error);
+  router.get("/scenes/:sceneId/overlay", (request, response) => {
+    const parsed = sceneIdParamSchema.safeParse(request.params.sceneId);
+    if (!parsed.success) {
+      respondValidationError(response, parsed.error);
+      return;
     }
+    const overlay = store.getSceneOverlay(parsed.data);
+    if (!overlay) {
+      response.status(404).json({ error: "scene_overlay_not_found" });
+      return;
+    }
+    response.json(overlay);
   });
 
   // Full-array write of scenes.json (create / edit / remove entries), validate-first like the
   // codebook and device-config writes: an invalid body is a 400 that writes nothing.
-  router.put("/scenes", requireCapability("scenes:write"), async (request, response, next) => {
+  router.put("/scenes", requireCapability("scenes:write"), async (request, response) => {
     const body: unknown = request.body;
     const raw =
       body && typeof body === "object" && !Array.isArray(body) && "scenes" in body
         ? (body as Record<string, unknown>).scenes
         : body;
-    let scenes;
-    try {
-      scenes = parseScenes(raw);
-    } catch (validationError) {
-      response.status(400).json({
-        error: "invalid_scenes",
-        detail: validationError instanceof Error ? validationError.message : "invalid scenes",
-      });
-      return;
-    }
+    const scenes = parseOrRespond(response, "invalid_scenes", () => parseScenes(raw));
+    if (scenes === undefined) return;
     // Refuse to remove a scene something still points at, and say what. Without this the load
     // silently blanked the reference, and vehicles/formations quietly lost their map.
     const kept = new Set(scenes.map((scene) => scene.sceneId));
@@ -113,19 +102,15 @@ export const buildScenesRouter = (store: DashboardStore, audit: AuditService): e
       });
       return;
     }
-    try {
-      const saved = await store.writeScenes(raw, expectedConfigVersion(request));
-      void audit.record({
-        actor: request.user!.username,
-        action: "scenes_write",
-        requestId: request.requestId,
-        detail: { sceneCount: saved.length },
-      });
-      sendConfigVersion(response, store.getConfigVersion("scenes"));
-      response.json({ items: saved });
-    } catch (error) {
-      next(error);
-    }
+    const saved = await store.writeScenes(raw, expectedConfigVersion(request));
+    void audit.record({
+      actor: request.user!.username,
+      action: "scenes_write",
+      requestId: request.requestId,
+      detail: { sceneCount: saved.length },
+    });
+    sendConfigVersion(response, store.getConfigVersion("scenes"));
+    response.json({ items: saved });
   });
 
   // Upload one backdrop file for a scene. The body is the raw file bytes; the kind is in the
