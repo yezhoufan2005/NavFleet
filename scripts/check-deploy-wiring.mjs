@@ -7,7 +7,7 @@
  * 都不会红，只会在下一次真起栈时才发现。
  *
  * 这个脚本就检查那几条。它是纯静态的 —— 不起容器、不需要 Docker，所以能进 CI 的常规 job。
- * 需要真起栈的那一层在 `scripts/verify-stack.sh`（56 条断言），两者互补而不重叠。
+ * 需要真起栈的那一层在 `scripts/verify-stack.sh`（起栈后逐条断言），两者互补而不重叠。
  *
  * 用法：node scripts/check-deploy-wiring.mjs
  * 全部通过才返回 0。

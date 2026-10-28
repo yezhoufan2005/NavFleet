@@ -289,7 +289,9 @@ PR #28 按职责拆开：
 - 写入最新设备快照。
 - 写入时序遥测。
 - 写入和清理告警。
-- 查询历史轨迹和告警。
+- 查询历史轨迹和告警；长窗口历史按时间均匀抽样。
+- 报表聚合：带 `maxTimeMS`（`REPORT_QUERY_TIMEOUT_MS`），缓存键按分钟取整，同键并发请求合并为一次。
+- 启动时按 `schema_migrations` 依序迁移；库的版本高于代码认识的版本时拒绝启动（新版本备份恢复到旧版本的情形）。
 
 主要集合：
 
@@ -439,8 +441,9 @@ hash 路由、原生 CSS（无 Tailwind / Reka UI）、渐进式 TypeScript、�
 
 1. 车辆发布 `/fleet/{deviceId}/vehicle_info`。
 2. Mosquitto 转发给后端。
-3. 后端解析 JSON。
-4. `normalize.ts` 转换为统一快照。
+3. 后端解析 JSON，记下到达时间。
+4. `normalize.ts` 转换为统一快照；车端 `stamp` 与到达时间相差超过 `DEVICE_CLOCK_TOLERANCE_SECONDS`
+   （默认 60）时改用到达时间。同一台车晚于更新帧到达的旧帧直接丢弃（不写库、不广播），实时画面不倒退。
 5. `ConfigRegistry` 套用车辆静态配置。
 6. `DashboardStore` 更新内存状态。
 7. `Persistence` 写入 `device_latest` 和 `telemetry_ts`。
@@ -639,23 +642,29 @@ MongoDB time series collection，用于保存遥测历史。默认保留时间�
 
 ### `GET /api/devices/:deviceId/history`
 
-查询单车历史遥测。
+查询单车历史遥测，最新在前，单次至多 `MAX_HISTORY_POINTS`（默认 500）条。
 
 查询参数：
 
-- `from`：ISO 时间，可选
-- `to`：ISO 时间，可选
-- `limit`：数量限制，可选
+- `from` / `to`：ISO 时间或 epoch，可选；起晚于止为 400
+- `limit`：数量限制，可选，上限即 `MAX_HISTORY_POINTS`
+- `sampling`：`latest`（默认，最新的 `limit` 条，实时图表用）或 `even`（须同时给 `from` 与 `to`：
+  窗口内采样超过上限时切成等长时间桶、每桶取最早一帧，回放长窗口用；响应另带 `total` 与 `sampled`）。
+  抽取的都是车辆真实上报的帧，不做平均。
 
 ### `GET /api/alerts`
 
-查询告警。
+查询告警，每次发生一条，最新在前，单次至多 500 条。
 
 查询参数：
 
 - `severity`
 - `deviceId`
 - `status=active|cleared`
+- `from` / `to`：按发生时间限定窗口
+
+结果被上限截断时响应体带 `truncated: true` 与 `limit`，并加 `X-Result-Truncated: true` 头；
+审计日志（`/audit`）与外发记录（`/notify/log`）同理。控制台据此提示「仅显示最近 N 条」。
 
 ### `GET /api/scenes`
 
@@ -682,22 +691,27 @@ MongoDB time series collection，用于保存遥测历史。默认保留时间�
 上面逐条写的是实时/场景几条读接口；完整的业务 API 还包括下面这些域（都在门之下，按能力门禁）。
 **权威、逐字段的定义以 `GET /openapi.json` 为准**，这里只给一张域→职责的地图：
 
-| 域            | 端点（前缀略）                                                                | 能力门禁                         |
-| ------------- | ----------------------------------------------------------------------------- | -------------------------------- |
-| 告警          | `GET /alerts`、`POST /alerts/ack`·`/alerts/unack`                             | 读需登录 / 确认需 `alerts:ack`   |
-| 报表          | `GET /reports/availability`·`/reports/alert-stats`、CSV 导出                  | `reports:read`                   |
-| 报表配置      | `GET·PUT /reports/config`（定时报表计划）                                     | `reports:write`                  |
-| 外发          | `GET /notify/config`·`/notify/config/raw`·`/notify/log`、`PUT /notify/config` | `notify:read` / `notify:write`   |
-| 告警规则      | `GET·PUT /rules/config`                                                       | `rules:read` / `rules:write`     |
-| 报码字典      | `GET /codebook`、`PUT /codebook`                                              | 读需登录 / 写需 `codebook:write` |
-| 车辆/编队配置 | `GET·PUT /vehicles`、`GET·PUT /formation-config`（接入向导写盘）              | `devices:write`                  |
-| 场景写        | `PUT /scenes`、`POST` 场景资源上传                                            | `scenes:write`                   |
-| RBAC          | `GET·POST·PUT·DELETE /rbac/roles`·`/rbac/groups`                              | `rbac:write`                     |
-| 用户          | `GET·POST·PUT·DELETE /users`、会话管理                                        | `users:write`                    |
-| 审计          | `GET /audit`                                                                  | `audit:read`                     |
+| 域            | 端点（前缀略）                                                                        | 能力门禁                              |
+| ------------- | ------------------------------------------------------------------------------------- | ------------------------------------- |
+| 告警          | `GET /alerts`、`POST /alerts/ack`·`/alerts/unack`                                     | 读需登录 / 确认需 `alerts:ack`        |
+| 报表          | `GET /reports/alerts`·`/reports/availability`（时间跨度上限 `REPORT_MAX_RANGE_DAYS`） | 需登录                                |
+| 报表配置      | `GET·PUT /reports/config`（定时报表计划）                                             | `reports:write`                       |
+| 外发          | `GET /notify/config`·`/notify/log`、`GET /notify/config/raw`·`PUT /notify/config`     | `notify:read` / `notify:write`        |
+| 告警规则      | `GET·PUT /rules/config`                                                               | `rules:write`                         |
+| 报码字典      | `GET /codebook`、`PUT /codebook`                                                      | 读需登录 / 写需 `codebook:write`      |
+| 车辆/编队配置 | `GET·PUT /vehicles`、`GET·PUT /formation-config`（接入向导写盘）                      | `vehicles:write` / `formations:write` |
+| 场景写        | `PUT /scenes`、`PUT /scenes/:sceneId/asset/:kind`（底图原始字节上传）                 | `scenes:write`                        |
+| RBAC          | `GET·POST /rbac/roles`·`/rbac/groups`、`PATCH·DELETE …/:id`                           | `users:manage`                        |
+| 用户          | `GET·POST /users`、`GET·PATCH·DELETE /users/:username`、重置密码、会话管理            | `users:manage`                        |
+| 审计          | `GET /audit`                                                                          | `audit:read`                          |
+| 配置状态      | `GET /config/status`（哪个配置文件未生效、为什么）                                    | 需登录                                |
 
 配置写（报码 / 报表 / 规则 / 外发 / 车辆 / 编队 / 场景）都经 zod 校验后由 `ConfigRegistry.writeWholeConfig`
 原子写入 `config-runtime/*.json` 并热重载——是运维域配置，不是向车辆下发控制，只读红线未破。
+读响应带 `ETag`，写入带 `If-Match` 防并发覆盖（见第 8 节）。
+
+错误响应体统一为 `{ error, detail?, issues?, requiredCapability?, requestId? }`：`error` 是稳定码，`detail`
+是给人看的原因，校验失败另附字段级 `issues`，5xx 只带 `requestId`。
 
 ## 11. WebSocket
 
@@ -735,6 +749,8 @@ Compose 服务与镜像：
 | `mongo`     | **`mongo:7.0`**                           | 钉 7.0 而不是 8.0，理由见 `deploy/docs/deployment.md` 3.1 |
 | `mosquitto` | `eclipse-mosquitto:2.0`                   | broker，已关匿名 + 双向 ACL                               |
 
+边缘 nginx 对 JSON、JS、CSS、SVG、文本响应开 gzip（`locations.conf`，HTTP 与 TLS 入口共用）。
+
 `web` 的服务名取的是**角色**而不是实现，换用哪一套控制台只是一行 `dockerfile:` —— 回滚见
 `deploy/docker-compose.legacy-frontend.yml`。四个叠加文件（TLS / 监控 / 备份 / 回滚）都不改基础
 编排。
@@ -770,4 +786,4 @@ Compose 服务与镜像：
   `${MQTT_SUBSCRIBER_PASSWORD:?}` 强制必填：口令留空时 `up` 直接报错退出，而不是起一个
   谁都能连的 broker。1883 端口只绑 `127.0.0.1`。生产环境仍建议在此之上加 TLS。
 - `deploy/.env.example` 里的 MongoDB 口令是占位值，部署前必须替换。
-- 想一次性确认整栈是否正常：`scripts/verify-stack.sh`（起栈 + 56 条断言，全过才返回 0）。
+- 想一次性确认整栈是否正常：`scripts/verify-stack.sh`（起栈后逐条断言，全过才返回 0）。
