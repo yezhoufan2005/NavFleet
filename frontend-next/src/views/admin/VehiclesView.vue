@@ -27,6 +27,7 @@ import { tableClasses } from "@/lib/uiClasses";
 import { makeMessageFor } from "@/lib/errorMessages";
 import { notify } from "@/composables/useNotifications";
 import { useFieldErrors } from "@/composables/useFieldErrors";
+import { loadDefaultSceneOptions } from "@/lib/sceneOptions";
 
 const ERROR_MESSAGES: Record<string, string> = {
   invalid_vehicles: "车辆配置不合法，请检查各字段",
@@ -45,20 +46,7 @@ const load = async (): Promise<void> => {
   try {
     const v = await fleetApi.getVehicleConfig();
     vehicles.value = v.vehicles;
-    // Scenes only populate a dropdown; a failure there must not fail the whole page.
-    let sceneItems: { sceneId: string; sceneName?: string }[] = [];
-    try {
-      sceneItems = (await fleetApi.getScenes()).items ?? [];
-    } catch {
-      sceneItems = [];
-    }
-    sceneOptions.value = [
-      { value: "", label: "（不设默认场景）" },
-      ...sceneItems.map((scene) => ({
-        value: scene.sceneId,
-        label: scene.sceneName || scene.sceneId,
-      })),
-    ];
+    sceneOptions.value = await loadDefaultSceneOptions();
     status.value = "ready";
   } catch {
     status.value = "error";

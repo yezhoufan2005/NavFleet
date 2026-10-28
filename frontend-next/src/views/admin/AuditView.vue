@@ -18,6 +18,7 @@ import UiFilterBar from "@/components/ui/UiFilterBar.vue";
 import UiFilterField from "@/components/ui/UiFilterField.vue";
 import UiEmptyState from "@/components/ui/UiEmptyState.vue";
 import { tableClasses } from "@/lib/uiClasses";
+import { useLatestRequest } from "@/composables/useLatestRequest";
 import { useAutoRefresh } from "@/composables/useAutoRefresh";
 import { useListPagination } from "@/composables/useListPagination";
 
@@ -87,13 +88,13 @@ const pageRows = pageItems;
  * (or after this view unmounts). The increment-before / re-check-after-await / bump-on-unmount guard
  * is the house pattern the 设备 tabs and 告警 history already use.
  */
-let requestId = 0;
+const latestRequest = useLatestRequest();
 
 const load = async (): Promise<void> => {
   // Only flash the skeleton before the first successful load; filter changes and the focus
   // refresh re-query live, so blanking the table to 加载中… on every keystroke would be noise.
   if (status.value !== "ready") status.value = "loading";
-  const id = ++requestId;
+  const isCurrent = latestRequest.begin();
   try {
     const result = await fleetApi.getAuditLog({
       actor: actor.value || undefined,
@@ -101,14 +102,14 @@ const load = async (): Promise<void> => {
       from: from.value || undefined,
       to: to.value || undefined,
     });
-    if (id !== requestId) return;
+    if (!isCurrent()) return;
     entries.value = result.entries;
     cappedAt.value = result.truncated
       ? (result.limit ?? result.entries.length)
       : null;
     status.value = "ready";
   } catch {
-    if (id !== requestId) return;
+    if (!isCurrent()) return;
     status.value = "error";
   }
 };
@@ -145,7 +146,6 @@ useAutoRefresh(() => void load());
 // Drop a pending debounced apply (and ignore any in-flight load) once this view goes away, so the
 // timer cannot fire `router.replace` against whatever route replaced it.
 onBeforeUnmount(() => {
-  requestId += 1;
   clearTimeout(actorTimer);
 });
 
