@@ -79,7 +79,7 @@ interface QueuedMutation {
 
 export interface ApplyPayloadOptions extends NormalizePayloadOptions {
   /**
-   * Whether the ingest queue may drop this frame when it is full (P0-b).
+   * Whether the ingest queue may drop this frame when it is full.
    *
    * Off by default — only the MQTT firehose opts in, and it may because its frames
    * are *level-triggered*: each one carries the device's complete current state, so
@@ -120,7 +120,7 @@ export class DashboardStore extends EventEmitter {
   private readonly warnThrottle = new Map<string, number>();
   /**
    * When this process last received anything for a device — **our** clock, not the
-   * vehicle's (P0-d).
+   * vehicle's.
    *
    * Eviction cannot key off `DeviceSnapshot.stamp`: that value is device-supplied
    * (and falls back to receive time only for frames that carry no time at all), so
@@ -197,7 +197,7 @@ export class DashboardStore extends EventEmitter {
           } catch (error) {
             // Wrapped rather than passed through: a queued task can throw anything, and a
             // caller that does `.catch((e) => e.message)` on a rejected string gets a second,
-            // less informative failure. `prefer-promise-reject-errors` (P0-f 第 3 批) is what
+            // less informative failure. `prefer-promise-reject-errors` is what
             // asked, and the answer is the one that makes the rejection usable.
             reject(error instanceof Error ? error : new Error(String(error)));
           }
@@ -293,7 +293,7 @@ export class DashboardStore extends EventEmitter {
   }
 
   /**
-   * Whether a frame may enter (or keep updating) the in-memory fleet (P0-d).
+   * Whether a frame may enter (or keep updating) the in-memory fleet.
    *
    * Before this gate, anything that arrived on a subscribed topic created a device
    * that was then held forever: there was no `Map.delete()` anywhere in the backend
@@ -611,7 +611,7 @@ export class DashboardStore extends EventEmitter {
       const existingRaw = this.rawDevices.get(device.deviceId);
       const existingConfigured = this.devices.get(device.deviceId);
       const mergedRaw = mergeDevice(existingRaw, device);
-      // Linger a debounced rule alert across the frame that would clear it (Phase 16C-1).
+      // Linger a debounced rule alert across the frame that would clear it.
       // `mergeDevice` takes the freshly-evaluated alerts wholesale, so without this a low
       // battery reading hovering on the threshold would flap on and off frame by frame.
       mergedRaw.alerts = applyRuleDebounce(
@@ -727,7 +727,7 @@ export class DashboardStore extends EventEmitter {
    *
    * Synchronous, and now says so. It was `async` with no `await` in it and was awaited at
    * all three call sites, which read as「广播要等一等」—— broadcasting is `this.emit`, it
-   * returns when the last listener returns. `require-await` (P0-f 第 3 批) is what surfaced
+   * returns when the last listener returns. `require-await` is what surfaced
    * it; the cost of the old shape was not performance but a false claim about the model.
    */
   private emitChangeEvents(
@@ -800,7 +800,7 @@ export class DashboardStore extends EventEmitter {
   }
 
   /**
-   * Fan out an acknowledgement to every connected client (Phase 16A). Unlike the
+   * Fan out an acknowledgement to every connected client. Unlike the
    * fleet/device/alert events above, this is not derived from a telemetry delta — it is
    * driven by the ack route after it has written to persistence — so it gets its own entry
    * point rather than going through `emitChangeEvents`. The `wsBridge` already forwards
@@ -836,7 +836,7 @@ export class DashboardStore extends EventEmitter {
 
   /**
    * The current state of one device, or null if none is held. Used by the notification
-   * dispatcher (Phase 16D-1) to resolve an alert's device for scope matching and the message's
+   * dispatcher to resolve an alert's device for scope matching and the message's
    * display name, without rebuilding a whole `snapshot()`. Returns the live reference — callers
    * read it (name/tags/formationIds) and never mutate.
    */
@@ -856,7 +856,7 @@ export class DashboardStore extends EventEmitter {
     return this.configRegistry.getSceneOverlay(sceneId);
   }
 
-  // ── Scene-map upload & management (Phase 18): write scenes.json + upload backdrops ──
+  // ── Scene-map upload & management: write scenes.json + upload backdrops ──
   /** Validate + persist `scenes.json` (full array), reload, and return the configured scenes. */
   writeScenes(raw: unknown, expectedVersion?: string): Promise<SceneMapDefinition[]> {
     return this.configRegistry.writeScenes(raw, expectedVersion);
@@ -887,7 +887,7 @@ export class DashboardStore extends EventEmitter {
     return this.configRegistry.importCodebook(rawEntries, expectedVersion);
   }
 
-  // ── Device-onboarding wizard config (Phase 18): read + write vehicles/formations ──
+  // ── Device-onboarding wizard config: read + write vehicles/formations ──
   /** All configured vehicles (`vehicles.json` entries). */
   listVehicleConfigs(): DeviceConfig[] {
     return this.configRegistry.listVehicleConfigs();
@@ -969,12 +969,12 @@ export class DashboardStore extends EventEmitter {
     return this.persistence.queryAlerts(filters);
   }
 
-  /** Server-side alert statistics over the retention window (Phase 17A); honest-empty without Mongo. */
+  /** Server-side alert statistics over the retention window; honest-empty without Mongo. */
   async getAlertStats(range: { from?: string; to?: string }) {
     return this.persistence.aggregateAlertStats(range);
   }
 
-  /** Server-side availability + battery time-series (Phase 17A-2); honest-empty without Mongo. */
+  /** Server-side availability + battery time-series; honest-empty without Mongo. */
   async getAvailabilityReport(params: {
     deviceId?: string[];
     from?: string;
@@ -989,7 +989,7 @@ export class DashboardStore extends EventEmitter {
   }
 
   private async evaluateOfflineDevicesInternal(): Promise<void> {
-    // The offline rule is configurable (Phase 16C-1): a deployment can retune the silence
+    // The offline rule is configurable: a deployment can retune the silence
     // window, scope detection to some devices, or turn it off. `afterSeconds` falls back to
     // the `OFFLINE_AFTER_SECONDS` env default when `rules.json` does not set it. Eviction
     // (below) is a memory concern, not a rule, so it runs regardless.

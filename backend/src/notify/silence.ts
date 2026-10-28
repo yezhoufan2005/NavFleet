@@ -1,5 +1,5 @@
 /**
- * Quiet-hours silence (Phase 16D-2a) — pure. Is `now` (local time) inside any of a channel's
+ * Quiet-hours silence — pure. Is `now` (local time) inside any of a channel's
  * silence windows? A window is `{ days?, from, to }` in `"HH:MM"` local time; `days` uses
  * 0=Sunday..6=Saturday and, when absent/empty, means every day. `to <= from` marks a window that
  * wraps past midnight (e.g. `22:00`→`06:00`).

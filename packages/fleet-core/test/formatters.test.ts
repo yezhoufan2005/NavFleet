@@ -15,7 +15,7 @@ import { formatNumber, formatValue, formatStamp } from "../src/formatters";
  *
  * They are pinned rather than fixed here on purpose. This PR moves code without
  * changing behaviour — that is what makes the extraction verifiable. The fix
- * belongs to the new frontend (Phase 13), and when it lands these expectations
+ * belongs to the new frontend, and when it lands these expectations
  * should change in the same commit, deliberately, rather than quietly drifting.
  */
 describe("formatNumber", () => {

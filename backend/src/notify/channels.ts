@@ -1,5 +1,5 @@
 /**
- * Per-channel message bodies for the outbound HTTP channels (Phase 16D-1).
+ * Per-channel message bodies for the outbound HTTP channels.
  *
  * Three channel types, three body shapes, all "POST one JSON": a generic webhook gets the
  * alert as a flat JSON object; 企业微信 and 钉钉 group-robot webhooks each get their documented

@@ -44,9 +44,9 @@ export interface Metrics {
   contentType: string;
   /** Record one finished HTTP request in the duration histogram. */
   observeHttpRequest: (request: Request, response: Response, durationSeconds: number) => void;
-  /** Record one outbound notification send (Phase 16D-2b): count by channel type + outcome, and latency. */
+  /** Record one outbound notification send: count by channel type + outcome, and latency. */
   observeNotifySend: (channelType: string, status: string, latencyMs: number | null) => void;
-  /** Record one successful MongoDB write's latency in seconds (Phase 18). */
+  /** Record one successful MongoDB write's latency in seconds. */
   observeMongoWrite: (durationSeconds: number) => void;
 }
 
@@ -288,7 +288,7 @@ export const createMetrics = ({
     registers: [registry],
   });
 
-  // Outbound-notification observability (Phase 16D-2b): sends by channel type + outcome, and
+  // Outbound-notification observability: sends by channel type + outcome, and
   // send latency by channel type. The send log (notify_log) is the per-event record; these are
   // the aggregate the Grafana panel reads (success rate = sent / (sent+failed), latency percentiles).
   const notifySends = new Counter({
@@ -304,7 +304,7 @@ export const createMetrics = ({
     buckets: [0.05, 0.1, 0.25, 0.5, 1, 2.5, 5, 10, 30],
     registers: [registry],
   });
-  // Mongo write latency (Phase 18). Buckets span an in-memory-fast local write (~1ms)
+  // Mongo write latency. Buckets span an in-memory-fast local write (~1ms)
   // through a struggling database (seconds); the counters say whether writes succeed,
   // this says how slowly — and a p95 climbing is the early warning before the ingest
   // queue backs up (every ingest awaits these on the same serial chain).

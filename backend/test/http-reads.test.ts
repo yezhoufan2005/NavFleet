@@ -205,7 +205,7 @@ describe("GET /api/alerts", () => {
   });
 });
 
-describe("GET /api/reports/alerts (Phase 17A)", () => {
+describe("GET /api/reports/alerts", () => {
   it("returns the aggregated report as the response body (viewer+, no envelope)", async () => {
     const context = createTestApp();
     const response = await authed(context, "/api/reports/alerts");
@@ -239,7 +239,7 @@ describe("GET /api/reports/alerts (Phase 17A)", () => {
   });
 });
 
-describe("GET /api/reports/availability (Phase 17A-2)", () => {
+describe("GET /api/reports/availability", () => {
   it("returns the report and defaults the bucket to day", async () => {
     const context = createTestApp();
     const response = await authed(context, "/api/reports/availability");

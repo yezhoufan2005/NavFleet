@@ -131,7 +131,7 @@ export const buildUsersRouter = (
   });
 
   /**
-   * Force-log-out a user from every device (Phase 15E): drop all their sessions and bump the
+   * Force-log-out a user from every device: drop all their sessions and bump the
    * token version. Deliberately NOT self-forbidden — an admin ending their own other sessions
    * is a legitimate "I lost a laptop" action — but always audited.
    */

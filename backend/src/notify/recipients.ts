@@ -1,5 +1,5 @@
 /**
- * Resolve an email channel's recipients to a deduped list of addresses (Phase 16D-2a). Pure.
+ * Resolve an email channel's recipients to a deduped list of addresses. Pure.
  *
  * A channel names recipients two ways: `recipients` (inline) and `groups` (names into
  * `NotifyConfig.groups`). Each recipient is a literal `email` or a `user` reference — a username

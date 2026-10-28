@@ -438,7 +438,7 @@ const {
 );
 
 /**
- * One-time migration of this browser's old localStorage acknowledgements (Phase 16A): once
+ * One-time migration of this browser's old localStorage acknowledgements: once
  * the backend is reachable and the caller can actually confirm, push the still-active ones up
  * and drop the local key. Guarded to operator+ because the ack endpoint is — a viewer running
  * it would 403 every row and the key would be left for a later privileged session. The
@@ -455,7 +455,7 @@ const runLegacyMigration = (): void => {
 };
 
 // Seed the acknowledgement overlay from the backend once, when the page that displays it opens
-// (Phase 16A). Any role may read it — who-confirmed-what is shown to viewers too; only the
+//. Any role may read it — who-confirmed-what is shown to viewers too; only the
 // confirm action is operator+. Between reads the WS stream keeps it live, so this is the only
 // place a read is needed. Kept out of the global bootstrap so pages that never show alerts do
 // not issue the request.
@@ -695,7 +695,7 @@ watch(() => canAck.value && fleet.state.realtime.apiReady, runLegacyMigration);
                  nothing until now; it decides whether the vehicle or the platform is the
                  thing to go look at. -->
               <span>{{ SOURCE_LABELS[alert.source] || alert.source }}</span>
-              <!-- Who confirmed it (Phase 16A). Server-backed, so it is the same name on
+              <!-- Who confirmed it. Server-backed, so it is the same name on
                  every console — the point of moving acknowledgement off localStorage. -->
               <span
                 v-if="ack.acknowledgedBy(alert.deviceId, alert.id)"

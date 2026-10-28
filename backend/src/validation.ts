@@ -174,7 +174,7 @@ const DEVICE_ID_MAX_LENGTH = 200;
 const FORBIDDEN_DEVICE_ID_CHARS = /[\s/+#\u0000-\u001f\u007f]/;
 
 /**
- * Whether a device id from the broker may **create** an in-memory device (P0-d).
+ * Whether a device id from the broker may **create** an in-memory device.
  *
  * Deliberately weaker than a charset whitelist, for the reason
  * `deviceIdParamSchema` gives: real device ids come from the customer's fleet and
@@ -262,7 +262,7 @@ export const createUserSchema = z
     displayName: z.string().trim().min(1).max(200).optional(),
     email: emailSchema.optional(),
     phone: contactSchema.optional(),
-    // A kiosk account (Phase 17C) is a long-lived read-only credential for a wall display. It is
+    // A kiosk account is a long-lived read-only credential for a wall display. It is
     // read-only by construction, so it must be a viewer — reject any other role rather than mint
     // a long-lived operator/admin token by mistake.
     kiosk: z.boolean().optional(),
@@ -350,7 +350,7 @@ export const notifyLogQuerySchema = z
     to: timestampString.optional(),
   })
   .superRefine(rejectInvertedWindow);
-// Alert acknowledgement (Phase 16A). `eventKey` is assembled server-side from these two —
+// Alert acknowledgement. `eventKey` is assembled server-side from these two —
 // deviceId can contain arbitrary vendor characters, so it never goes into a path segment.
 // The comment is optional operator context, length-bounded like other free text.
 const alertRefSchema = {

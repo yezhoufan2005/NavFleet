@@ -30,7 +30,7 @@ import type {
   UserRole,
 } from "@navfleet/shared";
 
-/** Backdrop kinds the scene-management upload accepts (Phase 18). */
+/** Backdrop kinds the scene-management upload accepts. */
 export type SceneAssetKind = "image" | "pointcloud" | "osm" | "pointcloudmeta";
 
 export interface FleetSnapshotResponse {
@@ -87,11 +87,11 @@ export interface AlertRecord {
   active?: boolean;
   ts?: string;
   clearedAt?: string | null;
-  // Lifecycle timestamps carried on rows read back from the alerts collection (Phase 16A/16B).
+  // Lifecycle timestamps carried on rows read back from the alerts collection.
   // Serialized as ISO strings over HTTP even though Mongo stores them as Date.
   firstSeenAt?: string;
   lastSeenAt?: string;
-  // Acknowledgement (Phase 16A). Present on rows read back from the alerts collection.
+  // Acknowledgement. Present on rows read back from the alerts collection.
   ackedBy?: string | null;
   ackedAt?: string | null;
   comment?: string | null;
@@ -133,14 +133,14 @@ export interface AlertsQueryParams {
   to?: string;
 }
 
-/** Range for the server-side report aggregation (Phase 17A). Both optional; the aggregate spans
+/** Range for the server-side report aggregation. Both optional; the aggregate spans
  * the whole retention window when neither is given. */
 export interface ReportRangeParams {
   from?: string;
   to?: string;
 }
 
-/** Query for the availability/battery time-series (Phase 17A-2). `deviceId` is a comma-joined list
+/** Query for the availability/battery time-series. `deviceId` is a comma-joined list
  * narrowing to those vehicles (empty = whole fleet); `bucket` defaults server-side to day when
  * omitted. */
 export interface AvailabilityQueryParams {
@@ -172,7 +172,7 @@ export interface AdminUser {
   passwordUpdatedAt: string;
   failedAttempts: number;
   lockedUntil: string | null;
-  /** Long-lived read-only wall-display account (Phase 17C); absent/false for a normal account. */
+  /** Long-lived read-only wall-display account; absent/false for a normal account. */
   kiosk?: boolean;
   [key: string]: unknown;
 }
@@ -207,7 +207,7 @@ export interface CreateUserPayload {
   displayName?: string;
   email?: string | null;
   phone?: string | null;
-  /** Mint as a long-lived read-only kiosk account (Phase 17C); the backend requires role "viewer". */
+  /** Mint as a long-lived read-only kiosk account; the backend requires role "viewer". */
   kiosk?: boolean;
 }
 
@@ -451,7 +451,7 @@ export const fleetApi = {
     return requestJson<{ items: SceneDefinition[] }>("/api/v1/scenes");
   },
 
-  // ── Scene-map management (admin, Phase 18) ──────────────────────────────────
+  // ── Scene-map management (admin) ──────────────────────────────────
   // Full-array write of scenes.json (create / edit / remove entries); the backend re-validates
   // and reloads, and returns the configured scenes.
   putScenes(
@@ -476,7 +476,7 @@ export const fleetApi = {
     );
   },
 
-  // ── Report-code dictionary (Phase 16C-2) ────────────────────────────────────
+  // ── Report-code dictionary ────────────────────────────────────
   // The table in effect (built-in ⊕ deployment codebook). Read-for-everyone (viewer+),
   // so the device-detail card can describe codes against the deployment's own meanings.
   getCodebook(): Promise<{ items: ReportCodeEntry[] }> {
@@ -516,7 +516,7 @@ export const fleetApi = {
     );
   },
 
-  // ── Report aggregation (viewer+, Phase 17A) ─────────────────────────────────
+  // ── Report aggregation (viewer+) ─────────────────────────────────
   // Server-side alert statistics over the whole retention window — not bounded by the 500-row
   // cap on getAlerts. `available:false` means the deployment has no Mongo/history to aggregate.
   getAlertStatsReport(
@@ -529,7 +529,7 @@ export const fleetApi = {
     );
   },
 
-  // Availability + battery time-series, downsampled server-side by hour/day (Phase 17A-2).
+  // Availability + battery time-series, downsampled server-side by hour/day.
   getAvailabilityReport(
     params: AvailabilityQueryParams = {},
   ): Promise<AvailabilityReport> {
@@ -540,7 +540,7 @@ export const fleetApi = {
     );
   },
 
-  // ── Alert acknowledgement (operator+, Phase 16A) ────────────────────────────
+  // ── Alert acknowledgement (operator+) ────────────────────────────
   // eventKey (deviceId:alertId) is assembled server-side from the body, so deviceId
   // — which can hold arbitrary vendor characters — never enters a path segment.
   ackAlert(deviceId: string, alertId: string, comment?: string): Promise<void> {
@@ -560,7 +560,7 @@ export const fleetApi = {
     );
   },
 
-  // ── User management (admin, Phase 15E-2) ────────────────────────────────────
+  // ── User management (admin) ────────────────────────────────────
   getUsers(): Promise<{ users: AdminUser[] }> {
     return requestJson<{ users: AdminUser[] }>("/api/v1/users");
   },
@@ -695,7 +695,7 @@ export const fleetApi = {
     });
   },
 
-  // ── Audit log (admin, Phase 15E-2) ──────────────────────────────────────────
+  // ── Audit log (admin) ──────────────────────────────────────────
   getAuditLog(
     params: AuditQueryParams = {},
   ): Promise<{ entries: AuditRecord[] } & ListCap> {
@@ -704,7 +704,7 @@ export const fleetApi = {
     );
   },
 
-  // ── Outbound notifications (admin, Phase 16D) ───────────────────────────────
+  // ── Outbound notifications (admin) ───────────────────────────────
   // Recent send records (newest first, server-capped), and the effective channels with
   // secrets redacted (`configured` says whether each channel's endpoint env is set; the URL
   // is never returned). The editable write side (getNotifyConfigRaw / putNotifyConfig,
@@ -768,7 +768,7 @@ export const fleetApi = {
     );
   },
 
-  // ── 设备接入向导 config (admin, Phase 18) ─────────────────────────────────────
+  // ── 设备接入向导 config (admin) ─────────────────────────────────────
   // Read + write vehicles.json / formations.json. Writing config is operator-domain (not
   // vehicle control); the backend validates, writes atomically, and hot-reloads. A refused
   // write surfaces as `error.message` = a stable code (invalid_vehicles / invalid_formations /

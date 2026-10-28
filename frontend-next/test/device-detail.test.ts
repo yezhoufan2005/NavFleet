@@ -82,7 +82,7 @@ const mountDetail = async (deviceId = "agv-01", tab?: string) => {
     routes: [
       { path: "/", component: Stub },
       {
-        // 设备详情 is now a shell with four child routes (Phase 18), not a `?tab=` view.
+        // 设备详情 is now a shell with four child routes, not a `?tab=` view.
         path: "/devices/:deviceId",
         component: DeviceDetailView,
         meta: { tabs: TAB_META },

@@ -1,7 +1,7 @@
 import { expect, signIn, test } from "../support/fixtures";
 
 /**
- * 报表 (Phase 17B-1) in a real browser. The KPI band, charts and CSV export are unit-tested
+ * 报表 in a real browser. The KPI band, charts and CSV export are unit-tested
  * against mocked aggregates; what only a browser answers is that the nav entry resolves, the
  * page loads through the real backend, and its charts' bundle (ECharts) does not break the route.
  *

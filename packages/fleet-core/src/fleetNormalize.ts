@@ -17,7 +17,7 @@ import type {
   FormationSnapshot,
   Severity,
 } from "@navfleet/shared";
-// The rule engine now lives in `@navfleet/shared` (Phase 16C-1), the one package the
+// The rule engine now lives in `@navfleet/shared`, the one package the
 // backend and both frontends all depend on. This reader uses the built-in defaults — it
 // cannot see backend config and does not need to (see `buildRuleAlerts` below).
 import {
@@ -67,7 +67,7 @@ export const cloneValue = <T>(value: T): T =>
  * console. Nothing in the fleet does that; nothing rejected it either, and a normaliser is
  * exactly the layer whose job is to stop it.
  *
- * `no-base-to-string` (P0-f 第 3 批) named all 16 of this package's at once.
+ * `no-base-to-string` named all 16 of this package's at once.
  */
 export const asText = (value: unknown, fallback = ""): string => {
   if (typeof value === "string") {
@@ -420,7 +420,7 @@ export const buildCodeAlerts = (device: DeviceSnapshot): DeviceAlert[] => {
 /**
  * The rule alerts a device would raise, under the built-in default rules.
  *
- * A thin delegate to the shared evaluator (Phase 16C-1): the low-battery threshold and the
+ * A thin delegate to the shared evaluator: the low-battery threshold and the
  * offline alert used to be hand-written here *and* in `backend/src/normalize.ts`, and they
  * drifted on the `round` vs `toFixed` detail text at least once. This reader keeps
  * `DEFAULT_ALERT_RULES` deliberately — it only reaches this branch for a frame that arrives

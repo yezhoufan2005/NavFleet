@@ -19,7 +19,7 @@ export type CapabilityResolver = (user: {
 declare module "express-serve-static-core" {
   interface Request {
     user?: PublicUser;
-    /** The `sid` of the token that authenticated this request (Phase 15E), when it carried one. */
+    /** The `sid` of the token that authenticated this request, when it carried one. */
     sessionId?: string;
     /**
      * Effective capabilities of the authenticated user (1.6.1 RBAC). Resolved once here in the
@@ -103,7 +103,7 @@ export const createAuthenticate =
           response.status(401).json({ error: "unauthorized" });
           return;
         }
-        // Per-session revocation (Phase 15E): a token that names a session must still name a
+        // Per-session revocation: a token that names a session must still name a
         // live one. Only checked when the token carries a `sid` and a checker is wired.
         if (claims.sid && isSessionActive && !(await isSessionActive(claims.sub, claims.sid))) {
           response.status(401).json({ error: "unauthorized" });

@@ -312,7 +312,7 @@ describe("token refresh", () => {
   });
 });
 
-describe("changePassword (Phase 15E-2)", () => {
+describe("changePassword", () => {
   // Assembled from parts so no string literal sits next to an `oldPassword`/`newPassword`
   // key — GitGuardian's generic-password detector scores that pattern.
   const OLD_PW = ["cur", "rent", "99"].join("");
@@ -363,7 +363,7 @@ describe("changePassword (Phase 15E-2)", () => {
   });
 });
 
-describe("own sessions (Phase 15E-2)", () => {
+describe("own sessions", () => {
   it("lists the caller's sessions and throws when the request fails", async () => {
     fetchMock.mockResolvedValue(
       jsonResponse({ sessions: [{ sessionId: "sid-1" }] }),

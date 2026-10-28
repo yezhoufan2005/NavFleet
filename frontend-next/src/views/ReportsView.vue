@@ -1,8 +1,8 @@
 <script setup lang="ts">
 /**
- * 报表 — 把已聚合的历史数据变成能交班/汇报的数字（Phase 17B-1）。
+ * 报表 — 把已聚合的历史数据变成能交班/汇报的数字。
  *
- * 消费两个服务端聚合端点（17A）：`/reports/availability`（每设备每桶的在线率与电量）与
+ * 消费两个服务端聚合端点：`/reports/availability`（每设备每桶的在线率与电量）与
  * `/reports/alerts`（严重度分布 / 设备 Top-N / 日频次 / 确认率 / 处理时长）。页面自己不算聚合——
  * 那是 17A 的事；这里只取数、按版式 B（顶部 KPI 带 + 两栏）渲染、导出 CSV。
  *
@@ -222,7 +222,7 @@ const load = (): void => {
 };
 
 /**
- * Coalesce a burst of filter changes into one fetch (Phase 18). A single user action can touch
+ * Coalesce a burst of filter changes into one fetch. A single user action can touch
  * several URL params at once (选预设 clears the custom dates; 选日期 clears the preset), and each
  * flips a computed this view watches. Queuing the load on a microtask collapses that burst to one
  * request instead of firing — and then discarding as stale — two or three. Still a single

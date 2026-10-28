@@ -8,7 +8,7 @@
  * (admin-only, audited, whole-table replace — the config volume must be writable):
  * - **row-level** (1.6.1): 新建 / 编辑 / 删除 a single code through a form, then the whole table
  *   is re-sent. The quick path for a one-off correction.
- * - **file** (16C): export the current table as a starting point, edit the JSON, import it back.
+ * - **file**: export the current table as a starting point, edit the JSON, import it back.
  *   The bulk path.
  * Both go through the same shared `parseCodebook` (client-side for fast feedback, then the backend
  * re-validates as the authority).

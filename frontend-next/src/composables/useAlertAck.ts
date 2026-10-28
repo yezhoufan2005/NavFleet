@@ -134,7 +134,7 @@ export const useAlertAck = () => {
   };
 
   /**
-   * One-time migration off the old per-browser store (Phase 16A): take the bare ids this
+   * One-time migration off the old per-browser store: take the bare ids this
    * browser had acknowledged, keep the ones still matching an active alert, push each to the
    * backend, then drop the localStorage key for good. Callable only where the caller is
    * operator+ (the view guards this); the backend would 403 an unprivileged migration and the

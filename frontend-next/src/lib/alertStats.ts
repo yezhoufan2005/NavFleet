@@ -1,7 +1,7 @@
 import type { AlertRecord } from "@navfleet/fleet-core";
 
 /**
- * Pure statistics over a set of alert records (Phase 16B).
+ * Pure statistics over a set of alert records.
  *
  * Kept out of the view and free of `Date.now()` / DOM so every branch is unit-testable by
  * feeding records in and asserting the numbers out. The backend has no aggregation layer yet

@@ -6,7 +6,7 @@ import type { DeviceSnapshot, FleetConfig, SocketEvent } from "../src/types";
 import { DEFAULT_ALERT_RULES } from "@navfleet/shared";
 
 /**
- * The two acknowledgement broadcasts (Phase 16A). Unlike the fleet/device/alert events, these
+ * The two acknowledgement broadcasts. Unlike the fleet/device/alert events, these
  * are not derived from a telemetry delta — the ack route calls them directly after writing to
  * persistence — so they have their own entry points. What matters is that they emit on the
  * same `"event"` channel `wsBridge` forwards, carrying exactly the fields a client needs to

@@ -268,7 +268,7 @@ watch(
  * A right-aligned **value** cell reserves the header's arrow slot, so that 电量's label and
  * its numbers stay flush with each other.
  *
- * The arrow is always on the label's right (14G), and on the one right-aligned column that
+ * The arrow is always on the label's right, and on the one right-aligned column that
  * put it between the label and the cell edge: selecting 电量 pushed its own label 14px to
  * the left, which is the shift acceptance reported. So the slot is now reserved on every
  * header whether or not the arrow is showing — and the reserve has to be **mirrored onto

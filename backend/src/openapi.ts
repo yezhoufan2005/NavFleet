@@ -146,7 +146,7 @@ export const openApiDocument = {
     { name: "auth", description: "登录 / 会话" },
     { name: "fleet", description: "车队快照与设备" },
     { name: "alerts", description: "告警" },
-    { name: "reports", description: "报表聚合（Phase 17A）" },
+    { name: "reports", description: "报表聚合" },
     { name: "scenes", description: "场景地图" },
     { name: "codebook", description: "报码字典" },
     { name: "ops", description: "健康探针与指标" },
@@ -193,7 +193,7 @@ export const openApiDocument = {
           tokenVersion: { type: "number" },
           kiosk: {
             type: "boolean",
-            description: "长期只读大屏账号（Phase 17C）；普通账号缺省不带此字段",
+            description: "长期只读大屏账号；普通账号缺省不带此字段",
           },
           displayName: { type: "string" },
           email: { type: ["string", "null"] },
@@ -255,7 +255,7 @@ export const openApiDocument = {
       },
       NotifySendRecord: {
         type: "object",
-        description: "一条告警外发记录（Phase 16D-1）",
+        description: "一条告警外发记录",
         properties: {
           ts: { type: "string", format: "date-time" },
           eventKey: { type: "string" },
@@ -289,7 +289,7 @@ export const openApiDocument = {
       },
       SessionView: {
         type: "object",
-        description: "调用者自己的一个活跃会话（Phase 15E），current 标出当前请求所在会话",
+        description: "调用者自己的一个活跃会话，current 标出当前请求所在会话",
         properties: {
           sessionId: { type: "string" },
           username: { type: "string" },
@@ -882,7 +882,7 @@ const [rbacGroups, rbacGroup] = rbacOperations({
   "/api/v1/reports/alerts": {
     get: {
       tags: ["reports"],
-      summary: "告警统计（服务端聚合，Phase 17A）",
+      summary: "告警统计（服务端聚合）",
       parameters: queryParameters(reportRangeSchema, {
         from: "ISO-8601 或 epoch，按 firstSeenAt 过滤下界",
         to: "ISO-8601 或 epoch，上界",
@@ -905,7 +905,7 @@ const [rbacGroups, rbacGroup] = rbacOperations({
   "/api/v1/reports/availability": {
     get: {
       tags: ["reports"],
-      summary: "可用率/电量时序（服务端聚合，Phase 17A-2）",
+      summary: "可用率/电量时序（服务端聚合）",
       parameters: queryParameters(reportAvailabilityQuerySchema, {
         from: "ISO-8601 或 epoch，按 ts 过滤下界",
         to: "ISO-8601 或 epoch，上界",

@@ -11,7 +11,7 @@ import {
 } from "@navfleet/shared";
 
 /**
- * The report-code dictionary the console renders against (Phase 16C-2).
+ * The report-code dictionary the console renders against.
  *
  * The device-detail card used to describe codes against `@navfleet/fleet-core`'s built-in
  * table, so it showed the reference meanings even when a deployment had loaded its own 码表.

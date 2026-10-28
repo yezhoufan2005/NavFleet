@@ -87,7 +87,7 @@ const fEmail = ref("");
 const fPhone = ref("");
 const fEnabled = ref(true);
 /**
- * Mint as a long-lived read-only wall-display account (Phase 17C). Create-only: kiosk is a
+ * Mint as a long-lived read-only wall-display account. Create-only: kiosk is a
  * property of how the account is born (a months-long refresh horizon), not something toggled
  * later. A kiosk is read-only by construction, so checking it forces the role to viewer — the
  * backend refuses any other role, and `submitForm` pins it again so the two cannot drift.

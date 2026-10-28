@@ -17,7 +17,7 @@ import type { SocketEvent } from "./types";
  * so the parse below would fail on a frame that is in fact valid JSON. Not reachable with
  * this server's settings (the `Buffer[]` arm needs `binaryType: "fragments"`, and the
  * default is `"nodebuffer"`), which is exactly why nothing caught it: the defect is one
- * option away, and `no-base-to-string` (P0-f 第 3 批) is what pointed at it.
+ * option away, and `no-base-to-string` is what pointed at it.
  */
 export const rawToText = (raw: RawData): string => {
   if (Buffer.isBuffer(raw)) {
@@ -56,7 +56,7 @@ export const WS_MAX_PAYLOAD_BYTES = 64 * 1024;
 
 /**
  * A client is "slow" when its outbound buffer has grown past this at broadcast
- * time (Phase 18). `ws` queues `send()` in memory when the socket cannot drain
+ * time. `ws` queues `send()` in memory when the socket cannot drain
  * fast enough, so a stuck consumer shows up here before it shows up as an OOM.
  * This drives `navfleet_ws_broadcast_slow_total` — an observability signal only;
  * the frame is still sent (the client recovers via the next snapshot/reconnect).
@@ -162,7 +162,7 @@ export const createWebSocketBridge = (
           rejectUpgrade(socket);
           return;
         }
-        // Per-session revocation (Phase 15E), checked once at handshake like the other gates:
+        // Per-session revocation, checked once at handshake like the other gates:
         // a socket that would live for hours must not open on a token whose session has been
         // revoked. Only when the token names a session and a checker is wired.
         if (claims.sid && isSessionActive && !(await isSessionActive(claims.sub, claims.sid))) {

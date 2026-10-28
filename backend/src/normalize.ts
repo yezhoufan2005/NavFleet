@@ -8,7 +8,7 @@ import {
 } from "@navfleet/shared";
 import { buildTopicScheme, TopicScheme } from "./topics";
 
-// The offline-alert helpers moved to `@navfleet/shared` (Phase 16C-1) so the rule engine
+// The offline-alert helpers moved to `@navfleet/shared` so the rule engine
 // has one home both this backend and the two frontends reach. Re-exported here because the
 // store's offline sweep and the normalize tests import them from `./normalize`.
 export { buildOfflineAlert, offlineAlertId };
@@ -33,7 +33,7 @@ const toNumeric = (value: unknown, fallback: number | null = null): number | nul
  * the fleet does that today; nothing rejected it either, and **being the place where
  * 「到达的东西」变成「模型说的东西」is this file's entire job.**
  *
- * `no-base-to-string` (P0-f 第 3 批) named all 25 at once.
+ * `no-base-to-string` named all 25 at once.
  *
  * Two deliberate differences from `String`: `null` and `undefined` render as `fallback`
  * rather than the words `"null"` / `"undefined"` — which is why a topic-less ingest input no
@@ -545,7 +545,7 @@ export interface NormalizePayloadOptions {
   allowReplace?: boolean;
 
   /**
-   * The alert rules ingest evaluates against (Phase 16C-1). Absent = the built-in
+   * The alert rules ingest evaluates against. Absent = the built-in
    * defaults; the store passes `ConfigRegistry.getAlertRules()` so a deployment's
    * `rules.json` (retuned threshold, a disabled or scoped rule) governs what alerts a
    * live frame raises.

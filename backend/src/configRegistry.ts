@@ -1057,7 +1057,7 @@ export class ConfigRegistry {
     );
     // Missing notify.json = no channels = nothing is ever sent (the zero-config red line).
     const notifyConfig = parseNotifyConfig(notifyRaw);
-    // Missing reports.json = no schedules = no scheduled email (same red line, Phase 17B-2).
+    // Missing reports.json = no schedules = no scheduled email (same red line).
     const reportsConfig = parseReportsConfig(reportsRaw);
     // A schedule's groups are notify.json's recipient groups: they must exist, or the report is
     // silently skipped at send time. (Deleting a group a schedule still uses is refused the same way.)
@@ -1459,7 +1459,7 @@ export class ConfigRegistry {
         CODEBOOK_FILE,
         NOTIFY_FILE,
         REPORTS_FILE,
-        // Scene-map assets: `.osm` feeds the overlay parser, and (Phase 18) the raster / point-cloud
+        // Scene-map assets: `.osm` feeds the overlay parser, and the raster / point-cloud
         // / point-cloud-meta backdrops so a host-side swap or an API upload hot-reloads like the
         // JSON config does. The upload endpoints also call `reload()` directly; this covers edits
         // made outside the API too.
@@ -1548,7 +1548,7 @@ export class ConfigRegistry {
   }
 
   /**
-   * The alert rules ingest evaluates against (Phase 16C-1). Returns the live snapshot
+   * The alert rules ingest evaluates against. Returns the live snapshot
    * *reference*, not a copy: it is read once per incoming frame and only ever handed to the
    * pure `evaluateRuleAlerts`, which never mutates it, and a reload swaps the whole object
    * atomically — so a caller holding a reference keeps a consistent snapshot rather than
@@ -1563,7 +1563,7 @@ export class ConfigRegistry {
 
   /**
    * The report-code dictionary in effect — the built-in table with the deployment's
-   * `codebook.json` layered over it (Phase 16C-2). Like `getAlertRules`, does not require
+   * `codebook.json` layered over it. Like `getAlertRules`, does not require
    * the registry to be loaded: it defaults to the built-in table, so a code lookup before
    * `load()` still resolves. Returns a copy so a caller cannot mutate the live snapshot.
    */
@@ -1572,7 +1572,7 @@ export class ConfigRegistry {
   }
 
   /**
-   * The outbound-notification config in effect (Phase 16D-1) — the deployment's `notify.json`,
+   * The outbound-notification config in effect — the deployment's `notify.json`,
    * or `DEFAULT_NOTIFY_CONFIG` (no channels) when there is none. Like `getAlertRules`, does
    * **not** require the registry to be loaded: it defaults to "no channels", so the dispatcher
    * subscribing before `load()` (or a test that never loads config) simply sends nothing rather
@@ -1584,7 +1584,7 @@ export class ConfigRegistry {
   }
 
   /**
-   * The effective scheduled-report config (Phase 17B-2). Safe default before `load()`: no
+   * The effective scheduled-report config. Safe default before `load()`: no
    * schedules, so nothing is ever sent — the zero-config red line, same as `getNotifyConfig`.
    * Returns the live reference; a reload swaps the whole object atomically.
    */
@@ -1650,7 +1650,7 @@ export class ConfigRegistry {
     });
   }
 
-  /** All configured vehicles, for the onboarding wizard's read side (Phase 18). */
+  /** All configured vehicles, for the onboarding wizard's read side. */
   listVehicleConfigs(): DeviceConfig[] {
     this.ensureLoaded();
     return [...this.deviceConfigs.values()].map((vehicle) => ({

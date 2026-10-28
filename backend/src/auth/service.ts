@@ -45,7 +45,7 @@ export interface CreateUserInput {
   displayName?: string;
   email?: string | null;
   phone?: string | null;
-  /** Mint as a kiosk account (Phase 17C): long-lived read-only wall credential. Route enforces viewer. */
+  /** Mint as a kiosk account: long-lived read-only wall credential. Route enforces viewer. */
   kiosk?: boolean;
 }
 
@@ -124,7 +124,7 @@ export class AuthService {
   }
 
   /**
-   * Verify a credential, enforcing account-level lockout (Phase 15E). A locked account is
+   * Verify a credential, enforcing account-level lockout. A locked account is
    * refused before the password is even checked, and without revealing that it is locked
    * (the route answers an identical 401 either way). A wrong password advances the failure
    * counter and, at `AUTH_LOCK_THRESHOLD`, sets `lockedUntil`; the counter resets once the
@@ -171,11 +171,11 @@ export class AuthService {
     return this.persistence.recordLogin(username, new Date().toISOString());
   }
 
-  // ── Sessions (Phase 15E) ────────────────────────────────────────────────────────
+  // ── Sessions ────────────────────────────────────────────────────────
 
   /**
    * The refresh-token horizon in ms — the lifetime a session gets before it must be touched.
-   * A kiosk account (Phase 17C) gets the much longer `kioskRefreshTtl` so an unattended wall
+   * A kiosk account gets the much longer `kioskRefreshTtl` so an unattended wall
    * screen is not logged out after a week; everyone else gets the normal refresh horizon.
    */
   private sessionLifetimeMs(kiosk = false): number {
@@ -255,7 +255,7 @@ export class AuthService {
     return this.persistence.findUserByUsername(username);
   }
 
-  // ── Admin user management (15B-2) ──────────────────────────────────────────────
+  // ── Admin user management ──────────────────────────────────────────────
   // All of these assume the caller is already gated by `requireCapability("users:manage")` at the route.
 
   async listUsers(): Promise<AdminUserView[]> {

@@ -56,7 +56,7 @@ onMounted(() => {
  * behind the login screen, which is both a live subscription nobody is watching and
  * a claim about access that the session no longer supports.
  *
- * The sound goes with it. Arming is per login rather than per browser (14H), so leaving
+ * The sound goes with it. Arming is per login rather than per browser, so leaving
  * `authenticated` puts the control back to 告警待就绪 — otherwise the next person to sign
  * in at a shared terminal inherits an armed console they never asked for, and never gets
  * asked for the click that makes it audible.

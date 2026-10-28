@@ -170,7 +170,7 @@ describe("migration 列表自身", () => {
     });
   });
 
-  it("v4 只补告警确认字段：过滤 ackedBy 不存在的行，用 $ifNull 幂等 backfill（Phase 16A）", async () => {
+  it("v4 只补告警确认字段：过滤 ackedBy 不存在的行，用 $ifNull 幂等 backfill", async () => {
     const v4 = migrations.find((migration) => migration.version === 4);
     expect(v4).toBeDefined();
     const { db, otherUpdates } = createFakeDb();

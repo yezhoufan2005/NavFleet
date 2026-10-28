@@ -50,7 +50,7 @@ export type MapSurface = "gps" | "scene";
 const LAYOUT_STORAGE_KEY = "navfleet:device-layout";
 const SURFACE_STORAGE_KEY = "navfleet:map-mode";
 
-/** See the header: an owner decision (14E), replacing the measured 40. */
+/** See the header: an owner decision, replacing the measured 40. */
 export const MAP_READABLE_LIMIT = 10;
 
 const LAYOUT_VALUES: readonly DeviceLayoutPreference[] = [

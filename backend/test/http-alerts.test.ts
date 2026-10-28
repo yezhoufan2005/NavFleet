@@ -3,7 +3,7 @@ import request from "supertest";
 import { createTestApp, sessionCookie } from "./helpers/testApp";
 
 /**
- * Alert acknowledgement API (Phase 16A). The role gate is pinned in http-rbac; here we cover
+ * Alert acknowledgement API. The role gate is pinned in http-rbac; here we cover
  * the router → persistence wiring: a matching active alert acks and broadcasts, an unknown or
  * cleared one is 404, a malformed body is 400, and each success emits one audit entry.
  *

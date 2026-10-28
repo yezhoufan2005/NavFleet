@@ -4,7 +4,7 @@ import type { SessionRecord } from "../src/types";
 import { createTestApp, sessionCookie, sessionCookieWithSid, UPDATED_AT } from "./helpers/testApp";
 
 /**
- * Per-session tracking, revocation and admin force-logout (Phase 15E-1).
+ * Per-session tracking, revocation and admin force-logout.
  *
  * The auth gate now has a third check beyond "user exists / enabled / tokenVersion matches":
  * when the token names a session (`sid`), that session must still be live. These pin that

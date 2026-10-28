@@ -1,5 +1,5 @@
 /**
- * The email channel (Phase 16D-2a): send one message over SMTP via nodemailer, with the same
+ * The email channel: send one message over SMTP via nodemailer, with the same
  * bounded-retry + per-attempt-timeout shape the HTTP channels use, folded into an
  * {@link AttemptOutcome} so the dispatcher records it exactly like an HTTP send.
  *

@@ -201,7 +201,7 @@ describe("the window", () => {
     const wrapper = await mountPlayback();
 
     expect(wrapper.text()).toContain("已载入 9 条采样");
-    // No trailing 。 — a single-sentence UI string does not take one (14F).
+    // No trailing 。 — a single-sentence UI string does not take one.
     expect(wrapper.text()).toMatch(/覆盖 \S+ \S+ – \S+ \S+/);
   });
 

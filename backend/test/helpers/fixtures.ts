@@ -98,7 +98,7 @@ export const sampleAlert = (): Record<string, unknown> => ({
   status: "active",
 });
 
-/** A populated alert-stats report (Phase 17A) for the store stub the reports route reads. */
+/** A populated alert-stats report for the store stub the reports route reads. */
 export const sampleAlertStatsReport = (): Record<string, unknown> => ({
   total: 3,
   bySeverity: { critical: 1, warning: 2, notice: 0 },
@@ -109,7 +109,7 @@ export const sampleAlertStatsReport = (): Record<string, unknown> => ({
   available: true,
 });
 
-/** A populated availability report (Phase 17A-2) for the store stub the reports route reads. */
+/** A populated availability report for the store stub the reports route reads. */
 export const sampleAvailabilityReport = (): Record<string, unknown> => ({
   bucket: "day",
   devices: [

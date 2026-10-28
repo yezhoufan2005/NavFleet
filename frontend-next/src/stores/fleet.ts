@@ -157,7 +157,7 @@ export const useFleetStore = defineStore("fleet", () => {
   });
 
   /**
-   * Server-backed acknowledgement overlay (Phase 16A), keyed by eventKey (`deviceId:alertId`).
+   * Server-backed acknowledgement overlay, keyed by eventKey (`deviceId:alertId`).
    *
    * Confirmation used to live in browser localStorage, so it did not survive a different
    * device, a different operator, or a cleared cache, and could not be audited. It now lives
@@ -709,7 +709,7 @@ export const useFleetStore = defineStore("fleet", () => {
       typeof frame.deviceId === "string" ? frame.deviceId : undefined;
     if (!deviceId) return;
 
-    // Acknowledgement events (Phase 16A) carry no `alert` object and never toast — they
+    // Acknowledgement events carry no `alert` object and never toast — they
     // only reconcile the ack overlay so every open console reflects who confirmed what,
     // the moment any operator (here or elsewhere) does it.
     if (type === "alert.acked" || type === "alert.unacked") {
@@ -1111,7 +1111,7 @@ export const useFleetStore = defineStore("fleet", () => {
     summary,
     groupedAlerts,
     trailsByDeviceId,
-    // Acknowledgement overlay (Phase 16A). `useAlertAck` reads `isAlertAcked`/`getAck` and
+    // Acknowledgement overlay. `useAlertAck` reads `isAlertAcked`/`getAck` and
     // drives optimistic updates through `applyAck`/`applyUnack`; the alerts view seeds it once
     // on mount via `seedAckState`. The map itself stays internal — never poked from outside.
     isAlertAcked,

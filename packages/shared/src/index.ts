@@ -269,20 +269,20 @@ export interface PublicUser {
 export type LngLat = [number, number];
 
 // The alert rule engine — types, defaults, and the pure evaluator both the backend and
-// the two frontends share (Phase 16C-1). Kept in its own file because it carries runtime
+// the two frontends share. Kept in its own file because it carries runtime
 // logic, and this barrel was otherwise types-only.
 export * from "./alertRules";
 
 // The report-code dictionary — built-in table, wire type, and the pure merge/lookup the
-// backend layers a deployment's codebook over and 下发s (Phase 16C-2). Moved here from
+// backend layers a deployment's codebook over and 下发s. Moved here from
 // fleet-core so the backend, which does not depend on fleet-core, can reach it.
 export * from "./reportCodes";
 
-// 告警外发的共享契约（Phase 16D-1）——生效渠道视图与发送记录的形状（两个前端的只读「外发」页渲染
+// 告警外发的共享契约——生效渠道视图与发送记录的形状（两个前端的只读「外发」页渲染
 // 它们），以及「零配置不外发」的默认。路由/正文/发送等后端独有逻辑不在这里。
 export * from "./notify";
 
-// 报表聚合的共享契约（Phase 17A）——后端算、前端渲染的聚合结果形状（告警统计等）。
+// 报表聚合的共享契约——后端算、前端渲染的聚合结果形状（告警统计等）。
 // 聚合管道的构造/执行等后端独有逻辑不在这里。
 export * from "./reports";
 

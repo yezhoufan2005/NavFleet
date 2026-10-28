@@ -85,7 +85,7 @@ describe("AuthService (in-memory fallback)", () => {
   });
 });
 
-// Admin user management (15B-2). Real Persistence in-memory fallback + AuthService, so the
+// Admin user management. Real Persistence in-memory fallback + AuthService, so the
 // lockout guards run against actual counts. No inline password literals (GitGuardian).
 const A_PASSWORD = ["Fleet", "admin", "2026"].join("") + "9z";
 
@@ -191,7 +191,7 @@ describe("AuthService — admin user management", () => {
   });
 });
 
-// Account-level login lockout (Phase 15E). Real Persistence in-memory fallback so the counter
+// Account-level login lockout. Real Persistence in-memory fallback so the counter
 // and lock deadline round-trip through actual writes.
 describe("AuthService — login lockout", () => {
   const freshService = async (): Promise<{ service: AuthService; persistence: Persistence }> => {
@@ -259,7 +259,7 @@ describe("AuthService — login lockout", () => {
   });
 });
 
-describe("AuthService — kiosk session horizon (Phase 17C)", () => {
+describe("AuthService — kiosk session horizon", () => {
   it("gives a kiosk session a far longer expiry than a normal one", async () => {
     const service = new AuthService(new Persistence());
     const base = { username: "u", userAgent: "", ip: "" };

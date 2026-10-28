@@ -6,7 +6,7 @@ import type { AuditService } from "../audit/service";
 import { expectedConfigVersion, parseOrRespond, sendConfigVersion } from "./helpers";
 
 /**
- * Report-code dictionary API (Phase 16C-2).
+ * Report-code dictionary API.
  *
  * `GET /codebook` is read-for-everyone (viewer+, via the session check in `app.ts`): it
  * returns the table **in effect** — the built-in reference table with the deployment's

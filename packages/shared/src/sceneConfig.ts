@@ -1,6 +1,6 @@
 /**
  * Validator for the operator-editable `scenes.json`, used when the admin **scene-map
- * upload & management** page writes it through the API (Phase 18). Mirrors `parseVehicles`
+ * upload & management** page writes it through the API. Mirrors `parseVehicles`
  * / `parseCodebook`: hand-rolled, throwing a labelled message on the first problem, so an
  * invalid payload is a 400 that writes nothing, and the backend re-validates as the
  * authority even though the client validates too.

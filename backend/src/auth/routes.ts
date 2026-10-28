@@ -29,7 +29,7 @@ const baseCookie = (): CookieOptions => ({
  * current `tokenVersion` so a later bump invalidates them. Called on login, on refresh
  * (rotation, same `sid`), and after a self password change (a fresh `sid`).
  */
-/** The refresh horizon for a user: a kiosk account (Phase 17C) lives far longer than 7d. */
+/** The refresh horizon for a user: a kiosk account lives far longer than 7d. */
 const refreshTtlFor = (user: UserRecord): string =>
   user.kiosk ? config.kioskRefreshTtl : config.jwtRefreshTtl;
 
@@ -177,7 +177,7 @@ export const buildAuthRouter = (
   });
 
   router.post("/logout", async (request, response) => {
-    // Revoke *this* session only (Phase 15E): delete the row its `sid` names, so the tokens
+    // Revoke *this* session only: delete the row its `sid` names, so the tokens
     // that carry it stop verifying, while the user's other devices stay signed in. This no
     // longer bumps tokenVersion — that "all devices" hammer now belongs to force-logout.
     // Identify the session from whichever token is still presented.
@@ -234,7 +234,7 @@ export const buildAuthRouter = (
     response.json({ user: request.user, capabilities: request.capabilities ?? [] });
   });
 
-  // ── Own sessions (Phase 15E) ──────────────────────────────────────────────────
+  // ── Own sessions ──────────────────────────────────────────────────
   router.get("/sessions", authenticate, async (request, response) => {
     const username = request.user!.username;
     const current = request.sessionId;

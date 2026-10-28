@@ -1,6 +1,6 @@
 <script setup lang="ts">
 /**
- * 部署 / 场景 — what the deployment has configured, whether it is actually there, and (Phase 18)
+ * 部署 / 场景 — what the deployment has configured, whether it is actually there, and
  * editing it: create / edit / delete scene entries and upload their backdrop files.
  *
  * This was read-only on the stated ground that "editing a scene means editing the map a vehicle

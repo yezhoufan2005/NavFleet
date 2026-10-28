@@ -129,7 +129,7 @@ describe("fleetApi", () => {
     );
   });
 
-  // ── Admin (Phase 15E-2) ──────────────────────────────────────────────────────
+  // ── Admin ──────────────────────────────────────────────────────
   it("lists users and reads one", async () => {
     stubFetch(200, { users: [{ username: "bob" }] });
     await expect(fleetApi.getUsers()).resolves.toEqual({
@@ -185,7 +185,7 @@ describe("fleetApi", () => {
     expect(calls.at(-1)?.url).toBe("/api/v1/audit?actor=root&action=login");
   });
 
-  it("acks and unacks an alert, keeping the eventKey out of the path (Phase 16A)", async () => {
+  it("acks and unacks an alert, keeping the eventKey out of the path", async () => {
     stubFetch(204, {});
     await expect(
       fleetApi.ackAlert("agv-01", "err-1", "看过了"),
@@ -217,7 +217,7 @@ describe("fleetApi", () => {
     });
   });
 
-  it("reads the outbound send log with filters and the effective channels (Phase 16D)", async () => {
+  it("reads the outbound send log with filters and the effective channels", async () => {
     stubFetch(200, { items: [] });
     await fleetApi.getNotifyLog({ deviceId: "agv-1", status: "failed" });
     expect(calls.at(-1)?.url).toBe(
@@ -298,7 +298,7 @@ describe("fleetApi", () => {
     expect(JSON.parse(call.init.body as string)).toEqual(config);
   });
 
-  it("reads the server-side alert-stats report, forwarding the range (Phase 17A)", async () => {
+  it("reads the server-side alert-stats report, forwarding the range", async () => {
     stubFetch(200, { total: 0, available: true });
     await fleetApi.getAlertStatsReport({ from: "2026-09-01T00:00:00Z" });
     expect(calls.at(-1)?.url).toBe(
@@ -311,7 +311,7 @@ describe("fleetApi", () => {
     expect(calls.at(-1)?.url).toBe("/api/v1/reports/alerts");
   });
 
-  it("reads the availability/battery time-series with device, range and bucket (Phase 17A-2)", async () => {
+  it("reads the availability/battery time-series with device, range and bucket", async () => {
     stubFetch(200, { bucket: "hour", devices: [], available: true });
     await fleetApi.getAvailabilityReport({
       deviceId: "agv-1",
@@ -328,7 +328,7 @@ describe("fleetApi", () => {
   });
 });
 
-describe("设备接入向导 config (Phase 18)", () => {
+describe("设备接入向导 config", () => {
   it("reads vehicles and formations config", async () => {
     stubFetch(200, { vehicles: [{ deviceId: "agv-1", deviceName: "一号" }] });
     await expect(fleetApi.getVehicleConfig()).resolves.toEqual({
@@ -368,7 +368,7 @@ describe("设备接入向导 config (Phase 18)", () => {
   });
 });
 
-describe("场景地图管理 (Phase 18)", () => {
+describe("场景地图管理", () => {
   it("PUTs the whole scenes array in a keyed body", async () => {
     stubFetch(200, { items: [] });
     await fleetApi.putScenes([

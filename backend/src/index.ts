@@ -37,7 +37,7 @@ const notifyService = new NotifyService({
   maxAttempts: config.notifyMaxAttempts,
   timeoutMs: config.notifyTimeoutMs,
 });
-// Scheduled email reports (Phase 17B-2). Reuses 17A's aggregation (via the store) and 16D's email
+// Scheduled email reports. Reuses 17A's aggregation (via the store) and 16D's email
 // send + recipient resolution; driven by a ~60s poll below (no cron dependency). Zero schedules in
 // reports.json ⇒ nothing is ever sent (the same zero-config red line as notify).
 const reportScheduler = new ReportScheduler({
@@ -53,12 +53,12 @@ const reportScheduler = new ReportScheduler({
 });
 const topicScheme = buildTopicScheme(config.topicPattern);
 
-// Outbound notifications (Phase 16D). A SECOND listener on the store's event bus, alongside
+// Outbound notifications. A SECOND listener on the store's event bus, alongside
 // the WebSocket bridge below — it taps `alert.created` (emitted once when an alert id first
 // appears) and dispatches fire-and-forget. Un-awaited on purpose: `alert.created` fires inside
 // the store's serial ingest queue, so awaiting a slow webhook here would stall all ingest;
 // `dispatch` contains its own failures and never rejects. `alert.acked`/`alert.cleared` cancel a
-// pending escalation (16D-2a) — the alert has been attended to, or has gone away.
+// pending escalation — the alert has been attended to, or has gone away.
 store.on("event", (event: SocketEvent) => {
   if (event.type === "alert.created") {
     void notifyService.dispatch(event.payload as AlertCreatedEvent);
@@ -104,9 +104,9 @@ let shuttingDown = false;
 let mqttClient: ReturnType<typeof connectMqtt> | null = null;
 /** The offline sweep, so it stops firing into a store that is being drained. */
 let offlineSweep: NodeJS.Timeout | null = null;
-/** The notification digest-flush poll (Phase 16D-2a), stopped on shutdown. */
+/** The notification digest-flush poll, stopped on shutdown. */
 let digestFlush: NodeJS.Timeout | null = null;
-/** The scheduled-report poll (Phase 17B-2), stopped on shutdown. */
+/** The scheduled-report poll, stopped on shutdown. */
 let reportPoll: NodeJS.Timeout | null = null;
 /** The write-behind buffer retry, stopped on shutdown (declared here so shutdown can clear it). */
 let bufferFlush: NodeJS.Timeout | null = null;
@@ -250,7 +250,7 @@ const start = async (): Promise<void> => {
   }, 15_000);
   offlineSweep.unref();
 
-  // Flush ripe notification digests (Phase 16D-2a). This poll interval is the digest granularity:
+  // Flush ripe notification digests. This poll interval is the digest granularity:
   // a channel's `digestSeconds` is honoured to within one tick. Fire-and-forget; contained inside.
   digestFlush = setInterval(() => {
     notifyService.flushDigests().catch((error) => {
@@ -259,7 +259,7 @@ const start = async (): Promise<void> => {
   }, 15_000);
   digestFlush.unref();
 
-  // Fire due scheduled reports (Phase 17B-2). A 60s poll, not cron: due-ness is "past the local
+  // Fire due scheduled reports. A 60s poll, not cron: due-ness is "past the local
   // send time and not yet sent today", which is immune to a tick landing a minute late. The first
   // tick marks any already-past times as handled without sending, so a restart never re-sends.
   reportPoll = setInterval(() => {
@@ -278,7 +278,7 @@ const start = async (): Promise<void> => {
 
   // Retry the write-behind buffer on a timer. The write path only flushed *after a
   // successful write*, which never arrives while MongoDB is down — so a reconnect used to
-  // sit on a full buffer until the next vehicle happened to report (P0-c).
+  // sit on a full buffer until the next vehicle happened to report.
   bufferFlush = setInterval(() => {
     persistence.flushTelemetry().catch((error) => {
       logger.warn({ err: error }, "Scheduled telemetry flush failed");
