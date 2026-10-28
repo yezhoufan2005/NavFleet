@@ -73,6 +73,8 @@ const from = ref(readParam("from"));
 const to = ref(readParam("to"));
 
 const entries = ref<AuditRecord[]>([]);
+/** The server's row cap when it cut the list (older matches exist), else null. */
+const cappedAt = ref<number | null>(null);
 const status = ref<"loading" | "ready" | "error">("loading");
 
 // URL-synced pagination over the returned page, shared with 设备 / 消息 / 外发 (see useListPagination).
@@ -101,6 +103,9 @@ const load = async (): Promise<void> => {
     });
     if (id !== requestId) return;
     entries.value = result.entries;
+    cappedAt.value = result.truncated
+      ? (result.limit ?? result.entries.length)
+      : null;
     status.value = "ready";
   } catch {
     if (id !== requestId) return;
@@ -185,6 +190,10 @@ const formatTime = (iso: string): string =>
       没有符合当前筛选条件的审计记录
     </UiEmptyState>
     <template v-else>
+      <p v-if="cappedAt !== null" class="m-0 text-2xs text-ink-subtle">
+        仅显示最近
+        {{ cappedAt }} 条（后端单次查询上限），缩小时间范围可查看更早的记录
+      </p>
       <!-- Same shell as the device list: the table itself does not scroll (`overflow-hidden`
            clips its corners), the page scrolls. -->
       <div :class="[tableClasses.wrapper, 'overflow-hidden']">

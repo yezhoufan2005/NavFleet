@@ -31,9 +31,6 @@ import {
 import { SEVERITY_BADGE, SEVERITY_LABELS } from "@/lib/severity";
 import { compileSearch } from "@/lib/searchQuery";
 
-/** The endpoint's page size (`MAX_ALERTS_PER_QUERY`); a full page means older rows are cut. */
-const RESULT_CAP = 500;
-
 const route = useRoute();
 const fleet = useFleetStore();
 const { palette } = useChartTheme();
@@ -41,6 +38,8 @@ const { palette } = useChartTheme();
 const status = ref<"loading" | "ready" | "error">("loading");
 const errorMessage = ref("");
 const records = ref<AlertRecord[]>([]);
+/** The server's row cap when it cut the list (older matches exist), else null. */
+const cappedAt = ref<number | null>(null);
 let requestId = 0;
 
 /** Clear time in epoch ms, `-Infinity` when absent so undated rows sort last. */
@@ -65,10 +64,14 @@ const load = async (): Promise<void> => {
     records.value = [...(payload.items ?? [])].sort(
       (left, right) => clearedMs(right) - clearedMs(left),
     );
+    cappedAt.value = payload.truncated
+      ? (payload.limit ?? records.value.length)
+      : null;
     status.value = "ready";
   } catch (error) {
     if (request !== requestId) return;
     records.value = [];
+    cappedAt.value = null;
     status.value = "error";
     errorMessage.value =
       error instanceof Error ? error.message : "消息历史加载失败";
@@ -101,7 +104,7 @@ const search = computed(() => readParam("q"));
 /**
  * Onset window (`from`/`to`, `YYYY-MM-DD`) — the one filter applied **server-side**, unlike
  * severity/device/search which narrow the fetched page in the browser. Without it the query
- * returns the most-recent `RESULT_CAP` cleared alerts, so a window is the only way to reach a
+ * returns the most-recent page of cleared alerts (the server's row cap), so a window is the only way to reach a
  * past period whose rows are older than that page. Bounds are independent (either or both) and
  * expanded to day edges; the bar's native min/max keeps 起 ≤ 止. Changing it re-queries (below).
  */
@@ -148,8 +151,6 @@ const filtered = computed(() =>
     );
   }),
 );
-
-const capped = computed(() => records.value.length >= RESULT_CAP);
 
 // ── Derived statistics + chart inputs ─────────────────────────────────────────────────────
 // `topN: Infinity` — the per-device chart shows *every* device with cleared messages, not a Top-8.
@@ -271,8 +272,10 @@ const { page, pageCount, pageSize, pageItems, setPage, setPageSize } =
   </UiEmptyState>
 
   <template v-else>
-    <p v-if="capped" class="m-0 text-2xs text-ink-subtle">
-      仅统计最近 {{ RESULT_CAP }} 条已清除消息（后端单次查询上限）
+    <p v-if="cappedAt !== null" class="m-0 text-2xs text-ink-subtle">
+      仅统计最近
+      {{ cappedAt }}
+      条已清除消息（后端单次查询上限），缩小时间范围可查看更早的记录
     </p>
 
     <!-- Summary tiles -->

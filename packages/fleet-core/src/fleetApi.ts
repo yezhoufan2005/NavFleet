@@ -100,6 +100,15 @@ export interface AlertRecord {
 
 export type HistoryQueryParams = Omit<HistoryQuery, "deviceId">;
 
+/**
+ * The server-side cap on a list read (alerts / audit / notify log): `truncated` means the list
+ * stopped at `limit` rows, so older matches exist that only a narrower window reaches.
+ */
+export interface ListCap {
+  truncated?: boolean;
+  limit?: number;
+}
+
 export interface AlertsQueryParams {
   severity?: Severity;
   deviceId?: string;
@@ -485,8 +494,10 @@ export const fleetApi = {
     );
   },
 
-  getAlerts(params: AlertsQueryParams = {}): Promise<{ items: AlertRecord[] }> {
-    return requestJson<{ items: AlertRecord[] }>(
+  getAlerts(
+    params: AlertsQueryParams = {},
+  ): Promise<{ items: AlertRecord[] } & ListCap> {
+    return requestJson<{ items: AlertRecord[] } & ListCap>(
       `/api/v1/alerts${buildQuery(params)}`,
     );
   },
@@ -673,8 +684,8 @@ export const fleetApi = {
   // ── Audit log (admin, Phase 15E-2) ──────────────────────────────────────────
   getAuditLog(
     params: AuditQueryParams = {},
-  ): Promise<{ entries: AuditRecord[] }> {
-    return requestJson<{ entries: AuditRecord[] }>(
+  ): Promise<{ entries: AuditRecord[] } & ListCap> {
+    return requestJson<{ entries: AuditRecord[] } & ListCap>(
       `/api/v1/audit${buildQuery(params)}`,
     );
   },
@@ -688,8 +699,8 @@ export const fleetApi = {
   // the PUT is a validate-first whole-file write — endpoint secrets never leave env.
   getNotifyLog(
     params: NotifyLogQueryParams = {},
-  ): Promise<{ items: NotifySendRecord[] }> {
-    return requestJson<{ items: NotifySendRecord[] }>(
+  ): Promise<{ items: NotifySendRecord[] } & ListCap> {
+    return requestJson<{ items: NotifySendRecord[] } & ListCap>(
       `/api/v1/notify/log${buildQuery(params)}`,
     );
   },

@@ -8,6 +8,7 @@
  * ISO 串，时序图要 `[epochMs, value]` 且旧点在前——mapper 已按桶起点升序，这里原样转。
  */
 
+import { csvField } from "@navfleet/shared";
 import type { AlertStatsReport, AvailabilityReport } from "@navfleet/shared";
 import type { TimeSeries } from "@/components/charts/timeSeriesOption";
 import { SEVERITY_LABELS } from "@/lib/severity";
@@ -314,10 +315,6 @@ export const sparklinePoints = (
 };
 
 /** RFC-4180 转义：含逗号/引号/换行的字段用引号包起来，内部引号翻倍。 */
-const csvField = (value: string | number): string => {
-  const text = String(value);
-  return /[",\n]/.test(text) ? `"${text.replace(/"/g, '""')}"` : text;
-};
 
 /**
  * 可用率/电量按（设备 × 桶）导出为 CSV（交班/汇报的刚需）。BOM 由下载时加，不进这里。

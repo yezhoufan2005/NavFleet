@@ -9,6 +9,7 @@
  * frontend 代码，而把它下沉到 shared 又要牵动两个前端的测试，不值当为这十几行做那次重构。
  */
 
+import { csvField } from "@navfleet/shared";
 import type { AlertStatsReport, AvailabilityReport, ReportRangePreset } from "@navfleet/shared";
 import type { EmailAttachment } from "../notify/email";
 
@@ -97,10 +98,6 @@ const formatInstantInZone = (at: Date, timeZone: string): string =>
   }).format(at);
 
 /** RFC-4180 CSV 转义。 */
-const csvField = (value: string | number): string => {
-  const text = String(value);
-  return /[",\n]/.test(text) ? `"${text.replace(/"/g, '""')}"` : text;
-};
 
 /** 可用率/电量按（设备 × 桶）的 CSV（与前端导出同列）。BOM 让 Excel 正确读中文表头。 */
 const buildAvailabilityCsv = (report: AvailabilityReport, nameOf: DeviceNameOf): string => {

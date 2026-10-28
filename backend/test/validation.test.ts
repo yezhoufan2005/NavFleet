@@ -13,6 +13,10 @@ import {
   createUserSchema,
   updateUserSchema,
   rbacGroupSchema,
+  reportRangeSchema,
+  reportAvailabilityQuerySchema,
+  auditQuerySchema as auditQuery,
+  notifyLogQuerySchema,
 } from "../src/validation";
 import { AUDIT_ACTIONS } from "../src/types";
 
@@ -282,5 +286,25 @@ describe("user / group field rules", () => {
     expect(
       rbacGroupSchema.parse({ name: " 夜班 ", roleIds: [], memberUsernames: [" bob "] }),
     ).toMatchObject({ name: "夜班", memberUsernames: ["bob"] });
+  });
+});
+
+describe("report / list windows", () => {
+  it("rejects a report window wider than the cap and an inverted list window", () => {
+    expect(
+      reportRangeSchema.safeParse({ from: "2020-01-01T00:00:00Z", to: "2026-01-01T00:00:00Z" })
+        .success,
+    ).toBe(false);
+    expect(
+      reportAvailabilityQuerySchema.safeParse({
+        from: "2026-09-01T00:00:00Z",
+        to: "2026-09-30T00:00:00Z",
+      }).success,
+    ).toBe(true);
+    for (const schema of [auditQuery, notifyLogQuerySchema]) {
+      expect(
+        schema.safeParse({ from: "2026-09-02T00:00:00Z", to: "2026-09-01T00:00:00Z" }).success,
+      ).toBe(false);
+    }
   });
 });

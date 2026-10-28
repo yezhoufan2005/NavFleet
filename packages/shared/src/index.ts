@@ -299,3 +299,6 @@ export * from "./sceneGeometry";
 // 细粒度能力项与内置角色预设（1.6.1 RBAC 基座）——后端门禁、前端 can() 的单一来源。运行时值，
 // 故独立成文件（本 barrel 其余多为类型）。
 export * from "./rbac";
+
+// CSV 单元格（含公式注入防护）——控制台导出与定时报表邮件共用，两边写出同一种文件。
+export * from "./csv";

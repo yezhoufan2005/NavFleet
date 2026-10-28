@@ -36,6 +36,24 @@ const rejectInvertedWindow = <T extends { from?: string; to?: string }>(
   }
 };
 
+/** Inverted windows, and (for aggregations) windows wider than `REPORT_MAX_RANGE_DAYS`. */
+const rejectOversizedWindow = <T extends { from?: string; to?: string }>(
+  value: T,
+  ctx: z.RefinementCtx,
+): void => {
+  rejectInvertedWindow(value, ctx);
+  if (value.from && value.to) {
+    const days = (toEpochMs(value.to) - toEpochMs(value.from)) / 86_400_000;
+    if (days > config.reportMaxRangeDays) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ["from"],
+        message: `时间范围不能超过 ${config.reportMaxRangeDays} 天`,
+      });
+    }
+  }
+};
+
 export const historyQuerySchema = z
   .object({
     from: timestampString.optional(),
@@ -270,60 +288,68 @@ export const resetPasswordSchema = z.object({
 });
 
 /** Query filters for `GET /api/audit` (admin). All optional; unbounded result is capped server-side. */
-export const auditQuerySchema = z.object({
-  actor: z.string().min(1).max(200).optional(),
-  // `action` is a **comma-joined list** (the 审计 page's 动作 filter is multi-select since 1.6.x),
-  // e.g. `user_create,user_delete`. Each item must be in the canonical `AUDIT_ACTIONS` tuple, so an
-  // unknown action still 400s — see the tuple's note in `types.ts` for the drift this closes. An
-  // empty value parses to `[]`, which the persistence layer treats as "no action filter".
-  action: z
-    .string()
-    .transform((raw) =>
-      raw
-        .split(",")
-        .map((part) => part.trim())
-        .filter(Boolean),
-    )
-    .pipe(z.array(z.enum(AUDIT_ACTIONS)))
-    .optional(),
-  from: timestampString.optional(),
-  to: timestampString.optional(),
-});
+export const auditQuerySchema = z
+  .object({
+    actor: z.string().min(1).max(200).optional(),
+    // `action` is a **comma-joined list** (the 审计 page's 动作 filter is multi-select since 1.6.x),
+    // e.g. `user_create,user_delete`. Each item must be in the canonical `AUDIT_ACTIONS` tuple, so an
+    // unknown action still 400s — see the tuple's note in `types.ts` for the drift this closes. An
+    // empty value parses to `[]`, which the persistence layer treats as "no action filter".
+    action: z
+      .string()
+      .transform((raw) =>
+        raw
+          .split(",")
+          .map((part) => part.trim())
+          .filter(Boolean),
+      )
+      .pipe(z.array(z.enum(AUDIT_ACTIONS)))
+      .optional(),
+    from: timestampString.optional(),
+    to: timestampString.optional(),
+  })
+  .superRefine(rejectInvertedWindow);
 
 /** Query filters for `GET /api/reports/alerts` (Phase 17A, viewer+). Both optional; the aggregate
  * spans the whole retention window when neither bound is given. Bounds filter on `firstSeenAt`. */
-export const reportRangeSchema = z.object({
-  from: timestampString.optional(),
-  to: timestampString.optional(),
-});
+export const reportRangeSchema = z
+  .object({
+    from: timestampString.optional(),
+    to: timestampString.optional(),
+  })
+  .superRefine(rejectOversizedWindow);
 
 /** Query filters for `GET /api/reports/availability` (Phase 17A-2, viewer+). `bucket` defaults to
  * day; `deviceId` is a comma-joined list that narrows to those vehicles (multi-select since the
  * filter-polish sweep), otherwise the whole fleet. Bounds filter on `ts`. */
-export const reportAvailabilityQuerySchema = z.object({
-  from: timestampString.optional(),
-  to: timestampString.optional(),
-  deviceId: z
-    .string()
-    .transform((raw) =>
-      raw
-        .split(",")
-        .map((part) => part.trim())
-        .filter(Boolean),
-    )
-    .pipe(z.array(z.string().min(1).max(200)))
-    .optional(),
-  bucket: z.enum(["hour", "day", "month"]).default("day"),
-});
+export const reportAvailabilityQuerySchema = z
+  .object({
+    from: timestampString.optional(),
+    to: timestampString.optional(),
+    deviceId: z
+      .string()
+      .transform((raw) =>
+        raw
+          .split(",")
+          .map((part) => part.trim())
+          .filter(Boolean),
+      )
+      .pipe(z.array(z.string().min(1).max(200)))
+      .optional(),
+    bucket: z.enum(["hour", "day", "month"]).default("day"),
+  })
+  .superRefine(rejectOversizedWindow);
 
 /** Query filters for `GET /api/notify/log` (admin). All optional; unbounded result is capped server-side. */
-export const notifyLogQuerySchema = z.object({
-  deviceId: z.string().min(1).max(200).optional(),
-  channelId: z.string().min(1).max(200).optional(),
-  status: z.enum(["sent", "failed"]).optional(),
-  from: timestampString.optional(),
-  to: timestampString.optional(),
-});
+export const notifyLogQuerySchema = z
+  .object({
+    deviceId: z.string().min(1).max(200).optional(),
+    channelId: z.string().min(1).max(200).optional(),
+    status: z.enum(["sent", "failed"]).optional(),
+    from: timestampString.optional(),
+    to: timestampString.optional(),
+  })
+  .superRefine(rejectInvertedWindow);
 // Alert acknowledgement (Phase 16A). `eventKey` is assembled server-side from these two —
 // deviceId can contain arbitrary vendor characters, so it never goes into a path segment.
 // The comment is optional operator context, length-bounded like other free text.

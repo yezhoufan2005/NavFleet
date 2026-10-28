@@ -176,8 +176,17 @@ describe("GET /api/alerts", () => {
     const response = await authed(context, "/api/alerts");
 
     expect(response.status).toBe(200);
-    expect(response.body).toEqual({ items: [sampleAlert()] });
+    expect(response.body).toEqual({ items: [sampleAlert()], truncated: false, limit: 500 });
+    expect(response.headers["x-result-truncated"]).toBeUndefined();
     expect(context.store.getAlerts).toHaveBeenCalledWith({});
+  });
+
+  it("says when the list hit the server cap", async () => {
+    const context = createTestApp();
+    context.store.getAlerts.mockResolvedValue(Array.from({ length: 500 }, () => sampleAlert()));
+    const response = await authed(context, "/api/alerts");
+    expect((response.body as { truncated: boolean }).truncated).toBe(true);
+    expect(response.headers["x-result-truncated"]).toBe("true");
   });
 
   it("forwards the validated filters to the store", async () => {
