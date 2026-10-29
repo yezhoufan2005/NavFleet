@@ -59,7 +59,7 @@ import { MigrationError, type Migration } from "./migrations/types";
 
 const logger = moduleLogger("persistence");
 
-interface TelemetryDocument {
+export interface TelemetryDocument {
   ts: Date;
   meta: {
     deviceId: string;
@@ -190,6 +190,34 @@ const unwrittenDocuments = <T>(batch: T[], error: unknown): T[] => {
   }
   return batch.filter((_document, index) => failedIndexes.has(index));
 };
+
+/** The `telemetry_ts` document for one snapshot — what every stored frame looks like. */
+export const toTelemetryDocument = (snapshot: DeviceSnapshot): TelemetryDocument => ({
+  ts: new Date(snapshot.stamp),
+  meta: {
+    deviceId: snapshot.deviceId,
+    fleetId: "default-fleet",
+    vehicleModel: asText(snapshot.extra.vehicleModel, "generic-agv") || "generic-agv",
+  },
+  measurements: {
+    online: snapshot.online,
+    stamp: snapshot.stamp,
+    sceneId: snapshot.sceneId,
+    runtimeSceneId: snapshot.runtimeSceneId,
+    defaultSceneId: snapshot.defaultSceneId,
+    gps: snapshot.gps,
+    fusionLoc: snapshot.fusionLoc,
+    lidarLoc: snapshot.lidarLoc,
+    vehicleInfo: snapshot.vehicleInfo,
+    taskStatus: snapshot.taskStatus,
+    platformTaskStatus: snapshot.platformTaskStatus,
+    infoCode: snapshot.infoCode,
+    warningCode: snapshot.warningCode,
+    errorCode: snapshot.errorCode,
+    speedLimit: snapshot.speedLimit,
+    extra: snapshot.extra,
+  },
+});
 
 export class Persistence {
   private db: Db | null = null;
@@ -1049,32 +1077,7 @@ export class Persistence {
   }
 
   async writeTelemetry(snapshot: DeviceSnapshot): Promise<void> {
-    const document: TelemetryDocument = {
-      ts: new Date(snapshot.stamp),
-      meta: {
-        deviceId: snapshot.deviceId,
-        fleetId: "default-fleet",
-        vehicleModel: asText(snapshot.extra.vehicleModel, "generic-agv") || "generic-agv",
-      },
-      measurements: {
-        online: snapshot.online,
-        stamp: snapshot.stamp,
-        sceneId: snapshot.sceneId,
-        runtimeSceneId: snapshot.runtimeSceneId,
-        defaultSceneId: snapshot.defaultSceneId,
-        gps: snapshot.gps,
-        fusionLoc: snapshot.fusionLoc,
-        lidarLoc: snapshot.lidarLoc,
-        vehicleInfo: snapshot.vehicleInfo,
-        taskStatus: snapshot.taskStatus,
-        platformTaskStatus: snapshot.platformTaskStatus,
-        infoCode: snapshot.infoCode,
-        warningCode: snapshot.warningCode,
-        errorCode: snapshot.errorCode,
-        speedLimit: snapshot.speedLimit,
-        extra: snapshot.extra,
-      },
-    };
+    const document = toTelemetryDocument(snapshot);
 
     this.appendMemoryTelemetry(document);
 
@@ -1287,7 +1290,13 @@ export class Persistence {
     }
   }
 
-  async upsertAlerts(deviceId: string, alerts: DeviceAlert[]): Promise<void> {
+  /**
+   * Reconcile a device's stored occurrences with its current active set: an alert still firing
+   * updates its active occurrence (or opens one), an active occurrence no longer in the set is
+   * closed at `at` — the store's clock, so a replayed history closes occurrences when they
+   * ended rather than when the replay ran.
+   */
+  async upsertAlerts(deviceId: string, alerts: DeviceAlert[], at = new Date()): Promise<void> {
     // Always mirror the current active set into memory so the /api/alerts
     // fallback works without MongoDB and stays consistent with the live snapshot.
     // Carry any existing acknowledgement forward for an eventKey that is still active,
@@ -1388,8 +1397,8 @@ export class Persistence {
           // it is part of what happened. A later re-fire is a separate (unacknowledged) document.
           $set: {
             active: false,
-            clearedAt: new Date(),
-            lastSeenAt: new Date(),
+            clearedAt: at,
+            lastSeenAt: at,
           },
         },
         { timeoutMS: config.mongoWriteTimeoutMs },
