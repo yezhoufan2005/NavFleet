@@ -29,7 +29,10 @@ class RecordingPersistence {
   }
   async writeLatestSnapshot(): Promise<void> {}
   async writeTelemetry(): Promise<void> {}
-  async upsertAlerts(): Promise<void> {}
+  readonly alertSyncs: Array<{ deviceId: string; ids: string[]; at: Date }> = [];
+  async upsertAlerts(deviceId: string, alerts: Array<{ id: string }>, at: Date): Promise<void> {
+    this.alertSyncs.push({ deviceId, ids: alerts.map((alert) => alert.id), at });
+  }
   forgetDevice(deviceId: string): void {
     this.forgotten.push(deviceId);
   }
@@ -37,6 +40,7 @@ class RecordingPersistence {
 
 const createStore = (
   configuredDeviceIds: string[] = [],
+  now?: () => number,
 ): { store: DashboardStore; persistence: RecordingPersistence; events: SocketEvent[] } => {
   const persistence = new RecordingPersistence();
   const configured = new Set(configuredDeviceIds);
@@ -52,6 +56,7 @@ const createStore = (
   const store = new DashboardStore(
     persistence as unknown as Persistence,
     configRegistryStub as unknown as ConfigRegistry,
+    now,
   );
   const events: SocketEvent[] = [];
   store.on("event", (event: SocketEvent) => events.push(event));
@@ -275,5 +280,34 @@ describe("a replace payload cascades the drop, not just the two snapshot maps", 
 
     expect(persistence.forgotten).toEqual([]);
     expect(deviceIds(store)).toHaveLength(2);
+  });
+});
+
+describe("the store's clock is injectable", () => {
+  // The demo history backfill runs a month of frames through this store in a few minutes. Every
+  // time the store records — arrival, the offline verdict, when an alert set changed — has to be
+  // the simulated time, or a month of history would be stamped with the minute it was generated.
+  it("judges silence, stamps the offline alert and dates alert syncs by the injected clock", async () => {
+    let simulated = Date.parse("2026-09-01T00:00:00Z");
+    const { store, persistence } = createStore(["agv-1"], () => simulated);
+    await store.applyPayload(
+      { deviceId: "agv-1", stamp: new Date(simulated).toISOString(), vehicle_info: { soc: 80 } },
+      "mqtt",
+      { checkDeviceClock: true },
+    );
+    // Within the device-clock tolerance of the *simulated* arrival, so the stamp is trusted.
+    expect(store.snapshot().devices[0]?.stamp).toBe("2026-09-01T00:00:00.000Z");
+
+    // Two minutes of simulated silence, swept every 15 s as the backend's timer does.
+    for (let step = 0; step < 8; step += 1) {
+      simulated += 15_000;
+      await store.evaluateOfflineDevices();
+    }
+    const device = store.snapshot().devices[0];
+    expect(device?.online).toBe(false);
+    const offline = device?.alerts.find((alert) => alert.id === "agv-1-offline");
+    // 90 s is past the 60 s default threshold, so the sweep at 00:01:15 is the first verdict.
+    expect(offline?.ts).toBe("2026-09-01T00:01:15.000Z");
+    expect(persistence.alertSyncs.at(-1)?.at.toISOString()).toBe("2026-09-01T00:01:15.000Z");
   });
 });

@@ -102,7 +102,7 @@ export class DashboardStore extends EventEmitter {
   private devices = new Map<string, DeviceSnapshot>();
   private fleetName = config.fleetName;
   private topicPattern = config.topicPattern;
-  private updatedAt = new Date().toISOString();
+  private updatedAt: string;
   // Serializes every mutating operation. The callers are un-awaited/concurrent
   // (MQTT `message` handler, offline-monitor interval, config watcher, REST),
   // and the mutators await persistence + event emission mid-way — without this
@@ -154,8 +154,21 @@ export class DashboardStore extends EventEmitter {
   constructor(
     private readonly persistence: Persistence,
     private readonly configRegistry: ConfigRegistry,
+    /**
+     * The store's clock: arrival time, debounce, the offline sweep, eviction, alert clears. The
+     * process clock in production. The demo simulator's history backfill passes the simulated
+     * time, so a month of frames goes through exactly this code and every time it records —
+     * when an alert cleared, when a vehicle went silent — is the time it happened in the
+     * simulation, not the minute the backfill ran.
+     */
+    private readonly now: () => number = () => Date.now(),
   ) {
     super();
+    this.updatedAt = this.nowIso();
+  }
+
+  private nowIso(): string {
+    return new Date(this.now()).toISOString();
   }
 
   /**
@@ -166,7 +179,7 @@ export class DashboardStore extends EventEmitter {
    */
   setSourceConnected(connected: boolean): void {
     if (connected) {
-      this.sourceUpSince ??= Date.now();
+      this.sourceUpSince ??= this.now();
     } else {
       this.sourceUpSince = null;
     }
@@ -174,7 +187,7 @@ export class DashboardStore extends EventEmitter {
 
   /** Log at most one line per `WARN_THROTTLE_MS` per `key`. */
   private warnThrottled(key: string, payload: Record<string, unknown>, message: string): void {
-    const now = Date.now();
+    const now = this.now();
     if (now - (this.warnThrottle.get(key) ?? 0) < WARN_THROTTLE_MS) {
       return;
     }
@@ -377,7 +390,7 @@ export class DashboardStore extends EventEmitter {
       return 0;
     }
 
-    const now = Date.now();
+    const now = this.now();
     const evictable: string[] = [];
     for (const deviceId of this.rawDevices.keys()) {
       if (this.configRegistry.hasDeviceConfig(deviceId)) {
@@ -442,7 +455,7 @@ export class DashboardStore extends EventEmitter {
   ): Promise<void> {
     // Arrival time is taken here, before the queue: a frame that waited behind a slow write
     // still arrived when it arrived.
-    const receivedAt = Date.now();
+    const receivedAt = this.now();
     return this.enqueue(
       () => this.applyPayloadInternal(payload, source, options, receivedAt),
       options.sheddable === true,
@@ -480,7 +493,7 @@ export class DashboardStore extends EventEmitter {
 
     const restored = await this.persistence.restoreLatestDevices();
     if (restored.length) {
-      const now = Date.now();
+      const now = this.now();
       // Restore only devices the current roster still configures. A restored row is a
       // historical snapshot, not a live report: resurrecting one whose id has since left
       // vehicles.json seeds an off-roster ghost into the fleet that nothing prunes until
@@ -501,7 +514,7 @@ export class DashboardStore extends EventEmitter {
           this.lastIngestAt.set(device.deviceId, Math.min(Date.parse(device.stamp) || now, now));
         });
       this.rebuildConfiguredDevices();
-      this.updatedAt = new Date().toISOString();
+      this.updatedAt = this.nowIso();
       return;
     }
 
@@ -562,7 +575,7 @@ export class DashboardStore extends EventEmitter {
     payload: unknown,
     source: string,
     options: ApplyPayloadOptions = {},
-    receivedAt = Date.now(),
+    receivedAt = this.now(),
   ): Promise<void> {
     const alertRules = this.configRegistry.getAlertRules();
     const checkClock = options.checkDeviceClock === true;
@@ -621,13 +634,13 @@ export class DashboardStore extends EventEmitter {
         existingRaw?.alerts ?? [],
         mergedRaw.alerts,
         alertRules,
-        Date.now(),
+        this.now(),
       );
       const mergedConfigured = this.applySnapshotConfig(mergedRaw);
 
       nextRawMap.set(mergedRaw.deviceId, mergedRaw);
       nextDeviceMap.set(mergedConfigured.deviceId, mergedConfigured);
-      this.lastIngestAt.set(mergedRaw.deviceId, Date.now());
+      this.lastIngestAt.set(mergedRaw.deviceId, this.now());
       // Broadcast first, persist second: the live view must not wait on the database. The write
       // still runs inside the serial queue (ordering, backpressure) and is time-bounded.
       this.emitChangeEvents(existingConfigured || null, mergedConfigured, source);
@@ -659,7 +672,7 @@ export class DashboardStore extends EventEmitter {
 
     this.rawDevices = nextRawMap;
     this.devices = nextDeviceMap;
-    this.updatedAt = new Date().toISOString();
+    this.updatedAt = this.nowIso();
   }
 
   private async applyStatusInternal(deviceId: string, statusPayload: unknown): Promise<void> {
@@ -672,7 +685,7 @@ export class DashboardStore extends EventEmitter {
       {
         deviceId,
         online: this.parseOnline(statusPayload),
-        stamp: new Date().toISOString(),
+        stamp: this.nowIso(),
       },
       existingRaw || null,
       "",
@@ -682,10 +695,10 @@ export class DashboardStore extends EventEmitter {
 
     this.rawDevices.set(deviceId, normalizedRaw);
     this.devices.set(deviceId, configuredDevice);
-    this.lastIngestAt.set(deviceId, Date.now());
+    this.lastIngestAt.set(deviceId, this.now());
     this.emitChangeEvents(existingConfigured || null, configuredDevice, "mqtt-status");
     await this.persistRawDevice(normalizedRaw);
-    this.updatedAt = new Date().toISOString();
+    this.updatedAt = this.nowIso();
   }
 
   private parseOnline(statusPayload: unknown): boolean {
@@ -721,7 +734,7 @@ export class DashboardStore extends EventEmitter {
   private async persistRawDevice(device: DeviceSnapshot): Promise<void> {
     await this.persistence.writeLatestSnapshot(device);
     await this.persistence.writeTelemetry(device);
-    await this.persistence.upsertAlerts(device.deviceId, device.alerts);
+    await this.persistence.upsertAlerts(device.deviceId, device.alerts, new Date(this.now()));
   }
 
   /**
@@ -752,7 +765,7 @@ export class DashboardStore extends EventEmitter {
          * being updated once a second per vehicle. A freshness indicator that does not
          * move is worse than none: it answers "is this live" with a confident no.
          */
-        updatedAt: new Date().toISOString(),
+        updatedAt: this.nowIso(),
       },
     });
 
@@ -1008,7 +1021,7 @@ export class DashboardStore extends EventEmitter {
     // (below) is a memory concern, not a rule, so it runs regardless.
     const offlineRule = this.configRegistry.getAlertRules().offline;
     const thresholdMs = (offlineRule.afterSeconds ?? config.offlineAfterSeconds) * 1000;
-    const now = Date.now();
+    const now = this.now();
     // A sweep that comes more than a whole offline window after the previous one means this
     // process did not run in between — the host slept, the VM was paused, the clock jumped. Every
     // vehicle's last frame then looks stale at once, and none of that is evidence about a vehicle:
@@ -1039,7 +1052,7 @@ export class DashboardStore extends EventEmitter {
       // alert from the previous sweep, and the id is the same either way.
       const nextAlerts: DeviceAlert[] = [
         ...device.alerts.filter((alert) => alert.id !== offlineAlertId(device.deviceId)),
-        buildOfflineAlert(device.deviceId, new Date().toISOString()),
+        buildOfflineAlert(device.deviceId, this.nowIso()),
       ];
 
       const updatedRaw = {
@@ -1054,14 +1067,14 @@ export class DashboardStore extends EventEmitter {
       this.devices.set(device.deviceId, updatedConfigured);
       this.emitChangeEvents(previousConfigured, updatedConfigured, "offline-monitor");
       await this.persistRawDevice(updatedRaw);
-      this.updatedAt = new Date().toISOString();
+      this.updatedAt = this.nowIso();
     }
 
     // Same sweep, one step further along the same timeline: first mark the stale
     // ones offline, then forget the ones that have been silent long enough to have
     // no business occupying memory.
     if (this.evictSilentDevices()) {
-      this.updatedAt = new Date().toISOString();
+      this.updatedAt = this.nowIso();
       // An authoritative snapshot rather than a new "device removed" event: a
       // long-lived tab has no other way to learn a device is gone, and the
       // frontends already treat a fleet-shaped payload as a replacement. Only

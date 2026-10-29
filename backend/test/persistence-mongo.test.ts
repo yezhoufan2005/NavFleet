@@ -734,6 +734,17 @@ describe("upsertAlerts", () => {
     expect(insert).toMatchObject({ clearedAt: null, ackedBy: null });
   });
 
+  it("清除时刻取调用方给的时间（回填按模拟时刻关闭），不取写库那一刻", async () => {
+    const { db, calls } = createFakeDb();
+    persistence.__setDbForTests(db);
+    const at = new Date("2026-09-01T03:04:05Z");
+
+    await persistence.upsertAlerts("agv-a", [], at);
+
+    const clearSet = (calls.updateMany[0]?.update as { $set: Record<string, unknown> }).$set;
+    expect(clearSet).toMatchObject({ clearedAt: at, lastSeenAt: at });
+  });
+
   it("写失败计入失败数，并在下一次 flush 时按内存活跃集合补同步", async () => {
     const failing = createFakeDb({}, { updateOne: true });
     persistence.__setDbForTests(failing.db);
