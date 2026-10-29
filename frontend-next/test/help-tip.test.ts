@@ -45,6 +45,29 @@ describe("UiHelpTip", () => {
   });
 });
 
+describe("UiHelpTip in a dialog", () => {
+  it("does not open when focus lands on it programmatically (a dialog focusing its first field)", async () => {
+    const wrapper = mount(UiHelpTip, {
+      props: { text: "设备的唯一标识" },
+      attachTo: document.body,
+    });
+    (wrapper.get("button").element as HTMLButtonElement).focus();
+    await wrapper.get("button").trigger("focus");
+    await flushPromises();
+    expect(tipText()).toBe("");
+  });
+
+  it("draws the ? and its ring in one grey", () => {
+    const wrapper = mount(UiHelpTip, { props: { text: "说明" } });
+    const classes = wrapper.get("button").classes();
+    expect(classes).toContain("border-current");
+    // At rest the ? takes the ring's own light grey; only hover / keyboard focus darkens both.
+    expect(classes).toContain("text-border-strong");
+    expect(classes).not.toContain("text-ink-subtle");
+    expect(classes.some((name) => name.includes("brand"))).toBe(false);
+  });
+});
+
 describe("FIELD_HELP", () => {
   it("has a non-empty sentence for every field", () => {
     for (const [page, fields] of Object.entries(FIELD_HELP)) {

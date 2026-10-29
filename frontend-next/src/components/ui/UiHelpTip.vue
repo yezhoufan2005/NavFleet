@@ -7,7 +7,10 @@
  * small help affordance next to such labels; this is that, built on reka-ui's Tooltip so it gets
  * the accessible behaviour for free:
  *
- * - opens on hover **and** on keyboard focus (the trigger is a real button in the tab order);
+ * - opens on hover **and** on keyboard focus (the trigger is a real button in the tab order) —
+ *   keyboard focus only: a dialog that moves focus to its first field on open must not pop the
+ *   tip of a "?" the pointer is nowhere near, so programmatic and mouse focus are ignored
+ *   (`ignore-non-keyboard-focus`);
  * - Esc closes it; it never steals focus;
  * - the text is the trigger's accessible description, so a screen reader announces it with the
  *   button — the visible tooltip is a convenience, not the only channel.
@@ -35,17 +38,33 @@ const open = ref(false);
 </script>
 
 <template>
-  <TooltipProvider :delay-duration="150">
+  <TooltipProvider :delay-duration="150" ignore-non-keyboard-focus>
     <TooltipRoot v-model:open="open">
       <TooltipTrigger as-child>
         <button
           type="button"
-          class="ui-help inline-grid size-4 shrink-0 place-items-center rounded-full border border-border-strong text-[10px] leading-none font-semibold text-ink-muted transition-colors duration-150 ease-standard hover:border-brand hover:text-brand-ink focus-visible:border-brand focus-visible:text-brand-ink"
+          class="ui-help inline-grid size-4 shrink-0 place-items-center rounded-full border border-current text-border-strong transition-colors duration-150 ease-standard hover:text-ink-subtle focus-visible:text-ink-subtle"
           :aria-label="label"
           :aria-description="text"
           @click.prevent.stop="open = !open"
         >
-          ?
+          <!--
+            Drawn, not typed: at rest the mark shares the ring's light grey, which is right for a
+            secondary affordance but would read to axe as a 10px text glyph below 4.5:1. The
+            button's name and the explanation travel in aria-label / aria-description either way.
+          -->
+          <svg
+            viewBox="0 0 16 16"
+            class="size-2.5"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="2"
+            stroke-linecap="round"
+            aria-hidden="true"
+          >
+            <path d="M5.5 5.5a2.5 2.5 0 1 1 3.6 2.24c-.7.35-1.1.9-1.1 1.6v.4" />
+            <circle cx="8" cy="13" r="0.6" fill="currentColor" />
+          </svg>
         </button>
       </TooltipTrigger>
       <TooltipPortal>

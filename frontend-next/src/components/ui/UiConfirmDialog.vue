@@ -7,9 +7,11 @@
  * first that does — delete a user, force-log-out an account, revoke a session — and the note
  * on that variant promised it would return **with** this pattern, not before. This is it.
  *
- * Built on reka `AlertDialog` (not `Dialog`): the role is `alertdialog`, focus lands on the
- * cancel affordance, and Escape / outside-click cancel — the correct semantics for "are you
- * sure". It is a **controlled** component: the parent owns `open` so it can keep the dialog up
+ * Built on reka `AlertDialog` (not `Dialog`): the role is `alertdialog` and focus lands on the
+ * cancel affordance. reka's AlertDialog deliberately ignores a click outside; here a click on the
+ * backdrop cancels, the same as every other dialog in the console and the same as Escape —
+ * cancelling is always safe, so there is no reason this one dialog should be the exception. Not
+ * while the action is in flight (`pending`), when the dialog has to stay up until it resolves. It is a **controlled** component: the parent owns `open` so it can keep the dialog up
  * while the async action runs (`pending`) and close it only once the request resolves.
  */
 import {
@@ -47,7 +49,10 @@ const emit = defineEmits<{ "update:open": [boolean]; confirm: [] }>();
 <template>
   <AlertDialogRoot :open="open" @update:open="emit('update:open', $event)">
     <AlertDialogPortal>
-      <AlertDialogOverlay class="fixed inset-0 z-50 bg-scrim/55" />
+      <AlertDialogOverlay
+        class="fixed inset-0 z-50 bg-scrim/55"
+        @click="!pending && emit('update:open', false)"
+      />
       <AlertDialogContent
         class="fixed top-1/2 left-1/2 z-50 flex w-full max-w-100 -translate-x-1/2 -translate-y-1/2 flex-col gap-3 rounded-md border border-border bg-surface-raised p-5 shadow-overlay"
       >
