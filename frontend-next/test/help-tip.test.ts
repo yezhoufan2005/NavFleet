@@ -61,7 +61,9 @@ describe("UiHelpTip in a dialog", () => {
     const wrapper = mount(UiHelpTip, { props: { text: "说明" } });
     const classes = wrapper.get("button").classes();
     expect(classes).toContain("border-current");
-    expect(classes).toContain("text-ink-subtle");
+    // At rest the ? takes the ring's own light grey; only hover / keyboard focus darkens both.
+    expect(classes).toContain("text-border-strong");
+    expect(classes).not.toContain("text-ink-subtle");
     expect(classes.some((name) => name.includes("brand"))).toBe(false);
   });
 });

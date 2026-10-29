@@ -43,7 +43,7 @@ const open = ref(false);
       <TooltipTrigger as-child>
         <button
           type="button"
-          class="ui-help inline-grid size-4 shrink-0 place-items-center rounded-full border border-current text-[10px] leading-none font-semibold text-ink-subtle transition-colors duration-150 ease-standard hover:text-ink-muted focus-visible:text-ink-muted"
+          class="ui-help inline-grid size-4 shrink-0 place-items-center rounded-full border border-current text-[10px] leading-none font-semibold text-border-strong transition-colors duration-150 ease-standard hover:text-ink-subtle focus-visible:text-ink-subtle"
           :aria-label="label"
           :aria-description="text"
           @click.prevent.stop="open = !open"
