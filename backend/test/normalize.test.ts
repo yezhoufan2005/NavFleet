@@ -80,6 +80,26 @@ describe("normalizeDevice", () => {
   });
 });
 
+describe("report-code text across frames", () => {
+  const frame = (code: number, info?: string) => ({
+    deviceId: "agv-a01",
+    stamp: 1712472000000,
+    info_code: { code, ...(info !== undefined ? { info } : {}) },
+  });
+
+  it("drops the previous code's text when a frame clears the code", () => {
+    const first = normalizeDevice(frame(1302, "任务完成，待命中"));
+    const cleared = normalizeDevice(frame(0, ""), first);
+    expect(cleared.infoCode).toMatchObject({ code: 0, info: "" });
+  });
+
+  it("keeps the text for the same code when a frame omits it", () => {
+    const first = normalizeDevice(frame(1302, "任务完成，待命中"));
+    const again = normalizeDevice(frame(1302), first);
+    expect(again.infoCode.info).toBe("任务完成，待命中");
+  });
+});
+
 describe("normalizePayload device-id extraction", () => {
   it("honors a custom (non-/fleet/) topic pattern", () => {
     const result = normalizePayload(

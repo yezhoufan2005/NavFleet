@@ -24,6 +24,19 @@ COPY backend/tsconfig.json backend/tsconfig.build.json backend/build.mjs ./backe
 COPY backend/src ./backend/src
 RUN npm run build -w navfleet-backend
 
+# Demo fleet simulator (deploy/docker-compose.demo.yml). Runs the TypeScript sources with tsx from
+# the build stage, which already holds the dev dependencies and the shared package source; it is
+# never part of the runtime image.
+FROM build AS sim
+COPY backend/sim ./backend/sim
+RUN mkdir -p /state && chown node:node /state
+WORKDIR /app/backend
+USER node
+ENV SIM_STATE_DIR=/state CONFIG_ROOT_PATH=/runtime-config
+HEALTHCHECK --interval=15s --timeout=5s --start-period=60m --retries=4 \
+  CMD node -e "const s=require('fs').statSync('/state/live.heartbeat');process.exit(Date.now()-s.mtimeMs<15000?0:1)"
+CMD ["sh", "-c", "npx tsx sim/main.ts catchup && exec npx tsx sim/main.ts live"]
+
 FROM node:24-alpine AS runtime
 WORKDIR /app
 ENV NODE_ENV=production

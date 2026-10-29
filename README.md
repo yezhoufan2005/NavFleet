@@ -245,17 +245,29 @@ npm run screenshots   # 启后端 + 控制台 → 播种演示车队 → 逐页�
 ## 演示数据
 
 `config-runtime/` 里预置了 **29 台车、6 个编队、6 个场景**（栅格 SVG、CloudPoint 点云、Lanelet2 路网
-各有实例）。演示发布器沿 lanelet 车道中心线行驶，而不是绕一个与路网无关的矩形跑：
+各有实例）。演示车队由 `backend/sim` 模拟：每台车按车型跑作业循环（取货、运送、卸货、巡检、回桩
+充电、计划维护），沿 Lanelet 车道中心线或场景通道行驶，并带有定位降级与丢失、避障超时、急停、驱动与
+传感器故障、通信中断等有始有终、有前因后果的事件。它和真车一样经 MQTT 每车每秒上报一帧完整状态。
 
-```bash
-npm run mock:mqtt -- --count 4 --interval 1000
-```
+演示数据像真实车队一样持续存在：
 
-它会连到 `MQTT_URL`（默认 `mqtt://127.0.0.1:1883`），按 `config-runtime/vehicles.json` 里的车辆发布
-遥测。压测用 `backend/scripts/load-ingest.ts`。
+- 整栈（`scripts/verify-stack.sh`，叠加 `deploy/docker-compose.demo.yml`）首次起栈时，模拟器把保留期
+  内的历史（默认 30 天）沿同一条时间线经后端自己的处理流程写入库，之后每次起栈只补停栈期间的空档，
+  随即转为实时上报。历史与实时在接缝处连续，没有跳变。
+- 演示时可以让某台车「出事」，事件进入同一条时间线、到时自行恢复：
 
-> 说明：车辆配置**不会凭空创建车辆**——页面里出现的车来自 MQTT、调试注入或 MongoDB 恢复。上方
-> 「界面一览」的截图就是演示发布器把这 29 台车全部喂进来后的样子。
+  ```bash
+  docker compose -p navfleet exec sim npx tsx sim/main.ts inject agv-w05 estop 5
+  ```
+
+  事件有 `estop`、`obstacle`、`loc-lost`、`drive-fault`、`lidar-fault`、`task-failed`、`collision-guard`、
+  `comm-loss`、`maintenance`、`teleop`、`low-battery`、`battery-heat`、`payload`、`speed-zone`。
+
+- 外发与定时报表发往本机收件服务（邮件在 mailpit，`http://127.0.0.1:8025`），外发记录里是真实送达。
+
+开发时 `scripts/dev.sh --demo` 用同一个模拟器（首次补 7 天）。压测用 `backend/scripts/load-ingest.ts`。
+
+> 说明：车辆配置**不会凭空创建车辆**——页面里出现的车来自 MQTT、调试注入或 MongoDB 恢复。
 
 ## 项目结构
 

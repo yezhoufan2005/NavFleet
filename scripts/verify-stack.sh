@@ -1,16 +1,20 @@
 #!/usr/bin/env bash
 # NavFleet 整栈启动与验收检查
 #
-# 用 Docker Compose 起完整栈（nginx / web / backend / mongo / mosquitto），等到全部健康，
-# 可选地推一段演示数据 + 注入演示账号/记录，然后**逐条断言**边缘路由、鉴权边界、探针、指标与业务接口。
-# 断言全过才返回 0，所以可以直接当验收门禁用。
+# 用 Docker Compose 起完整栈（nginx / web / backend / mongo / mosquitto），默认叠加演示车队
+# （docker-compose.demo.yml：模拟器 sim + 本机收件箱 mailpit），等到全部健康，注入演示账号/记录，
+# 然后**逐条断言**边缘路由、鉴权边界、探针、指标与业务接口。断言全过才返回 0，可直接当验收门禁用。
+#
+# 演示数据像真实车队一样持续存在：库与模拟器状态都在卷里，**首次**起栈生成保留期内的历史
+# （29 车 × 30 天约 25 分钟），之后每次起栈只补停栈期间的空档，随即接着实时上报。
 #
 # 用法:
-#   scripts/verify-stack.sh              起栈 + 演示数据 + 演示账号/记录 + 全部断言，跑完把栈留着
-#   scripts/verify-stack.sh --down       跑完自动停栈并删掉它自己建的卷
-#   scripts/verify-stack.sh --no-mock    不推实时演示遥测（断言里与数据量有关的几条会跳过）
+#   scripts/verify-stack.sh              起栈 + 演示车队 + 演示账号/记录 + 全部断言，跑完把栈留着
+#   scripts/verify-stack.sh --down       跑完停栈（保留数据卷，下次起栈接着补齐）
+#   scripts/verify-stack.sh --purge      开跑前删掉本 project 的全部卷（库与演示状态），从空库重来
+#   scripts/verify-stack.sh --no-mock    不叠加演示车队（断言里与数据量有关的几条会跳过）
 #   scripts/verify-stack.sh --no-seed    不注入演示账号/角色/组/会话/审计（只保留 admin）
-#   scripts/verify-stack.sh --fresh      先删掉本脚本的 project 与卷，从空库重来
+#   scripts/verify-stack.sh --fresh      先停掉并删除本 project 的容器再起（保留卷）
 #   scripts/verify-stack.sh --check-only 不碰 compose，只对已经在跑的栈跑断言（也不注入演示数据）
 #   scripts/verify-stack.sh --allow-dirty 工作树有未提交改动时仍继续（默认拦下，见下）
 #   scripts/verify-stack.sh --mqtt-tls   叠加 TLS broker（mqtts://8883），验证加密摄入链路
@@ -42,6 +46,7 @@ DO_MOCK=1
 DO_SEED=1
 DO_DOWN=0
 DO_FRESH=0
+DO_PURGE=0
 CHECK_ONLY=0
 MQTT_TLS=0
 MONITORING=0
@@ -52,45 +57,24 @@ while [[ $# -gt 0 ]]; do
     --no-mock) DO_MOCK=0; shift ;;
     --no-seed) DO_SEED=0; shift ;;
     --fresh) DO_FRESH=1; shift ;;
+    --purge) DO_PURGE=1; shift ;;
     --check-only) CHECK_ONLY=1; shift ;;
     --allow-dirty) ALLOW_DIRTY=1; shift ;;
     --mqtt-tls) MQTT_TLS=1; shift ;;
     --monitoring) MONITORING=1; shift ;;
-    # 2,27 是上面那段注释的确切范围 —— 注释止于第 27 行，第 28 行是 `set -uo pipefail`。
+    # 2,31 是上面那段注释的确切范围 —— 注释止于第 31 行，第 32 行是 `set -uo pipefail`。
     # dev.sh 里踩过同一个off-by-one（--help 末尾多印一行代码），所以这里写死并核对过。
-    -h|--help) sed -n '2,27p' "$0"; exit 0 ;;
+    -h|--help) sed -n '2,31p' "$0"; exit 0 ;;
     *) echo "未知参数: $1"; exit 1 ;;
   esac
 done
 
-MOCK_PID=""
-# 演示发布器转后台持续运行后，PID 记在这里，供下次起栈（或 --down）先清掉上一只，避免叠加成一群。
-MOCK_PIDFILE="/tmp/navfleet-verify-demo-mock.pid"
-# 递归杀进程树：mock 是 `( … npm run mock:mqtt ) &`，$! 只是那层 subshell/npm，直接 kill 它
-# 会把底下的 tsx→node（真正那个连 broker、按节拍发的进程）留成孤儿，继续灌 compose 后端的摄入
-# 队列（表现为报表页偶发 Failed to fetch）。深度优先、先子后父，确保整棵树都停。
-kill_tree() {
-  local pid="$1" child
-  [[ -n "$pid" ]] || return 0
-  for child in $(pgrep -P "$pid" 2>/dev/null); do kill_tree "$child"; done
-  kill "$pid" 2>/dev/null || true
-}
 cleanup() {
-  # 收尾策略取决于 --down：
-  #  · --down：栈要拆，顺手把后台演示发布器也杀掉、删 pidfile。
-  #  · 否则：**故意留着**发布器在后台跑，让设备持续有遥测、保持在线（否则 60s 后全部离线，
-  #    正是「演示数据突然没了」）。只 disown，脚本退出不带走它；下次起栈开头会先清旧的再起新的。
-  if [[ -n "$MOCK_PID" ]]; then
-    disown "$MOCK_PID" 2>/dev/null
-    if [[ "$DO_DOWN" == "1" ]]; then
-      kill_tree "$MOCK_PID"
-      rm -f "$MOCK_PIDFILE"
-    fi
-  fi
   rm -f "$COOKIE"
+  # 只停不删：演示车队的历史与模拟器状态都在卷里，下次起栈从停下的那一秒接着补齐。
   if [[ "$DO_DOWN" == "1" && "$CHECK_ONLY" == "0" ]]; then
-    echo; echo "停栈（连它自己的卷一起删）…"
-    compose down -v >/dev/null 2>&1
+    echo; echo "停栈（保留数据卷）…"
+    compose down >/dev/null 2>&1
   fi
 }
 trap cleanup EXIT
@@ -120,6 +104,9 @@ if [[ "$MQTT_TLS" == "1" ]]; then
 fi
 if [[ "$MONITORING" == "1" ]]; then
   COMPOSE_ARGS+=(-f "$ROOT/deploy/docker-compose.monitoring.yml")
+fi
+if [[ "$DO_MOCK" == "1" ]]; then
+  COMPOSE_ARGS+=(-f "$ROOT/deploy/docker-compose.demo.yml")
 fi
 PROM_PORT="${PROMETHEUS_HOST_PORT:-9090}"
 
@@ -166,6 +153,7 @@ fi
 # 起栈
 # ---------------------------------------------------------------------------
 SERVICES=(nginx web backend mongo mosquitto)
+[[ "$DO_MOCK" == "1" ]] && SERVICES+=(sim)
 
 if [[ "$CHECK_ONLY" == "0" ]]; then
   # compose 从**当前磁盘上的文件**构建镜像（context 是仓库根），不是从某个 git 提交。所以工作树脏
@@ -185,15 +173,44 @@ if [[ "$CHECK_ONLY" == "0" ]]; then
     echo "  （--allow-dirty：按当前磁盘状态继续）"
   fi
 
-  if [[ "$DO_FRESH" == "1" ]]; then
-    echo "清掉 project '${PROJECT}' 与它的卷…"
+  if [[ "$DO_PURGE" == "1" ]]; then
+    echo "删掉 project '${PROJECT}' 的容器与全部卷（库与演示车队状态），从空库重来…"
     compose down -v >/dev/null 2>&1
+  elif [[ "$DO_FRESH" == "1" ]]; then
+    echo "停掉并删除 project '${PROJECT}' 的容器（保留卷）…"
+    compose down >/dev/null 2>&1
   fi
   echo "构建并启动整栈（project '${PROJECT}'，宿主端口 ${PORT}）…"
   # --force-recreate：保证每次都重建容器。否则改了挂载进容器的配置（如 nginx 的 locations.conf，
   # 单文件 bind mount，host 侧改动不会触发 compose 重建）或重建了镜像时，旧容器可能原地留存，
   # 看起来「跑了却没更新」。配合上面的构建，这条让「每次 verify-stack 都确实更新+重启」成立。
-  if ! compose up -d --build --force-recreate >/tmp/navfleet-verify-up.log 2>&1; then
+  if [[ "$DO_MOCK" == "1" ]]; then
+    # 演示车队分两步起：先库、broker 与模拟器，等模拟器把历史补到「现在」并转入实时上报，再起平台。
+    # 平台不在历史还在写的时候判离线——和真实现场一样，车一直在报，平台后上线。
+    if ! compose up -d --build --force-recreate mongo mosquitto mailpit sim \
+      >/tmp/navfleet-verify-up.log 2>&1; then
+      echo "compose up（演示车队）失败，最后 30 行："; tail -30 /tmp/navfleet-verify-up.log; exit 1
+    fi
+    echo "等演示车队补齐历史并转入实时上报（首次约 25 分钟，之后只补停栈期间的空档）…"
+    last_line=""
+    sim_ready=0
+    for _ in $(seq 1 1440); do
+      status="$(compose ps --format '{{.Service}} {{.Status}}' 2>/dev/null | sed -n 's/^sim //p')"
+      if [[ "$status" == *"(healthy)"* ]]; then sim_ready=1; break; fi
+      if [[ "$status" != Up* ]]; then
+        echo "  模拟器没在运行：${status:-未运行}"; compose logs --tail 30 sim; exit 1
+      fi
+      line="$(compose logs --no-log-prefix sim 2>/dev/null | grep '^\[sim\]' | tail -1)"
+      if [[ -n "$line" && "$line" != "$last_line" ]]; then echo "  ${line}"; last_line="$line"; fi
+      sleep 5
+    done
+    [[ "$sim_ready" == "1" ]] || { echo "  模拟器 2 小时内未就绪"; compose logs --tail 30 sim; exit 1; }
+    # --no-deps：依赖刚才已起好；不带它，force-recreate 会把模拟器也重建一遍。
+    if ! compose up -d --build --force-recreate --no-deps nginx web backend \
+      >>/tmp/navfleet-verify-up.log 2>&1; then
+      echo "compose up 失败，最后 30 行："; tail -30 /tmp/navfleet-verify-up.log; exit 1
+    fi
+  elif ! compose up -d --build --force-recreate >/tmp/navfleet-verify-up.log 2>&1; then
     echo "compose up 失败，最后 30 行："; tail -30 /tmp/navfleet-verify-up.log; exit 1
   fi
 
@@ -206,8 +223,8 @@ if [[ "$CHECK_ONLY" == "0" ]]; then
   # 这个内存计数就跨多次验收活了下来（正是本次 23 条失败的根因）。重启后进程重来、计数归零，
   # 每次验收都拿到干净的限流预算；限流值本身不动（仍是真实的 50/15min）。
   #
-  # --fresh 刚 down -v + up 过，backend 本就是新的，跳过这次多余的重启。
-  if [[ "$DO_FRESH" == "0" ]]; then
+  # --fresh / --purge 刚 down + up 过，backend 本就是新的，跳过这次多余的重启。
+  if [[ "$DO_FRESH" == "0" && "$DO_PURGE" == "0" ]]; then
     echo "重启 backend 清空登录限流计数（避免多次验收累积触发 429）…"
     compose restart backend >/dev/null 2>&1 || true
   fi
@@ -279,77 +296,11 @@ eq "正确口令登录成功" 200 "$(code -c "$COOKIE" -H 'Content-Type: applica
 eq "会话 /api/auth/me"  200 "$(code -b "$COOKIE" "$BASE/api/auth/me")"
 eq "token 续签"         200 "$(code -b "$COOKIE" -X POST "$BASE/api/auth/refresh")"
 
-# --- 演示数据（真实 MQTT 链路，发布器读 config-runtime 的车队定义）-----------
+# --- 演示车队（模拟器 sim 经真实 MQTT 链路上报，历史由同一条时间线回填）------------
 if [[ "$DO_MOCK" == "1" ]]; then
-  # 先清掉上一次起栈留在后台的发布器（若有），避免一只只叠加、把后端摄入队列灌爆。
-  if [[ -f "$MOCK_PIDFILE" ]]; then
-    kill_tree "$(cat "$MOCK_PIDFILE" 2>/dev/null)"
-    rm -f "$MOCK_PIDFILE"
-  fi
   echo
-  echo "推演示数据（真实 MQTT 链路；转后台持续运行以保持设备在线）…"
-  # --interval 2000：~29 台车每 2 秒各发一帧 ≈ 15 帧/秒，远低于摄入队列承载，不会灌爆（旧的 500ms
-  # 是之前「Failed to fetch」的元凶）；同时 2s < 60s 离线阈值，设备稳定在线。exec nohup 让进程树是
-  # nohup→npm→tsx→node，忽略 SIGHUP；凭据走 export（不进 `ps` 的命令行参数）。
-  (
-    cd "$ROOT/backend"
-    export MQTT_PUBLISHER_USERNAME="$(deploy_var MQTT_PUBLISHER_USERNAME)" \
-      MQTT_PUBLISHER_PASSWORD="$(deploy_var MQTT_PUBLISHER_PASSWORD)" \
-      MQTT_URL="mqtt://127.0.0.1:${MQTT_HOST_PORT:-1883}"
-    exec nohup npm run mock:mqtt -- --interval 2000
-  ) >/tmp/navfleet-verify-mock.log 2>&1 &
-  MOCK_PID=$!
-  echo "$MOCK_PID" >"$MOCK_PIDFILE"
-  disown "$MOCK_PID" 2>/dev/null || true
-  # 10 秒够每台车发 5+ 帧，历史与告警都有内容可断言。
-  sleep 10
-  if grep -qiE 'not authorized|bad user name' /tmp/navfleet-verify-mock.log; then
-    bad "演示发布器被 broker 拒绝 —— 检查 deploy/.env 的 MQTT_PUBLISHER_*"
-  else
-    ok "演示发布器已连上 broker（将在后台持续运行）"
-  fi
-
-  # 回填 30 天演示历史（遥测 + 消息），直接写库。
-  #
-  # 为什么直接入库而不走 debug/ingest：每台每分钟一帧、30 天是百万级帧，HTTP 回填会撞边缘限流。
-  # 生成逻辑在 scripts/demo-history.js（与 backend/scripts/seed-reports.ts 共用同一份），按车型画像
-  # 逐分钟模拟电量/作业/充电、计划维护与通信闪断，并按真实形态产出每次发生一条的消息（提示多、预警
-  # 次之、告警少；带持续时长、因果先后与按班次的确认人）。这里把它与 vehicles.json 一起喂给 mongosh：
-  # 先清掉累积的遥测与消息，再相对“现在”铺 30 天（留最近 5 分钟给后台发布器）。设备在线状态由
-  # device_latest + 发布器维持，这里不动它。播种的消息一律是已清除的历史，不污染实时活跃列表。
-  MONGO_U="$(deploy_var MONGO_INITDB_ROOT_USERNAME)"; MONGO_U="${MONGO_U:-root}"
-  MONGO_P="$(deploy_var MONGO_INITDB_ROOT_PASSWORD)"
-  OFFLINE_S="$(python3 -c "import json;print(json.load(open('$ROOT/config-runtime/rules.json')).get('offline',{}).get('afterSeconds',60))" 2>/dev/null || echo 60)"
-  SEEDED="$( {
-      cat "$ROOT/scripts/demo-history.js"
-      printf 'var VEHICLES = %s;\nvar OFFLINE_AFTER_SECONDS = %s;\n' \
-        "$(cat "$ROOT/config-runtime/vehicles.json")" "$OFFLINE_S"
-      cat <<'JS'
-var now = Date.now(), DAYS = 30;
-var known = db.device_latest.distinct("deviceId");
-var fleet = VEHICLES.filter(function (v) { return known.indexOf(v.deviceId) >= 0; });
-if (!fleet.length) { print("0 0 0"); quit(); }
-// telemetry_ts 默认 30 天 TTL（TELEMETRY_RETENTION_SECONDS）：演示库放宽到 45 天，30 天历史留得住
-// 而不在边上被裁（仅本地演示卷，不改部署配置）。
-try { db.runCommand({ collMod: "telemetry_ts", expireAfterSeconds: 45 * 24 * 3600 }); } catch (e) {}
-db.telemetry_ts.deleteMany({});
-db.alerts.deleteMany({});
-var frames = 0, messages = 0;
-fleet.forEach(function (vehicle) {
-  var h = demoDeviceHistory(vehicle, VEHICLES.indexOf(vehicle),
-    { now: now, days: DAYS, offlineAfterSeconds: OFFLINE_AFTER_SECONDS, tailMinutes: 5 });
-  for (var i = 0; i < h.telemetry.length; i += 10000) db.telemetry_ts.insertMany(h.telemetry.slice(i, i + 10000));
-  if (h.alerts.length) db.alerts.insertMany(h.alerts);
-  frames += h.telemetry.length; messages += h.alerts.length;
-});
-print(fleet.length + " " + frames + " " + messages);
-JS
-    } | compose exec -T mongo mongosh --quiet -u "$MONGO_U" -p "$MONGO_P" \
-      --authenticationDatabase admin fleet_monitor 2>/dev/null
-  )"
-  SEEDED="$(printf '%s' "$SEEDED" | grep -oE '[0-9]+ [0-9]+ [0-9]+' | tail -1 | awk '{print $1" 台 / "$2" 帧遥测 / "$3" 条消息"}')"
-  echo "演示历史回填：${SEEDED:-（无设备，已跳过）}（30 天，随本次起栈刷新）"
-
+  echo "演示车队:"
+  compose logs --no-log-prefix sim 2>/dev/null | grep -E '^\[sim\] .*(wrote|summarised|connected)' | tail -3 | sed 's/^/  /'
   echo
   echo "断言（续）:"
 fi
@@ -385,6 +336,44 @@ has "OSM overlay 带 lanelets" '"lanelets"' "$OVERLAY_BODY"
 if [[ "$DO_MOCK" == "1" ]]; then
   HIST="$(body -b "$COOKIE" "$BASE/api/v1/devices/agv-a01/history?limit=5")"
   has "历史落库并可查（Mongo 链路）" '"measurements"' "$HIST"
+  # 回放要的是位姿：历史帧与实时帧同一形状，带 ROS 位姿与场景。
+  FROM_24H="$(python3 -c "import datetime as d;print((d.datetime.now(d.timezone.utc)-d.timedelta(hours=24)).strftime('%Y-%m-%dT%H:%M:%SZ'))")"
+  NOW_ISO="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+  PLAYBACK="$(body -b "$COOKIE" "$BASE/api/v1/devices/agv-a01/history?from=${FROM_24H}&to=${NOW_ISO}&sampling=even")"
+  POSED="$(printf '%s' "$PLAYBACK" | python3 -c "
+import json,sys
+items=json.load(sys.stdin).get('items',[])
+print(sum(1 for i in items if isinstance((i.get('measurements') or {}).get('fusionLoc',{}).get('x'),(int,float))), len(items))" 2>/dev/null || echo '0 0')"
+  [[ "${POSED%% *}" -ge 100 && "${POSED%% *}" == "${POSED##* }" ]] &&
+    ok "近 24 小时回放每帧都带 ROS 位姿（${POSED##* } 帧）" || bad "回放帧缺位姿（带位姿/总数：${POSED}）"
+  # 30 天全车队报表：1 Hz 下靠小时汇总才能在超时内出来。
+  REPORT_FROM="$(python3 -c "import datetime as d;print((d.datetime.now(d.timezone.utc)-d.timedelta(days=30)).strftime('%Y-%m-%dT%H:%M:%SZ'))")"
+  REPORT_T="$(curl -s -o /tmp/navfleet-verify-report.json -w '%{http_code} %{time_total}' -b "$COOKIE" \
+    "$BASE/api/v1/reports/availability?from=${REPORT_FROM}&to=${NOW_ISO}&bucket=day")"
+  [[ "${REPORT_T%% *}" == "200" ]] && grep -q '"available":true' /tmp/navfleet-verify-report.json &&
+    ok "30 天全车队可用率报表（${REPORT_T##* }s）" || bad "30 天全车队可用率报表失败：${REPORT_T}"
+  CLEARED="$(body -b "$COOKIE" "$BASE/api/v1/alerts?status=cleared" | count_json '["items"]')"
+  [[ "${CLEARED:-0}" -ge 50 ]] && ok "已清除的消息历史（${CLEARED} 条，查询上限 500）" || bad "已清除的消息历史过少：${CLEARED}"
+  # 注入：急停一分钟，平台随即看到 5701；一分钟后自行恢复，不留永久状态。
+  if compose exec -T sim npx tsx sim/main.ts inject agv-w05 estop 1 >/dev/null 2>&1; then
+    INJECTED=""
+    for _ in $(seq 1 15); do
+      INJECTED="$(body -b "$COOKIE" "$BASE/api/fleet/snapshot" | python3 -c "
+import json,sys
+d={x['deviceId']:x for x in json.load(sys.stdin)['devices']}
+print(d.get('agv-w05',{}).get('errorCode',{}).get('code'))" 2>/dev/null)"
+      [[ "$INJECTED" == "5701" ]] && break
+      sleep 1
+    done
+    eq "注入急停后平台看到 agv-w05 报 5701" 5701 "$INJECTED"
+  else
+    bad "注入命令执行失败"
+  fi
+  MAILPIT_N="$(curl -s "http://127.0.0.1:$(deploy_var MAILPIT_HOST_PORT | grep . || echo 8025)/api/v1/messages?limit=1" |
+    python3 -c "import json,sys;print(json.load(sys.stdin).get('total',0))" 2>/dev/null || echo 0)"
+  NOTIFY_N="$(body -b "$COOKIE" "$BASE/api/v1/notify/log" | count_json '["items"]')"
+  [[ "${NOTIFY_N:-0}" -ge 1 ]] && ok "外发记录有送达记录（${NOTIFY_N} 条；本机收件箱 ${MAILPIT_N} 封）" ||
+    bad "外发记录为空"
 else
   skip "历史落库" "--no-mock"
 fi
@@ -392,8 +381,7 @@ fi
 # --- 演示账号 / 角色 / 组 / 会话 / 审计（admin API 注入进真库）------------------
 # verify-stack 过去只推遥测（mock），却从不建演示用户 —— 整栈起来后「用户/会话/审计」页仍是空的，
 # 用户在真栈里看不到改好的演示数据正是这个缺口。这里跑 seed:demo（幂等）把账号/角色/组/会话/审计
-# 注入进 compose 的 Mongo，再断言确实落了库。报表的多日历史不在这里造（需 DEBUG_INGEST，且本就是
-# dev.sh --demo 的职责）；mock 已给「今天」的遥测与告警。
+# 注入进 compose 的 Mongo，再断言确实落了库。遥测、消息与外发的历史由演示车队（sim）给出。
 if [[ "$DO_SEED" == "1" && "$CHECK_ONLY" == "0" ]]; then
   echo
   echo "注入演示账号/角色/组/会话/审计…"
@@ -489,10 +477,12 @@ if [[ "$DO_DOWN" == "0" && "$CHECK_ONLY" == "0" ]]; then
   echo "  控制台: ${BASE}   账号: ${ADMIN_USER} / （deploy/.env 里的 ADMIN_PASSWORD）"
   echo "  API 文档: ${BASE}/docs"
   if [[ "$DO_MOCK" == "1" ]]; then
-    echo "  演示发布器: 已转后台持续运行（每 2s 一帧），设备保持在线；下次起栈会自动替换它"
-    echo "  只停发布器: kill \$(cat ${MOCK_PIDFILE}) 的进程树（或再跑一次本脚本 / 加 --down）"
+    echo "  演示车队: 模拟器 sim 持续上报（每车每秒一帧），停栈后再起只补空档"
+    echo "  制造事件: docker compose -p ${PROJECT} exec sim npx tsx sim/main.ts inject <设备> <事件> [分钟]"
+    echo "  邮件收件箱: http://127.0.0.1:$(deploy_var MAILPIT_HOST_PORT | grep . || echo 8025)"
   fi
-  echo "  停栈:   docker compose -p ${PROJECT} --env-file deploy/.env -f deploy/docker-compose.yml down"
+  echo "  停栈:   docker compose -p ${PROJECT} --env-file deploy/.env ${COMPOSE_ARGS[*]} down（保留数据卷）"
+  echo "  从空库重来: scripts/verify-stack.sh --purge"
 fi
 echo "─────────────────────────────────────────────"
 

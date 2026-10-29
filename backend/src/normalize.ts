@@ -68,9 +68,15 @@ const resolveDeviceIdFromTopic = (topic: string, topicPattern: string): string =
 
 const normalizeCode = (rawCode: unknown, fallback?: CodeState): CodeState => {
   const source = isRecord(rawCode) ? rawCode : {};
+  const code = Number(toNumeric(source.code, fallback?.code ?? 0) ?? 0);
   return {
-    code: Number(toNumeric(source.code, fallback?.code ?? 0) ?? 0),
-    info: asText(source.info || fallback?.info || ""),
+    code,
+    // A frame that carries the code speaks for its text too: a code cleared to 0 with an empty
+    // text must not keep the previous code's words, or the live card reads "任务完成" against no
+    // code. Only a frame that omits the text for the *same* code inherits it.
+    info: asText(
+      source.info || (isRecord(rawCode) && code !== fallback?.code ? "" : fallback?.info || ""),
+    ),
     stamp: source.stamp ? toIsoString(source.stamp) : fallback?.stamp || null,
   };
 };

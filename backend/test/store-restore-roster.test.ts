@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import type { ConfigRegistry } from "../src/configRegistry";
 import type { Persistence } from "../src/persistence";
 import { DashboardStore } from "../src/store";
@@ -22,11 +22,11 @@ const FLEET_CONFIG: FleetConfig = {
   defaultRosMapEnabled: true,
 };
 
-const restoredDevice = (deviceId: string): DeviceSnapshot =>
+const restoredDevice = (deviceId: string, stamp = new Date().toISOString()): DeviceSnapshot =>
   ({
     deviceId,
     online: true,
-    stamp: new Date().toISOString(),
+    stamp,
     vehicle_info: { soc: 80, speed: 1 },
   }) as unknown as DeviceSnapshot;
 
@@ -82,5 +82,29 @@ describe("restore honours the current roster", () => {
     await store.initialize();
 
     expect(store.snapshot().devices).toHaveLength(2);
+  });
+});
+
+describe("a restart is not evidence that the fleet went offline", () => {
+  // Restored stamps are as old as the restart took. Judged on the first sweep, a two-minute
+  // restart marked every vehicle offline and raised 29 offline alerts that cleared seconds later.
+  it("gives restored vehicles one offline window to report before judging them", async () => {
+    const twoMinutesAgo = new Date(Date.now() - 120_000).toISOString();
+    const store = createStore(["agv-a01"], [restoredDevice("agv-a01", twoMinutesAgo)]);
+    await store.initialize();
+
+    await store.evaluateOfflineDevices();
+    expect(store.snapshot().devices[0]?.online).toBe(true);
+
+    vi.useFakeTimers();
+    try {
+      for (let step = 0; step < 5; step += 1) {
+        vi.setSystemTime(Date.now() + 15_000);
+        await store.evaluateOfflineDevices();
+      }
+      expect(store.snapshot().devices[0]?.online).toBe(false);
+    } finally {
+      vi.useRealTimers();
+    }
   });
 });

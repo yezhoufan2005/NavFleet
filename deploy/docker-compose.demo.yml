@@ -1,0 +1,92 @@
+# Demo fleet. Use alongside the base file:
+#
+#   docker compose --env-file deploy/.env \
+#     -f deploy/docker-compose.yml -f deploy/docker-compose.demo.yml up -d
+#
+# `sim` stands in for the vehicles: it publishes the demo fleet in config-runtime over the real
+# MQTT path, one frame per vehicle per second, from a deterministic simulation (backend/sim). Its
+# state lives in the `sim-state` volume next to `mongo-data`, so the demo behaves like a fleet
+# that has existed all along: the first start generates the retention window of history (about
+# 25 minutes for 29 vehicles × 30 days), every later start only catches up the time the stack
+# was down, then goes live. Delete both volumes together to start over (verify-stack --purge).
+#
+# `mailpit` receives the outbound email (alerts, scheduled reports) and `sim` answers the
+# 企业微信 webhook, so the notification history records real deliveries. Mailpit's inbox is on
+# http://127.0.0.1:${MAILPIT_HOST_PORT:-8025}. Nothing here reaches outside the host.
+services:
+  sim:
+    build:
+      context: ..
+      dockerfile: backend/Dockerfile
+      target: sim
+    depends_on:
+      mongo:
+        condition: service_healthy
+      mosquitto:
+        condition: service_healthy
+    networks:
+      - data
+      - bus
+    environment:
+      MONGO_URI: ${MONGO_URI:-mongodb://root:example@mongo:27017/fleet_monitor?authSource=admin}
+      MONGO_DB_NAME: ${MONGO_DB_NAME:-fleet_monitor}
+      MQTT_URL: mqtt://mosquitto:1883
+      MQTT_PUBLISHER_USERNAME: ${MQTT_PUBLISHER_USERNAME:-navfleet-publisher}
+      MQTT_PUBLISHER_PASSWORD: ${MQTT_PUBLISHER_PASSWORD:?MQTT_PUBLISHER_PASSWORD is required}
+      TELEMETRY_RETENTION_SECONDS: ${TELEMETRY_RETENTION_SECONDS:-2592000}
+      OFFLINE_AFTER_SECONDS: ${OFFLINE_AFTER_SECONDS:-60}
+      REPORT_TIMEZONE: ${REPORT_TIMEZONE:-Asia/Shanghai}
+      LOG_LEVEL: warn
+      # The same endpoints the backend sends to, so the history's send records match them.
+      NOTIFY_WECOM_URL: http://sim:18099/wecom
+      NOTIFY_SMTP_URL: smtp://mailpit:1025
+      SIM_HOOK_PORT: "18099"
+      # Reachable from the backend over `bus`; no host port.
+      SIM_HOOK_HOST: 0.0.0.0
+    volumes:
+      - ${CONFIG_RUNTIME_HOST_PATH:-../config-runtime}:/runtime-config:ro
+      - sim-state:/state
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+    deploy:
+      resources:
+        limits:
+          cpus: "2.00"
+          memory: 1536M
+    restart: unless-stopped
+
+  mailpit:
+    image: axllent/mailpit:v1.21.8
+    networks:
+      - bus
+    ports:
+      - "127.0.0.1:${MAILPIT_HOST_PORT:-8025}:8025"
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+    deploy:
+      resources:
+        limits:
+          cpus: "0.25"
+          memory: 128M
+    restart: unless-stopped
+
+  # The backend starts once the vehicles are live: history first, then the platform — so it
+  # never judges a fleet whose history is still being written. The endpoints are the demo
+  # receivers above.
+  backend:
+    depends_on:
+      sim:
+        condition: service_healthy
+    environment:
+      NOTIFY_WECOM_URL: http://sim:18099/wecom
+      NOTIFY_SMTP_URL: smtp://mailpit:1025
+      REPORTS_SMTP_URL: smtp://mailpit:1025
+
+volumes:
+  sim-state:
