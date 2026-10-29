@@ -149,6 +149,9 @@ const configSchema = z.object({
   OFFLINE_AFTER_SECONDS: envInt(60),
   TELEMETRY_RETENTION_SECONDS: envInt(60 * 60 * 24 * 30),
   ALERTS_RETENTION_SECONDS: envInt(60 * 60 * 24 * 180),
+  // The hourly telemetry summary the reports read (`telemetry_hourly`). Kept as long as alerts by
+  // default, so a report over a period older than the raw telemetry window still has numbers.
+  TELEMETRY_ROLLUP_RETENTION_SECONDS: envInt(60 * 60 * 24 * 180),
   // Audit trail. Kept longer than telemetry/alerts by default — a security
   // record is worth more the older the incident it explains.
   AUDIT_RETENTION_SECONDS: envInt(60 * 60 * 24 * 365),
@@ -262,6 +265,7 @@ export const parseConfig = (env: NodeJS.ProcessEnv) => {
     offlineAfterSeconds: e.OFFLINE_AFTER_SECONDS,
     telemetryRetentionSeconds: e.TELEMETRY_RETENTION_SECONDS,
     alertsRetentionSeconds: e.ALERTS_RETENTION_SECONDS,
+    telemetryRollupRetentionSeconds: e.TELEMETRY_ROLLUP_RETENTION_SECONDS,
     auditRetentionSeconds: e.AUDIT_RETENTION_SECONDS,
     maxHistoryPoints: e.MAX_HISTORY_POINTS,
     mongoBufferLimit: e.MONGO_BUFFER_LIMIT,

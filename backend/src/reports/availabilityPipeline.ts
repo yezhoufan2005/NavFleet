@@ -38,6 +38,13 @@ export interface AvailabilityPipelineParams {
   maxGapMs: number;
   /** 窗口的实际右端（`min(to, now)`）：最后一帧覆盖到这里为止，桶时长也截到这里。 */
   horizon: Date;
+  /**
+   * How far past `to` to read frames only to learn each in-range frame's successor (ms). A slice
+   * that stops at an hour the rollup already covers needs it: otherwise the slice's last frame
+   * would stand for `horizon − ts` instead of the gap to the frame that really follows it.
+   * Omitted (0) for a slice that ends at the window's right edge, where nothing follows yet.
+   */
+  lookaheadMs?: number;
 }
 
 /**
@@ -47,6 +54,7 @@ export interface AvailabilityPipelineParams {
  */
 export const buildAvailabilityPipeline = (params: AvailabilityPipelineParams): Document[] => {
   const { deviceIds, from, to, bucket, timezone, maxGapMs, horizon } = params;
+  const lookaheadMs = to ? Math.max(0, params.lookaheadMs ?? 0) : 0;
   const pipeline: Document[] = [];
 
   const match: Record<string, unknown> = {};
@@ -55,7 +63,7 @@ export const buildAvailabilityPipeline = (params: AvailabilityPipelineParams): D
   }
   const range: Record<string, Date> = {};
   if (from) range.$gte = from;
-  if (to) range.$lte = to;
+  if (to) range.$lte = lookaheadMs ? new Date(to.getTime() + lookaheadMs) : to;
   if (from || to) match.ts = range;
   if (Object.keys(match).length > 0) {
     pipeline.push({ $match: match });
@@ -80,6 +88,8 @@ export const buildAvailabilityPipeline = (params: AvailabilityPipelineParams): D
         output: { nextTs: { $shift: { output: "$ts", by: 1 } } },
       },
     },
+    // The lookahead frames were read only to give the slice's last frames a successor.
+    ...(lookaheadMs && to ? [{ $match: { ts: { $lte: to } } }] : []),
     {
       $addFields: {
         coveredMs: {
@@ -107,8 +117,11 @@ export const buildAvailabilityPipeline = (params: AvailabilityPipelineParams): D
         onlineMs: {
           $sum: { $cond: ["$measurements.online", "$coveredMs", 0] },
         },
-        // `$avg`/`$min` 跳过缺失或非数值的 soc；桶内一个数值都没有时结果是 null，而不是 0。
-        socMean: { $avg: "$measurements.vehicleInfo.soc" },
+        // `$sum`/`$min` 跳过缺失或非数值的 soc；桶内一个数值都没有时 socMin 是 null，而不是 0。
+        // Sum and count rather than `$avg`, so a bucket split between raw frames and the hourly
+        // rollup can be merged into one exact mean.
+        socSum: { $sum: "$measurements.vehicleInfo.soc" },
+        socCount: { $sum: { $cond: [{ $isNumber: "$measurements.vehicleInfo.soc" }, 1, 0] } },
         socMin: { $min: "$measurements.vehicleInfo.soc" },
       },
     },
@@ -134,6 +147,10 @@ export interface AvailabilityRow {
   onlineMs?: number;
   /** 桶的右界（`$dateAdd`，按时区算月长）。缺省时按左界推不出，视为空桶。 */
   bucketEnd?: Date | string | null;
+  /** Numeric soc readings summed / counted; the mean is `socSum / socCount`. */
+  socSum?: number;
+  socCount?: number;
+  /** A precomputed mean, for rows that carry no sum/count. */
   socMean?: number | null;
   socMin?: number | null;
 }
@@ -152,6 +169,53 @@ const toIso = (value: Date | string | null | undefined): string => {
 
 const toMs = (value: Date | string | null | undefined): number =>
   value instanceof Date ? value.getTime() : Date.parse(String(value ?? ""));
+
+/** The bucket's mean soc: from sum/count when the row carries them, else its own mean. */
+const socMeanOf = (row: AvailabilityRow): number | null | undefined =>
+  row.socCount !== undefined
+    ? row.socCount > 0
+      ? (row.socSum ?? 0) / row.socCount
+      : null
+    : row.socMean;
+
+/**
+ * Fold rows describing the same (device, bucket) into one — the raw slices and the hourly rollup
+ * each report their part of a bucket. Counts and covered time add, soc sums add, the minimum is
+ * the smaller one; a bucket with a single row passes through untouched. Output is sorted by device
+ * then bucket, as `mapAvailabilityRows` expects.
+ */
+export const mergeAvailabilityRows = (rows: readonly AvailabilityRow[]): AvailabilityRow[] => {
+  const groups = new Map<string, AvailabilityRow[]>();
+  for (const row of rows) {
+    const key = `${String(row._id.deviceId ?? "")}|${toIso(row._id.bucketStart)}`;
+    const group = groups.get(key);
+    if (group) group.push(row);
+    else groups.set(key, [row]);
+  }
+  const merged = [...groups.values()].map((group): AvailabilityRow => {
+    const [first] = group;
+    if (group.length === 1 && first) return first;
+    const mins = group.map((row) => row.socMin).filter((v): v is number => typeof v === "number");
+    const sum = (pick: (row: AvailabilityRow) => number | undefined): number =>
+      group.reduce((total, row) => total + (pick(row) ?? 0), 0);
+    return {
+      _id: first?._id ?? {},
+      bucketEnd: group.find((row) => row.bucketEnd)?.bucketEnd ?? null,
+      onlineSamples: sum((row) => row.onlineSamples),
+      totalSamples: sum((row) => row.totalSamples),
+      onlineMs: sum((row) => row.onlineMs),
+      socSum: sum((row) => row.socSum),
+      socCount: sum((row) => row.socCount),
+      socMin: mins.length ? Math.min(...mins) : null,
+    };
+  });
+  return merged.sort((left, right) => {
+    const byDevice = String(left._id.deviceId ?? "").localeCompare(
+      String(right._id.deviceId ?? ""),
+    );
+    return byDevice || toMs(left._id.bucketStart) - toMs(right._id.bucketStart);
+  });
+};
 
 /** 窗口：桶时长与 [from, horizon] 求交，左端未给即不截。 */
 export interface AvailabilityWindow {
@@ -195,7 +259,7 @@ export const mapAvailabilityRows = (
       onlineSeconds: Math.round(onlineMs / 1000),
       spanSeconds: Math.round(spanMs / 1000),
       onlineRatio: spanMs > 0 ? onlineMs / spanMs : 0,
-      socMean: round3(row.socMean),
+      socMean: round3(socMeanOf(row)),
       socMin: round3(row.socMin),
     };
     current.buckets.push(entry);

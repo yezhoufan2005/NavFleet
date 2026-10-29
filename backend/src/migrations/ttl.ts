@@ -6,6 +6,7 @@ export interface TtlConfig {
   telemetryRetentionSeconds: number;
   alertsRetentionSeconds: number;
   auditRetentionSeconds: number;
+  telemetryRollupRetentionSeconds: number;
 }
 
 /**
@@ -68,6 +69,20 @@ export const reconcileTtls = async (db: Db, ttl: TtlConfig, logger: Logger): Pro
   // alert that triggered it) and its TTL was, like the others, only set in the create branch —
   // so a changed ALERTS_RETENTION_SECONDS reconciled `alerts` but silently left `notify_log`
   // behind. The TTL is on the dedicated `expireAt` Date, i.e. the `expireAt_1` index.
+  for (const collection of ["telemetry_hourly", "telemetry_hourly_runs"]) {
+    const rollupCurrent = await ttlIndexExpireSeconds(db, collection, "hour_1");
+    if (rollupCurrent !== null && rollupCurrent !== ttl.telemetryRollupRetentionSeconds) {
+      await db.command({
+        collMod: collection,
+        index: { keyPattern: { hour: 1 }, expireAfterSeconds: ttl.telemetryRollupRetentionSeconds },
+      });
+      logger.info(
+        { collection, from: rollupCurrent, to: ttl.telemetryRollupRetentionSeconds },
+        "Reconciled telemetry rollup TTL to configured retention",
+      );
+    }
+  }
+
   const notifyCurrent = await ttlIndexExpireSeconds(db, "notify_log", "expireAt_1");
   if (notifyCurrent !== null && notifyCurrent !== ttl.alertsRetentionSeconds) {
     await db.command({

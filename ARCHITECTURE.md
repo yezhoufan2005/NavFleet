@@ -570,6 +570,21 @@ MongoDB time series collection，用于保存遥测历史。默认保留时间�
 - `measurements.errorCode`
 - `measurements.speedLimit`
 
+### `telemetry_hourly` / `telemetry_hourly_runs`
+
+可用率报表的按小时汇总。按 1 Hz 上报，30 天全车队约 7500 万帧，直接在 `telemetry_ts` 上聚合会超过
+`REPORT_QUERY_TIMEOUT_MS`（实测 29 车 × 30 天：7 天全车队 90 s，30 天全车队超时），所以已结束的小时由后端
+每分钟一次汇总成「设备 × 小时」一条（帧数、在线帧数、在线覆盖时长、电量和/计数/最低）。报表对已汇总的整点
+小时读汇总，其余部分（窗口首尾不完整的小时、当前小时、尚未汇总的小时）读原始帧，两部分按桶合并；口径与
+直接读原始帧一致（每帧覆盖到同车下一帧，最多离线阈值）。
+
+`telemetry_hourly_runs` 记录哪些小时已汇总、按哪个离线阈值和时区算的；阈值或时区一变，旧的汇总不再被采信，
+任务在之后几轮里按新口径重算。迟到的帧（断库恢复后写回的缓冲、跨整点到达的帧）写入已结束的小时时，删掉
+那个小时的运行记录，由任务重算。两张集合的 TTL 都是 `TELEMETRY_ROLLUP_RETENTION_SECONDS`（默认 180 天，
+同消息），所以超过原始遥测保留期的报表仍有数。
+
+索引：`{ deviceId: 1, hour: 1 }`；两张集合各一个 `{ hour: 1 }` TTL。
+
 ### `alerts`
 
 保存消息的**每一次发生**：同一设备同一报码清除后再次触发，会新开一条文档，`firstSeenAt` /

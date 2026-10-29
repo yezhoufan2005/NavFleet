@@ -372,37 +372,38 @@ broker 已关闭匿名访问，所以这一组是**唯一没有安全默认值�
 
 ### 8.2 后端变量
 
-| 变量                             | 默认值                                                              | 说明                                                                                      |
-| -------------------------------- | ------------------------------------------------------------------- | ----------------------------------------------------------------------------------------- |
-| `PORT`                           | `3000`                                                              | 后端容器监听端口                                                                          |
-| `NODE_ENV`                       | `production`（compose）                                             | 运行环境；`production` 下缺少 `JWT_SECRET` 会启动失败                                     |
-| `FLEET_NAME`                     | `智能车队`                                                          | 内置兜底车队名，通常会被 `fleet.json` 覆盖                                                |
-| `MQTT_URL`                       | `mqtt://mosquitto:1883`                                             | 后端连接的 MQTT Broker                                                                    |
-| `MQTT_USERNAME`                  | 空（compose 下取 `MQTT_SUBSCRIBER_USERNAME`）                       | MQTT 用户名。后端读的是这个名字；compose 由 8.1.1 那组映射过来                            |
-| `MQTT_PASSWORD`                  | 空（compose 下取 `MQTT_SUBSCRIBER_PASSWORD`）                       | MQTT 密码，同上                                                                           |
-| `MQTT_CLIENT_ID`                 | 随机                                                                | 可选固定客户端 ID                                                                         |
-| `MQTT_CA_FILE`                   | 空                                                                  | MQTT over TLS：`mqtts://` 时后端额外信任的 CA 证书路径（见 9.2.1）；明文 URL 下忽略       |
-| `MQTT_TLS_REJECT_UNAUTHORIZED`   | `true`                                                              | TLS 证书校验开关，仅 `mqtts://` 时生效；正式环境保持 `true`，lab 用不可信证书才设 `false` |
-| `MQTT_TOPIC_PATTERN`             | `/fleet/{deviceId}/vehicle_info`                                    | 遥测主题模板，`{deviceId}` 为占位符                                                       |
-| `MONGO_URI`                      | `mongodb://root:example@mongo:27017/fleet_monitor?authSource=admin` | MongoDB 连接串                                                                            |
-| `MONGO_DB_NAME`                  | `fleet_monitor`                                                     | MongoDB 数据库名                                                                          |
-| `SEED_FILE`                      | 空                                                                  | 可选种子数据文件                                                                          |
-| `OFFLINE_AFTER_SECONDS`          | `60`                                                                | 设备离线判定秒数                                                                          |
-| `TELEMETRY_RETENTION_SECONDS`    | `2592000`                                                           | 遥测保留秒数，默认 30 天                                                                  |
-| `ALERTS_RETENTION_SECONDS`       | `15552000`                                                          | 告警保留秒数，默认 180 天                                                                 |
-| `AUDIT_RETENTION_SECONDS`        | `31536000`                                                          | 审计日志保留秒数，默认 365 天；改后重启即对已建库生效（TTL 对账）                         |
-| `MAX_HISTORY_POINTS`             | `500`                                                               | 单次历史查询最大返回点数；也是 `?limit=` 的**校验上界**，超过即 400                       |
-| `REPORT_MAX_RANGE_DAYS`          | `366`                                                               | 报表单次查询的最大时间跨度（天），超过即 400                                              |
-| `REPORT_QUERY_TIMEOUT_MS`        | `150000`                                                            | 报表聚合（含历史均匀抽样）在库里的最长执行时间（毫秒）                                    |
-| `MONGO_BUFFER_LIMIT`             | `2000`                                                              | Mongo 写失败时内存缓冲上限                                                                |
-| `MONGO_WRITE_TIMEOUT_MS`         | `2000`                                                              | 实时链路单次 Mongo 写入超时（毫秒），超时转入缓冲重试                                     |
-| `INGEST_QUEUE_LIMIT`             | `1000`                                                              | 摄入串行队列长度上限，满时丢最旧的可丢遥测帧                                              |
-| `MAX_DEVICES`                    | `1000`                                                              | 内存中设备数上限（vehicles.json 已声明的不受限）                                          |
-| `DEVICE_RETENTION_SECONDS`       | `86400`                                                             | 未声明设备静默多久后淘汰出内存，`0` 表示不淘汰                                            |
-| `DEVICE_CLOCK_TOLERANCE_SECONDS` | `60`                                                                | 车端 `stamp` 与 MQTT 到达时间相差超过该秒数即改用到达时间；同车晚于更新帧到达的旧帧丢弃   |
-| `CONFIG_ROOT_PATH`               | `/runtime-config`                                                   | 容器内配置根目录                                                                          |
-| `CONFIG_WATCH_USE_POLLING`       | `false`                                                             | 是否用轮询监听配置                                                                        |
-| `CONFIG_WATCH_DEBOUNCE_MS`       | `1000`                                                              | 配置热加载防抖毫秒数                                                                      |
+| 变量                                 | 默认值                                                              | 说明                                                                                      |
+| ------------------------------------ | ------------------------------------------------------------------- | ----------------------------------------------------------------------------------------- |
+| `PORT`                               | `3000`                                                              | 后端容器监听端口                                                                          |
+| `NODE_ENV`                           | `production`（compose）                                             | 运行环境；`production` 下缺少 `JWT_SECRET` 会启动失败                                     |
+| `FLEET_NAME`                         | `智能车队`                                                          | 内置兜底车队名，通常会被 `fleet.json` 覆盖                                                |
+| `MQTT_URL`                           | `mqtt://mosquitto:1883`                                             | 后端连接的 MQTT Broker                                                                    |
+| `MQTT_USERNAME`                      | 空（compose 下取 `MQTT_SUBSCRIBER_USERNAME`）                       | MQTT 用户名。后端读的是这个名字；compose 由 8.1.1 那组映射过来                            |
+| `MQTT_PASSWORD`                      | 空（compose 下取 `MQTT_SUBSCRIBER_PASSWORD`）                       | MQTT 密码，同上                                                                           |
+| `MQTT_CLIENT_ID`                     | 随机                                                                | 可选固定客户端 ID                                                                         |
+| `MQTT_CA_FILE`                       | 空                                                                  | MQTT over TLS：`mqtts://` 时后端额外信任的 CA 证书路径（见 9.2.1）；明文 URL 下忽略       |
+| `MQTT_TLS_REJECT_UNAUTHORIZED`       | `true`                                                              | TLS 证书校验开关，仅 `mqtts://` 时生效；正式环境保持 `true`，lab 用不可信证书才设 `false` |
+| `MQTT_TOPIC_PATTERN`                 | `/fleet/{deviceId}/vehicle_info`                                    | 遥测主题模板，`{deviceId}` 为占位符                                                       |
+| `MONGO_URI`                          | `mongodb://root:example@mongo:27017/fleet_monitor?authSource=admin` | MongoDB 连接串                                                                            |
+| `MONGO_DB_NAME`                      | `fleet_monitor`                                                     | MongoDB 数据库名                                                                          |
+| `SEED_FILE`                          | 空                                                                  | 可选种子数据文件                                                                          |
+| `OFFLINE_AFTER_SECONDS`              | `60`                                                                | 设备离线判定秒数                                                                          |
+| `TELEMETRY_RETENTION_SECONDS`        | `2592000`                                                           | 遥测保留秒数，默认 30 天                                                                  |
+| `ALERTS_RETENTION_SECONDS`           | `15552000`                                                          | 告警保留秒数，默认 180 天                                                                 |
+| `TELEMETRY_ROLLUP_RETENTION_SECONDS` | `15552000`                                                          | 报表用的遥测小时汇总保留秒数，默认 180 天；改后重启即对已建库生效（TTL 对账）             |
+| `AUDIT_RETENTION_SECONDS`            | `31536000`                                                          | 审计日志保留秒数，默认 365 天；改后重启即对已建库生效（TTL 对账）                         |
+| `MAX_HISTORY_POINTS`                 | `500`                                                               | 单次历史查询最大返回点数；也是 `?limit=` 的**校验上界**，超过即 400                       |
+| `REPORT_MAX_RANGE_DAYS`              | `366`                                                               | 报表单次查询的最大时间跨度（天），超过即 400                                              |
+| `REPORT_QUERY_TIMEOUT_MS`            | `150000`                                                            | 报表聚合（含历史均匀抽样）在库里的最长执行时间（毫秒）                                    |
+| `MONGO_BUFFER_LIMIT`                 | `2000`                                                              | Mongo 写失败时内存缓冲上限                                                                |
+| `MONGO_WRITE_TIMEOUT_MS`             | `2000`                                                              | 实时链路单次 Mongo 写入超时（毫秒），超时转入缓冲重试                                     |
+| `INGEST_QUEUE_LIMIT`                 | `1000`                                                              | 摄入串行队列长度上限，满时丢最旧的可丢遥测帧                                              |
+| `MAX_DEVICES`                        | `1000`                                                              | 内存中设备数上限（vehicles.json 已声明的不受限）                                          |
+| `DEVICE_RETENTION_SECONDS`           | `86400`                                                             | 未声明设备静默多久后淘汰出内存，`0` 表示不淘汰                                            |
+| `DEVICE_CLOCK_TOLERANCE_SECONDS`     | `60`                                                                | 车端 `stamp` 与 MQTT 到达时间相差超过该秒数即改用到达时间；同车晚于更新帧到达的旧帧丢弃   |
+| `CONFIG_ROOT_PATH`                   | `/runtime-config`                                                   | 容器内配置根目录                                                                          |
+| `CONFIG_WATCH_USE_POLLING`           | `false`                                                             | 是否用轮询监听配置                                                                        |
+| `CONFIG_WATCH_DEBOUNCE_MS`           | `1000`                                                              | 配置热加载防抖毫秒数                                                                      |
 
 ### 8.2.1 鉴权与安全变量
 
