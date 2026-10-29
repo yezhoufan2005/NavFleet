@@ -93,13 +93,14 @@ docker compose -f deploy/docker-compose.yml start backend
 以下由后端在启动时自动创建（`backend/src/persistence.ts` 的 `ensureMongoCollections`），
 无需手动维护，但可据此规划容量与保留：
 
-| 集合                | 索引 / 策略                                                                                                            | 说明                       |
-| ------------------- | ---------------------------------------------------------------------------------------------------------------------- | -------------------------- |
-| `telemetry_ts`      | 时序集合（timeField=`ts`, metaField=`meta`），`expireAfterSeconds=TELEMETRY_RETENTION_SECONDS`（默认 30 天）           | 历史轨迹来源；到期自动清理 |
-| `device_latest`     | `{deviceId:1}` 唯一、`{stamp:-1}`                                                                                      | 每设备最新快照             |
-| `alerts`            | `{deviceId:1, ts:-1}`、`{severity:1, active:1, ts:-1}`、`{lastSeenAt:1}` TTL=`ALERTS_RETENTION_SECONDS`（默认 180 天） | 告警查询与到期清理         |
-| `users`             | `{username:1}` 唯一                                                                                                    | 账号                       |
-| `schema_migrations` | `{version}`（迁移标记）                                                                                                | 已应用的 schema 版本记录   |
+| 集合                | 索引 / 策略                                                                                                                    | 说明                               |
+| ------------------- | ------------------------------------------------------------------------------------------------------------------------------ | ---------------------------------- |
+| `telemetry_ts`      | 时序集合（timeField=`ts`, metaField=`meta`），`expireAfterSeconds=TELEMETRY_RETENTION_SECONDS`（默认 30 天）                   | 历史轨迹来源；到期自动清理         |
+| `telemetry_hourly`  | `{deviceId:1, hour:1}`、`{hour:1}` TTL=`TELEMETRY_ROLLUP_RETENTION_SECONDS`（默认 180 天）；运行记录在 `telemetry_hourly_runs` | 报表用的小时汇总；可由原始遥测重算 |
+| `device_latest`     | `{deviceId:1}` 唯一、`{stamp:-1}`                                                                                              | 每设备最新快照                     |
+| `alerts`            | `{deviceId:1, ts:-1}`、`{severity:1, active:1, ts:-1}`、`{lastSeenAt:1}` TTL=`ALERTS_RETENTION_SECONDS`（默认 180 天）         | 告警查询与到期清理                 |
+| `users`             | `{username:1}` 唯一                                                                                                            | 账号                               |
+| `schema_migrations` | `{version}`（迁移标记）                                                                                                        | 已应用的 schema 版本记录           |
 
 保留时长通过环境变量调整（见 `backend/.env.example`）：`TELEMETRY_RETENTION_SECONDS`、
 `ALERTS_RETENTION_SECONDS`。**1.2.0 起，改这两个值对已建库也生效**：后端每次连接会把

@@ -110,6 +110,7 @@ let digestFlush: NodeJS.Timeout | null = null;
 let reportPoll: NodeJS.Timeout | null = null;
 /** The write-behind buffer retry, stopped on shutdown (declared here so shutdown can clear it). */
 let bufferFlush: NodeJS.Timeout | null = null;
+let telemetryRollup: NodeJS.Timeout | null = null;
 
 const shutdown = async (signal: string): Promise<void> => {
   if (shuttingDown) {
@@ -141,6 +142,10 @@ const shutdown = async (signal: string): Promise<void> => {
   if (reportPoll) {
     clearInterval(reportPoll);
     reportPoll = null;
+  }
+  if (telemetryRollup) {
+    clearInterval(telemetryRollup);
+    telemetryRollup = null;
   }
   if (bufferFlush) {
     clearInterval(bufferFlush);
@@ -285,6 +290,18 @@ const start = async (): Promise<void> => {
     });
   }, 10_000);
   bufferFlush.unref();
+
+  // Summarise closed telemetry hours for the reports (see reports/telemetryRollup). Each tick
+  // works through what is pending within a time budget, so a backlog — first start on a database
+  // that already holds weeks of frames — drains over a few minutes without blocking anything.
+  const rollTelemetry = (): void => {
+    store.rollupTelemetry().catch((error) => {
+      logger.warn({ err: error }, "Telemetry rollup failed");
+    });
+  };
+  telemetryRollup = setInterval(rollTelemetry, 60_000);
+  telemetryRollup.unref();
+  rollTelemetry();
 
   server.listen(config.port, () => {
     logger.info({ port: config.port }, "Fleet backend listening");

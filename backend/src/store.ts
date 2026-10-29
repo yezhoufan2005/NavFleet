@@ -148,6 +148,8 @@ export class DashboardStore extends EventEmitter {
    * only ingests over HTTP) judges silence exactly as before.
    */
   private sourceUpSince: number | null = 0;
+  /** When the offline sweep last ran, to notice that this process was suspended in between. */
+  private lastSweepAt: number | null = null;
 
   constructor(
     private readonly persistence: Persistence,
@@ -988,6 +990,17 @@ export class DashboardStore extends EventEmitter {
     return this.persistence.aggregateAvailability({ ...params, maxGapSeconds: afterSeconds });
   }
 
+  /**
+   * Summarise closed telemetry hours for the reports, under the offline threshold in effect —
+   * the same threshold `getAvailabilityReport` asks for, or the summarised hours would not be
+   * the ones it trusts. Outside the ingest queue: it only reads telemetry and writes the summary.
+   */
+  rollupTelemetry(): Promise<number> {
+    const afterSeconds =
+      this.configRegistry.getAlertRules().offline.afterSeconds ?? config.offlineAfterSeconds;
+    return this.persistence.rollupTelemetry(afterSeconds);
+  }
+
   private async evaluateOfflineDevicesInternal(): Promise<void> {
     // The offline rule is configurable: a deployment can retune the silence
     // window, scope detection to some devices, or turn it off. `afterSeconds` falls back to
@@ -996,6 +1009,18 @@ export class DashboardStore extends EventEmitter {
     const offlineRule = this.configRegistry.getAlertRules().offline;
     const thresholdMs = (offlineRule.afterSeconds ?? config.offlineAfterSeconds) * 1000;
     const now = Date.now();
+    // A sweep that comes more than a whole offline window after the previous one means this
+    // process did not run in between — the host slept, the VM was paused, the clock jumped. Every
+    // vehicle's last frame then looks stale at once, and none of that is evidence about a vehicle:
+    // treat it like a source outage that has just ended, and give them a window to report.
+    if (
+      this.lastSweepAt !== null &&
+      now - this.lastSweepAt > thresholdMs &&
+      this.sourceUpSince !== null
+    ) {
+      this.sourceUpSince = Math.max(this.sourceUpSince, now);
+    }
+    this.lastSweepAt = now;
     // A source outage (or the first window after it recovers) silences the whole fleet at once;
     // that is not evidence about any vehicle, so no offline verdicts until the source has been up
     // for a full window. Eviction below still runs — it is memory housekeeping, not a judgement.

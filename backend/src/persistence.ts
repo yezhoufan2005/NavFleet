@@ -31,8 +31,18 @@ import {
 import {
   buildAvailabilityPipeline,
   mapAvailabilityRows,
+  mergeAvailabilityRows,
   type AvailabilityRow,
 } from "./reports/availabilityPipeline";
+import {
+  ROLLUP_COLLECTION,
+  ROLLUP_RUNS_COLLECTION,
+  buildHourRollupPipeline,
+  buildRollupReportPipeline,
+  closedHours,
+  floorToHour,
+  planAvailabilityWindow,
+} from "./reports/telemetryRollup";
 import { moduleLogger } from "./logger";
 import { asText } from "./normalize";
 import { runMigrations } from "./migrations/runner";
@@ -199,6 +209,7 @@ export class Persistence {
    * must never take quietly. Exposed on `/metrics` and in the buffer's own warn line.
    */
   private droppedTelemetry = 0;
+  private rollupRunning = false;
   /**
    * Mongo write operations that succeeded / failed against the driver.
    * Counted per *operation* (one upsert, one insert, one flush batch), not per
@@ -350,6 +361,13 @@ export class Persistence {
       });
     }
 
+    if (!names.has(ROLLUP_COLLECTION)) {
+      await this.db.createCollection(ROLLUP_COLLECTION);
+    }
+    if (!names.has(ROLLUP_RUNS_COLLECTION)) {
+      await this.db.createCollection(ROLLUP_RUNS_COLLECTION);
+    }
+
     if (!names.has("device_latest")) {
       await this.db.createCollection("device_latest");
     }
@@ -422,6 +440,15 @@ export class Persistence {
     // report, whose `$match` leads with `meta.deviceId` before the `ts` range.
     await this.db.collection("telemetry_ts").createIndex({ "meta.deviceId": 1, ts: 1 });
     await ensureTtlIndex("alerts", { lastSeenAt: 1 }, config.alertsRetentionSeconds);
+    // The hourly summary the reports read (see reports/telemetryRollup). Its TTL and the runs'
+    // share one window, so an hour never outlives the record that says it is complete.
+    await this.db.collection(ROLLUP_COLLECTION).createIndex({ deviceId: 1, hour: 1 });
+    await ensureTtlIndex(ROLLUP_COLLECTION, { hour: 1 }, config.telemetryRollupRetentionSeconds);
+    await ensureTtlIndex(
+      ROLLUP_RUNS_COLLECTION,
+      { hour: 1 },
+      config.telemetryRollupRetentionSeconds,
+    );
     await this.db.collection("users").createIndex({ username: 1 }, { unique: true });
     await this.db.collection("audit_log").createIndex({ actor: 1, ts: -1 });
     await this.db.collection("audit_log").createIndex({ action: 1, ts: -1 });
@@ -1067,6 +1094,7 @@ export class Persistence {
         .insertOne(document, { timeoutMS: config.mongoWriteTimeoutMs });
       this.mongoWrites += 1;
       this.writeObserver?.((Date.now() - start) / 1000);
+      await this.invalidateRollupFor([document]);
       if (this.pendingTelemetry.length) {
         await this.flushPendingTelemetry();
       }
@@ -1077,6 +1105,97 @@ export class Persistence {
         "Failed to write telemetry to MongoDB; buffering",
       );
       this.bufferTelemetry(document);
+    }
+  }
+
+  /**
+   * Mark summarised hours stale when frames land in them after the fact — the write-behind buffer
+   * draining after an outage, a frame that arrived across an hour boundary. A frame in the current
+   * hour costs nothing: only hours that have ended can have a run to drop. Never throws: a failed
+   * invalidation leaves a slightly stale hour, and a telemetry write must not fail over it.
+   */
+  private async invalidateRollupFor(documents: readonly TelemetryDocument[]): Promise<void> {
+    if (!this.db) return;
+    const currentHour = floorToHour(Date.now(), config.reportTimezone);
+    const hours = new Set<number>();
+    for (const document of documents) {
+      const ts = document.ts.getTime();
+      if (Number.isFinite(ts) && ts < currentHour) {
+        hours.add(floorToHour(ts, config.reportTimezone));
+      }
+    }
+    if (!hours.size) return;
+    try {
+      await this.db
+        .collection(ROLLUP_RUNS_COLLECTION)
+        .deleteMany({ hour: { $in: [...hours].map((hour) => new Date(hour)) } });
+    } catch (error) {
+      logger.warn({ err: error }, "Failed to invalidate telemetry rollup hours");
+    }
+  }
+
+  /**
+   * Summarise closed hours into `telemetry_hourly`, newest first, until none is left or the time
+   * budget is spent; returns how many hours were summarised. An hour counts as done only under the
+   * threshold and timezone it was computed with, so retuning either recomputes the retention
+   * window over the following ticks. Runs one at a time per process.
+   */
+  async rollupTelemetry(maxGapSeconds: number, budgetMs = 30_000): Promise<number> {
+    if (!this.db || this.rollupRunning) return 0;
+    this.rollupRunning = true;
+    const db = this.db;
+    const startedAt = Date.now();
+    const maxGapMs = maxGapSeconds * 1000;
+    const timezone = config.reportTimezone;
+    let done = 0;
+    try {
+      const oldest = await db
+        .collection<TelemetryDocument>("telemetry_ts")
+        .find({}, { projection: { ts: 1 } })
+        .sort({ ts: 1 })
+        .limit(1)
+        .next();
+      if (!oldest) return 0;
+      const pending = closedHours(oldest.ts.getTime(), startedAt, maxGapMs, timezone);
+      if (!pending.length) return 0;
+      const runs = await db
+        .collection<{ hour: Date }>(ROLLUP_RUNS_COLLECTION)
+        .find(
+          { hour: { $gte: new Date(pending.at(-1) ?? 0) }, maxGapMs, timezone },
+          { projection: { hour: 1 } },
+        )
+        .toArray();
+      const covered = new Set(runs.map((run) => run.hour.getTime()));
+      for (const hour of pending) {
+        if (covered.has(hour)) continue;
+        if (Date.now() - startedAt > budgetMs) break;
+        const hourStart = new Date(hour);
+        await db.collection(ROLLUP_COLLECTION).deleteMany({ hour: hourStart });
+        await db
+          .collection("telemetry_ts")
+          .aggregate(buildHourRollupPipeline({ hourStart, maxGapMs, timezone }), {
+            allowDiskUse: true,
+            maxTimeMS: config.reportQueryTimeoutMs,
+          })
+          .toArray();
+        await db
+          .collection<{ _id: string }>(ROLLUP_RUNS_COLLECTION)
+          .updateOne(
+            { _id: hourStart.toISOString() },
+            { $set: { hour: hourStart, maxGapMs, timezone, computedAt: new Date() } },
+            { upsert: true },
+          );
+        done += 1;
+      }
+      if (done) {
+        logger.info(
+          { hours: done, remaining: pending.length - covered.size - done },
+          "Rolled up telemetry hours",
+        );
+      }
+      return done;
+    } finally {
+      this.rollupRunning = false;
     }
   }
 
@@ -1137,8 +1256,11 @@ export class Persistence {
         .insertMany(copy, { ordered: false });
       this.mongoWrites += 1;
       this.writeObserver?.((Date.now() - start) / 1000);
+      await this.invalidateRollupFor(copy);
     } catch (error) {
       this.mongoWriteFailures += 1;
+      // Some of the batch may have landed; their hours are recomputed either way.
+      await this.invalidateRollupFor(copy);
       const failed = unwrittenDocuments(copy, error);
       logger.warn(
         { err: error, attempted: copy.length, requeued: failed.length },
@@ -1646,26 +1768,85 @@ export class Persistence {
       // The window never runs past now: the current bucket counts only up to this moment.
       const nowDate = new Date();
       const horizon = to && to < nowDate ? to : nowDate;
-      const pipeline = buildAvailabilityPipeline({
-        deviceIds,
+      const timezone = config.reportTimezone;
+      const aggregateOptions = { allowDiskUse: true, maxTimeMS: config.reportQueryTimeoutMs };
+      // allowDiskUse: the per-device window sort over a long range can exceed the 100 MB
+      // in-memory stage limit on a real fleet's frame count.
+      const rawRows = (slice: { from: Date | null; to: Date | null; lookaheadMs?: number }) =>
+        db
+          .collection("telemetry_ts")
+          .aggregate<AvailabilityRow>(
+            buildAvailabilityPipeline({
+              deviceIds,
+              from: slice.from,
+              to: slice.to,
+              bucket: params.bucket,
+              timezone,
+              // A frame stands for at most the offline threshold: past that, silence is offline.
+              maxGapMs,
+              horizon,
+              lookaheadMs: slice.lookaheadMs,
+            }),
+            aggregateOptions,
+          )
+          .toArray();
+
+      if (!from || from >= horizon) {
+        return mapAvailabilityRows(await rawRows({ from, to }), params.bucket, { from, horizon });
+      }
+
+      // Hours the rollup has summarised under this threshold and timezone are read from it; the
+      // rest of the window (partial edge hours, the current hour, hours not yet summarised) from
+      // raw frames. See reports/telemetryRollup for why: raw-only does not finish at 1 Hz.
+      const runs = await db
+        .collection<{ hour: Date }>(ROLLUP_RUNS_COLLECTION)
+        .find(
+          {
+            hour: { $gte: new Date(floorToHour(from.getTime(), timezone)), $lt: horizon },
+            maxGapMs,
+            timezone,
+          },
+          { projection: { hour: 1 } },
+        )
+        .toArray();
+      const plan = planAvailabilityWindow(
+        from.getTime(),
+        horizon.getTime(),
+        new Set(runs.map((run) => run.hour.getTime())),
+        timezone,
+      );
+      const parts = await Promise.all([
+        plan.hours.length
+          ? db
+              .collection(ROLLUP_COLLECTION)
+              .aggregate<AvailabilityRow>(
+                buildRollupReportPipeline({
+                  deviceIds,
+                  hours: plan.hours.map((hour) => new Date(hour)),
+                  bucket: params.bucket,
+                  timezone,
+                }),
+                aggregateOptions,
+              )
+              .toArray()
+          : Promise.resolve([]),
+        ...plan.raw.map((slice) =>
+          slice.to >= horizon.getTime()
+            ? // The window's right edge: exactly the old single-pass query for this stretch.
+              rawRows({ from: new Date(slice.from), to })
+            : // An inner slice stops where summarised hours resume: read past its end only to give
+              // its last frames their real successors.
+              rawRows({
+                from: new Date(slice.from),
+                to: new Date(slice.to - 1),
+                lookaheadMs: maxGapMs + 1,
+              }),
+        ),
+      ]);
+      return mapAvailabilityRows(mergeAvailabilityRows(parts.flat()), params.bucket, {
         from,
-        to,
-        bucket: params.bucket,
-        timezone: config.reportTimezone,
-        // A frame stands for at most the offline threshold: past that, silence is offline.
-        maxGapMs,
         horizon,
       });
-      // allowDiskUse: the per-device window sort over a 30-day range can exceed the 100 MB
-      // in-memory stage limit on a real fleet's frame count.
-      const rows = await db
-        .collection("telemetry_ts")
-        .aggregate<AvailabilityRow>(pipeline, {
-          allowDiskUse: true,
-          maxTimeMS: config.reportQueryTimeoutMs,
-        })
-        .toArray();
-      return mapAvailabilityRows(rows, params.bucket, { from, horizon });
     });
   }
 

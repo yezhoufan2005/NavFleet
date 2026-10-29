@@ -166,13 +166,42 @@ describe("a device the offline monitor marked offline comes back on the next tel
     await store.evaluateOfflineDevices();
     expect(onlineOf(store, "agv-1")).toBe(true);
 
-    // A full window later, a vehicle that still has not reported is judged offline.
+    // A full window later, a vehicle that still has not reported is judged offline. The sweep
+    // keeps its 15 s cadence meanwhile, as the backend's timer does.
     vi.useFakeTimers();
     try {
-      vi.setSystemTime(Date.now() + 61_000);
-      await store.evaluateOfflineDevices();
+      for (let step = 0; step < 5; step += 1) {
+        vi.setSystemTime(Date.now() + 15_000);
+        await store.evaluateOfflineDevices();
+      }
       expect(onlineOf(store, "agv-1")).toBe(false);
       expect(offlineAlertPresent(store, "agv-1")).toBe(true);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("treats a sweep gap longer than the offline window as a suspension, not a silent fleet", async () => {
+    const { store } = createStore(["agv-1"]);
+    const recent = new Date(Date.now() - 5_000).toISOString();
+    await store.applyPayload({ ...vehicleInfo("agv-1", recent), online: true }, "seed");
+    await store.evaluateOfflineDevices();
+
+    vi.useFakeTimers();
+    try {
+      // The host slept for ten minutes: on waking the vehicle's last frame is ten minutes old,
+      // but nothing ran to hear from it. No verdict until it has had a window to report.
+      vi.setSystemTime(Date.now() + 10 * 60_000);
+      await store.evaluateOfflineDevices();
+      expect(onlineOf(store, "agv-1")).toBe(true);
+      expect(offlineAlertPresent(store, "agv-1")).toBe(false);
+
+      // Still silent a full window after waking: now it is evidence.
+      for (let step = 0; step < 5; step += 1) {
+        vi.setSystemTime(Date.now() + 15_000);
+        await store.evaluateOfflineDevices();
+      }
+      expect(onlineOf(store, "agv-1")).toBe(false);
     } finally {
       vi.useRealTimers();
     }

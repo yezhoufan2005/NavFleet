@@ -19,6 +19,7 @@ const createFakeDb = (opts: {
   alertsExpire?: number | null;
   auditExpire?: number | null;
   notifyExpire?: number | null;
+  rollupExpire?: number | null;
 }): { db: Db; commands: CommandCall[] } => {
   const commands: CommandCall[] = [];
   const db = {
@@ -37,6 +38,13 @@ const createFakeDb = (opts: {
             opts.auditExpire === null || opts.auditExpire === undefined
               ? [{ name: "_id_" }]
               : [{ name: "_id_" }, { name: "ts_-1", expireAfterSeconds: opts.auditExpire }],
+          );
+        }
+        if (name === "telemetry_hourly" || name === "telemetry_hourly_runs") {
+          return Promise.resolve(
+            opts.rollupExpire === null || opts.rollupExpire === undefined
+              ? [{ name: "_id_" }]
+              : [{ name: "_id_" }, { name: "hour_1", expireAfterSeconds: opts.rollupExpire }],
           );
         }
         if (name === "notify_log") {
@@ -66,6 +74,7 @@ const ttl = {
   telemetryRetentionSeconds: 100,
   alertsRetentionSeconds: 200,
   auditRetentionSeconds: 300,
+  telemetryRollupRetentionSeconds: 400,
 };
 
 beforeEach(() => {
@@ -154,5 +163,21 @@ describe("reconcileTtls", () => {
     expect(commands).toHaveLength(2);
     expect(commands[0]?.spec).toMatchObject({ collMod: "telemetry_ts" });
     expect(commands[1]?.spec).toMatchObject({ collMod: "alerts" });
+  });
+
+  it("小时汇总与其运行记录的 TTL 偏离配置时，两张集合各发一次 collMod", async () => {
+    const { db, commands } = createFakeDb({
+      telemetryExpire: 100,
+      alertsExpire: 200,
+      rollupExpire: 50,
+    });
+    await reconcileTtls(db, ttl, log);
+    expect(commands.map((call) => call.spec)).toEqual([
+      { collMod: "telemetry_hourly", index: { keyPattern: { hour: 1 }, expireAfterSeconds: 400 } },
+      {
+        collMod: "telemetry_hourly_runs",
+        index: { keyPattern: { hour: 1 }, expireAfterSeconds: 400 },
+      },
+    ]);
   });
 });

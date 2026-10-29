@@ -23,6 +23,7 @@ interface FakeCursor {
   sort: (spec: unknown) => FakeCursor;
   limit: (n: number) => FakeCursor;
   toArray: () => Promise<unknown[]>;
+  next: () => Promise<unknown>;
 }
 
 interface AggregateCursor {
@@ -83,6 +84,7 @@ const createFakeDb = (
           return cursor;
         },
         toArray: () => Promise.resolve(rows[name] ?? []),
+        next: () => Promise.resolve((rows[name] ?? [])[0] ?? null),
       };
       return cursor;
     },
@@ -1110,6 +1112,114 @@ describe("aggregateAvailability（可用率/电量时序）", () => {
     await persistence.aggregateAvailability({ bucket: "hour" });
 
     expect(calls.aggregate).toHaveLength(2);
+  });
+});
+
+describe("遥测小时汇总（telemetry_hourly）", () => {
+  const HOUR = 3_600_000;
+  const hourAgo = (n: number): Date => new Date(Math.floor(Date.now() / HOUR) * HOUR - n * HOUR);
+
+  it("报表：已汇总的整点小时读汇总，其余区间读原始帧，同一桶合并成一行", async () => {
+    const from = hourAgo(6);
+    const { db, calls } = createFakeDb(
+      // Hours -6 .. -3 are summarised under the threshold the report asks for.
+      { telemetry_hourly_runs: [3, 4, 5, 6].map((n) => ({ hour: hourAgo(n) })) },
+      {},
+      {
+        telemetry_hourly: [
+          {
+            _id: { deviceId: "agv-1", bucketStart: from },
+            bucketEnd: new Date(from.getTime() + 86_400_000),
+            onlineSamples: 100,
+            totalSamples: 100,
+            onlineMs: 400_000,
+            socSum: 5000,
+            socCount: 100,
+            socMin: 40,
+          },
+        ],
+        telemetry_ts: [
+          {
+            _id: { deviceId: "agv-1", bucketStart: from },
+            bucketEnd: new Date(from.getTime() + 86_400_000),
+            onlineSamples: 10,
+            totalSamples: 10,
+            onlineMs: 10_000,
+            socSum: 300,
+            socCount: 10,
+            socMin: 20,
+          },
+        ],
+      },
+    );
+    persistence.__setDbForTests(db);
+
+    const report = await persistence.aggregateAvailability({
+      from: from.toISOString(),
+      bucket: "day",
+      maxGapSeconds: 90,
+    });
+
+    const runsQuery = calls.find.find((call) => call.collection === "telemetry_hourly_runs");
+    expect(runsQuery?.filter).toMatchObject({ maxGapMs: 90_000, timezone: config.reportTimezone });
+    const rollupCall = calls.aggregate.find((call) => call.collection === "telemetry_hourly");
+    const [rollupMatch] = rollupCall?.pipeline as Array<{ $match: { hour: { $in: Date[] } } }>;
+    // The newest summarised hour (-3) is followed by raw hours, the current one included, so the
+    // planner may take -6, -5, -4 and -3 — every summarised hour that ends before now.
+    expect(rollupMatch?.$match.hour.$in.map((hour) => hour.getTime()).sort()).toEqual(
+      [6, 5, 4, 3].map((n) => hourAgo(n).getTime()),
+    );
+    // One raw slice: hour -2 up to now.
+    expect(calls.aggregate.filter((call) => call.collection === "telemetry_ts")).toHaveLength(1);
+
+    const [bucket] = report.devices[0]?.buckets ?? [];
+    expect(bucket).toMatchObject({ onlineSamples: 110, totalSamples: 110, socMin: 20 });
+    // (5000 + 300) / 110, a mean weighted by readings.
+    expect(bucket?.socMean).toBe(48.182);
+  });
+
+  it("任务：从最早一帧起逐个汇总已结束的小时，跳过已有运行记录的，并为新算的写运行记录", async () => {
+    const oldest = hourAgo(4);
+    const { db, calls } = createFakeDb({
+      telemetry_ts: [{ ts: oldest }],
+      telemetry_hourly_runs: [{ hour: hourAgo(3) }],
+    });
+    persistence.__setDbForTests(db);
+
+    const done = await persistence.rollupTelemetry(90);
+
+    // Hours -4 .. -2 have ended long enough ago (the current and the previous hour may not have,
+    // depending on the minute this runs); -3 already has a run.
+    const rolled = calls.aggregate
+      .filter((call) => call.collection === "telemetry_ts")
+      .map(
+        (call) => (call.pipeline as Array<{ $match?: { ts: { $gte: Date } } }>)[0]?.$match?.ts.$gte,
+      );
+    expect(done).toBe(rolled.length);
+    expect(rolled.map((hour) => hour?.getTime())).not.toContain(hourAgo(3).getTime());
+    expect(rolled.map((hour) => hour?.getTime())).toContain(hourAgo(4).getTime());
+    const runWrites = calls.updateOne.filter((call) => call.collection === "telemetry_hourly_runs");
+    expect(runWrites).toHaveLength(done);
+    expect(runWrites[0]?.update).toMatchObject({
+      $set: { maxGapMs: 90_000, timezone: config.reportTimezone },
+    });
+  });
+
+  it("迟到的帧让它所在的已汇总小时失效；当前小时的帧不动汇总", async () => {
+    const { db, calls } = createFakeDb();
+    persistence.__setDbForTests(db);
+
+    await persistence.writeTelemetry(snapshot("agv-1", { stamp: new Date().toISOString() }));
+    expect(calls.deleteMany.filter((call) => call.collection === "telemetry_hourly_runs")).toEqual(
+      [],
+    );
+
+    const late = new Date(hourAgo(5).getTime() + 12 * 60_000);
+    await persistence.writeTelemetry(snapshot("agv-1", { stamp: late.toISOString() }));
+    const [invalidation] = calls.deleteMany.filter(
+      (call) => call.collection === "telemetry_hourly_runs",
+    );
+    expect(invalidation?.filter).toEqual({ hour: { $in: [hourAgo(5)] } });
   });
 });
 

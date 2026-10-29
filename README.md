@@ -371,14 +371,15 @@ broker 侧强制账号与双向 ACL：发布账号只能写车辆主题，后端
 
 MongoDB 承担恢复与查询，不在实时推送路径上。主要集合：
 
-| 集合                | 内容                                      | 关键点                                              |
-| ------------------- | ----------------------------------------- | --------------------------------------------------- |
-| `device_latest`     | 每台设备的最新快照                        | 服务重启后据此恢复页面状态                          |
-| `telemetry_ts`      | 时序遥测（time series collection）        | 保留期 `TELEMETRY_RETENTION_SECONDS`，供历史 / 报表 |
-| `alerts`            | 活动与已清除告警                          | TTL 落在 `lastSeenAt`，含 who/when 的确认记录       |
-| `users`             | 用户模型（含 `passwordHash`、角色、状态） | `tokenVersion` 支撑「登出即失效」                   |
-| `audit_log`         | 鉴权与用户管理操作审计                    | 登录 / 登出 / 改密 / 用户增删改                     |
-| `schema_migrations` | 迁移版本标记                              | 启动时顺序化、幂等执行，失败即拒绝启动              |
+| 集合                | 内容                                      | 关键点                                                |
+| ------------------- | ----------------------------------------- | ----------------------------------------------------- |
+| `device_latest`     | 每台设备的最新快照                        | 服务重启后据此恢复页面状态                            |
+| `telemetry_ts`      | 时序遥测（time series collection）        | 保留期 `TELEMETRY_RETENTION_SECONDS`，供历史 / 报表   |
+| `telemetry_hourly`  | 遥测按「设备 × 小时」汇总                 | 报表读它；保留期 `TELEMETRY_ROLLUP_RETENTION_SECONDS` |
+| `alerts`            | 活动与已清除告警                          | TTL 落在 `lastSeenAt`，含 who/when 的确认记录         |
+| `users`             | 用户模型（含 `passwordHash`、角色、状态） | `tokenVersion` 支撑「登出即失效」                     |
+| `audit_log`         | 鉴权与用户管理操作审计                    | 登录 / 登出 / 改密 / 用户增删改                       |
+| `schema_migrations` | 迁移版本标记                              | 启动时顺序化、幂等执行，失败即拒绝启动                |
 
 字段与索引明细见 [ARCHITECTURE.md](ARCHITECTURE.md) 第 9 节。
 
