@@ -152,7 +152,7 @@ describe("ingestBodySchema", () => {
   });
 });
 
-// Mirrors the exact frame published by scripts/mock-mqtt.ts (buildTelemetry), so
+// Mirrors the frame the demo simulator publishes (sim/vehicle.ts `step`), so
 // this asserts the ingest gate does not break the running demo.
 const mockPublishedFrame = {
   stamp: 1712472000000,
@@ -170,7 +170,7 @@ const mockPublishedFrame = {
 };
 
 describe("mqttTelemetrySchema", () => {
-  it("accepts a realistic frame as published by scripts/mock-mqtt.ts", () => {
+  it("accepts a realistic frame as published by the demo simulator", () => {
     expect(mqttTelemetrySchema.safeParse(mockPublishedFrame).success).toBe(true);
   });
 
@@ -197,7 +197,7 @@ describe("mqttTelemetrySchema", () => {
 });
 
 describe("mqttStatusSchema", () => {
-  it("accepts the status object published by scripts/mock-mqtt.ts", () => {
+  it("accepts the status object published by the demo simulator", () => {
     expect(mqttStatusSchema.safeParse({ online: true, ts: 1712472000000 }).success).toBe(true);
     expect(mqttStatusSchema.safeParse({ status: "offline" }).success).toBe(true);
   });

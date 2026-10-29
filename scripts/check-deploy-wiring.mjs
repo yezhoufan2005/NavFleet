@@ -100,10 +100,11 @@ for (const conf of [
 // ---------------------------------------------------------------------------
 // 这一条针对回滚 overlay：compose 的合并语义是 mapping 逐键合并、list 追加，所以 overlay
 // **删不掉** `depends_on` 里的条目。用一个新服务名去回滚，会把两套镜像一起拉起来，而不是替换。
-// 监控与备份叠加是**刻意新增**服务的，所以它们在白名单里。
+// 监控、备份与演示叠加是**刻意新增**服务的，所以它们在白名单里。
 const ADDITIVE = new Set([
   "docker-compose.monitoring.yml",
   "docker-compose.backup.yml",
+  "docker-compose.demo.yml",
 ]);
 for (const f of composeFiles) {
   if (f === "docker-compose.yml") continue;

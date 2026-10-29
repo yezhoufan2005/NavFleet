@@ -131,6 +131,15 @@ services:
       CONFIG_ROOT_PATH: ${CONFIG_ROOT_PATH:-/runtime-config}
       CONFIG_WATCH_USE_POLLING: ${CONFIG_WATCH_USE_POLLING:-false}
       CONFIG_WATCH_DEBOUNCE_MS: ${CONFIG_WATCH_DEBOUNCE_MS:-1000}
+      # Outbound notifications and scheduled reports. notify.json / reports.json name these
+      # variables (`urlEnv` / `smtpEnv`) instead of holding the secret URLs; empty = that channel
+      # is not configured and nothing is sent.
+      NOTIFY_TIMEOUT_MS: ${NOTIFY_TIMEOUT_MS:-5000}
+      NOTIFY_MAX_ATTEMPTS: ${NOTIFY_MAX_ATTEMPTS:-3}
+      NOTIFY_WECOM_URL: ${NOTIFY_WECOM_URL:-}
+      NOTIFY_SMTP_URL: ${NOTIFY_SMTP_URL:-}
+      NOTIFY_DEV_WEBHOOK_URL: ${NOTIFY_DEV_WEBHOOK_URL:-}
+      REPORTS_SMTP_URL: ${REPORTS_SMTP_URL:-}
     networks:
       - edge
       - data
@@ -171,8 +180,8 @@ services:
 
   mosquitto:
     image: eclipse-mosquitto:2.0
-    # Loopback-only: the demo publisher (`npm run mock:mqtt`) runs on the host
-    # and needs 1883, but nothing on the LAN should reach the broker. Delete this
+    # Loopback-only: a demo publisher on the host (`npm run sim:live`, used by dev.sh)
+    # needs 1883, but nothing on the LAN should reach the broker. Delete this
     # mapping entirely for a deployment where publishers are remote vehicles —
     # the backend reaches the broker over the `bus` network, not the host.
     ports:

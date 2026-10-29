@@ -6,10 +6,10 @@
 # ║ /联调。三个脚本的分工见文件末尾 usage()。                                   ║
 # ║                                                                            ║
 # ║ 常用：                                                                     ║
-# ║   scripts/dev.sh            前后端热更新；本机有 1883 broker 时自动跑演示发布器 ║
-# ║   scripts/dev.sh --demo     额外起一次性 Mongo 容器并注入演示数据（用户/角色/ ║
-# ║                             组 + 报表回填）——验收报表/会话/审计/样式用这个     ║
-# ║   scripts/dev.sh --mock     强制跑演示发布器（需本机 1883 broker）           ║
+# ║   scripts/dev.sh            前后端热更新；本机有 1883 broker 时自动跑演示车队 ║
+# ║   scripts/dev.sh --demo     额外起持久 Mongo 容器：演示账号/角色/组，演示车队 ║
+# ║                             首次补 7 天历史、之后只补空档——验收报表/回放用这个 ║
+# ║   scripts/dev.sh --mock     强制跑演示车队（需本机 1883 broker）             ║
 # ║   scripts/dev.sh --no-mock  只起前后端，不发布演示数据                        ║
 # ║   scripts/dev.sh --legacy   起 v1.0.0 旧控制台 (:5173) 而非 v3，仅回滚验证用  ║
 # ║   scripts/dev.sh -h         打印用法                                        ║
@@ -183,11 +183,9 @@ run_backend() {
     DEBUG_INGEST_ENABLED="true" \
     MQTT_USERNAME="$MQTT_SUBSCRIBER_USER" \
     MQTT_PASSWORD="$MQTT_SUBSCRIBER_PASS"
-  # --demo 才接 Mongo（内存态下报表/会话/审计无法落库聚合）；否则留空走内存回退。回填脚本
-  # 几秒打上千次 debug/ingest，默认 600/min 每 IP 限流会把大半打成 429，故 --demo 放宽限流
-  # （仅本机开发，不影响生产 .env 的真实值）。
+  # --demo 才接 Mongo（内存态下报表/会话/审计无法落库聚合）；否则留空走内存回退。
   if [[ "$DEMO_MODE" == "1" ]]; then
-    export MONGO_URI="$DEV_MONGO_URI" RATE_LIMIT_MAX=1000000 AUTH_RATE_LIMIT_MAX=100000
+    export MONGO_URI="$DEV_MONGO_URI"
   fi
   npm run dev
 }
@@ -209,36 +207,38 @@ for _ in $(seq 1 60); do
 done
 echo " ok"
 
-# --demo：后端起来后注入演示数据。seed:demo 走 admin API（用户/角色/组 + 会话/锁定/审计），
-# seed:reports 直接写 dev Mongo 回填多日历史（报表页才有可聚合的数据；生成逻辑与 verify-stack
-# 共用 scripts/demo-history.js）。两者都幂等/可重复。
+# --demo：后端起来后注入演示账号/角色/组 + 会话/审计（走 admin API，幂等）。
 if [[ "$DEMO_MODE" == "1" ]]; then
   echo "注入演示数据：用户/角色/组 + 会话/审计…"
   (cd "$ROOT/backend" && SEED_BASE_URL="http://127.0.0.1:${BACKEND_PORT}" \
     ADMIN_USERNAME="$ADMIN_USER" ADMIN_PASSWORD="$ADMIN_PASS" \
     npm run seed:demo) || echo "⚠ seed:demo 失败（可稍后手动重试）"
-  echo "回填报表演示数据（多日遥测/告警历史）…"
-  (cd "$ROOT/backend" && MONGO_URI="$DEV_MONGO_URI" \
-    CONFIG_ROOT_PATH="../config-runtime" npm run seed:reports) || echo "⚠ seed:reports 失败"
 fi
 
-# 演示发布器：走真实 MQTT 链路（发布器读 config-runtime 的车队定义）。与 --demo 正交：
-# --demo 给静态历史，broker + 发布器给实时跳动。
+# 演示车队（backend/sim）：走真实 MQTT 链路，每车每秒一帧，状态记在 backend/.demo-sim/。
+# --demo 时先把历史补到「现在」（首次 7 天，之后只补停下期间的空档），再转实时上报；
+# 没有 Mongo 时只发实时。补历史期间后端已在跑，补完前的几分钟车辆可能短暂显示离线。
+run_sim() {
+  cd "$ROOT/backend" || return 1
+  export CONFIG_ROOT_PATH="../config-runtime" \
+    MQTT_PUBLISHER_USERNAME="$MQTT_PUBLISHER_USER" \
+    MQTT_PUBLISHER_PASSWORD="$MQTT_PUBLISHER_PASS" \
+    LOG_LEVEL=warn
+  if [[ "$DEMO_MODE" == "1" ]]; then
+    MONGO_URI="$DEV_MONGO_URI" SIM_HISTORY_DAYS=7 npm run sim:catchup || return 1
+  fi
+  npm run sim:live
+}
 if [[ "$MOCK_MODE" != "off" ]]; then
   if broker_up; then
-    echo "检测到 MQTT broker，启动演示发布器…"
-    (
-      cd "$ROOT/backend"
-      MQTT_PUBLISHER_USERNAME="$MQTT_PUBLISHER_USER" \
-      MQTT_PUBLISHER_PASSWORD="$MQTT_PUBLISHER_PASS" \
-      npm run mock:mqtt -- --interval 1000
-    ) &
+    echo "检测到 MQTT broker，启动演示车队…"
+    supervise 演示车队 run_sim &
     PIDS+=($!)
   elif [[ "$MOCK_MODE" == "force" ]]; then
     echo "⚠ 未检测到 127.0.0.1:1883 的 MQTT broker，无法发布实时演示数据。"
     echo "  可先启动 broker：docker compose --env-file deploy/.env -f deploy/docker-compose.yml up -d mosquitto"
   else
-    echo "ℹ 未检测到本机 MQTT broker，跳过实时发布器（--demo 的静态历史不受影响）。"
+    echo "ℹ 未检测到本机 MQTT broker，跳过演示车队。"
   fi
 fi
 
@@ -248,8 +248,9 @@ echo "  前端:   ${FRONTEND_URL}  (${FRONTEND_LABEL})"
 echo "  后端:   http://127.0.0.1:${BACKEND_PORT}"
 echo "  账号:   ${ADMIN_USER} / ${ADMIN_PASS}"
 if [[ "$DEMO_MODE" == "1" ]]; then
-  echo "  演示:   已注入用户/角色/组 + 多日报表历史（Mongo 容器 ${DEV_MONGO_CONTAINER}）"
-  echo "  清库:   docker rm -f ${DEV_MONGO_CONTAINER}"
+  echo "  演示:   已注入用户/角色/组；演示车队补齐历史后实时上报（Mongo 容器 ${DEV_MONGO_CONTAINER}）"
+  echo "  事件:   (cd backend && npm run sim -- inject <设备> <事件> [分钟])"
+  echo "  清库:   docker rm -f ${DEV_MONGO_CONTAINER} && rm -rf backend/.demo-sim"
 fi
 echo "  停止:   Ctrl+C（--demo 的 Mongo 容器会保留）"
 echo "─────────────────────────────────────────────"

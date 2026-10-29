@@ -2,7 +2,7 @@
  * Seed fleet for the end-to-end suite.
  *
  * The payloads are the same snake_case telemetry frames the vehicles publish
- * over MQTT (see `backend/scripts/mock-mqtt.ts`), pushed through
+ * over MQTT (see `backend/sim/vehicle.ts`), pushed through
  * `POST /api/debug/ingest` so the run needs no broker. Device *names*, scenes
  * and formations are deliberately left out of the payloads: they come from
  * `config-runtime/*.json`, so the suite also covers the config-registry wiring.

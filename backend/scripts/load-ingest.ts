@@ -2,7 +2,7 @@
  * Broker-free load generator for the ingest → normalize → store → persistence →
  * WebSocket-broadcast pipeline.
  *
- * Unlike mock-mqtt.ts (which needs a broker), this hammers the authenticated
+ * Unlike the demo simulator in sim/ (which needs a broker), this hammers the authenticated
  * POST /api/debug/ingest endpoint over HTTP so the hot path can be stress-tested
  * on any machine. It logs in, fires devices×iterations requests through a fixed
  * concurrency pool, reports throughput + latency percentiles, then reads /metrics.

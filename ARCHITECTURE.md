@@ -116,7 +116,8 @@ NavFleet/
 │  │  ├─ requestContext.ts   # request-id 贯穿
 │  │  ├─ validation.ts       # zod 入参校验
 │  │  └─ types.ts            # 再导出 @navfleet/shared + 后端专有类型
-│  ├─ scripts/               # mock-mqtt.ts, load-ingest.ts
+│  ├─ scripts/               # seed-demo.ts, load-ingest.ts
+│  ├─ sim/                   # 演示车队模拟器（回填历史 + 实时上报 + 事件注入）
 │  ├─ test/                  # Vitest 单测
 │  ├─ package.json
 │  └─ Dockerfile

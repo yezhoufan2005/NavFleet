@@ -280,21 +280,16 @@ mosquitto_pub -h 127.0.0.1 -p 1883 \
   -t /fleet/agv-a01/status -m '{"online":true}'
 ```
 
-也可以运行项目自带 mock —— 它从环境里读 `MQTT_PUBLISHER_USERNAME` /
-`MQTT_PUBLISHER_PASSWORD`（缺失时回落到 `MQTT_USERNAME` / `MQTT_PASSWORD`），所以同样要
-先把 `deploy/.env` 导进环境：
+也可以叠加项目自带的演示车队（模拟器 `sim` 与本机邮件收件箱 `mailpit`）。它用
+`MQTT_PUBLISHER_USERNAME` / `MQTT_PUBLISHER_PASSWORD` 连 broker，首次启动先生成保留期内的历史，
+之后每次启动只补停机期间的空档，再转为实时上报：
 
 ```bash
 cd /opt/navfleet
-set -a; . deploy/.env; set +a
-
-cd backend
-npm install
-npm run mock:mqtt -- --broker mqtt://127.0.0.1:1883 --device-prefix agv --count 4
+docker compose --env-file deploy/.env -f deploy/docker-compose.yml -f deploy/docker-compose.demo.yml up -d
 ```
 
-凭据不对时 mock 不会静默失败：它会打印一行明确指出 broker 拒绝了这组凭据、并提示要导出
-哪两个变量。
+**仅用于演示环境**：它会把外发与定时报表的端点指向本机收件服务，接真车的部署不要叠加它。
 
 然后打开：
 

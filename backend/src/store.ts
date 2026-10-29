@@ -515,6 +515,10 @@ export class DashboardStore extends EventEmitter {
         });
       this.rebuildConfiguredDevices();
       this.updatedAt = this.nowIso();
+      // Restored stamps are from before this process started, so they are as old as the restart
+      // took. That says nothing about the vehicles: give them one offline window to report, as
+      // after a source outage, instead of judging the whole fleet offline on the first sweep.
+      if (this.sourceUpSince !== null) this.sourceUpSince = Math.max(this.sourceUpSince, now);
       return;
     }
 
