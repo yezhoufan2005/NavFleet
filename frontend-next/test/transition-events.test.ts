@@ -75,6 +75,27 @@ describe("transition events", () => {
     expect(messages()).toEqual(["A01 巡检车 已离线"]);
   });
 
+  it("says a vehicle went offline once, in the tone of the offline alert", () => {
+    // The offline monitor emits both for the same moment: the transition and a critical
+    // 设备离线 alert. Two toasts in two tones would be one fact told twice.
+    send("device.offline", { deviceId: "agv-a01" });
+    send("alert.created", {
+      source: "offline-monitor",
+      deviceId: "agv-a01",
+      alert: { id: "agv-a01-offline", severity: "critical", title: "设备离线" },
+    });
+    expect(messages()).toEqual(["A01 巡检车 已离线"]);
+    expect(notified[0]?.type).toBe("error");
+
+    send("alert.cleared", {
+      source: "mqtt",
+      deviceId: "agv-a01",
+      alertId: "agv-a01-offline",
+    });
+    send("device.online", { deviceId: "agv-a01" });
+    expect(messages()).toEqual(["A01 巡检车 已离线", "A01 巡检车 已恢复在线"]);
+  });
+
   it("falls back to the id for a device it has never seen", () => {
     send("device.offline", { deviceId: "agv-unknown" });
     expect(messages()).toEqual(["agv-unknown 已离线"]);
@@ -115,19 +136,23 @@ describe("transition events", () => {
   });
 
   it("reports a clear only when it reported the onset", () => {
+    // The backend's own shape: a clear names the alert by id only (store.emitChangeEvents).
     send("alert.cleared", {
+      source: "mqtt",
       deviceId: "agv-a01",
-      alert: { id: "never-seen", severity: "critical", title: "告警报码" },
+      alertId: "never-seen",
     });
     expect(messages()).toEqual([]);
 
     send("alert.created", {
+      source: "mqtt",
       deviceId: "agv-a01",
       alert: { id: "a-1", severity: "critical", title: "告警报码" },
     });
     send("alert.cleared", {
+      source: "mqtt",
       deviceId: "agv-a01",
-      alert: { id: "a-1", severity: "critical", title: "告警报码" },
+      alertId: "a-1",
     });
     expect(messages()).toEqual([
       "A01 巡检车：告警报码",
@@ -208,8 +233,9 @@ describe("acknowledgement events", () => {
 
     // Any severity — 提示 never toasts, but its clear must still close the occurrence.
     send("alert.cleared", {
+      source: "mqtt",
       deviceId: "agv-a01",
-      alert: { id: "info-1", severity: "notice", title: "提示" },
+      alertId: "info-1",
     });
     expect(store.isAlertAcked("agv-a01", "info-1")).toBe(false);
   });

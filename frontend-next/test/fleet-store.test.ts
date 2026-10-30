@@ -502,6 +502,25 @@ describe("bootstrap", () => {
     expect(store.bootstrapPending).toBe(false);
   });
 
+  it("does not open a socket for a session that ended while the snapshot was loading", async () => {
+    type Snapshot = Awaited<ReturnType<typeof fleetApi.getSnapshot>>;
+    let release: (value: Snapshot) => void = () => undefined;
+    vi.spyOn(fleetApi, "getSnapshot").mockReturnValue(
+      new Promise<Snapshot>((resolve) => {
+        release = resolve;
+      }),
+    );
+
+    const pending = store.bootstrap();
+    await Promise.resolve();
+    // Signed out before the backend answered.
+    store.stopRealtime();
+    release(snapshot([device()]));
+
+    expect(await pending).toBe(false);
+    expect(openedSockets).toHaveLength(0);
+  });
+
   it("seeds the acknowledgement overlay from the active alerts", async () => {
     vi.spyOn(fleetApi, "getAlerts").mockResolvedValue({
       items: [
@@ -535,6 +554,52 @@ describe("bootstrap", () => {
     expect(store.isAlertAcked("agv-01", "err-1")).toBe(true);
     expect(store.getAck("agv-01", "err-1")?.ackedBy).toBe("operator-a");
     expect(store.isAlertAcked("agv-01", "warn-1")).toBe(false);
+  });
+
+  const ackedRow = (alertId: string, ackedBy: string) => ({
+    eventKey: `agv-01:${alertId}`,
+    deviceId: "agv-01",
+    alertId,
+    severity: "critical" as const,
+    active: true,
+    ackedBy,
+    ackedAt: "2026-01-01T00:00:00.000Z",
+    comment: null,
+  });
+
+  it("does not let a seed overwrite a confirmation that arrived while it was in flight", async () => {
+    let answer!: (value: { items: ReturnType<typeof ackedRow>[] }) => void;
+    vi.spyOn(fleetApi, "getAlerts").mockReturnValue(
+      new Promise((resolve) => {
+        answer = resolve;
+      }),
+    );
+    const seeding = store.seedAckState();
+    // A live event lands before the read answers, and the read predates it.
+    store.applyAck("agv-01:err-2", {
+      ackedBy: "operator-b",
+      ackedAt: "2026-01-01T00:01:00.000Z",
+    });
+    answer({ items: [ackedRow("err-1", "operator-a")] });
+    await seeding;
+
+    expect(store.getAck("agv-01", "err-2")?.ackedBy).toBe("operator-b");
+    expect(store.getAck("agv-01", "err-1")?.ackedBy).toBe("operator-a");
+  });
+
+  it("merges rather than replaces when the server capped the list", async () => {
+    store.applyAck("agv-01:beyond-cap", {
+      ackedBy: "operator-b",
+      ackedAt: "2026-01-01T00:00:00.000Z",
+    });
+    vi.spyOn(fleetApi, "getAlerts").mockResolvedValue({
+      items: [ackedRow("err-1", "operator-a")],
+      truncated: true,
+    });
+    await store.seedAckState();
+
+    expect(store.isAlertAcked("agv-01", "beyond-cap")).toBe(true);
+    expect(store.isAlertAcked("agv-01", "err-1")).toBe(true);
   });
 });
 
@@ -615,6 +680,23 @@ describe("what arrives over the socket", () => {
     } finally {
       vi.useRealTimers();
     }
+  });
+
+  it("re-reads the acknowledgements once the link is back", async () => {
+    const socket = await live();
+    const getAlerts = vi
+      .spyOn(fleetApi, "getAlerts")
+      .mockResolvedValue({ items: [] });
+    vi.useFakeTimers();
+    try {
+      socket.drop();
+      vi.advanceTimersByTime(1_000);
+      acceptLastSocket();
+    } finally {
+      vi.useRealTimers();
+    }
+    // Confirmations made by others while it was down never arrived as events.
+    expect(getAlerts).toHaveBeenCalledWith({ status: "active" });
   });
 
   it("says nothing about a link that was never up", async () => {

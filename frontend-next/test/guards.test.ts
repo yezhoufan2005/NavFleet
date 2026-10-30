@@ -5,6 +5,7 @@ import type { Capability } from "@navfleet/shared";
 import {
   createAuthGuard,
   AUTH_FALLBACK_ROUTE_NAME,
+  safeRedirectPath,
   type AuthGuardState,
 } from "@/router/guards";
 import type { AuthStatus } from "@/composables/useAuth";
@@ -38,7 +39,16 @@ describe("createAuthGuard", () => {
     const guard = createAuthGuard(stateWith("anonymous"));
     await expect(guard(target("alerts"))).resolves.toEqual({
       name: AUTH_FALLBACK_ROUTE_NAME,
+      query: { redirect: "/alerts" },
       replace: true,
+    });
+  });
+
+  it("keeps the whole deep link, query included, for after sign-in", async () => {
+    const guard = createAuthGuard(stateWith("anonymous"));
+    const result = await guard(target("alerts", "/alerts?severity=critical"));
+    expect(result).toMatchObject({
+      query: { redirect: "/alerts?severity=critical" },
     });
   });
 
@@ -154,5 +164,24 @@ describe("createAuthGuard", () => {
   it("lets any authenticated user through a route with no capability restriction", async () => {
     const guard = createAuthGuard(stateWith("authenticated"));
     await expect(guard(target("alerts"))).resolves.toBe(true);
+  });
+});
+
+describe("safeRedirectPath", () => {
+  it("accepts an in-app path and refuses anything that could leave the origin", () => {
+    expect(safeRedirectPath("/alerts?severity=critical")).toBe(
+      "/alerts?severity=critical",
+    );
+    for (const value of [
+      "//evil.example/x",
+      "/\\evil.example",
+      "https://evil.example",
+      "alerts",
+      "",
+      undefined,
+      ["/a"],
+    ]) {
+      expect(safeRedirectPath(value), String(value)).toBeNull();
+    }
   });
 });

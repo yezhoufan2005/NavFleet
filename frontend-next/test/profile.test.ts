@@ -134,6 +134,30 @@ describe("ProfileView — change password", () => {
     expect((oldP!.element as HTMLInputElement).value).toBe("");
   });
 
+  it("reloads the session list after a change, which ended every other session", async () => {
+    handlers.push({
+      match: (u, i) => u === "/api/auth/change-password" && i.method === "POST",
+      response: () => new Response(null, { status: 204 }),
+    });
+    const wrapper = await mountView();
+    // The backend now holds only the session it opened for this device.
+    handlers[0] = {
+      match: (u, i) =>
+        u === "/api/auth/sessions" && (i.method ?? "GET") === "GET",
+      response: () =>
+        jsonResponse({ sessions: [{ ...SESSIONS[0], sessionId: "sid-new" }] }),
+    };
+    const [oldP, newP, confirmP] = wrapper.findAll("input[type=password]");
+    await oldP!.setValue("current-1");
+    await newP!.setValue(NEW_PW);
+    await confirmP!.setValue(NEW_PW);
+    await wrapper.find("form").trigger("submit");
+    await flushPromises();
+
+    expect(wrapper.text()).not.toContain("Chrome");
+    expect(wrapper.findAll("tbody tr")).toHaveLength(1);
+  });
+
   it("surfaces a wrong current password from the backend", async () => {
     handlers.push({
       match: (u) => u === "/api/auth/change-password",
@@ -189,6 +213,26 @@ describe("ProfileView — my sessions", () => {
 
     expect(wrapper.text()).not.toContain("Chrome");
     expect(useNotifications().items.at(-1)?.message).toContain("已下线该设备");
+  });
+
+  it("reloads the list when a session is already gone", async () => {
+    handlers.push({
+      match: (u, i) =>
+        u.startsWith("/api/auth/sessions/") && i.method === "DELETE",
+      response: () => jsonResponse({ error: "not_found" }, 404),
+    });
+    const wrapper = await mountView();
+    handlers[0] = {
+      match: (u, i) =>
+        u === "/api/auth/sessions" && (i.method ?? "GET") === "GET",
+      response: () => jsonResponse({ sessions: [SESSIONS[0]] }),
+    };
+    await wrapper.findAll("tbody button")[1]!.trigger("click");
+    wrapper.findComponent(UiConfirmDialog).vm.$emit("confirm");
+    await flushPromises();
+
+    expect(useNotifications().items.at(-1)?.message).toContain("下线失败");
+    expect(wrapper.text()).not.toContain("Chrome");
   });
 
   it("revoking the current session logs out", async () => {
