@@ -98,7 +98,7 @@ describe("loading the script", () => {
     const script = loaderScript();
     expect(script?.src).toContain("key=test-key");
     expect(script?.src).toContain("AMap.Scale");
-    // And nothing else. `AMap.ToolBar` was dropped in 13T-D — `GpsMap` draws its own zoom
+    // And nothing else. `AMap.ToolBar` was dropped — `GpsMap` draws its own zoom
     // controls so they follow the tokens, and a plugin nobody constructs is bytes on every
     // first load.
     expect(script?.src).not.toContain("AMap.ToolBar");

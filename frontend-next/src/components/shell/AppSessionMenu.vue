@@ -2,10 +2,10 @@
 /**
  * Session menu: who is signed in, the personal preferences, and sign-out.
  *
- * Preferences live here rather than on a settings page — an 11C decision (§1). A
- * settings *page* for "which theme do I like" is a page nobody navigates to twice,
- * and it competes for a slot in the primary navigation with things a whole shift
- * depends on.
+ * Preferences live here rather than on a settings page — a deliberate decision of the
+ * console's information architecture. A settings *page* for "which theme do I like" is a
+ * page nobody navigates to twice, and it competes for a slot in the primary navigation
+ * with things a whole shift depends on.
  *
  * Built on Reka UI's `DropdownMenu`, and that is the point of introducing it here:
  * focus management, roving focus through the items, Escape and outside-click
@@ -68,8 +68,8 @@ const VOLUME_OPTIONS: readonly {
 
 /**
  * Two presets and an always-on, rather than a time picker. A free-form range needs a
- * form, and a form belongs on a settings page this IA deliberately does not have — see
- * 13D-2 for why that is a deferral rather than a claim that presets are the same thing.
+ * form, and a form belongs on a settings page this IA deliberately does not have. That
+ * is a deferral until such a page exists, not a claim that presets are the same thing.
  *
  * 全天 is here rather than being left to 静音 because the two are different promises:
  * 静音 is a switch someone flips for the next few minutes, 免打扰 全天 is a standing rule
@@ -154,9 +154,10 @@ const onThemeChange = (value: unknown): void => {
 
         <!--
           The label says which of the two is in force, not only which option is selected.
-          `resolved` has been exported by `useTheme` since 12B with no reader, and it is
-          the only thing that can answer this while 跟随系统 is chosen — the radio says
-          「跟随系统」 and the screen is dark, and nothing on the page connects the two.
+          `resolved` has been exported by `useTheme` since the console was scaffolded, with
+          no reader, and it is the only thing that can answer this while 跟随系统 is
+          chosen — the radio says 「跟随系统」 and the screen is dark, and nothing on the
+          page connects the two.
         -->
         <DropdownMenuLabel class="px-2 py-1 text-2xs text-ink-subtle">
           主题 ·

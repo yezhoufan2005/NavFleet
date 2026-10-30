@@ -88,8 +88,8 @@ const asKey = (value: string): string => (value === "" ? EMPTY_KEY : value);
  * Falling back to the raw `modelValue` is the component's honest answer: it knows the
  * value is not in `options`, and showing it says so. Callers who can phrase it better pass
  * `placeholder` — and `AlertsView` now avoids the case entirely by keeping the filtered
- * device in its own list. `placeholder` had been declared here since 12D with **no caller
- * at all**, which is what left the blank state unfixed.
+ * device in its own list. `placeholder` had been declared here from the start with
+ * **no caller at all**, which is what left the blank state unfixed.
  */
 const selectedLabel = computed(
   () =>

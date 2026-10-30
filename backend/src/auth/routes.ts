@@ -23,8 +23,8 @@ const baseCookie = (): CookieOptions => ({
 });
 
 /**
- * Issue fresh access + refresh cookies for a user, both carrying the session id `sid` (Phase
- * 15E) so the per-request auth check can tie them to a live session row. The refresh cookie is
+ * Issue fresh access + refresh cookies for a user, both carrying the session id `sid` so the
+ * per-request auth check can tie them to a live session row. The refresh cookie is
  * scoped to `/api/auth` so it is not sent with every API call, and both carry the user's
  * current `tokenVersion` so a later bump invalidates them. Called on login, on refresh
  * (rotation, same `sid`), and after a self password change (a fresh `sid`).
@@ -150,8 +150,8 @@ export const buildAuthRouter = (
     }
     // Keep the same session across a refresh (a renewal, not a new login), touching it so
     // its idle-expiry moves out. A refresh token that names a *revoked* session mints nothing.
-    // A legacy token with no `sid` (minted before 15E) is upgraded here: it gets a tracked
-    // session on its first refresh rather than being forced to re-login.
+    // A legacy token with no `sid` (minted before sessions were tracked) is upgraded here: it
+    // gets a tracked session on its first refresh rather than being forced to re-login.
     let sessionId = claims.sid;
     if (sessionId) {
       if (!(await authService.isSessionActive(user.username, sessionId))) {

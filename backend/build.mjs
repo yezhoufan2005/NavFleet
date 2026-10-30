@@ -2,7 +2,7 @@
 //
 // Why bundle rather than `tsc` emit: the backend imports runtime values from the
 // workspace package `@navfleet/shared` (parseCodebook, deviceMatchesScope,
-// emptyAlertStatsReport, …, since Phase 16). `tsc` leaves those as a bare
+// emptyAlertStatsReport, …). `tsc` leaves those as a bare
 // `require("@navfleet/shared")`, and that package's `exports` resolve to its
 // TypeScript *source* (`src/index.ts`) — which node cannot run and which the
 // runtime image never copied, so `node dist/index.js` crashed on boot. Bundling

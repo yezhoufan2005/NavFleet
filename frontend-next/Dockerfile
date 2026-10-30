@@ -1,6 +1,6 @@
 # Console image (the v3 frontend) — built from the monorepo root context, like the
-# other two. **This is what compose deploys** as of the Phase 14 switch: the `web`
-# service builds this file, and deploy/docker-compose.legacy-frontend.yml swaps in
+# other two. **This is what compose deploys** by default: the `web` service builds
+# this file, and deploy/docker-compose.legacy-frontend.yml swaps in
 # frontend/Dockerfile for a rollback.
 FROM node:24-alpine AS build
 WORKDIR /app

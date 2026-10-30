@@ -5,7 +5,7 @@
  * 是后端独有逻辑（`backend/src/reports/`），不进这个两个前端都 import 的包。
  *
  * **口径**：这些数字**只在有 Mongo 时才算得出来**。时序库与 `alerts` 集合是历史的唯一来源，内存
- * 回退只有活跃告警、没有历史（同 16B 的先例）。所以每个报表都带一个 `available` 标志：`false` 表示
+ * 回退只有活跃告警、没有历史（同消息史的先例）。所以每个报表都带一个 `available` 标志：`false` 表示
  * 这个部署没有历史后端，页面据此显示诚实空态，而不是把「零条」画成「一切正常」。
  *
  * 时间戳一律是 ISO-8601 字符串（Mongo 的 `Date` 经 JSON 序列化后就是它）。
@@ -38,8 +38,8 @@ export interface ReportDurationStats {
 }
 
 /**
- * `alerts` 集合上的服务端聚合。不受 `/api/alerts` 那 500 条读取上限约束——这正是把统计从 16B 的
- * 前端就地算下沉到服务端聚合的理由（16B 的注释已预告本阶段）。
+ * `alerts` 集合上的服务端聚合。不受 `/api/alerts` 那 500 条读取上限约束——这正是把统计从消息史的
+ * 前端就地算下沉到服务端聚合的理由（消息史的注释当时已预告这一步）。
  *
  * `topDevices` 只带 `deviceId`：`alerts` 文档不存 `deviceName`（它属于实时设备状态，不属于告警），
  * 前端渲染时用在线设备列表把 id 映射成名字即可，两边都不必让告警文档冗余一份会过期的名字。
@@ -105,7 +105,7 @@ export interface AvailabilityDeviceSeries {
 export interface AvailabilityReport {
   bucket: ReportBucketUnit;
   devices: AvailabilityDeviceSeries[];
-  /** 是否有历史后端（Mongo）。false ⇒ 诚实空态（同 16B「无 Mongo 无历史」先例）。 */
+  /** 是否有历史后端（Mongo）。false ⇒ 诚实空态（同消息史「无 Mongo 无历史」先例）。 */
   available: boolean;
 }
 
@@ -122,8 +122,8 @@ export const emptyAvailabilityReport = (
 // ── 定时报表───────────────────────────────────────────────────────────────
 //
 // 把报表按周期（每天/每周某时）生成并邮件推送给收件方。配置走盘上 reports.json（configRegistry，
-// 同 notify.json/rules.json「无 UI、盘上手改」先例），**不做 Web 端写入**。收件方沿用 16D 的
-// NotifyRecipient（email 字面量或 user 引用），groups 引用 notify.json 的用户组——「复用 16D 渠道」。
+// 同 notify.json/rules.json「无 UI、盘上手改」先例），**不做 Web 端写入**。收件方沿用告警外发的
+// NotifyRecipient（email 字面量或 user 引用），groups 引用 notify.json 的用户组——「复用外发渠道」。
 //
 // **红线（照搬告警外发那批规矩）**：出厂零配置 = 不发。`DEFAULT_REPORTS_CONFIG.schedules` 为空。
 // SMTP 连接串（含凭据）走 env（schedule 里只记 `smtpEnv` 变量名），绝不落 reports.json。

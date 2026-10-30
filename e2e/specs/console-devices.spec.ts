@@ -131,7 +131,7 @@ test.describe("console devices", () => {
   test("the chosen view and surface both survive a reload", async ({
     page,
   }) => {
-    // Two independent preferences, which 13A-1's note had conflated into one.
+    // Two independent preferences, which an earlier note had conflated into one.
     await page.getByRole("button", { name: "ROS", exact: true }).click();
     await expect(page.getByRole("img", { name: "ROS 场景地图" })).toBeVisible();
 
@@ -175,7 +175,7 @@ test.describe("console devices", () => {
     page,
   }) => {
     /*
-     * 14H acceptance reported 电量 shifting left the moment it became the sorted column.
+     * Acceptance testing reported 电量 shifting left the moment it became the sorted column.
      * It is the only right-aligned header, so an arrow rendered only when active appeared
      * *between* the label and the cell edge and pushed the word left by its own width. The
      * slot is reserved on every header now, so the button's box is the same either way —
@@ -204,7 +204,7 @@ test.describe("console devices", () => {
     page,
   }) => {
     /*
-     * The 14I report: the header moved left and the values did not.
+     * The next acceptance report: the header moved left and the values did not.
      *
      * Reserving the arrow's slot fixed the *shift*, but the slot lives inside the header's
      * own box — so the label ended up 14px left of the column it heads, and the first fix
@@ -294,7 +294,7 @@ test.describe("console devices", () => {
     page,
   }) => {
     // The fourth L3 tab, and the first consumer of `/api/v1/alerts` anywhere in the
-    // console — 13D-1 built the alert centre on the store's live alerts and left the
+    // console — the alert centre was built on the store's live alerts and left the
     // endpoint at zero calls, so nothing before this exercised it end to end.
     // Resolved and asserted in `support/seed.ts`: the guard that used to sit here
     // could never fire, so losing the faulted vehicle would have skipped this test

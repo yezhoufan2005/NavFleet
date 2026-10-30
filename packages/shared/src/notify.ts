@@ -47,7 +47,7 @@ export interface NotifyRecipient {
 }
 
 /**
- * 静默窗口（16D-2a，本地时区）。落在任一窗口内的告警对该渠道**静默**（不发、不记录，只 debug 日志）。
+ * 静默窗口（本地时区）。落在任一窗口内的告警对该渠道**静默**（不发、不记录，只 debug 日志）。
  * `days` 用 0=周日..6=周六，空/缺省=每天。`from`/`to` 是 `"HH:MM"`；`to <= from` 表示跨零点（如
  * 22:00→06:00 覆盖夜间）。
  */
@@ -70,7 +70,7 @@ export interface NotifyEscalation {
  * 一个出站渠道的配置（`notify.json` 的一条）。
  *
  * `severities` 决定这个渠道接收哪些严重度——缺省=全部三档，显式列则只发所列。`scope` 复用规则引擎的
- * 作用范围语义：缺省/空=全车队。以下 16D-2a 字段全部可选，缺省即「关」，保持零配置最简：
+ * 作用范围语义：缺省/空=全车队。以下字段全部可选，缺省即「关」，保持零配置最简：
  * - `email` 渠道：`from`（发件地址，非密钥）、`recipients`（内联收件人）、`groups`（引用 `NotifyConfig.groups`）；
  *   SMTP 连接串（含密钥）仍走 `urlEnv` 指名的环境变量。
  * - 汇总：`digestSeconds>0` 时，`digestSeverities`（缺省=除 critical 外的全部——**critical 永远立即**）

@@ -30,7 +30,7 @@ type LoaderState = "loading" | "loaded" | "error";
 
 const LOADER_SELECTOR = 'script[data-amap-loader="true"]';
 /*
- * `AMap.Scale` only. `AMap.ToolBar` was dropped in 13T-D: its zoom widget is AMap's own
+ * `AMap.Scale` only. `AMap.ToolBar` was dropped: its zoom widget is AMap's own
  * chrome and does not follow the design tokens, so `GpsMap` draws that control itself now.
  * Left in the plugin list it would still be downloaded — a plugin nobody constructs is
  * bytes on every first load.

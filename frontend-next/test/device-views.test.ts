@@ -1116,8 +1116,8 @@ describe("sorting the device list", () => {
   ];
 
   it("opens in 编号 order, so the register keeps its place while faults come and go", async () => {
-    // 14C briefly defaulted to 状态; acceptance asked for the id order back. 总览's
-    // 待处理项 is the list that answers "who needs me now" — this one is the register,
+    // An earlier version briefly defaulted to 状态; acceptance asked for the id order back.
+    // 总览's 待处理项 is the list that answers "who needs me now" — this one is the register,
     // and a register that reorders itself as vehicles develop faults cannot be scanned.
     const { wrapper } = await mountSortable(MIXED);
 
@@ -1183,7 +1183,7 @@ describe("sorting the device list", () => {
 
   it("reserves the arrow's slot on every header, so 电量 does not shift when selected", async () => {
     /*
-     * The 14H shift, and the one column it could happen on.
+     * The shift acceptance testing reported, and the one column it could happen on.
      *
      * 电量 is right-aligned, so an arrow rendered only when active appeared *between* the
      * label and the cell edge: clicking 电量 moved its own label left by the arrow's width.
@@ -1191,9 +1191,9 @@ describe("sorting the device list", () => {
      *
      * The reserve is mirrored onto the **values only**. The first attempt put it on the
      * `th` as well, which reserved the space twice there (the padding plus the slot inside
-     * the button) and left the header 14px left of its own numbers — the 14I report. Which
-     * edge actually lines up is measured in `console-devices.spec.ts`; what is checkable
-     * here is that the two cells carry different padding on purpose.
+     * the button) and left the header 14px left of its own numbers — the next acceptance
+     * report. Which edge actually lines up is measured in `console-devices.spec.ts`; what is
+     * checkable here is that the two cells carry different padding on purpose.
      */
     const { wrapper } = await mountSortable(MIXED);
     const slotOf = (label: string) =>
@@ -1579,7 +1579,7 @@ describe("clearing a trail", () => {
   });
 
   it("clears the selected vehicle's trail, and only that one", async () => {
-    // `clearTrail` has been exported by the store since 12B with no caller: a trail
+    // `clearTrail` has been exported by the store with no caller: a trail
     // accumulates for as long as a vehicle is watched, so after a shift it is a scribble
     // over the whole site with no way back short of a reload.
     const wrapper = await mountMap();

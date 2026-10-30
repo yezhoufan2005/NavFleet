@@ -241,13 +241,13 @@ describe("遥测面板", () => {
     expect(wrapper.text()).not.toMatch(/控制模式\s*2\s*$/);
     expect(wrapper.text()).toContain("1.25 m/s");
     // `0` digits and no space before `%`: SOC to 0.1% is false precision, and the
-    // playback tab used to print `82.3%` for the same reading — 13T-A settled on one
-    // form for all three sites.
+    // playback tab used to print `82.3%` for the same reading — all three sites now share
+    // one form.
     expect(wrapper.text()).toContain("82%");
   });
 
   it("explains an enum code on hover, not just names it", async () => {
-    // `describeEnum` has lived in fleet-core with tests since 12A and had zero readers:
+    // `describeEnum` has lived in fleet-core with tests and had zero readers:
     // the port took `formatEnum`'s label and left the sentence behind. The dotted
     // underline is what makes the tooltip discoverable rather than a hover to guess at.
     seed();
@@ -358,9 +358,9 @@ describe("找不到设备", () => {
 describe("视图切换", () => {
   /**
    * Four answers to four questions asked at different times — right now / lately /
-   * that afternoon / has this happened before. They are **real child routes** (Phase
-   * 18), rendered by the section tab strip, so a tab is a URL rather than a `?tab=`:
-   * the breadcrumb reads 设备 › <id> › 实时, and Back/Forward walk them.
+   * that afternoon / has this happened before. They are **real child routes**, rendered by
+   * the section tab strip, so a tab is a URL rather than a `?tab=`: the breadcrumb reads
+   * 设备 › <id> › 实时, and Back/Forward walk them.
    */
   const tabStrip = (wrapper: Awaited<ReturnType<typeof mountDetail>>) =>
     wrapper.find("nav[aria-label='分区导航']");

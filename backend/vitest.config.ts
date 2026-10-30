@@ -19,20 +19,20 @@ export default defineConfig({
       // today, so a regression fails CI while a small refactor does not. Raise
       // them when coverage climbs; never lower them to make a red build pass.
       //
-      // First calibration was against 82.1 / 81.4 / 84.8. Raised in P0-f 第 6 批
-      // against **89.82 / 85.02 / 90.58 / 89.82**, after `persistence.ts` went from
+      // First calibration was against 82.1 / 81.4 / 84.8. Raised later against
+      // **89.82 / 85.02 / 90.58 / 89.82**, after `persistence.ts` went from
       // 47.4% to 84.1%: every test there used to run the `if (!this.db)` in-memory
       // fallback, so the half of that file which runs in production had no test at
       // all. Raising the gate is the half of that work that keeps it — otherwise
       // the next change is free to give it back.
       /*
-       * **重定于 vitest 5（P0-f 第 5 批）。跨这次升级，数字不可比。**
+       * **重定于 vitest 5。跨这次升级，数字不可比。**
        *
        * 同一份代码，只换 vitest 3 → 5，四个 workspace 的读数全部移动，而且方向不一致 ——
        * 这是计数方式变了，不是覆盖率变了。两条证据：
        *
        * 1. **分支的分母变大。** backend `store.ts` 95.68% → 81.63%、`normalize.ts`
-       *    81.57% → 73.97%，而语句几乎没动。P0-f 第 2、3 批为了类型安全加进来的大量 `?.`
+       *    81.57% → 73.97%，而语句几乎没动。此前为了类型安全加进来的大量 `?.`
        *    与 `??` 每一个都是分支，vitest 5 把它们算进去了。
        * 2. **未被 import 的文件从「100% functions」变成 0%。** 冻结前端的
        *    `useSceneOverlay.ts` / `lib/globalErrorHandlers.ts` / `router/index.ts` /

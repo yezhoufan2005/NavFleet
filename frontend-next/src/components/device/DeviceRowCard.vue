@@ -14,8 +14,8 @@
  *
  * The enum fields go through `formatEnum` + `describeEnum` for the reason
  * `DeviceDetailView` documents: the maps have carried a `description` beside every
- * `label` since 12A, and reading only the labels is how «自动驾驶» loses the sentence
- * explaining what that mode does.
+ * `label` since they moved into `fleet-core`, and reading only the labels is how
+ * «自动驾驶» loses the sentence explaining what that mode does.
  */
 import { computed } from "vue";
 import { RouterLink } from "vue-router";

@@ -138,7 +138,7 @@ const median = (sortedOrNot: readonly number[]): number | null => {
   return sorted.length % 2 === 0 ? (sorted[mid - 1]! + sorted[mid]!) / 2 : sorted[mid]!;
 };
 
-/** 把未知/缺失的严重度归到最轻一档，和 16B 前端的 `severityOf` 保持一致。 */
+/** 把未知/缺失的严重度归到最轻一档，和前端的 `severityOf` 保持一致。 */
 const normalizeSeverity = (value: unknown): Severity =>
   SEVERITIES.includes(value as Severity) ? (value as Severity) : "notice";
 

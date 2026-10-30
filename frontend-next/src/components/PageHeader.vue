@@ -25,7 +25,7 @@
  *
  * ## `scrollContent`
  *
- * Two page shapes exist in this console, and until 14A one of them was accidental.
+ * Two page shapes exist in this console, and originally one of them was accidental.
  * 总览 / 设备 / 报表 / 管理 fill the viewport and scroll *inside* a panel; 系统状态
  * (measured at 1650px against an 852px content area) instead scrolled as a document,
  * so the page title left the screen and, on a page that also has a scrollable table,

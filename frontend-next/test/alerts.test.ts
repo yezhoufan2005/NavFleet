@@ -21,7 +21,7 @@ import {
 } from "@/composables/useNotifications";
 
 /**
- * The alert centre. Most of these cover the 11B audit's list — the things that were
+ * The alert centre. Most of these cover the task-flow audit's list — the things that were
  * missing rather than wrong: filter state in the URL, a toggle that says it is one,
  * an empty state that is announced, and a row that reaches the vehicle.
  *

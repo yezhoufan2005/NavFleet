@@ -273,7 +273,7 @@ describe("landmarks", () => {
   });
 
   it("does not grab focus when a reload resolves straight into a deep route", async () => {
-    // 14A acceptance: "刷新页面，当前 tab 的边框会高亮". A reload lands on its URL before
+    // Acceptance testing: "刷新页面，当前 tab 的边框会高亮". A reload lands on its URL before
     // anything is mounted, and the async auth guard means the first resolve completes
     // *after* the shell exists — so `route.path` changing from `/` to `/alerts` looked
     // exactly like a navigation. Focus went to `main`, and since the reload was itself a

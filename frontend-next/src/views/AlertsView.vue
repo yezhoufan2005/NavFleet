@@ -3,7 +3,7 @@
  * 告警 — the live message list.
  *
  * What this page owes v1.0.0: severity buckets, a device filter, a search box,
- * acknowledgement, and pagination. What it adds is mostly the 11B audit's list of
+ * acknowledgement, and pagination. What it adds is mostly the v1.0.0 audit's list of
  * things that were missing rather than wrong:
  *
  * - **Filter state lives in the URL.** A supervisor who has narrowed the list to one
@@ -47,7 +47,7 @@ import type { Severity } from "@navfleet/shared";
 /**
  * The four `source` values the normalizer produces, in words.
  *
- * `source` has been computed and carried on every alert since 12A and read by nothing in
+ * `source` has been computed and carried on every alert and read by nothing in
  * this front end — v1.0.0 rendered it in the row footer
  * (`frontend/src/views/AlertsView.vue:16-21,226`). It answers a question the title cannot:
  * whether a row came off a vehicle's own report code or was derived by the rule engine,
@@ -634,15 +634,16 @@ watch(() => canAck.value && fleet.state.realtime.apiReady, runLegacyMigration);
           not see which ones you had just done.
 
         A third one — `.alert-item.focused` (`:138-141`), a brand ring on the rows of the
-        selected vehicle — was restored in 13T-C and **removed again in 14A acceptance**.
-        It reported a fact this page cannot explain. In v1.0.0 that rule lived in an alert
-        drawer *beside the map*, where the selection was visible and the operator had just
-        made it. Here the page is reached from the sidebar and offers no selection control
-        at all, so the ring marked whichever vehicle `ensureSelectedDevice()` had picked —
-        the alphabetically first one on a cold load, or whatever was last clicked on 设备,
-        possibly minutes ago on another page. Manual review read it as rows lighting up at
-        random, which is the correct reading: nothing on screen accounted for it. A cue
-        whose cause is off-screen is noise, however faithful it is to the original.
+        selected vehicle — was restored by the parity pass and **removed again after
+        acceptance testing**. It reported a fact this page cannot explain. In v1.0.0 that
+        rule lived in an alert drawer *beside the map*, where the selection was visible and
+        the operator had just made it. Here the page is reached from the sidebar and offers
+        no selection control at all, so the ring marked whichever vehicle
+        `ensureSelectedDevice()` had picked — the alphabetically first one on a cold load,
+        or whatever was last clicked on 设备, possibly minutes ago on another page. Manual
+        review read it as rows lighting up at random, which is the correct reading: nothing
+        on screen accounted for it. A cue whose cause is off-screen is noise, however
+        faithful it is to the original.
       -->
         <li
           v-for="alert in pageRows"
@@ -691,7 +692,7 @@ watch(() => canAck.value && fleet.state.realtime.apiReady, runLegacyMigration);
                 formatDateTime(alert.firstSeenAt)
               }}</span>
               <span v-if="alert.code" class="font-mono">#{{ alert.code }}</span>
-              <!-- Where the row came from. Computed on every alert since 12A and read by
+              <!-- Where the row came from. Computed on every alert and read by
                  nothing until now; it decides whether the vehicle or the platform is the
                  thing to go look at. -->
               <span>{{ SOURCE_LABELS[alert.source] || alert.source }}</span>

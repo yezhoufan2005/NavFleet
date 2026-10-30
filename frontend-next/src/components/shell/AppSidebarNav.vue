@@ -122,10 +122,10 @@ const alertBadge = computed(() => {
 const BASE_CLASS =
   "group flex min-h-10 items-center rounded-sm py-2 font-medium";
 /**
- * Collapsed, the rail is 44px wide (11C §3.1) and the nav's own padding takes 12 of
- * them, so a labelled item's `px-2` plus a 20px icon does not fit and the pill
- * clips at the edge. Centring with no horizontal padding is what makes the icon sit
- * in the middle of the rail rather than against its side.
+ * Collapsed, the rail is 44px wide and the nav's own padding takes 12 of them, so a
+ * labelled item's `px-2` plus a 20px icon does not fit and the pill clips at the edge.
+ * Centring with no horizontal padding is what makes the icon sit in the middle of the
+ * rail rather than against its side.
  */
 const SPACING_CLASS = {
   labelled: "gap-3 px-2",

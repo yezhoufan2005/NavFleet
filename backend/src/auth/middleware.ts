@@ -68,8 +68,8 @@ const extractAccessToken = (request: Request): string => {
  * mode for local/dev — deliberately preserved).
  *
  * `isSessionActive` adds the per-session check: when the token names a session
- * (`sid`), that session must still exist. A token with no `sid` (minted before 15E) is
- * governed by `tokenVersion` alone, unchanged — so the upgrade forces no re-login.
+ * (`sid`), that session must still exist. A token with no `sid` (minted before sessions were
+ * tracked) is governed by `tokenVersion` alone, unchanged — so the upgrade forces no re-login.
  */
 export const createAuthenticate =
   (

@@ -5,8 +5,8 @@
  * produced by **scanning storage for that prefix** instead of from a hand-kept list.
  * That is the whole point: this feeds a diagnostics page, and a list maintained by
  * hand is precisely the thing that goes stale — `docs/frontend-parity.md` §8.8
- * documented five keys and there are ten today, because 13D-2 added three sound
- * preferences, 13A-2b added the device layout, and 14A added the sound-armed flag.
+ * documented five keys and there are ten today, because three sound preferences, the
+ * device layout and the sound-armed flag were all added after it was written.
  * A page that answers "what is this browser holding" has to be unable to drift from
  * the answer.
  *

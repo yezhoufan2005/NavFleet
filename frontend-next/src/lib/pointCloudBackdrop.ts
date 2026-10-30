@@ -10,8 +10,8 @@
  * the cache on the scene alone. Making the palette injectable without keying on it
  * would be worse than leaving it hardcoded: switching themes would serve the PNG
  * rasterized for the *previous* theme, and it would look like the switch had simply
- * failed. The colours themselves are chosen by the caller — 13A-2b picks them from
- * the map tokens, with the map on screen to judge them against.
+ * failed. The colours themselves are chosen by the caller, which takes them from
+ * the map tokens, picked with the map on screen to judge them against.
  *
  * **Fix 2: the cache is bounded.** v1.0.0 never evicted an entry; the only `delete`
  * was the error path. Each entry holds a full-scene PNG as a base64 data URL, so a

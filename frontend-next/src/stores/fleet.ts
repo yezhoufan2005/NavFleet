@@ -19,7 +19,7 @@
  *   accepts arbitrary state into the console would be adding an injection point
  *   for no gain, so it stops here.
  * - **No map-mode preference.** v1.0.0 persisted a two-value `gps|scene` toggle.
- *   The overview needs a three-state list/map/auto mode with a vehicle-count
+ *   The devices page needs a three-state list/map/auto mode with a vehicle-count
  *   threshold, so porting the two-state version now would only be something to
  *   delete. It arrives with the maps that need it.
  */
@@ -1027,9 +1027,9 @@ export const useFleetStore = defineStore("fleet", () => {
    * dressed the absence up as a fleet of zero vehicles, which is a different and much more
    * alarming statement than "we cannot reach the backend".
    *
-   * 13T-E did this half (seed only the two label fields; leave the device map untouched so
-   * a reconnect merges into what was last known); 1.0.3 deleted the constants themselves,
-   * which had to wait because `fleet-core` is imported by the shipped v1.0.0 too.
+   * An earlier change did this half (seed only the two label fields; leave the device map
+   * untouched so a reconnect merges into what was last known); 1.0.3 deleted the constants
+   * themselves, which had to wait because `fleet-core` is imported by the shipped v1.0.0 too.
    */
   const bootstrapEmptyState = (): void => {
     if (!state.fleetName) state.fleetName = fallbackFleetPayload.fleetName;

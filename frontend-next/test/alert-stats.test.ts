@@ -8,8 +8,8 @@ import {
 
 /**
  * The alert statistics, computed client-side (the history tab has no server aggregation
- * layer; that is 17A). Pure functions, so every branch is exercised by feeding records in and
- * asserting the numbers out — no DOM, no clock.
+ * layer; server-side aggregation belongs to the reports). Pure functions, so every branch is
+ * exercised by feeding records in and asserting the numbers out — no DOM, no clock.
  */
 const HOUR = 3_600_000;
 

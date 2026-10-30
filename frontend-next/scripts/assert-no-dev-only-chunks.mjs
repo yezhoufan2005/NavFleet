@@ -4,13 +4,13 @@
  *
  * The chart performance harness (`views/ChartPerfView.vue`) is registered behind
  * `import.meta.env.DEV || VITE_CHART_PERF`, which means a normal production build
- * should contain neither it nor — until a real page uses a chart — ECharts. That is
- * the kind of guarantee that holds right up until someone adds an unconditional
- * import and nobody notices, so it is checked rather than remembered.
+ * should not contain it. That is the kind of guarantee that holds right up until
+ * someone adds an unconditional import and nobody notices, so it is checked rather
+ * than remembered.
  *
- * Deliberately narrow: it looks for the harness chunk only, not for ECharts. Phase
- * 13C will legitimately pull ECharts into a product page, and a check that broke
- * then would be a check people learn to delete.
+ * Deliberately narrow: it looks for the harness chunk only, not for ECharts. The
+ * product pages (device charts and playback, message history, reports) pull ECharts
+ * in legitimately, so a check on ECharts would break on every build.
  */
 import { readdirSync, existsSync } from "node:fs";
 import { dirname, join } from "node:path";

@@ -3,8 +3,8 @@
  * 消息史 — this vehicle's alerts as a chronology.
  *
  * The fourth tab `docs/frontend-ia.md` asks for at L3, and the **first consumer of
- * `/api/v1/alerts`** anywhere in the console: 13D-1 shipped the alert centre on the
- * store's live alerts and left that endpoint at zero calls.
+ * `/api/v1/alerts`** anywhere in the console: the alert centre was built on the store's
+ * live alerts and left that endpoint at zero calls.
  *
  * ## Why this is not the alert centre's row
  *

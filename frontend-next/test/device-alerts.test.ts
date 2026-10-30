@@ -9,7 +9,7 @@ import DeviceAlertsTab from "@/components/device/DeviceAlertsTab.vue";
 
 /**
  * 消息史 — the fourth L3 tab, and the first consumer of `/api/v1/alerts` anywhere in
- * the console (13D-1 built the alert centre on the store's live alerts and left the
+ * the console (the alert centre was built on the store's live alerts and left the
  * endpoint at zero calls).
  *
  * The tests that matter most are about the two states an operator can misread: an
@@ -72,7 +72,7 @@ describe("消息史", () => {
   });
 
   it("是这个端点在控制台里的第一个消费者", async () => {
-    // Worth an assertion rather than a comment: 13D-1 recorded `/api/v1/alerts` as
+    // Worth an assertion rather than a comment: `/api/v1/alerts` was on record as
     // having zero callers, and this tab is the change.
     await mountTab();
     expect(getAlerts).toHaveBeenCalledTimes(1);

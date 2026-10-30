@@ -114,10 +114,10 @@ export const useTheme = () => {
   };
 
   /*
-   * No `cycleTheme`. It existed for the header's one-tap toggle, which 11C replaced with
-   * three explicit options in the session menu — a better control, because a cycling
-   * button cannot say what the next tap will select. The function outlived the button and
-   * sat here with no caller for a long time.
+   * No `cycleTheme`. It existed for the header's one-tap toggle, which the navigation
+   * redesign replaced with three explicit options in the session menu — a better control,
+   * because a cycling button cannot say what the next tap will select. The function
+   * outlived the button and sat here with no caller for a long time.
    */
   return {
     preference: readonly(preference),

@@ -26,9 +26,9 @@ import { join, relative, resolve } from "node:path";
  * ## What this does and does not catch
  *
  * It catches "declared, nobody calls it". It does **not** catch the mirror image, which
- * 13T-C ran into: an assertion written *tighter* than the contract because the feature was
- * missing when it was written (the `/^告警$/` nav matcher, anchored only because the badge
- * had been dropped). That one has no mechanical test yet.
+ * turned up when the nav badge came back: an assertion written *tighter* than the contract
+ * because the feature was missing when it was written (the `/^告警$/` nav matcher, anchored
+ * only because the badge had been dropped). That one has no mechanical test yet.
  */
 
 const SRC = resolve(__dirname, "../src");

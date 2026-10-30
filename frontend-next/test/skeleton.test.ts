@@ -3,7 +3,7 @@ import { enableAutoUnmount, mount } from "@vue/test-utils";
 import UiSkeleton from "@/components/ui/UiSkeleton.vue";
 
 /**
- * The loading placeholder, restored in 13T-B.
+ * The loading placeholder, restored to the console.
  *
  * v1.0.0 had it; `frontend-next` had zero `*keleton*` files while `stores/fleet.ts`
  * still claimed "Views render skeletons while it is set" — a comment asserting a fact

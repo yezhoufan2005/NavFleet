@@ -2,11 +2,11 @@
 /**
  * 设备详情 — a route, not a nav section, and the frame its four tabs share.
  *
- * Reached from the list, the map or an alert. It is where the 11B audit found the
- * worst task flow in v1.0.0: diagnosing one vehicle took six steps and still did not
- * answer the question, because live telemetry and history lived on different pages and
- * each made you pick the device again. Here they are one page over an already-chosen
- * device.
+ * Reached from the list, the map or an alert. It is where the audit of the old front end
+ * found the worst task flow in v1.0.0: diagnosing one vehicle took six steps and still
+ * did not answer the question, because live telemetry and history lived on different
+ * pages and each made you pick the device again. Here they are one page over an
+ * already-chosen device.
  *
  * ## Why tabs, and why they are real routes
  *

@@ -56,7 +56,7 @@ const mainRegion = useTemplateRef<HTMLElement>("mainRegion");
  * Move focus to the content region **when the operator navigates**, and only then.
  *
  * This was a `watch` on `route.fullPath`, which fired in two cases it should not have —
- * both found in 14A acceptance, reported as "刷新页面，当前 tab 的边框会高亮":
+ * both found in acceptance testing, reported as "刷新页面，当前 tab 的边框会高亮":
  *
  * 1. **The first resolve after a reload.** `useRoute()` starts at `START_LOCATION`
  *    (`path: "/"`), and the auth guard is async, so on a reload of any page other than

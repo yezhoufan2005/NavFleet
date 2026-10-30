@@ -4,7 +4,7 @@
  *
  * Spans the full width with the sidebar below it, rather than the sidebar running
  * full height beside it. Both layouts cost the same 48px of vertical space, so the
- * 11C argument for side navigation is unaffected — and this one puts the product
+ * argument for side navigation is unaffected — and this one puts the product
  * identity, the trail and the session in a single `banner` landmark, which is both
  * the conventional structure and one landmark for a screen reader to jump to
  * instead of three.
@@ -12,7 +12,8 @@
  * It stays slim on purpose. Everything that belongs to a page lives on that page;
  * this bar only carries what must be reachable from all of them.
  *
- * The two things 12C deliberately left blank now arrive with the store:
+ * The two things the first version of the shell deliberately left blank now arrive with
+ * the store:
  *
  * - **The realtime status indicator**, which is a dot *and a word*. Colour alone
  *   cannot carry it: a dot that only changes hue says nothing to a colourblind
@@ -110,11 +111,11 @@ const sound = useAlertSound();
  * What the control says, keyed on why it is currently silent.
  *
  * `locked` and `pending` read the same on purpose. Both mean "one click and this console
- * is audible", which is the only part an operator can act on, and 14H asked for exactly
- * that shape: 待就绪 after signing in, 响应 after the click, and 待就绪 again if a critical
- * ever proves the optimistic 响应 wrong. They stay two reasons rather than one because the
- * tooltips differ — one has never been armed in this session, the other was armed and then
- * let an alert through.
+ * is audible", which is the only part an operator can act on, and acceptance testing asked
+ * for exactly that shape: 待就绪 after signing in, 响应 after the click, and 待就绪 again if
+ * a critical ever proves the optimistic 响应 wrong. They stay two reasons rather than one
+ * because the tooltips differ — one has never been armed in this session, the other was
+ * armed and then let an alert through.
  */
 const SILENT_LABELS: Record<string, string> = {
   locked: "告警待就绪",
@@ -290,9 +291,9 @@ const NAV_TOGGLE_LABELS: Record<SidebarMode, string> = {
       <!--
         Retry, next to the thing it retries.
 
-        `retryBootstrap` and `connectRealtime` have been exported by the store since 12B
-        with no callers, so when the backend came back the only way to recover was to
-        reload the page — the automatic retry does happen, but an operator watching a
+        `retryBootstrap` and `connectRealtime` have been exported by the store since it was
+        introduced, with no callers, so when the backend came back the only way to recover
+        was to reload the page — the automatic retry does happen, but an operator watching a
         「后端离线」 badge has no way to say "try now" and no way to tell whether anything
         is being attempted on their behalf.
 

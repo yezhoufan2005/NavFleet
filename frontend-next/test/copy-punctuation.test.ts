@@ -5,7 +5,7 @@ import { join, relative, resolve } from "node:path";
 /**
  * **No 。 in copy the operator reads.**
  *
- * The house rule, asked for during 14H acceptance and worth a test rather than a style
+ * The house rule, asked for during acceptance testing and worth a test rather than a style
  * note: a label, a tooltip, an empty state, a toast, a 报码 explanation — none of them end
  * in a full stop. UI copy is a caption, not prose; the period adds a character to every
  * string and tells the reader nothing, and one string carrying it while its neighbour does
