@@ -91,6 +91,10 @@ body() { curl -s "$@"; }
 # 只取 deploy/.env 里指定的一个键。整份 source 会把 NODE_ENV=production 一起带进来。
 deploy_var() { [[ -f "$ENV_FILE" ]] && sed -n "s/^$1=//p" "$ENV_FILE" | tail -1; }
 
+# 收件箱端口按 compose 自己的取值顺序：shell 环境优先于 deploy/.env，都没有才用默认值。
+MAILPIT_PORT="${MAILPIT_HOST_PORT:-$(deploy_var MAILPIT_HOST_PORT)}"
+MAILPIT_PORT="${MAILPIT_PORT:-8025}"
+
 compose() {
   docker compose --env-file "$ENV_FILE" -p "$PROJECT" "${COMPOSE_ARGS[@]}" "$@"
 }
@@ -369,7 +373,7 @@ print(d.get('agv-w05',{}).get('errorCode',{}).get('code'))" 2>/dev/null)"
   else
     bad "注入命令执行失败"
   fi
-  MAILPIT_N="$(curl -s "http://127.0.0.1:$(deploy_var MAILPIT_HOST_PORT | grep . || echo 8025)/api/v1/messages?limit=1" |
+  MAILPIT_N="$(curl -s "http://127.0.0.1:${MAILPIT_PORT}/api/v1/messages?limit=1" |
     python3 -c "import json,sys;print(json.load(sys.stdin).get('total',0))" 2>/dev/null || echo 0)"
   NOTIFY_N="$(body -b "$COOKIE" "$BASE/api/v1/notify/log" | count_json '["items"]')"
   [[ "${NOTIFY_N:-0}" -ge 1 ]] && ok "外发记录有送达记录（${NOTIFY_N} 条；本机收件箱 ${MAILPIT_N} 封）" ||
@@ -479,7 +483,7 @@ if [[ "$DO_DOWN" == "0" && "$CHECK_ONLY" == "0" ]]; then
   if [[ "$DO_MOCK" == "1" ]]; then
     echo "  演示车队: 模拟器 sim 持续上报（每车每秒一帧），停栈后再起只补空档"
     echo "  制造事件: docker compose -p ${PROJECT} exec sim npx tsx sim/main.ts inject <设备> <事件> [分钟]"
-    echo "  邮件收件箱: http://127.0.0.1:$(deploy_var MAILPIT_HOST_PORT | grep . || echo 8025)"
+    echo "  邮件收件箱: http://127.0.0.1:${MAILPIT_PORT}"
   fi
   echo "  停栈:   docker compose -p ${PROJECT} --env-file deploy/.env ${COMPOSE_ARGS[*]} down（保留数据卷）"
   echo "  从空库重来: scripts/verify-stack.sh --purge"
