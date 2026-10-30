@@ -175,14 +175,14 @@ watch(activeAlerts, () => {
         <GpsMap :devices="fleet.sortedDevices" selected-device-id="" />
       </section>
 
-      <aside class="wall-alerts" aria-label="活跃告警">
+      <aside class="wall-alerts" aria-label="活跃消息">
         <h2 class="wall-alerts-title">
-          活跃告警<span class="wall-alerts-count">{{
+          活跃消息<span class="wall-alerts-count">{{
             activeAlerts.length
           }}</span>
         </h2>
         <p v-if="activeAlerts.length === 0" class="wall-alerts-empty">
-          全部正常，当前无活跃告警
+          全部正常，当前无活跃消息
         </p>
         <div v-else ref="viewport" class="wall-alerts-viewport">
           <div

@@ -142,7 +142,7 @@ export function buildWallTiles(
     },
     {
       key: "alerts",
-      label: "活跃告警",
+      label: "活跃消息",
       value: String(alertTotal),
       note: criticalCount > 0 ? `${criticalCount} 条告警级` : "无告警级",
       tone: criticalCount > 0 ? "critical" : alertTotal > 0 ? "warning" : "ok",

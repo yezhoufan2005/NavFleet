@@ -193,8 +193,8 @@ test.describe("console shell", () => {
     await page.goto("/wall");
 
     // The KPI band, the freshness indicator and the alert panel are the wall's three
-    // parts; the 活跃告警 heading is the stable render proof (the h1 is the fleet name).
-    await expect(page.getByRole("heading", { name: /活跃告警/ })).toBeVisible();
+    // parts; the 活跃消息 heading is the stable render proof (the h1 is the fleet name).
+    await expect(page.getByRole("heading", { name: /活跃消息/ })).toBeVisible();
     await expect(page.locator(".wall-kpi .wall-tile")).toHaveCount(4);
     await expect(page.locator(".wall-pill")).toBeVisible();
     // Non-interactive by requirement (C7): no navigation, no session control, and a

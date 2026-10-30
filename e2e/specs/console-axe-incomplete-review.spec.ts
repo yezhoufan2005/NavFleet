@@ -38,7 +38,7 @@ const ROUTES: readonly { path: string; heading: string | RegExp }[] = [
   { path: "/reports", heading: "报表" },
   { path: "/system", heading: "系统" },
   { path: "/deploy/scenes", heading: "部署" },
-  { path: "/wall", heading: /活跃告警/ },
+  { path: "/wall", heading: /活跃消息/ },
 ];
 
 const useTheme = async (page: Page, theme: "light" | "dark"): Promise<void> => {

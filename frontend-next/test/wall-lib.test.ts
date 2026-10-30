@@ -167,6 +167,6 @@ describe("buildWallTiles", () => {
 
   it("labels the four tiles the room expects", () => {
     const labels = buildWallTiles(summary, 0, 0).map((tile) => tile.label);
-    expect(labels).toEqual(["在线设备", "活跃告警", "GPS 覆盖", "设备编队"]);
+    expect(labels).toEqual(["在线设备", "活跃消息", "GPS 覆盖", "设备编队"]);
   });
 });
