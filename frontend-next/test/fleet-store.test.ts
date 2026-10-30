@@ -502,6 +502,25 @@ describe("bootstrap", () => {
     expect(store.bootstrapPending).toBe(false);
   });
 
+  it("does not open a socket for a session that ended while the snapshot was loading", async () => {
+    type Snapshot = Awaited<ReturnType<typeof fleetApi.getSnapshot>>;
+    let release: (value: Snapshot) => void = () => undefined;
+    vi.spyOn(fleetApi, "getSnapshot").mockReturnValue(
+      new Promise<Snapshot>((resolve) => {
+        release = resolve;
+      }),
+    );
+
+    const pending = store.bootstrap();
+    await Promise.resolve();
+    // Signed out before the backend answered.
+    store.stopRealtime();
+    release(snapshot([device()]));
+
+    expect(await pending).toBe(false);
+    expect(openedSockets).toHaveLength(0);
+  });
+
   it("seeds the acknowledgement overlay from the active alerts", async () => {
     vi.spyOn(fleetApi, "getAlerts").mockResolvedValue({
       items: [

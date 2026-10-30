@@ -1009,12 +1009,20 @@ export const useFleetStore = defineStore("fleet", () => {
   });
 
   // ── bootstrap ─────────────────────────────────────────────────────────────
-  const bootstrapFromBackend = async (): Promise<boolean> => {
+  /**
+   * Bumped by `stopRealtime`. A bootstrap still awaiting the backend when the user signs out
+   * must not go on to open the socket, or schedule a retry, for a session that has ended:
+   * that left a live, authenticated socket behind the login screen.
+   */
+  let sessionEpoch = 0;
+
+  const bootstrapFromBackend = async (epoch: number): Promise<boolean> => {
     let payload;
     try {
       await loadSceneCatalog();
       payload = await fleetApi.getSnapshot();
     } catch {
+      if (epoch !== sessionEpoch) return false;
       state.realtime.apiReady = false;
       notify("无法连接后端服务，请检查服务状态后重试", {
         type: "error",
@@ -1022,6 +1030,8 @@ export const useFleetStore = defineStore("fleet", () => {
       });
       return false;
     }
+
+    if (epoch !== sessionEpoch) return false;
 
     // Reached separately from the request above on purpose: a snapshot we cannot
     // read is not an unreachable backend, and saying "检查服务状态" about a service
@@ -1077,8 +1087,10 @@ export const useFleetStore = defineStore("fleet", () => {
   const bootstrap = async (): Promise<boolean> => {
     clearBootstrapRetry();
     state.realtime.bootstrapPending = true;
+    const epoch = sessionEpoch;
     try {
-      const ready = await bootstrapFromBackend();
+      const ready = await bootstrapFromBackend(epoch);
+      if (epoch !== sessionEpoch) return false;
       if (ready) {
         bootstrapFailures = 0;
       } else {
@@ -1100,6 +1112,7 @@ export const useFleetStore = defineStore("fleet", () => {
 
   /** Stop retrying (signed out) and drop the socket. */
   const stopRealtime = (): void => {
+    sessionEpoch += 1;
     clearBootstrapRetry();
     bootstrapFailures = 0;
     disconnectRealtime();

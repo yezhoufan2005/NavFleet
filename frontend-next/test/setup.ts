@@ -132,8 +132,11 @@ class DriveableWebSocket {
     ((event: { data?: unknown }) => void)[]
   >();
 
+  /** This instance's own entry. Every socket in a run shares one URL, so it cannot be found by URL. */
+  private readonly record: StubSocket;
+
   constructor(readonly url: string) {
-    openedSockets.push({
+    this.record = {
       url,
       closed: false,
       accept: () => {
@@ -147,7 +150,8 @@ class DriveableWebSocket {
       deliver: (payload: unknown) => {
         this.emit("message", { data: JSON.stringify(payload) });
       },
-    });
+    };
+    openedSockets.push(this.record);
   }
 
   addEventListener(
@@ -164,8 +168,7 @@ class DriveableWebSocket {
 
   close(): void {
     this.readyState = 3;
-    const record = openedSockets.find((entry) => entry.url === this.url);
-    if (record) record.closed = true;
+    this.record.closed = true;
   }
 
   private emit(type: string, event: { data?: unknown } = {}): void {
