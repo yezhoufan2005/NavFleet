@@ -777,6 +777,57 @@ export class Persistence {
       .updateOne({ username }, { $set: { failedAttempts, lockedUntil, updatedAt: at } });
   }
 
+  /**
+   * Count one failed login, atomically, and return the new count. A lock that has already
+   * expired (`lockedUntil <= nowIso`) starts the count afresh at 1 and is cleared. The read and
+   * the write are one update, so concurrent wrong passwords cannot overwrite each other's count.
+   */
+  async incrementLoginFailures(username: string, nowIso: string, at: string): Promise<number> {
+    const expired = (lockedUntil: string | null | undefined): boolean =>
+      typeof lockedUntil === "string" && lockedUntil <= nowIso;
+    if (!this.db) {
+      const user = this.fallbackUsers.get(username);
+      if (!user) return 0;
+      const failedAttempts = expired(user.lockedUntil) ? 1 : (user.failedAttempts ?? 0) + 1;
+      const lockedUntil = expired(user.lockedUntil) ? null : (user.lockedUntil ?? null);
+      this.fallbackUsers.set(username, { ...user, failedAttempts, lockedUntil, updatedAt: at });
+      return failedAttempts;
+    }
+    const lockExpired = {
+      $and: [{ $eq: [{ $type: "$lockedUntil" }, "string"] }, { $lte: ["$lockedUntil", nowIso] }],
+    };
+    const updated = await this.db.collection<UserRecord>("users").findOneAndUpdate(
+      { username },
+      [
+        {
+          $set: {
+            failedAttempts: {
+              $cond: [lockExpired, 1, { $add: [{ $ifNull: ["$failedAttempts", 0] }, 1] }],
+            },
+            lockedUntil: { $cond: [lockExpired, null, { $ifNull: ["$lockedUntil", null] }] },
+            updatedAt: at,
+          },
+        },
+      ],
+      { returnDocument: "after", projection: { failedAttempts: 1 } },
+    );
+    return updated?.failedAttempts ?? 0;
+  }
+
+  /** Set the lockout deadline without touching the failure count. */
+  async lockLogin(username: string, lockedUntil: string, at: string): Promise<void> {
+    const fallback = this.fallbackUsers.get(username);
+    if (fallback) {
+      this.fallbackUsers.set(username, { ...fallback, lockedUntil, updatedAt: at });
+    }
+    if (!this.db) {
+      return;
+    }
+    await this.db
+      .collection<UserRecord>("users")
+      .updateOne({ username }, { $set: { lockedUntil, updatedAt: at } });
+  }
+
   /** Clear the failure counter and any lockout after a successful login. */
   async clearLoginFailures(username: string, at: string): Promise<void> {
     const fallback = this.fallbackUsers.get(username);
