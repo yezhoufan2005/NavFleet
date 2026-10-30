@@ -179,6 +179,17 @@ const buildCodeAlerts = (snapshot: DeviceSnapshot): DeviceAlert[] => {
 };
 
 /**
+ * The fleet membership a rule's scope is matched against: the tags and formations the
+ * deployment gives a vehicle (`vehicles.json`, `formations.json`). A frame carries neither,
+ * and the snapshot built here is the raw one, decorated with config only afterwards — so
+ * without this a rule scoped by tag or formation matches no vehicle at all. Absent = the
+ * snapshot's own (raw) membership.
+ */
+export type RuleMembership = (
+  snapshot: DeviceSnapshot,
+) => Pick<DeviceSnapshot, "tags" | "formationIds">;
+
+/**
  * The rule alerts for a snapshot, under the given rules (defaults when the store passes
  * none). A thin adapter over the shared evaluator: the low-battery threshold and the
  * offline alert used to be written out here *and* in `fleetNormalize.ts`, drifting on the
@@ -188,7 +199,9 @@ const buildCodeAlerts = (snapshot: DeviceSnapshot): DeviceAlert[] => {
 const buildRuleAlerts = (
   snapshot: DeviceSnapshot,
   rules: AlertRulesConfig = DEFAULT_ALERT_RULES,
-): DeviceAlert[] => evaluateRuleAlerts(snapshot, rules);
+  membership?: RuleMembership,
+): DeviceAlert[] =>
+  evaluateRuleAlerts(membership ? { ...snapshot, ...membership(snapshot) } : snapshot, rules);
 
 /**
  * When a frame arrived and how far its own `stamp` may sit from that before it is not
@@ -223,6 +236,7 @@ export const normalizeDevice = (
   topicHint = "",
   rules: AlertRulesConfig = DEFAULT_ALERT_RULES,
   clock?: DeviceClockCheck,
+  membership?: RuleMembership,
 ): DeviceSnapshot => {
   const payloadRecord = isRecord(rawInput.payload) ? rawInput.payload : null;
   const raw: UnknownRecord = payloadRecord
@@ -404,7 +418,7 @@ export const normalizeDevice = (
     snapshot.alerts = dedupeAlerts([
       ...buildRawAlerts(raw, stamp, deviceId),
       ...buildCodeAlerts(snapshot),
-      ...buildRuleAlerts(snapshot, rules),
+      ...buildRuleAlerts(snapshot, rules, membership),
     ]);
   }
 
@@ -458,6 +472,9 @@ export interface NormalizePayloadOptions {
 
   /** Check a single-device frame's stamp against its arrival time (see `DeviceClockCheck`). */
   clock?: DeviceClockCheck;
+
+  /** The configured membership rule scopes match against (see `RuleMembership`). */
+  membership?: RuleMembership;
 }
 
 export const normalizePayload = (
@@ -472,6 +489,9 @@ export const normalizePayload = (
   }
 
   const rules = options.rules ?? DEFAULT_ALERT_RULES;
+  const { membership } = options;
+  const normalizeFleetItem = (item: UnknownRecord): DeviceSnapshot =>
+    normalizeDevice(item, null, "", rules, undefined, membership);
 
   const rejectReplace = (shape: string): never => {
     throw new Error(
@@ -487,7 +507,7 @@ export const normalizePayload = (
       replace: true,
       fleetName,
       topicPattern,
-      devices: input.filter(isRecord).map((item) => normalizeDevice(item, null, "", rules)),
+      devices: input.filter(isRecord).map(normalizeFleetItem),
     };
   }
 
@@ -497,7 +517,7 @@ export const normalizePayload = (
       replace: true,
       fleetName,
       topicPattern,
-      devices: input.devices.filter(isRecord).map((item) => normalizeDevice(item, null, "", rules)),
+      devices: input.devices.filter(isRecord).map(normalizeFleetItem),
     };
   }
 
@@ -512,9 +532,7 @@ export const normalizePayload = (
         replace: true,
         fleetName,
         topicPattern,
-        devices: payloadBody.devices
-          .filter(isRecord)
-          .map((item) => normalizeDevice(item, null, "", rules)),
+        devices: payloadBody.devices.filter(isRecord).map(normalizeFleetItem),
       };
     }
 
@@ -532,6 +550,7 @@ export const normalizePayload = (
           asText(input.topic),
           rules,
           options.clock,
+          membership,
         ),
       ],
     };
@@ -551,6 +570,7 @@ export const normalizePayload = (
         asText(input.topic || ""),
         rules,
         options.clock,
+        membership,
       ),
     ],
   };
