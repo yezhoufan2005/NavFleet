@@ -27,15 +27,6 @@
     "impact": "watch"
   },
   {
-    "code": 2501,
-    "channel": "warning",
-    "subsystem": "power",
-    "label": "电量偏低",
-    "description": "电池电量低于回充阈值，车辆仍可完成当前任务但需尽快安排回桩补能",
-    "hint": "确认回充站点可用；若电量快速下探，检查电池健康度与负载是否超限",
-    "impact": "urgent"
-  },
-  {
     "code": 2902,
     "channel": "warning",
     "subsystem": "payload",
