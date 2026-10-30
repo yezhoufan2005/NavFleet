@@ -51,8 +51,8 @@ const ROUTES: readonly { path: string; heading: string | RegExp }[] = [
   { path: "/access", heading: "用户" },
   { path: "/no-such-page", heading: "页面不存在" },
   // 大屏值班: shell-less, non-interactive. Its h1 is the (deployment-defined) fleet name,
-  // so the render proof targets the always-present 活跃告警 panel heading instead.
-  { path: "/wall", heading: /活跃告警/ },
+  // so the render proof targets the always-present 活跃消息 panel heading instead.
+  { path: "/wall", heading: /活跃消息/ },
 ];
 
 /**

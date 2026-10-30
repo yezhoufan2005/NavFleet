@@ -126,7 +126,7 @@ describe("the alert stream", () => {
     const wrapper = await mountWall();
 
     expect(wrapper.find(".wall-alerts-empty").exists()).toBe(true);
-    expect(wrapper.find(".wall-alerts-empty").text()).toContain("无活跃告警");
+    expect(wrapper.find(".wall-alerts-empty").text()).toContain("无活跃消息");
     expect(wrapper.findAll(".wall-alert")).toHaveLength(0);
   });
 });
