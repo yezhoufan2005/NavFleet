@@ -19,7 +19,7 @@ import {
   normalizePayload,
   offlineAlertId,
 } from "./normalize";
-import type { NormalizePayloadOptions } from "./normalize";
+import type { NormalizePayloadOptions, RuleMembership } from "./normalize";
 import { Persistence } from "./persistence";
 import { moduleLogger } from "./logger";
 import { isIngestableDeviceId } from "./validation";
@@ -550,6 +550,12 @@ export class DashboardStore extends EventEmitter {
     return this.configRegistry.applyDeviceConfig(device);
   }
 
+  /** The tags and formations config gives a vehicle, for rule scopes (see `RuleMembership`). */
+  private readonly ruleMembership: RuleMembership = (device) => {
+    const { tags, formationIds } = this.applySnapshotConfig(device);
+    return { tags, formationIds };
+  };
+
   private rebuildConfiguredDevices(): void {
     this.refreshFleetMetadata();
     const nextDevices = new Map<string, DeviceSnapshot>();
@@ -591,6 +597,7 @@ export class DashboardStore extends EventEmitter {
       {
         ...options,
         rules: alertRules,
+        membership: this.ruleMembership,
         ...(checkClock
           ? {
               clock: {
@@ -694,6 +701,8 @@ export class DashboardStore extends EventEmitter {
       existingRaw || null,
       "",
       this.configRegistry.getAlertRules(),
+      undefined,
+      this.ruleMembership,
     );
     const configuredDevice = this.applySnapshotConfig(normalizedRaw);
 
@@ -1048,7 +1057,11 @@ export class DashboardStore extends EventEmitter {
       if (!isStale || !device.online) {
         continue;
       }
-      if (!offlineRule.enabled || !deviceMatchesScope(device, offlineRule.scope)) {
+      // Scope by the configured snapshot: the raw one has no tags or formations of its own.
+      if (
+        !offlineRule.enabled ||
+        !deviceMatchesScope(this.applySnapshotConfig(device), offlineRule.scope)
+      ) {
         continue;
       }
 
