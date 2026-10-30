@@ -1,28 +1,18 @@
 [
   {
-    "sceneId": "assembly-line",
-    "sceneName": "总装产线",
-    "imageUrl": "/scene-maps/assembly-line.svg",
-    "mapFrame": "map",
-    "resolution": 0.096,
-    "origin": { "x": 20.41, "y": 0, "yaw": 0.35 },
-    "width": 1000,
-    "height": 620,
-    "defaultView": { "zoom": 1, "centerX": 55.3, "centerY": 44.42 },
-    "minZoom": 0.75,
-    "maxZoom": 6,
-    "description": "产线底图按 ROS 约定绕左下角旋转 0.35 rad（约 20°）摆放，演示带 origin.yaw 的地图；边界由旋转后的外接框派生"
-  },
-  {
     "sceneId": "cloudpoint-demo",
     "sceneName": "CloudPoint 点云地图示例",
-    "pointCloudUrl": "/scene-maps/cloudpoint-demo/zhuangyi.pcd",
-    "pointCloudMetaUrl": "/scene-maps/cloudpoint-demo/zhuangyi_indoor_map.json",
     "mapFrame": "map",
     "resolution": 0.2,
-    "origin": { "x": -106.62022399902344, "y": -59.168453216552734, "yaw": 0 },
+    "origin": {
+      "x": -106.62022399902344,
+      "y": -59.168453216552734,
+      "yaw": 0
+    },
     "width": 602,
     "height": 654,
+    "pointCloudUrl": "/scene-maps/cloudpoint-demo/zhuangyi.pcd",
+    "pointCloudMetaUrl": "/scene-maps/cloudpoint-demo/zhuangyi_indoor_map.json",
     "bounds": {
       "minX": -106.62022399902344,
       "maxX": 13.779776000976563,
@@ -40,57 +30,131 @@
   {
     "sceneId": "kangcheng-airy",
     "sceneName": "康城 Airy 路网",
-    "osmUrl": "/scene-maps/kangcheng-airy/kangcheng_airy.osm",
     "mapFrame": "map",
     "resolution": 1,
-    "origin": { "x": 0, "y": 0, "yaw": 0 },
+    "origin": {
+      "x": 0,
+      "y": 0,
+      "yaw": 0
+    },
     "width": 1000,
     "height": 620,
-    "bounds": { "minX": -51, "maxX": 25, "minY": -45, "maxY": 45 },
-    "defaultView": { "zoom": 1, "centerX": -13, "centerY": 0 },
+    "osmUrl": "/scene-maps/kangcheng-airy/kangcheng_airy.osm",
+    "bounds": {
+      "minX": -51,
+      "maxX": 25,
+      "minY": -45,
+      "maxY": 45
+    },
+    "defaultView": {
+      "zoom": 1,
+      "centerX": -13,
+      "centerY": 0
+    },
     "minZoom": 0.7,
     "maxZoom": 8
   },
   {
+    "sceneId": "staging-depot",
+    "sceneName": "预备调度区",
+    "mapFrame": "map",
+    "resolution": 0.1,
+    "origin": {
+      "x": 0,
+      "y": 0,
+      "yaw": 0
+    },
+    "width": 800,
+    "height": 500,
+    "bounds": {
+      "minX": 0,
+      "maxX": 80,
+      "minY": 0,
+      "maxY": 50
+    },
+    "defaultView": {
+      "zoom": 1,
+      "centerX": 40,
+      "centerY": 25
+    },
+    "minZoom": 0.75,
+    "maxZoom": 6,
+    "description": "新接入车辆的预备调度区，暂未部署车辆与底图（演示：有场景但无设备、无地图资源）"
+  },
+  {
     "sceneId": "warehouse-a",
     "sceneName": "一号仓储区",
-    "imageUrl": "/scene-maps/warehouse-a.svg",
     "mapFrame": "map",
     "resolution": 0.12,
-    "origin": { "x": 0, "y": 0, "yaw": 0 },
+    "origin": {
+      "x": 0,
+      "y": 0,
+      "yaw": 0
+    },
     "width": 1000,
     "height": 620,
-    "bounds": { "minX": 0, "maxX": 120, "minY": 0, "maxY": 74.4 },
-    "defaultView": { "zoom": 1, "centerX": 60, "centerY": 37.2 },
+    "imageUrl": "/scene-maps/warehouse-a.svg",
+    "bounds": {
+      "minX": 0,
+      "maxX": 120,
+      "minY": 0,
+      "maxY": 74.4
+    },
+    "defaultView": {
+      "zoom": 1,
+      "centerX": 60,
+      "centerY": 37.2
+    },
     "minZoom": 0.75,
     "maxZoom": 6
   },
   {
     "sceneId": "yard-north",
     "sceneName": "北区装卸场",
-    "imageUrl": "/scene-maps/yard-north.svg",
     "mapFrame": "map",
     "resolution": 0.144,
-    "origin": { "x": 0, "y": 0, "yaw": 0 },
+    "origin": {
+      "x": 0,
+      "y": 0,
+      "yaw": 0
+    },
     "width": 1000,
     "height": 620,
-    "bounds": { "minX": 0, "maxX": 144, "minY": 0, "maxY": 89.28 },
-    "defaultView": { "zoom": 1, "centerX": 72, "centerY": 44.64 },
+    "imageUrl": "/scene-maps/yard-north.svg",
+    "bounds": {
+      "minX": 0,
+      "maxX": 144,
+      "minY": 0,
+      "maxY": 89.28
+    },
+    "defaultView": {
+      "zoom": 1,
+      "centerX": 72,
+      "centerY": 44.64
+    },
     "minZoom": 0.75,
     "maxZoom": 6
   },
   {
-    "sceneId": "staging-depot",
-    "sceneName": "预备调度区",
-    "description": "新接入车辆的预备调度区，暂未部署车辆与底图（演示：有场景但无设备、无地图资源）",
+    "sceneId": "assembly-line",
+    "sceneName": "总装产线",
     "mapFrame": "map",
-    "resolution": 0.1,
-    "origin": { "x": 0, "y": 0, "yaw": 0 },
-    "width": 800,
-    "height": 500,
-    "bounds": { "minX": 0, "maxX": 80, "minY": 0, "maxY": 50 },
-    "defaultView": { "zoom": 1, "centerX": 40, "centerY": 25 },
+    "resolution": 0.096,
+    "origin": {
+      "x": 20.41,
+      "y": 0,
+      "yaw": 0.35
+    },
+    "width": 1000,
+    "height": 620,
+    "imageUrl": "/scene-maps/assembly-line.svg",
+    "defaultView": {
+      "zoom": 1,
+      "centerX": 55.3,
+      "centerY": 44.42
+    },
     "minZoom": 0.75,
-    "maxZoom": 6
+    "maxZoom": 6,
+    "description": "产线底图按 ROS 约定绕左下角旋转 0.35 rad（约 20°）摆放，演示带 origin.yaw 的地图；边界由旋转后的外接框派生"
   }
 ]

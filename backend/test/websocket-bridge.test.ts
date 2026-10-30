@@ -180,6 +180,15 @@ describe("WebSocket upgrade", () => {
     expect(error.message).toContain("401");
   });
 
+  it("rejects the upgrade with 401 for a cookie that is not valid percent-encoding", async () => {
+    const harness = await startBridge();
+    const error = await failed(
+      connect(harness, "", { headers: { Cookie: `${ACCESS_COOKIE}=%E0%A4%A` } }),
+    );
+
+    expect(error.message).toContain("401");
+  });
+
   it("accepts a cookie token", async () => {
     const harness = await startBridge();
     await opened(authedConnect(harness));

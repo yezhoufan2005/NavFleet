@@ -42,4 +42,20 @@ describe("parseConfig", () => {
   it("fails fast on an unrecognized boolean field", () => {
     expect(() => parseConfig({ METRICS_ENABLED: "maybe" })).toThrow(ZodError);
   });
+
+  it("fails fast on a retention period that is zero, negative or fractional", () => {
+    for (const key of [
+      "TELEMETRY_RETENTION_SECONDS",
+      "ALERTS_RETENTION_SECONDS",
+      "TELEMETRY_ROLLUP_RETENTION_SECONDS",
+      "AUDIT_RETENTION_SECONDS",
+    ]) {
+      for (const value of ["0", "-60", "1.5"]) {
+        expect(() => parseConfig({ [key]: value }), `${key}=${value}`).toThrow(ZodError);
+      }
+    }
+    expect(parseConfig({ ALERTS_RETENTION_SECONDS: "86400" }).alertsRetentionSeconds).toBe(86400);
+    // A zero that means "off" elsewhere is still accepted there.
+    expect(parseConfig({ DEVICE_RETENTION_SECONDS: "0" }).deviceRetentionSeconds).toBe(0);
+  });
 });

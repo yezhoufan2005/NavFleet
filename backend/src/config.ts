@@ -112,6 +112,18 @@ const envInt = (fallback: number, min?: number) =>
       return min !== undefined ? Math.max(parsed, min) : parsed;
     });
 
+// Retention periods become TTL indexes: 0 would expire every document within a minute and a
+// negative or fractional value is not a period. Rejected outright rather than clamped.
+const envRetentionSeconds = (fallback: number) =>
+  envInt(fallback).superRefine((value, ctx) => {
+    if (!Number.isInteger(value) || value < 1) {
+      ctx.addIssue({
+        code: "custom",
+        message: `expected a whole number of seconds >= 1, received ${value}`,
+      });
+    }
+  });
+
 const envStr = (fallback: string) =>
   z
     .string()
@@ -147,14 +159,14 @@ const configSchema = z.object({
   MONGO_DB_NAME: envStr("fleet_monitor"),
   SEED_FILE: envStr(""),
   OFFLINE_AFTER_SECONDS: envInt(60),
-  TELEMETRY_RETENTION_SECONDS: envInt(60 * 60 * 24 * 30),
-  ALERTS_RETENTION_SECONDS: envInt(60 * 60 * 24 * 180),
+  TELEMETRY_RETENTION_SECONDS: envRetentionSeconds(60 * 60 * 24 * 30),
+  ALERTS_RETENTION_SECONDS: envRetentionSeconds(60 * 60 * 24 * 180),
   // The hourly telemetry summary the reports read (`telemetry_hourly`). Kept as long as alerts by
   // default, so a report over a period older than the raw telemetry window still has numbers.
-  TELEMETRY_ROLLUP_RETENTION_SECONDS: envInt(60 * 60 * 24 * 180),
+  TELEMETRY_ROLLUP_RETENTION_SECONDS: envRetentionSeconds(60 * 60 * 24 * 180),
   // Audit trail. Kept longer than telemetry/alerts by default — a security
   // record is worth more the older the incident it explains.
-  AUDIT_RETENTION_SECONDS: envInt(60 * 60 * 24 * 365),
+  AUDIT_RETENTION_SECONDS: envRetentionSeconds(60 * 60 * 24 * 365),
   MAX_HISTORY_POINTS: envInt(500),
   MONGO_BUFFER_LIMIT: envInt(2000),
   // Upper bound on one hot-path MongoDB write (latest snapshot / telemetry / alert upsert), ms.
