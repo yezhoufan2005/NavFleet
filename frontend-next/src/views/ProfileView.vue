@@ -59,6 +59,9 @@ const submitPassword = async (): Promise<void> => {
       oldPassword.value = "";
       newPassword.value = "";
       confirmPassword.value = "";
+      // The backend ended every session and opened a new one for this device, so the list
+      // below is now wrong: every row in it is gone, and the current one is not among them.
+      void loadSessions();
     } else {
       formError.value = result.message;
     }
@@ -93,6 +96,8 @@ const confirmRevoke = async (): Promise<void> => {
     const ok = await auth.revokeMySession(target.sessionId);
     if (!ok) {
       notify("下线失败，请稍后重试", { type: "error" });
+      // Most often the session had already ended (another device, an admin); show what is left.
+      void loadSessions();
       return;
     }
     if (target.current) {

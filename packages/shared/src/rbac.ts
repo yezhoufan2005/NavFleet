@@ -73,10 +73,20 @@ export interface RbacGroup {
 }
 
 /**
+ * 能力之间的蕴含：能写外发配置的人必须能读到它（编辑页先读后写，读接口要 `notify:read`）。
+ * 只授「外发配置」的角色因此也能进外发页。
+ */
+const IMPLIED_CAPABILITIES: Partial<Record<Capability, readonly Capability[]>> =
+  {
+    "notify:write": ["notify:read"],
+  };
+
+/**
  * 纯解析器：一个用户的**有效能力** = 基础角色预设 ∪（非 kiosk 时）其所属用户组引用的自定义角色的能力。
  *
  * - **kiosk 账号只读不受组提权**：长期只读墙屏凭证按构造只读，忽略一切组能力叠加——否则把它加进某组
  *   就能破掉「只读」约束。
+ * - 补上蕴含的能力（见 `IMPLIED_CAPABILITIES`）。
  * - 输出按 `CAPABILITIES` 顺序去重排序，令响应与断言确定。
  *
  * 后端每请求调用（缓存喂入 roles/groups），前端也可用它预览。
@@ -97,6 +107,10 @@ export const resolveEffectiveCapabilities = (
         }
       }
     }
+  }
+  for (const capability of [...caps]) {
+    for (const implied of IMPLIED_CAPABILITIES[capability] ?? [])
+      caps.add(implied);
   }
   return CAPABILITIES.filter((capability) => caps.has(capability));
 };

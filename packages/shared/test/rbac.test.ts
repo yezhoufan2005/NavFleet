@@ -79,4 +79,13 @@ describe("resolveEffectiveCapabilities", () => {
     );
     expect(caps).toEqual([]);
   });
+
+  it("lets whoever may write the outbound config also read it", () => {
+    const caps = resolveEffectiveCapabilities(
+      { username: "zhaoyun", role: "viewer" },
+      [role("notify-editor", ["notify:write"])],
+      [group(["notify-editor"], ["zhaoyun"])],
+    );
+    expect(caps).toEqual(["notify:read", "notify:write"]);
+  });
 });
