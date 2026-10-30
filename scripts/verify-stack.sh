@@ -191,8 +191,11 @@ if [[ "$CHECK_ONLY" == "0" ]]; then
   if [[ "$DO_MOCK" == "1" ]]; then
     # 演示车队分两步起：先库、broker 与模拟器，等模拟器把历史补到「现在」并转入实时上报，再起平台。
     # 平台不在历史还在写的时候判离线——和真实现场一样，车一直在报，平台后上线。
-    if ! compose up -d --build --force-recreate mongo mosquitto mailpit sim \
-      >/tmp/navfleet-verify-up.log 2>&1; then
+    # 镜像先全部建好，第二步只剩起容器：模拟器转入实时之后、平台订阅上之前发出的帧没人收。第二步
+    # 若还要构建平台镜像，这段空档有一分半，回放和在线率里都看得见。
+    if ! compose build >/tmp/navfleet-verify-up.log 2>&1 ||
+      ! compose up -d --force-recreate mongo mosquitto mailpit sim \
+        >>/tmp/navfleet-verify-up.log 2>&1; then
       echo "compose up（演示车队）失败，最后 30 行："; tail -30 /tmp/navfleet-verify-up.log; exit 1
     fi
     echo "等演示车队补齐历史并转入实时上报（首次约 1 小时，之后只补停栈期间的空档）…"
@@ -210,7 +213,7 @@ if [[ "$CHECK_ONLY" == "0" ]]; then
     done
     [[ "$sim_ready" == "1" ]] || { echo "  模拟器 2 小时内未就绪"; compose logs --tail 30 sim; exit 1; }
     # --no-deps：依赖刚才已起好；不带它，force-recreate 会把模拟器也重建一遍。
-    if ! compose up -d --build --force-recreate --no-deps nginx web backend \
+    if ! compose up -d --force-recreate --no-deps nginx web backend \
       >>/tmp/navfleet-verify-up.log 2>&1; then
       echo "compose up 失败，最后 30 行："; tail -30 /tmp/navfleet-verify-up.log; exit 1
     fi
