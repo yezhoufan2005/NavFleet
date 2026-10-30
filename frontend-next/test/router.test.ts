@@ -2,7 +2,11 @@ import { describe, it, expect, afterEach } from "vitest";
 import { createMemoryHistory } from "vue-router";
 import { mount } from "@vue/test-utils";
 import { createPinia, setActivePinia } from "pinia";
-import { capabilitiesForRole, type UserRole } from "@navfleet/shared";
+import {
+  capabilitiesForRole,
+  type Capability,
+  type UserRole,
+} from "@navfleet/shared";
 import { createAppRouter, NAV_SECTIONS, routes } from "@/router";
 import { useAuth, __resetAuth } from "@/composables/useAuth";
 import AppSidebarNav from "@/components/shell/AppSidebarNav.vue";
@@ -270,5 +274,37 @@ describe("primary navigation", () => {
       // The read sections stay visible for everyone.
       expect(link(nav, "总览"), `${role} sees 总览`).toBeDefined();
     }
+  });
+});
+
+describe("部署 landing", () => {
+  afterEach(() => {
+    __resetAuth();
+  });
+
+  /** Where the 部署 nav entry (/deploy) ends up for a caller holding these capabilities. */
+  const landAt = async (capabilities: Capability[]) => {
+    const auth = useAuth();
+    auth.state.status = "authenticated";
+    auth.state.user = { username: "tester", role: "operator" };
+    auth.state.capabilities = capabilities;
+    const router = createAppRouter(createMemoryHistory());
+    await router.push("/deploy");
+    return router.currentRoute.value.name;
+  };
+
+  it("opens 车辆 for a caller who holds vehicles:write", async () => {
+    expect(await landAt(["vehicles:write", "codebook:write"])).toBe(
+      "deploy-vehicles",
+    );
+  });
+
+  it("sends a caller without vehicles:write on to the first tab they hold", async () => {
+    // The demo shift operators hold only codebook:write (报码维护). 车辆 would be a page whose data
+    // they may not read, and with a single tab there is no strip to find 报码字典 from.
+    expect(await landAt(["codebook:write"])).toBe("deploy-codebook");
+    expect(await landAt(["codebook:write", "scenes:write"])).toBe(
+      "deploy-scenes",
+    );
   });
 });

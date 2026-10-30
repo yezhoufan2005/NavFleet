@@ -22,7 +22,7 @@ export const ADMIN_AREA_CAPABILITIES: readonly Capability[] = [
 ];
 
 /**
- * Capabilities that grant access to the 部署 section (1.6.2 IA). Its three tabs each gate on one of
+ * Capabilities that grant access to the 部署 section (1.6.2 IA). Its four tabs each gate on one of
  * these; holding ANY shows the 部署 nav entry and admits the section (which then redirects to the
  * first tab the caller holds).
  */
@@ -303,7 +303,7 @@ const routes: RouteRecordRaw[] = [
     // codebook :write); the section admits anyone holding ANY of them (meta.capabilities). 车辆 is
     // the `""` child (renders at /deploy, so the nav item stays lit on every tab, as with /devices)
     // and is gated by the section any-of rather than vehicles:write alone, so a caller holding only
-    // one of the other writes still lands rather than being bounced; its own tab stays hidden.
+    // one of the other writes is not bounced to 总览: its `beforeEnter` sends them on to their tab.
     path: "/deploy",
     meta: {
       title: "部署",
@@ -337,6 +337,16 @@ const routes: RouteRecordRaw[] = [
         name: "deploy-vehicles",
         component: () => import("@/views/admin/VehiclesView.vue"),
         meta: { capabilities: DEPLOY_CAPABILITIES },
+        // The section's landing, which the nav entry links to. A caller without vehicles:write is
+        // sent on to the first tab they hold rather than shown a 车辆 page whose data they may not read.
+        beforeEnter: (to) => {
+          const { can } = useAuth();
+          if (can("vehicles:write")) return true;
+          const first = to.meta.tabs?.find(
+            (tab) => !tab.capability || can(tab.capability),
+          );
+          return first ? { name: first.routeName, replace: true } : true;
+        },
       },
       {
         path: "formations",
