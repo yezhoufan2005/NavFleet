@@ -43,6 +43,20 @@ export type AuthGuardTarget = Pick<
 export const AUTH_FALLBACK_ROUTE_NAME = "overview";
 
 /**
+ * The deep link an anonymous visitor was turned away from, carried in `?redirect=` so signing
+ * in lands where the link pointed. Only an in-app path is honoured: it must start with one `/`
+ * (`//host` would be another origin) and not contain a backslash, which some browsers read
+ * as `/`. Anything else falls back to the landing page.
+ */
+export const safeRedirectPath = (value: unknown): string | null =>
+  typeof value === "string" &&
+  value.startsWith("/") &&
+  !value.startsWith("//") &&
+  !value.includes("\\")
+    ? value
+    : null;
+
+/**
  * How long a navigation waits for the session probe before giving up and letting
  * it through. Letting it through is the right failure mode: the shell is still
  * gated, so the worst case is a component mounting with no data, whereas blocking
@@ -97,8 +111,13 @@ export const createAuthGuard = (
 
     if (status === "anonymous") {
       // `replace` so a rejected deep link does not sit in history, where Back
-      // would walk straight back into the same redirect.
-      return { name: AUTH_FALLBACK_ROUTE_NAME, replace: true };
+      // would walk straight back into the same redirect. The link itself rides along in
+      // `?redirect=`, and App.vue returns to it once the session is established.
+      return {
+        name: AUTH_FALLBACK_ROUTE_NAME,
+        query: { redirect: to.fullPath },
+        replace: true,
+      };
     }
 
     if (status === "unknown") {

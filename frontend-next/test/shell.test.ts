@@ -221,6 +221,29 @@ describe("session states", () => {
     expect(wrapper.find("nav[aria-label='主导航']").exists()).toBe(true);
   });
 
+  it("returns to the deep link it was given once signed in", async () => {
+    fetchMock.mockResolvedValueOnce(new Response(null, { status: 401 }));
+    const wrapper = await mountApp("/alerts?severity=critical");
+    expect(router.currentRoute.value.query.redirect).toBe(
+      "/alerts?severity=critical",
+    );
+
+    fetchMock.mockResolvedValueOnce(jsonResponse({ user: ADMIN }));
+    await wrapper.find('input[name="username"]').setValue("admin");
+    await wrapper.find('input[name="password"]').setValue("secret");
+    await wrapper.find("form").trigger("submit");
+    await flushPromises();
+
+    // The target view is a lazy chunk, so the navigation settles after its import.
+    await vi.waitFor(
+      () =>
+        expect(router.currentRoute.value.fullPath).toBe(
+          "/alerts?severity=critical",
+        ),
+      { timeout: 10_000 },
+    );
+  });
+
   it("refuses to submit an empty form and explains why", async () => {
     // v1.0.0 returned silently from the handler, so on a browser that had not
     // enforced `required` the button looked dead.

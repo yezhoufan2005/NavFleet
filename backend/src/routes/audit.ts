@@ -6,7 +6,7 @@ import { markTruncation, respondValidationError } from "./helpers";
 import { MAX_AUDIT_PER_QUERY } from "../persistence";
 
 /**
- * Audit trail query API. Admin-only, on top of the session gate — reading who did
+ * Audit trail query API. Requires `audit:read` on top of the session gate — reading who did
  * what is itself a privileged action. The write side is emitted from the auth and user-admin
  * routes; this only reads back.
  */
