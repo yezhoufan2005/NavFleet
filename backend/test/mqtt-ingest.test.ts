@@ -106,6 +106,17 @@ describe("MQTT ingest validation", () => {
     expect(ctx.state.mqttMessagesTotal).toBe(5);
     expect(ctx.state.mqttMessagesRejected).toBe(5);
   });
+
+  it("drops telemetry that names no device, by body or by topic", async () => {
+    // An empty id segment matches the `+` subscription but names nobody.
+    await ctx.emit("/fleet//vehicle_info", JSON.stringify({ stamp: 1 }));
+    expect(ctx.applyPayload).not.toHaveBeenCalled();
+    expect(ctx.state.mqttMessagesRejected).toBe(1);
+
+    // The body naming the vehicle is enough.
+    await ctx.emit("/fleet//vehicle_info", JSON.stringify({ deviceId: "car-1", stamp: 1 }));
+    expect(ctx.applyPayload).toHaveBeenCalledTimes(1);
+  });
 });
 
 describe("MQTT connection state reaches the store", () => {

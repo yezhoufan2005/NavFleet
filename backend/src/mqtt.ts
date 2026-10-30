@@ -135,6 +135,20 @@ export const connectMqtt = ({ store, topicScheme, config, state }: MqttDeps): mq
         reject(parsedTelemetry.error);
         return;
       }
+      // Attributable to a vehicle by its body or by its topic, or not at all.
+      const body = payload as Record<string, unknown>;
+      const namesDevice = ["deviceId", "id", "device_id"].some((key) => {
+        const value = body[key];
+        return (typeof value === "string" && value !== "") || typeof value === "number";
+      });
+      if (!namesDevice && !topicScheme.extractDeviceId(topic)) {
+        state.mqttMessagesRejected += 1;
+        logger.warn(
+          { topic, payloadPreview: previewPayload(payloadText) },
+          "Dropped MQTT telemetry that names no device",
+        );
+        return;
+      }
 
       // `sheddable`: this is the only firehose in the system, and its frames are
       // level-triggered — each one carries the device's complete current state, so
