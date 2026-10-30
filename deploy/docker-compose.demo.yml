@@ -7,7 +7,7 @@
 # MQTT path, one frame per vehicle per second, from a deterministic simulation (backend/sim). Its
 # state lives in the `sim-state` volume next to `mongo-data`, so the demo behaves like a fleet
 # that has existed all along: the first start generates the retention window of history (about
-# 25 minutes for 29 vehicles × 30 days), every later start only catches up the time the stack
+# an hour for 29 vehicles × 30 days at the 2-CPU limit below), every later start only catches up the time the stack
 # was down, then goes live. Delete both volumes together to start over (verify-stack --purge).
 #
 # `mailpit` receives the outbound email (alerts, scheduled reports) and `sim` answers the

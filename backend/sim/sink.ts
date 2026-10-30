@@ -10,7 +10,8 @@
  *
  * - telemetry: `toTelemetryDocument`, inserted in batches; a frame at or before the last one
  *   already stored for the vehicle is skipped (the timeline is deterministic, so a replay from a
- *   checkpoint that is a second behind produces the very frames that are already there);
+ *   checkpoint that is a second behind produces the very frames that are already there); an hour
+ *   that already has a report summary is marked stale, as `Persistence` does for late frames;
  * - alerts: `Persistence.upsertAlerts`'s reconciliation replayed in memory — an alert still in
  *   the set keeps its occurrence, one that left it is closed at the store's clock, a new one
  *   opens an occurrence — so closed occurrences are inserted once, complete, and the ones still
@@ -29,6 +30,7 @@
 import { MongoClient, type Db } from "mongodb";
 import { config } from "../src/config";
 import { toTelemetryDocument, type TelemetryDocument } from "../src/persistence";
+import { floorToHour, ROLLUP_RUNS_COLLECTION } from "../src/reports/telemetryRollup";
 import { selectChannelsForAlert, type ScopeDevice } from "../src/notify/routing";
 import { isWithinSilence } from "../src/notify/silence";
 import type { DeviceAlert, DeviceSnapshot, NotifyConfig } from "../src/types";
@@ -352,7 +354,22 @@ export class BackfillSink {
     if (!this.telemetry.length) return;
     const batch = this.telemetry;
     this.telemetry = [];
-    await this.requireDb().collection("telemetry_ts").insertMany(batch, { ordered: false });
+    const db = this.requireDb();
+    await db.collection("telemetry_ts").insertMany(batch, { ordered: false });
+    // Like `Persistence`: frames that land in an hour already summarised make that hour stale.
+    // The catch-up summarises after its big round, then writes the time that took — whose first
+    // hour was summarised from the frames up to the round's end.
+    const currentHour = floorToHour(Date.now(), config.reportTimezone);
+    const hours = new Set<number>();
+    for (const document of batch) {
+      const ts = document.ts.getTime();
+      if (ts < currentHour) hours.add(floorToHour(ts, config.reportTimezone));
+    }
+    if (hours.size) {
+      await db
+        .collection(ROLLUP_RUNS_COLLECTION)
+        .deleteMany({ hour: { $in: [...hours].map((hour) => new Date(hour)) } });
+    }
   }
 
   private async flushAlerts(): Promise<void> {

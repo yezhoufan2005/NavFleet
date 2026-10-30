@@ -162,3 +162,38 @@ describe("backfill sink alert occurrences", () => {
     expect(sink.stats).toMatchObject({ closed: 1 });
   });
 });
+
+describe("backfill sink telemetry", () => {
+  it("marks summarised hours stale when it writes frames into them, like Persistence", async () => {
+    const calls: Array<{ collection: string; op: string; arg: unknown }> = [];
+    const db = {
+      collection: (collection: string) => ({
+        insertMany: async (docs: unknown) =>
+          calls.push({ collection, op: "insertMany", arg: docs }),
+        deleteMany: async (filter: unknown) =>
+          calls.push({ collection, op: "deleteMany", arg: filter }),
+      }),
+    };
+    const sink = new BackfillSink(new Set(["agv-1"]), {
+      config: { channels: [], groups: {} },
+      device: (deviceId) => ({ deviceId, tags: [], formationIds: [] }),
+    });
+    (sink as unknown as { db: unknown }).db = db;
+    // Two frames an hour apart, both in hours that have ended.
+    const hour = Math.floor(Date.now() / 3_600_000) * 3_600_000 - 2 * 3_600_000;
+    const { frames } = await run(1, 0);
+    const frame = JSON.parse(frames[0]!) as Record<string, unknown>;
+    const snapshot = normalizeDevice({ ...frame, deviceId: "agv-1" });
+    for (const at of [hour + 1_000, hour + 3_601_000]) {
+      await sink.writeTelemetry({ ...snapshot, stamp: new Date(at).toISOString() });
+    }
+    await (sink as unknown as { flushTelemetry: () => Promise<void> }).flushTelemetry();
+
+    expect(calls.map((call) => `${call.collection}.${call.op}`)).toEqual([
+      "telemetry_ts.insertMany",
+      "telemetry_hourly_runs.deleteMany",
+    ]);
+    const filter = calls[1]!.arg as { hour: { $in: Date[] } };
+    expect(filter.hour.$in).toHaveLength(2);
+  });
+});
