@@ -83,13 +83,20 @@ export interface WebSocketBridge {
  * browser history and into any proxy in between. The frontend has always
  * connected with the httpOnly cookie (stores/fleet.ts builds a bare `/ws` URL),
  * so nothing depends on the query form.
+ *
+ * A value that is not valid percent-encoding is treated as no token. This runs in the
+ * `upgrade` listener, outside Express, so a throw here would be an uncaught exception.
  */
 const extractWsAccessToken = (request: http.IncomingMessage): string => {
   const cookieHeader = request.headers.cookie || "";
   for (const part of cookieHeader.split(";")) {
     const [name, ...rest] = part.trim().split("=");
     if (name === ACCESS_COOKIE && rest.length) {
-      return decodeURIComponent(rest.join("="));
+      try {
+        return decodeURIComponent(rest.join("="));
+      } catch {
+        return "";
+      }
     }
   }
   return "";

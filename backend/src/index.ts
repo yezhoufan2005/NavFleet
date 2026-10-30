@@ -324,4 +324,9 @@ process.on("uncaughtException", (error) => {
   void shutdown("uncaughtException");
 });
 
-void start();
+// A failed start exits like a failed migration does. Left to the unhandled-rejection
+// net below, it would only log, and the process would stay up without listening.
+start().catch((error: unknown) => {
+  logger.fatal({ err: error }, "Startup failed; exiting");
+  process.exit(1);
+});
