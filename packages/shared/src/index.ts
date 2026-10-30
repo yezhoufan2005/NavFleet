@@ -241,6 +241,24 @@ export interface SocketEvent<T = unknown> {
   payload: T;
 }
 
+/**
+ * Payloads of the per-alert transition events. `alert.created` carries the whole alert, because
+ * a console seeing it for the first time needs its severity and title; `alert.cleared` carries
+ * only the id, because the alert is already gone from the snapshot and a console that wants
+ * to name it uses what it kept from the `alert.created` it saw.
+ */
+export interface AlertCreatedPayload {
+  source: string;
+  deviceId: string;
+  alert: DeviceAlert;
+}
+
+export interface AlertClearedPayload {
+  source: string;
+  deviceId: string;
+  alertId: string;
+}
+
 export interface HistoryQuery {
   deviceId: string;
   from?: string;

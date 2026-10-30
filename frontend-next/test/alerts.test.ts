@@ -498,7 +498,6 @@ describe("acknowledging (server-backed)", () => {
     store.applyAck(`${ref.deviceId}:${ref.id}`, {
       ackedBy: "someone-else",
       ackedAt: "2026-01-01T00:00:00.000Z",
-      comment: null,
     });
     await flushPromises();
 

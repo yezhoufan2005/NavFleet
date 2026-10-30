@@ -48,10 +48,9 @@ export const useAlertAck = () => {
 
   /** Optimistic overlay entry using the current user as best-effort actor; the WS broadcast
    *  that follows carries the authoritative `ackedBy`/`ackedAt` and overwrites it. */
-  const optimisticEntry = (comment: string | null) => ({
+  const optimisticEntry = () => ({
     ackedBy: auth.state.user?.username ?? "",
     ackedAt: new Date().toISOString(),
-    comment,
   });
 
   const isAcknowledged = (deviceId: string, id: string): boolean =>
@@ -68,7 +67,7 @@ export const useAlertAck = () => {
   ): Promise<boolean> => {
     if (!deviceId || !id || fleet.isAlertAcked(deviceId, id)) return false;
     const key = eventKey(deviceId, id);
-    fleet.applyAck(key, optimisticEntry(comment ?? null));
+    fleet.applyAck(key, optimisticEntry());
     try {
       // Call without the third argument when there is no comment, so the request body carries
       // no empty `comment` field (and call sites without one assert a clean two-arg call).
