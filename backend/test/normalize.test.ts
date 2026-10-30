@@ -98,6 +98,88 @@ describe("report-code text across frames", () => {
     const again = normalizeDevice(frame(1302), first);
     expect(again.infoCode.info).toBe("任务完成，待命中");
   });
+
+  it("takes an explicit empty text as the text, and clears stale words on code 0", () => {
+    // A snapshot restored with text left on code 0 must be cleaned by the next frame, which
+    // carries `{ code: 0, info: "" }` — that used to fall through to the inherited text.
+    const stale = normalizeDevice(frame(0, "路径规划超时，已触发急停"));
+    expect(stale.infoCode.info).toBe("");
+    const restored = { ...stale, infoCode: { code: 0, info: "路径规划超时", stamp: null } };
+    expect(normalizeDevice(frame(0, ""), restored).infoCode.info).toBe("");
+    const withText = normalizeDevice(frame(1302, "任务完成"));
+    expect(normalizeDevice(frame(1302, ""), withText).infoCode.info).toBe("");
+  });
+
+  it("does not give a new code the previous code's onset", () => {
+    const first = normalizeDevice({
+      deviceId: "agv-a01",
+      stamp: "2026-09-01T08:00:00Z",
+      error_code: { code: 5101, info: "急停", stamp: "2026-09-01T08:00:00Z" },
+    });
+    const next = normalizeDevice(
+      { deviceId: "agv-a01", stamp: "2026-09-01T09:30:00Z", error_code: { code: 5102 } },
+      first,
+    );
+    expect(next.errorCode.stamp).toBe("2026-09-01T09:30:00.000Z");
+    expect(next.alerts.find((alert) => alert.code === 5102)?.ts).toBe("2026-09-01T09:30:00.000Z");
+    // The same code carries its onset forward.
+    const same = normalizeDevice(
+      { deviceId: "agv-a01", stamp: "2026-09-01T09:31:00Z", error_code: { code: 5102 } },
+      next,
+    );
+    expect(same.errorCode.stamp).toBe("2026-09-01T09:30:00.000Z");
+  });
+});
+
+describe("a frame from a vehicle whose clock cannot be trusted", () => {
+  const receivedAt = Date.parse("2026-09-01T08:00:00Z");
+  const clock = { receivedAt, toleranceMs: 60_000 };
+
+  it("shifts every time in the frame by the same offset, not only the frame stamp", () => {
+    // The RTC went back to 1970 after a reboot: the frame stamp and the code's onset both
+    // come from it. The code started 30 s before this frame.
+    const device = normalizeDevice(
+      {
+        deviceId: "agv-a01",
+        stamp: "1970-01-07T22:40:30Z",
+        error_code: { code: 5101, info: "急停", stamp: "1970-01-07T22:40:00Z" },
+        speed_limit: { limit: 0.5, stamp: "1970-01-07T22:40:20Z" },
+      },
+      null,
+      "",
+      undefined,
+      clock,
+    );
+    expect(device.stamp).toBe("2026-09-01T08:00:00.000Z");
+    expect(device.errorCode.stamp).toBe("2026-09-01T07:59:30.000Z");
+    expect(device.speedLimit.stamp).toBe("2026-09-01T07:59:50.000Z");
+    expect(device.alerts.find((alert) => alert.code === 5101)?.ts).toBe("2026-09-01T07:59:30.000Z");
+  });
+
+  it("reports which vehicle and by how much", () => {
+    const seen: Array<{ deviceId: string; skewMs: number }> = [];
+    normalizeDevice({ deviceId: "agv-fast", stamp: "2026-09-01T10:00:00Z" }, null, "", undefined, {
+      ...clock,
+      onUntrusted: (event) => seen.push(event),
+    });
+    expect(seen).toEqual([{ deviceId: "agv-fast", skewMs: 2 * 3_600_000 }]);
+  });
+
+  it("does not throw on a stamp in nanoseconds", () => {
+    const device = normalizeDevice(
+      {
+        deviceId: "agv-ros",
+        stamp: receivedAt * 1e6,
+        error_code: { code: 5101, stamp: receivedAt * 1e6 },
+      },
+      null,
+      "",
+      undefined,
+      clock,
+    );
+    expect(device.stamp).toBe("2026-09-01T08:00:00.000Z");
+    expect(device.errorCode.stamp).toBe("2026-09-01T08:00:00.000Z");
+  });
 });
 
 describe("normalizePayload device-id extraction", () => {

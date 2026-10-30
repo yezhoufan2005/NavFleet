@@ -319,6 +319,39 @@ describe("live frames and the vehicle's clock", () => {
     expect(store.deviceClockStats().outOfOrder).toBe(1);
   });
 
+  it("lingers a low-battery warning for the debounce window on the vehicle's own clock", async () => {
+    // A clock 40 s slow: measured against server time the 30 s window had already lapsed on the
+    // very next frame, so the warning flapped with every reading on the threshold.
+    const persistence = new BlockingPersistence();
+    const rules = {
+      ...DEFAULT_ALERT_RULES,
+      lowBattery: { enabled: true, thresholdPct: 20, debounceSeconds: 30 },
+    };
+    const store = new DashboardStore(
+      persistence as unknown as Persistence,
+      {
+        async load(): Promise<void> {},
+        getFleetConfig: (): FleetConfig => ({ ...FLEET_CONFIG }),
+        getAlertRules: () => rules,
+        applyDeviceConfig: (snapshot: DeviceSnapshot): DeviceSnapshot => snapshot,
+        hasDeviceConfig: (): boolean => true,
+        listScenes: () => [],
+        buildFormationSnapshots: () => [],
+      } as unknown as ConfigRegistry,
+    );
+    const slow = (offsetMs: number) => new Date(Date.now() - 40_000 + offsetMs).toISOString();
+    const soc = (deviceId: string, value: number, stamp: string) => ({
+      topic: `/fleet/${deviceId}/vehicle_info`,
+      payload: { stamp, vehicle_info: { soc: value } },
+    });
+    await store.applyPayload(soc("agv-slow", 19, slow(0)), "mqtt", live);
+    await store.applyPayload(soc("agv-slow", 21, slow(1_000)), "mqtt", live);
+
+    expect(store.getDevice("agv-slow")?.alerts.map((alert) => alert.id)).toContain(
+      "agv-slow-low-soc",
+    );
+  });
+
   it("leaves replayed history (the debug ingest path) alone", async () => {
     const { store } = createStore();
     await store.applyPayload(frame("agv-h", "2026-01-01T00:00:10Z"), "debug-api");

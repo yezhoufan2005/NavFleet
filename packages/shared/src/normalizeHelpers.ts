@@ -50,18 +50,33 @@ export const toNumeric = (
  *   when this happened" into "it happened this instant", which sorts an undated alert above every
  *   real one and re-sorts it on every tick — `toIsoStringOrNull`, or `?? 0` when sorting.
  *
- * Seconds are accepted as well as milliseconds: `< 1e12` is treated as seconds, which is the
- * convention the vehicles publish.
+ * A number is read by magnitude: below `1e12` as seconds (the convention the vehicles publish),
+ * then milliseconds, and from `1e14` and `1e17` up as micro- and nanoseconds, which ROS-based
+ * stacks publish. Anything outside what a `Date` can hold is `null`, so `toIsoString` never
+ * throws on a frame.
  */
+const MAX_DATE_MS = 8.64e15;
+
+const epochNumberToMs = (value: number): number | null => {
+  const ms =
+    Math.abs(value) < 1e12
+      ? value * 1000
+      : Math.abs(value) < 1e14
+        ? value
+        : Math.abs(value) < 1e17
+          ? value / 1e3
+          : value / 1e6;
+  return Math.abs(ms) <= MAX_DATE_MS ? ms : null;
+};
+
 export const parseTimestampMs = (value: unknown): number | null => {
   if (value === null || value === undefined || value === "") return null;
   if (typeof value === "number") {
-    if (!Number.isFinite(value)) return null;
-    return value < 1e12 ? value * 1000 : value;
+    return Number.isFinite(value) ? epochNumberToMs(value) : null;
   }
   const numeric = Number(value);
   if (Number.isFinite(numeric) && asText(value).trim() !== "") {
-    return numeric < 1e12 ? numeric * 1000 : numeric;
+    return epochNumberToMs(numeric);
   }
   const parsed = Date.parse(asText(value));
   return Number.isFinite(parsed) ? parsed : null;
