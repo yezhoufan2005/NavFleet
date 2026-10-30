@@ -23,7 +23,7 @@
  * indicator lies wherever that page is not mounted.
  */
 import { computed, onMounted, watch, watchEffect } from "vue";
-import { RouterView, useRoute } from "vue-router";
+import { RouterView, useRoute, useRouter } from "vue-router";
 import AppShell from "@/components/shell/AppShell.vue";
 import LoginForm from "@/components/LoginForm.vue";
 import NotificationHost from "@/components/NotificationHost.vue";
@@ -31,10 +31,12 @@ import { useAuth } from "@/composables/useAuth";
 import { useFleetStore } from "@/stores/fleet";
 import { useAlertSound, disarmAlertSound } from "@/composables/useAlertSound";
 import { notify } from "@/composables/useNotifications";
+import { safeRedirectPath } from "@/router/guards";
 
 const PRODUCT_NAME = "智能车队监控平台";
 
 const route = useRoute();
+const router = useRouter();
 const auth = useAuth();
 const authState = auth.state;
 const fleet = useFleetStore();
@@ -66,6 +68,20 @@ watch(
   (status, previous) => {
     if (status === "authenticated" && previous !== "authenticated") {
       void fleet.bootstrap();
+      // A login (not the cold-load probe) goes back to the deep link that was turned away,
+      // and re-runs the route guard either way: the page on screen was decided for the
+      // previous account, or for nobody, and the new account may not hold what it requires.
+      if (previous === "anonymous") {
+        const target = router.resolve(
+          safeRedirectPath(route.query.redirect) ?? route.fullPath,
+        );
+        void router.replace({
+          path: target.path,
+          query: target.query,
+          hash: target.hash,
+          force: true,
+        });
+      }
     }
     if (status === "anonymous") {
       fleet.stopRealtime();

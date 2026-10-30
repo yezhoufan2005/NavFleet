@@ -191,6 +191,52 @@ describe("AuthService — admin user management", () => {
   });
 });
 
+describe("AuthService — sessions end where the account changes", () => {
+  const fresh = async (): Promise<{ service: AuthService; invalidations: () => number }> => {
+    const service = new AuthService(new Persistence());
+    await service.initialize();
+    let count = 0;
+    service.onSessionsInvalidated(() => {
+      count += 1;
+    });
+    return { service, invalidations: () => count };
+  };
+  const session = (sessionId: string, username: string) => ({
+    sessionId,
+    username,
+    userAgent: "test",
+    ip: "127.0.0.1",
+  });
+
+  it("deleting a user drops their sessions, so a namesake does not inherit them", async () => {
+    const { service } = await fresh();
+    await service.createUser({ username: "zhangsan", password: A_PASSWORD, role: "viewer" });
+    await service.createSession(session("s-old", "zhangsan"));
+
+    expect((await service.deleteUser("admin", "zhangsan")).ok).toBe(true);
+    await service.createUser({ username: "zhangsan", password: A_PASSWORD, role: "admin" });
+
+    expect(await service.isSessionActive("zhangsan", "s-old")).toBe(false);
+  });
+
+  it("tells the live-connection layer every time sessions are ended", async () => {
+    const { service, invalidations } = await fresh();
+    await service.createUser({ username: "vera", password: A_PASSWORD, role: "viewer" });
+    await service.createSession(session("s-1", "vera"));
+
+    await service.revokeSession("vera", "s-1");
+    await service.forceLogout("vera");
+    await service.updateUser("admin", "vera", { enabled: false });
+    await service.resetPassword("vera", A_PASSWORD);
+    await service.deleteUser("admin", "vera");
+
+    expect(invalidations()).toBe(5);
+    // Revoking a session that does not exist ends nothing, so says nothing.
+    await service.revokeSession("vera", "no-such-session");
+    expect(invalidations()).toBe(5);
+  });
+});
+
 // Account-level login lockout. Real Persistence in-memory fallback so the counter
 // and lock deadline round-trip through actual writes.
 describe("AuthService — login lockout", () => {
@@ -256,6 +302,30 @@ describe("AuthService — login lockout", () => {
 
     expect((await service.authenticate("admin", "admin123")).ok).toBe(true);
     expect((await persistence.findUserByUsername("admin"))?.failedAttempts).toBe(0);
+  });
+
+  it("counts parallel wrong passwords one by one, and reports the lock once", async () => {
+    const { service, persistence } = await freshService();
+    const attempts = config.authLockThreshold + 3;
+    const results = await Promise.all(
+      Array.from({ length: attempts }, () => service.authenticate("admin", "wrong")),
+    );
+
+    expect((await persistence.findUserByUsername("admin"))?.failedAttempts).toBe(attempts);
+    expect(results.filter((result) => !result.ok && result.lockedJustNow)).toHaveLength(1);
+    expect((await service.authenticate("admin", "admin123")).ok).toBe(false);
+  });
+
+  it("lets a locked-out user in with the password an admin just reset", async () => {
+    const { service } = await freshService();
+    await service.createUser({ username: "vera", password: A_PASSWORD, role: "viewer" });
+    for (let i = 0; i < config.authLockThreshold; i += 1) {
+      await service.authenticate("vera", "wrong");
+    }
+    const reset = A_PASSWORD + "x";
+    await service.resetPassword("vera", reset);
+
+    expect((await service.authenticate("vera", reset)).ok).toBe(true);
   });
 });
 

@@ -172,7 +172,6 @@ export class NotifyService {
     }
     await this.sendNow(channel, context, config);
   }
-  // PLACEHOLDER_2
 
   private suppressedByRenotify(
     eventKey: string,
@@ -326,7 +325,6 @@ export class NotifyService {
       }
     }
   }
-  // PLACEHOLDER_3
 
   /**
    * Flush ripe digest buffers — those open at least their channel's `digestSeconds` — as one

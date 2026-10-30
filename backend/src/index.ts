@@ -92,6 +92,8 @@ const wsBridge = createWebSocketBridge(
   (username) => authService.findByUsername(username),
   (username, sessionId) => authService.isSessionActive(username, sessionId),
 );
+// A revoked session closes its open sockets now, not at the bridge's next periodic check.
+authService.onSessionsInvalidated(() => void wsBridge.revalidate());
 wsClientCount = wsBridge.clientCount;
 wsSlowBroadcasts = wsBridge.slowBroadcastCount;
 

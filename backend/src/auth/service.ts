@@ -61,6 +61,17 @@ export class AuthService {
   constructor(private readonly persistence: Persistence) {}
 
   /**
+   * Told whenever sessions are ended (revoke, force-logout, disable or role change, reset,
+   * delete), so the WebSocket bridge re-checks its open sockets at once instead of on its next
+   * periodic pass. HTTP needs no such hook: every request already checks the session.
+   */
+  private sessionsInvalidated: () => void = () => {};
+
+  onSessionsInvalidated(listener: () => void): void {
+    this.sessionsInvalidated = listener;
+  }
+
+  /**
    * Seed the initial administrator from ADMIN_USERNAME/ADMIN_PASSWORD. Runs on
    * startup and is idempotent: it upserts the admin's password so operators can
    * rotate it via env. When ADMIN_PASSWORD is unset and no users exist yet, a
@@ -150,15 +161,19 @@ export class AuthService {
       }
       return { ok: true, user };
     }
-    // A wrong password. If the previous lock has expired, the counter starts fresh.
-    const base = lockedUntilMs > 0 && lockedUntilMs <= now ? 0 : user.failedAttempts;
-    const failedAttempts = base + 1;
+    // A wrong password. Counted in one atomic update (an expired lock starts the count afresh),
+    // so parallel attempts each advance it instead of all writing the same value. Only the
+    // attempt that reaches the threshold reports the lock, so it is audited once.
+    const failedAttempts = await this.persistence.incrementLoginFailures(
+      username,
+      new Date(now).toISOString(),
+      at,
+    );
     if (failedAttempts >= config.authLockThreshold) {
       const lockedUntil = new Date(now + config.authLockWindowMs).toISOString();
-      await this.persistence.setLoginFailure(username, failedAttempts, lockedUntil, at);
-      return { ok: false, lockedJustNow: true };
+      await this.persistence.lockLogin(username, lockedUntil, at);
+      return { ok: false, lockedJustNow: failedAttempts === config.authLockThreshold };
     }
-    await this.persistence.setLoginFailure(username, failedAttempts, null, at);
     return { ok: false, lockedJustNow: false };
   }
 
@@ -215,8 +230,10 @@ export class AuthService {
   }
 
   /** Revoke one of a user's own sessions (self-service logout of a device). */
-  revokeSession(username: string, sessionId: string): Promise<boolean> {
-    return this.persistence.deleteSession(username, sessionId);
+  async revokeSession(username: string, sessionId: string): Promise<boolean> {
+    const revoked = await this.persistence.deleteSession(username, sessionId);
+    if (revoked) this.sessionsInvalidated();
+    return revoked;
   }
 
   /**
@@ -228,6 +245,7 @@ export class AuthService {
   async revokeAllSessions(username: string): Promise<void> {
     await this.persistence.deleteAllSessions(username);
     await this.persistence.bumpTokenVersion(username, new Date().toISOString());
+    this.sessionsInvalidated();
   }
 
   /**
@@ -339,6 +357,7 @@ export class AuthService {
     if ((fields.role !== undefined && fields.role !== target.role) || fields.enabled === false) {
       await this.persistence.bumpTokenVersion(username, at);
       await this.persistence.deleteAllSessions(username);
+      this.sessionsInvalidated();
     }
     const updated = await this.persistence.findUserByUsername(username);
     return { ok: true, value: toAdminUserView(updated ?? { ...target, ...fields }) };
@@ -353,10 +372,14 @@ export class AuthService {
       return { ok: false, error: "not_found" };
     }
     const hash = await hashPassword(newPassword);
-    await this.persistence.setPasswordAndInvalidate(username, hash, new Date().toISOString());
+    const at = new Date().toISOString();
+    await this.persistence.setPasswordAndInvalidate(username, hash, at);
     // A reset invalidates the user everywhere: bump already dropped their tokens, now drop the
     // session rows too so nothing stale lingers in their session list.
     await this.persistence.deleteAllSessions(username);
+    // And it is how an admin lets a locked-out user back in: the new password works at once.
+    await this.persistence.clearLoginFailures(username, at);
+    this.sessionsInvalidated();
     const updated = await this.persistence.findUserByUsername(username);
     return { ok: true, value: toAdminUserView(updated ?? target) };
   }
@@ -383,7 +406,11 @@ export class AuthService {
         return { ok: false, error: guard };
       }
     }
+    // Sessions first: a user recreated under the same name starts again at tokenVersion 0, so a
+    // surviving session row would let the old account's refresh token sign in as the new one.
+    await this.persistence.deleteAllSessions(username);
     await this.persistence.deleteUser(username);
+    this.sessionsInvalidated();
     return { ok: true, value: undefined };
   }
 
