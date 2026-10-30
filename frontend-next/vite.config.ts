@@ -11,8 +11,8 @@ import tailwindcss from "@tailwindcss/vite";
  * several of them run side by side. The proxy targets are the same backend, so
  * `scripts/dev.sh` can keep pointing one backend at both consoles.
  *
- * `base` is left at "/" and the router uses web history (an 11C decision), so the
- * image needs an SPA fallback — see frontend-next/nginx.conf.
+ * `base` is left at "/" and the router uses web history (an information-architecture
+ * decision), so the image needs an SPA fallback — see frontend-next/nginx.conf.
  */
 const backendOrigin = process.env.BACKEND_ORIGIN ?? "http://127.0.0.1:3000";
 const backendWsOrigin = backendOrigin.replace(/^http/, "ws");

@@ -4,9 +4,9 @@ import prettier from "eslint-config-prettier";
 import globals from "globals";
 
 /**
- * `packages/shared` has never been linted — the root config ignores `packages/**`
- * and the package carries no config of its own, which is filed as a P0-f gap. A
- * package added today should not join it, so fleet-core brings its own.
+ * `packages/shared` went unlinted until it got a config of its own — the root
+ * config ignores `packages/**`. A package added today should not start out that
+ * way, so fleet-core brings its own.
  *
  * `no-explicit-any` is an error here, matching the frontend rather than the
  * backend: this code is the shared domain layer, and `unknown` plus a narrowing

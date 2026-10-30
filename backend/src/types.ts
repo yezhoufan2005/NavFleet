@@ -111,8 +111,9 @@ export type AdminUserView = Omit<UserRecord, "passwordHash">;
  * The auditable actions. A closed **tuple** (not just a union) so it is the single
  * source of truth: `AuditAction` derives from it, and `auditQuerySchema.action` builds its
  * `z.enum` from the same array — before 1.6.1 the two were maintained by hand and drifted, so
- * the five Phase-16C/18 config writes were auditable but not filterable. Deriving both from one
- * list makes that class of gap impossible: a new action added here is queryable by construction.
+ * the five codebook-import and device-onboarding config writes were auditable but not
+ * filterable. Deriving both from one list makes that class of gap impossible: a new action
+ * added here is queryable by construction.
  *
  * Scoped to auth + user management + operator-domain config writes on purpose — a read-only
  * monitoring system gains nothing from auditing reads, and config *reload* has no actor (see

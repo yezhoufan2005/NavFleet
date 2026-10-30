@@ -12,8 +12,8 @@ import type { DeviceSnapshot } from "@navfleet/shared";
  *
  * ## The default is 编号
  *
- * 14C briefly made it 状态 — on the argument that a monitoring list should open on the
- * vehicles in trouble — and acceptance asked for the id order back. That is the right
+ * A change briefly made it 状态 — on the argument that a monitoring list should open on
+ * the vehicles in trouble — and acceptance asked for the id order back. That is the right
  * call for *this* list, and the reason is that the page it belongs to is not the one
  * that answers «who needs me now»: 总览 does, with 待处理项, sorted by attention and
  * capped at five. The devices list is the register, and a register whose order changes

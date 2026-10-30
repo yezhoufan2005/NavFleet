@@ -3,9 +3,9 @@
  * The button.
  *
  * Every colour comes from a semantic token, so no variant carries a `dark:`
- * utility — the property 12B set out to prove, and the one `test/tokens.test.ts`
- * enforces. If the `@theme` override mechanism ever broke, this button would keep
- * its light colours on a dark ground and that test would go red.
+ * utility — the property this console's scaffold set out to prove, and the one
+ * `test/tokens.test.ts` enforces. If the `@theme` override mechanism ever broke,
+ * this button would keep its light colours on a dark ground and that test would go red.
  *
  * ## Why it can render as something other than a `<button>`
  *
@@ -23,8 +23,8 @@
  * ## The `danger` variant is for confirmed destructive actions only
  *
  * It was removed for most of this project's life: NavFleet is a read-only monitoring console,
- * and a destructive-action button is a variant for actions the product did not have. User management's
- * user management is the first place it does — deleting an account, force-logging-out a user,
+ * and a destructive-action button is a variant for actions the product did not have.
+ * User management is the first place it does — deleting an account, force-logging-out a user,
  * revoking a session — and, as the original note promised, it comes back **with** its
  * confirmation pattern (`UiConfirmDialog`), not before. Use it only for the confirm button of a
  * genuinely irreversible action, never as a louder primary.

@@ -619,8 +619,8 @@ const alertRows = computed(() =>
  * `warning-wash` is `amber-900` (L≈0.28), and 60% of it over `surface-raised` came out a
  * muddy brown — the *same* failure this change exists to fix, "the hue does not read",
  * reintroduced in the other theme. The saturated edge and dot are at full strength
- * instead, which is what 13R-B asked for: a small block with enough saturation, not a
- * wash over everything.
+ * instead, which is what the planned fix called for: a small block with enough
+ * saturation, not a wash over everything.
  */
 .stat-tile {
   --tile-wash: 22%;

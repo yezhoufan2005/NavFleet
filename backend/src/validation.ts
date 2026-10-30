@@ -206,8 +206,8 @@ export const loginSchema = z.object({
 });
 
 /**
- * Password complexity for any *new* password (self change-password now; admin reset/create in
- * 15B-2). Deliberately modest — at least 8 chars, with both a letter and a digit — because a
+ * Password complexity for any *new* password (self change-password, admin reset/create).
+ * Deliberately modest — at least 8 chars, with both a letter and a digit — because a
  * single-instance intranet tool gains little from ornate rules that mostly push operators
  * toward `Password1!` on a sticky note. Login is intentionally NOT held to this (existing
  * accounts predate any policy); it only guards passwords being set.

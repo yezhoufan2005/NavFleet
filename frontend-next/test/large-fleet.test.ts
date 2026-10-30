@@ -105,7 +105,7 @@ afterEach(() => {
 
 describe("large fleet rendering", () => {
   it("renders one page at a time, however large the fleet gets", async () => {
-    // Until 14F this asserted 500 rows, because the list had no pagination and mounting
+    // This used to assert 500 rows, because the list had no pagination and mounting
     // all of them was the thing being measured. Pagination changes the premise rather
     // than the conclusion: the reason not to virtualize was that this platform watches
     // six vehicles, and now the row count is bounded by the page size regardless of

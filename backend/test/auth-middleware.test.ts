@@ -65,7 +65,7 @@ describe("createAuthenticate", () => {
     expect(next).toHaveBeenCalledOnce();
   });
 
-  it("attaches the role from the token, not the looked-up user (role change is 15C)", async () => {
+  it("attaches the role from the token, not the looked-up user", async () => {
     const token = signAccessToken({ username: "bob", role: "operator" }, 0);
     const req = bearer(token);
     const next = vi.fn();

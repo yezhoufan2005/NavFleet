@@ -1,4 +1,4 @@
-﻿# NavFleet 项目架构说明
+﻿1# NavFleet 项目架构说明
 
 ## 1. 项目定位
 
@@ -329,7 +329,7 @@ PR #28 按职责拆开：
 > 旧前端已冻结、1.1.0 部署的是 v3，于是这一章变成了在描述没人部署的那个前端。它点名的
 > `src/services/fleetApi.ts`、`src/lib/fleetNormalize.ts`、`src/components/GpsMap.vue`、
 > `src/components/RosSceneMap.vue`、`src/data-defaults.ts` 在 `frontend-next/` 里一个都不存在
-> —— 其中前两个连**冻结的那一套里也早已不在**（12A 抽进了 `packages/fleet-core`），
+> —— 其中前两个连**冻结的那一套里也早已不在**（已抽进 `packages/fleet-core`），
 > `data-defaults.ts` 两边都没有。
 > 现在按 v3 重写；冻结的那一套只留本节末尾一段差异说明。
 
@@ -366,7 +366,7 @@ PR #28 按职责拆开：
 
 **跨前端共用的两块不在这里**：REST 访问层与纯归一化逻辑住在 `packages/fleet-core`
 （`fleetApi.ts` / `fleetNormalize.ts` / `deviceTone.ts` / `reportCodes.ts` …），两套控制台共同
-引用 —— 这是 12A 先抽包的原因：从结构上让「修一处漏一处」不可能发生。
+引用 —— 这是建新控制台之前先抽包的原因：从结构上让「修一处漏一处」不可能发生。
 
 ### `src/router/` 与 `src/views/`
 
@@ -418,7 +418,7 @@ hash 路由、原生 CSS（无 Tailwind / Reka UI）、渐进式 TypeScript、�
 （Dashboard / History / Alerts / Settings / NotFound）、地图组件叫 `GpsMap.vue` 与
 `RosSceneMap.vue`、高德加载与点云解析在 `src/utils/` 而不是 `src/lib/`。
 
-**它的 REST 层与归一化逻辑也已经不在自己家里了** —— 12A 把两者抽进 `packages/fleet-core`，所以
+**它的 REST 层与归一化逻辑也已经不在自己家里了** —— 两者都已抽进 `packages/fleet-core`，所以
 `frontend/src/services/` 与 `frontend/src/lib/fleetNormalize.ts` 都不存在，冻结的这一套同样从共享
 包引用。这正是抽包的目的：两个前端不可能对同一份派生逻辑给出不同答案。
 

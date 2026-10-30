@@ -242,8 +242,8 @@ describe("POST /api/auth/logout", () => {
       .set("Cookie", sessionCookieWithSid("viewer", "tester", "sid-logout"));
 
     expect(response.status).toBe(204);
-    // Per-session logout: the session the token names is revoked, and — unlike the
-    // pre-15E logout — the user's tokenVersion is left alone so their other devices stay in.
+    // Per-session logout: the session the token names is revoked, and — unlike logout before
+    // sessions were tracked — the user's tokenVersion is left alone so their other devices stay in.
     expect(context.authService.revokeSession).toHaveBeenCalledWith("tester", "sid-logout");
   });
 });

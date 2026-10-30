@@ -152,7 +152,7 @@ export const MAX_AUDIT_PER_QUERY = 500;
 /** Most notify-send rows one `GET /api/notify/log` returns; the in-memory fallback ring is bounded to it too. */
 export const MAX_NOTIFY_PER_QUERY = 500;
 
-/** How many devices the alert-stats Top-N ranking keeps. Matches 16B's client-side default. */
+/** How many devices the alert-stats Top-N ranking keeps. Matches the client-side default. */
 const ALERT_STATS_TOP_N = 8;
 
 /** Report aggregations are read-only views over slowly-changing history, so an in-memory TTL cache
@@ -1717,12 +1717,12 @@ export class Persistence {
   /**
    * Server-side alert statistics over the whole `alerts` collection.
    *
-   * The point of doing this in Mongo rather than in the browser (as 16B does) is to escape the
-   * 500-row read cap on `/api/alerts`: a `$facet` aggregate sees every alert in the retention
-   * window, not just the newest page. With no Mongo there is no history to aggregate, so this
-   * returns an honest-empty report flagged `available:false` — the same contract the
-   * cleared-alert paths already keep — rather than a zero-filled one that would read as
-   * "there were no alerts".
+   * The point of doing this in Mongo rather than in the browser (as the alert-history page does)
+   * is to escape the 500-row read cap on `/api/alerts`: a `$facet` aggregate sees every alert in
+   * the retention window, not just the newest page. With no Mongo there is no history to
+   * aggregate, so this returns an honest-empty report flagged `available:false` — the same
+   * contract the cleared-alert paths already keep — rather than a zero-filled one that would
+   * read as "there were no alerts".
    */
   async aggregateAlertStats(range: { from?: string; to?: string }): Promise<AlertStatsReport> {
     if (!this.db) {

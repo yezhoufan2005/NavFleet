@@ -148,7 +148,7 @@ describe("the counts", () => {
 
 describe("where a tile's tone lives", () => {
   /**
-   * The rule 13R-B measured its way to, asserted so it cannot drift back.
+   * The rule that measuring arrived at, asserted so it cannot drift back.
    *
    * The number used to wear `text-warning-ink` / `text-critical-ink`. Manual review said
    * «浅色模式数字颜色不清晰», and measuring found light mode had the *higher* contrast
@@ -368,9 +368,9 @@ describe("who needs attention", () => {
 
   it("announces the wait to a screen reader, not only to the eye", async () => {
     // `UiSkeleton` is `aria-hidden`, so `aria-busy` on the owning region is the only
-    // thing carrying this state to AT. Before 13T-B the whole of `src` had `aria-busy`
-    // in exactly one place — `LoginForm`'s submit — so no data-loading region announced
-    // itself at all.
+    // thing carrying this state to AT. Before the busy states were restored, the whole of
+    // `src` had `aria-busy` in exactly one place — `LoginForm`'s submit — so no
+    // data-loading region announced itself at all.
     const wrapper = await mountPage();
     store.state.realtime.bootstrapPending = true;
     await flushPromises();

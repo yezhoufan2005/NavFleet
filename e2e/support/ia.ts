@@ -5,10 +5,11 @@ import { ADMIN } from "./harness";
 /**
  * Where the two frontends differ, and nothing else.
  *
- * 11A found that all 17 e2e specs match on roles and Chinese accessible names with
- * zero `data-testid`, and concluded they could be reused verbatim on the new
- * frontend. That is *almost* right, and the gap matters: 11C then decided to rebuild
- * the information architecture, which necessarily changes the navigation's wording.
+ * The inventory of the old frontend found that all 17 e2e specs match on roles and
+ * Chinese accessible names with zero `data-testid`, and concluded they could be reused
+ * verbatim on the new frontend. That is *almost* right, and the gap matters: the
+ * navigation review then decided to rebuild the information architecture, which
+ * necessarily changes the navigation's wording.
  * A spec that asserts `实时监控` is asserting the old IA, not the behaviour.
  *
  * So the deltas live here, in one readable table, rather than as a forked suite. The
@@ -33,8 +34,8 @@ export interface IaProfile {
    * 返回实时监控.
    *
    * Both front ends now leave that one entry open at the end. The console's was
-   * anchored for a while — not by choice, but because 13T-C is where it got its badge
-   * back; the anchor was a fossil of the missing feature.
+   * anchored for a while — not by choice, but because its badge came back only later;
+   * the anchor was a fossil of the missing feature.
    */
   navLinks: readonly RegExp[];
   /** How an unknown address is requested and echoed back, plus the way home. */
@@ -46,9 +47,9 @@ export interface IaProfile {
     backLink: string;
   };
   /**
-   * Sign out. One extra step on the console, and it is not an accident: 11C §1 moved
-   * personal preferences into the session menu, and 退出 went with them rather than
-   * being the one thing left as a bare button in the header.
+   * Sign out. One extra step on the console, and it is not an accident: the navigation
+   * review moved personal preferences into the session menu, and 退出 went with them
+   * rather than being the one thing left as a bare button in the header.
    */
   signOut: (page: Page) => Promise<void>;
 }

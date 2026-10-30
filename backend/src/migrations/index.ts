@@ -19,7 +19,7 @@ export const migrations: readonly Migration[] = [
     name: "baseline-1.1.0",
     up: async () => {
       // No-op: the 1.1.0 schema is owned by `ensureMongoCollections`. This entry exists so
-      // that "current version" has a definite value from which 15B+ migrations count.
+      // that "current version" has a definite value from which later migrations count.
     },
   },
   {

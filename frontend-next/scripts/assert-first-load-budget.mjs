@@ -2,13 +2,13 @@
 /**
  * Fails the build if the console's **first-load** payload outgrows its budget.
  *
- * This exists because of a regression I shipped and did not notice: 14A put the
- * product's logo in `public/image.png` at 564×579 / 246 KiB, referenced by both the
- * favicon and the top bar, i.e. fetched on every page. PNG is already compressed, so
- * gzip took nothing off it — that one file was **69% of the first-load transfer**,
- * larger than the whole of v1.0.0's dist. I had looked at the file size and called it
- * "wasteful but acceptable" without measuring it against anything. A number nobody
- * compares to a budget is not a measurement.
+ * This exists because of a regression I shipped and did not notice: the first round of
+ * acceptance fixes put the product's logo in `public/image.png` at 564×579 / 246 KiB,
+ * referenced by both the favicon and the top bar, i.e. fetched on every page. PNG is
+ * already compressed, so gzip took nothing off it — that one file was **69% of the
+ * first-load transfer**, larger than the whole of v1.0.0's dist. I had looked at the
+ * file size and called it "wasteful but acceptable" without measuring it against
+ * anything. A number nobody compares to a budget is not a measurement.
  *
  * What is measured: every URL `dist/index.html` references, which is the set a cold
  * visit must fetch before the app can render. Route chunks are excluded by

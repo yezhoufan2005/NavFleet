@@ -12,9 +12,9 @@
  * which on a monitoring console is not the same statement as "we cannot reach the
  * backend" — it is a much more alarming one, and it is false.
  *
- * The decision (ROADMAP 13T-E / 1.0.3) was **delete the path, not fill it in**: offline
- * gets an explicit empty state and a retry button. Showing invented data on a monitoring
- * console is considerably more dangerous than showing nothing.
+ * The decision (1.0.3) was **delete the path, not fill it in**: offline gets an explicit
+ * empty state and a retry button. Showing invented data on a monitoring console is
+ * considerably more dangerous than showing nothing.
  *
  * What survives is only what carries a value: the fleet's default display name and the
  * topic pattern, both of which the shell renders before the first snapshot lands.

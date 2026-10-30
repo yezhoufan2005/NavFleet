@@ -470,8 +470,9 @@ export function useSvgViewport(options: UseSvgViewportOptions) {
    * on the whole scene left the vehicle wherever it happened to be — measured 276px
    * off-centre and 59px from the right edge — so the first thing an operator did on
    * every visit was hunt for it and click 定位车辆. Note this is *not* a return to
-   * the pre-Phase-9 behaviour: `resetView` (适应场景) still fits the scene, which is
-   * what that button should mean; only the initial view changed.
+   * the earlier behaviour where resetting also zoomed in on the vehicle: `resetView`
+   * (适应场景) still fits the scene, which is what that button should mean; only the
+   * initial view changed.
    */
   function applyStoredOrDefaultView(
     sceneId: string = activeSceneId.value,

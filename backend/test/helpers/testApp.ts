@@ -466,9 +466,9 @@ export const createTestApp = (options: TestAppOptions = {}): TestAppContext => {
  * and secret the production middleware verifies against.
  *
  * No `sid` by default: most tests only need to pass the auth gate, and a sid-less token is
- * governed by tokenVersion alone (the pre-15E contract the middleware still honours), so the
- * session check is skipped and the default stubs suffice. Use `sessionCookieWithSid` to exercise
- * the per-session path.
+ * governed by tokenVersion alone (the contract from before sessions were tracked, which the
+ * middleware still honours), so the session check is skipped and the default stubs suffice. Use
+ * `sessionCookieWithSid` to exercise the per-session path.
  */
 export const sessionCookie = (role: UserRole = "viewer", username = "tester"): string =>
   `${ACCESS_COOKIE}=${signAccessToken({ username, role }, 0)}`;

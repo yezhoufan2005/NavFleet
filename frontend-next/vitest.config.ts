@@ -48,40 +48,40 @@ export default defineConfig({
       ],
       // Calibrated from the first real measurement rather than guessed —
       // 94.07 / 88.07 / 89.23 / 94.07 — with a couple of points of headroom, the
-      // same way the fleet-core thresholds were set. 12B deliberately left these
-      // empty: with one button and one page, any number would have been measuring
-      // the scaffold rather than the code.
+      // same way the fleet-core thresholds were set. These were deliberately left
+      // empty at first: with one button and one page, any number would have been
+      // measuring the scaffold rather than the code.
       //
-      // 13A-1 raised statements/lines 92 → 93 to hold the data layer's own coverage
+      // Statements/lines were raised 92 → 93 to hold the data layer's own coverage
       // (93.99 measured). Branches and functions are left where they are on purpose:
       // at 85.26 and 89.28 they have too little headroom to ratchet without making
       // an unrelated PR go red for a single uncovered `else`.
       //
-      // 13A-2a raised statements/lines again (93 → 94) and functions (86 → 90):
+      // Statements/lines were raised again (93 → 94) and functions (86 → 90):
       // measured 94.66 / 85.29 / 92.61 / 94.66 after the map stack arrived with
       // tests, and `useSvgViewport` in particular went from 1.07% to 98.16%. Branches
       // still stays at 85 for the reason above — 85.29 is the thinnest margin here.
       /*
        * 旧值是 95 / 85 / 90 / 95，其中 branches 与 functions 是刻意不动的：
        *
-       * > 12B deliberately left these empty: with one button and one page, any number
-       * > would have been measuring the scaffold rather than the code.
-       * > 13A-1 raised statements/lines 92 → 93 to hold the data layer's own coverage.
+       * > These were deliberately left empty at first: with one button and one page, any
+       * > number would have been measuring the scaffold rather than the code.
+       * > Statements/lines were raised 92 → 93 to hold the data layer's own coverage.
        * > Branches and functions are left where they are on purpose: at 85.26 and 89.28
        * > they have too little headroom to ratchet without making an unrelated PR go red
        * > for a single uncovered `else`.
-       * > P0-f 第 6 批 raised statements/lines 94 → 95 against 96.24 measured.
+       * > Statements/lines were raised again 94 → 95 against 96.24 measured.
        *
        * 「余量太小就不要上抬，否则会教人去降门禁」这条判据在新尺子下同样适用。
        */
       /*
-       * **重定于 vitest 5（P0-f 第 5 批）。跨这次升级，数字不可比。**
+       * **重定于 vitest 5。跨这次升级，数字不可比。**
        *
        * 同一份代码，只换 vitest 3 → 5，四个 workspace 的读数全部移动，而且方向不一致 ——
        * 这是计数方式变了，不是覆盖率变了。两条证据：
        *
        * 1. **分支的分母变大。** backend `store.ts` 95.68% → 81.63%、`normalize.ts`
-       *    81.57% → 73.97%，而语句几乎没动。P0-f 第 2、3 批为了类型安全加进来的大量 `?.`
+       *    81.57% → 73.97%，而语句几乎没动。收紧类型检查时为了类型安全加进来的大量 `?.`
        *    与 `??` 每一个都是分支，vitest 5 把它们算进去了。
        * 2. **未被 import 的文件从「100% functions」变成 0%。** 冻结前端的
        *    `useSceneOverlay.ts` / `lib/globalErrorHandlers.ts` / `router/index.ts` /

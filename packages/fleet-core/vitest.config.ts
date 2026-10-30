@@ -18,15 +18,15 @@ export default defineConfig({
        *
        * > Calibrated from the first real measurement (86.86 / 80.73 / 88.37 / 86.86), a
        * > point or two below it. The ratchet only ever goes up.
-       * > Raised in 13A-0 (85/79 → 86/81) to absorb what moved in from the frontend:
+       * > Raised (85/79 → 86/81) to absorb what moved in from the frontend:
        * > `deviceTone.ts` arrived at 100%. Raising here is the other half of lowering the
        * > frontend's gate by the same move — without it, relocating covered code would be
        * > a way to quietly shed coverage.
-       * > Raised again in 13A-2a: the point-cloud pipeline moved in from the frontend
+       * > Raised again when the point-cloud pipeline moved in from the frontend
        * > (where it had no tests at all) and arrived at 100% statements / 90% branches.
-       * > Raised again in P0-f 第 6 批 (89/83/89 → 91/85/91) against 93.43 / 87.03 /
-       * > 93.44: four cases added while proving a fix covered the vendor-supplied `alerts`
-       * > branch, which had had no test at all.
+       * > Raised again (89/83/89 → 91/85/91) against 93.43 / 87.03 / 93.44: four cases
+       * > added while proving a fix covered the vendor-supplied `alerts` branch, which had
+       * > had no test at all.
        *
        * 给下一个上抬的人的提醒仍然有效：`dataDefaults.ts` 停在 0% 是诚实而不是偷懒 —— 它是
        * 两个没有任何测试 import 的惰性字面量，排除它会为一个真的没有覆盖的文件抬高全局数字。
@@ -38,7 +38,7 @@ export default defineConfig({
        * 这是计数方式变了，不是覆盖率变了。两条证据：
        *
        * 1. **分支的分母变大。** backend `store.ts` 95.68% → 81.63%、`normalize.ts`
-       *    81.57% → 73.97%，而语句几乎没动。P0-f 第 2、3 批为了类型安全加进来的大量 `?.`
+       *    81.57% → 73.97%，而语句几乎没动。收紧类型检查时为了类型安全加进来的大量 `?.`
        *    与 `??` 每一个都是分支，vitest 5 把它们算进去了。
        * 2. **未被 import 的文件从「100% functions」变成 0%。** 冻结前端的
        *    `useSceneOverlay.ts` / `lib/globalErrorHandlers.ts` / `router/index.ts` /

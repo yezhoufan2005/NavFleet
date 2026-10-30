@@ -12,7 +12,7 @@
  *
  * Security modes: 企业微信 and 钉钉 group robots that use the plain webhook URL (钉钉「自定义关键词」
  * or「IP 白名单」, 企业微信 key-in-URL) work as-is. 钉钉「加签」(per-request HMAC) needs a second
- * secret and is a 16D-2 extension — out of scope here, and noted so it is a decision, not a gap.
+ * secret and is an extension — out of scope here, and noted so it is a decision, not a gap.
  */
 import type { NotifyChannelType, Severity } from "@navfleet/shared";
 import { postWithRetry, type AttemptOutcome, type RetryOptions } from "./retry";

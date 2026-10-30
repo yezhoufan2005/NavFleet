@@ -2,10 +2,10 @@
 /**
  * Performance harness for the chart base — **not a product page**.
  *
- * It exists because ROADMAP 12D asks for a measured baseline rather than a feeling:
- * the decision "keep ECharts or move to uPlot" should rest on numbers taken from the
- * real component, in a real browser, on the canvas renderer. `console-charts.spec.ts`
- * drives this page and prints the table.
+ * It exists because the chart library choice needs a measured baseline rather than a
+ * feeling: the decision "keep ECharts or move to uPlot" should rest on numbers taken
+ * from the real component, in a real browser, on the canvas renderer.
+ * `console-charts.spec.ts` drives this page and prints the table.
  *
  * It is not shipped. The route is registered only when `import.meta.env.DEV` is true
  * or `VITE_CHART_PERF` is set, so the production bundle contains neither this view

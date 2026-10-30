@@ -195,7 +195,7 @@ describe("coming back after a reload", () => {
   };
 
   it("resumes on its own where the browser allows it, without a sound", async () => {
-    // The 14C acceptance report: 待就绪 on every refresh. The cause was not the browser —
+    // An acceptance report: 待就绪 on every refresh. The cause was not the browser —
     // this code never *attempted* the resume, it only waited for a gesture. Reporting
     // "waiting for a click" without having asked is the same error as reporting a value
     // nobody measured.
@@ -299,13 +299,14 @@ describe("coming back after a reload", () => {
 
 describe("arming belongs to the login session", () => {
   /**
-   * 14H: 待就绪 after a login, 响应 after one click, and 待就绪 again after a logout.
+   * What acceptance testing asked for: 待就绪 after a login, 响应 after one click, and
+   * 待就绪 again after a logout.
    *
    * The flag used to live in `localStorage`, which made "已启用过" a property of the
    * machine — a shared dispatch terminal stayed armed for whoever sat down next, and the
    * readout had no way to ask a new operator for the one click it needs. Session-scoped, it
-   * still survives a reload (the 14A requirement, and the bug that took three passes), and
-   * ends when the session does.
+   * still survives a reload (an earlier acceptance requirement, and the bug that took three
+   * passes), and ends when the session does.
    */
   it("keeps the flag out of localStorage, so the machine does not stay armed", async () => {
     const sound = useAlertSound();

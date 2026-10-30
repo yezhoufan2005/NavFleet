@@ -10,8 +10,8 @@ import { expectAccessible } from "../support/axe";
  * since a11y is not a parity question. What it *does* share is the standard: WCAG
  * 2.1 A + AA, serious and critical only.
  *
- * Two things here go beyond what the v1.0.0 pass does, both because 11C §3.3 asked
- * for them and both because they found real defects the first time they ran:
+ * Two things here go beyond what the v1.0.0 pass does, both because the navigation review
+ * asked for them and both because they found real defects the first time they ran:
  *
  * - **Four viewports**, not one. The old pass only ever audited 1440×900, which
  *   leaves the two ends of the scale — a tablet at the duty desk and a 2560 wall —
@@ -56,7 +56,7 @@ const ROUTES: readonly { path: string; heading: string | RegExp }[] = [
 ];
 
 /**
- * The 11C scale, both ends included. `wall` (2560) is where the large type scale is
+ * The viewport scale, both ends included. `wall` (2560) is where the large type scale is
  * meant to take over, and 1024 is the first width where the sidebar is still a rail.
  */
 const VIEWPORTS: readonly { label: string; width: number; height: number }[] = [

@@ -32,8 +32,8 @@ concurrency:
 # what is actually supported. Artifacts come off the **floor** of the matrix, which is why
 # the `if:` conditions below name 22 rather than the lowest number that used to be here.
 jobs:
-  # 部署接线：CI 此前完全不看 `deploy/`，而 14J 引入了几条**跨文件**约束 —— nginx 的上游必须是
-  # compose 里存在的服务、回滚 overlay 必须复用同一个服务名（否则回滚会同时拉起两套）、
+  # 部署接线：CI 此前完全不看 `deploy/`，而切换到 v3 控制台引入了几条**跨文件**约束 —— nginx 的上游
+  # 必须是 compose 里存在的服务、回滚 overlay 必须复用同一个服务名（否则回滚会同时拉起两套）、
   # publish-images 的 dockerfile 必须存在。每个文件单看都合法，只有放在一起才知道对不对。
   #
   # 纯静态、不需要 Docker，所以是最快的那个 job（约 10 秒）。需要真起栈的那一层在
@@ -174,8 +174,8 @@ jobs:
         run: npm run typecheck -w @navfleet/fleet-core
       - run: npm run test:coverage -w @navfleet/fleet-core
       # A separate job from `frontend` rather than extra steps in it. The original
-      # reason was that the two consoles were independent deliverables through
-      # Phase 12-13; after the switch the reason inverts but still holds — this is
+      # reason was that the two consoles were independent deliverables until the
+      # switch; after the switch the reason inverts but still holds — this is
       # now the deployed half, and it should not go red because the frozen one did.
       - if: matrix.node == 22
         run: npm run lint -w navfleet-console

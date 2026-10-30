@@ -4,9 +4,10 @@
  *
  * That is the whole point of moving it. v1.0.0 had `/history` with its own device
  * picker, so an engineer who had just looked at a vehicle's live state had to choose
- * that same vehicle a second time to see where it had been; the 11B audit counted that
- * as half of the six-step flow that never answered the question. Here the device is
- * already decided by the route, and the window is the only thing left to choose.
+ * that same vehicle a second time to see where it had been; the audit of the old front
+ * end counted that as half of the six-step flow that never answered the question.
+ * Here the device is already decided by the route, and the window is the only thing
+ * left to choose.
  *
  * ## What changed against v1.0.0, and why
  *
@@ -428,8 +429,8 @@ const onScrub = (event: Event): void => {
 
         It used to be `clamp(16rem, calc(100vh - 23.5rem), 44rem)`, which grew the map
         1:1 with the window — measured, and correct on the two window heights it was
-        measured at. 14A acceptance still found it too short, and the reason is that the
-        formula's whole output depends on the operator's window: on a 760px laptop it
+        measured at. Acceptance testing still found it too short, and the reason is that
+        the formula's whole output depends on the operator's window: on a 760px laptop it
         yields 384px, half of what the same code gives on a 1100px display. So the map
         was smallest exactly where it was reported, and nothing in the page said why.
         A fixed height is worse on paper and better in practice — it is the same on every

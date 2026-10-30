@@ -4,10 +4,10 @@ import { expect, signIn, test } from "../support/fixtures";
 /**
  * Chart performance baseline.
  *
- * ROADMAP 12D asks for a *measured* basis for the eventual "keep ECharts or move to
- * uPlot" decision, and this is it: the real component, in a real browser, on the
- * canvas renderer, driven through the development-only harness at
- * `/__charts-perf` (see `views/ChartPerfView.vue` for why that route is safe).
+ * The eventual "keep ECharts or move to uPlot" decision needs a *measured* basis, and
+ * this is it: the real component, in a real browser, on the canvas renderer, driven
+ * through the development-only harness at `/__charts-perf` (see
+ * `views/ChartPerfView.vue` for why that route is safe).
  *
  * The assertions are on deterministic quantities only — series count, point count,
  * a canvas actually present. **Wall-clock is printed, never asserted.** That is the

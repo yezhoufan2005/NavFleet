@@ -1,11 +1,11 @@
 /**
  * 定时报表的邮件正文与附件构造——**纯函数，不碰 db / 不读 `Date.now()` / 不发送**。
  *
- * 输入是 17A 两个聚合报表（可用率/电量 + 告警统计），输出一封邮件的 `subject`/`text`/`html` 与
+ * 输入是服务端的两个聚合报表（可用率/电量 + 告警统计），输出一封邮件的 `subject`/`text`/`html` 与
  * 一份可用率 CSV 附件。抽成纯函数的理由和图表 option builder、报表页纯逻辑一样：HTML 转义、KPI 汇总
  * 的样本加权与零除、CSV 转义——机检看不出对错，钉在单测里最稳。scheduler 只负责取数、算收件人、发送。
  *
- * CSV 列与 16B 前端 `buildAvailabilityCsv` 保持一致，但**在后端各写一份**：backend 不能 import
+ * CSV 列与前端 `buildAvailabilityCsv` 保持一致，但**在后端各写一份**：backend 不能 import
  * frontend 代码，而把它下沉到 shared 又要牵动两个前端的测试，不值当为这十几行做那次重构。
  */
 

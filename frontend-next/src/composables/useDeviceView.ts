@@ -5,9 +5,9 @@ import type { MaybeRefOrGetter } from "vue";
  * How the devices page is being looked at: list or map, and which map.
  *
  * Two independent preferences live here because there are two independent questions,
- * and 13A-1's note conflated them — it said the v1.0.0 `gps|scene` toggle was not
- * ported "because 13A-2 needs three states". That was wrong: the three-state one is
- * about **layout** (list vs map), and `gps|scene` is about **which map surface**.
+ * and an earlier note conflated them — it said the v1.0.0 `gps|scene` toggle was not
+ * ported because the devices layout needs three states. That was wrong: the three-state
+ * one is about **layout** (list vs map), and `gps|scene` is about **which map surface**.
  * Both are needed, so both are here.
  *
  * ## Layout: three stored states, two rendered ones

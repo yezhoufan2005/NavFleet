@@ -46,7 +46,7 @@ jobs:
         include:
           - name: backend
             dockerfile: backend/Dockerfile
-          # The console, not `frontend/Dockerfile`: since the Phase 14 switch
+          # The console, not `frontend/Dockerfile`: since the switch to it
           # this is the image compose deploys. Publishing the retiring one as
           # `navfleet-frontend:1.1.0` (and `:latest`) would put a lie in the
           # registry — the tag would claim to be that release's UI and contain

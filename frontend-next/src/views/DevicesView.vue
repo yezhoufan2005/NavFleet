@@ -273,8 +273,8 @@ watch(
  * the left, which is the shift acceptance reported. So the slot is now reserved on every
  * header whether or not the arrow is showing — and the reserve has to be **mirrored onto
  * the values**, because the slot sits inside the header's own box and would otherwise leave
- * the label 14px left of the column it heads. That was the 14I report: the label moved and
- * the numbers did not.
+ * the label 14px left of the column it heads. That was the follow-up report: the label
+ * moved and the numbers did not.
  *
  * Only the `td` carries it. Putting it on the `th` as well (the first attempt) reserved the
  * space *twice* there — `pr` plus the slot inside the button — which is the same defect one
@@ -399,8 +399,8 @@ watch(
 
 <template>
   <!--
-    `fillHeight` only for the map. 14E turned it on for the whole page, which was right for
-    the map (it had been getting 279px of an 852px `main`) and wrong for the list:
+    `fillHeight` only for the map. An earlier fix turned it on for the whole page, which was
+    right for the map (it had been getting 279px of an 852px `main`) and wrong for the list:
     acceptance reported the list as fixed-length, and it was — a six-row table stretched
     into a 775px panel with its own scroller and a lot of ruled emptiness under the last
     row. A list should be as tall as its rows; a map should be as tall as the page.
@@ -410,10 +410,10 @@ watch(
       <!--
         The formation filter, which the port declared and never built: the store has
         exported `sortedFormations` / `selectFormation` / `clearFormationSelection`
-        since 12B with **zero** callers, so `selectedFormationId` was permanently `""`
-        and `filteredDevices` was always the whole fleet. That is the clearest instance
-        of the pattern the parity pass turned up — the logic layer came over whole and
-        the control that drives it did not.
+        since it was introduced, with **zero** callers, so `selectedFormationId` was
+        permanently `""` and `filteredDevices` was always the whole fleet. That is the
+        clearest instance of the pattern the parity pass turned up — the logic layer came
+        over whole and the control that drives it did not.
 
         A select rather than the old chip strip: chips were sized for a dashboard panel,
         and this header already carries two button groups. It matches the filter controls

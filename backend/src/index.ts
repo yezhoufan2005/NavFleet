@@ -37,7 +37,7 @@ const notifyService = new NotifyService({
   maxAttempts: config.notifyMaxAttempts,
   timeoutMs: config.notifyTimeoutMs,
 });
-// Scheduled email reports. Reuses 17A's aggregation (via the store) and 16D's email
+// Scheduled email reports. Reuses the report aggregation (via the store) and notify's email
 // send + recipient resolution; driven by a ~60s poll below (no cron dependency). Zero schedules in
 // reports.json ⇒ nothing is ever sent (the same zero-config red line as notify).
 const reportScheduler = new ReportScheduler({

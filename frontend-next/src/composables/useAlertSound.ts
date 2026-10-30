@@ -8,7 +8,7 @@ import { computed, readonly, ref } from "vue";
  *
  * ## 1. Critical only
  *
- * Warnings and notices are silent, by design (11C decision 4). A monitoring console
+ * Warnings and notices are silent, by design. A monitoring console
  * that beeps at every 预警 gets its volume turned down within a shift, and a muted
  * speaker is worse than no sound at all — it looks like coverage while providing none.
  * The whole value of the sound is that it is rare enough to mean something.
@@ -25,7 +25,7 @@ import { computed, readonly, ref } from "vue";
  * Until it happens, the console says so. Silently not sounding is the one behaviour
  * that must never happen, because it is indistinguishable from "nothing is wrong".
  *
- * **The choice survives a reload; the gesture cannot.** 14A acceptance reported that
+ * **The choice survives a reload; the gesture cannot.** Acceptance testing found that
  * refreshing put the console back to 声音未启用, which read as the setting having been
  * forgotten. It had not been — a fresh document has had no gesture, and no amount of
  * stored state changes that. So two things are separated here:
@@ -35,8 +35,8 @@ import { computed, readonly, ref } from "vue";
  *   when the session ends — see `disarmAlertSound`.
  * - *Unlocked* is a property of this document, and cannot persist.
  *
- * Arming is **per login**, not per browser, and that is 14H's correction. It used to live
- * in `localStorage`, which made "已启用过" a permanent property of the machine: a shared
+ * Arming is **per login**, not per browser, and that was a later correction. It used to
+ * live in `localStorage`, which made "已启用过" a permanent property of the machine: a shared
  * dispatch terminal stayed armed for whoever sat down next, and the readout could never
  * ask a new operator for the one click it needs. The shape acceptance asked for is
  * 待就绪 → one click → 响应, holding across refreshes, and 待就绪 again after a logout.
@@ -79,7 +79,7 @@ const VOLUME_GAIN: Record<SoundVolume, number> = {
   high: 0.45,
 };
 
-/** The one preset window. A free-form range needs a form; see the note in 13D-2. */
+/** The one preset window. A free-form range needs a form, deliberately left for later. */
 export const NIGHT_WINDOW = { fromHour: 22, toHour: 8 } as const;
 
 /** Two notes, rising — recognisable without being an alarm. */
@@ -283,13 +283,13 @@ const attachGestureListener = (): void => {
 /**
  * On a reload of an armed browser, try to resume — **and arm the gesture path first**.
  *
- * 14A introduced the armed/unlocked split and the 待就绪 readout; 14E made this code
- * actually attempt the resume instead of only waiting for a click, because a gesture is
- * not always required (Chrome starts an `AudioContext` on a site the person uses
+ * The armed/unlocked split and the 待就绪 readout came first; a later change made this
+ * code actually attempt the resume instead of only waiting for a click, because a gesture
+ * is not always required (Chrome starts an `AudioContext` on a site the person uses
  * regularly, and a document with sticky activation always can). Reporting "waiting for a
  * click" without having asked is the same error as reporting a value nobody measured.
  *
- * 14E then got the *order* wrong, and that was a regression: it attached the gesture
+ * That change got the *order* wrong, and that was a regression: it attached the gesture
  * listener inside `.then`. Chrome does not reject `resume()` when the autoplay policy
  * blocks it — **the promise simply never settles**, so the `.then` never ran and the
  * listener was never attached. Clicking anywhere stopped working; only the control
@@ -422,7 +422,7 @@ export const useAlertSound = () => {
      *
      * `pending` is the state a reload lands in when sound was enabled earlier: the
      * preference is intact and the browser is simply waiting for a gesture. Reporting
-     * it as `locked` was read during 14A acceptance as the setting being forgotten.
+     * it as `locked` was read during acceptance testing as the setting being forgotten.
      */
     /** True once a critical went unheard for want of a gesture; cleared on success. */
     missedForGesture: readonly(missedForGesture),
