@@ -9,14 +9,42 @@
  */
 
 const PLACEHOLDER_SEGMENT = /^\{[^}]+\}$/;
+const DEVICE_ID_SEGMENT = "{deviceId}";
 
 const escapeRegExp = (value: string): string => value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 
+// Only `{deviceId}` captures. Any other placeholder (`{site}`) matches one segment and is
+// ignored, so the id is never taken from whichever placeholder happens to come first.
 const buildDeviceIdMatcher = (segments: string[]): RegExp => {
   const pattern = segments
-    .map((segment) => (PLACEHOLDER_SEGMENT.test(segment) ? "([^/]+)" : escapeRegExp(segment)))
+    .map((segment) =>
+      segment === DEVICE_ID_SEGMENT
+        ? "([^/]+)"
+        : PLACEHOLDER_SEGMENT.test(segment)
+          ? "[^/]+"
+          : escapeRegExp(segment),
+    )
     .join("/");
   return new RegExp(`^${pattern}$`);
+};
+
+/**
+ * Why a telemetry topic pattern cannot work, or null when it can. It needs exactly one
+ * `{deviceId}` segment, and not as the last segment: the status topic is derived by replacing
+ * the last segment with `status`, which would drop the device id.
+ */
+export const topicPatternProblem = (telemetryPattern: string): string | null => {
+  const segments = telemetryPattern.split("/").filter((segment) => segment !== "");
+  const deviceIdAt = segments.flatMap((segment, index) =>
+    segment === DEVICE_ID_SEGMENT ? [index] : [],
+  );
+  if (deviceIdAt.length !== 1) {
+    return `must contain exactly one ${DEVICE_ID_SEGMENT} segment`;
+  }
+  if (deviceIdAt[0] === segments.length - 1) {
+    return `${DEVICE_ID_SEGMENT} cannot be the last segment (it is replaced by "status" for the status topic)`;
+  }
+  return null;
 };
 
 const toWildcard = (segments: string[]): string =>

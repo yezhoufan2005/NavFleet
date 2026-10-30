@@ -589,11 +589,14 @@ export class DashboardStore extends EventEmitter {
   ): Promise<void> {
     const alertRules = this.configRegistry.getAlertRules();
     const checkClock = options.checkDeviceClock === true;
+    // Device ids are read from topics with the pattern MQTT subscribed with, not with fleet.json's
+    // `topicPattern`, which is only displayed: the two can differ, and the subscription is what
+    // decided which topics arrive.
     const normalized = normalizePayload(
       payload,
       this.rawDevices,
       this.fleetName,
-      this.topicPattern,
+      config.topicPattern,
       {
         ...options,
         rules: alertRules,

@@ -1,11 +1,14 @@
 import { describe, it, expect } from "vitest";
 import {
+  MissingDeviceIdError,
   normalizeDevice,
   mergeDevice,
   normalizePayload,
   buildFleetSnapshot,
 } from "../src/normalize";
 import type { DeviceSnapshot } from "../src/types";
+
+const PATTERN = "/fleet/{deviceId}/vehicle_info";
 
 describe("mergeDevice", () => {
   it("returns the incoming device when no existing device is present", () => {
@@ -93,10 +96,29 @@ describe("normalizePayload", () => {
       { topic: "/fleet/agv-x/vehicle_info", payload: { speed: 3 } },
       empty,
       "f",
-      "t",
+      PATTERN,
     );
     expect(result.replace).toBe(false);
     expect(result.devices[0]?.deviceId).toBe("agv-x");
+  });
+
+  it("reads the id with the subscribed pattern, whatever it is", () => {
+    const result = normalizePayload(
+      { topic: "/org/site/agv-a01/vehicle_info", payload: { speed: 3 } },
+      empty,
+      "f",
+      "/org/site/{deviceId}/vehicle_info",
+    );
+    expect(result.devices[0]?.deviceId).toBe("agv-a01");
+  });
+
+  it("refuses a frame whose topic does not name a device, instead of inventing one", () => {
+    // An empty id segment, or a topic the pattern does not match: no `device-<timestamp>`.
+    for (const topic of ["/fleet//vehicle_info", "/elsewhere/agv-x/vehicle_info"]) {
+      expect(() => normalizePayload({ topic, payload: { speed: 3 } }, empty, "f", PATTERN)).toThrow(
+        MissingDeviceIdError,
+      );
+    }
   });
 
   it("parses a stringified JSON payload body", () => {
@@ -107,7 +129,7 @@ describe("normalizePayload", () => {
       },
       empty,
       "f",
-      "t",
+      PATTERN,
     );
     expect(result.devices[0]?.deviceId).toBe("agv-y");
     expect(result.devices[0]?.vehicleInfo.soc).toBe(55);

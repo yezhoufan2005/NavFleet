@@ -58,4 +58,14 @@ describe("parseConfig", () => {
     // A zero that means "off" elsewhere is still accepted there.
     expect(parseConfig({ DEVICE_RETENTION_SECONDS: "0" }).deviceRetentionSeconds).toBe(0);
   });
+
+  it("fails fast on a topic pattern the subscription cannot extract an id from", () => {
+    expect(() => parseConfig({ MQTT_TOPIC_PATTERN: "/fleet/+/vehicle_info" })).toThrow(ZodError);
+    expect(() => parseConfig({ MQTT_TOPIC_PATTERN: "/fleet/telemetry/{deviceId}" })).toThrow(
+      ZodError,
+    );
+    expect(parseConfig({ MQTT_TOPIC_PATTERN: "/org/{deviceId}/vehicle_info" }).topicPattern).toBe(
+      "/org/{deviceId}/vehicle_info",
+    );
+  });
 });

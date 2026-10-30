@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { normalizeDevice, normalizePayload, hasGps } from "../src/normalize";
+import { MissingDeviceIdError, normalizeDevice, normalizePayload, hasGps } from "../src/normalize";
 
 describe("hasGps", () => {
   it("is true only when both lat and lng are finite", () => {
@@ -47,9 +47,12 @@ describe("normalizeDevice", () => {
     expect(device.fusionLoc).toEqual({ x: 5, y: 6, yaw: 1 });
   });
 
-  it("extracts deviceId from an MQTT topic hint", () => {
-    const device = normalizeDevice({ speed: 1 }, null, "/fleet/agv-b07/vehicle_info");
-    expect(device.deviceId).toBe("agv-b07");
+  it("refuses a frame that names no device rather than inventing an id for it", () => {
+    // The id comes from the body, or from the topic before this is called (normalizePayload).
+    // It used to fall back to `device-<timestamp>`: a new phantom vehicle per frame.
+    expect(() => normalizeDevice({ speed: 1 }, null, "/fleet/agv-b07/vehicle_info")).toThrow(
+      MissingDeviceIdError,
+    );
   });
 
   it("synthesizes a low-SOC warning rule alert", () => {
