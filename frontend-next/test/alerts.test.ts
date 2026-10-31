@@ -199,6 +199,15 @@ describe("filters live in the URL", () => {
     expect(wrapper.findAll("li")).toHaveLength(1);
   });
 
+  it("puts both lists back on their first page when a filter changes", async () => {
+    seedMixed();
+    const wrapper = await mountAlerts("?page=3&hpage=4");
+    severitySelect(wrapper).vm.$emit("update:modelValue", ["critical"]);
+    await flushPromises();
+    expect(router.currentRoute.value.query.page).toBeUndefined();
+    expect(router.currentRoute.value.query.hpage).toBeUndefined();
+  });
+
   it("keeps a clean URL for the default view", async () => {
     seedMixed();
     const wrapper = await mountAlerts("?severity=critical");

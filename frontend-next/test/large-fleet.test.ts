@@ -187,6 +187,25 @@ describe("large fleet rendering", () => {
     expect(wrapper.text()).toContain("没有符合当前筛选条件的设备");
   });
 
+  it("goes back to the first page when a search narrows the list", async () => {
+    // On page 2 of 45, a search with 15 matches used to stay on page 2 and show five rows.
+    ingest(45);
+    const wrapper = await mountList();
+    const nextPage = wrapper
+      .findAll("button")
+      .find((b) => b.text() === "下一页");
+    await nextPage!.trigger("click");
+    await flushPromises();
+    expect(wrapper.get("nav[aria-label='分页']").text()).toContain(
+      "第 2 / 5 页",
+    );
+
+    await wrapper.find("input[aria-label='搜索设备']").setValue("agv-001");
+    await flushPromises();
+    expect(wrapper.get("nav[aria-label='分页']").text()).toContain("第 1 /");
+    expect(wrapper.findAll("tbody tr.device-row")).toHaveLength(10);
+  });
+
   it("keeps the per-device node count bounded", async () => {
     ingest(200);
 

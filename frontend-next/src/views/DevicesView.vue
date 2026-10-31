@@ -237,6 +237,21 @@ const { page, pageSize, pageCount, pageItems, setPage, setPageSize } =
   useListPagination(filteredRows);
 const pageRows = pageItems;
 
+// A narrower list starts on its first page (conventions): on page 2 of a search that now has 15
+// matches, the list showed its last five and looked like the rest were missing.
+watch(
+  [
+    deviceSearch,
+    statusFilter,
+    sceneFilter,
+    () => state.value.selectedFormationId,
+  ],
+  () => {
+    if (page.value !== 1) setPage(1);
+  },
+  { deep: true },
+);
+
 /**
  * The one expanded row, or null. An accordion: opening a row closes the previous one, so
  * at most one card is open at a time (a per-row request — a stack of open cards turns the
