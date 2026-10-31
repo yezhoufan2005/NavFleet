@@ -658,9 +658,12 @@ describe("what a row says without being read", () => {
     const wrapper = await mountAlerts();
     const rows = wrapper.findAll("li");
 
-    expect(rows[0]!.text()).toContain("告警报码");
-    expect(rows[1]!.text()).toContain("预警报码");
-    expect(rows[2]!.text()).toContain("提示报码");
+    // The title names the channel; the source says the vehicle reported it, once, not the
+    // channel a second time.
+    for (const row of rows.slice(0, 3)) {
+      expect(row.text()).toContain("车端报码");
+    }
+    expect(rows[0]!.text().match(/告警报码/g)).toHaveLength(1);
   });
 
   it("finds a row by its source, in either form", async () => {
@@ -772,7 +775,7 @@ describe("selecting rows to confirm (确认选中)", () => {
   const selectBoxes = (wrapper: AlertsWrapper) =>
     wrapper
       .findAll("input[type='checkbox']")
-      .filter((box) => box.attributes("aria-label")?.startsWith("选择告警"));
+      .filter((box) => box.attributes("aria-label")?.startsWith("选择消息"));
 
   it("confirms only the rows ticked via their checkbox, then clears the selection", async () => {
     seedMixed();

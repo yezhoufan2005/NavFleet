@@ -670,7 +670,7 @@ const formDirty = formSnapshot.dirty;
             <col class="w-48" />
           </colgroup>
           <caption class="sr-only">
-            告警外发的发送记录，最新在前
+            消息外发的发送记录，最新在前
           </caption>
           <thead :class="tableClasses.thead">
             <tr>
@@ -876,7 +876,7 @@ const formDirty = formSnapshot.dirty;
             >
           </legend>
           <p v-if="!cSilence.length" class="m-0 text-2xs text-ink-subtle">
-            留空表示任意时段；落在窗口内的告警对本渠道静默
+            留空表示任意时段；落在窗口内的消息对本渠道静默
           </p>
           <div
             v-for="(row, index) in cSilence"

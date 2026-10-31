@@ -10,7 +10,7 @@
  * the former `AlertHistoryView`.
  *
  * Read-only. Without MongoDB a `cleared` query returns nothing, so the empty state links to
- * 管理 / 系统状态, the page that can say whether Mongo is connected.
+ * 系统 / 状态, the page that can say whether Mongo is connected.
  */
 import { computed, onMounted, ref, watch } from "vue";
 import { RouterLink, useRoute } from "vue-router";
@@ -243,7 +243,7 @@ const rows = computed<Row[]>(() =>
         Number.isFinite(onset) ? onset : `#${index}`
       }`,
       severity: severityOf(record),
-      title: String(record.title || record.info || "未命名告警"),
+      title: String(record.title || record.info || "未命名消息"),
       detail: String(record.detail || record.info || ""),
       code:
         Number.isFinite(record.code) && record.code ? String(record.code) : "",
@@ -302,7 +302,7 @@ const pageRows = computed(() =>
   >
     暂无已清除的消息；已清除的消息需要后端连接 MongoDB 才会留存 ——
     <RouterLink to="/system" class="text-brand-ink underline underline-offset-2"
-      >管理 / 系统状态</RouterLink
+      >系统 / 状态</RouterLink
     >
     会说明它此刻连上了没有
   </p>
