@@ -109,6 +109,35 @@ describe("status frames: every shape mqttStatusSchema admits", () => {
     }
   });
 
+  it("reads a numeric or string `online` field the way the plain forms read", async () => {
+    // `{ online: 0 }` is a common last-will payload; it used to fall through to "online".
+    const { store } = createStore(["agv-1"]);
+    await store.applyPayload(telemetry("agv-1"), "seed");
+    for (const value of [0, "0", "false", "offline"]) {
+      await store.applyStatus("agv-1", { online: value });
+      expect(onlineOf(store, "agv-1"), JSON.stringify(value)).toBe(false);
+      await store.applyStatus("agv-1", { online: 1 });
+      expect(onlineOf(store, "agv-1")).toBe(true);
+    }
+  });
+
+  it("keeps the vehicle's own alarm across a heartbeat instead of clearing and re-raising it", async () => {
+    const { store, events } = createStore(["agv-1"]);
+    const frame = {
+      ...telemetry("agv-1"),
+      alarmList: [{ id: "agv-1-bumper", title: "防撞条触发", level: "error" }],
+    };
+    await store.applyPayload(frame, "mqtt");
+    await store.applyStatus("agv-1", { online: true });
+    await store.applyPayload({ ...frame, stamp: new Date().toISOString() }, "mqtt");
+
+    const lifecycle = events
+      .filter((event) => event.type === "alert.created" || event.type === "alert.cleared")
+      .map((event) => event.type);
+    expect(lifecycle).toEqual(["alert.created"]);
+    expect(store.snapshot().devices[0]?.alerts.map((alert) => alert.id)).toContain("agv-1-bumper");
+  });
+
   it("still defaults to online for a frame that says nothing about it", async () => {
     const { store } = createStore(["agv-1"]);
     await store.applyPayload(telemetry("agv-1"), "seed");

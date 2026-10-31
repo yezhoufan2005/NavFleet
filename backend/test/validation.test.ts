@@ -202,6 +202,16 @@ describe("mqttStatusSchema", () => {
     expect(mqttStatusSchema.safeParse({ status: "offline" }).success).toBe(true);
   });
 
+  it("accepts 0/1 and the plain-text values in `online`, and refuses anything else there", () => {
+    for (const online of [0, 1, "0", "false", "Offline", "true"]) {
+      expect(mqttStatusSchema.safeParse({ online }).success, JSON.stringify(online)).toBe(true);
+    }
+    // Unreadable: refused and counted, rather than taken as "online".
+    for (const online of [2, "maybe", null, {}]) {
+      expect(mqttStatusSchema.safeParse({ online }).success, JSON.stringify(online)).toBe(false);
+    }
+  });
+
   it("accepts a bare boolean status", () => {
     expect(mqttStatusSchema.safeParse(true).success).toBe(true);
     expect(mqttStatusSchema.safeParse(false).success).toBe(true);

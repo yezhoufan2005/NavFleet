@@ -494,6 +494,8 @@ broker 已关闭匿名访问，所以这一组是**唯一没有安全默认值�
 /fleet/{deviceId}/status
 ```
 
+状态 payload 可以是 `{"online": true}`、`{"status": "offline"}`、裸布尔值或纯文本（`online`/`offline`/`1`/`0`/`true`/`false`）。`online` 字段也接受 `0`/`1` 和这些文本，常见的遗嘱消息 `{"online": 0}` 按离线处理；`online` 是其他值时整帧被拒收并计数。状态帧只改在线状态，不清除车辆自报的告警。
+
 后端实际订阅：
 
 ```text

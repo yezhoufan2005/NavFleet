@@ -37,6 +37,11 @@ export class MissingDeviceIdError extends Error {
 const isRecord = (value: unknown): value is UnknownRecord =>
   typeof value === "object" && value !== null && !Array.isArray(value);
 
+/**
+ * Whether a record has the shape of an already-normalized snapshot (camelCase fields). Only a
+ * caller that is replaying such snapshots (the startup restore, a whole-fleet seed) may treat it
+ * as one; a vehicle can send camelCase too, and its alerts must still be evaluated.
+ */
 const isNormalizedSnapshotRecord = (value: UnknownRecord): boolean =>
   "runtimeSceneId" in value ||
   "defaultSceneId" in value ||
@@ -270,6 +275,22 @@ const deviceTime = (
   };
 };
 
+/** Sources of the alerts the backend derives itself; anything else was reported by the vehicle. */
+const DERIVED_ALERT_SOURCES = new Set(["info_code", "warning_code", "error_code", "rule-engine"]);
+
+export interface NormalizeDeviceOptions {
+  /**
+   * Take `alerts` as given instead of evaluating codes and rules: the record is a snapshot this
+   * backend produced (startup restore, a whole-fleet seed). Never for a vehicle's own frame.
+   */
+  snapshotAlerts?: boolean;
+  /**
+   * The frame carries no alert list of its own (a status frame): keep the alerts the vehicle
+   * reported earlier rather than reading their absence as "cleared".
+   */
+  keepReportedAlerts?: boolean;
+}
+
 export const normalizeDevice = (
   rawInput: UnknownRecord,
   existingDevice: DeviceSnapshot | null = null,
@@ -277,6 +298,7 @@ export const normalizeDevice = (
   rules: AlertRulesConfig = DEFAULT_ALERT_RULES,
   clock?: DeviceClockCheck,
   membership?: RuleMembership,
+  options: NormalizeDeviceOptions = {},
 ): DeviceSnapshot => {
   const payloadRecord = isRecord(rawInput.payload) ? rawInput.payload : null;
   const raw: UnknownRecord = payloadRecord
@@ -285,7 +307,6 @@ export const normalizeDevice = (
         topic: rawInput.topic || payloadRecord.topic,
       }
     : rawInput;
-  const isNormalizedSnapshot = isNormalizedSnapshotRecord(raw);
 
   const topic = asText(raw.topic || topicHint || existingDevice?.topic || "");
   const deviceId = asText(raw.deviceId || raw.id || raw.device_id || existingDevice?.deviceId);
@@ -444,7 +465,7 @@ export const normalizeDevice = (
     snapshot.extra.vehicleModel = raw.vehicleModel;
   }
 
-  if (Array.isArray(raw.alerts) && isNormalizedSnapshot) {
+  if (Array.isArray(raw.alerts) && options.snapshotAlerts) {
     snapshot.alerts = dedupeAlerts(
       raw.alerts.filter(isRecord).map((alert, index) => ({
         id: asText(alert.id || `${deviceId}-alert-${index + 1}`),
@@ -459,8 +480,12 @@ export const normalizeDevice = (
       })),
     );
   } else {
+    const reported =
+      options.keepReportedAlerts && existingDevice
+        ? existingDevice.alerts.filter((alert) => !DERIVED_ALERT_SOURCES.has(alert.source))
+        : buildRawAlerts(raw, time, deviceId);
     snapshot.alerts = dedupeAlerts([
-      ...buildRawAlerts(raw, time, deviceId),
+      ...reported,
       ...buildCodeAlerts(snapshot),
       ...buildRuleAlerts(snapshot, rules, membership),
     ]);
@@ -534,8 +559,11 @@ export const normalizePayload = (
 
   const rules = options.rules ?? DEFAULT_ALERT_RULES;
   const { membership } = options;
+  // A whole-fleet payload (seed file, debug ingest) may carry snapshots this backend produced.
   const normalizeFleetItem = (item: UnknownRecord): DeviceSnapshot =>
-    normalizeDevice(item, null, "", rules, undefined, membership);
+    normalizeDevice(item, null, "", rules, undefined, membership, {
+      snapshotAlerts: isNormalizedSnapshotRecord(isRecord(item.payload) ? item.payload : item),
+    });
 
   const rejectReplace = (shape: string): never => {
     throw new Error(

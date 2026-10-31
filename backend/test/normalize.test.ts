@@ -207,3 +207,32 @@ describe("normalizePayload device-id extraction", () => {
     expect(result.devices[0]?.deviceId).toBe("agv-a01");
   });
 });
+
+describe("camelCase telemetry is evaluated like snake_case", () => {
+  it("raises code and rule alerts for a vehicle frame that happens to use camelCase", () => {
+    // Shape alone used to mark this as a stored snapshot, and its `alerts: []` was copied as-is.
+    const frame = {
+      deviceId: "agv-c",
+      stamp: new Date().toISOString(),
+      errorCode: { code: 5101, info: "急停", stamp: null },
+      vehicleInfo: { soc: 10 },
+      alerts: [],
+    };
+    const ids = normalizeDevice(frame).alerts.map((alert) => alert.id);
+    expect(ids).toContain("agv-c-error-code-5101");
+    expect(ids).toContain("agv-c-low-soc");
+  });
+
+  it("takes alerts as given only when the caller says the record is a stored snapshot", () => {
+    const stored = {
+      deviceId: "agv-c",
+      stamp: new Date().toISOString(),
+      errorCode: { code: 0, info: "", stamp: null },
+      alerts: [{ id: "kept", title: "t", severity: "warning", source: "snapshot" }],
+    };
+    const restored = normalizeDevice(stored, null, "", undefined, undefined, undefined, {
+      snapshotAlerts: true,
+    });
+    expect(restored.alerts.map((alert) => alert.id)).toEqual(["kept"]);
+  });
+});

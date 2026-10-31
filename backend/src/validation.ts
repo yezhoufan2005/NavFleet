@@ -148,7 +148,20 @@ const plainTextStatusSchema = z
  * does the interpretation for all three shapes.
  */
 export const mqttStatusSchema = z.union([
-  z.record(z.string(), z.unknown()),
+  // An `online` field, when present, must say one of the two things: a value the store cannot
+  // read is refused (and counted) instead of being taken as "online".
+  z
+    .record(z.string(), z.unknown())
+    .refine(
+      (record) =>
+        record.online === undefined ||
+        typeof record.online === "boolean" ||
+        record.online === 0 ||
+        record.online === 1 ||
+        (typeof record.online === "string" &&
+          PLAIN_TEXT_STATUS_VALUES.has(record.online.trim().toLowerCase())),
+      "online must be a boolean, 0/1, or one of the plain-text status values",
+    ),
   z.boolean(),
   plainTextStatusSchema,
 ]);
