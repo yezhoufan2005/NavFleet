@@ -18,6 +18,7 @@ type ConfigRegistryType = import("../src/configRegistry").ConfigRegistry;
 let SceneAssetValidationError: typeof import("../src/configRegistry").SceneAssetValidationError;
 let ConfigApplyError: typeof import("../src/configRegistry").ConfigApplyError;
 let ConfigConflictError: typeof import("../src/configRegistry").ConfigConflictError;
+let ConfigReferenceError: typeof import("../src/configRegistry").ConfigReferenceError;
 
 const DEFAULT_FLEET: FleetConfig = {
   fleetName: "临时车队",
@@ -123,8 +124,13 @@ beforeAll(async () => {
   await fs.mkdir(path.join(configRoot, "scene-maps"), { recursive: true });
   process.env.CONFIG_ROOT_PATH = configRoot;
   // The ".js" specifier is the TS/Node16 convention for a relative ESM import.
-  ({ ConfigRegistry, SceneAssetValidationError, ConfigApplyError, ConfigConflictError } =
-    await import("../src/configRegistry.js"));
+  ({
+    ConfigRegistry,
+    SceneAssetValidationError,
+    ConfigApplyError,
+    ConfigConflictError,
+    ConfigReferenceError,
+  } = await import("../src/configRegistry.js"));
 });
 
 // Each case starts with no remembered good configuration: a broken file must be judged on its own,
@@ -316,6 +322,19 @@ describe("ConfigRegistry validation", () => {
     expect(registry.getConfigStatus().issues).toEqual([
       expect.objectContaining({ file: "scenes.json", using: "last-good" }),
     ]);
+  });
+
+  it("gives each of several broken files its own reason, not the first file's", async () => {
+    await writeConfig({ rules: { offline: { enabled: true } }, notify: { channels: [] } });
+    await new ConfigRegistry().load(); // records the last-good copies
+    await fs.writeFile(path.join(configRoot, "rules.json"), "{ rules broken", "utf8");
+    await fs.writeFile(path.join(configRoot, "notify.json"), "{ notify broken", "utf8");
+
+    const registry = new ConfigRegistry();
+    await registry.load();
+    const issues = registry.getConfigStatus().issues;
+    expect(issues.find((issue) => issue.file === "rules.json")?.message).toContain("rules.json");
+    expect(issues.find((issue) => issue.file === "notify.json")?.message).toContain("notify.json");
   });
 
   it("rejects unparseable JSON", async () => {
@@ -933,7 +952,46 @@ describe("ConfigRegistry 写入（设备接入）", () => {
     // Seed formation-a references agv-1/agv-2; dropping agv-2 would orphan it.
     await expect(
       registry.writeVehicles([{ deviceId: "agv-1", deviceName: "一号" }]),
-    ).rejects.toThrow(/still referenced by formation formation-a/);
+    ).rejects.toThrow(ConfigReferenceError);
+  });
+
+  it("删除仍被规则或外发范围引用的车辆、编队时拒绝并列出引用方", async () => {
+    // A scope naming a deleted vehicle or formation matches nothing: the rule reads 启用 and stays
+    // silent, the channel stops sending.
+    await writeConfig({
+      formations: [
+        { formationId: "formation-a", formationName: "编队 A", deviceIds: ["agv-1"] },
+        { formationId: "formation-b", formationName: "编队 B", deviceIds: ["agv-1"] },
+      ],
+      rules: { lowBattery: { enabled: true, scope: { deviceIds: ["agv-2"] } } },
+      notify: {
+        channels: [
+          {
+            id: "ops",
+            type: "webhook",
+            enabled: true,
+            urlEnv: "OPS_URL",
+            scope: { formationIds: ["formation-b"] },
+          },
+        ],
+      },
+    });
+    const registry = new ConfigRegistry();
+    await registry.load();
+    await expect(registry.writeVehicles([{ deviceId: "agv-1" }])).rejects.toThrow(
+      /消息规则「低电量」（agv-2）/,
+    );
+    await expect(
+      registry.writeFormations([
+        { formationId: "formation-a", formationName: "编队 A", deviceIds: ["agv-1"] },
+      ]),
+    ).rejects.toThrow(/外发渠道 ops（formation-b）/);
+    // Removing one nobody names still works.
+    await expect(
+      registry.writeFormations([
+        { formationId: "formation-b", formationName: "编队 B", deviceIds: ["agv-1"] },
+      ]),
+    ).resolves.toHaveLength(1);
   });
 
   it("writeVehicles 拒绝非法载荷（校验先行），不写坏文件", async () => {
