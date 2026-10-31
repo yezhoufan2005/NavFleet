@@ -20,8 +20,9 @@ import PageHeader from "@/components/PageHeader.vue";
 import UiSkeleton from "@/components/ui/UiSkeleton.vue";
 import { useFleetStore } from "@/stores/fleet";
 import { useNowTicker } from "@/composables/useNowTicker";
-import { SEVERITY_LABELS } from "@/lib/severity";
+import { SEVERITY_LABELS, SEVERITY_RANK } from "@/lib/severity";
 import {
+  activeCodeText,
   deviceToneLabels,
   formatDateTime,
   getDeviceTone,
@@ -231,10 +232,14 @@ const attention = computed<AttentionRow[]>(() =>
     .filter((device) => getDeviceTone(device) !== "normal")
     .map((device) => {
       const tone = getDeviceTone(device);
+      // A rule-raised message (低电量预警) has no code behind it; its own text then explains the
+      // tone, worst first.
+      const message = [...device.alerts].sort(
+        (a, b) => SEVERITY_RANK[a.severity] - SEVERITY_RANK[b.severity],
+      )[0];
       const code =
-        device.errorCode?.info ||
-        device.warningCode?.info ||
-        device.infoCode?.info;
+        activeCodeText(device) ||
+        (message ? message.detail || message.title : "");
       return {
         device,
         tone,

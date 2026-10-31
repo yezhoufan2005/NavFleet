@@ -32,6 +32,7 @@ import {
   fallbackFleetPayload,
   fleetApi,
   getDeviceTone,
+  alertHeadline,
   hasGps,
   mergeDevice,
   mergeSceneDefinitionParts,
@@ -782,7 +783,14 @@ export const useFleetStore = defineStore("fleet", () => {
       // 背景噪声 —— 而背景噪声会让人连告警一起忽略。它们仍然进消息页与徽标。
       const severity = alert.severity;
       if (severity !== "critical" && severity !== "warning") return;
-      const title = typeof alert.title === "string" ? alert.title : "设备告警";
+      const title =
+        typeof alert.title === "string"
+          ? alertHeadline({
+              title: alert.title,
+              detail: typeof alert.detail === "string" ? alert.detail : "",
+              source: typeof alert.source === "string" ? alert.source : "",
+            })
+          : "设备告警";
       announcedAlerts.set(ackEventKey(deviceId, alert.id), { severity, title });
       if (!admitTransitionToast()) return;
       notify(`${displayNameOf(deviceId)}：${title}`, {

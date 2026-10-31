@@ -119,6 +119,9 @@ describe("the alert stream", () => {
     expect(rows[0]?.find(".wall-alert-badge").text()).toBe("告警");
     expect(rows[1]?.text()).toContain("预警车");
     expect(rows[1]?.find(".wall-alert-badge").text()).toBe("预警");
+    // The fault, not the generic 告警报码 / 预警报码 title every code message carries.
+    expect(rows[0]?.find(".wall-alert-headline").text()).toBe("路径规划超时");
+    expect(rows[1]?.find(".wall-alert-headline").text()).toBe("电量偏低");
   });
 
   it("says so in one line when the fleet is quiet, rather than an empty column", async () => {
