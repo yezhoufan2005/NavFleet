@@ -161,21 +161,16 @@ const maintenanceSlot = (from: number, days: number, rng: Rng): number => {
 };
 
 /**
- * A vehicle as it is when it joins the simulation at `t`. `ordinal / countInScene` spreads
- * vehicles that share a loop, so they neither stack up nor move in lockstep.
+ * A vehicle as it is when it joins the simulation at `t`. `slot / slots` spreads vehicles that
+ * share a loop, so they neither stack up nor move in lockstep.
  */
-export const initialState = (
-  site: Site,
-  t: number,
-  ordinal: number,
-  countInScene: number,
-): VehicleState => {
+export const initialState = (site: Site, t: number, slot: number, slots: number): VehicleState => {
   const rng = new Rng(seedOf(`vehicle:${site.deviceId}`));
   const state: VehicleState = {
     deviceId: site.deviceId,
     t,
     rng: 0,
-    s: site.route.wrap((ordinal / Math.max(1, countInScene)) * site.route.length),
+    s: site.route.wrap((slot / Math.max(1, slots)) * site.route.length),
     speed: 0,
     soc: rng.between(45, 95),
     phase: "idle",
@@ -249,6 +244,9 @@ const startEvent = (
   forcedSeconds?: number,
 ): boolean => {
   const secs = (lo: number, hi: number): number => forcedSeconds ?? rng.between(lo, hi);
+  // An obstacle, a guard stop, a planning timeout or a speed zone happens to a vehicle on the move;
+  // drawn for one standing at its post, the console showed 「避障等待超时」 at 0 m/s.
+  const driving = DRIVING.has(state.phase) && state.speed > 0.2;
   switch (kind) {
     case "locDegraded": {
       const seconds = secs(60, 480);
@@ -262,9 +260,9 @@ const startEvent = (
       loseComms(state, t, secs(60, 600));
       return true;
     case "obstacle":
-      return fault(state, 5202, t, secs(120, 720));
+      return driving && fault(state, 5703, t, secs(120, 720));
     case "collisionGuard":
-      return fault(state, 5702, t, secs(30, 180));
+      return driving && fault(state, 5702, t, secs(30, 180));
     case "estop": {
       const seconds = secs(300, 1800) * (isNight(t) ? 1.5 : 1);
       if (!fault(state, 5701, t, seconds)) return false;
@@ -278,17 +276,17 @@ const startEvent = (
     case "driveFault":
       return fault(state, 5203, t, secs(600, 3600));
     case "planTimeout":
-      return fault(state, 5102, t, secs(60, 300));
+      return driving && fault(state, 5102, t, secs(60, 300));
     case "taskFailed":
       if (!["toPick", "toDrop", "loading", "unloading"].includes(state.phase)) return false;
       return fault(state, 5501, t, secs(60, 300));
     case "payloadOffset":
       return state.loaded && setCode(state, "warning", 2801, t, secs(60, 300));
     case "payloadShift":
-      return state.loaded && setCode(state, "warning", 2902, t, secs(60, 480));
+      return state.loaded && setCode(state, "warning", 2802, t, secs(60, 480));
     case "tempLimitZone": {
       const seconds = secs(120, 600);
-      if (!setCode(state, "warning", 2203, t, seconds)) return false;
+      if (!driving || !setCode(state, "warning", 2203, t, seconds)) return false;
       state.zoneUntil = t + seconds * 1000;
       return true;
     }
@@ -305,7 +303,7 @@ const startEvent = (
 const onCleared = (state: VehicleState, site: Site, code: number, t: number, rng: Rng): void => {
   if (code === 2101 && rng.chance(0.15)) state.pending.push({ at: t, kind: "locLost" });
   if (code === 5101) state.pending.push({ at: t, kind: "relocalised" });
-  if (code === 5202 && rng.chance(0.4)) state.pending.push({ at: t, kind: "teleop" });
+  if (code === 5703 && rng.chance(0.4)) state.pending.push({ at: t, kind: "teleop" });
   if (code === 2601 && rng.chance(0.4)) state.pending.push({ at: t, kind: "commDrop" });
   if (code === 2401 && rng.chance(0.1)) state.pending.push({ at: t, kind: "lidarDead" });
   if (code === 5701) state.estop = false;
@@ -355,6 +353,10 @@ const runFollowUp = (state: VehicleState, kind: FollowUp, t: number, rng: Rng): 
 export const WILL_DELAY_MS = 45_000;
 const PATROL_STOPS = [0.2, 0.45, 0.7, 0.9];
 const ZONE_LIMIT = 0.6;
+/** Localisation degraded (2101): navigation caps the speed. */
+const DEGRADED_LIMIT = 0.8;
+/** Under remote control (1601). */
+const TELEOP_LIMIT = 0.5;
 
 const drawChargeAt = (rng: Rng): number =>
   // Now and then a vehicle is kept on a job past its usual threshold and runs nearly flat.
@@ -397,7 +399,7 @@ const waitForTask = (state: VehicleState, site: Site, t: number, rng: Rng): void
   state.phase = "idle";
   state.phaseUntil = t + seconds * 1000;
   state.waitingSince = t;
-  if (site.profile.carries && seconds > 1200) setCode(state, "info", 1302, t, seconds);
+  if (site.profile.carries && seconds > 1200) setCode(state, "info", 1502, t, seconds);
 };
 
 const patrolStop = (site: Site, index: number): number =>
@@ -485,7 +487,7 @@ const arrive = (state: VehicleState, site: Site, t: number, rng: Rng): void => {
         const seconds = rng.between(60, 300);
         state.phase = "handover";
         state.phaseUntil = t + Math.round(seconds) * 1000;
-        setCode(state, "info", 1901, t, seconds);
+        setCode(state, "info", 1503, t, seconds);
       } else {
         state.phase = "unloading";
         state.phaseUntil = t + Math.round(rng.between(...p.dwell)) * 1000;
@@ -544,7 +546,7 @@ const INJECTED: Record<
   },
   obstacle: {
     minutes: 8,
-    apply: (state, t, seconds) => setCode(state, "error", 5202, t, seconds, true),
+    apply: (state, t, seconds) => setCode(state, "error", 5703, t, seconds, true),
   },
   "loc-lost": {
     minutes: 6,
@@ -591,7 +593,7 @@ const INJECTED: Record<
   },
   payload: {
     minutes: 5,
-    apply: (state, t, seconds) => setCode(state, "warning", 2902, t, seconds, true),
+    apply: (state, t, seconds) => setCode(state, "warning", 2802, t, seconds, true),
   },
   "speed-zone": {
     minutes: 5,
@@ -718,9 +720,10 @@ export const step = (
   if (!halted && DRIVING.has(state.phase)) {
     vmax = p.speed * (state.loaded ? p.loadedSpeedFactor : 1);
     vmax *= 1 + 0.04 * Math.sin(t / 9000 + site.noiseSeed);
-    if (t < state.degradedUntil) vmax *= 0.6;
+    // The same limits the frame reports below, so a vehicle never runs over its own speed_limit.
+    if (t < state.degradedUntil) vmax = Math.min(vmax * 0.6, DEGRADED_LIMIT);
     if (t < state.zoneUntil || inPermanentZone(site, state.s)) vmax = Math.min(vmax, ZONE_LIMIT);
-    if (state.teleopUntil) vmax = Math.min(vmax, 0.5);
+    if (state.teleopUntil) vmax = Math.min(vmax, TELEOP_LIMIT);
     const turn = Math.abs(site.route.turnAhead(state.s, 1.5));
     vmax *= 0.35 + 0.65 * (1 - Math.min(1, turn / (Math.PI / 2)));
     const remaining = site.route.ahead(state.s, state.target);
@@ -768,9 +771,9 @@ export const step = (
   const limit = zone
     ? { limit: ZONE_LIMIT, module: "safety", slowdown: 5 }
     : t < state.degradedUntil
-      ? { limit: 0.8, module: "navigation", slowdown: 3 }
+      ? { limit: DEGRADED_LIMIT, module: "navigation", slowdown: 3 }
       : state.teleopUntil
-        ? { limit: 0.5, module: "teleop", slowdown: 0 }
+        ? { limit: TELEOP_LIMIT, module: "teleop", slowdown: 0 }
         : { limit: site.baseLimit, module: "dispatcher", slowdown: 0 };
   const limitKey = `${limit.module}:${limit.limit}`;
   if (limitKey !== state.limitKey) {

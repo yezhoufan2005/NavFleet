@@ -61,7 +61,7 @@ const BATCH = 5000;
 
 const COMMENTS: Record<string, string[]> = {
   "5101": ["已人工重定位", "现场确认后恢复"],
-  "5202": ["障碍已清除", "通道已清理"],
+  "5703": ["障碍已清除", "通道已清理"],
   "5203": ["已断电重启驱动器", "已通知维修"],
   "5301": ["已人工推回充电位"],
   "5401": ["已清洁雷达并重启", "雷达线缆松动，已紧固"],
@@ -298,7 +298,9 @@ export class BackfillSink {
     const pool = planned
       ? ["计划内维护"]
       : (COMMENTS[offline ? "offline" : String(doc.code)] ?? []);
-    doc.ackedBy = planned ? "admin" : operatorAt(ackAt);
+    // Planned maintenance too is acknowledged by whoever is on shift: an `admin` here named an
+    // account that may not exist (ADMIN_USERNAME is configurable) and never logged in.
+    doc.ackedBy = operatorAt(ackAt);
     doc.ackedAt = new Date(ackAt);
     doc.comment = pool.length && (planned || rng.chance(0.4)) ? (rng.pick(pool) ?? null) : null;
     this.audits.push({

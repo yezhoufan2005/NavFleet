@@ -12,6 +12,7 @@ import fs from "node:fs";
 import path from "node:path";
 import { mapFootprintBounds, mapToWorld, toScenePose } from "@navfleet/shared";
 import { parseLaneletOsmFile } from "../src/laneletOsm";
+import { seedOf } from "./rng";
 
 export interface Point {
   x: number;
@@ -117,7 +118,11 @@ export class Route {
   }
 }
 
-/** Hand-authored loops (scene metres) for scenes with no road network; see the file comment. */
+/**
+ * Hand-authored loops for scenes with no road network; see the file comment. Always **map**
+ * metres, placed through the scene pose: a zero yaw makes that a translation by the origin, not
+ * a different coordinate system, so editing a scene's yaw or origin moves its loop with its map.
+ */
 const DEMO_ROUTES: Record<string, Point[]> = {
   "warehouse-a": [
     { x: 6, y: 6 },
@@ -137,11 +142,12 @@ const DEMO_ROUTES: Record<string, Point[]> = {
     { x: 76, y: 33 },
     { x: 9, y: 33 },
   ],
+  // Map metres from the cloud's corner (origin -106.62, -59.17): the mapped core of the cloud.
   "cloudpoint-demo": [
-    { x: -48, y: -2 },
-    { x: -12, y: -2 },
-    { x: -12, y: 24 },
-    { x: -48, y: 24 },
+    { x: 58.62, y: 57.17 },
+    { x: 94.62, y: 57.17 },
+    { x: 94.62, y: 83.17 },
+    { x: 58.62, y: 83.17 },
   ],
 };
 
@@ -264,8 +270,12 @@ const sceneDrivingLines = async (configRoot: string, scene: SceneConfig): Promis
 
 export interface RouteRequest {
   sceneId: string;
-  /** Position in the roster, which picks a lanelet start or a box offset. */
-  index: number;
+  /**
+   * The vehicle's slot in its scene (see `sceneSlots`), which picks a lanelet start or a box
+   * offset. Not its position in vehicles.json: the console's editors reorder that file, and a
+   * roster edit must not move every vehicle after it.
+   */
+  slot: number;
 }
 
 /** One route per request; Lanelet scenes are parsed once however many vehicles share them. */
@@ -276,28 +286,57 @@ export const buildRoutes = async (
 ): Promise<Route[]> => {
   const lines = new Map<string, Point[][]>();
   for (const scene of scenes) lines.set(scene.sceneId, await sceneDrivingLines(configRoot, scene));
-  return requests.map(({ sceneId, index }) => {
+  return requests.map(({ sceneId, slot }) => {
     const scene = scenes.find((item) => item.sceneId === sceneId);
-    const lanelet = laneletLoop(lines.get(sceneId) ?? [], index * 7 + Math.floor(index / 2));
+    const lanelet = laneletLoop(lines.get(sceneId) ?? [], slot * 7 + Math.floor(slot / 2));
     if (lanelet.length >= 2) return new Route(lanelet);
-    // Loops of a rotated scene are authored in map metres and placed through the scene pose.
     const pose = toScenePose(scene?.origin);
-    const demo = (DEMO_ROUTES[sceneId] ?? []).map((point) =>
-      pose.yaw ? mapToWorld(pose, point.x, point.y) : point,
-    );
-    return new Route(demo.length >= 2 ? demo : boxRoute(sceneBounds(scene), index));
+    const demo = (DEMO_ROUTES[sceneId] ?? []).map((point) => mapToWorld(pose, point.x, point.y));
+    return new Route(demo.length >= 2 ? demo : boxRoute(sceneBounds(scene), slot));
   });
 };
 
-/** Where a scene sits on the globe: scenes on a 3-wide grid 3 km apart, in scenes.json order. */
-export const sceneGpsOrigin = (sceneIndex: number): Point => {
+/** Slots per scene: more than any scene holds, so a vehicle's preferred slot is usually free. */
+export const SCENE_SLOTS = 16;
+
+/**
+ * A slot in `[0, SCENE_SLOTS)` for each vehicle, unique within its scene: the one its id hashes
+ * to, or the next free one when a vehicle with a smaller id already holds it. It decides where the
+ * vehicle's loop starts, where it charges and where it first stands, so it hangs on the id alone:
+ * reordering vehicles.json changes nothing, and removing a vehicle moves at most one that had been
+ * pushed along by it.
+ */
+export const sceneSlots = (
+  vehicles: ReadonlyArray<{ deviceId: string; sceneId: string }>,
+): Map<string, number> => {
+  const taken = new Map<string, Set<number>>();
+  const slots = new Map<string, number>();
+  const ordered = [...vehicles].sort((a, b) => (a.deviceId < b.deviceId ? -1 : 1));
+  for (const { deviceId, sceneId } of ordered) {
+    const used = taken.get(sceneId) ?? new Set<number>();
+    taken.set(sceneId, used);
+    let slot = seedOf(`slot:${deviceId}`) % SCENE_SLOTS;
+    for (let probe = 0; probe < SCENE_SLOTS && used.has(slot); probe += 1) {
+      slot = (slot + 1) % SCENE_SLOTS;
+    }
+    used.add(slot);
+    slots.set(deviceId, slot);
+  }
+  return slots;
+};
+
+/**
+ * Where a scene sits on the globe: a point within 12 km of the base, from a hash of its id. It
+ * used to be the scene's position in scenes.json, which the scene editor rewrites, so saving one
+ * scene moved another's whole fleet kilometres across the map.
+ */
+export const sceneGpsOrigin = (sceneId: string): Point => {
   const base = { lat: 31.2304, lng: 121.4737 };
-  const index = Math.max(0, sceneIndex);
+  const hash = seedOf(`gps:${sceneId}`);
+  const eastKm = ((hash & 0xffff) / 0xffff) * 12;
+  const northKm = ((hash >>> 16) / 0xffff) * 12;
   const kmPerDegreeLng = 111.32 * Math.cos((base.lat * Math.PI) / 180);
-  return {
-    y: base.lat + (Math.floor(index / 3) * 3) / 110.574,
-    x: base.lng + ((index % 3) * 3) / kmPerDegreeLng,
-  };
+  return { y: base.lat + northKm / 110.574, x: base.lng + eastKm / kmPerDegreeLng };
 };
 
 /** Scene metres to latitude/longitude, and scene yaw (east, CCW) to a compass bearing. */

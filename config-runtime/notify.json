@@ -27,6 +27,6 @@
     }
   ],
   "groups": {
-    "oncall": [{ "user": "operator" }, { "email": "oncall@example.com" }]
+    "oncall": [{ "user": "zhaoyun" }, { "email": "oncall@example.com" }]
   }
 }

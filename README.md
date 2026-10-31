@@ -264,6 +264,11 @@ npm run screenshots   # 启后端 + 控制台 → 播种演示车队 → 逐页�
   `comm-loss`、`maintenance`、`teleop`、`low-battery`、`battery-heat`、`payload`、`speed-zone`。
 
 - 外发与定时报表发往本机收件服务（邮件在 mailpit，`http://127.0.0.1:8025`），实时外发是真实送达；外发记录里 30 天的历史由模拟器按同一套路由规则生成。
+- 车辆的位置、环线和充电位只取决于车号与场景号，在控制台里改车辆或场景的顺序不会让车队换位。
+  模拟器的这类规则一旦改变（例如换算方式或演示码号），已存的历史就与新时间线对不上，这时用
+  `scripts/verify-stack.sh --purge` 从空库重来。
+- `seed:demo` 制造的「已锁定」账号（wugang）按 `AUTH_LOCK_WINDOW_MS`（默认 15 分钟）自动解锁，界面走查
+  需要锁定态时重跑一次 `seed:demo`。
 
 开发时 `scripts/dev.sh --demo` 用同一个模拟器（首次补 7 天）。压测用 `backend/scripts/load-ingest.ts`。
 

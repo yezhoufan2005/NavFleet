@@ -59,6 +59,8 @@ interface DemoUser {
   username: string;
   role: "operator" | "viewer";
   displayName: string;
+  /** Demo address, so the 外发 on-call group's account reference resolves to someone. */
+  email?: string;
   kiosk?: boolean;
   state: UserState;
   /** Shown as the session's device on the 会话 page when this user is logged in. */
@@ -72,6 +74,7 @@ const DEMO_USERS: DemoUser[] = [
     username: "zhaoyun",
     role: "operator",
     displayName: "赵云 · 运维班长",
+    email: "zhaoyun@example.com",
     state: "normal",
     userAgent: "NavFleet-Console/ops-workstation",
   },
@@ -79,6 +82,7 @@ const DEMO_USERS: DemoUser[] = [
     username: "qianwei",
     role: "operator",
     displayName: "钱伟 · 夜班操作员",
+    email: "qianwei@example.com",
     state: "normal",
     userAgent: "NavFleet-Console/night-terminal",
   },
@@ -132,6 +136,15 @@ async function ensureUser(cookie: string, user: DemoUser): Promise<void> {
     console.log(`  = user ${user.username} already exists`);
   } else {
     throw new Error(`create user ${user.username} failed: ${await bodyText(res)}`);
+  }
+  if (user.email) {
+    // Also for an account an earlier seed created without one; setting the same value is a no-op.
+    const patch = await authed(cookie, `/api/v1/users/${encodeURIComponent(user.username)}`, {
+      method: "PATCH",
+      body: JSON.stringify({ email: user.email }),
+    });
+    if (!patch.ok)
+      throw new Error(`set email of ${user.username} failed: ${await bodyText(patch)}`);
   }
   if (user.state === "disabled") {
     const patch = await authed(cookie, `/api/v1/users/${encodeURIComponent(user.username)}`, {
@@ -215,8 +228,12 @@ async function seedSessions(): Promise<void> {
   }
 }
 
-/** Trip the account-level lockout for the "locked" user with repeated bad passwords. */
-async function seedLockout(): Promise<void> {
+/**
+ * Trip the account-level lockout for the "locked" user with repeated bad passwords, then read the
+ * account back: a raised AUTH_LOCK_THRESHOLD would leave it unlocked while the seed said otherwise.
+ * The lock lasts AUTH_LOCK_WINDOW_MS (15 minutes by default); re-run the seed to lock it again.
+ */
+async function seedLockout(cookie: string): Promise<void> {
   const target = DEMO_USERS.find((user) => user.state === "locked");
   if (!target) return;
   const wrong = `${demoPassword(target.username)}-nope`;
@@ -224,7 +241,17 @@ async function seedLockout(): Promise<void> {
   for (let attempt = 0; attempt < 6; attempt += 1) {
     await login(target.username, wrong, SEED_UA);
   }
-  console.log(`  ✓ ${target.username} driven into 已锁定 via failed logins`);
+  const res = await authed(cookie, `/api/v1/users/${encodeURIComponent(target.username)}`);
+  const { user } = (await res.json()) as { user?: { lockedUntil?: string | null } };
+  const until = user?.lockedUntil ? Date.parse(user.lockedUntil) : NaN;
+  if (!(until > Date.now())) {
+    throw new Error(
+      `${target.username} is not locked after 6 failed logins (AUTH_LOCK_THRESHOLD above 6?)`,
+    );
+  }
+  console.log(
+    `  ✓ ${target.username} 已锁定 until ${new Date(until).toISOString()} (re-run seed:demo to lock it again)`,
+  );
 }
 
 async function main(): Promise<void> {
@@ -242,7 +269,7 @@ async function main(): Promise<void> {
   console.log("[seed-demo] sessions (login as each active user):");
   await seedSessions();
   console.log("[seed-demo] lockout:");
-  await seedLockout();
+  await seedLockout(adminCookie);
   console.log("[seed-demo] done");
 }
 
