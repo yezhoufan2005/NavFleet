@@ -544,21 +544,18 @@ describe("notify_log", () => {
 });
 
 describe("restoreLatestDevices", () => {
-  it("两个轴都有界：时间窗 + maxDevices，且按 stamp 倒序", async () => {
+  it("按名册恢复，不设时间窗：停了几天的在册车辆也回来", async () => {
     const { db, calls } = createFakeDb({
       device_latest: [{ deviceId: "agv-a", stamp: "2026-01-01T00:00:00.000Z" }],
     });
     persistence.__setDbForTests(db);
 
-    const devices = await persistence.restoreLatestDevices();
+    const devices = await persistence.restoreLatestDevices(["agv-a", "agv-b"]);
 
     const [query] = calls.find;
     expect(query?.collection).toBe("device_latest");
-    expect(query?.sort).toEqual({ stamp: -1 });
-    expect(query?.limit).toBe(config.maxDevices);
-    // 无界的 `find({})` 会在每次重启时把 device_latest 历史累积的全部行读回内存 ——
-    // 正是驱逐机制要防的那种增长，只不过在重启时重新装上。
-    expect(query?.filter).toMatchObject({ stamp: { $gte: anyString } });
+    // 有界靠名册本身；时间窗与 maxDevices 原来只会把在册但停得久的车挤掉。
+    expect(query?.filter).toEqual({ deviceId: { $in: ["agv-a", "agv-b"] } });
 
     // 缺字段的旧行补齐成可用形状，而不是把 undefined 带进快照。
     expect(devices[0]).toMatchObject({ alerts: [], extra: {}, tags: [] });

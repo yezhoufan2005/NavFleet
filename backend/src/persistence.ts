@@ -1078,27 +1078,21 @@ export class Persistence {
       .toArray();
   }
 
-  async restoreLatestDevices(): Promise<DeviceSnapshot[]> {
-    if (!this.db) {
+  /**
+   * The stored snapshots of the vehicles the roster declares — however long ago each last
+   * reported. A declared vehicle that has been parked for days must come back as "offline", not
+   * vanish; the time window and the `MAX_DEVICES` cap this used to apply only ever cut declared
+   * vehicles, since undeclared ids are not restored at all. Bounded by the roster itself.
+   */
+  async restoreLatestDevices(deviceIds: readonly string[]): Promise<DeviceSnapshot[]> {
+    if (!this.db || deviceIds.length === 0) {
       return [];
     }
-    // Bounded on both axes. This used to be `find({})` — every row
-    // `device_latest` had ever accumulated came back into memory at startup, which
-    // is the same unbounded growth the eviction sweep exists to prevent, only
-    // reinstated on every restart. Restoring within the retention window also means
-    // nothing that comes back is immediately evictable, so there is no
-    // restore-then-evict churn.
-    //
-    // `stamp` is stored as an ISO-8601 UTC string, and those compare
-    // lexicographically in timestamp order, so a string bound is a time bound here.
-    const cutoff = new Date(Date.now() - config.deviceRetentionSeconds * 1000).toISOString();
-    const query = config.deviceRetentionSeconds > 0 ? { stamp: { $gte: cutoff } } : {};
     return (
       await this.db
         .collection<DeviceSnapshot>("device_latest")
-        .find(query)
+        .find({ deviceId: { $in: [...deviceIds] } })
         .sort({ stamp: -1 })
-        .limit(config.maxDevices)
         .toArray()
     ).map((item) => ({
       ...item,

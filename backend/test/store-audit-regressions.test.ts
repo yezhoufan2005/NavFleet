@@ -173,15 +173,21 @@ describe("a device the offline monitor marked offline comes back on the next tel
     await store.applyPayload({ ...vehicleInfo("agv-1", stale), online: true }, "seed");
     expect(onlineOf(store, "agv-1")).toBe(true);
 
-    // The silence-based monitor marks it offline and raises the offline alert.
-    await store.evaluateOfflineDevices();
-    expect(onlineOf(store, "agv-1")).toBe(false);
-    expect(offlineAlertPresent(store, "agv-1")).toBe(true);
+    // Silence is measured from arrival, so let the window pass; the monitor then marks it offline
+    // and raises the offline alert.
+    vi.useFakeTimers({ now: Date.now() + 120_000, toFake: ["Date"] });
+    try {
+      await store.evaluateOfflineDevices();
+      expect(onlineOf(store, "agv-1")).toBe(false);
+      expect(offlineAlertPresent(store, "agv-1")).toBe(true);
 
-    // A fresh vehicle_info frame (no `online` field) must bring it back.
-    await store.applyPayload(vehicleInfo("agv-1", new Date().toISOString()), "mqtt");
-    expect(onlineOf(store, "agv-1")).toBe(true);
-    expect(offlineAlertPresent(store, "agv-1")).toBe(false);
+      // A fresh vehicle_info frame (no `online` field) must bring it back.
+      await store.applyPayload(vehicleInfo("agv-1", new Date().toISOString()), "mqtt");
+      expect(onlineOf(store, "agv-1")).toBe(true);
+      expect(offlineAlertPresent(store, "agv-1")).toBe(false);
+    } finally {
+      vi.useRealTimers();
+    }
   });
 
   it("holds off offline verdicts while the telemetry source is down, and for one window after", async () => {

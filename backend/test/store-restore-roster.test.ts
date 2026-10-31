@@ -50,6 +50,7 @@ const createStore = (configuredDeviceIds: string[], restored: DeviceSnapshot[]):
     getAlertRules: () => DEFAULT_ALERT_RULES,
     applyDeviceConfig: (snapshot: DeviceSnapshot): DeviceSnapshot => snapshot,
     hasDeviceConfig: (deviceId: string): boolean => configured.has(deviceId),
+    listVehicleConfigs: () => configuredDeviceIds.map((deviceId) => ({ deviceId })),
     listScenes: () => [],
     buildFormationSnapshots: () => [],
   };

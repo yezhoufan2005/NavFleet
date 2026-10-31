@@ -272,7 +272,7 @@ PR #28 按职责拆开：
 职责：
 
 - 保存内存中的原始快照和配置后快照。
-- 初始化时从 MongoDB 恢复 `device_latest`（限保留窗口内、最多 `MAX_DEVICES` 台）。
+- 初始化时从 MongoDB 恢复 `vehicles.json` 名册里车辆的 `device_latest`（不限时间，停得再久也恢复）。
 - 在没有恢复数据且配置了 `SEED_FILE` 时加载种子数据。
 - 接收 MQTT/API 输入并更新快照。所有写操作串行排在一条**有界**摄入队列上；队列满时丢弃最旧的
   可丢帧（仅 MQTT 遥测可丢），深度与丢弃数上 `/metrics`。
@@ -464,12 +464,15 @@ hash 路由、原生 CSS（无 Tailwind / Reka UI）、渐进式 TypeScript、�
 ### 7.4 离线检测流程
 
 1. 后端每 15 秒扫描一次内存快照。
-2. 当前时间与设备 `stamp` 差值超过 `OFFLINE_AFTER_SECONDS`。
-3. 后端把设备标记为离线。
-4. 后端生成 `offline` 告警。
-5. 后端写入 MongoDB 并推送 WebSocket。
-6. 同一次扫描顺带淘汰静默超过 `DEVICE_RETENTION_SECONDS` 的未声明设备；有淘汰发生时广播一次
-   `fleet.snapshot`，让长驻页面同步移除。
+2. 距本进程最后一次收到该车的帧超过 `OFFLINE_AFTER_SECONDS`（按到达时间算，不看车端 `stamp`）。
+3. 后端把设备标记为离线。离线规则停用或车辆不在规则范围内时也一样，只是不生成告警。
+4. 规则覆盖该车时，后端生成 `offline` 告警。
+5. 后端更新最新快照和告警（不另写遥测帧），并推送 WebSocket。
+6. 同一次扫描顺带淘汰静默超过 `DEVICE_RETENTION_SECONDS` 的未声明设备，先关闭它的活跃告警；有淘汰
+   发生时广播一次 `fleet.snapshot`，让长驻页面同步移除。
+
+`rules.json` 或车辆配置热加载后，后端按新规则和新归属重算每台车的规则告警（低电量、离线），已停用
+或移出范围的告警随之清除，静默的车也一样。
 
 ## 8. 配置体系
 
