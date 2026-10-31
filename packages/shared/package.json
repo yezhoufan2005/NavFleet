@@ -18,8 +18,13 @@
     "test:coverage": "vitest run --coverage"
   },
   "devDependencies": {
+    "@eslint/js": "*",
     "@vitest/coverage-v8": "^5.0.5",
+    "eslint": "*",
+    "eslint-config-prettier": "*",
+    "prettier": "*",
     "typescript": "^5.9.3",
+    "typescript-eslint": "*",
     "vitest": "^5.0.1"
   },
   "engines": {
