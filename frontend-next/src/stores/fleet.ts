@@ -259,22 +259,45 @@ export const useFleetStore = defineStore("fleet", () => {
     );
   };
 
+  /**
+   * Scene ids whose lookup failed, and the epoch ms before which they are not asked for again.
+   * A vehicle reporting a scene that `scenes.json` does not define (or no longer does) used to be
+   * re-requested on every frame, which spent the per-IP API rate limit in seconds and turned every
+   * other request from that address into a 429. Cleared whenever the catalogue is reloaded.
+   */
+  const failedSceneLoads = new Map<string, number>();
+  const SCENE_RETRY_MS = 60_000;
+
   const loadSceneDefinition = async (sceneId: string): Promise<void> => {
     if (!sceneId || state.pendingSceneLoads[sceneId]) return;
+    if ((failedSceneLoads.get(sceneId) ?? 0) > Date.now()) return;
     state.pendingSceneLoads[sceneId] = true;
     try {
       mergeSceneDefinition(await fleetApi.getScene(sceneId));
+      failedSceneLoads.delete(sceneId);
     } catch {
-      // Keep whatever local fallback we have; a missing scene must not blank the map.
+      // Keep whatever we have; a missing scene must not blank the map.
+      failedSceneLoads.set(sceneId, Date.now() + SCENE_RETRY_MS);
     } finally {
       delete state.pendingSceneLoads[sceneId];
     }
   };
 
+  /**
+   * Replace the scene definitions with the backend's catalogue. Replaced, not merged: after a
+   * `scenes.json` edit a merge kept fields the edit had removed, and a deleted scene stayed.
+   */
   const loadSceneCatalog = async (): Promise<boolean> => {
     try {
       const payload = await fleetApi.getScenes();
-      (payload.items || []).forEach(mergeSceneDefinition);
+      const next: Record<string, SceneDefinitionRecord> = {};
+      for (const definition of payload.items || []) {
+        if (!definition?.sceneId) continue;
+        next[definition.sceneId] = mergeSceneDefinitionParts({}, definition);
+      }
+      state.sceneDefinitions = next;
+      failedSceneLoads.clear();
+      primeSceneDefinitions(Object.values(state.devicesById));
       return true;
     } catch {
       return false;
@@ -604,13 +627,16 @@ export const useFleetStore = defineStore("fleet", () => {
     state.selectedDeviceId = sortedDevices.value[0]?.deviceId || "";
   };
 
-  const primeSceneDefinitions = (list: DeviceSnapshot[]): void => {
+  function primeSceneDefinitions(list: DeviceSnapshot[]): void {
     list.forEach((device) => {
       if (device.sceneId && !getSceneDefinition(device.sceneId)) {
         void loadSceneDefinition(device.sceneId);
       }
     });
-  };
+  }
+
+  /** The scene each trail was drawn in; scene coordinate frames are unrelated to one another. */
+  const trailSceneOf = new Map<string, string>();
 
   const recordTrails = (
     incomingDevices: DeviceSnapshot[],
@@ -620,7 +646,15 @@ export const useFleetStore = defineStore("fleet", () => {
       ...state.trailsByDeviceId,
     };
     incomingDevices.forEach((device) => {
-      const pose = pickTrailPose(mergedById[device.deviceId]);
+      const merged = mergedById[device.deviceId];
+      // A vehicle sent to another scene starts a new trail: its old points are in another
+      // frame, and kept they drew a line from the old scene's coordinates to the new position.
+      const sceneId = merged?.sceneId ?? "";
+      if (trailSceneOf.get(device.deviceId) !== sceneId) {
+        delete nextTrails[device.deviceId];
+        trailSceneOf.set(device.deviceId, sceneId);
+      }
+      const pose = pickTrailPose(merged);
       const point = pose ? normalizePathPoint(pose) : null;
       if (!point) return;
       const existing = nextTrails[device.deviceId] || [];
@@ -643,6 +677,7 @@ export const useFleetStore = defineStore("fleet", () => {
       const device = mergedById[deviceId];
       if (!device || device.online === false) {
         delete nextTrails[deviceId];
+        trailSceneOf.delete(deviceId);
       }
     });
     state.trailsByDeviceId = nextTrails;
@@ -853,7 +888,9 @@ export const useFleetStore = defineStore("fleet", () => {
     state.lastSource = source;
     state.lastUpdateAt = new Date().toISOString();
     if (normalized.updatedAt) state.serverUpdatedAt = normalized.updatedAt;
-    primeSceneDefinitions(Object.values(state.devicesById));
+    // Only the devices this payload carried: walking the whole fleet on every delta was what
+    // turned one undefined scene into a request per frame.
+    primeSceneDefinitions(normalized.devices);
     ensureSelectedDevice();
   };
 
@@ -905,6 +942,9 @@ export const useFleetStore = defineStore("fleet", () => {
     try {
       if (envelope.type === "fleet.snapshot") {
         ingestPayload(envelope.payload, "ws");
+        // The backend broadcasts a snapshot after a config reload, so scene edits (a new
+        // backdrop, a moved origin) reach open pages without a reload.
+        void loadSceneCatalog();
         return;
       }
       if (envelope.type === "fleet.delta") {
@@ -1167,6 +1207,7 @@ export const useFleetStore = defineStore("fleet", () => {
     bootstrapPending,
     connection,
     getSceneDefinition,
+    loadSceneCatalog,
     /*
      * Not `getDeviceTone` / `hasPose` / `round` / `formatDateTime`. They were re-exported
      * here and every consumer imports them straight from `@navfleet/fleet-core` instead,

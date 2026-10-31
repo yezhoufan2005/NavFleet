@@ -160,6 +160,23 @@ describe("trails", () => {
     expect(store.trailsByDeviceId["agv-01"]).toBeUndefined();
   });
 
+  it("starts a new trail when the vehicle moves to another scene", () => {
+    // Scene coordinate frames are unrelated; kept, the old points drew a line across.
+    store.ingestPayload(
+      snapshot([device({ scene_id: "yard", fusion_loc: { x: 0, y: 0 } })]),
+      "api",
+    );
+    store.ingestPayload(
+      device({ scene_id: "yard", fusion_loc: { x: 0, y: 5 } }),
+      "mqtt",
+    );
+    store.ingestPayload(
+      device({ scene_id: "dock", fusion_loc: { x: 40, y: 40 } }),
+      "mqtt",
+    );
+    expect(store.trailsByDeviceId["agv-01"]).toEqual([{ x: 40, y: 40 }]);
+  });
+
   it("clears one device's trail on request", () => {
     store.ingestPayload(snapshot([device()]), "api");
     store.clearTrail("agv-01");
@@ -753,3 +770,51 @@ describe("what the top bar says", () => {
     });
   });
 });
+
+describe("scene definitions", () => {
+  it("does not ask again for a scene the backend could not find, frame after frame", async () => {
+    // One undefined scene used to cost a request per frame and burn the API rate limit.
+    const getScene = vi
+      .spyOn(fleetApi, "getScene")
+      .mockRejectedValue(new Error("scene_not_found"));
+    store.ingestPayload(snapshot([device({ scene_id: "ghost" })]), "api");
+    await flushMicrotasks();
+    for (let frame = 0; frame < 20; frame += 1) {
+      store.ingestPayload(
+        device({ scene_id: "ghost", fusion_loc: { x: frame, y: 0 } }),
+        "mqtt",
+      );
+      await flushMicrotasks();
+    }
+    expect(getScene).toHaveBeenCalledTimes(1);
+  });
+
+  it("replaces the definitions on reload instead of merging over them", async () => {
+    vi.spyOn(fleetApi, "getScenes")
+      .mockResolvedValueOnce({
+        items: [
+          {
+            sceneId: "yard",
+            resolution: 0.05,
+            width: 10,
+            height: 10,
+            imageUrl: "/scene-maps/yard/old.svg",
+          },
+          { sceneId: "gone", resolution: 0.05, width: 10, height: 10 },
+        ],
+      })
+      .mockResolvedValueOnce({
+        items: [{ sceneId: "yard", resolution: 0.05, width: 10, height: 10 }],
+      });
+    await store.loadSceneCatalog();
+    expect(store.getSceneDefinition("yard")?.imageUrl).toBe(
+      "/scene-maps/yard/old.svg",
+    );
+
+    await store.loadSceneCatalog();
+    expect(store.getSceneDefinition("yard")?.imageUrl).toBeUndefined();
+    expect(store.getSceneDefinition("gone")).toBeNull();
+  });
+});
+
+const flushMicrotasks = () => new Promise((resolve) => setTimeout(resolve, 0));
