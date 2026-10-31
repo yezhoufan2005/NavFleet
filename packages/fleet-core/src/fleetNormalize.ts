@@ -279,6 +279,30 @@ export const buildCodeAlerts = (device: DeviceSnapshot): DeviceAlert[] => {
       active: true,
     }));
 };
+const SPEC_TEXT_FIELDS = [
+  "vendor",
+  "model",
+  "serialNumber",
+  "category",
+  "commissionedAt",
+  "notes",
+] as const;
+
+/** The optional vehicles.json spec fields from a frame, else as they were; absent stays absent. */
+const specFields = (
+  raw: Record<string, unknown>,
+  existing: Partial<DeviceSnapshot> | null | undefined,
+): Partial<DeviceSnapshot> => {
+  const fields: Partial<DeviceSnapshot> = {};
+  for (const key of SPEC_TEXT_FIELDS) {
+    const value = typeof raw[key] === "string" ? raw[key] : existing?.[key];
+    if (value !== undefined) fields[key] = value;
+  }
+  const load = toNumeric(raw.maxLoadKg, existing?.maxLoadKg ?? null);
+  if (load !== null) fields.maxLoadKg = load;
+  return fields;
+};
+
 /**
  * The rule alerts a device would raise, under the built-in default rules.
  *
@@ -399,6 +423,10 @@ export const normalizeDevice = (
     formationIds: Array.isArray(raw.formationIds)
       ? raw.formationIds.map((formationId) => String(formationId))
       : existingDevice?.formationIds || [],
+    // Identity / spec metadata the backend merges in from vehicles.json; carried through so the
+    // shared type's fields are actually there (they were dropped here, so `device.vendor` was
+    // always undefined in the store).
+    ...specFields(raw, existingDevice),
     gps: {
       lat: toNumeric(
         gps.lat ?? raw.latitude ?? raw.gps_lat ?? raw.lat,

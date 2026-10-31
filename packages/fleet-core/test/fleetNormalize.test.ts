@@ -79,6 +79,44 @@ describe("normalizeDevice", () => {
   });
 });
 
+describe("vehicles.json spec fields", () => {
+  it("carries vendor, model and the rest through, and keeps them across a bare telemetry frame", () => {
+    // The backend merges them into the snapshot; normalizing used to drop them all.
+    const first = normalizeDevice({
+      deviceId: "agv-1",
+      vendor: "某厂",
+      model: "X-200",
+      serialNumber: "SN-01",
+      category: "巡检",
+      maxLoadKg: 300,
+      commissionedAt: "2026-01-01",
+      notes: "夜班",
+    });
+    expect(first).toMatchObject({
+      vendor: "某厂",
+      model: "X-200",
+      serialNumber: "SN-01",
+      category: "巡检",
+      maxLoadKg: 300,
+      commissionedAt: "2026-01-01",
+      notes: "夜班",
+    });
+    const again = normalizeDevice(
+      { deviceId: "agv-1", vehicle_info: { soc: 50 } },
+      "",
+      first,
+    );
+    expect(again.vendor).toBe("某厂");
+    expect(again.maxLoadKg).toBe(300);
+  });
+
+  it("leaves them absent when the vehicle has none", () => {
+    const device = normalizeDevice({ deviceId: "agv-2" });
+    expect("vendor" in device).toBe(false);
+    expect("maxLoadKg" in device).toBe(false);
+  });
+});
+
 describe("mergeDevice", () => {
   it("returns the incoming device when there is no existing entry", () => {
     const incoming = normalizeDevice({ deviceId: "agv-6" });

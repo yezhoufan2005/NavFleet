@@ -13,6 +13,7 @@
  * 日志，密钥绝不该待在那儿。
  */
 
+import { SEVERITIES } from "./severity";
 import type { Severity } from "./index";
 import type { RuleScope } from "./alertRules";
 
@@ -30,12 +31,8 @@ export const NOTIFY_CHANNEL_TYPES: readonly NotifyChannelType[] = [
   "email",
 ];
 
-/** 严重度全集，供「渠道订阅哪些严重度」的默认与校验使用（与 `Severity` 保持同步）。 */
-export const NOTIFY_SEVERITIES: readonly Severity[] = [
-  "critical",
-  "warning",
-  "notice",
-];
+/** 严重度全集，供「渠道订阅哪些严重度」的默认与校验使用（即 `SEVERITIES`）。 */
+export const NOTIFY_SEVERITIES: readonly Severity[] = SEVERITIES;
 
 /**
  * 一个收件人。要么是字面邮箱 `email`，要么是 `user`——引用一个用户名，发送时后端从 users

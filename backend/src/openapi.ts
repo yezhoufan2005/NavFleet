@@ -20,12 +20,14 @@ import {
   alertAckSchema,
   alertUnackSchema,
   alertsQuerySchema,
+  auditQuerySchema,
   createUserSchema,
   deviceIdParamSchema,
   changePasswordSchema,
   historyQuerySchema,
   ingestBodySchema,
   loginSchema,
+  notifyLogQuerySchema,
   rbacGroupSchema,
   rbacRoleSchema,
   reportAvailabilityQuerySchema,
@@ -34,6 +36,7 @@ import {
   sceneIdParamSchema,
   updateUserSchema,
 } from "./validation";
+import { SEVERITIES } from "@navfleet/shared";
 import { AUDIT_ACTIONS } from "./types";
 
 /**
@@ -202,6 +205,12 @@ export const openApiDocument = {
           createdAt: { type: "string", format: "date-time" },
           updatedAt: { type: "string", format: "date-time" },
           passwordUpdatedAt: { type: "string", format: "date-time" },
+          failedAttempts: { type: "integer", description: "连续登录失败次数，成功登录后清零" },
+          lockedUntil: {
+            type: ["string", "null"],
+            format: "date-time",
+            description: "账号锁定到何时；未锁定为 null",
+          },
         },
       },
       AuditEntry: {
@@ -229,7 +238,7 @@ export const openApiDocument = {
           eventKey: { type: "string" },
           deviceId: { type: "string" },
           alertId: { type: "string" },
-          severity: { type: "string", enum: ["critical", "warning", "notice"] },
+          severity: { type: "string", enum: [...SEVERITIES] },
           source: { type: "string" },
           title: { type: "string" },
           detail: { type: "string" },
@@ -263,7 +272,7 @@ export const openApiDocument = {
           channelType: { type: "string", enum: ["webhook", "wecom", "dingtalk", "email"] },
           deviceId: { type: "string" },
           alertId: { type: "string" },
-          severity: { type: "string", enum: ["critical", "warning", "notice"] },
+          severity: { type: "string", enum: [...SEVERITIES] },
           title: { type: "string" },
           status: { type: "string", enum: ["sent", "failed"] },
           httpStatus: { type: ["number", "null"] },
@@ -281,7 +290,7 @@ export const openApiDocument = {
           enabled: { type: "boolean" },
           severities: {
             type: "array",
-            items: { type: "string", enum: ["critical", "warning", "notice"] },
+            items: { type: "string", enum: [...SEVERITIES] },
           },
           scope: { type: "object", additionalProperties: true },
           configured: { type: "boolean" },
@@ -394,14 +403,42 @@ export const openApiDocument = {
   // mechanism — the empty object was unconditionally overwritten twenty lines later.
 } as Record<string, unknown>;
 
-const ok = (description: string, schemaRef?: string) => ({
-  description,
-  content: {
-    "application/json": {
-      schema: schemaRef ? { $ref: schemaRef } : { type: "object", additionalProperties: true },
+/**
+ * A 200/201 body. `wrap` names the key the server nests the object under (`{ user: … }`), and
+ * `schema` is a component name: the `#/components/schemas/` prefix is added here, because three
+ * operations passed the bare name and published a `$ref` that resolved to nothing.
+ */
+const ok = (description: string, schema?: string, wrap?: string) => {
+  const ref = schema ? { $ref: `#/components/schemas/${schema}` } : undefined;
+  return {
+    description,
+    content: {
+      "application/json": {
+        schema: !ref
+          ? { type: "object", additionalProperties: true }
+          : wrap
+            ? { type: "object", properties: { [wrap]: ref } }
+            : ref,
+      },
     },
+  };
+};
+
+/** `{username}` in a `/users/{username}…` path. */
+const usernamePath = { name: "username", in: "path", required: true, schema: { type: "string" } };
+
+/**
+ * What `markTruncation` adds to a capped list: `truncated` when older matches exist beyond the
+ * server's row cap, and that cap as `limit`. A client reading only the items took the first 500
+ * for the whole set.
+ */
+const listCap = {
+  truncated: {
+    type: "boolean",
+    description: "还有更早的匹配记录超出服务端单次上限（只返回了最近的 limit 条）",
   },
-});
+  limit: { type: "integer", description: "服务端单次查询上限（truncated 时给出）" },
+};
 
 const unauthorized = {
   description: "未认证",
@@ -868,6 +905,7 @@ const [rbacGroups, rbacGroup] = rbacOperations({
                 type: "object",
                 properties: {
                   items: { type: "array", items: { $ref: "#/components/schemas/Alert" } },
+                  ...listCap,
                 },
               },
             },
@@ -1275,7 +1313,7 @@ const [rbacGroups, rbacGroup] = rbacOperations({
         content: { "application/json": { schema: fromValidator(createUserSchema) } },
       },
       responses: {
-        "201": ok("已创建", "AdminUserView"),
+        "201": ok("已创建", "AdminUserView", "user"),
         "400": badRequest,
         "401": unauthorized,
         "403": forbidden,
@@ -1288,8 +1326,9 @@ const [rbacGroups, rbacGroup] = rbacOperations({
     get: {
       tags: ["users"],
       summary: "获取单个用户（需 admin）",
+      parameters: [usernamePath],
       responses: {
-        "200": ok("用户", "AdminUserView"),
+        "200": ok("用户", "AdminUserView", "user"),
         "401": unauthorized,
         "403": forbidden,
         "404": notFound,
@@ -1299,12 +1338,13 @@ const [rbacGroups, rbacGroup] = rbacOperations({
     patch: {
       tags: ["users"],
       summary: "更新用户角色/资料/启禁用（需 admin；改角色或禁用会使已签发 token 立即失效）",
+      parameters: [usernamePath],
       requestBody: {
         required: true,
         content: { "application/json": { schema: fromValidator(updateUserSchema) } },
       },
       responses: {
-        "200": ok("已更新", "AdminUserView"),
+        "200": ok("已更新", "AdminUserView", "user"),
         "400": badRequest,
         "401": unauthorized,
         "403": forbidden,
@@ -1316,6 +1356,7 @@ const [rbacGroups, rbacGroup] = rbacOperations({
     delete: {
       tags: ["users"],
       summary: "删除用户（需 admin；受锁死防护约束）",
+      parameters: [usernamePath],
       responses: {
         "204": { description: "已删除" },
         "401": unauthorized,
@@ -1330,6 +1371,7 @@ const [rbacGroups, rbacGroup] = rbacOperations({
     post: {
       tags: ["users"],
       summary: "管理员重置用户密码（需 admin；会使该用户所有会话失效）",
+      parameters: [usernamePath],
       requestBody: {
         required: true,
         content: { "application/json": { schema: fromValidator(resetPasswordSchema) } },
@@ -1348,6 +1390,7 @@ const [rbacGroups, rbacGroup] = rbacOperations({
     post: {
       tags: ["users"],
       summary: "强制下线用户所有设备（需 admin；踢掉全部会话并使已签发 token 立即失效）",
+      parameters: [usernamePath],
       responses: {
         "204": { description: "已强制下线" },
         "401": unauthorized,
@@ -1361,6 +1404,7 @@ const [rbacGroups, rbacGroup] = rbacOperations({
     get: {
       tags: ["users"],
       summary: "查看某用户的活跃会话（需 admin）",
+      parameters: [usernamePath],
       responses: {
         "200": {
           description: "该用户的会话列表",
@@ -1389,7 +1433,10 @@ const [rbacGroups, rbacGroup] = rbacOperations({
     delete: {
       tags: ["users"],
       summary: "下线某用户的某个会话（需 admin）",
-      parameters: [{ name: "sessionId", in: "path", required: true, schema: { type: "string" } }],
+      parameters: [
+        usernamePath,
+        { name: "sessionId", in: "path", required: true, schema: { type: "string" } },
+      ],
       responses: {
         "204": { description: "已下线" },
         "401": unauthorized,
@@ -1403,17 +1450,9 @@ const [rbacGroups, rbacGroup] = rbacOperations({
     get: {
       tags: ["audit"],
       summary: "查询审计日志（需 admin；filters: actor / action / from / to）",
-      parameters: [
-        { name: "actor", in: "query", schema: { type: "string" } },
-        {
-          name: "action",
-          in: "query",
-          description: "逗号拼接的动作列表，如 user_create,user_delete（每项须属 AUDIT_ACTIONS）",
-          schema: { type: "string" },
-        },
-        { name: "from", in: "query", schema: { type: "string" } },
-        { name: "to", in: "query", schema: { type: "string" } },
-      ],
+      parameters: queryParameters(auditQuerySchema, {
+        action: "逗号拼接的动作列表，如 user_create,user_delete（每项须属 AUDIT_ACTIONS）",
+      }),
       responses: {
         "200": {
           description: "审计条目（ts 倒序，服务端夹上限）",
@@ -1423,6 +1462,7 @@ const [rbacGroups, rbacGroup] = rbacOperations({
                 type: "object",
                 properties: {
                   entries: { type: "array", items: { $ref: "#/components/schemas/AuditEntry" } },
+                  ...listCap,
                 },
               },
             },
@@ -1439,13 +1479,7 @@ const [rbacGroups, rbacGroup] = rbacOperations({
     get: {
       tags: ["notify"],
       summary: "查询告警外发记录（需 admin；filters: deviceId / channelId / status / from / to）",
-      parameters: [
-        { name: "deviceId", in: "query", schema: { type: "string" } },
-        { name: "channelId", in: "query", schema: { type: "string" } },
-        { name: "status", in: "query", schema: { type: "string", enum: ["sent", "failed"] } },
-        { name: "from", in: "query", schema: { type: "string" } },
-        { name: "to", in: "query", schema: { type: "string" } },
-      ],
+      parameters: queryParameters(notifyLogQuerySchema),
       responses: {
         "200": {
           description: "发送记录（ts 倒序，服务端夹上限）",
@@ -1458,6 +1492,7 @@ const [rbacGroups, rbacGroup] = rbacOperations({
                     type: "array",
                     items: { $ref: "#/components/schemas/NotifySendRecord" },
                   },
+                  ...listCap,
                 },
               },
             },
