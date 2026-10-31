@@ -316,6 +316,7 @@ const formDirty = formSnapshot.dirty;
 
   <!-- Formation create/edit -->
   <UiModal
+    :pending="saving"
     :open="mode !== null"
     :dirty="formDirty"
     :autofocus="mode === 'create'"

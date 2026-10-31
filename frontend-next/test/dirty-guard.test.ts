@@ -17,14 +17,14 @@ const pressEscape = async (): Promise<void> => {
   await flushPromises();
 };
 
-const mountModal = (dirty: boolean) => {
+const mountModal = (dirty: boolean, pending = false) => {
   const open = ref(true);
   const wrapper = mount(
     {
       components: { UiModal },
-      setup: () => ({ open, dirty }),
+      setup: () => ({ open, dirty, pending }),
       template:
-        '<UiModal title="编辑" :open="open" :dirty="dirty" @update:open="open = $event"><input /></UiModal>',
+        '<UiModal title="编辑" :open="open" :dirty="dirty" :pending="pending" @update:open="open = $event"><input /></UiModal>',
     },
     { attachTo: document.body },
   );
@@ -37,6 +37,19 @@ describe("UiModal — unsaved-changes guard", () => {
     await flushPromises();
     await pressEscape();
     expect(open.value).toBe(false);
+  });
+
+  it("stays up on Esc and a backdrop click while a save is in flight", async () => {
+    const { open } = mountModal(false, true);
+    await flushPromises();
+    await pressEscape();
+    expect(open.value).toBe(true);
+    (
+      document.body.querySelector(".bg-scrim\\/55") as HTMLElement
+    ).dispatchEvent(new PointerEvent("pointerdown", { bubbles: true }));
+    await flushPromises();
+    expect(open.value).toBe(true);
+    expect(document.body.textContent).not.toContain("有未保存的修改");
   });
 
   it("asks before discarding on Esc, and keeps editing or discards as chosen", async () => {

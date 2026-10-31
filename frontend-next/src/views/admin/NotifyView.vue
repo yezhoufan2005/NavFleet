@@ -97,6 +97,13 @@ const status = ref<"loading" | "ready" | "error">("loading");
 
 /** The full editable config (raw `urlEnv` names, routing, groups) — writers only. */
 const rawConfig = ref<NotifyConfig | null>(null);
+/**
+ * Every write replaces the whole of notify.json, so it is only safe against a config that has
+ * actually loaded: built from an empty list, a save would drop every existing channel and group.
+ */
+const editable = computed(
+  () => status.value === "ready" && rawConfig.value !== null,
+);
 
 // URL-synced pagination over the send-log page, shared with 设备 / 消息 / 审计 (see useListPagination).
 const { page, pageSize, pageCount, pageItems, setPage, setPageSize } =
@@ -366,6 +373,7 @@ const localValidationError = (channel: NotifyChannelConfig): string => {
 
 /** Persist a whole-file write, preserving the top-level recipient `groups` map untouched. */
 const persist = async (nextChannels: NotifyChannelConfig[]): Promise<void> => {
+  if (!editable.value) throw new Error("渠道配置未加载，无法保存");
   const config: NotifyConfig = {
     channels: nextChannels,
     ...(rawConfig.value?.groups ? { groups: rawConfig.value.groups } : {}),
@@ -475,7 +483,9 @@ const formDirty = formSnapshot.dirty;
 <template>
   <PageHeader title="系统">
     <template v-if="canWrite" #actions>
-      <UiButton size="sm" @click="openCreateChannel">新建渠道</UiButton>
+      <UiButton size="sm" :disabled="!editable" @click="openCreateChannel"
+        >新建渠道</UiButton
+      >
     </template>
 
     <AppSectionTabs />
@@ -520,13 +530,23 @@ const formDirty = formSnapshot.dirty;
     <section v-if="canWrite" class="flex flex-col gap-2" aria-label="配置渠道">
       <h2 class="m-0 text-2xs text-ink-muted uppercase">配置渠道</h2>
       <p
-        v-if="!rawConfig?.channels.length"
+        v-if="status === 'ready' && rawConfig === null"
+        class="text-sm text-critical-ink"
+        role="alert"
+      >
+        无法加载渠道配置，暂不能新建或修改渠道
+      </p>
+      <p
+        v-else-if="rawConfig && !rawConfig.channels.length"
         class="text-sm text-ink-muted"
         role="status"
       >
         还没配置渠道
       </p>
-      <div v-else :class="[tableClasses.wrapper, 'overflow-hidden']">
+      <div
+        v-else-if="rawConfig"
+        :class="[tableClasses.wrapper, 'overflow-hidden']"
+      >
         <table :class="[tableClasses.table, 'table-fixed']">
           <!-- Fixed widths, every column pinned (none width-less) so the columns grow evenly on a
                wide table — modelled on the device list. 严重度 carries the slack. -->
@@ -718,6 +738,7 @@ const formDirty = formSnapshot.dirty;
 
     <!-- Channel editor (notify:write). -->
     <UiModal
+      :pending="chSaving"
       :open="chMode !== null"
       :dirty="formDirty"
       :autofocus="chMode === 'create'"
@@ -916,6 +937,7 @@ const formDirty = formSnapshot.dirty;
             variant="secondary"
             size="sm"
             type="button"
+            :disabled="chSaving"
             @click="closeChannelDialog"
             >取消</UiButton
           >

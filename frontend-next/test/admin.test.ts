@@ -475,7 +475,8 @@ describe("场景", () => {
     vi.spyOn(fleetApi, "getScenes").mockRejectedValue(new Error("HTTP 503"));
     const wrapper = await mountAt(ScenesView, "/deploy/scenes");
 
-    expect(wrapper.text()).toContain("HTTP 503");
+    expect(wrapper.find('[role="alert"]').text()).toContain("场景列表加载失败");
+    expect(wrapper.text()).not.toContain("HTTP 503");
   });
 
   it("不再提供手动「重新检查」按钮，改为焦点自动刷新", async () => {

@@ -28,6 +28,14 @@ describe("UiConfirmDialog", () => {
     await flushPromises();
     overlay().click();
     await flushPromises();
+    document.activeElement?.dispatchEvent(
+      new KeyboardEvent("keydown", {
+        key: "Escape",
+        bubbles: true,
+        cancelable: true,
+      }),
+    );
+    await flushPromises();
     expect(wrapper.emitted("update:open")).toBeUndefined();
   });
 });

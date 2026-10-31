@@ -55,7 +55,9 @@ const users = ref<AdminUser[]>([]);
 const status = ref<"loading" | "ready" | "error">("loading");
 
 const load = async (): Promise<void> => {
-  status.value = "loading";
+  // Only before the first successful load: the focus refresh re-reads live, and blanking the
+  // table to 加载中… each time the window regains focus would make it flicker away.
+  if (status.value !== "ready") status.value = "loading";
   try {
     const result = await fleetApi.getUsers();
     users.value = result.users;
@@ -487,6 +489,7 @@ const formDirty = formSnapshot.dirty;
       </table>
     </div>
     <UiModal
+      :pending="saving"
       :open="mode !== null"
       :dirty="formDirty"
       :autofocus="mode !== 'edit'"

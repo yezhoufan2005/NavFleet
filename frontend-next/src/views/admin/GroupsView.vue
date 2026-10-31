@@ -268,6 +268,7 @@ const formDirty = formSnapshot.dirty;
 
     <!-- Group dialog -->
     <UiModal
+      :pending="groupSaving"
       :open="groupMode !== null"
       :dirty="formDirty"
       :autofocus="groupMode === 'create'"
@@ -368,6 +369,7 @@ const formDirty = formSnapshot.dirty;
             variant="secondary"
             size="sm"
             type="button"
+            :disabled="groupSaving"
             @click="closeGroupDialog"
             >取消</UiButton
           >

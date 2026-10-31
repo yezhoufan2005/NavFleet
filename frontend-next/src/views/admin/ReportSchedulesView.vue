@@ -177,6 +177,10 @@ const buildSchedule = (): ReportScheduleConfig => {
 };
 
 const persist = async (next: ReportScheduleConfig[]): Promise<void> => {
+  // The write replaces every schedule; against a config that never loaded it would drop them all.
+  if (status.value !== "ready" || !config.value) {
+    throw new Error("定时报表配置未加载，无法保存");
+  }
   const result = await fleetApi.putReportsConfig({ schedules: next });
   config.value = result.config;
 };
@@ -276,7 +280,11 @@ const formDirty = formSnapshot.dirty;
 <template>
   <PageHeader title="报表">
     <template #actions>
-      <UiButton v-if="canWrite" size="sm" @click="openCreate"
+      <UiButton
+        v-if="canWrite"
+        size="sm"
+        :disabled="status !== 'ready'"
+        @click="openCreate"
         >新建报表</UiButton
       >
     </template>
@@ -364,6 +372,7 @@ const formDirty = formSnapshot.dirty;
 
     <!-- Schedule editor (reports:write). -->
     <UiModal
+      :pending="saving"
       :open="mode !== null"
       :dirty="formDirty"
       :autofocus="mode === 'create'"
@@ -523,6 +532,7 @@ const formDirty = formSnapshot.dirty;
             variant="secondary"
             size="sm"
             type="button"
+            :disabled="saving"
             @click="closeDialog"
             >取消</UiButton
           >

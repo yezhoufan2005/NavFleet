@@ -346,6 +346,7 @@ const formDirty = formSnapshot.dirty;
 
   <!-- Vehicle create/edit -->
   <UiModal
+    :pending="saving"
     :open="mode !== null"
     :dirty="formDirty"
     :autofocus="mode === 'create'"

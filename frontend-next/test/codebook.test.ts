@@ -243,6 +243,19 @@ describe("CodebookView — row editing (codebook:write)", () => {
     ).toBe(false);
   });
 
+  it("offers no create or import until the table in effect has loaded", async () => {
+    // Before the load, `entries` is the built-in table; saving it would drop every deployment
+    // code and override.
+    asWriter();
+    vi.spyOn(fleetApi, "getCodebook").mockRejectedValue(new Error("HTTP 503"));
+    const wrapper = await mountView();
+    const button = (label: string) =>
+      wrapper.findAll("button").find((b) => b.text().includes(label));
+    expect(button("新建报码")?.attributes("disabled")).toBeDefined();
+    expect(button("导入 JSON")?.attributes("disabled")).toBeDefined();
+    expect(wrapper.find('[role="alert"]').text()).toContain("报码字典加载失败");
+  });
+
   it("creates a row and re-sends the whole table", async () => {
     asWriter();
     vi.spyOn(fleetApi, "getCodebook").mockResolvedValue({ items: [ENTRY] });

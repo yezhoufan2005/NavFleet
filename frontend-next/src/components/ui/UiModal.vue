@@ -15,6 +15,10 @@
  * `dirty` (the form has unsaved changes) guards the *accidental* exits — Esc and a click on the
  * backdrop — with an in-dialog "放弃修改？" confirmation instead of silently throwing the edit away.
  * The explicit 取消 button inside the form is the user's own choice and closes directly.
+ *
+ * `pending` (a save is in flight) keeps the dialog up: Esc, a backdrop click and the close request
+ * are all ignored until the request resolves, so its result — success toast or error — lands in a
+ * dialog the user can still see. Call sites also disable their 取消 button with the same flag.
  */
 import { nextTick, ref, watch } from "vue";
 import UiButton from "@/components/ui/UiButton.vue";
@@ -34,6 +38,7 @@ const {
   maxWidth = "md",
   autofocus = true,
   dirty = false,
+  pending = false,
 } = defineProps<{
   open: boolean;
   title: string;
@@ -48,6 +53,8 @@ const {
   autofocus?: boolean;
   /** Unsaved changes: Esc / backdrop click ask before discarding them. */
   dirty?: boolean;
+  /** A save is in flight: the dialog cannot be dismissed until it resolves. */
+  pending?: boolean;
 }>();
 
 const emit = defineEmits<{ "update:open": [boolean] }>();
@@ -62,6 +69,10 @@ watch(
 
 /** Esc or a backdrop click: with unsaved changes, ask first instead of closing. */
 const guardDismiss = (event: Event): void => {
+  if (pending) {
+    event.preventDefault();
+    return;
+  }
   if (!dirty) return;
   event.preventDefault();
   confirmingDiscard.value = true;
@@ -91,7 +102,10 @@ const MAX_WIDTH: Record<"md" | "lg" | "xl", string> = {
 </script>
 
 <template>
-  <DialogRoot :open="open" @update:open="emit('update:open', $event)">
+  <DialogRoot
+    :open="open"
+    @update:open="(next) => (next || !pending) && emit('update:open', next)"
+  >
     <DialogPortal>
       <DialogOverlay class="fixed inset-0 z-50 bg-scrim/55" />
       <DialogContent

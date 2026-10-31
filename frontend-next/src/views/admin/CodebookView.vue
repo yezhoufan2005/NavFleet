@@ -155,7 +155,7 @@ const importSummary = computed(() => {
 
 const confirmImport = async (): Promise<void> => {
   const preview = importPreview.value;
-  if (!preview || importing.value) return;
+  if (!preview || importing.value || status.value !== "ready") return;
   importing.value = true;
   try {
     await codebook.importCodebook(preview.entries);
@@ -286,6 +286,9 @@ const buildEntry = ():
 
 /** Re-send the whole table with `next` swapped in — the same whole-table write import uses. */
 const persistRows = async (next: ReportCodeEntry[]): Promise<void> => {
+  // The write replaces the deployment's whole codebook. Before the table in effect has loaded,
+  // `entries` is the built-in table, and saving it would wipe every deployment code and override.
+  if (status.value !== "ready") throw new Error("报码字典未加载，无法保存");
   // Validate the whole table client-side (mirrors import) before the round-trip.
   await codebook.importCodebook(parseCodebook(next));
 };
@@ -378,7 +381,11 @@ const formDirty = formSnapshot.dirty;
 <template>
   <PageHeader title="部署">
     <template #actions>
-      <UiButton v-if="canWrite" size="sm" @click="openCreateRow"
+      <UiButton
+        v-if="canWrite"
+        size="sm"
+        :disabled="status !== 'ready'"
+        @click="openCreateRow"
         >新建报码</UiButton
       >
       <UiButton
@@ -389,7 +396,11 @@ const formDirty = formSnapshot.dirty;
       >
         导出 JSON
       </UiButton>
-      <UiButton size="sm" :disabled="importing" @click="pickFile">
+      <UiButton
+        size="sm"
+        :disabled="importing || status !== 'ready'"
+        @click="pickFile"
+      >
         {{ importing ? "导入中…" : "导入 JSON" }}
       </UiButton>
       <input
@@ -418,7 +429,7 @@ const formDirty = formSnapshot.dirty;
     <p
       v-else-if="status === 'error'"
       class="text-sm text-critical-ink"
-      role="status"
+      role="alert"
     >
       报码字典加载失败，请稍后重试
     </p>
@@ -509,6 +520,7 @@ const formDirty = formSnapshot.dirty;
 
     <!-- Row editor (codebook:write). -->
     <UiModal
+      :pending="rowSaving"
       :open="mode !== null"
       :dirty="formDirty"
       :autofocus="mode === 'create'"
@@ -641,6 +653,7 @@ const formDirty = formSnapshot.dirty;
             variant="secondary"
             size="sm"
             type="button"
+            :disabled="rowSaving"
             @click="closeRowDialog"
             >取消</UiButton
           >

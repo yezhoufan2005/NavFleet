@@ -241,6 +241,7 @@ const formDirty = formSnapshot.dirty;
 
     <!-- Role dialog -->
     <UiModal
+      :pending="roleSaving"
       :open="roleMode !== null"
       :dirty="formDirty"
       :autofocus="roleMode === 'create'"
@@ -303,6 +304,7 @@ const formDirty = formSnapshot.dirty;
             variant="secondary"
             size="sm"
             type="button"
+            :disabled="roleSaving"
             @click="closeRoleDialog"
             >取消</UiButton
           >
