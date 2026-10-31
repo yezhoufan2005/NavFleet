@@ -1344,11 +1344,15 @@ describe("ConfigRegistry.writeScenes / writeSceneAsset (场景地图上传)", ()
       reloads.push(reason);
       return Promise.resolve(true);
     });
+    // 子目录在监听前建好：边建目录边写文件时，Linux 上 inotify 还没挂到新目录，事件会漏掉。
+    await fs.mkdir(assetPath("watch"), { recursive: true });
     registry.startWatching(() => undefined);
     try {
-      // chokidar 需要先完成初次扫描，否则事件会被当作初始文件吞掉。
-      await new Promise((resolve) => setTimeout(resolve, 300));
-      await fs.mkdir(assetPath("watch"), { recursive: true });
+      // 等 chokidar 完成初次扫描，否则之后的写入可能被当作初始文件吞掉。
+      const watcher = (
+        registry as unknown as { watcher: { once(e: "ready", f: () => void): void } }
+      ).watcher;
+      await new Promise<void>((resolve) => watcher.once("ready", resolve));
       await fs.writeFile(assetPath("watch/ignored.osm.123.tmp"), "x");
       await fs.writeFile(assetPath("watch/lanes.osm"), SAMPLE_OSM);
       await vi.waitFor(() => expect(reloads.join(" ")).toContain("lanes.osm"), {
