@@ -477,6 +477,7 @@ export const normalizeDevice = (
         active: typeof alert.active === "boolean" ? alert.active : true,
         code: Number(toNumeric(alert.code, 0) ?? 0),
         info: alert.info ? asText(alert.info) : "",
+        ...(alert.firstSeenAt ? { firstSeenAt: toIsoString(alert.firstSeenAt) } : {}),
       })),
     );
   } else {
@@ -490,8 +491,24 @@ export const normalizeDevice = (
       ...buildRuleAlerts(snapshot, rules, membership),
     ]);
   }
+  snapshot.alerts = carryAlertOnsets(existingDevice?.alerts ?? [], snapshot.alerts);
 
   return snapshot;
+};
+
+/**
+ * Give each alert its occurrence's onset (`firstSeenAt`): kept from the previous snapshot while
+ * the same alert stays present, its own `ts` when it is new.
+ */
+export const carryAlertOnsets = (
+  previous: readonly DeviceAlert[],
+  next: DeviceAlert[],
+): DeviceAlert[] => {
+  const onsets = new Map(previous.map((alert) => [alert.id, alert.firstSeenAt ?? alert.ts]));
+  return next.map((alert) => ({
+    ...alert,
+    firstSeenAt: onsets.get(alert.id) ?? alert.firstSeenAt ?? alert.ts,
+  }));
 };
 
 export const mergeDevice = (

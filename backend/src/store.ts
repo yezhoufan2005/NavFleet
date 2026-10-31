@@ -11,6 +11,7 @@ import {
   type SceneAssetKind,
 } from "./configRegistry";
 import {
+  carryAlertOnsets,
   buildFleetSnapshot,
   buildOfflineAlert,
   hasGps,
@@ -1111,10 +1112,10 @@ export class DashboardStore extends EventEmitter {
 
       // Replace rather than append: a device that is already marked offline keeps its
       // alert from the previous sweep, and the id is the same either way.
-      const nextAlerts: DeviceAlert[] = [
+      const nextAlerts: DeviceAlert[] = carryAlertOnsets(device.alerts, [
         ...device.alerts.filter((alert) => alert.id !== offlineAlertId(device.deviceId)),
         buildOfflineAlert(device.deviceId, this.nowIso()),
-      ];
+      ]);
 
       const updatedRaw = {
         ...device,

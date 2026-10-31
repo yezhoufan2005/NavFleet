@@ -51,7 +51,14 @@ export interface DeviceAlert {
   detail: string;
   severity: Severity;
   source: string;
+  /** The latest report that carried it; for a rule alert that is every frame. */
   ts: string;
+  /**
+   * When this occurrence began: the first frame that carried it, kept while it stays active. A
+   * page opened mid-incident would otherwise date it to its own first sight, or to the latest
+   * frame.
+   */
+  firstSeenAt?: string;
   active?: boolean;
   code?: number;
   info?: string;

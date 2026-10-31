@@ -236,3 +236,18 @@ describe("camelCase telemetry is evaluated like snake_case", () => {
     expect(restored.alerts.map((alert) => alert.id)).toEqual(["kept"]);
   });
 });
+
+describe("alert onset (firstSeenAt)", () => {
+  it("keeps the onset of an alert that stays present while its ts moves with each frame", () => {
+    const frame = (stamp: string) => ({
+      deviceId: "agv-o",
+      stamp,
+      vehicle_info: { soc: 10 },
+    });
+    const first = normalizeDevice(frame("2026-10-31T08:00:00.000Z"));
+    const later = normalizeDevice(frame("2026-10-31T11:00:00.000Z"), first);
+    const lowSoc = later.alerts.find((alert) => alert.id === "agv-o-low-soc");
+    expect(lowSoc?.ts).toBe("2026-10-31T11:00:00.000Z");
+    expect(lowSoc?.firstSeenAt).toBe("2026-10-31T08:00:00.000Z");
+  });
+});

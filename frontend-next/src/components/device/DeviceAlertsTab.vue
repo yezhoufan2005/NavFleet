@@ -69,9 +69,13 @@ const load = async (id: string): Promise<void> => {
   }
 };
 
-/** `-Infinity` for an undated record, so it sorts last instead of claiming to be now. */
+/**
+ * When the occurrence began. Each occurrence is one record whose `ts` moves with every report, so
+ * `ts` read as 发生 made a three-hour warning look a few seconds long. Same reading as the
+ * 消息史 panel. `-Infinity` for an undated record, so it sorts last instead of claiming to be now.
+ */
 const stampOf = (record: AlertRecord): number => {
-  const parsed = Date.parse(String(record.ts ?? ""));
+  const parsed = Date.parse(String(record.firstSeenAt ?? record.ts ?? ""));
   return Number.isFinite(parsed) ? parsed : Number.NEGATIVE_INFINITY;
 };
 
@@ -103,7 +107,10 @@ const rows = computed<Row[]>(() =>
     // running. Either is enough — the two disagree only on malformed records.
     const active = record.active !== false && !Number.isFinite(cleared);
     return {
-      key: String(record.id ?? `${record.source ?? "alert"}-${index}`),
+      // One row per occurrence: an eventKey recurs once per time the code fired.
+      key: `${String(record.eventKey ?? record.id ?? record.source ?? "alert")}@${
+        Number.isFinite(started) ? started : `#${index}`
+      }`,
       severity: (record.severity ?? "notice") as Severity,
       title: String(record.title || record.info || "未命名告警"),
       detail: String(record.detail || record.info || ""),
