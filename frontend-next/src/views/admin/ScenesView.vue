@@ -407,6 +407,9 @@ const submit = async (): Promise<void> => {
       type: "success",
     });
     close();
+    // The maps on other pages of this tab read the store's copy; refresh it now rather than on
+    // the next config-reload broadcast.
+    void fleet.loadSceneCatalog();
     await load();
   } catch (error) {
     const message = replacedInPlace
@@ -443,6 +446,7 @@ const runDelete = async (): Promise<void> => {
     await fleetApi.putScenes(next);
     notify("已删除场景", { type: "success" });
     confirmDelete.value = null;
+    void fleet.loadSceneCatalog();
     await load();
   } catch (error) {
     notify(messageFor(error), {
