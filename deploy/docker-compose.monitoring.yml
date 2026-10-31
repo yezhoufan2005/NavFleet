@@ -17,7 +17,7 @@ services:
       - monitoring
 
   prometheus:
-    image: prom/prometheus:v3.1.0
+    image: prom/prometheus:v3.15.1
     # Scrapes backend:3000/metrics from inside the network, which is exactly why
     # the edge nginx does not route /metrics at all.
     command:
@@ -59,7 +59,7 @@ services:
   # alertmanager/alertmanager.yml for what that means and how to attach email or
   # a webhook.
   alertmanager:
-    image: prom/alertmanager:v0.28.1
+    image: prom/alertmanager:v0.34.1
     command:
       - --config.file=/etc/alertmanager/alertmanager.yml
       - --storage.path=/alertmanager
@@ -95,7 +95,7 @@ services:
     restart: unless-stopped
 
   grafana:
-    image: grafana/grafana:11.5.1
+    image: grafana/grafana:13.3.0
     depends_on:
       - prometheus
     environment:
@@ -146,7 +146,7 @@ services:
   # for a container healthcheck would only add a flakier second answer.
 
   mongodb-exporter:
-    image: percona/mongodb_exporter:0.44.0
+    image: percona/mongodb_exporter:0.54.0
     # URI (with the root credential) via env, not a --mongodb.uri flag, so the
     # password stays out of the command baked into `docker inspect` — same posture
     # as the backend's MONGO_URI and the mongo healthcheck's $$-expansion.
@@ -205,7 +205,7 @@ services:
   # internal 8081 listener mounted below — not the edge port, so connection counts
   # are never exposed to the host.
   nginx-exporter:
-    image: nginx/nginx-prometheus-exporter:1.4.2
+    image: nginx/nginx-prometheus-exporter:1.5.0
     command:
       - --nginx.scrape-uri=http://nginx:8081/stub_status
     networks:
