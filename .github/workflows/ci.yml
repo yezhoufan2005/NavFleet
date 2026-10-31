@@ -199,19 +199,23 @@ jobs:
     #
     # Playwright's `--shard=k/n` splits by file and by test count, not by time, and the console axe
     # audit is about 45% of the suite's time in a single file: wherever it landed, that shard took
-    # twice as long as the others (166s of tests against ~50s on the 2026-10-31 runs). So it gets a
-    # shard of its own (`e2e/shards/axe-console.txt`), and everything else is split over two more
-    # by `--test-list-invert` of that same list — a new spec file lands in those without an entry
-    # anywhere. Browser cached.
+    # twice as long as the others (166s of tests against ~50s on the 2026-10-31 runs). So it runs
+    # on two shards of its own, one per theme (`e2e/shards/axe-console-{light,dark}.txt`), and
+    # everything else is split over two more by `--test-list-invert` of the whole audit
+    # (`axe-console.txt`) — a new spec file lands in those without an entry anywhere. Even on its
+    # own the audit was still the slowest shard (166s against 81s and 51s), hence the theme split.
+    # Browser cached.
     name: E2E (playwright, ${{ matrix.name }})
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
       matrix:
         include:
-          - name: console axe
-            args: --test-list e2e/shards/axe-console.txt
+          - name: console axe, light
+            args: --test-list e2e/shards/axe-console-light.txt
             first: true
+          - name: console axe, dark
+            args: --test-list e2e/shards/axe-console-dark.txt
           - name: rest 1/2
             args: --test-list-invert e2e/shards/axe-console.txt --shard=1/2
           - name: rest 2/2
