@@ -1,7 +1,7 @@
 # Alertmanager configuration for the NavFleet stack.
 #
-# Why this file exists: `deploy/prometheus/alerts.yml` has always held 13 rules,
-# and until it was added they evaluated into nothing — Prometheus had no
+# Why this file exists: the rules in `deploy/prometheus/alerts.yml` were written
+# before any Alertmanager, and until it was added they evaluated into nothing — Prometheus had no
 # `alerting:` block and no Alertmanager was deployed, so every rule fired into
 # the void while the deployment docs described them as if someone was told. A
 # rule with no receiver is a rule nobody acts on.
@@ -43,14 +43,28 @@ route:
       repeat_interval: 1h
 
 inhibit_rules:
-  # While a critical alert is firing for the same rule target, do not also send
-  # the warning-level ones about it. Without this, a degraded pipeline reports
-  # itself twice at two severities and the second copy adds nothing.
+  # A critical cause silences the warnings that are only its symptoms, on the same
+  # target. Each rule has one severity, so the earlier "critical and warning with an
+  # equal alertname" never matched anything; the pairs are named here instead.
+  #
+  # Broker gone: telemetry stops and vehicles age into offline.
   - source_matchers:
-      - severity = "critical"
+      - alertname = "NavFleetMqttDisconnected"
     target_matchers:
-      - severity = "warning"
-    equal: ["alertname"]
+      - alertname =~ "NavFleetNoTelemetry|NavFleetMostlyOffline"
+    equal: ["job", "instance"]
+  # Ingest shedding frames: the queue is of course backed up.
+  - source_matchers:
+      - alertname = "NavFleetIngestShedding"
+    target_matchers:
+      - alertname = "NavFleetIngestQueueBacklog"
+    equal: ["job", "instance"]
+  # Writes failing or the buffer overflowing: the buffer is of course backed up.
+  - source_matchers:
+      - alertname =~ "NavFleetTelemetryDropping|NavFleetMongoWritesFailing"
+    target_matchers:
+      - alertname = "NavFleetTelemetryBacklog"
+    equal: ["job", "instance"]
 
 receivers:
   # Deliberately empty — see the header. Alerts routed here are grouped, stored

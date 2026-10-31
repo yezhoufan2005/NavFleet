@@ -410,7 +410,7 @@ profile **之前**插值整个文件 —— profiled 服务上一个必填的 `$
 | ------------------------------------ | ------------------------------------------------------------------------- |
 | `docker-compose.yml`                 | 基础：nginx / web / backend / mongo / mosquitto，三网段隔离               |
 | `docker-compose.tls.yml`             | TLS 终止、HSTS、HTTP 308 跳转、`COOKIE_SECURE` 强制 true                  |
-| `docker-compose.monitoring.yml`      | Prometheus + Alertmanager + Grafana，预置数据源、16 个面板、15 条告警规则 |
+| `docker-compose.monitoring.yml`      | Prometheus + Alertmanager + Grafana，预置数据源、18 个面板、18 条告警规则 |
 | `docker-compose.backup.yml`          | 定时 mongodump，含恢复演练脚本                                            |
 | `docker-compose.legacy-frontend.yml` | 回滚：`web` 换回 v1.0.0 控制台（默认是 `frontend-next` 那套）             |
 
@@ -437,7 +437,7 @@ docker compose --env-file deploy/.env \
 - **指标**：在线设备数、消息吞吐、被拒消息、告警数、WS 连接数与广播背压、Mongo 连接 / 写入 / 写失败
   计数与写入延迟直方图与缓冲长度、摄入队列深度与丢弃计数、per-route 请求直方图（标签用路由模板，避免维度爆炸）
 - **日志**：pino 结构化输出，request-id 贯穿日志与 500 响应体，口令 / token / URI 全部脱敏
-- **告警规则**：15 条，全部写在真实暴露的指标上
+- **告警规则**：18 条（15 条应用指标 + 3 条 exporter 存活），全部写在真实暴露的指标上
 - **告警投递**：Alertmanager（分组 / 去重 / 抑制 / 静默）。**出厂接收器是空的** —— 告警在它的界面里
   可见，但在你配置邮件或 webhook 之前不外发，理由见
   [deploy/alertmanager/alertmanager.yml](deploy/alertmanager/alertmanager.yml)

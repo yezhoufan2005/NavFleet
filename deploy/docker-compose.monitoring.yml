@@ -52,7 +52,7 @@ services:
           memory: 512M
     restart: unless-stopped
 
-  # Where the 13 rules in prometheus/alerts.yml go. Before this service existed
+  # Where the rules in prometheus/alerts.yml go. Before this service existed
   # they went nowhere: Prometheus had no `alerting:` block, so every rule
   # evaluated, fired, and was seen by no one while the docs described them as
   # notifications. The shipped receiver is deliberately empty — see

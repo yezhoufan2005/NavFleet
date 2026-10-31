@@ -3,7 +3,12 @@ import fs from "node:fs/promises";
 import path from "node:path";
 import { config } from "./config";
 import { deviceMatchesScope, applyRuleDebounce, evaluateRuleAlerts } from "@navfleet/shared";
-import type { AlertClearedPayload, AlertCreatedPayload, ReportBucketUnit } from "@navfleet/shared";
+import type {
+  AlertClearedPayload,
+  AlertCreatedPayload,
+  ReportBucketUnit,
+  Severity,
+} from "@navfleet/shared";
 import {
   ConfigRegistry,
   type ConfigFileKey,
@@ -1234,12 +1239,19 @@ export class DashboardStore extends EventEmitter {
     const devices = [...this.devices.values()];
     const onlineCount = devices.filter((device) => device.online).length;
     const alertCount = devices.reduce((sum, device) => sum + device.alerts.length, 0);
+    // Per tier, for the metric: 告警 is the critical tier only, and a total over all three read as
+    // 「活跃告警 2」 in Grafana while the console showed no 告警 at all (two 提示).
+    const alertsBySeverity: Record<Severity, number> = { critical: 0, warning: 0, notice: 0 };
+    for (const device of devices) {
+      for (const alert of device.alerts) alertsBySeverity[alert.severity] += 1;
+    }
     const gpsCount = devices.filter((device) => hasGps(device.gps) && device.gpsEnabled).length;
     return {
       fleetName: this.fleetName,
       deviceCount: devices.length,
       onlineCount,
       alertCount,
+      alertsBySeverity,
       gpsCount,
       updatedAt: this.updatedAt,
     };

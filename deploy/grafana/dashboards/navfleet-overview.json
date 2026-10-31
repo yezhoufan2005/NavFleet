@@ -104,7 +104,8 @@
     },
     {
       "type": "stat",
-      "title": "活跃告警",
+      "title": "活跃告警（critical）",
+      "description": "告警只指 critical 一档，与控制台口径一致；全部活跃消息为 sum(navfleet_alerts_active)。",
       "datasource": {
         "type": "prometheus",
         "uid": "navfleet-prometheus"
@@ -157,7 +158,7 @@
             "uid": "navfleet-prometheus"
           },
           "editorMode": "code",
-          "expr": "navfleet_alerts_active",
+          "expr": "navfleet_alerts_active{severity=\"critical\"}",
           "range": true,
           "refId": "A",
           "format": "time_series"

@@ -162,9 +162,20 @@ export const createMetrics = ({
   gauge("navfleet_devices_online", "Devices currently online", () =>
     numeric(store.buildSummary().onlineCount),
   );
-  gauge("navfleet_alerts_active", "Active alerts across the fleet", () =>
-    numeric(store.buildSummary().alertCount),
-  );
+  // One series per tier (three values, so the label costs nothing): `{severity="critical"}` is
+  // what the console calls 告警, `sum(navfleet_alerts_active)` every active message.
+  new Gauge({
+    name: "navfleet_alerts_active",
+    help: "Active messages across the fleet, by severity (critical is what the console calls 告警)",
+    labelNames: ["severity"] as const,
+    registers: [registry],
+    collect() {
+      const bySeverity = (store.buildSummary().alertsBySeverity ?? {}) as Record<string, unknown>;
+      for (const severity of ["critical", "warning", "notice"] as const) {
+        this.set({ severity }, numeric(bySeverity[severity]));
+      }
+    },
+  });
   gauge("navfleet_ws_connections", "Open WebSocket client connections", () => wsClientCount());
   // A slow WebSocket consumer does not error — `ws` just queues frames in memory. This
   // counter is the only signal that fan-out is outrunning a client before that queue

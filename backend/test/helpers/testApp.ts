@@ -130,6 +130,7 @@ export const createStoreStub = (): StoreStub => ({
     deviceCount: 1,
     onlineCount: 1,
     alertCount: 0,
+    alertsBySeverity: { critical: 0, warning: 0, notice: 0 },
     gpsCount: 0,
     updatedAt: UPDATED_AT,
   })),
