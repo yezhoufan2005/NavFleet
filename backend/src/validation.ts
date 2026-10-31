@@ -2,19 +2,22 @@ import { z } from "zod";
 import { config } from "./config";
 import { AUDIT_ACTIONS } from "./types";
 import { CAPABILITIES } from "@navfleet/shared";
+import { parseTimeParam } from "./timeParam";
 
-/** A timestamp expressed as an ISO-8601 string or a numeric epoch (ms or s). */
+/**
+ * A timestamp expressed as an ISO-8601 string or a whole-number epoch (s or ms), read by
+ * `parseTimeParam` — the same function the queries use, so what passes here is what runs.
+ */
 const timestampString = z
   .string()
   .min(1)
   .refine(
-    (value) => Number.isFinite(Date.parse(value)) || Number.isFinite(Number(value)),
-    "must be an ISO-8601 datetime or a numeric epoch",
+    (value) => parseTimeParam(value) !== null,
+    "must be an ISO-8601 datetime or a whole-number epoch (seconds or milliseconds)",
   );
 
-/** Milliseconds for ordering, preferring ISO parsing and falling back to a numeric epoch. */
-const toEpochMs = (value: string): number =>
-  Number.isFinite(Date.parse(value)) ? Date.parse(value) : Number(value);
+/** Epoch ms of a bound that already passed `timestampString`. */
+const toEpochMs = (value: string): number => parseTimeParam(value) ?? Number.NaN;
 
 /**
  * `from` must not be after `to`. The frontend already blocks this before it issues the
@@ -42,8 +45,10 @@ const rejectOversizedWindow = <T extends { from?: string; to?: string }>(
   ctx: z.RefinementCtx,
 ): void => {
   rejectInvertedWindow(value, ctx);
-  if (value.from && value.to) {
-    const days = (toEpochMs(value.to) - toEpochMs(value.from)) / 86_400_000;
+  // An open end runs to now. A missing start is filled in by `boundReportWindow`, at the cap.
+  if (value.from) {
+    const days =
+      ((value.to ? toEpochMs(value.to) : Date.now()) - toEpochMs(value.from)) / 86_400_000;
     if (days > config.reportMaxRangeDays) {
       ctx.addIssue({
         code: z.ZodIssueCode.custom,
@@ -323,8 +328,19 @@ export const auditQuerySchema = z
   })
   .superRefine(rejectInvertedWindow);
 
-/** Query filters for `GET /api/reports/alerts` (viewer+). Both optional; the aggregate
- * spans the whole retention window when neither bound is given. Bounds filter on `firstSeenAt`. */
+/**
+ * The report window a query actually runs over: a missing `from` becomes `REPORT_MAX_RANGE_DAYS`
+ * before `to` (or now). Without a start the aggregation used to scan every stored frame, past the
+ * cap the schema enforces for an explicit window, and run into the query timeout.
+ */
+export const boundReportWindow = <T extends { from?: string; to?: string }>(range: T): T => {
+  if (range.from) return range;
+  const end = range.to ? toEpochMs(range.to) : Date.now();
+  return { ...range, from: new Date(end - config.reportMaxRangeDays * 86_400_000).toISOString() };
+};
+
+/** Query filters for `GET /api/reports/alerts` (viewer+). Both optional; a missing `from` is
+ * `REPORT_MAX_RANGE_DAYS` before `to` (see `boundReportWindow`). Bounds filter on `firstSeenAt`. */
 export const reportRangeSchema = z
   .object({
     from: timestampString.optional(),
