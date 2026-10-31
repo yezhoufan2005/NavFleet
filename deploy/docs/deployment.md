@@ -477,7 +477,7 @@ TLS 是一个**叠加文件**，不改动基础编排：
 ```bash
 # 1) 准备证书：deploy/nginx/certs/{fullchain.pem,privkey.pem}
 #    实验环境可生成自签名（浏览器会告警，仅供本地/内网试跑）：
-sh deploy/tools/generate-dev-certs.sh navfleet.local
+sh deploy/tools/generate-dev-certs.sh navfleet.local   # 或服务器 IP，如 192.168.1.10（写成 IP SAN）
 
 # 2) 带叠加文件启动
 docker compose --env-file deploy/.env \
@@ -495,7 +495,12 @@ docker compose --env-file deploy/.env \
 | TLS 版本                         | 只接受 1.2 / 1.3；1.1 及以下被拒（实测返回 `alert protocol version`）                                      |
 
 想要经典的 80 → 443 跳转，把 `.env` 里的 `HTTP_HOST_PORT` 设为 `80`。
-HTTPS 宿主端口可用 `HTTPS_HOST_PORT` 覆盖。
+HTTPS 宿主端口可用 `HTTPS_HOST_PORT` 覆盖，跳转地址会带上这个端口（443 时不带）：叠加把它传给
+nginx，`tls.conf` 作为模板在容器启动时渲染。
+
+nginx 以 uid 101 运行，Linux 上 bind mount 保留宿主的属主和权限，所以 `privkey.pem` 必须对 uid 101
+可读。`generate-dev-certs.sh` 以 root 运行时设为 640、属组 101，否则设为 644 并提示；换成正式证书
+时同样处理（例如 `chgrp 101 privkey.pem && chmod 640 privkey.pem`），否则 nginx 读不到私钥、反复重启。
 
 路由表只有一份：`deploy/nginx/locations.conf` 被明文入口与 TLS 入口共同 `include`，
 所以不会出现「HTTP 加了一条路由、HTTPS 忘了加」这种没人会立刻发现的差异。
@@ -506,12 +511,13 @@ HTTPS 宿主端口可用 `HTTPS_HOST_PORT` 覆盖。
 
 #### 9.2.1 MQTT over TLS
 
-上面那段是**边缘 nginx** 的 TLS，保护浏览器到控制台这一跳。broker 那一跳（车辆/后端 ↔
-mosquitto）默认是明文 1883，只走内网 `bus` 段；要给它也加密，用另一个叠加文件：
+上面那段是**边缘 nginx** 的 TLS，保护浏览器到控制台这一跳。broker 那一跳默认是明文 1883；
+下面这个叠加给 **backend ↔ mosquitto** 加密。它**不对宿主发布 8883**，车辆仍按原来的方式连 broker，
+要让车辆也走 TLS 见本节末尾。
 
 ```bash
 # 1) 生成 lab CA + broker 服务端证书（deploy/mosquitto/certs/，已 gitignore）
-sh deploy/tools/generate-mqtt-certs.sh
+sh deploy/tools/generate-mqtt-certs.sh            # 车辆也要走 TLS 时，追加服务器 IP/域名
 
 # 2) 带叠加文件启动
 docker compose --env-file deploy/.env \
@@ -539,6 +545,15 @@ docker compose --env-file deploy/.env \
 > 证书目录 `deploy/mosquitto/certs/` 同样已在 `.gitignore` 中。`generate-mqtt-certs.sh`
 > 出的是 lab 自签 CA（服务端证书 SAN 含 `mosquitto`，即容器内主机名）；生产用组织 CA
 > 签发的 broker 证书替换 `server.crt` / `server.key`，并把签发 CA 放进 `ca.crt`。
+>
+> CA 的签发私钥写在 `deploy/mosquitto/ca/`（也已 gitignore），不在任何容器的挂载里：拿到它就能签出
+> 后端会信任的 broker 证书。backend 只挂 `ca.crt` 一个文件。mosquitto 以 uid 1883 读 `server.key`，
+> 脚本的权限处理与上面 nginx 私钥相同。
+
+**车辆也走 TLS**：叠加默认只加密 backend ↔ broker。要让车辆连 `mqtts://服务器:8883`，需要两步：
+生成证书时把车辆使用的服务器地址写进 SAN（`sh deploy/tools/generate-mqtt-certs.sh 192.168.1.10
+broker.example.lan`），并在 compose 里给 mosquitto 加一条 `ports: ["8883:8883"]`。车辆端信任
+`ca.crt` 即可。
 
 ### 9.3 监控栈（Prometheus + Grafana）
 

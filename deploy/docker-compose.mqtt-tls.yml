@@ -22,5 +22,7 @@ services:
       MQTT_URL: mqtts://mosquitto:8883
       MQTT_CA_FILE: /mqtt-certs/ca.crt
     volumes:
-      # Only the CA is needed client-side (not the server key). Mounted read-only.
-      - ./mosquitto/certs:/mqtt-certs:ro
+      # The CA certificate alone: the server key stays with the broker, and the CA's own
+      # signing key is not in this directory at all (generate-mqtt-certs.sh writes it to
+      # deploy/mosquitto/ca/, which nothing mounts).
+      - ./mosquitto/certs/ca.crt:/mqtt-certs/ca.crt:ro

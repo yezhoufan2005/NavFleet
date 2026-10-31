@@ -13,10 +13,18 @@ services:
       # itself). The base file's HTTP mapping stays and now serves the redirect,
       # so set HTTP_HOST_PORT=80 for the classic 80 -> 443 hop.
       - "${HTTPS_HOST_PORT:-443}:8443"
+    environment:
+      # The redirect has to name the published HTTPS port; nginx only sees 8443. The
+      # entrypoint renders tls.conf with it, and only it.
+      HTTPS_HOST_PORT: ${HTTPS_HOST_PORT:-443}
+      NGINX_ENVSUBST_FILTER: ^HTTPS_HOST_PORT$
     volumes:
-      # Merged by container path, so this replaces the plain-HTTP entry point
-      # with the redirect + TLS server.
-      - ./nginx/tls.conf:/etc/nginx/conf.d/default.conf:ro
+      # Merged by container path: the plain-HTTP entry point is replaced by an empty
+      # one, and the redirect + TLS server is rendered from the template.
+      - ./nginx/tls-default.conf:/etc/nginx/conf.d/default.conf:ro
+      - ./nginx/tls.conf:/etc/nginx/templates/tls.conf.template:ro
+      # nginx runs as uid 101: on Linux the key must be readable by it through the
+      # bind mount (generate-dev-certs.sh sets that up for its own pair).
       - ./nginx/certs:/etc/nginx/certs:ro
     healthcheck:
       # The HTTP listener now answers 308, so probe the TLS listener instead.
