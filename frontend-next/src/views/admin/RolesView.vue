@@ -38,6 +38,11 @@ const ERROR_MESSAGES: Record<string, string> = {
 };
 const messageFor = makeMessageFor(ERROR_MESSAGES, "操作失败，请稍后重试");
 
+/** A role's capabilities as the 能力 column reads them. */
+const capabilityText = (capabilities: readonly Capability[]): string =>
+  capabilities.map((capability) => CAPABILITY_LABELS[capability]).join("、") ||
+  "—";
+
 // ── Data ───────────────────────────────────────────────────────────────────────
 const roles = ref<RbacRole[]>([]);
 const status = ref<"loading" | "ready" | "error">("loading");
@@ -198,11 +203,7 @@ const formDirty = formSnapshot.dirty;
             <tr v-for="role in roles" :key="role.id" :class="tableClasses.row">
               <td class="truncate px-3 py-2 text-ink">{{ role.name }}</td>
               <td class="px-3 py-2 text-ink-muted">
-                {{
-                  role.capabilities
-                    .map((c) => CAPABILITY_LABELS[c])
-                    .join("、") || "—"
-                }}
+                {{ capabilityText(role.capabilities) }}
               </td>
               <td class="px-3 py-2">
                 <span class="flex justify-end gap-2">
