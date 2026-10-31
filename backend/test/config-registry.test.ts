@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeAll, afterAll, beforeEach } from "vitest";
+import { describe, it, expect, beforeAll, afterAll, beforeEach, vi } from "vitest";
 import fs from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
@@ -1270,4 +1270,95 @@ describe("ConfigRegistry.writeScenes / writeSceneAsset (场景地图上传)", ()
       SceneAssetValidationError,
     );
   });
+
+  it("writeSceneAsset 换了格式就写新路径：SVG 底图换成 PNG 不再写进 .svg", async () => {
+    // 静态服务按扩展名给 Content-Type，PNG 字节写进 .svg 路径后浏览器解码失败。
+    const registry = new ConfigRegistry();
+    await registry.load();
+    await registry.writeScenes([
+      {
+        sceneId: "s3",
+        resolution: 0.1,
+        width: 10,
+        height: 20,
+        imageUrl: "/scene-maps/s3/plan.svg",
+      },
+    ]);
+    await fs.mkdir(assetPath("s3"), { recursive: true });
+    await fs.writeFile(assetPath("s3/plan.svg"), svg);
+    const png = Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 0, 0]);
+    const url = await registry.writeSceneAsset("s3", "image", png);
+    expect(url).toBe("/scene-maps/s3/image.png");
+    expect(await fs.readFile(assetPath("s3/image.png"))).toEqual(png);
+    expect(await fs.readFile(assetPath("s3/plan.svg"))).toEqual(svg);
+  });
+
+  it("writeSceneAsset 上传后配置无法生效时退回原文件并抛 ConfigApplyError", async () => {
+    const registry = new ConfigRegistry();
+    await registry.load();
+    await registry.writeScenes([
+      { sceneId: "s4", resolution: 0.1, width: 10, height: 20, imageUrl: "/scene-maps/s4/map.svg" },
+    ]);
+    await fs.mkdir(assetPath("s4"), { recursive: true });
+    await fs.writeFile(assetPath("s4/map.svg"), svg);
+    const internals = registry as unknown as { loadWithFallback: () => Promise<unknown> };
+    const failing = vi
+      .spyOn(internals, "loadWithFallback")
+      .mockRejectedValue(new Error("overlay does not parse"));
+    try {
+      await expect(
+        registry.writeSceneAsset("s4", "image", Buffer.from('<svg id="v2"></svg>')),
+      ).rejects.toThrow(ConfigApplyError);
+      // 新文件（此前不存在）也一并撤掉，不留下没生效的孤儿。
+      await expect(registry.writeSceneAsset("s4", "osm", Buffer.from(SAMPLE_OSM))).rejects.toThrow(
+        ConfigApplyError,
+      );
+    } finally {
+      failing.mockRestore();
+    }
+    expect(await fs.readFile(assetPath("s4/map.svg"))).toEqual(svg);
+    await expect(fs.access(assetPath("s4/osm.osm"))).rejects.toThrow();
+    expect((await fs.readdir(assetPath("s4"))).filter((name) => name.endsWith(".tmp"))).toEqual([]);
+  });
+
+  it("writeSceneAsset 只收 DATA binary 点云：binary_compressed 与 ascii 被拒", async () => {
+    const registry = new ConfigRegistry();
+    await registry.load();
+    const pcd = (data: string): Buffer =>
+      Buffer.from(`# .PCD v0.7\nVERSION 0.7\nFIELDS x y z\nPOINTS 0\nDATA ${data}\n`, "latin1");
+    for (const data of ["binary_compressed", "ascii"]) {
+      await expect(registry.writeSceneAsset("scene-a", "pointcloud", pcd(data))).rejects.toThrow(
+        SceneAssetValidationError,
+      );
+    }
+    await expect(registry.writeSceneAsset("scene-a", "pointcloud", pcd("binary"))).resolves.toBe(
+      "/scene-maps/scene-a/pointcloud.pcd",
+    );
+  });
+
+  it("宿主机替换 scene-maps 下的资源会触发热加载，临时文件不会", async () => {
+    const registry = new ConfigRegistry();
+    await registry.load();
+    const reloads: string[] = [];
+    const reload = vi.spyOn(registry, "reload").mockImplementation((reason = "") => {
+      reloads.push(reason);
+      return Promise.resolve(true);
+    });
+    registry.startWatching(() => undefined);
+    try {
+      // chokidar 需要先完成初次扫描，否则事件会被当作初始文件吞掉。
+      await new Promise((resolve) => setTimeout(resolve, 300));
+      await fs.mkdir(assetPath("watch"), { recursive: true });
+      await fs.writeFile(assetPath("watch/ignored.osm.123.tmp"), "x");
+      await fs.writeFile(assetPath("watch/lanes.osm"), SAMPLE_OSM);
+      await vi.waitFor(() => expect(reloads.join(" ")).toContain("lanes.osm"), {
+        timeout: 8_000,
+        interval: 100,
+      });
+      expect(reloads.join(" ")).not.toContain(".tmp");
+    } finally {
+      await registry.closeWatcher();
+      reload.mockRestore();
+    }
+  }, 15_000);
 });

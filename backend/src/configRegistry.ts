@@ -113,6 +113,46 @@ const SCENE_ASSET_URL_FIELD: Record<SceneAssetKind, keyof SceneMapDefinition> = 
   pointcloudmeta: "pointCloudMetaUrl",
 };
 
+/** Scene-map files whose change reloads the configuration; anything else there (temp files) is ignored. */
+const SCENE_MAP_WATCH_EXTENSIONS = new Set([
+  ".osm",
+  ".svg",
+  ".png",
+  ".jpg",
+  ".jpeg",
+  ".pcd",
+  ".json",
+]);
+
+const isWithin = (root: string, filePath: string): boolean => {
+  const relative = path.relative(root, filePath);
+  return relative !== "" && !relative.startsWith("..") && !path.isAbsolute(relative);
+};
+
+/** How far into a .pcd to look for its `DATA` line — the same bound the console's parser uses. */
+const PCD_HEADER_SCAN_BYTES = 64 * 1024;
+
+/** A URL's extension as `validateSceneAsset` would name it (`.jpeg` is stored as `jpg`). */
+const normalizedExtension = (url: string): string => {
+  const ext = path.extname(url).slice(1).toLowerCase();
+  return ext === "jpeg" ? "jpg" : ext;
+};
+
+/**
+ * Write a sibling temp file then rename it over the target, so a crash mid-write never leaves a
+ * half-written file for the next load to trip on. A failed rename removes the temp file.
+ */
+const writeFileAtomic = async (filePath: string, data: string | Buffer): Promise<void> => {
+  const tmp = `${filePath}.${process.pid}.${Date.now()}.tmp`;
+  await fs.writeFile(tmp, data);
+  try {
+    await fs.rename(tmp, filePath);
+  } catch (error) {
+    await fs.rm(tmp, { force: true }).catch(() => {});
+    throw error;
+  }
+};
+
 /**
  * A scene-asset upload the caller got wrong — bad id, or content that is not the kind it claims.
  * Thrown by `writeSceneAsset` / `validateSceneAsset` so the route can map it to a 400 by type
@@ -156,6 +196,18 @@ const validateSceneAsset = (kind: SceneAssetKind, buffer: Buffer): string => {
       // PCD text/binary files carry an ASCII header; the version/field lines are always near the top.
       if (!/(^|\n)\s*#|VERSION|FIELDS/i.test(head)) {
         throw new SceneAssetValidationError("point cloud does not look like a .pcd file");
+      }
+      // The console reads `DATA binary` only. A compressed or ASCII body would parse as garbage
+      // and draw an empty backdrop with no error, so it is refused here instead.
+      const data = /(?:^|\n)DATA[ \t]+(\S+)/i
+        .exec(buffer.subarray(0, PCD_HEADER_SCAN_BYTES).toString("latin1"))?.[1]
+        ?.toLowerCase();
+      if (data !== "binary") {
+        throw new SceneAssetValidationError(
+          data
+            ? `point cloud is DATA ${data}; only DATA binary is supported`
+            : "point cloud has no DATA line",
+        );
       }
       return "pcd";
     }
@@ -1460,17 +1512,16 @@ export class ConfigRegistry {
         NOTIFY_FILE,
         REPORTS_FILE,
         // Scene-map assets: `.osm` feeds the overlay parser, and the raster / point-cloud
-        // / point-cloud-meta backdrops so a host-side swap or an API upload hot-reloads like the
-        // JSON config does. The upload endpoints also call `reload()` directly; this covers edits
-        // made outside the API too.
-        path.join(runtimePaths.sceneMapsPath, "**/*.osm"),
-        path.join(runtimePaths.sceneMapsPath, "**/*.svg"),
-        path.join(runtimePaths.sceneMapsPath, "**/*.png"),
-        path.join(runtimePaths.sceneMapsPath, "**/*.jpg"),
-        path.join(runtimePaths.sceneMapsPath, "**/*.pcd"),
-        path.join(runtimePaths.sceneMapsPath, "**/*.json"),
+        // / point-cloud-meta backdrops, so a host-side swap hot-reloads like the JSON config does
+        // (the upload endpoint applies its own write). chokidar 4 dropped glob support, so the
+        // directory is watched as a whole and `ignored` keeps only these extensions.
+        runtimePaths.sceneMapsPath,
       ],
       {
+        ignored: (filePath, stats) =>
+          Boolean(stats?.isFile()) &&
+          isWithin(runtimePaths.sceneMapsPath, filePath) &&
+          !SCENE_MAP_WATCH_EXTENSIONS.has(path.extname(filePath).toLowerCase()),
         ignoreInitial: true,
         persistent: true,
         usePolling: config.configWatchUsePolling,
@@ -1617,15 +1668,7 @@ export class ConfigRegistry {
    * through this one path.
    */
   private async writeConfigFileAtomic(filePath: string, value: unknown): Promise<void> {
-    const tmp = `${filePath}.${process.pid}.${Date.now()}.tmp`;
-    await fs.writeFile(tmp, `${JSON.stringify(value, null, 2)}\n`, "utf8");
-    try {
-      await fs.rename(tmp, filePath);
-    } catch (error) {
-      // A failed rename would otherwise leave the sibling temp file behind; best-effort clean it up.
-      await fs.rm(tmp, { force: true }).catch(() => {});
-      throw error;
-    }
+    await writeFileAtomic(filePath, `${JSON.stringify(value, null, 2)}\n`);
   }
 
   /**
@@ -1800,29 +1843,62 @@ export class ConfigRegistry {
    * Store an uploaded backdrop file for a scene and return the `/scene-maps/…` URL it now lives
    * at, then reload (an `.osm` swap re-parses its overlay; a raster/point-cloud is just re-served
    * with `no-store`). Content is validated by kind. When the scene already references a file of
-   * this kind, the existing path is overwritten in place (no orphan, no `scenes.json` change);
-   * otherwise the file lands at a server-chosen `<sceneId>/<kind>.<ext>` — the filename is never
-   * taken from the client, and the resolved path is re-checked against the scene-maps root.
+   * this kind *with the same extension*, that path is overwritten in place (no orphan, no
+   * `scenes.json` change). Otherwise — no file yet, or an SVG replaced by a PNG, which the static
+   * server would keep serving as `image/svg+xml` — the file lands at a server-chosen
+   * `<sceneId>/<kind>.<ext>` and the caller saves the new URL into `scenes.json`. The filename is
+   * never taken from the client, and the resolved path is re-checked against the scene-maps root.
+   *
+   * Runs in the config queue like every other config write, and takes effect or not at all: if the
+   * configuration cannot load with the new file, the previous bytes are put back and a
+   * `ConfigApplyError` says why.
    */
   async writeSceneAsset(sceneId: string, kind: SceneAssetKind, buffer: Buffer): Promise<string> {
     if (!/^[A-Za-z0-9._-]+$/.test(sceneId) || /^\.+$/.test(sceneId)) {
       throw new SceneAssetValidationError(`invalid sceneId: ${sceneId}`);
     }
     const ext = validateSceneAsset(kind, buffer);
-    this.ensureLoaded();
-    const existing = this.sceneConfigs.get(sceneId);
-    const existingUrl = existing?.[SCENE_ASSET_URL_FIELD[kind]];
-    const url =
-      typeof existingUrl === "string" && existingUrl.startsWith("/scene-maps/")
-        ? existingUrl
-        : `/scene-maps/${sceneId}/${kind}.${ext}`;
-    const targetPath = resolveSceneMapsFilePath(url);
-    await fs.mkdir(path.dirname(targetPath), { recursive: true });
-    const tmp = `${targetPath}.${process.pid}.${Date.now()}.tmp`;
-    await fs.writeFile(tmp, buffer);
-    await fs.rename(tmp, targetPath);
-    await this.reload("scene-asset-upload");
-    return url;
+    return this.serialize(async () => {
+      this.ensureLoaded();
+      const existingUrl = this.sceneConfigs.get(sceneId)?.[SCENE_ASSET_URL_FIELD[kind]];
+      const url =
+        typeof existingUrl === "string" &&
+        existingUrl.startsWith("/scene-maps/") &&
+        normalizedExtension(existingUrl) === ext
+          ? existingUrl
+          : `/scene-maps/${sceneId}/${kind}.${ext}`;
+      const targetPath = resolveSceneMapsFilePath(url);
+      const previous = await fs.readFile(targetPath).catch((error: NodeJS.ErrnoException) => {
+        if (error.code === "ENOENT") return null;
+        throw error;
+      });
+      await fs.mkdir(path.dirname(targetPath), { recursive: true });
+      await writeFileAtomic(targetPath, buffer);
+      // A file that was already degraded stays the operator's known problem; a file this upload
+      // knocks back to its last-good copy (scenes.json, when the scene cannot load with the new
+      // file) means the upload did not take effect.
+      const degradedBefore = new Set(this.status.issues.map((issue) => issue.file));
+      let failure: string;
+      try {
+        const loaded = await this.loadWithFallback();
+        const rejected = loaded.issues.find((issue) => !degradedBefore.has(issue.file));
+        if (rejected) {
+          failure = rejected.message;
+        } else {
+          await this.commitLoaded(loaded);
+          this.logLoad("scene-asset-upload");
+          return url;
+        }
+      } catch (error) {
+        failure = describeConfigError(error);
+      }
+      if (previous === null) {
+        await fs.rm(targetPath, { force: true });
+      } else {
+        await writeFileAtomic(targetPath, previous);
+      }
+      throw new ConfigApplyError(`${path.basename(url)} 上传后无法生效，已回滚：${failure}`);
+    });
   }
 
   getDeviceConfig(deviceId: string): DeviceConfig | null {

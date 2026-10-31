@@ -101,10 +101,18 @@ export const parsePcdHeader = (arrayBuffer: ArrayBuffer): PcdHeader => {
     Math.min(arrayBuffer.byteLength, HEADER_SCAN_BYTES),
   );
   const headerText = ASCII_DECODER.decode(headerSlice);
-  const match = headerText.match(/DATA\s+binary[^\r\n]*\r?\n/i);
+  // The DATA token itself, not a prefix: `binary_compressed` is LZF-packed, and reading it with
+  // the uncompressed stride yields an empty grid with no error.
+  const match = headerText.match(/(?:^|\n)DATA[ \t]+(\S+)[^\r\n]*\r?\n/i);
 
   if (!match || match.index === undefined) {
     throw new Error("暂不支持当前 PCD 格式，未找到 DATA binary 头信息");
+  }
+  const dataType = (match[1] ?? "").toLowerCase();
+  if (dataType !== "binary") {
+    throw new Error(
+      `暂不支持 DATA ${dataType} 格式的 PCD，请导出为 DATA binary`,
+    );
   }
 
   const headerLength = match.index + match[0].length;

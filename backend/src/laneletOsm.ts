@@ -34,7 +34,9 @@ interface ProjectionOrigin {
 const round = (value: number, digits = 3): number => Number(value.toFixed(digits));
 
 const ATTRIBUTE_PATTERN = /(\w+)=(?:"([^"]*)"|'([^']*)')/g;
-const NODE_PATTERN = /<node\b([^>]*)\/>/g;
+// Self-closing `<node …/>`, or `<node …>…</node>` when it carries `<tag>` children (`ele` and
+// friends, as Autoware and JOSM export them).
+const NODE_PATTERN = /<node\b([^>]*?)(?:\/>|>([\s\S]*?)<\/node>)/g;
 const WAY_PATTERN = /<way\b([^>]*)>([\s\S]*?)<\/way>/g;
 const RELATION_PATTERN = /<relation\b([^>]*)>([\s\S]*?)<\/relation>/g;
 const ND_PATTERN = /<nd\b([^>]*)\/>/g;

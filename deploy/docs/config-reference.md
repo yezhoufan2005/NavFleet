@@ -41,19 +41,19 @@ config-runtime/
 
 后端启动时读取全部配置文件。运行时监听：
 
-- `fleet.json`
-- `vehicles.json`
-- `formations.json`
-- `scenes.json`
-- `scene-maps/**/*.osm`
+- 八份 JSON：`fleet.json`、`vehicles.json`、`formations.json`、`scenes.json`、`rules.json`、`codebook.json`、`notify.json`、`reports.json`
+- `scene-maps/` 下的 `.osm`、`.svg`、`.png`、`.jpg`、`.jpeg`、`.pcd`、`.json`（含子目录）
 
 生效规则：
 
-- 修改四个 JSON 配置文件：自动热加载。
+- 修改 JSON 配置文件：自动热加载。
 - 修改 `.osm`：自动重新解析 Lanelet2 overlay。
-- 修改图片、点云、普通 JSON 元数据：浏览器刷新后生效。
+- 修改图片、点云、点云元数据：后端重新加载，浏览器刷新后显示新文件。
 
-如果 JSON 写坏或配置校验失败，后端会保留上一份可用配置，并在日志输出错误。
+某份文件写坏或校验失败时，只有这一份退回上一份可用版本，其余文件的修改照常生效；`/health/ready` 标为
+degraded，「系统 / 状态」页写明是哪份文件、原因和正在使用的版本。
+
+经控制台上传的底图同样以「生效」为准：上传后配置无法一起加载时，文件退回原样，接口回 409。点云只支持 `DATA binary`，`binary_compressed` 和 `ascii` 在上传时就会被拒绝。
 
 ## 3. `fleet.json`
 
