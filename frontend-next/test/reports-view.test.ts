@@ -122,14 +122,14 @@ afterEach(() => {
 });
 
 describe("报表 状态与内容", () => {
-  it("一个报表失败不拖垮另一个：可用率报错，消息照常出图", async () => {
+  it("一个报表失败不拖垮另一个：在线率报错，消息照常出图", async () => {
     // Availability 504s while alerts succeed. Decoupled fetches mean the alert charts still
     // render and the error is scoped to the availability section — the page is not blanked.
     vi.spyOn(fleetApi, "getAvailabilityReport").mockRejectedValue(
       new Error("HTTP 503"),
     );
     const wrapper = await mountView();
-    expect(wrapper.text()).toContain("可用率报表加载失败");
+    expect(wrapper.text()).toContain("在线率报表加载失败");
     // The backend's code is not shown to the operator.
     expect(wrapper.text()).not.toContain("HTTP 503");
     // The three message bar charts still rendered from the alert report that did come back.
@@ -182,6 +182,34 @@ describe("报表 状态与内容", () => {
     expect(createUrl).toHaveBeenCalledOnce();
     expect(createUrl.mock.calls[0]![0]).toBeInstanceOf(Blob);
     expect(click).toHaveBeenCalledOnce();
+    expect(
+      (click.mock.contexts[0] as HTMLAnchorElement | undefined)?.download,
+    ).toBe("navfleet-在线率-12h.csv");
+  });
+
+  it("names a custom-range export after its dates, not the preset it fell back to", async () => {
+    vi.spyOn(URL, "createObjectURL").mockReturnValue("blob:stub");
+    vi.spyOn(URL, "revokeObjectURL").mockImplementation(() => undefined);
+    const click = vi
+      .spyOn(HTMLAnchorElement.prototype, "click")
+      .mockImplementation(() => undefined);
+
+    const wrapper = await mountView("?from=2026-10-01&to=2026-10-15");
+    await wrapper
+      .findAll("button")
+      .find((button) => button.text().includes("导出在线率"))!
+      .trigger("click");
+    expect(
+      (click.mock.contexts[0] as HTMLAnchorElement | undefined)?.download,
+    ).toBe("navfleet-在线率-2026-10-01_2026-10-15.csv");
+  });
+
+  it("names the report's device chart as the top N it is", async () => {
+    const wrapper = await mountView();
+    const labels = wrapper
+      .findAll(".bar-stub")
+      .map((node) => node.attributes("data-label"));
+    expect(labels).toContain("消息最多的 8 台设备");
   });
 
   it("切换时间范围会带新窗口重新取数", async () => {

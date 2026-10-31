@@ -27,16 +27,15 @@ test.describe("console reports", () => {
     ).toBeVisible();
   });
 
-  test("explains the empty aggregation and links to 系统状态", async ({
+  test("explains the empty aggregation and links to 系统 / 状态", async ({
     page,
   }) => {
     await page.goto("/reports");
 
     const main = page.getByRole("main");
     await expect(main.getByText("暂无历史可聚合")).toBeVisible();
-    await expect(main.getByRole("link", { name: /系统状态/ })).toHaveAttribute(
-      "href",
-      "/system",
-    );
+    await expect(
+      main.getByRole("link", { name: "系统 / 状态" }),
+    ).toHaveAttribute("href", "/system");
   });
 });

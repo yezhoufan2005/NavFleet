@@ -9,7 +9,7 @@ export const ROLE_LABELS: Record<UserRole, string> = {
 
 /** Chinese labels for the capability catalog, in `CAPABILITIES` order (角色 and 审计 both use it). */
 export const CAPABILITY_LABELS: Record<Capability, string> = {
-  "alerts:ack": "确认告警",
+  "alerts:ack": "确认消息",
   "vehicles:write": "车辆配置",
   "formations:write": "编队配置",
   "scenes:write": "场景配置",
