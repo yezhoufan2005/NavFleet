@@ -1344,25 +1344,28 @@ describe("ConfigRegistry.writeScenes / writeSceneAsset (场景地图上传)", ()
       reloads.push(reason);
       return Promise.resolve(true);
     });
-    // 子目录在监听前建好：边建目录边写文件时，Linux 上 inotify 还没挂到新目录，事件会漏掉。
     await fs.mkdir(assetPath("watch"), { recursive: true });
     registry.startWatching(() => undefined);
     try {
-      // 等 chokidar 完成初次扫描，否则之后的写入可能被当作初始文件吞掉。
-      const watcher = (
-        registry as unknown as { watcher: { once(e: "ready", f: () => void): void } }
-      ).watcher;
-      await new Promise<void>((resolve) => watcher.once("ready", resolve));
-      await fs.writeFile(assetPath("watch/ignored.osm.123.tmp"), "x");
-      await fs.writeFile(assetPath("watch/lanes.osm"), SAMPLE_OSM);
-      await vi.waitFor(() => expect(reloads.join(" ")).toContain("lanes.osm"), {
-        timeout: 8_000,
-        interval: 100,
-      });
-      expect(reloads.join(" ")).not.toContain(".tmp");
+      // chokidar 的初次扫描与 ready 之间没有可等的确切时点（Linux 上 ready 可能先于子目录扫描
+      // 完成，那时写入的文件被当作初始文件不发事件），所以反复改写，直到监听确实生效。
+      await vi.waitFor(
+        async () => {
+          await fs.writeFile(assetPath("watch/lanes.osm"), `${SAMPLE_OSM}<!-- ${Date.now()} -->`);
+          expect(reloads.join(" ")).toContain("lanes.osm");
+        },
+        { timeout: 12_000, interval: 1_500 },
+      );
+      // 监听已确认生效后，临时文件反复写入超过一个防抖加稳定期，不应再触发重载。
+      const before = reloads.length;
+      for (let i = 0; i < 4; i += 1) {
+        await fs.writeFile(assetPath("watch/lanes.osm.123.tmp"), `x${i}`);
+        await new Promise((resolve) => setTimeout(resolve, 700));
+      }
+      expect(reloads.slice(before).join(" ")).not.toContain(".tmp");
     } finally {
       await registry.closeWatcher();
       reload.mockRestore();
     }
-  }, 15_000);
+  }, 25_000);
 });
