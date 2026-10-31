@@ -331,6 +331,9 @@ export * from "./sceneGeometry";
 // 故独立成文件（本 barrel 其余多为类型）。
 export * from "./rbac";
 
+// 审计动作的闭合清单——后端查询校验与控制台「动作」标签共用，标签表按它定型，漏一项即编译失败。
+export * from "./audit";
+
 // CSV 单元格（含公式注入防护）——控制台导出与定时报表邮件共用，两边写出同一种文件。
 export * from "./csv";
 

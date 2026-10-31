@@ -21,36 +21,10 @@ import { tableClasses } from "@/lib/uiClasses";
 import { useLatestRequest } from "@/composables/useLatestRequest";
 import { useAutoRefresh } from "@/composables/useAutoRefresh";
 import { useListPagination } from "@/composables/useListPagination";
+import { ACTION_LABELS, actionLabel, auditObject } from "@/lib/auditLog";
 
 const route = useRoute();
 const router = useRouter();
-
-/**
- * Chinese labels for the closed action vocabulary (backend `AuditAction` / `AUDIT_ACTIONS`).
- * Keep in step with that tuple: every action the backend can emit needs a label, or the 动作
- * dropdown cannot select it and the row falls back to the raw key. The five config-write actions
- * and the two alert actions were missing until 1.6.1.
- */
-const ACTION_LABELS: Record<string, string> = {
-  login: "登录",
-  login_failed: "登录失败",
-  logout: "登出",
-  password_change: "修改密码",
-  password_reset: "重置密码",
-  user_create: "创建用户",
-  user_update: "更新用户",
-  user_delete: "删除用户",
-  session_revoke: "下线会话",
-  force_logout: "强制下线",
-  account_locked: "账号锁定",
-  alert_ack: "确认告警",
-  alert_unack: "取消确认",
-  codebook_import: "导入报码字典",
-  vehicles_write: "写入车辆配置",
-  formations_write: "写入编队配置",
-  scenes_write: "写入场景配置",
-  scene_asset_upload: "上传场景资源",
-};
 
 /** The 动作 filter is multi-select, so there is no 全部动作 sentinel — an empty set means "all". */
 const ACTION_OPTIONS = Object.entries(ACTION_LABELS).map(([value, label]) => ({
@@ -99,8 +73,14 @@ const load = async (): Promise<void> => {
     const result = await fleetApi.getAuditLog({
       actor: actor.value || undefined,
       action: action.value.length ? action.value.join(",") : undefined,
-      from: from.value || undefined,
-      to: to.value || undefined,
+      // The date inputs give local calendar days; sent bare, the backend read them as UTC midnight,
+      // so in UTC+8 the 止 day was cut off at 08:00. Same local bounds as 消息史 and 报表.
+      from: from.value
+        ? new Date(`${from.value}T00:00:00`).toISOString()
+        : undefined,
+      to: to.value
+        ? new Date(`${to.value}T23:59:59.999`).toISOString()
+        : undefined,
     });
     if (!isCurrent()) return;
     entries.value = result.entries;
@@ -231,10 +211,13 @@ const formatTime = (iso: string): string =>
               </td>
               <td class="truncate px-3 py-2 text-ink">{{ entry.actor }}</td>
               <td class="truncate px-3 py-2 text-ink">
-                {{ ACTION_LABELS[entry.action] ?? entry.action }}
+                {{ actionLabel(entry.action) }}
               </td>
-              <td class="truncate px-3 py-2 text-ink-muted">
-                {{ entry.target ?? "—" }}
+              <td
+                class="truncate px-3 py-2 text-ink-muted"
+                :title="auditObject(entry)"
+              >
+                {{ auditObject(entry) }}
               </td>
               <td class="px-3 py-2">
                 <span
