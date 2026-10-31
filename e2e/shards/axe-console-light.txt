@@ -1,0 +1,4 @@
+# Light-theme half of the console axe audit, one CI shard of its own. The whole audit (both
+# themes) is listed in axe-console.txt, which the other shards exclude; keep the two halves
+# here and that file in step.
+[console] › console-accessibility.spec.ts › console accessibility — 浅色
