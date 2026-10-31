@@ -1,6 +1,6 @@
 [
   {
-    "code": 1302,
+    "code": 1502,
     "channel": "info",
     "subsystem": "task",
     "label": "任务完成·待命",
@@ -9,7 +9,7 @@
     "impact": "none"
   },
   {
-    "code": 1901,
+    "code": 1503,
     "channel": "info",
     "subsystem": "task",
     "label": "到达人工交接位",
@@ -27,7 +27,7 @@
     "impact": "watch"
   },
   {
-    "code": 2902,
+    "code": 2802,
     "channel": "warning",
     "subsystem": "payload",
     "label": "载荷偏移预警",
@@ -36,7 +36,7 @@
     "impact": "watch"
   },
   {
-    "code": 5202,
+    "code": 5703,
     "channel": "error",
     "subsystem": "safety",
     "label": "避障超时未恢复",

@@ -1,6 +1,9 @@
 import { describe, expect, it } from "vitest";
 import path from "node:path";
+import fs from "node:fs";
+import os from "node:os";
 import { loadFleet, newState, type Fleet } from "../sim/fleet";
+import { sceneGpsOrigin } from "../sim/routes";
 import { BackfillSink } from "../sim/sink";
 import { step, type VehicleState } from "../sim/vehicle";
 import { mqttTelemetrySchema } from "../src/validation";
@@ -23,6 +26,11 @@ const fleet = async (): Promise<Fleet> => (cached ??= await loadFleet(CONFIG_ROO
 
 const clone = (state: VehicleState): VehicleState =>
   JSON.parse(JSON.stringify(state)) as VehicleState;
+
+const codesOf = (state: VehicleState): number[] =>
+  [state.info?.code, state.warning?.code, state.error?.code].filter(
+    (code): code is number => typeof code === "number",
+  );
 
 const run = async (seconds: number, deviceIndex: number, withFrame = true) => {
   const f = await fleet();
@@ -97,7 +105,7 @@ describe("simulator frames", () => {
     const state = newState(f, site, START);
     step(site, state, [{ deviceId: site.deviceId, at: START, kind: "obstacle", minutes: 1 }]);
     for (let k = 0; k < 120; k += 1) step(site, state);
-    expect(state.error?.code).not.toBe(5202);
+    expect(state.error?.code).not.toBe(5703);
   });
 
   it("a comm loss goes quiet, reports offline after the broker's keepalive, and comes back", async () => {
@@ -112,6 +120,146 @@ describe("simulator frames", () => {
     expect(statuses).toEqual([false, true]);
     expect(results.slice(1, 100).every((result) => result.frame === null)).toBe(true);
     expect(results.at(-1)?.frame).not.toBeNull();
+  });
+});
+
+describe("simulator layout", () => {
+  /** A copy of config-runtime with vehicles.json / scenes.json rewritten by `edit`. */
+  const editedConfig = (edit: (file: string, items: unknown[]) => unknown[]): string => {
+    const root = fs.mkdtempSync(path.join(os.tmpdir(), "sim-layout-"));
+    fs.cpSync(CONFIG_ROOT, root, { recursive: true });
+    for (const file of ["vehicles.json", "scenes.json"]) {
+      const full = path.join(root, file);
+      const items = JSON.parse(fs.readFileSync(full, "utf8")) as unknown[];
+      fs.writeFileSync(full, JSON.stringify(edit(file, items)));
+    }
+    return root;
+  };
+  const layout = (f: Fleet) =>
+    new Map(
+      f.sites.map((site) => [
+        site.deviceId,
+        {
+          gps: site.gps,
+          start: site.route.pose(0),
+          charger: site.charger,
+          length: site.route.length,
+        },
+      ]),
+    );
+
+  it("does not move a vehicle when the editors reorder vehicles.json or scenes.json", async () => {
+    // The scene editor rewrites scenes.json sorted with the edited scene last, and deleting a
+    // vehicle shifts the ones after it. Both used to move vehicles: GPS by scene position (3 km),
+    // loop start and charger by roster position.
+    const before = layout(await fleet());
+    const root = editedConfig((_file, items) => [...items].reverse());
+    try {
+      expect(layout(await loadFleet(root))).toEqual(before);
+    } finally {
+      fs.rmSync(root, { recursive: true, force: true });
+    }
+  });
+
+  it("does not move the others when one vehicle is removed", async () => {
+    const before = layout(await fleet());
+    const removed = (await fleet()).sites[0]!.deviceId;
+    const root = editedConfig((file, items) =>
+      file === "vehicles.json"
+        ? items.filter((item) => (item as { deviceId: string }).deviceId !== removed)
+        : items,
+    );
+    try {
+      const after = layout(await loadFleet(root));
+      const moved = [...after].filter(
+        ([id, place]) => JSON.stringify(place) !== JSON.stringify(before.get(id)),
+      );
+      // At most the one vehicle that had been pushed to the next slot by the removed one.
+      expect(moved.length).toBeLessThanOrEqual(1);
+    } finally {
+      fs.rmSync(root, { recursive: true, force: true });
+    }
+  });
+
+  it("puts each scene at its own place on the globe", () => {
+    const ids = ["warehouse-a", "yard-north", "assembly-line", "kangcheng-airy"];
+    const origins = ids.map((id) => sceneGpsOrigin(id));
+    expect(sceneGpsOrigin("warehouse-a")).toEqual(origins[0]);
+    expect(new Set(origins.map((point) => `${point.x},${point.y}`)).size).toBe(ids.length);
+  });
+
+  it("reads a hand-authored loop in map metres whatever the scene's yaw", async () => {
+    // At yaw 0 the loop used to be taken as world coordinates, so a scene whose origin is not 0
+    // (the point cloud's corner, or assembly-line set to yaw 0) put the loop off its map.
+    const rotated = (await fleet()).sites.find((site) => site.sceneId === "assembly-line")!;
+    const root = editedConfig((file, items) =>
+      file === "scenes.json"
+        ? items.map((item) =>
+            (item as { sceneId: string }).sceneId === "assembly-line"
+              ? { ...(item as object), origin: { x: 20.41, y: 0, yaw: 0 } }
+              : item,
+          )
+        : items,
+    );
+    try {
+      const flat = (await loadFleet(root)).sites.find(
+        (site) => site.deviceId === rotated.deviceId,
+      )!;
+      // The first authored corner (9, 25.5) lands at origin + corner, not at (9, 25.5).
+      const corner = flat.route.pose(0);
+      expect(corner.x).toBeCloseTo(20.41 + 9, 1);
+      expect(corner.y).toBeCloseTo(25.5, 1);
+    } finally {
+      fs.rmSync(root, { recursive: true, force: true });
+    }
+  });
+});
+
+describe("simulator events", () => {
+  it("starts an obstacle, a guard stop, a planning timeout or a speed zone only on a moving vehicle", async () => {
+    const f = await fleet();
+    const MOVING_ONLY = new Set([5703, 5702, 5102, 2203]);
+    let started = 0;
+    // The whole fleet over five days: these events are rare, a few per vehicle-week.
+    for (const site of f.sites) {
+      const state = newState(f, site, START);
+      for (let k = 0; k < 5 * 86_400; k += 1) {
+        const before = { phase: state.phase, speed: state.speed, codes: codesOf(state) };
+        step(site, state, [], false);
+        for (const code of codesOf(state)) {
+          if (!MOVING_ONLY.has(code) || before.codes.includes(code)) continue;
+          started += 1;
+          expect(["toPick", "toDrop", "toCharger"], `${site.deviceId} ${code}`).toContain(
+            before.phase,
+          );
+          expect(before.speed, `${site.deviceId} ${code}`).toBeGreaterThan(0.2);
+        }
+      }
+    }
+    expect(started).toBeGreaterThan(0);
+  }, 60_000);
+
+  it("never drives faster than the speed limit it reports, once the slowdown has passed", async () => {
+    // Localisation degraded used to scale cruise by 0.6 only: a tug ran ~0.96 m/s under the
+    // navigation limit of 0.8 it reported in the same frame.
+    const f = await fleet();
+    let checked = 0;
+    for (const site of f.sites) {
+      const state = newState(f, site, START);
+      // Degraded for the whole run (what a 2101 sets), from a standing start.
+      state.degradedUntil = START + 3_600_000;
+      for (let k = 0; k < 1800; k += 1) {
+        const { frame } = step(site, state);
+        const limit = frame?.speed_limit as
+          { limit: number; slowdown_time: number; stamp: number; module_name: string } | undefined;
+        if (!frame || limit?.module_name !== "navigation") continue;
+        if (state.t - limit.stamp < (limit.slowdown_time + 2) * 1000) continue;
+        checked += 1;
+        const speed = (frame.vehicle_info as { speed: number }).speed;
+        expect(speed, site.deviceId).toBeLessThanOrEqual(limit.limit + 1e-6);
+      }
+    }
+    expect(checked).toBeGreaterThan(0);
   });
 });
 

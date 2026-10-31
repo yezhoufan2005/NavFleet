@@ -1,3 +1,5 @@
+import { readFileSync } from "node:fs";
+import path from "node:path";
 import { describe, it, expect } from "vitest";
 import {
   CODE_IMPACTS,
@@ -43,6 +45,18 @@ const CHANNEL_DIGIT: Record<string, string> = {
   error: "5",
 };
 
+/** The second digit, as the built-in table numbers its subsystems. */
+const SUBSYSTEM_DIGIT: Record<string, string> = {
+  navigation: "1",
+  motion: "2",
+  power: "3",
+  perception: "4",
+  task: "5",
+  network: "6",
+  safety: "7",
+  payload: "8",
+};
+
 describe("the table's own consistency", () => {
   it("has no duplicate codes", () => {
     // The demo data already reused 1101 for two unrelated meanings (定位稳定 and
@@ -60,6 +74,34 @@ describe("the table's own consistency", () => {
       expect(digits[0], `${entry.code} channel digit`).toBe(
         CHANNEL_DIGIT[entry.channel],
       );
+      expect(digits[1], `${entry.code} subsystem digit`).toBe(
+        SUBSYSTEM_DIGIT[entry.subsystem],
+      );
+    }
+  });
+
+  it("holds the deployment codebook the demo ships to the same scheme", () => {
+    // Its 1302 (task) sat in the power block, 1901 and 2902 used a subsystem 9 that does not
+    // exist, and 5202 (safety) sat among the motion codes: only the channel digit was checked.
+    const shipped = JSON.parse(
+      readFileSync(
+        path.resolve(__dirname, "../../../config-runtime/codebook.json"),
+        "utf8",
+      ),
+    ) as Array<{ code: number; channel: string; subsystem: string }>;
+    const builtIn = new Set(REPORT_CODES.map((entry) => entry.code));
+    for (const entry of shipped) {
+      const digits = String(entry.code);
+      expect(digits[0], `${entry.code} channel digit`).toBe(
+        CHANNEL_DIGIT[entry.channel],
+      );
+      expect(digits[1], `${entry.code} subsystem digit`).toBe(
+        SUBSYSTEM_DIGIT[entry.subsystem],
+      );
+      // An addition, not a silent override of a built-in meaning, except the one it means to
+      // localise (2203, the site's own speed zone).
+      if (entry.code !== 2203)
+        expect(builtIn.has(entry.code), String(entry.code)).toBe(false);
     }
   });
 

@@ -31,15 +31,23 @@ const log = (message: string): void => {
 
 export const injectionDir = (stateDir: string): string => path.join(stateDir, "inject");
 
-/** Queue an injection for the live publisher. */
+/**
+ * Queue an injection for the live publisher. The vehicle is checked here, against the roster: the
+ * publisher drops an unknown one with a line in its own log, so a mistyped id used to report
+ * "queued" and then nothing happened.
+ */
 export const queueInjection = (
   stateDir: string,
   deviceId: string,
   kind: string,
-  minutes?: number,
+  minutes: number | undefined,
+  knownDeviceIds: readonly string[],
 ): void => {
   if (!INJECTION_KINDS.includes(kind as InjectionKind)) {
     throw new Error(`unknown injection "${kind}"; one of: ${INJECTION_KINDS.join(", ")}`);
+  }
+  if (!knownDeviceIds.includes(deviceId)) {
+    throw new Error(`unknown vehicle "${deviceId}"; one of: ${knownDeviceIds.join(", ")}`);
   }
   const dir = injectionDir(stateDir);
   fs.mkdirSync(dir, { recursive: true });
