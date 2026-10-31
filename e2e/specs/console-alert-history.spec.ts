@@ -38,9 +38,8 @@ test.describe("console alert history", () => {
 
     const main = page.getByRole("main");
     await expect(main.getByText("MongoDB")).toBeVisible();
-    await expect(main.getByRole("link", { name: /系统状态/ })).toHaveAttribute(
-      "href",
-      "/system",
-    );
+    await expect(
+      main.getByRole("link", { name: "系统 / 状态" }),
+    ).toHaveAttribute("href", "/system");
   });
 });
