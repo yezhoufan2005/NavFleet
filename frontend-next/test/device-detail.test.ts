@@ -476,6 +476,29 @@ describe("历史曲线", () => {
     expect(points[0]![0]).toBeLessThan(points[1]![0]);
   });
 
+  it("leaves out a reading stored as null instead of drawing it at 0", async () => {
+    // A vehicle that reports no soc has `soc: null`; `Number(null)` is 0, a flat line at 0 %.
+    const getHistory = vi.spyOn(fleetApi, "getHistory").mockResolvedValue({
+      deviceId: "agv-01",
+      items: [
+        sample("2026-08-30T02:00:00.000Z", 1.1, 80),
+        {
+          ts: "2026-08-30T02:00:10.000Z",
+          meta: { deviceId: "agv-01" },
+          measurements: { vehicleInfo: { speed: 1.2, soc: null } },
+        } as unknown as HistorySample,
+      ],
+    });
+    seed();
+    const wrapper = await mountCharts();
+
+    const charts = wrapper.findAllComponents(TimeSeriesChart);
+    expect(charts[1]?.props("series")[0]?.points).toHaveLength(1);
+    expect(charts[0]?.props("series")[0]?.points).toHaveLength(2);
+    // No fixed limit: the backend's own cap applies, whatever the deployment set it to.
+    expect(getHistory.mock.calls[0]?.[1]).toBeUndefined();
+  });
+
   it("drops a sample whose value is not a number rather than plotting NaN", async () => {
     vi.spyOn(fleetApi, "getHistory").mockResolvedValue({
       deviceId: "agv-01",
