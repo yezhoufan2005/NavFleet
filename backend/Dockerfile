@@ -14,6 +14,7 @@ COPY packages/shared/package.json ./packages/shared/
 COPY packages/fleet-core/package.json ./packages/fleet-core/
 COPY backend/package.json ./backend/
 COPY frontend/package.json ./frontend/
+COPY frontend-next/package.json ./frontend-next/
 RUN npm ci --ignore-scripts
 
 # Shared sources (bundled into the backend by esbuild — the backend imports runtime
@@ -41,13 +42,17 @@ FROM node:24-alpine AS runtime
 WORKDIR /app
 ENV NODE_ENV=production
 
-# Production dependencies only, resolved from the same root lockfile.
+# The backend's production dependencies only, resolved from the same root lockfile. `-w` keeps the
+# frontends' runtime packages (vue, pinia, vue-router…) out of this image; the full manifest set is
+# still copied so `npm ci` checks the lockfile against the same workspaces as the build stage.
 COPY package.json package-lock.json ./
 COPY packages/shared/package.json ./packages/shared/
 COPY packages/fleet-core/package.json ./packages/fleet-core/
 COPY backend/package.json ./backend/
 COPY frontend/package.json ./frontend/
-RUN npm ci --omit=dev --ignore-scripts && npm cache clean --force
+COPY frontend-next/package.json ./frontend-next/
+RUN npm ci --omit=dev --ignore-scripts -w navfleet-backend --include-workspace-root \
+  && npm cache clean --force
 
 # Runtime config fallback (compose overrides via CONFIG_ROOT_PATH bind mount) + built output.
 COPY config-runtime ./config-runtime

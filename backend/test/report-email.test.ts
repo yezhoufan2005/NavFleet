@@ -114,20 +114,20 @@ describe("buildReportEmail", () => {
       nameOf,
     });
     expect(content.subject).toBe("NavFleet 车队报表 · 近 7 天 · 2026-09-09");
-    expect(content.attachments[0]!.filename).toBe("navfleet-可用率-7d-2026-09-09.csv");
+    expect(content.attachments[0]!.filename).toBe("navfleet-在线率-7d-2026-09-09.csv");
     expect(content.text).toContain("2026/09/09");
   });
 
   it("attaches a BOM-prefixed CSV whose null soc is a blank cell, not 0", () => {
     const [attachment] = build().attachments;
-    expect(attachment!.filename).toBe("navfleet-可用率-7d-2026-09-08.csv");
+    expect(attachment!.filename).toBe("navfleet-在线率-7d-2026-09-08.csv");
     expect(attachment!.content.startsWith("﻿")).toBe(true);
     const lines = attachment!.content.replace("﻿", "").split("\n");
     expect(lines[0]).toBe(
-      "设备ID,设备名称,时间桶,在线帧,总帧,在线秒数,统计秒数,在线率,电量均值,电量最低",
+      "设备ID,设备名称,时间桶（UTC）,在线帧,总帧,在线秒数,统计秒数,在线率(%),电量均值,电量最低",
     );
     // Second bucket had a null soc → trailing cells empty, never 0.
-    expect(lines[2]).toBe("agv-1,A01 巡检车,2026-09-02T00:00:00.000Z,20,20,20,20,1.0000,,");
+    expect(lines[2]).toBe("agv-1,A01 巡检车,2026-09-02 00:00,20,20,20,20,100.0,,");
   });
 
   it("says so when there is no history backend, instead of dressing zeros as a real report", () => {

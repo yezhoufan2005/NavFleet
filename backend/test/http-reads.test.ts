@@ -260,7 +260,11 @@ describe("GET /api/reports/availability", () => {
     const response = await authed(context, "/api/reports/availability");
 
     expect(response.status).toBe(200);
-    expect(response.body).toEqual(sampleAvailabilityReport());
+    // With the zone the buckets were cut in, so an export can write them as local times.
+    expect(response.body).toEqual({
+      ...sampleAvailabilityReport(),
+      timeZone: config.reportTimezone,
+    });
     // The schema fills in the default, so the store always receives an explicit bucket.
     expect(context.store.getAvailabilityReport).toHaveBeenCalledWith({
       bucket: "day",

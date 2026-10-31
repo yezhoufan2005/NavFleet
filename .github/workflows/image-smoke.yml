@@ -1,17 +1,26 @@
 name: Image build smoke
 
 # The release image build (publish-images.yml) only runs at release time, from a
-# workflow_call — so a Dockerfile change that breaks the (emulated) arm64 build would
-# not surface until a release depended on it. This runs the same multi-arch build
-# **build-only, no push** on any PR that touches a Dockerfile or the image workflows,
-# so arm64 breakage is caught on that PR instead of at release.
+# workflow_call — so a change that breaks the image build would not surface until a
+# release depended on it. This runs the same two-platform build **build-only, no push**
+# on any PR that touches what the images are built from, so it is caught on that PR.
+# No other CI job builds an image: ci.yml runs the workspaces' own gates, not docker.
 #
 # Path-scoped on purpose: an emulated arm64 build is minutes long, so it must not run
-# on ordinary PRs — only when the thing it validates actually changes.
+# on ordinary PRs — only when an input of the image changes. That is more than the
+# Dockerfiles: `npm ci` inside them reads the lockfile and every workspace manifest, the
+# context is filtered by .dockerignore, and the console image ships its nginx.conf.
 on:
   pull_request:
     paths:
       - "**/Dockerfile"
+      - ".dockerignore"
+      - "package.json"
+      - "package-lock.json"
+      - "*/package.json"
+      - "packages/*/package.json"
+      - "backend/build.mjs"
+      - "frontend-next/nginx.conf"
       - ".github/workflows/publish-images.yml"
       - ".github/workflows/image-smoke.yml"
 
@@ -20,7 +29,7 @@ permissions:
 
 jobs:
   build:
-    name: Build (${{ matrix.name }}, arm64, no push)
+    name: Build (${{ matrix.name }}, amd64 + arm64, no push)
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
@@ -34,13 +43,12 @@ jobs:
       - uses: actions/checkout@v7
       - uses: docker/setup-qemu-action@v4
       - uses: docker/setup-buildx-action@v4
-      # arm64 only: amd64 is already exercised by every other build in CI. This proves the
-      # new architecture builds; publish-images.yml builds both and pushes at release time.
+      # Both platforms, as publish-images.yml builds them at release time.
       - uses: docker/build-push-action@v7
         with:
           context: .
           file: ${{ matrix.dockerfile }}
           push: false
-          platforms: linux/arm64
+          platforms: linux/amd64,linux/arm64
           cache-from: type=gha
           cache-to: type=gha,mode=max

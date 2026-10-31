@@ -8,7 +8,11 @@ import {
 } from "mongodb";
 import { parseTimeParam } from "./timeParam";
 import { config } from "./config";
-import { emptyAlertStatsReport, emptyAvailabilityReport } from "@navfleet/shared";
+import {
+  ALERT_STATS_TOP_N,
+  emptyAlertStatsReport,
+  emptyAvailabilityReport,
+} from "@navfleet/shared";
 import { MongoConnectionSupervisor, type MongoSession, redactMongoUri } from "./mongoConnection";
 import {
   AlertStatsReport,
@@ -143,9 +147,6 @@ export const MAX_AUDIT_PER_QUERY = 500;
 
 /** Most notify-send rows one `GET /api/notify/log` returns; the in-memory fallback ring is bounded to it too. */
 export const MAX_NOTIFY_PER_QUERY = 500;
-
-/** How many devices the alert-stats Top-N ranking keeps. Matches the client-side default. */
-const ALERT_STATS_TOP_N = 8;
 
 /** Report aggregations are read-only views over slowly-changing history, so an in-memory TTL cache
  * collapses repeat loads (filter toggling, several viewers, the dashboard re-opening) onto one Mongo

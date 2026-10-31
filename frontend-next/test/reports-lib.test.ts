@@ -2,7 +2,7 @@ import { describe, it, expect } from "vitest";
 import type { AlertStatsReport, AvailabilityReport } from "@navfleet/shared";
 import {
   buildAlertStatsCsv,
-  buildAvailabilityCsv,
+  availabilityCsv,
   defaultBucketForPreset,
   defaultBucketForSpanMs,
   deviceAvailabilityRows,
@@ -377,50 +377,54 @@ describe("onlineRatioSeries / socSeries", () => {
   });
 });
 
-describe("buildAvailabilityCsv", () => {
-  const built = report([
-    {
-      deviceId: "agv-1",
-      buckets: [
-        {
-          bucketStart: iso(0),
-          onlineSamples: 9,
-          totalSamples: 10,
-          onlineSeconds: 9,
-          spanSeconds: 10,
-          onlineRatio: 0.9,
-          socMean: 82.5,
-          socMin: 70,
-        },
-        {
-          bucketStart: iso(1),
-          onlineSamples: 4,
-          totalSamples: 4,
-          onlineSeconds: 4,
-          spanSeconds: 4,
-          onlineRatio: 1.0,
-          socMean: null,
-          socMin: null,
-        },
-      ],
-    },
-  ]);
+describe("availabilityCsv", () => {
+  const built = {
+    ...report([
+      {
+        deviceId: "agv-1",
+        buckets: [
+          {
+            bucketStart: iso(0),
+            onlineSamples: 9,
+            totalSamples: 10,
+            onlineSeconds: 9,
+            spanSeconds: 10,
+            onlineRatio: 0.9,
+            socMean: 82.5,
+            socMin: 70,
+          },
+          {
+            bucketStart: iso(1),
+            onlineSamples: 4,
+            totalSamples: 4,
+            onlineSeconds: 4,
+            spanSeconds: 4,
+            onlineRatio: 1.0,
+            socMean: null,
+            socMin: null,
+          },
+        ],
+      },
+    ]),
+    timeZone: "Asia/Shanghai",
+  };
 
-  it("writes a header, ratios to 4 dp, and leaves a blank cell for a null soc", () => {
-    const csv = buildAvailabilityCsv(built, () => "A01 巡检车");
+  it("writes bucket starts in the deployment's zone, the ratio as a percent, and a blank null soc", () => {
+    const csv = availabilityCsv(built, () => "A01 巡检车");
     const lines = csv.split("\n");
     expect(lines[0]).toBe(
-      "设备ID,设备名称,时间桶,在线帧,总帧,在线秒数,统计秒数,在线率,电量均值,电量最低",
+      "设备ID,设备名称,时间桶（Asia/Shanghai）,在线帧,总帧,在线秒数,统计秒数,在线率(%),电量均值,电量最低",
     );
+    // 2026-09-01T00:00Z is 08:00 in UTC+8; a raw UTC string read as the day before in a spreadsheet.
     expect(lines[1]).toBe(
-      `agv-1,A01 巡检车,${iso(0)},9,10,9,10,0.9000,82.5,70`,
+      "agv-1,A01 巡检车,2026-09-01 08:00,9,10,9,10,90.0,82.5,70",
     );
     // A null soc is an empty cell (no sample), never 0 — 0 would read as "flat battery".
-    expect(lines[2]).toBe(`agv-1,A01 巡检车,${iso(1)},4,4,4,4,1.0000,,`);
+    expect(lines[2]).toBe("agv-1,A01 巡检车,2026-09-01 09:00,4,4,4,4,100.0,,");
   });
 
   it("quotes a field containing a comma and doubles inner quotes (RFC-4180)", () => {
-    const csv = buildAvailabilityCsv(built, () => 'A01, "巡检"');
+    const csv = availabilityCsv(built, () => 'A01, "巡检"');
     expect(csv.split("\n")[1]).toContain('"A01, ""巡检"""');
   });
 });
@@ -451,8 +455,10 @@ describe("buildAlertStatsCsv (1.6.1 export parity)", () => {
     const lines = buildAlertStatsCsv(alertReport(), nameOf).split("\n");
     expect(lines[0]).toBe("分组,项,数值");
     expect(lines).toContain("汇总,消息总数,5");
-    expect(lines).toContain("汇总,确认率,0.5");
-    expect(lines).toContain("汇总,平均处理时长(ms),3600000");
+    // Percent and whole seconds, as the page shows them; 持续 (onset → cleared), not 处理.
+    expect(lines).toContain("汇总,确认率(%),50.0");
+    expect(lines).toContain("汇总,平均持续时长(秒),3600");
+    expect(lines).toContain("汇总,持续时长中位数(秒),1800");
     expect(lines).toContain("严重度,告警,2");
     expect(lines).toContain("严重度,提示,1");
     // topDevices carry only an id; the name is resolved through the live fleet.
@@ -467,6 +473,6 @@ describe("buildAlertStatsCsv (1.6.1 export parity)", () => {
       nameOf,
     ).split("\n");
     // A blank cell is "no sample to compute a rate"; 0 would read as "nothing was acknowledged".
-    expect(lines).toContain("汇总,确认率,");
+    expect(lines).toContain("汇总,确认率(%),");
   });
 });
