@@ -48,7 +48,7 @@ const LABELS: Readonly<Record<string, string>> = {
   "navfleet:sidebar": "侧栏宽窄",
   "navfleet:device-layout": "设备页版式（列表 / 地图）",
   "navfleet:map-mode": "地图底图（GPS / 场景）",
-  "navfleet:acked-alerts": "已确认告警",
+  "navfleet:acked-alerts": "已确认消息",
   "navfleet:alert-sound-muted": "告警声音：静音",
   "navfleet:alert-sound-volume": "告警声音：音量",
   "navfleet:alert-sound-quiet": "告警声音：免打扰",

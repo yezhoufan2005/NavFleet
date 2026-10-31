@@ -56,10 +56,13 @@ import type { Severity } from "@navfleet/shared";
  * A snapshot-sourced alert can carry any string (`fleetNormalize.ts:500` defaults it to
  * `"snapshot"`), so unknown values fall through to the raw value rather than being hidden.
  */
+// The three report-code sources read 车端报码: the title already says which channel (告警报码 / 预警报码 /
+// 提示报码), so naming the channel again here printed the same word twice on every row. What this
+// column adds is the other half: the vehicle reported it, or the platform's rule engine derived it.
 const SOURCE_LABELS: Record<string, string> = {
-  error_code: "告警报码",
-  warning_code: "预警报码",
-  info_code: "提示报码",
+  error_code: "车端报码",
+  warning_code: "车端报码",
+  info_code: "车端报码",
   "rule-engine": "规则引擎",
   snapshot: "快照",
 };
@@ -662,7 +665,7 @@ watch(() => canAck.value && fleet.state.realtime.apiReady, runLegacyMigration);
             type="checkbox"
             class="mt-0.5 size-4 shrink-0"
             :checked="isSelected(alert)"
-            :aria-label="`选择告警：${alert.title}`"
+            :aria-label="`选择消息：${alert.title}`"
             @change="toggleSelected(alert)"
           />
 

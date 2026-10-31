@@ -168,7 +168,7 @@ const backendChecks = computed<Check[]>(() => {
       value: checks.mongo ? "已连接" : "未连接",
       tone: checks.mongo ? "ok" : "warning",
       detail: checks.mongo
-        ? "遥测与告警在落库，历史回放有数据可读"
+        ? "遥测与消息在落库，历史回放有数据可读"
         : "实时监控不受影响，历史回放与曲线为空",
     },
     {

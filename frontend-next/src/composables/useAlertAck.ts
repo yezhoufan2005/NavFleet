@@ -34,8 +34,8 @@ let legacyMigrationDone = false;
 /** Backend error code → operator-facing message. Codes come from `fleetApi.failureError`. */
 const ackErrorMessage = (error: unknown): string => {
   const code = error instanceof Error ? error.message : "";
-  if (code === "forbidden") return "没有确认告警的权限";
-  if (code === "not_found") return "该告警已不在活跃状态，无法确认";
+  if (code === "forbidden") return "没有确认消息的权限";
+  if (code === "not_found") return "该消息已不在活跃状态，无法确认";
   return "操作失败，请稍后重试";
 };
 

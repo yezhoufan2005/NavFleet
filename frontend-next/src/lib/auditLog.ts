@@ -19,7 +19,7 @@ export const ACTION_LABELS: Record<AuditAction, string> = {
   session_revoke: "下线会话",
   force_logout: "强制下线",
   account_locked: "账号锁定",
-  alert_ack: "确认告警",
+  alert_ack: "确认消息",
   alert_unack: "取消确认",
   codebook_import: "导入报码字典",
   notify_write: "写入外发配置",
