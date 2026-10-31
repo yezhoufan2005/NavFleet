@@ -63,7 +63,6 @@ beforeEach(() => {
 afterEach(() => {
   vi.restoreAllMocks();
 });
-// PLACEHOLDER_TESTS
 
 describe("the record list pagination (点 5)", () => {
   it("pages the cleared records 10 at a time under its own hpage key", async () => {

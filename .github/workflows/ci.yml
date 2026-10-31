@@ -49,6 +49,9 @@ jobs:
         with:
           node-version: 22
       - run: node scripts/check-deploy-wiring.mjs
+      # Leftover `// PLACEHOLDER_X` / `// CHUNK_2` lines (docs/conventions.md §1); static, so it
+      # rides along in the fastest job.
+      - run: node scripts/check-generation-markers.mjs
 
   backend:
     name: Backend + shared (node ${{ matrix.node }})

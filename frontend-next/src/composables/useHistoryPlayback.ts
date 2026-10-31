@@ -20,14 +20,14 @@ import { computed, onBeforeUnmount, readonly, ref, watch } from "vue";
  * return { [deviceId.value]: points };   // a fresh object literal, every tick
  * ```
  *
- * With the endpoint's 5000-sample ceiling and 4x playback (150 ms a frame) that is
- * ~12.5 million pose extractions over one playthrough, each allocating a point object,
- * plus a new outer object every frame.
+ * At the endpoint's sample ceiling as it stood then (5000; it is `MAX_HISTORY_POINTS`, 500 by
+ * default, now) and 4x playback (150 ms a frame) that was ~12.5 million pose extractions over
+ * one playthrough, each allocating a point object, plus a new outer object every frame.
  *
  * Two changes fix it, and neither is a micro-optimisation:
  *
  * 1. **Poses are extracted once per track**, when the samples are set — not once per
- *    tick per sample. That alone turns 12.5M extractions into 5000.
+ *    tick per sample. That alone turns quadratic work into one pass over the track.
  * 2. **The trail is maintained incrementally.** Playback advances the cursor by one,
  *    so the trail gains one point; there is nothing to recompute. Only a scrub (any
  *    jump that is not +1) rebuilds, and rebuilding then is O(n) of array copying

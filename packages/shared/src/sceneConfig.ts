@@ -54,8 +54,6 @@ const optionalAssetUrl = (
   return url;
 };
 
-// APPEND-MARKER
-
 /**
  * A number, and only a number. `Number()` coercion let `"0.35"` through here while the load path
  * refuses it, and turned `""` and `null` into 0 — a rotated scene's yaw silently lost.

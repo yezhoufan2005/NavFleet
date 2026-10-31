@@ -313,8 +313,8 @@ const sampleRows = computed<Row[]>(() => {
   // three fill the left column (时间 / 速度 / 电量), the next three the middle
   // (融合 X / Y / 朝向 yaw — the fused pose, radians; not the GPS heading), the last three the right (车端任务 / 平台任务 / 当前场景).
   return [
-    // `--` rather than `formatDateTime(undefined)`: that helper falls back to
-    // `Date.now()`, so a sample with no timestamp would claim to be from this second.
+    // `formatDateTime` already answers `--` for a missing timestamp; checking first only saves
+    // the parse.
     { label: "时间", value: at === null ? "--" : formatDateTime(at) },
     {
       label: "速度",

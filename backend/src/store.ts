@@ -1025,7 +1025,6 @@ export class DashboardStore extends EventEmitter {
     return this.configRegistry.getCodebook();
   }
 
-  /** Validate + persist a deployment codebook, reload, and return the merged table. */
   /** Version (ETag) of a config file as last loaded, for optimistic-concurrency writes. */
   getConfigVersion(key: ConfigFileKey): string {
     return this.configRegistry.getConfigVersion(key);
@@ -1036,6 +1035,7 @@ export class DashboardStore extends EventEmitter {
     return this.configRegistry.getConfigStatus();
   }
 
+  /** Validate + persist a deployment codebook, reload, and return the merged table. */
   importCodebook(rawEntries: unknown, expectedVersion?: string): Promise<ReportCodeEntry[]> {
     return this.configRegistry.importCodebook(rawEntries, expectedVersion);
   }

@@ -130,8 +130,8 @@ export const emptyAvailabilityReport = (
 
 // ── 定时报表───────────────────────────────────────────────────────────────
 //
-// 把报表按周期（每天/每周某时）生成并邮件推送给收件方。配置走盘上 reports.json（configRegistry，
-// 同 notify.json/rules.json「无 UI、盘上手改」先例），**不做 Web 端写入**。收件方沿用告警外发的
+// 把报表按周期（每天/每周某时）生成并邮件推送给收件方。配置在盘上 reports.json（configRegistry），
+// 控制台的「定时报表」页经 `PUT /reports/config` 整份写入（`reports:write`），也可盘上手改。收件方沿用告警外发的
 // NotifyRecipient（email 字面量或 user 引用），groups 引用 notify.json 的用户组——「复用外发渠道」。
 //
 // **红线（照搬告警外发那批规矩）**：出厂零配置 = 不发。`DEFAULT_REPORTS_CONFIG.schedules` 为空。

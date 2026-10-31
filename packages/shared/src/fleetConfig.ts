@@ -101,8 +101,6 @@ const stringArray = (value: unknown, label: string): string[] => {
   return value.map((item, index) => nonEmptyString(item, `${label}[${index}]`));
 };
 
-// APPEND-MARKER
-
 /**
  * Validate `vehicles.json` content into `DeviceConfig[]`. `deviceId` is required, non-empty
  * and unique; `deviceName` defaults to the id (matching the config registry's load-time

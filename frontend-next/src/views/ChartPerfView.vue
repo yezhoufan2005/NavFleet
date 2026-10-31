@@ -8,8 +8,8 @@
  * `console-charts.spec.ts` drives this page and prints the table.
  *
  * It is not shipped. The route is registered only when `import.meta.env.DEV` is true
- * or `VITE_CHART_PERF` is set, so the production bundle contains neither this view
- * nor ECharts itself until a page uses it. Setting the flag at build
+ * or `VITE_CHART_PERF` is set, so the production bundle does not contain this view
+ * (ECharts is there, lazily loaded by the pages that chart). Setting the flag at build
  * time is also how the bundle cost gets measured reproducibly.
  *
  * Assertions live in the spec, and they are on deterministic quantities (series
