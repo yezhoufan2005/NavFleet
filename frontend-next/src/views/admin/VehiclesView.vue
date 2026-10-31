@@ -32,7 +32,7 @@ import { loadDefaultSceneOptions } from "@/lib/sceneOptions";
 const ERROR_MESSAGES: Record<string, string> = {
   invalid_vehicles: "车辆配置不合法，请检查各字段",
   unknown_scene_in_vehicle: "默认场景不存在，请重新选择",
-  forbidden: "需要管理员权限",
+  forbidden: "当前账号没有编辑车辆的权限",
 };
 const messageFor = makeMessageFor(ERROR_MESSAGES);
 

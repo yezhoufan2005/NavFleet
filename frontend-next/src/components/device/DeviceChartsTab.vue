@@ -24,6 +24,7 @@ import { fleetApi } from "@navfleet/fleet-core";
 import { toNumeric } from "@navfleet/shared";
 import type { TimeSeries } from "@/components/charts/timeSeriesOption";
 import { useLatestRequest } from "@/composables/useLatestRequest";
+import { loadErrorMessage } from "@/lib/errorMessages";
 
 const { deviceId } = defineProps<{ deviceId: string }>();
 
@@ -92,8 +93,10 @@ const load = async (id: string): Promise<void> => {
   } catch (error) {
     if (!isCurrent()) return;
     status.value = "error";
-    errorMessage.value =
-      error instanceof Error ? error.message : "历史数据加载失败";
+    errorMessage.value = loadErrorMessage(
+      error,
+      "历史数据加载失败，请稍后重试",
+    );
   }
 };
 

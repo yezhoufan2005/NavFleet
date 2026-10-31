@@ -250,7 +250,8 @@ describe("the window", () => {
     const wrapper = await mountPlayback();
 
     expect(wrapper.text()).toContain("历史数据加载失败");
-    expect(wrapper.text()).toContain("HTTP 503");
+    // The backend's code is not shown to the operator.
+    expect(wrapper.text()).not.toContain("HTTP 503");
   });
 
   it("drops a response for the device you have navigated away from", async () => {

@@ -170,16 +170,20 @@ describe("the second attempt", () => {
     expect(second.ok).toBe(true);
   });
 
-  it("reports a failed script immediately rather than waiting on it again", async () => {
+  it("removes a failed script, so a retry fetches it again and can succeed", async () => {
+    // The failed tag used to stay, and every retry read its failure back until a page reload.
     const amap = await loadModule();
     const first = amap.loadAmap();
     loaderScript()?.dispatchEvent(new Event("error"));
-    await settledWithin(first);
+    const failed = await settledWithin(first);
+    expect(failed.ok).toBe(false);
+    if (!failed.ok) expect(messageOf(failed.error)).toContain("加载失败");
+    expect(loaderScript()).toBeNull();
 
-    expect(loaderScript()?.dataset.amapState).toBe("error");
-
-    const second = await settledWithin(amap.loadAmap());
-    expect(second.ok).toBe(false);
-    if (!second.ok) expect(messageOf(second.error)).toContain("加载失败");
+    const second = amap.loadAmap();
+    expect(loaderScript()).not.toBeNull();
+    window.AMap = { Map: class {} };
+    loaderScript()?.dispatchEvent(new Event("load"));
+    expect((await settledWithin(second)).ok).toBe(true);
   });
 });

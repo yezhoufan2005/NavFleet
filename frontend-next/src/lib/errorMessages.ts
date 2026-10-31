@@ -16,6 +16,39 @@
  * Any other 4xx the view has no sentence for still shows the backend's `detail` (which names the
  * field or the reference at fault) instead of a generic failure line.
  */
+/**
+ * Sentences for the refusals any request can meet, whatever the view. A view's own map wins; these
+ * fill in where it says nothing — before, a 403 on most editors read 「保存失败，请稍后重试」, as if
+ * it were a passing fault, and three said 「需要管理员权限」 when what is needed is one capability.
+ */
+const COMMON_MESSAGES: Record<string, string> = {
+  forbidden: "当前账号没有这项操作的权限",
+  unauthorized: "登录已失效，请重新登录",
+  too_many_requests: "请求过于频繁，请稍后再试",
+};
+
+/** The first schema issue of an `invalid_request` (the schemas carry Chinese messages), if any. */
+const firstIssue = (error: unknown): string | null => {
+  const issues = (error as { issues?: unknown }).issues;
+  if (!Array.isArray(issues) || !issues.length) return null;
+  const first = issues[0] as { message?: unknown };
+  return typeof first.message === "string" && first.message
+    ? first.message
+    : null;
+};
+
+/**
+ * The sentence for a failed **read** (a list, a chart, a report). The thrown error's `message` is
+ * the backend's code, and these panels used to render it as is — `internal_error`,
+ * `too_many_requests`, `invalid_request` on a page meant for an operator. A refused query shows
+ * its schema's reason (「时间范围不能超过 366 天」); anything else is `fallback`.
+ */
+export const loadErrorMessage = (error: unknown, fallback: string): string => {
+  const code = error instanceof Error ? error.message : "";
+  if (code === "invalid_request") return firstIssue(error) ?? fallback;
+  return COMMON_MESSAGES[code] ?? fallback;
+};
+
 export const makeMessageFor =
   (map: Record<string, string>, fallback = "保存失败，请稍后重试") =>
   (error: unknown): string => {
@@ -31,16 +64,9 @@ export const makeMessageFor =
     }
     // A schema-validated request lists its field problems; the first one is the sentence to show
     // (the schemas carry Chinese messages for the fields a person types into).
-    const issues = (error as { issues?: unknown }).issues;
-    if (
-      code === "invalid_request" &&
-      !map[code] &&
-      Array.isArray(issues) &&
-      issues.length
-    ) {
-      const first = issues[0] as { message?: unknown };
-      if (typeof first.message === "string" && first.message)
-        return first.message;
+    if (code === "invalid_request" && !map[code]) {
+      const issue = firstIssue(error);
+      if (issue) return issue;
     }
     // The backend's sentence for a 4xx names the field or the reference at fault: appended to the
     // view's own wording for a validator refusal (invalid_*), shown alone for a refusal the view
@@ -54,7 +80,7 @@ export const makeMessageFor =
       status < 500
         ? detail
         : null;
-    const mapped = map[code];
+    const mapped = map[code] ?? COMMON_MESSAGES[code];
     if (mapped) {
       return explained && code.startsWith("invalid_")
         ? `${mapped}：${explained}`

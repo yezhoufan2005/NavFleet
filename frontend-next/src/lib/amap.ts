@@ -16,7 +16,9 @@
  * instead of unobservable.
  *
  * **A failed load clears the guard, a successful one does not.** Retrying after a
- * network failure has to be possible; re-adding the tag after success would not be.
+ * network failure has to be possible; re-adding the tag after success would not be. A tag whose
+ * script failed is removed, so the retry fetches the script again instead of reading the old
+ * failure back from it (it used to stay, and every retry answered 「加载失败」 until a reload).
  */
 
 declare global {
@@ -83,14 +85,17 @@ const awaitExistingScript = (script: Element): Promise<unknown> =>
       return;
     }
     if (state === "error") {
+      // A failed tag left by an older loader: drop it so the next attempt fetches afresh.
+      script.remove();
       reject(new Error("高德地图脚本加载失败"));
       return;
     }
 
     script.addEventListener("load", () => settleFromWindow(resolve, reject));
-    script.addEventListener("error", () =>
-      reject(new Error("高德地图脚本加载失败")),
-    );
+    script.addEventListener("error", () => {
+      script.remove();
+      reject(new Error("高德地图脚本加载失败"));
+    });
   });
 
 export const loadAmap = (): Promise<unknown> => {
@@ -123,7 +128,7 @@ export const loadAmap = (): Promise<unknown> => {
           settleFromWindow(resolve, reject);
         };
         script.onerror = () => {
-          script.dataset.amapState = "error";
+          script.remove();
           reject(new Error("高德地图脚本加载失败，请检查网络或 Key 配置"));
         };
 
@@ -131,8 +136,9 @@ export const loadAmap = (): Promise<unknown> => {
       });
 
   amapPromise = attempt.catch((error: unknown) => {
-    // Cleared so a retry is possible; the tag stays, and its recorded state is what
-    // keeps the retry from waiting on an event that has already fired.
+    // Cleared so a retry is possible. After a failed script the tag is gone too, so the retry
+    // loads it again; after a script that loaded without `window.AMap` the tag stays, and its
+    // recorded state keeps the retry from waiting on an event that has already fired.
     amapPromise = null;
     throw error;
   });

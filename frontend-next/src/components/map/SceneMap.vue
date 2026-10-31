@@ -906,7 +906,7 @@ const cloudLabel = computed(() =>
       <p
         v-if="pointCloudError"
         class="m-0 rounded-sm border border-critical bg-critical-wash px-3 py-2 text-xs text-critical-ink"
-        role="status"
+        role="alert"
       >
         <strong class="block">点云背景加载失败</strong>
         {{ pointCloudError }}
@@ -915,7 +915,7 @@ const cloudLabel = computed(() =>
       <p
         v-if="backgroundError"
         class="m-0 rounded-sm border border-critical bg-critical-wash px-3 py-2 text-xs text-critical-ink"
-        role="status"
+        role="alert"
       >
         <strong class="block">底图加载失败</strong>
         地图底图资源无法加载，其余图层仍可查看

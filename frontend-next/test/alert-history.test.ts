@@ -128,7 +128,7 @@ describe("loading and failure", () => {
   it("shows an error state when the history fails to load", async () => {
     vi.spyOn(fleetApi, "getAlerts").mockRejectedValue(new Error("HTTP 503"));
     const wrapper = await mountPanel();
-    expect(wrapper.find("[role='status']").text()).toContain("HTTP 503");
+    expect(wrapper.find("[role='alert']").text()).toContain("消息历史加载失败");
   });
 
   it("explains the empty result and links to 系统状态 (Mongo may be off)", async () => {

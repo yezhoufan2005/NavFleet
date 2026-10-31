@@ -143,7 +143,7 @@ const backendChecks = computed<Check[]>(() => {
         label: "后端可达性",
         value: "无法访问",
         tone: "critical",
-        detail: `浏览器连不上 /health/ready（${probeError.value}）；这一条不通时，下面三项无从判断 —— 它们是后端对自己的报告`,
+        detail: `浏览器连不上 /health/ready（${probeError.value}）；这一条不通时，下面四项无从判断 —— 它们是后端对自己的报告`,
       },
     ];
   }
@@ -192,7 +192,7 @@ const backendChecks = computed<Check[]>(() => {
 const configIssueDetail = computed(() => {
   const issues = configStatus.value?.issues ?? [];
   if (!issues.length) {
-    return "有配置文件校验未通过，后端正在使用回退配置；详情需管理员权限查看";
+    return "有配置文件校验未通过，后端正在使用回退配置；详情暂时取不到";
   }
   return issues
     .map(

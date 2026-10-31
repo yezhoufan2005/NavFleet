@@ -218,7 +218,7 @@ const ERROR_MESSAGES: Record<string, string> = {
   invalid_asset_kind: "不支持的底图类型",
   asset_too_large: "文件超过大小上限",
   empty_upload: "文件为空",
-  forbidden: "需要管理员权限",
+  forbidden: "当前账号没有编辑场景的权限",
 };
 const messageFor = makeMessageFor(ERROR_MESSAGES);
 

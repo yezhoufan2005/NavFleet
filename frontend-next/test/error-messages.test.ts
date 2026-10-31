@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest";
 import { ApiError } from "@navfleet/fleet-core";
-import { makeMessageFor } from "@/lib/errorMessages";
+import { loadErrorMessage, makeMessageFor } from "@/lib/errorMessages";
 
 describe("makeMessageFor", () => {
   const messageFor = makeMessageFor({ conflict: "名称已存在" });
@@ -62,5 +62,35 @@ describe("makeMessageFor", () => {
         ]),
       ),
     ).toBe("邮箱格式不正确");
+  });
+});
+
+describe("loadErrorMessage", () => {
+  it("never shows the backend's code, and gives a refused query its own reason", () => {
+    expect(
+      loadErrorMessage(new ApiError("internal_error", 500), "消息历史加载失败"),
+    ).toBe("消息历史加载失败");
+    expect(loadErrorMessage(new ApiError("too_many_requests", 429), "x")).toBe(
+      "请求过于频繁，请稍后再试",
+    );
+    expect(
+      loadErrorMessage(
+        new ApiError("invalid_request", 400, null, [
+          { path: "from", message: "时间范围不能超过 366 天" },
+        ]),
+        "可用率报表加载失败",
+      ),
+    ).toBe("时间范围不能超过 366 天");
+    expect(loadErrorMessage(new Error("HTTP 502"), "历史数据加载失败")).toBe(
+      "历史数据加载失败",
+    );
+  });
+});
+
+describe("makeMessageFor — refusals the view does not name", () => {
+  it("explains a 403 instead of calling it a passing failure", () => {
+    expect(makeMessageFor({})(new ApiError("forbidden", 403))).toBe(
+      "当前账号没有这项操作的权限",
+    );
   });
 });
