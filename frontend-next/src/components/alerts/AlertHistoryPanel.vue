@@ -61,6 +61,10 @@ const load = async (): Promise<void> => {
     const payload = await fleetApi.getAlerts({
       status: "cleared",
       ...queryWindow.value,
+      // One device: asked of the server, so the row cap applies to that vehicle's history rather
+      // than to the fleet's latest — a quiet vehicle's older records were otherwise cut off and
+      // the filter read 「没有符合」.
+      ...(serverDevice.value ? { deviceId: serverDevice.value } : {}),
     });
     if (!isCurrent()) return;
     records.value = [...(payload.items ?? [])].sort(
@@ -104,6 +108,9 @@ const deviceFilter = computed(() => {
   return raw ? raw.split(",").filter(Boolean) : [];
 });
 const search = computed(() => readParam("q"));
+const serverDevice = computed(() =>
+  deviceFilter.value.length === 1 ? deviceFilter.value[0] : "",
+);
 
 /**
  * Onset window (`from`/`to`, `YYYY-MM-DD`) — the one filter applied **server-side**, unlike
@@ -122,13 +129,31 @@ const queryWindow = computed<{ from?: string; to?: string }>(() => {
     result.to = new Date(`${toParam.value}T23:59:59.999`).toISOString();
   return result;
 });
-watch([fromParam, toParam], () => void load());
+watch([fromParam, toParam, serverDevice], () => void load());
+
+/**
+ * The fleet's current device names, keyed by id. Built from a signature string so it changes only
+ * when a name does: read straight off `fleet.devices`, every live frame re-ran the rows and the
+ * charts for all 500 records (25–33 long tasks in 3 s, ~6 fps on this tab).
+ */
+const nameSignature = computed(() =>
+  fleet.devices
+    .map((device) => `${device.deviceId}\u0001${device.deviceName}`)
+    .join("\u0002"),
+);
+const deviceNames = computed(
+  () =>
+    new Map(
+      nameSignature.value
+        .split("\u0002")
+        .filter(Boolean)
+        .map((entry) => entry.split("\u0001") as [string, string]),
+    ),
+);
 
 /** Prefer the fleet's current name for a device, then the record's, then the raw id. */
-const deviceNameOf = (id: string, fallback?: string): string => {
-  const known = fleet.devices.find((device) => device.deviceId === id);
-  return known?.deviceName || fallback || id;
-};
+const deviceNameOf = (id: string, fallback?: string): string =>
+  deviceNames.value.get(id) || fallback || id;
 
 const searchMatches = computed(() => compileSearch(search.value));
 const filtered = computed(() =>
@@ -197,8 +222,8 @@ interface Row {
   code: string;
   deviceId: string;
   deviceName: string;
-  started: string;
-  cleared: string;
+  onset: number;
+  clearedAt: number;
   duration: string;
   ackedBy: string;
 }
@@ -227,8 +252,8 @@ const rows = computed<Row[]>(() =>
         String(record.deviceId ?? ""),
         String(record.deviceName || ""),
       ),
-      started: Number.isFinite(onset) ? formatDateTime(onset) : "--",
-      cleared: Number.isFinite(clearedAt) ? formatDateTime(clearedAt) : "--",
+      onset,
+      clearedAt,
       duration: formatDurationMs(durationMs),
       ackedBy: record.ackedBy ? String(record.ackedBy) : "",
     };
@@ -242,6 +267,17 @@ const rows = computed<Row[]>(() =>
  */
 const { page, pageCount, pageSize, pageItems, setPage, setPageSize } =
   useListPagination(rows, { pageParam: "hpage", pageSizeParam: "hsize" });
+
+/** Times formatted for the visible page only, not for every row on every recompute. */
+const pageRows = computed(() =>
+  pageItems.value.map((row) => ({
+    ...row,
+    started: Number.isFinite(row.onset) ? formatDateTime(row.onset) : "--",
+    cleared: Number.isFinite(row.clearedAt)
+      ? formatDateTime(row.clearedAt)
+      : "--",
+  })),
+);
 </script>
 
 <template>
@@ -272,7 +308,10 @@ const { page, pageCount, pageSize, pageItems, setPage, setPageSize } =
   </p>
 
   <UiEmptyState v-else-if="!filtered.length">
-    没有符合当前筛选条件的历史消息
+    没有符合当前筛选条件的历史消息<template v-if="cappedAt !== null"
+      >（只查了最近
+      {{ cappedAt }} 条已清除消息，缩小时间范围可查看更早的记录）</template
+    >
   </UiEmptyState>
 
   <template v-else>
@@ -347,7 +386,7 @@ const { page, pageCount, pageSize, pageItems, setPage, setPageSize } =
          lines: the code+title (with the detail inline to its right) over the device/时间/时长 facts. -->
     <ul class="m-0 flex list-none flex-col gap-2 p-0">
       <li
-        v-for="row in pageItems"
+        v-for="row in pageRows"
         :key="row.key"
         class="flex flex-col gap-1 rounded-md border border-border bg-surface-raised p-3"
         :data-severity="row.severity"

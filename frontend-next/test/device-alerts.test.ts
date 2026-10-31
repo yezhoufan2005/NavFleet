@@ -243,4 +243,14 @@ describe("消息史", () => {
       formatDateTime(Date.parse("2026-08-30T02:59:58.000Z")),
     );
   });
+
+  it("说明只显示了后端上限内的最近几条", async () => {
+    getAlerts.mockResolvedValue({
+      items: [record()],
+      truncated: true,
+      limit: 500,
+    });
+    const wrapper = await mountTab();
+    expect(wrapper.text()).toContain("只显示最近 500 条");
+  });
 });

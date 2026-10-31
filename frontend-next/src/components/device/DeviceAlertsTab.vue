@@ -40,6 +40,8 @@ type Severity = "critical" | "warning" | "notice";
 const status = ref<"loading" | "ready" | "error">("loading");
 const errorMessage = ref("");
 const records = ref<AlertRecord[]>([]);
+/** The server's row cap when the list was cut at it (ARCHITECTURE: read `truncated`), else null. */
+const cappedAt = ref<number | null>(null);
 
 const latestRequest = useLatestRequest();
 
@@ -57,6 +59,9 @@ const load = async (id: string): Promise<void> => {
     // Newest first: a chronology is read backwards from now. Sorted here rather than
     // trusted from the endpoint, whose two code paths (Mongo and the in-memory
     // fallback) order independently.
+    cappedAt.value = payload.truncated
+      ? (payload.limit ?? (payload.items ?? []).length)
+      : null;
     records.value = [...(payload.items ?? [])].sort(
       (left, right) => stampOf(right) - stampOf(left),
     );
@@ -150,6 +155,12 @@ const activeCount = computed(
         v-if="status === 'ready' && rows.length"
         class="font-mono text-2xs text-ink-muted"
         >{{ rows.length }} 条 · {{ activeCount }} 条仍活跃</span
+      >
+      <span
+        v-if="status === 'ready' && cappedAt !== null"
+        class="text-2xs text-ink-subtle"
+        >只显示最近 {{ cappedAt }} 条，更早的记录可在「消息 /
+        消息史」按时间范围查看</span
       >
     </header>
 

@@ -160,7 +160,8 @@ const setQuery = (patch: Record<string, string | null>): void => {
 const setFilter = (patch: Record<string, string | null>): void => {
   // Any filter change goes back to the first page: staying on page 4 of a list that
   // now has one page shows nothing and looks broken.
-  setQuery({ ...patch, page: null });
+  // Both lists: the live tab's `page` and the history tab's `hpage`.
+  setQuery({ ...patch, page: null, hpage: null });
 };
 
 /**

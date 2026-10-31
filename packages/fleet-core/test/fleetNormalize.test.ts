@@ -277,6 +277,16 @@ describe("formatDateTime", () => {
     expect(formatDateTime("not a date")).toBe("--");
     expect(formatDateTime(1_700_000_000_000)).not.toBe("--");
   });
+
+  it("formats exactly as toLocaleString did, from a formatter built once", () => {
+    for (const at of [
+      1_700_000_000_000, 1_752_105_911_000, 1_609_459_200_000,
+    ]) {
+      expect(formatDateTime(at)).toBe(
+        new Date(at).toLocaleString("zh-CN", { hour12: false }),
+      );
+    }
+  });
 });
 
 describe("非标量字段", () => {

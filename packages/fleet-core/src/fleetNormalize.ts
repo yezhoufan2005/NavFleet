@@ -86,13 +86,26 @@ export const round = (value: unknown, digits = 2): number => {
   return Number(numeric.toFixed(digits));
 };
 
+/**
+ * One formatter, built once. `toLocaleString` builds a new one per call (~30 µs), and a page that
+ * formats every row on each live frame spent most of its main thread here. These options give
+ * exactly what `toLocaleString("zh-CN", { hour12: false })` gives (`2025/7/10 08:05:11`).
+ */
+const DATE_TIME_FORMAT = new Intl.DateTimeFormat("zh-CN", {
+  hour12: false,
+  year: "numeric",
+  month: "numeric",
+  day: "numeric",
+  hour: "2-digit",
+  minute: "2-digit",
+  second: "2-digit",
+});
+
 /** Localised timestamp, or the placeholder when there is no time to show. */
 export const formatDateTime = (value: unknown): string => {
   const at = parseTimestampMs(value);
   if (at === null) return "--";
-  return new Date(at).toLocaleString("zh-CN", {
-    hour12: false,
-  });
+  return DATE_TIME_FORMAT.format(at);
 };
 
 export const extractDeviceIdFromTopic = (topic: unknown): string => {

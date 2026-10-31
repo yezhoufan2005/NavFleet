@@ -187,6 +187,28 @@ describe("large fleet rendering", () => {
     expect(wrapper.text()).toContain("没有符合当前筛选条件的设备");
   });
 
+  it("goes back to the first page when a search narrows the list", async () => {
+    // A search that still spans two pages: on page 2 it used to stay on page 2.
+    ingest(45);
+    const wrapper = await mountList();
+    const nextPage = () =>
+      wrapper.findAll("button").find((b) => b.text() === "下一页")!;
+    await nextPage().trigger("click");
+    await flushPromises();
+    expect(wrapper.get("nav[aria-label='分页']").text()).toContain(
+      "第 2 / 5 页",
+    );
+
+    // agv-0010…0019 and agv-0020…0029: 20 matches, two pages.
+    await wrapper
+      .find("input[aria-label='搜索设备']")
+      .setValue("agv-001 | agv-002");
+    await flushPromises();
+    expect(wrapper.get("nav[aria-label='分页']").text()).toContain(
+      "第 1 / 2 页",
+    );
+  });
+
   it("keeps the per-device node count bounded", async () => {
     ingest(200);
 

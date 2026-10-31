@@ -280,3 +280,18 @@ describe("filters and the cap notice", () => {
     expect(wrapper.text()).not.toContain("单次查询上限");
   });
 });
+
+describe("server-side narrowing and the row cap", () => {
+  it("asks the server for one device's history, and names the cap when the result is empty", async () => {
+    const getAlerts = vi.spyOn(fleetApi, "getAlerts").mockResolvedValue({
+      items: [record({ deviceId: "agv-02" })],
+      truncated: true,
+      limit: 500,
+    });
+    const wrapper = await mountPanel("?device=agv-09");
+    expect(getAlerts).toHaveBeenLastCalledWith(
+      expect.objectContaining({ deviceId: "agv-09" }),
+    );
+    expect(wrapper.text()).toContain("只查了最近 500 条");
+  });
+});
