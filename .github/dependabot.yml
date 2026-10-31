@@ -79,6 +79,12 @@ updates:
     directories:
       - "/backend"
       - "/frontend-next"
+    # Node majors are a decision, not a bump: the images run an LTS line the CI matrix and
+    # `engines` name (22 / 24, then 26), and an odd major (25) is never LTS — `engines`
+    # excludes it outright. A move to the next LTS comes with the matrix change, by hand.
+    ignore:
+      - dependency-name: node
+        update-types: ["version-update:semver-major"]
     schedule:
       interval: weekly
       day: monday
@@ -94,6 +100,12 @@ updates:
 
   - package-ecosystem: docker-compose
     directory: "/deploy"
+    # mongo stays on 7.0 on purpose (deployment.md 3.1: 8.0 and later do not start on a whole
+    # range of current kernels), and a major cannot be skipped anyway — 7.0 data needs 8.0 to
+    # upgrade through. Patch releases of the pinned line still arrive.
+    ignore:
+      - dependency-name: mongo
+        update-types: ["version-update:semver-major"]
     schedule:
       interval: weekly
       day: monday
