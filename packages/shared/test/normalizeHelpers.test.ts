@@ -60,6 +60,16 @@ describe("timestamps", () => {
     );
   });
 
+  it("reads micro- and nanosecond epochs, and refuses what a Date cannot hold", () => {
+    const ms = Date.parse("2026-09-02T00:00:00.000Z");
+    expect(parseTimestampMs(ms * 1e3)).toBe(ms);
+    expect(parseTimestampMs(ms * 1e6)).toBe(ms);
+    expect(parseTimestampMs(String(ms * 1e6))).toBe(ms);
+    expect(parseTimestampMs(1e30)).toBeNull();
+    // So the receiver-side helper falls back instead of throwing RangeError.
+    expect(() => toIsoString(1e30)).not.toThrow();
+  });
+
   it("answers null for anything that carries no time", () => {
     for (const absent of [
       null,
