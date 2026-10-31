@@ -1,6 +1,7 @@
 import express from "express";
 import { requireCapability } from "../auth/middleware";
-import type { AuthService, AdminActionError } from "../auth/service";
+import type { AuthService, AdminActionError, UpdateUserInput } from "../auth/service";
+import type { AdminUserView } from "../types";
 import type { AuditService } from "../audit/service";
 import type { RbacService } from "../rbac/service";
 import { createUserSchema, resetPasswordSchema, updateUserSchema } from "../validation";
@@ -15,6 +16,29 @@ const STATUS_BY_ERROR: Record<AdminActionError, number> = {
 };
 
 const respondActionError = makeActionErrorResponder(STATUS_BY_ERROR);
+
+/** Fields whose old and new values go into the audit row. Contact details are named, not copied. */
+const VALUE_FIELDS = new Set<keyof UpdateUserInput>(["role", "displayName", "enabled"]);
+
+/**
+ * The `user_update` audit detail: only the fields the PATCH actually changed, with before/after
+ * values for role, name and enabled. An editor that sends the whole form back used to log every
+ * field as changed, with no values, so a role change could not be told from a no-op save.
+ */
+const userChanges = (
+  before: AdminUserView | null,
+  fields: UpdateUserInput,
+): Record<string, unknown> => {
+  const changed = (Object.keys(fields) as Array<keyof UpdateUserInput>).filter(
+    (key) => (before?.[key] ?? null) !== (fields[key] ?? null),
+  );
+  const changes = Object.fromEntries(
+    changed
+      .filter((key) => VALUE_FIELDS.has(key))
+      .map((key) => [key, { from: before?.[key] ?? null, to: fields[key] ?? null }]),
+  );
+  return { fields: changed, changes };
+};
 
 /**
  * Admin user management API. Every route is gated by `requireCapability("users:manage")`, on top
@@ -69,6 +93,8 @@ export const buildUsersRouter = (
       respondValidationError(response, parsed.error);
       return;
     }
+    // Read before the write, so the audit row can say what each changed field was before.
+    const before = await authService.getUser(request.params.username);
     // `requireCapability` guarantees request.user.
     const result = await authService.updateUser(
       request.user!.username,
@@ -84,7 +110,7 @@ export const buildUsersRouter = (
       action: "user_update",
       target: request.params.username,
       requestId: request.requestId,
-      detail: { fields: Object.keys(parsed.data) },
+      detail: userChanges(before, parsed.data),
     });
     response.json({ user: result.value });
   });

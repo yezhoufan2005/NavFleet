@@ -26,24 +26,9 @@ import UiConfirmDialog from "@/components/ui/UiConfirmDialog.vue";
 import UiModal from "@/components/ui/UiModal.vue";
 import { tableClasses } from "@/lib/uiClasses";
 import { makeMessageFor } from "@/lib/errorMessages";
+import { CAPABILITY_LABELS } from "@/lib/accessLabels";
 import { notify } from "@/composables/useNotifications";
 import { useFieldErrors } from "@/composables/useFieldErrors";
-
-/** Chinese labels for the capability catalog, in `CAPABILITIES` order. */
-const CAP_LABELS: Record<Capability, string> = {
-  "alerts:ack": "确认告警",
-  "vehicles:write": "车辆配置",
-  "formations:write": "编队配置",
-  "scenes:write": "场景配置",
-  "codebook:write": "报码字典",
-  "notify:read": "外发记录",
-  "notify:write": "外发配置",
-  "rules:write": "消息规则",
-  "reports:write": "定时报表",
-  "audit:read": "审计日志",
-  "users:manage": "用户管理",
-  "debug:ingest": "调试注入",
-};
 
 const ERROR_MESSAGES: Record<string, string> = {
   conflict: "名称已存在（不区分大小写）",
@@ -52,6 +37,11 @@ const ERROR_MESSAGES: Record<string, string> = {
   role_in_use: "该角色仍被某个用户组引用，先从组里移除再删除",
 };
 const messageFor = makeMessageFor(ERROR_MESSAGES, "操作失败，请稍后重试");
+
+/** A role's capabilities as the 能力 column reads them. */
+const capabilityText = (capabilities: readonly Capability[]): string =>
+  capabilities.map((capability) => CAPABILITY_LABELS[capability]).join("、") ||
+  "—";
 
 // ── Data ───────────────────────────────────────────────────────────────────────
 const roles = ref<RbacRole[]>([]);
@@ -213,9 +203,7 @@ const formDirty = formSnapshot.dirty;
             <tr v-for="role in roles" :key="role.id" :class="tableClasses.row">
               <td class="truncate px-3 py-2 text-ink">{{ role.name }}</td>
               <td class="px-3 py-2 text-ink-muted">
-                {{
-                  role.capabilities.map((c) => CAP_LABELS[c]).join("、") || "—"
-                }}
+                {{ capabilityText(role.capabilities) }}
               </td>
               <td class="px-3 py-2">
                 <span class="flex justify-end gap-2">
@@ -292,7 +280,7 @@ const formDirty = formSnapshot.dirty;
                 :disabled="roleSaving"
                 @change="toggleCap(capability)"
               />
-              {{ CAP_LABELS[capability] }}
+              {{ CAPABILITY_LABELS[capability] }}
             </label>
           </div>
         </fieldset>

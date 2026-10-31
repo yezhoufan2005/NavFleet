@@ -26,15 +26,11 @@ import UiConfirmDialog from "@/components/ui/UiConfirmDialog.vue";
 import UiModal from "@/components/ui/UiModal.vue";
 import { tableClasses } from "@/lib/uiClasses";
 import { makeMessageFor } from "@/lib/errorMessages";
+import { ROLE_LABELS } from "@/lib/accessLabels";
 import { notify } from "@/composables/useNotifications";
 import { useAutoRefresh } from "@/composables/useAutoRefresh";
 import { useFieldErrors } from "@/composables/useFieldErrors";
 
-const ROLE_LABELS: Record<UserRoleName, string> = {
-  admin: "管理员",
-  operator: "操作员",
-  viewer: "只读",
-};
 const ROLE_OPTIONS = (Object.keys(ROLE_LABELS) as UserRoleName[]).map(
   (value) => ({
     value,

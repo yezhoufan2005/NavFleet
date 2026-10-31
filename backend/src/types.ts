@@ -5,7 +5,7 @@
  * source of truth) and are re-exported here so existing `./types` imports keep working.
  * Types that only this process has any use for are declared below.
  */
-import type { UserRole } from "@navfleet/shared";
+import type { AuditAction, UserRole } from "@navfleet/shared";
 
 export type * from "@navfleet/shared";
 
@@ -107,57 +107,8 @@ export interface SessionView {
  */
 export type AdminUserView = Omit<UserRecord, "passwordHash">;
 
-/**
- * The auditable actions. A closed **tuple** (not just a union) so it is the single
- * source of truth: `AuditAction` derives from it, and `auditQuerySchema.action` builds its
- * `z.enum` from the same array — before 1.6.1 the two were maintained by hand and drifted, so
- * the five codebook-import and device-onboarding config writes were auditable but not
- * filterable. Deriving both from one list makes that class of gap impossible: a new action
- * added here is queryable by construction.
- *
- * Scoped to auth + user management + operator-domain config writes on purpose — a read-only
- * monitoring system gains nothing from auditing reads, and config *reload* has no actor (see
- * `configRegistry` logging).
- */
-export const AUDIT_ACTIONS = [
-  "login",
-  "login_failed",
-  "logout",
-  "password_change",
-  "password_reset",
-  "user_create",
-  "user_update",
-  "user_delete",
-  // Session management.
-  "session_revoke",
-  "force_logout",
-  "account_locked",
-  // Alert acknowledgement.
-  "alert_ack",
-  "alert_unack",
-  // Report-code dictionary import.
-  "codebook_import",
-  // Outbound-notification config write (1.6.1).
-  "notify_write",
-  // Alert-rule config write (1.6.1).
-  "rules_write",
-  // Scheduled-report config write (1.6.1).
-  "reports_write",
-  // Device-onboarding wizard config writes.
-  "vehicles_write",
-  "formations_write",
-  "scenes_write",
-  "scene_asset_upload",
-  // Custom roles + user groups (1.6.1 RBAC).
-  "role_create",
-  "role_update",
-  "role_delete",
-  "group_create",
-  "group_update",
-  "group_delete",
-] as const;
-
-export type AuditAction = (typeof AUDIT_ACTIONS)[number];
+// The auditable-action tuple lives in shared so the console's 审计 labels are typed against it too.
+export { AUDIT_ACTIONS, type AuditAction } from "@navfleet/shared";
 
 /** One row of the `audit_log` collection. `ts` is a BSON Date so the TTL index can expire it. */
 export interface AuditEntry {
