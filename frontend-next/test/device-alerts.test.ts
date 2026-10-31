@@ -219,4 +219,26 @@ describe("消息史", () => {
     expect(text).toContain("预警");
     expect(text).toContain("提示");
   });
+
+  it("「发生」取这次发生的起点，不是最后一次上报", async () => {
+    // 一次发生一条记录，ts 随每帧前进；用 ts 当「发生」，三小时的预警看起来只有几秒。
+    getAlerts.mockResolvedValue({
+      items: [
+        record({
+          firstSeenAt: "2026-08-30T00:00:00.000Z",
+          ts: "2026-08-30T02:59:58.000Z",
+          active: false,
+          clearedAt: "2026-08-30T03:00:03.000Z",
+        }),
+      ],
+    });
+    const wrapper = await mountTab();
+    const text = wrapper.text();
+    expect(text).toContain(
+      formatDateTime(Date.parse("2026-08-30T00:00:00.000Z")),
+    );
+    expect(text).not.toContain(
+      formatDateTime(Date.parse("2026-08-30T02:59:58.000Z")),
+    );
+  });
 });
