@@ -1245,13 +1245,16 @@ export class ConfigRegistry {
       if (nextSceneConfigs.has(sceneId)) {
         throw new Error(`Duplicate sceneId in scenes.json: ${sceneId}`);
       }
+      // A missing origin is the map frame's own origin, as `parseScenes` reads it on write; an
+      // origin that is present must be numbers, on both paths.
+      const origin = value.origin ?? { x: 0, y: 0, yaw: 0 };
       if (
         !Number.isFinite(value.width ?? Number.NaN) ||
         !Number.isFinite(value.height ?? Number.NaN) ||
         !Number.isFinite(value.resolution ?? Number.NaN) ||
-        !Number.isFinite(value.origin?.x ?? Number.NaN) ||
-        !Number.isFinite(value.origin?.y ?? Number.NaN) ||
-        !Number.isFinite(value.origin?.yaw ?? Number.NaN)
+        !Number.isFinite(origin.x ?? Number.NaN) ||
+        !Number.isFinite(origin.y ?? Number.NaN) ||
+        !Number.isFinite(origin.yaw ?? Number.NaN)
       ) {
         throw new Error(
           `Scene config missing width/height/resolution/origin: ${SCENES_FILE} (${sceneId})`,
@@ -1264,11 +1267,7 @@ export class ConfigRegistry {
         sceneName: String(value.sceneName || sceneId),
         mapFrame: String(value.mapFrame || "map"),
         resolution: Number(value.resolution),
-        origin: {
-          x: Number(value.origin?.x),
-          y: Number(value.origin?.y),
-          yaw: Number(value.origin?.yaw),
-        },
+        origin: { x: Number(origin.x), y: Number(origin.y), yaw: Number(origin.yaw) },
         width: Number(value.width),
         height: Number(value.height),
         overlayType: value.overlayType ?? (value.overlayUrl ? "lanelet2" : undefined),
@@ -1293,6 +1292,8 @@ export class ConfigRegistry {
       } else {
         normalizedScene.bounds = value.bounds || deriveBounds(normalizedScene);
       }
+      if (value.bounds) delete normalizedScene.boundsDerived;
+      else normalizedScene.boundsDerived = true;
 
       nextSceneConfigs.set(sceneId, normalizedScene);
     }
