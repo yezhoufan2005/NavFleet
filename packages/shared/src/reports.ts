@@ -136,6 +136,13 @@ export const REPORT_RANGE_PRESETS: readonly ReportRangePreset[] = [
   "30d",
 ];
 
+/** 各回看窗口的叫法：报表页、定时报表编辑页与报表邮件共用，同一档在三处读法一致。 */
+export const REPORT_RANGE_LABELS: Record<ReportRangePreset, string> = {
+  "24h": "近 24 小时",
+  "7d": "近 7 天",
+  "30d": "近 30 天",
+};
+
 /**
  * 一条定时报表。`time` 是部署时区（`REPORT_TIMEZONE`）的 `HH:MM`；给了 `weekday`（0=周日…6=周六）就是
  * 每周那一天发，不给就是每天。`smtpEnv` 指名一个装 SMTP 连接串的环境变量（同 notify email 的 urlEnv

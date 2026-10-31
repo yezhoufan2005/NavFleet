@@ -5,6 +5,7 @@ import {
   buildChannelBody,
   buildDingtalkBody,
   buildWebhookBody,
+  plainLines,
   buildWecomBody,
   robotRejection,
 } from "../src/notify/channels";
@@ -128,6 +129,7 @@ describe("channel bodies", () => {
     detail: "超过离线阈值未上报",
     source: "rule-engine",
     ts: "2026-09-19T00:00:00.000Z",
+    timeZone: "Asia/Shanghai",
   };
 
   it("webhook body is the flat alert object", () => {
@@ -142,7 +144,9 @@ describe("channel bodies", () => {
   it("wecom body is a markdown envelope naming severity + device", () => {
     const body = buildWecomBody(context) as { msgtype: string; markdown: { content: string } };
     expect(body.msgtype).toBe("markdown");
-    expect(body.markdown.content).toContain("严重");
+    // The console's word for critical, not a table of the channels' own (严重 / 警告).
+    expect(body.markdown.content).toContain("【告警】");
+    expect(body.markdown.content).not.toContain("严重");
     expect(body.markdown.content).toContain("叉车 1");
     expect(body.markdown.content).toContain("agv-1");
   });
@@ -155,6 +159,14 @@ describe("channel bodies", () => {
     expect(body.msgtype).toBe("markdown");
     expect(body.markdown.title).toContain("设备离线");
     expect(body.markdown.text).toContain("超过离线阈值未上报");
+  });
+
+  it("shows the time in the deployment's zone, and keeps the webhook's ts as ISO", () => {
+    const body = buildWecomBody(context) as { markdown: { content: string } };
+    expect(body.markdown.content).toContain("时间：2026/09/19 08:00");
+    expect(body.markdown.content).not.toContain("T00:00:00");
+    expect(buildWebhookBody(context)).toMatchObject({ ts: "2026-09-19T00:00:00.000Z" });
+    expect(plainLines({ ...context, severity: "warning" })[0]).toBe("【预警】设备离线");
   });
 
   it("buildChannelBody dispatches on type", () => {
@@ -376,6 +388,8 @@ describe("NotifyService.dispatch", () => {
     expect(records).toHaveLength(2);
     expect(records[1]).toMatchObject({ channelId: "ops-webhook", status: "sent" });
     expect(records[1]?.alertId).toBe("digest");
+    // A digest holds no critical, so it is not 告警.
+    expect(records[1]?.title).toBe("1 条消息汇总");
   });
 
   it("sends an email channel through the injected sender and records it", async () => {
