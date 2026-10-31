@@ -242,8 +242,11 @@ for (const target of includeTargets) {
     );
 }
 
-// 8. 边缘的请求体上限必须与后端一致：nginx 默认只放行 1 MB，比后端的 JSON（2mb）与底图上传
-//    （RAW_LIMIT）都小，超出的请求在边缘就被 413，后端的分类型上限根本轮不到。
+// 8. 边缘的请求体上限与超时必须作用在控制台**实际调用的路径**上，并与后端一致。nginx 默认只放行
+//    1 MB、读超时 60 s，比后端的 JSON（2mb）、底图上传（RAW_LIMIT）与报表查询超时都小。
+//    路径取自 fleet-core 的 fleetApi.ts，按 nginx 的规则选块（正则 location 按出现顺序先匹配者
+//    胜，否则取最长前缀）：此前专用块只写了 /api/scenes/ 与 /api/reports/，控制台走的
+//    /api/v1/… 全部落进 /api/ 块，这条检查却只按块的表头取值，所以一直是绿的。
 {
   const locations = read(join(DEPLOY, "nginx/locations.conf"));
   const toBytes = (v) => {
@@ -256,35 +259,146 @@ for (const target of includeTargets) {
       Number(m[1]) * (m[2] === "m" ? 1024 * 1024 : m[2] === "k" ? 1024 : 1)
     );
   };
-  const blockLimit = (header) => {
-    const at = locations.indexOf(header);
-    if (at < 0) return null;
-    const body = locations.slice(at, locations.indexOf("\n}", at));
-    const m = body.match(/client_max_body_size\s+(\S+);/);
-    return m ? m[1] : null;
+  const toSeconds = (v) => {
+    const m = String(v ?? "").match(/^(\d+)(ms|s|m)?$/);
+    if (!m) return Number.NaN;
+    const n = Number(m[1]);
+    return m[2] === "ms" ? n / 1000 : m[2] === "m" ? n * 60 : n;
   };
+  // 顶层 location 块：修饰符、匹配串、块体。
+  const blocks = [
+    ...locations.matchAll(
+      /^location\s+(=|~\*?|\^~)?\s*(\S+)\s*\{([\s\S]*?)^\}/gm,
+    ),
+  ].map((m) => ({ modifier: m[1] ?? "", match: m[2], body: m[3] }));
+  const blockFor = (path) => {
+    const exact = blocks.find((b) => b.modifier === "=" && b.match === path);
+    if (exact) return exact;
+    const prefixes = blocks
+      .filter(
+        (b) =>
+          (b.modifier === "" || b.modifier === "^~") &&
+          path.startsWith(b.match),
+      )
+      .sort((a, b) => b.match.length - a.match.length);
+    if (prefixes[0]?.modifier === "^~") return prefixes[0];
+    const regex = blocks.find(
+      (b) =>
+        b.modifier.startsWith("~") &&
+        new RegExp(b.match, b.modifier === "~*" ? "i" : "").test(path),
+    );
+    return regex ?? prefixes[0] ?? null;
+  };
+  const directive = (block, name) =>
+    block?.body.match(new RegExp(`^\\s*${name}\\s+(\\S+);`, "m"))?.[1] ?? null;
+
+  const fleetApi = read(join(ROOT, "packages/fleet-core/src/fleetApi.ts"));
+  const assetPath =
+    fleetApi
+      .match(/`(\/api\/[^`]*\/scenes\/)\$\{[^}]+\}(\/asset\/)\$\{[^}]+\}`/)
+      ?.slice(1)
+      .join("demo-scene") + "backdrop";
+  const reportPath = fleetApi.match(
+    /`(\/api\/[^`$]*\/reports\/availability)/,
+  )?.[1];
+  const jsonPath = fleetApi.match(/"(\/api\/[^"]*\/codebook)"/)?.[1];
+
   const scenesSrc = read(join(ROOT, "backend/src/routes/scenes.ts"));
   const rawLimit = scenesSrc.match(/const RAW_LIMIT = "([^"]+)"/)?.[1];
   const appSrc = read(join(ROOT, "backend/src/app.ts"));
   const jsonLimit = appSrc.match(
     /express\.json\(\{ limit: "([^"]+)" \}\)/,
   )?.[1];
-  const pairs = [
-    ["location ~ ^/api/scenes/", rawLimit, "底图上传（RAW_LIMIT）"],
-    ["location /api/ {", jsonLimit, "JSON 请求体（express.json）"],
+  const configSrc = read(join(ROOT, "backend/src/config.ts"));
+  const reportTimeoutMs = Number(
+    configSrc
+      .match(/REPORT_QUERY_TIMEOUT_MS:\s*envInt\(([\d_]+)/)?.[1]
+      ?.replace(/_/g, ""),
+  );
+
+  const limits = [
+    [assetPath, rawLimit, "底图上传（RAW_LIMIT）"],
+    [jsonPath, jsonLimit, "JSON 请求体（express.json）"],
+    [reportPath, jsonLimit, "报表接口的 JSON 请求体"],
   ];
-  for (const [header, backend, label] of pairs) {
-    const edge = blockLimit(header);
+  for (const [path, backend, label] of limits) {
+    if (!path || path.includes("undefined")) {
+      bad(`从 fleetApi.ts 读不到 ${label} 用的请求路径`);
+      continue;
+    }
+    const block = blockFor(path);
+    const edge = directive(block, "client_max_body_size");
     if (!backend) bad(`读不到后端的 ${label} 上限`);
+    else if (!block) bad(`nginx 没有 location 能匹配 ${path}`);
     else if (!edge)
       bad(
-        `nginx 的 ${header} 没设 client_max_body_size（默认 1 MB < 后端 ${backend}）`,
+        `${path} 落进的 nginx 块（${block.match}）没设 client_max_body_size（默认 1 MB < 后端 ${backend}）`,
       );
     else if (toBytes(edge) !== toBytes(backend))
       bad(
-        `nginx ${header} 的 client_max_body_size ${edge} 与后端 ${label} ${backend} 不一致`,
+        `${path} 落进的 nginx 块（${block.match}）上限 ${edge} 与后端 ${label} ${backend} 不一致`,
       );
-    else ok(`nginx 与后端的 ${label} 上限一致（${backend}）`);
+    else ok(`${path} 的 nginx 上限与后端 ${label} 一致（${backend}）`);
+  }
+
+  if (!reportPath || !Number.isFinite(reportTimeoutMs)) {
+    bad("读不到报表请求路径或后端 REPORT_QUERY_TIMEOUT_MS 默认值");
+  } else {
+    const block = blockFor(reportPath);
+    const edge = toSeconds(directive(block, "proxy_read_timeout") ?? "60s");
+    if (edge * 1000 <= reportTimeoutMs)
+      bad(
+        `${reportPath} 落进的 nginx 块读超时 ${edge}s 不长于后端报表查询超时 ${reportTimeoutMs / 1000}s，慢报表会在边缘 504`,
+      );
+    else
+      ok(
+        `${reportPath} 的 nginx 读超时 ${edge}s 长于后端报表查询超时 ${reportTimeoutMs / 1000}s`,
+      );
+  }
+}
+
+// 9. 后端读取、且 .env.example 写成可调项的变量，必须真的传进 backend 容器。compose 没有
+//    env_file，只把 environment 块里列出的键交给容器：漏一个，部署方改了也不生效，也不报错。
+//    键集取 backend/src/config.ts 的 env schema（.env.example 里还有 nginx、grafana、备份等
+//    其他服务的键，不能整份拿来比）。
+{
+  const configSrc = read(join(ROOT, "backend/src/config.ts"));
+  const schemaStart = configSrc.indexOf("const configSchema = z.object({");
+  const schema = configSrc.slice(
+    schemaStart,
+    configSrc.indexOf("\n});", schemaStart),
+  );
+  const backendKeys = [...schema.matchAll(/^ {2}([A-Z][A-Z0-9_]*):/gm)].map(
+    (m) => m[1],
+  );
+  const compose = read(join(DEPLOY, "docker-compose.yml"));
+  const serviceAt = compose.indexOf("\n  backend:\n");
+  const envAt = compose.indexOf("\n    environment:\n", serviceAt);
+  const envEnd = compose.slice(envAt + 1).search(/\n {4}[a-z_]+:/);
+  const envBlock = compose.slice(
+    envAt,
+    envEnd < 0 ? undefined : envAt + 1 + envEnd,
+  );
+  const passed = new Set(
+    [...envBlock.matchAll(/^ {6}([A-Z][A-Z0-9_]*):/gm)].map((m) => m[1]),
+  );
+  const documented = new Set(
+    [...envExample.matchAll(/^#?\s*([A-Z][A-Z0-9_]*)=/gm)].map((m) => m[1]),
+  );
+  if (serviceAt < 0 || envAt < 0 || backendKeys.length === 0) {
+    bad("读不到 backend 的 env schema 或 compose 的 backend environment 块");
+  } else {
+    const missing = backendKeys.filter(
+      (k) => documented.has(k) && !passed.has(k),
+    );
+    if (missing.length === 0)
+      ok(
+        `.env.example 里的 ${backendKeys.filter((k) => documented.has(k)).length} 个后端变量都传进了 backend 容器`,
+      );
+    else
+      bad(
+        `.env.example 写了、compose 却没传给 backend 的变量：${missing.join(", ")}`,
+      );
   }
 }
 
