@@ -1,0 +1,44 @@
+name: Set up workspace
+description: >-
+  Node at the given version and the installed npm workspaces. Every CI job needs the same steps,
+  and `npm ci` alone was 30–50 s of each one, so the installed `node_modules` trees are cached and
+  `npm ci` runs only on a miss.
+
+inputs:
+  node-version:
+    description: Node.js version to set up.
+    required: true
+
+runs:
+  using: composite
+  steps:
+    - uses: actions/setup-node@v7
+      with:
+        node-version: ${{ inputs.node-version }}
+        cache: npm
+        cache-dependency-path: package-lock.json
+    # The installed trees, not just npm's download cache: restoring them is one archive, while
+    # `npm ci` still unpacks and links every package. Keyed on the exact lockfile and Node version,
+    # so a dependency change or a Node bump always installs afresh. No restore-keys on purpose: a
+    # near-miss tree from an older lockfile is exactly what `npm ci` exists to refuse.
+    - id: restore
+      uses: actions/cache/restore@v6
+      with:
+        path: |
+          node_modules
+          */node_modules
+          packages/*/node_modules
+        key: ${{ runner.os }}-node${{ inputs.node-version }}-modules-${{ hashFiles('package-lock.json') }}
+    - if: steps.restore.outputs.cache-hit != 'true'
+      shell: bash
+      run: npm ci
+    # Saved straight after the install, not at the end of the job, so what the tests and builds
+    # write under node_modules (vite/vitest caches) never becomes part of the next job's tree.
+    - if: steps.restore.outputs.cache-hit != 'true'
+      uses: actions/cache/save@v6
+      with:
+        path: |
+          node_modules
+          */node_modules
+          packages/*/node_modules
+        key: ${{ steps.restore.outputs.cache-primary-key }}

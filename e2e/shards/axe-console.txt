@@ -1,0 +1,5 @@
+# The console axe audit runs as its own CI shard (see the e2e job in .github/workflows/ci.yml).
+# It is about 45% of the suite's time in one file, and Playwright shards by file and by count,
+# so wherever it landed that shard ran twice as long as the others. Every other spec runs in the
+# remaining shards through --test-list-invert, so a new spec file needs no entry here.
+[console] › console-accessibility.spec.ts
