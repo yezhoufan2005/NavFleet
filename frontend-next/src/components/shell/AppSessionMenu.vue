@@ -34,7 +34,8 @@ import {
 } from "reka-ui";
 import { RouterLink } from "vue-router";
 import UiSoundIcon from "@/components/ui/UiSoundIcon.vue";
-import type { PublicUser, UserRole } from "@navfleet/shared";
+import type { PublicUser } from "@navfleet/shared";
+import { ROLE_LABELS } from "@/lib/accessLabels";
 import { useTheme, type ThemePreference } from "@/composables/useTheme";
 import { useAlertSound } from "@/composables/useAlertSound";
 import type { QuietHours, SoundVolume } from "@/composables/useAlertSound";
@@ -44,12 +45,6 @@ const emit = defineEmits<{ logout: [] }>();
 
 const { preference, resolved, setPreference } = useTheme();
 const sound = useAlertSound();
-
-const ROLE_LABELS: Record<UserRole, string> = {
-  admin: "管理员",
-  operator: "操作员",
-  viewer: "只读",
-};
 
 /**
  * `arcs` is the count of sound waves drawn beside the speaker — one, two, three. The

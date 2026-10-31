@@ -5,6 +5,7 @@ import { fleetApi, type AuditRecord } from "@navfleet/fleet-core";
 import AuditView from "@/views/admin/AuditView.vue";
 import UiSelect from "@/components/ui/UiSelect.vue";
 import UiMultiSelect from "@/components/ui/UiMultiSelect.vue";
+import { AUDIT_ACTIONS } from "@navfleet/shared";
 
 /**
  * 审计 — the audit log page. Filters are server-side (assert the params reach `getAuditLog`),
@@ -159,6 +160,60 @@ describe("AuditView", () => {
     // 止 cannot go before the chosen 起, and 起 cannot go past the chosen 止.
     expect(to.attributes("min")).toBe("2026-03-05");
     expect(from.attributes("max")).toBe("2026-03-10");
+  });
+
+  it("sends the picked days as local day bounds, so the 止 day is included whole", async () => {
+    const wrapper = await mountView([entry()]);
+    const spy = vi
+      .spyOn(fleetApi, "getAuditLog")
+      .mockResolvedValue({ entries: [entry()] });
+    const dates = wrapper.findAll("input[type=date]");
+    await dates[0]!.setValue("2026-10-30");
+    await dates[1]!.setValue("2026-10-30");
+    await flushPromises();
+
+    expect(spy).toHaveBeenLastCalledWith(
+      expect.objectContaining({
+        from: new Date(2026, 9, 30, 0, 0, 0, 0).toISOString(),
+        to: new Date(2026, 9, 30, 23, 59, 59, 999).toISOString(),
+      }),
+    );
+  });
+
+  it("labels every action the backend can record, and offers each in the 动作 filter", async () => {
+    const wrapper = await mountView([
+      entry({ action: "group_update", target: "uuid-1" }),
+    ]);
+    expect(wrapper.text()).toContain("更新用户组");
+    const options = wrapper.findComponent(UiMultiSelect).props("options");
+    expect(options.map((option) => option.value).sort()).toEqual(
+      [...AUDIT_ACTIONS].sort(),
+    );
+  });
+
+  it("names the changed group and what was granted, rather than its id", async () => {
+    const wrapper = await mountView([
+      entry({
+        action: "group_update",
+        target: "8c1f-uuid",
+        detail: {
+          name: "夜班",
+          rolesAdded: ["账号管理"],
+          membersRemoved: ["bob"],
+        },
+      }),
+      entry({
+        action: "user_update",
+        target: "carol",
+        detail: {
+          fields: ["role", "email"],
+          changes: { role: { from: "viewer", to: "operator" } },
+        },
+      }),
+    ]);
+    expect(wrapper.text()).toContain("夜班 · 角色 +账号管理 · 成员 −bob");
+    expect(wrapper.text()).not.toContain("8c1f-uuid");
+    expect(wrapper.text()).toContain("carol · 角色 只读 → 操作员；邮箱已改");
   });
 
   it("paginates client-side past the page size", async () => {

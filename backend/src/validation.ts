@@ -311,7 +311,7 @@ export const auditQuerySchema = z
     actor: z.string().min(1).max(200).optional(),
     // `action` is a **comma-joined list** (the 审计 page's 动作 filter is multi-select since 1.6.x),
     // e.g. `user_create,user_delete`. Each item must be in the canonical `AUDIT_ACTIONS` tuple, so an
-    // unknown action still 400s — see the tuple's note in `types.ts` for the drift this closes. An
+    // unknown action still 400s — see the note on `AUDIT_ACTIONS` for the drift this closes. An
     // empty value parses to `[]`, which the persistence layer treats as "no action filter".
     action: z
       .string()

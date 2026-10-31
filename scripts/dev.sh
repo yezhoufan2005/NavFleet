@@ -94,6 +94,11 @@ supervise() {
     local code=$?
     [[ -f "$SHUTDOWN_FLAG" ]] && break
     kill -0 "$MAIN_PID" 2>/dev/null || break
+    # 3 = 拒绝运行（如演示车队补历史拒绝写入已有数据的库），重启也是同样的结果，不再重试。
+    if [[ "$code" == "3" ]]; then
+      echo "✖ [$label] 拒绝运行（原因见上方），不再自动重启。"
+      break
+    fi
     attempt=$((attempt + 1))
     echo "⟳ [$label] 退出（code ${code}），1.5s 后自动重启（第 ${attempt} 次；Ctrl+C 停止全部）"
     sleep 1.5
@@ -161,7 +166,6 @@ ensure_dev_mongo() {
 ensure_deps backend
 ensure_deps "$FRONTEND_WORKSPACE"
 [[ "$DEMO_MODE" == "1" ]] && ensure_dev_mongo
-# APPEND_MARKER
 
 # 高德 Key 是 Vite 的构建期变量，且**按 workspace 各自一份**。少了它 GPS 面板会显示
 # 「未配置 Key」而其余功能正常 —— 这个提示曾被当成前端缺陷报上来一次，所以这里明说。
@@ -201,11 +205,17 @@ PIDS+=($!)
 
 # 等待后端健康检查通过（最多 ~30s）
 echo -n "等待后端就绪"
+backend_ready=0
 for _ in $(seq 1 60); do
-  if curl -sf "$HEALTH_URL" >/dev/null 2>&1; then break; fi
+  if curl -sf "$HEALTH_URL" >/dev/null 2>&1; then backend_ready=1; break; fi
   echo -n "."; sleep 0.5
 done
-echo " ok"
+if [[ "$backend_ready" == "1" ]]; then
+  echo " ok"
+else
+  echo " 未就绪"
+  echo "⚠ 后端 30s 内没有通过健康检查，原因见上方后端日志；它在守护下会继续重试。"
+fi
 
 # --demo：后端起来后注入演示账号/角色/组 + 会话/审计（走 admin API，幂等）。
 if [[ "$DEMO_MODE" == "1" ]]; then
@@ -225,12 +235,20 @@ run_sim() {
     MQTT_PUBLISHER_PASSWORD="$MQTT_PUBLISHER_PASS" \
     LOG_LEVEL=warn
   if [[ "$DEMO_MODE" == "1" ]]; then
-    MONGO_URI="$DEV_MONGO_URI" SIM_HISTORY_DAYS=7 npm run sim:catchup || return 1
+    MONGO_URI="$DEV_MONGO_URI" SIM_HISTORY_DAYS=7 npm run sim:catchup || return $?
   fi
   npm run sim:live
 }
+# compose 演示栈的 sim 容器在跑时，它已经在用同一个发布者身份发车队：再起一个，两边会互相顶掉
+# 会话，后端交替收到两条时间线。
+compose_sim_running() {
+  command -v docker >/dev/null 2>&1 &&
+    [[ -n "$(docker ps -q --filter label=com.docker.compose.service=sim 2>/dev/null)" ]]
+}
 if [[ "$MOCK_MODE" != "off" ]]; then
-  if broker_up; then
+  if compose_sim_running; then
+    echo "ℹ compose 演示栈的 sim 容器正在发布演示车队，跳过本地演示车队（避免两个发布者互相顶替）。"
+  elif broker_up; then
     echo "检测到 MQTT broker，启动演示车队…"
     supervise 演示车队 run_sim &
     PIDS+=($!)

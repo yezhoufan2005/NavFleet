@@ -126,7 +126,8 @@ export const runLive = async (options: {
 
   const client = mqtt.connect(options.broker, {
     // A fixed id: the broker evicts any other publisher using it, so two timelines can never
-    // interleave on the same vehicles. MQTT 5, so that takeover arrives with a reason code.
+    // interleave on the same vehicles. MQTT 5, so that takeover arrives with a reason code, and the
+    // evicted one stands down for good (see the `disconnect` handler).
     clientId: "navfleet-demo-publisher",
     protocolVersion: 5,
     username: process.env.MQTT_PUBLISHER_USERNAME || process.env.MQTT_USERNAME || undefined,
@@ -193,6 +194,26 @@ export const runLive = async (options: {
     client.end(true, () => process.exit(0));
   };
 
+  /**
+   * Stop publishing and stay stopped, without exiting: under compose's `restart: unless-stopped`
+   * or dev.sh's supervisor an exit, even 0, starts a new publisher that evicts the other one, and
+   * the two take turns indefinitely. The heartbeat goes, so the container reports unhealthy.
+   */
+  const standDown = (): void => {
+    if (stopping) return;
+    stopping = true;
+    if (timer) clearInterval(timer);
+    writeCheckpoint(options.stateDir, { version: 1, t: cursor, states });
+    fs.rmSync(path.join(options.stateDir, "live.heartbeat"), { force: true });
+    hooks?.close();
+    client.end(true);
+    // Nothing else keeps the event loop alive now; SIGINT / SIGTERM still end the process.
+    setInterval(() => undefined, 3_600_000);
+    const exit = (): void => process.exit(0);
+    process.on("SIGINT", exit);
+    process.on("SIGTERM", exit);
+  };
+
   client.on("connect", () => {
     log(
       `connected to ${options.broker}; ${states.length} vehicles from ${new Date(cursor).toISOString()} (${os.hostname()})`,
@@ -208,8 +229,12 @@ export const runLive = async (options: {
   });
   client.on("disconnect", (packet) => {
     if (packet?.reasonCode === 142) {
-      log("superseded by a newer publisher (session taken over); standing down");
-      shutdown();
+      log(
+        "superseded by another publisher (session taken over); standing down. Not exiting: a " +
+          "restart policy would bring this one back to take the session over again, and the two " +
+          "timelines would alternate. Stop the other publisher, or this one, by hand.",
+      );
+      standDown();
     }
   });
   client.on("error", (error) => {
