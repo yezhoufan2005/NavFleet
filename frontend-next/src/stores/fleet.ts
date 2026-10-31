@@ -830,7 +830,7 @@ export const useFleetStore = defineStore("fleet", () => {
               detail: typeof alert.detail === "string" ? alert.detail : "",
               source: typeof alert.source === "string" ? alert.source : "",
             })
-          : "设备告警";
+          : "设备消息";
       announcedAlerts.set(ackEventKey(deviceId, alert.id), { severity, title });
       if (!admitTransitionToast()) return;
       notify(`${displayNameOf(deviceId)}：${title}`, {

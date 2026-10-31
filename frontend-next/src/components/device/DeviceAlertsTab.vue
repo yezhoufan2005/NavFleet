@@ -120,7 +120,7 @@ const rows = computed<Row[]>(() =>
         Number.isFinite(started) ? started : `#${index}`
       }`,
       severity: (record.severity ?? "notice") as Severity,
-      title: String(record.title || record.info || "未命名告警"),
+      title: String(record.title || record.info || "未命名消息"),
       detail: String(record.detail || record.info || ""),
       code:
         Number.isFinite(record.code) && record.code ? String(record.code) : "",
@@ -182,11 +182,11 @@ const activeCount = computed(
       faulted — and the page that can tell you which is which is linked from here.
     -->
     <p v-else-if="!rows.length" class="m-0 max-w-prose text-sm text-ink-muted">
-      这台设备没有可显示的告警；已清除的告警需要后端连接 MongoDB 才会留存 ——
+      这台设备没有可显示的消息；已清除的消息需要后端连接 MongoDB 才会留存 ——
       <RouterLink
         to="/system"
         class="text-brand-ink underline-offset-2 hover:underline"
-        >管理 / 系统状态</RouterLink
+        >系统 / 状态</RouterLink
       >
       会说明它此刻连上了没有
     </p>

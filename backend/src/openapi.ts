@@ -145,7 +145,7 @@ export const openApiDocument = {
   tags: [
     { name: "auth", description: "登录 / 会话" },
     { name: "fleet", description: "车队快照与设备" },
-    { name: "alerts", description: "告警" },
+    { name: "alerts", description: "消息（告警 / 预警 / 提示）" },
     { name: "reports", description: "报表聚合" },
     { name: "scenes", description: "场景地图" },
     { name: "codebook", description: "报码字典" },
@@ -153,7 +153,7 @@ export const openApiDocument = {
     { name: "debug", description: "调试注入（受限）" },
     { name: "users", description: "用户管理（需 admin）" },
     { name: "audit", description: "审计日志（需 admin）" },
-    { name: "notify", description: "告警外发：发送记录与生效渠道（需 admin）" },
+    { name: "notify", description: "消息外发：发送记录与生效渠道（需 admin）" },
     {
       name: "config",
       description: "控制台可编辑的配置文件（读 + 校验后整份写入，带版本防并发覆盖）",
