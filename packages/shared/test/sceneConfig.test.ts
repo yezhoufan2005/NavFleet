@@ -8,6 +8,23 @@ import { parseScenes } from "../src/index";
  * segment and a URL becomes a fetch, so both are validated here as well as at the write site.
  */
 describe("parseScenes", () => {
+  it("accepts numbers only, as the load path does: no string or empty value coerced", () => {
+    // `"0.35"` passed here and failed on load; `""` and `null` were stored as 0.
+    for (const yaw of ["0.35", "", null]) {
+      expect(() =>
+        parseScenes([
+          {
+            sceneId: "yard",
+            resolution: 0.05,
+            width: 800,
+            height: 600,
+            origin: { x: 0, y: 0, yaw },
+          },
+        ]),
+      ).toThrow(/origin\.yaw must be a finite number/);
+    }
+  });
+
   it("accepts a valid array, defaults sceneName/mapFrame/origin, and keeps geometry", () => {
     const out = parseScenes([
       { sceneId: "yard", resolution: 0.05, width: 800, height: 600 },
