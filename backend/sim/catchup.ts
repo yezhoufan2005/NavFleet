@@ -192,6 +192,9 @@ const fastForward = (fleet: Fleet, state: VehicleState, until: number): void => 
   while (state.t < until) step(site, state, [], false);
 };
 
+/** The catch-up will not run against this database; restarting changes nothing. */
+export class CatchUpRefused extends Error {}
+
 export const catchUp = async (options: {
   configRoot: string;
   stateDir: string;
@@ -224,12 +227,15 @@ export const catchUp = async (options: {
       .estimatedDocumentCount();
     await client.close();
     if (existing > 0) {
-      // Frames already stored for a vehicle are never written twice, so history generated into a
-      // database that holds another timeline would come out full of holes.
-      log(
-        `WARNING: no checkpoint, but the database already holds ${existing} telemetry frames from ` +
-          "another source; generated history skips what is already stored. Start from an empty " +
-          "database (verify-stack --purge) for a complete demo history.",
+      // Only telemetry can be checked against what is stored (per vehicle, by timestamp); messages,
+      // acknowledgements, send records and shift logins would all be written a second time, from
+      // a different timeline, so the reports would count the window twice.
+      await persistence.close();
+      throw new CatchUpRefused(
+        `no checkpoint in ${options.stateDir}, but the database already holds ${existing} ` +
+          "telemetry frames. Generating history into it would store a second copy of every " +
+          "message in the window. Start both from empty (verify-stack --purge; under dev.sh, " +
+          "remove the dev Mongo container and backend/.demo-sim), or restore the checkpoint.",
       );
     }
     log(
