@@ -103,6 +103,23 @@ describe("metric exposition", () => {
     expect(samplesFor(body, "navfleet_mongo_connected")).toEqual(["navfleet_mongo_connected 0"]);
   });
 
+  it("splits active messages by severity, so 告警 can be told from 提示", async () => {
+    // Two 提示 alone used to read as 「活跃告警 2」 in Grafana while the console showed no 告警.
+    const { app, store } = createTestApp();
+    store.buildSummary.mockReturnValue({
+      deviceCount: 1,
+      onlineCount: 1,
+      alertCount: 3,
+      alertsBySeverity: { critical: 1, warning: 0, notice: 2 },
+    });
+    const body = await scrape(app);
+    expect(samplesFor(body, "navfleet_alerts_active").sort()).toEqual([
+      'navfleet_alerts_active{severity="critical"} 1',
+      'navfleet_alerts_active{severity="notice"} 2',
+      'navfleet_alerts_active{severity="warning"} 0',
+    ]);
+  });
+
   it("exposes the write-failure and slow-broadcast counters from live state", async () => {
     // A database that is up but rejecting writes, and a WebSocket consumer that cannot
     // keep up — both were invisible before these counters.
