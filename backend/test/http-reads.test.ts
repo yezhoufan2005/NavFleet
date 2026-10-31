@@ -11,6 +11,9 @@ import {
   sessionCookie,
   type TestAppContext,
 } from "./helpers/testApp";
+import { config } from "../src/config";
+
+const anyIso: unknown = expect.stringMatching(/^\d{4}-\d{2}-\d{2}T/);
 
 const authed = (context: TestAppContext, path: string) =>
   request(context.app).get(path).set("Cookie", sessionCookie());
@@ -213,7 +216,19 @@ describe("GET /api/reports/alerts", () => {
     expect(response.status).toBe(200);
     // The report is the body itself, not wrapped in `{ items }` — it is one object, not a list.
     expect(response.body).toEqual(sampleAlertStatsReport());
-    expect(context.store.getAlertStats).toHaveBeenCalledWith({});
+    // No `from`: the window starts REPORT_MAX_RANGE_DAYS back, not at the first stored row.
+    expect(context.store.getAlertStats).toHaveBeenCalledWith({ from: anyIso });
+    const [{ from }] = context.store.getAlertStats.mock.calls[0] as [{ from: string }];
+    const days = (Date.now() - Date.parse(from)) / 86_400_000;
+    expect(days).toBeCloseTo(config.reportMaxRangeDays, 0);
+  });
+
+  it("refuses a seconds epoch window wider than the cap, read the way the query reads it", async () => {
+    // 1600000000 → 1760000000 is five years in seconds; read as milliseconds it was two days.
+    const context = createTestApp();
+    const response = await authed(context, "/api/reports/alerts?from=1600000000&to=1760000000");
+    expect(response.status).toBe(400);
+    expect(context.store.getAlertStats).not.toHaveBeenCalled();
   });
 
   it("forwards the validated from/to window to the store", async () => {
@@ -247,7 +262,10 @@ describe("GET /api/reports/availability", () => {
     expect(response.status).toBe(200);
     expect(response.body).toEqual(sampleAvailabilityReport());
     // The schema fills in the default, so the store always receives an explicit bucket.
-    expect(context.store.getAvailabilityReport).toHaveBeenCalledWith({ bucket: "day" });
+    expect(context.store.getAvailabilityReport).toHaveBeenCalledWith({
+      bucket: "day",
+      from: anyIso,
+    });
   });
 
   it("forwards device, range and an explicit bucket", async () => {
@@ -277,6 +295,7 @@ describe("GET /api/reports/availability", () => {
     expect(context.store.getAvailabilityReport).toHaveBeenCalledWith({
       deviceId: [DEVICE_ID, "agv-other"],
       bucket: "day",
+      from: anyIso,
     });
   });
 

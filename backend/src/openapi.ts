@@ -821,8 +821,8 @@ const [rbacGroups, rbacGroup] = rbacOperations({
           schema: fromValidator(deviceIdParamSchema),
         },
         ...queryParameters(historyQuerySchema, {
-          from: "ISO-8601 或 epoch",
-          to: "ISO-8601 或 epoch",
+          from: "ISO-8601 或整数 epoch（秒或毫秒）",
+          to: "ISO-8601 或整数 epoch（秒或毫秒）",
           limit: "返回的最大采样数（latest 模式）",
           sampling:
             "latest（默认）= 最新的 limit 条；even = 整个 from–to 窗口按时间均匀抽取，至多 MAX_HISTORY_POINTS 条，需同时给 from 与 to",
@@ -884,8 +884,8 @@ const [rbacGroups, rbacGroup] = rbacOperations({
       tags: ["reports"],
       summary: "告警统计（服务端聚合）",
       parameters: queryParameters(reportRangeSchema, {
-        from: "ISO-8601 或 epoch，按 firstSeenAt 过滤下界",
-        to: "ISO-8601 或 epoch，上界",
+        from: `ISO-8601 或整数 epoch（秒或毫秒），按 firstSeenAt 过滤下界；省略时取 to（或当前）往前 REPORT_MAX_RANGE_DAYS 天`,
+        to: "ISO-8601 或整数 epoch（秒或毫秒），上界",
       }),
       responses: {
         "200": {
@@ -907,8 +907,8 @@ const [rbacGroups, rbacGroup] = rbacOperations({
       tags: ["reports"],
       summary: "可用率/电量时序（服务端聚合）",
       parameters: queryParameters(reportAvailabilityQuerySchema, {
-        from: "ISO-8601 或 epoch，按 ts 过滤下界",
-        to: "ISO-8601 或 epoch，上界",
+        from: `ISO-8601 或整数 epoch（秒或毫秒），按 ts 过滤下界；省略时取 to（或当前）往前 REPORT_MAX_RANGE_DAYS 天`,
+        to: "ISO-8601 或整数 epoch（秒或毫秒），上界",
         deviceId: "逗号拼接的设备列表（如 agv-1,agv-2）；缺省为全车队",
         bucket: "分桶粒度（hour/day/month），缺省 day",
       }),
