@@ -150,8 +150,9 @@ export const MAX_NOTIFY_PER_QUERY = 500;
 
 /** Report aggregations are read-only views over slowly-changing history, so an in-memory TTL cache
  * collapses repeat loads (filter toggling, several viewers, the dashboard re-opening) onto one Mongo
- * aggregation. 5 分钟而不是秒级：宽窗（30 天）那条聚合本身要几十秒，短 TTL 等于每次都重付那笔钱；
- * 报表是历史视图，分钟级陈旧无妨。Keyed by the fully-resolved query. */
+ * aggregation. Five minutes rather than seconds: the wide (30-day) aggregation itself takes tens of
+ * seconds, so a short TTL would pay that again on nearly every load, and a history view minutes
+ * stale is fine. Keyed by the fully-resolved query. */
 const REPORT_CACHE_TTL_MS = 5 * 60_000;
 
 /**

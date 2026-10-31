@@ -13,8 +13,8 @@
  * What is measured: every URL `dist/index.html` references, which is the set a cold
  * visit must fetch before the app can render. Route chunks are excluded by
  * construction — they are lazily imported, so they do not appear in `index.html` —
- * and that is the property worth protecting: ECharts is 181 KiB gzipped and belongs
- * to two tabs, not to the landing page.
+ * and that is the property worth protecting: ECharts is well over a hundred KiB gzipped
+ * and belongs to the pages that chart (设备, 消息史, 报表), not to the landing page.
  *
  * Budgets are *ceilings with headroom*, not the current value: a budget equal to
  * today's measurement fails on the next legitimate byte and gets deleted. They sit

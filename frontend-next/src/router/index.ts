@@ -435,11 +435,12 @@ const routes: RouteRecordRaw[] = [
   /**
    * The chart performance harness — a development tool, not a page.
    *
-   * Registered only in dev, or in a build with `VITE_CHART_PERF` set. Both the view
-   * and (until a page uses a chart) ECharts itself are therefore absent
-   * from a normal production bundle — `scripts/assert-no-dev-only-chunks.mjs` runs
-   * as part of `npm run build` and fails if the harness chunk ever appears. Setting
-   * the flag is also how the chart bundle cost gets measured reproducibly.
+   * Registered only in dev, or in a build with `VITE_CHART_PERF` set, so the view is
+   * absent from a normal production bundle — `scripts/assert-no-dev-only-chunks.mjs` runs
+   * as part of `npm run build` and fails if the harness chunk ever appears. ECharts itself
+   * is in production builds, lazily loaded by the product pages that chart (设备 charts and
+   * playback, 消息史, 报表), never on first load. Setting the flag is also how the chart
+   * bundle cost gets measured reproducibly.
    */
   ...(import.meta.env.DEV || import.meta.env.VITE_CHART_PERF
     ? [

@@ -2,10 +2,14 @@
  * NavFleet shared domain contracts.
  *
  * This is the SINGLE SOURCE OF TRUTH for the data model shared between the
- * backend (MQTT ingestion, REST, WebSocket) and the frontend (Vue store,
- * services, components). It is consumed as TypeScript source via type-only
- * imports (`import type { ... } from "@navfleet/shared"`), so nothing here is
- * emitted into either runtime bundle — the types are erased at compile time.
+ * backend (MQTT ingestion, REST, WebSocket) and the frontends (Vue store,
+ * services, components). It is consumed as TypeScript source, not a built package.
+ *
+ * The types in this file are erased at compile time. The modules re-exported below also
+ * carry runtime code both sides run — the rule evaluator, the code table and its lookup,
+ * the config parsers, scene geometry, the capability presets, CSV cells, the report CSV —
+ * so a value imported from here is bundled into whichever app imports it. Keep it pure:
+ * no I/O, no environment globals.
  *
  * When the data model changes, edit it here once; both apps pick it up.
  */
@@ -300,8 +304,7 @@ export interface PublicUser {
 export type LngLat = [number, number];
 
 // The alert rule engine — types, defaults, and the pure evaluator both the backend and
-// the two frontends share. Kept in its own file because it carries runtime
-// logic, and this barrel was otherwise types-only.
+// the two frontends share.
 export * from "./alertRules";
 
 // The report-code dictionary — built-in table, wire type, and the pure merge/lookup the
@@ -309,35 +312,40 @@ export * from "./alertRules";
 // fleet-core so the backend, which does not depend on fleet-core, can reach it.
 export * from "./reportCodes";
 
-// 告警外发的共享契约——生效渠道视图与发送记录的形状（两个前端的只读「外发」页渲染
-// 它们），以及「零配置不外发」的默认。路由/正文/发送等后端独有逻辑不在这里。
+// Outbound-notification contracts: the effective-channel view and send-record shapes the
+// 外发 pages render, and the zero-config default of sending nothing. Routing, bodies and
+// delivery are backend-only and stay out of here.
 export * from "./notify";
 
-// 报表聚合的共享契约——后端算、前端渲染的聚合结果形状（告警统计等）。
-// 聚合管道的构造/执行等后端独有逻辑不在这里。
+// Report contracts: the aggregate shapes the backend computes and the console renders, the
+// range labels, and the availability CSV both write. The pipelines stay in the backend.
 export * from "./reports";
 
-// 车辆 / 编队配置文件的校验器（设备接入）——admin 经 API 写 vehicles.json /
-// formations.json 时先校验；客户端先校验、后端为权威（同 parseCodebook）。
+// vehicles.json / formations.json validators (device onboarding): the console checks first,
+// the backend is authoritative (as with parseCodebook). Also the device-id rule ingest uses.
 export * from "./fleetConfig";
-// scenes.json 校验（场景地图上传与管理）：几何 + 路径安全的 sceneId + 资源 URL 限定在
-// /scene-maps/ 下；overlayUrl/overlayType 由后端为 OSM 场景铸造，不从输入读取。
+// scenes.json validation: geometry, a path-safe sceneId, asset URLs confined to
+// /scene-maps/. overlayUrl/overlayType are minted by the backend for OSM scenes, never read.
 export * from "./sceneConfig";
-// 场景地图几何（ROS map_server 约定：origin 为左下角世界位姿，yaw 绕该角逆时针旋转）——后端派生
-// 边界、点云栅格化、控制台底图摆放共用，旋转底图处处一致。
+// Scene geometry (ROS map_server convention: origin is the lower-left corner's world pose, yaw
+// turns CCW about it), shared by bounds derivation, point-cloud rasterising and the console's
+// backdrop placement, so a rotated map lands the same everywhere.
 export * from "./sceneGeometry";
 
-// 细粒度能力项与内置角色预设（1.6.1 RBAC 基座）——后端门禁、前端 can() 的单一来源。运行时值，
-// 故独立成文件（本 barrel 其余多为类型）。
+// Capabilities and the built-in role presets: the one source for the backend gate and the
+// console's can().
 export * from "./rbac";
 
-// 严重度三档的中文标签——控制台各页与外发消息共用一份。
+// The three severity tiers and their labels (告警 / 预警 / 提示), for the console and the
+// outbound messages alike.
 export * from "./severity";
 
-// 审计动作的闭合清单——后端查询校验与控制台「动作」标签共用，标签表按它定型，漏一项即编译失败。
+// The closed audit-action tuple: the backend's query validation and the console's 动作 labels
+// are both typed against it, so a missing label fails the build.
 export * from "./audit";
 
-// CSV 单元格（含公式注入防护）——控制台导出与定时报表邮件共用，两边写出同一种文件。
+// One CSV cell (with formula-injection defusing), shared by the console export and the
+// scheduled-report email so both write the same file.
 export * from "./csv";
 
 // The pure coercions both normalisers (backend ingest, fleet-core in the consoles) apply.

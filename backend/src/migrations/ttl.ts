@@ -10,11 +10,13 @@ export interface TtlConfig {
 }
 
 /**
- * Bring the two data-retention TTLs in line with the current config on a database whose
- * collections already exist.
+ * Bring every configured data-retention TTL in line with the current config on a database whose
+ * collections already exist: `telemetry_ts`, `alerts`, `audit_log`, `notify_log`, and the two
+ * hourly-rollup collections.
  *
  * The bug this fixes: `expireAfterSeconds` for `telemetry_ts` and for the `alerts.lastSeenAt`
- * index was only ever set in the create branch of `ensureMongoCollections`. On any database
+ * index (the first two, and the others since) was only ever set in the create branch of
+ * `ensureMongoCollections`. On any database
  * that already had the collections — i.e. every real deployment after first boot — changing
  * `TELEMETRY_RETENTION_SECONDS` or `ALERTS_RETENTION_SECONDS` did nothing, while the docs said
  * it did. Reconciling here (called from `ensureMongoCollections`, so on every connect) makes a

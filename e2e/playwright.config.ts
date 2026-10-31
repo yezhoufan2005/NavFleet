@@ -64,7 +64,8 @@ export default defineConfig({
    *
    * 之所以现在敢去掉，是因为疑虑已经被逐个消掉了：`fleet.setup.ts` 通过 `POST /debug/ingest`
    * 同步注入种子（不依赖 broker 的时序），套件本身 `workers: 1` 且 `fullyParallel: false`
-   * （不存在跨用例竞争），端口固定 3199/5299 且从不复用已有 server（不会连到上一次运行的残留）。
+   * （不存在跨用例竞争），端口固定（后端 3199，冻结前端 5299，控制台 5298）且从不复用已有 server
+   * （不会连到上一次运行的残留）。
    * 也就是说这个套件里没有「同一份代码有时过有时不过」的合法来源。
    *
    * 所以从现在起，红就是红。如果哪天真的抖了，正确的反应是找出那条用例为什么不确定，
@@ -143,8 +144,8 @@ export default defineConfig({
        * The v3 console — **the one in service** since the switch from v1.0.0.
        *
        * Its spec list stayed shorter than the frontend's, and that is not a gap:
-       * the shared specs cover what both consoles owe, the eight `console-*` ones
-       * cover this console's own pages, and the frontend's remaining specs assert
+       * the shared specs cover what both consoles owe, the `console-*` ones listed
+       * below cover this console's own pages, and the frontend's remaining specs assert
        * an IA this console deliberately replaced (see `support/ia.ts`). Pointing
        * them here would test the old information architecture, not this one.
        *

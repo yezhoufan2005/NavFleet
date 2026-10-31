@@ -14,10 +14,11 @@ import type { ChartPalette } from "@/composables/useChartTheme";
  * ECharts, registered once and only the parts we use.
  *
  * `echarts/core` plus explicit `use()` rather than the default bundle: the default
- * pulls every chart type and component, which is most of the library. The console's
- * only chart form today is a time series, so this list is line + the four components
- * it needs. Adding a chart type means adding it here — that is the intended
- * friction, because the alternative is a bundle that grows by accident.
+ * pulls every chart type and component, which is most of the library. This file
+ * registers what the time series needs (line + four components); the bar chart
+ * registers its own in `categoryBarOption.ts`. Adding a chart type means adding it
+ * explicitly — that is the intended friction, because the alternative is a bundle that
+ * grows by accident.
  *
  * Canvas rather than SVG: the baseline in `console-charts.spec.ts` measures the
  * canvas path, and at a few thousand points canvas is the one that holds up. jsdom

@@ -211,9 +211,10 @@ onBeforeUnmount(disposeChart);
 /**
  * Rows for the table view: one per timestamp, one column per series.
  *
- * Capped, and the cap is honest rather than arbitrary — the history endpoint returns
- * at most 500 samples, so in practice nothing is dropped; a caller that hands over
- * more gets an even stride through them and a note saying so.
+ * Capped at 500 rows. The device history endpoint returns at most `MAX_HISTORY_POINTS`
+ * (500 by default) samples, so there nothing is dropped; the 报表 page's long windows do
+ * exceed it (30 days of hourly buckets is 720 timestamps), and then the table takes an
+ * even stride through them and says so in a note.
  */
 const TABLE_ROW_LIMIT = 500;
 

@@ -10,8 +10,8 @@ import prettier from "eslint-config-prettier";
  * workspace —— 根配置 ignore 了 `packages/**`（那条 ignore 是为 fleet-core 自带配置写的），
  * 于是 shared 从两边同时漏了下去。
  *
- * 内容与 fleet-core 那份一致，只去掉它不需要的部分：这个包是纯类型，没有运行时代码，
- * 所以不需要任何环境 globals。
+ * 内容与 fleet-core 那份一致，只去掉它不需要的部分：这个包的运行时代码（规则求值、码表、
+ * 配置校验、几何、CSV）是纯函数，不依赖浏览器或 Node 的环境 globals，所以不声明任何 globals。
  */
 export default tseslint.config(
   { ignores: ["node_modules/**", "dist/**"] },

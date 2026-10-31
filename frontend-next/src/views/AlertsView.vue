@@ -282,9 +282,10 @@ const pageRows = pageItems;
 /**
  * Every unacknowledged id in the **whole filtered set**, not just the visible page.
  *
- * The port had narrowed this to `pageRows`, and `docs/frontend-research.md:36` says the
- * opposite for this control: "保持能力，补反馈与撤销". The feedback and the undo did get
- * added; the capability quietly shrank, with no reason in the code or the commit. On a
+ * The port had narrowed this to `pageRows`, against the decision recorded for this
+ * control when the console was planned: keep the capability, add feedback and undo
+ * (保持能力，补反馈与撤销). The feedback and the undo did get added; the capability quietly
+ * shrank, with no reason in the code or the commit. On a
  * fleet with sixty active alerts "确认本页" means four rounds of clicking through
  * pagination to do what v1.0.0 did once.
  */

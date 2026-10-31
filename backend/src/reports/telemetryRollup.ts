@@ -1,5 +1,5 @@
 /**
- * 遥测按小时汇总——**纯函数，不碰 db、不读 `Date.now()`**。
+ * Telemetry summarised per hour — **pure: no db access, no `Date.now()`**.
  *
  * At one frame a second, a 30-day fleet-wide availability report has to scan tens of millions of
  * frames, and the raw pipeline cannot do that within the report timeout (measured: 29 vehicles ×

@@ -5,8 +5,8 @@
  * engine moved ([[alertRules]]): the backend has to layer a deployment's `codebook.json`
  * over the built-in table and **下发 the merged result**, and the backend depends only on
  * `@navfleet/shared`, not on `fleet-core`. So the built-in data, the wire type, and the
- * pure merge/lookup live here; `fleet-core` keeps built-in-bound convenience wrappers so the
- * two frontends' existing call sites are unchanged.
+ * pure merge/lookup live here, and every caller resolves against the codebook it was handed
+ * (`describeCodeWith` and friends) rather than against a built-in-bound wrapper.
  *
  * ## Where the model comes from
  *
@@ -109,8 +109,6 @@ export interface ReportCodeEntry {
   impact: CodeImpact;
 }
 
-// PLACEHOLDER_ENTRIES
-
 /**
  * The built-in table. Ordered by number so a reader can scan it like a manual. The three
  * codes v1.0.0 already used (1101 / 2203 / 5102) keep their exact meanings; everything else
@@ -165,7 +163,6 @@ export const DEFAULT_REPORT_CODES: readonly ReportCodeEntry[] = Object.freeze([
     hint: "无需处理；接管期间调度指令不会下发到该车",
     impact: "none",
   },
-  // CHUNK_2
   // ── 2xxx 预警 ────────────────────────────────────────────────────────────────
   {
     code: 2101,
@@ -214,7 +211,6 @@ export const DEFAULT_REPORT_CODES: readonly ReportCodeEntry[] = Object.freeze([
     hint: "尽快让车辆停在通风处降温；持续升高会触发保护性停车",
     impact: "urgent",
   },
-  // CHUNK_3
   {
     code: 2401,
     channel: "warning",
@@ -264,7 +260,6 @@ export const DEFAULT_REPORT_CODES: readonly ReportCodeEntry[] = Object.freeze([
     hint: "检查目标点与沿途通道是否被占；清障后车辆可接受新任务，当前任务需重新派发",
     impact: "blocked",
   },
-  // CHUNK_4
   {
     code: 5203,
     channel: "error",
@@ -344,7 +339,11 @@ export const buildCodebookIndex = (
 ): Map<number, ReportCodeEntry> =>
   new Map(entries.map((entry) => [entry.code, entry]));
 
-/** The built-in table as a lookup, for the frontends' built-in-bound wrappers. */
+/**
+ * The built-in table as a lookup, for resolving with no deployment codebook in play. No app code
+ * needs it today (the backend merges and sends the codebook, the consoles use what they get);
+ * the table's own consistency tests resolve against it.
+ */
 export const DEFAULT_CODEBOOK_INDEX = buildCodebookIndex(DEFAULT_REPORT_CODES);
 
 /** What a code means in this codebook, or `null` when it does not know / there is no code. */
