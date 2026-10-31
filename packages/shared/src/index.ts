@@ -331,6 +331,9 @@ export * from "./sceneGeometry";
 // 故独立成文件（本 barrel 其余多为类型）。
 export * from "./rbac";
 
+// 严重度三档的中文标签——控制台各页与外发消息共用一份。
+export * from "./severity";
+
 // 审计动作的闭合清单——后端查询校验与控制台「动作」标签共用，标签表按它定型，漏一项即编译失败。
 export * from "./audit";
 

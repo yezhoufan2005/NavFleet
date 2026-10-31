@@ -20,6 +20,7 @@ import { computed, onMounted, ref, nextTick, watch } from "vue";
 import { useDirtySnapshot } from "@/composables/useDirtySnapshot";
 import { fleetApi } from "@navfleet/fleet-core";
 import {
+  REPORT_RANGE_LABELS,
   REPORT_RANGE_PRESETS,
   type NotifyRecipient,
   type ReportRangePreset,
@@ -42,14 +43,9 @@ import { useFieldErrors } from "@/composables/useFieldErrors";
 const auth = useAuth();
 const canWrite = computed(() => auth.can("reports:write"));
 
-const RANGE_LABELS: Record<ReportRangePreset, string> = {
-  "24h": "近 24 小时",
-  "7d": "近 7 天",
-  "30d": "近 30 天",
-};
 const RANGE_OPTIONS = REPORT_RANGE_PRESETS.map((value) => ({
   value,
-  label: RANGE_LABELS[value],
+  label: REPORT_RANGE_LABELS[value],
 }));
 /** "" = 每天; otherwise 0(周日)–6(周六). */
 const WEEKDAY_OPTIONS = [
@@ -340,7 +336,7 @@ const formDirty = formSnapshot.dirty;
                 }}</span>
               </td>
               <td class="truncate px-3 py-2 text-ink-muted">
-                {{ RANGE_LABELS[schedule.range] ?? schedule.range }}
+                {{ REPORT_RANGE_LABELS[schedule.range] ?? schedule.range }}
               </td>
               <td class="px-3 py-2 text-ink-muted tabular-nums">
                 {{ weekdayLabel(schedule.weekday) }} {{ schedule.time }}

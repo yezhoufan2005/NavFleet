@@ -82,7 +82,7 @@ describe("buildReportEmail", () => {
     // Online = 38/40 = 95.0%; soc weighted over buckets with a value = (80*20)/20 = 80.0%.
     expect(content.text).toContain("平均在线率：95.0%");
     expect(content.text).toContain("平均电量：80.0%");
-    expect(content.text).toContain("告警总数：5");
+    expect(content.text).toContain("消息总数：5");
     expect(content.text).toContain("确认率：60%");
   });
 
@@ -137,5 +137,9 @@ describe("buildReportEmail", () => {
     });
     expect(content.text).toContain("未连接历史后端");
     expect(content.html).toContain("未连接历史后端");
+    // Not 0: zero reads as "nothing happened", and the same email showed -- for the other two.
+    expect(content.text).toContain("消息总数：--");
+    expect(content.text).toContain("确认率：--");
+    expect(content.text).not.toContain("零值");
   });
 });
