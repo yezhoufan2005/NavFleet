@@ -229,8 +229,9 @@ export const buildCodeAlerts = (device: DeviceSnapshot): DeviceAlert[] => {
      *
      * Interpolating `source` produced `agv-1-error_code-5102` against the backend's
      * `agv-1-error-code-5102` (`backend/src/normalize.ts`'s `buildCodeAlerts`), and
-     * acknowledgement is persisted **by id** (`navfleet:acked-alerts`) — so the two
-     * derivations of one condition could not agree on what had been acknowledged.
+     * acknowledgement is recorded on the server **by id** (the `eventKey` is
+     * `deviceId:alertId`) — so the two derivations of one condition could not agree on
+     * what had been acknowledged.
      * Latent rather than live today, because the console keeps the backend's ids for
      * a normalized snapshot and only derives its own from a raw frame.
      */

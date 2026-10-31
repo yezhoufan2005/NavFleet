@@ -124,8 +124,8 @@ const rows = computed<Row[]>(() =>
       detail: String(record.detail || record.info || ""),
       code:
         Number.isFinite(record.code) && record.code ? String(record.code) : "",
-      // `--` rather than a formatted `undefined`: `formatDateTime` falls back to
-      // `Date.now()`, which would date an undated record to this second.
+      // `formatDateTime` already answers `--` for a value it cannot read; checking first only
+      // saves the parse.
       started: Number.isFinite(started) ? formatDateTime(started) : "--",
       ended: active
         ? "仍活跃"

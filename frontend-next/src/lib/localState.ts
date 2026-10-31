@@ -4,9 +4,9 @@
  * Every preference the console stores is namespaced `navfleet:`, so the inventory is
  * produced by **scanning storage for that prefix** instead of from a hand-kept list.
  * That is the whole point: this feeds a diagnostics page, and a list maintained by
- * hand is precisely the thing that goes stale — `docs/frontend-parity.md` §8.8
- * documented five keys and there are ten today, because three sound preferences, the
- * device layout and the sound-armed flag were all added after it was written.
+ * hand is precisely the thing that goes stale — an earlier written inventory listed five
+ * keys while the console stored ten, because three sound preferences, the device layout
+ * and the sound-armed flag were all added after it was written.
  * A page that answers "what is this browser holding" has to be unable to drift from
  * the answer.
  *

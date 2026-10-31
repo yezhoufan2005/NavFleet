@@ -241,8 +241,6 @@ watch(activeAlerts, () => {
   </main>
 </template>
 
-<!-- WALL_STYLE -->
-
 <style scoped>
 /* A wall is watched, not operated: the whole surface ignores the pointer, which also
    neutralises the map's own zoom controls without reaching into that component. */

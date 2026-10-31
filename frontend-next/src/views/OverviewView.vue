@@ -99,7 +99,8 @@ const asPct = (part: number, whole: number): number =>
 
 /**
  * 车队状态分布：五个 tone 的台数与占比，喂给总览顶部的「车队状态」分布卡（五色堆叠条 + 图例）。
- * 本地按 getDeviceTone 统计，与设备列表 / 地图同一口径。顺序 = 最该先看的在前。
+ * 本地按 getDeviceTone 统计，与设备列表 / 地图同一口径。顺序是分布条从左到右的读法（正常 → 离线），
+ * 与设备页的状态筛选一致；「最该先看的」排序是 fleet-core 的 `DEVICE_TONE_SEVERITY`，用于排名而不是这里。
  */
 const STATUS_ORDER = [
   { key: "normal", label: "正常", cls: "bg-success" },

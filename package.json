@@ -36,7 +36,8 @@
     "e2e:install": "playwright install chromium",
     "screenshots": "npm run e2e:install && playwright test -c e2e/screenshots.config.ts",
     "dev:console": "npm run dev -w navfleet-console",
-    "check:deploy": "node scripts/check-deploy-wiring.mjs"
+    "check:deploy": "node scripts/check-deploy-wiring.mjs",
+    "check:markers": "node scripts/check-generation-markers.mjs"
   },
   "devDependencies": {
     "@axe-core/playwright": "4.14.0",

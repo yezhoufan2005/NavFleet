@@ -4,8 +4,9 @@ import type { AlertRecord } from "@navfleet/fleet-core";
  * Pure statistics over a set of alert records.
  *
  * Kept out of the view and free of `Date.now()` / DOM so every branch is unit-testable by
- * feeding records in and asserting the numbers out. The backend has no aggregation layer yet
- * (that is the reports page), so the history computes these client-side over what `getAlerts` returns —
+ * feeding records in and asserting the numbers out. The server aggregates too
+ * (`/api/reports/alerts`, which the 报表 page reads, over the whole window); 消息史 computes these
+ * client-side over the records it already holds from `getAlerts`, so its charts match its list —
  * bounded by the endpoint's row cap, which the view states in words when it bites.
  */
 export type Severity = "critical" | "warning" | "notice";

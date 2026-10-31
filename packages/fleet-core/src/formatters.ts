@@ -3,9 +3,8 @@ import { asText, formatDateTime } from "./fleetNormalize";
 /**
  * Display formatters shared by the views.
  *
- * These were duplicated verbatim across DashboardView / HistoryView / AlertsView;
- * they render telemetry for humans and all fall back to an em-dash placeholder
- * rather than showing NaN/undefined.
+ * One copy for both consoles' views. They render telemetry for humans and all fall back
+ * to the `--` placeholder rather than showing NaN/undefined.
  */
 
 /**

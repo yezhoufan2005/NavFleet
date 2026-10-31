@@ -79,8 +79,6 @@ const formatDayInZone = (at: Date, timeZone: string): string =>
     day: "2-digit",
   }).format(at);
 
-/** RFC-4180 CSV 转义。 */
-
 /**
  * 一封定时报表邮件：HTML 摘要（KPI + 告警 Top）作正文，在线率明细 CSV 作附件，纯文本作降级正文。
  * 无 Mongo（两报表 `available:false`）时仍生成一封「本区间无可聚合历史」的邮件——收件人该知道任务在跑
