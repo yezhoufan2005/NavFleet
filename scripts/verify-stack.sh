@@ -33,8 +33,6 @@ set -uo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 PROJECT="${NAVFLEET_PROJECT:-navfleet}"
-PORT="${HTTP_HOST_PORT:-8080}"
-BASE="http://127.0.0.1:${PORT}"
 COMPOSE_FILE="$ROOT/deploy/docker-compose.yml"
 ENV_FILE="$ROOT/deploy/.env"
 COOKIE="$(mktemp)"
@@ -91,9 +89,14 @@ body() { curl -s "$@"; }
 # 只取 deploy/.env 里指定的一个键。整份 source 会把 NODE_ENV=production 一起带进来。
 deploy_var() { [[ -f "$ENV_FILE" ]] && sed -n "s/^$1=//p" "$ENV_FILE" | tail -1; }
 
-# 收件箱端口按 compose 自己的取值顺序：shell 环境优先于 deploy/.env，都没有才用默认值。
+# 宿主端口按 compose 自己的取值顺序：shell 环境优先于 deploy/.env，都没有才用默认值。
+PORT="${HTTP_HOST_PORT:-$(deploy_var HTTP_HOST_PORT)}"
+PORT="${PORT:-8080}"
+BASE="http://127.0.0.1:${PORT}"
 MAILPIT_PORT="${MAILPIT_HOST_PORT:-$(deploy_var MAILPIT_HOST_PORT)}"
 MAILPIT_PORT="${MAILPIT_PORT:-8025}"
+PROM_PORT="${PROMETHEUS_HOST_PORT:-$(deploy_var PROMETHEUS_HOST_PORT)}"
+PROM_PORT="${PROM_PORT:-9090}"
 
 compose() {
   docker compose --env-file "$ENV_FILE" -p "$PROJECT" "${COMPOSE_ARGS[@]}" "$@"
@@ -112,7 +115,6 @@ fi
 if [[ "$DO_MOCK" == "1" ]]; then
   COMPOSE_ARGS+=(-f "$ROOT/deploy/docker-compose.demo.yml")
 fi
-PROM_PORT="${PROMETHEUS_HOST_PORT:-9090}"
 
 # ---------------------------------------------------------------------------
 # 前置检查
@@ -158,6 +160,14 @@ fi
 # ---------------------------------------------------------------------------
 SERVICES=(nginx web backend mongo mosquitto)
 [[ "$DO_MOCK" == "1" ]] && SERVICES+=(sim)
+# 演示路径按名字分两步起服务，叠加进来的监控服务（prometheus、exporter 等）也得点名，否则
+# --no-deps 不会带起它们，监控断言只在上次留下了容器时才碰巧通过。
+PLATFORM_SERVICES=(nginx web backend)
+if [[ "$MONITORING" == "1" ]]; then
+  while read -r svc; do
+    [[ " ${SERVICES[*]} mailpit " == *" ${svc} "* ]] || PLATFORM_SERVICES+=("$svc")
+  done < <(compose config --no-interpolate --services 2>/dev/null)
+fi
 
 if [[ "$CHECK_ONLY" == "0" ]]; then
   # compose 从**当前磁盘上的文件**构建镜像（context 是仓库根），不是从某个 git 提交。所以工作树脏
@@ -193,7 +203,10 @@ if [[ "$CHECK_ONLY" == "0" ]]; then
     # 平台不在历史还在写的时候判离线——和真实现场一样，车一直在报，平台后上线。
     # 镜像先全部建好，第二步只剩起容器：模拟器转入实时之后、平台订阅上之前发出的帧没人收。第二步
     # 若还要构建平台镜像，这段空档有一分半，回放和在线率里都看得见。
-    if ! compose build >/tmp/navfleet-verify-up.log 2>&1 ||
+    # 上一轮的平台若还在跑，补历史期间它照样读写同一个库，转入实时那一刻又用内存里的旧消息集
+    # 去改刚补好的历史（重开已关的消息、把一次发生拆成两条），所以先停掉它。
+    compose stop "${PLATFORM_SERVICES[@]}" >/tmp/navfleet-verify-up.log 2>&1 || true
+    if ! compose build >>/tmp/navfleet-verify-up.log 2>&1 ||
       ! compose up -d --force-recreate mongo mosquitto mailpit sim \
         >>/tmp/navfleet-verify-up.log 2>&1; then
       echo "compose up（演示车队）失败，最后 30 行："; tail -30 /tmp/navfleet-verify-up.log; exit 1
@@ -213,7 +226,7 @@ if [[ "$CHECK_ONLY" == "0" ]]; then
     done
     [[ "$sim_ready" == "1" ]] || { echo "  模拟器 2 小时内未就绪"; compose logs --tail 30 sim; exit 1; }
     # --no-deps：依赖刚才已起好；不带它，force-recreate 会把模拟器也重建一遍。
-    if ! compose up -d --force-recreate --no-deps nginx web backend \
+    if ! compose up -d --force-recreate --no-deps "${PLATFORM_SERVICES[@]}" \
       >>/tmp/navfleet-verify-up.log 2>&1; then
       echo "compose up 失败，最后 30 行："; tail -30 /tmp/navfleet-verify-up.log; exit 1
     fi
@@ -221,22 +234,8 @@ if [[ "$CHECK_ONLY" == "0" ]]; then
     echo "compose up 失败，最后 30 行："; tail -30 /tmp/navfleet-verify-up.log; exit 1
   fi
 
-  # 重启 backend，清空它内存里的「登录限流」计数再做鉴权断言。
-  #
-  # 为什么需要：/api/auth 挂了一个 express-rate-limit（AUTH_RATE_LIMIT_MAX，默认 50 次 /
-  # 15 分钟 / 每 IP，见 app.ts），计数存在后端进程内存里。本脚本每跑一遍要打 ~5 个 auth 请求
-  # （错/对口令登录、/me、续签、登出），同一个 15 分钟窗口里反复验收就会累加到 50 以上 ——
-  # 于是登录直接 429，后面所有带会话的断言连锁 401。`compose up` 若没改镜像不会重建既有容器，
-  # 这个内存计数就跨多次验收活了下来（正是本次 23 条失败的根因）。重启后进程重来、计数归零，
-  # 每次验收都拿到干净的限流预算；限流值本身不动（仍是真实的 50/15min）。
-  #
-  # --fresh / --purge 刚 down + up 过，backend 本就是新的，跳过这次多余的重启。
-  if [[ "$DO_FRESH" == "0" && "$DO_PURGE" == "0" ]]; then
-    echo "重启 backend 清空登录限流计数（避免多次验收累积触发 429）…"
-    compose restart backend >/dev/null 2>&1 || true
-  fi
-
-  echo -n "等五个服务全部 healthy"
+  # 两条起栈路径都带 --force-recreate，backend 进程（连同内存里的登录限流计数）每次都是新的。
+  echo -n "等 ${#SERVICES[@]} 个服务全部 healthy"
   for _ in $(seq 1 90); do
     unhealthy=0
     for svc in "${SERVICES[@]}"; do
@@ -361,8 +360,12 @@ print(sum(1 for i in items if isinstance((i.get('measurements') or {}).get('fusi
     ok "30 天全车队可用率报表（${REPORT_T##* }s）" || bad "30 天全车队可用率报表失败：${REPORT_T}"
   CLEARED="$(body -b "$COOKIE" "$BASE/api/v1/alerts?status=cleared" | count_json '["items"]')"
   [[ "${CLEARED:-0}" -ge 50 ]] && ok "已清除的消息历史（${CLEARED} 条，查询上限 500）" || bad "已清除的消息历史过少：${CLEARED}"
-  # 注入：急停一分钟，平台随即看到 5701；一分钟后自行恢复，不留永久状态。
-  if compose exec -T sim npx tsx sim/main.ts inject agv-w05 estop 1 >/dev/null 2>&1; then
+  # 注入：急停一分钟，平台随即看到 5701；一分钟后自行恢复，不留永久状态。--check-only 承诺不碰在跑
+  # 的栈，所以不注入（注入会多一条告警，并真的外发一次）。
+  if [[ "$CHECK_ONLY" == "1" ]]; then
+    skip "注入急停与实时外发" "--check-only"
+  elif INJECT_AT="$(date -u +%Y-%m-%dT%H:%M:%SZ)" &&
+    compose exec -T sim npx tsx sim/main.ts inject agv-w05 estop 1 >/dev/null 2>&1; then
     INJECTED=""
     for _ in $(seq 1 15); do
       INJECTED="$(body -b "$COOKIE" "$BASE/api/fleet/snapshot" | python3 -c "
@@ -373,14 +376,31 @@ print(d.get('agv-w05',{}).get('errorCode',{}).get('code'))" 2>/dev/null)"
       sleep 1
     done
     eq "注入急停后平台看到 agv-w05 报 5701" 5701 "$INJECTED"
+    # 外发记录里 30 天的历史是模拟器按同一路由规则生成的，从未真正发出，数条数证明不了送达。
+    # 这里只认注入之后、这台车、状态为 sent 的记录：那是这一次急停实时发出去的。
+    # 每条记录写成「渠道:状态」，失败的发送也看得见。
+    SENDS=""
+    for _ in $(seq 1 20); do
+      SENDS="$(body -b "$COOKIE" "$BASE/api/v1/notify/log?deviceId=agv-w05&from=${INJECT_AT}" |
+        python3 -c "import json,sys;print(' '.join(sorted({i['channelId']+':'+i['status'] for i in json.load(sys.stdin)['items']})))" 2>/dev/null)"
+      [[ "$SENDS" == *ops-wecom:* ]] && break
+      sleep 1
+    done
+    has "急停实时外发到企业微信（本次发送：${SENDS:-无}）" ops-wecom:sent "$SENDS"
+    # 邮件渠道周末夜间静默，静默时既不发也不记。记了 sent，收件箱里就必须真有这封邮件。
+    if [[ "$SENDS" == *ops-email:sent* ]]; then
+      MAILPIT_N="$(curl -s "http://127.0.0.1:${MAILPIT_PORT}/api/v1/messages?limit=1" |
+        python3 -c "import json,sys;print(json.load(sys.stdin).get('total',0))" 2>/dev/null || echo 0)"
+      [[ "${MAILPIT_N:-0}" -ge 1 ]] && ok "邮件实时送达本机收件箱（${MAILPIT_N} 封）" ||
+        bad "外发记录说邮件已发出，收件箱却是空的"
+    elif [[ "$SENDS" == *ops-email:* ]]; then
+      bad "急停的邮件外发失败（${SENDS}）"
+    else
+      skip "邮件实时送达" "邮件渠道此刻在静默时段，没有发送"
+    fi
   else
     bad "注入命令执行失败"
   fi
-  MAILPIT_N="$(curl -s "http://127.0.0.1:${MAILPIT_PORT}/api/v1/messages?limit=1" |
-    python3 -c "import json,sys;print(json.load(sys.stdin).get('total',0))" 2>/dev/null || echo 0)"
-  NOTIFY_N="$(body -b "$COOKIE" "$BASE/api/v1/notify/log" | count_json '["items"]')"
-  [[ "${NOTIFY_N:-0}" -ge 1 ]] && ok "外发记录有送达记录（${NOTIFY_N} 条；本机收件箱 ${MAILPIT_N} 封）" ||
-    bad "外发记录为空"
 else
   skip "历史落库" "--no-mock"
 fi

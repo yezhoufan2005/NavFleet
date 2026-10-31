@@ -166,7 +166,7 @@ export const createApp = ({
     next();
   });
 
-  // Public operational endpoints (liveness/readiness/metrics/openapi). Mounted
+  // Public operational endpoints (liveness/readiness/metrics). Mounted
   // ahead of the API rate limit so a probe or a Prometheus scrape can never be
   // throttled by client traffic.
   app.use(

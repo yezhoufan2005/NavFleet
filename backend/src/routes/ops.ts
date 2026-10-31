@@ -15,8 +15,9 @@ export interface OpsRouterDeps {
 }
 
 /**
- * Public operational endpoints (no auth): liveness, readiness, Prometheus
- * metrics and the OpenAPI document. Mounted at the root before the auth gate.
+ * Public operational endpoints (no auth): liveness, readiness and Prometheus
+ * metrics. Mounted at the root before the auth gate; the OpenAPI document is
+ * not one of them (see `buildOpenApiRouter`).
  */
 export const buildOpsRouter = ({
   persistence,

@@ -263,7 +263,7 @@ npm run screenshots   # 启后端 + 控制台 → 播种演示车队 → 逐页�
   事件有 `estop`、`obstacle`、`loc-lost`、`drive-fault`、`lidar-fault`、`task-failed`、`collision-guard`、
   `comm-loss`、`maintenance`、`teleop`、`low-battery`、`battery-heat`、`payload`、`speed-zone`。
 
-- 外发与定时报表发往本机收件服务（邮件在 mailpit，`http://127.0.0.1:8025`），外发记录里是真实送达。
+- 外发与定时报表发往本机收件服务（邮件在 mailpit，`http://127.0.0.1:8025`），实时外发是真实送达；外发记录里 30 天的历史由模拟器按同一套路由规则生成。
 
 开发时 `scripts/dev.sh --demo` 用同一个模拟器（首次补 7 天）。压测用 `backend/scripts/load-ingest.ts`。
 
