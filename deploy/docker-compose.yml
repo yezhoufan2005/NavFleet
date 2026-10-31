@@ -10,7 +10,7 @@ services:
   nginx:
     # Unprivileged variant: runs as uid 101 and listens on 8080 inside the
     # container, so nothing in the request path is root.
-    image: nginxinc/nginx-unprivileged:1.27-alpine
+    image: nginxinc/nginx-unprivileged:1.31-alpine
     depends_on:
       - web
       - backend
@@ -226,7 +226,7 @@ services:
     restart: unless-stopped
 
   mongo:
-    image: mongo:7.0
+    image: mongo:9.0
     command: ["mongod", "--bind_ip_all", "--auth"]
     networks:
       - data
