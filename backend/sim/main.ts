@@ -13,7 +13,7 @@
  */
 import fs from "node:fs";
 import path from "node:path";
-import { catchUp, runShard } from "./catchup";
+import { CatchUpRefused, catchUp, runShard } from "./catchup";
 import { resolveConfigRoot } from "./fleet";
 import { queueInjection, runLive } from "./live";
 import { INJECTION_KINDS } from "./vehicle";
@@ -74,6 +74,11 @@ const main = async (): Promise<void> => {
 };
 
 main().catch((error: unknown) => {
+  if (error instanceof CatchUpRefused) {
+    console.error(`[sim] refused: ${error.message}`);
+    // A distinct code: dev.sh stops restarting on it, since a retry would refuse the same way.
+    process.exit(3);
+  }
   console.error(`[sim] ${error instanceof Error ? (error.stack ?? error.message) : String(error)}`);
   process.exit(1);
 });
