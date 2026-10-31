@@ -461,7 +461,7 @@ const ifMatchParameter = {
 };
 const configWriteConflict = {
   description:
-    "未写入：config_conflict（他人在编辑期间改了同一条目，需刷新后重新编辑）或 config_not_applied（校验通过但与其余配置一起生效失败，已回滚；detail 为原因）",
+    "未写入：config_conflict（他人在编辑期间改了同一条目，需刷新后重新编辑）、config_not_applied（校验通过但与其余配置一起生效失败，已回滚；detail 为原因），或 vehicle_in_use / formation_in_use / scene_in_use（要删除的车辆、编队、场景仍被编队、规则或外发范围、车辆引用；detail 列出引用方）",
   content: { "application/json": { schema: { $ref: "#/components/schemas/Error" } } },
 };
 const jsonObject = { type: "object", additionalProperties: true } as const;
@@ -1094,7 +1094,7 @@ const [rbacGroups, rbacGroup] = rbacOperations({
     noun: "车辆配置 vehicles.json",
     capability: "vehicles:write",
     key: "vehicles",
-    invalidError: "invalid_vehicles / vehicle_referenced_by_formation / unknown_scene_in_vehicle",
+    invalidError: "invalid_vehicles / unknown_scene_in_vehicle",
   }),
   "/api/v1/formation-config": configFileOperations({
     noun: "编队配置 formations.json",

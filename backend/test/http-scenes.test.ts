@@ -2,7 +2,7 @@ import { describe, it, expect } from "vitest";
 import request from "supertest";
 import type { SceneMapDefinition } from "@navfleet/shared";
 import { createTestApp, sessionCookie } from "./helpers/testApp";
-import { SceneAssetValidationError } from "../src/configRegistry";
+import { ConfigReferenceError, SceneAssetValidationError } from "../src/configRegistry";
 
 /**
  * Scene-map management API. The admin-only gate is pinned in http-rbac; here we cover
@@ -68,14 +68,16 @@ describe("PUT /api/scenes", () => {
 });
 
 describe("PUT /api/scenes — references", () => {
-  it("refuses removing a scene a vehicle or formation still uses, naming them (409)", async () => {
+  it("answers a refused removal with 409 scene_in_use and the registry's list of users", async () => {
+    // The check runs inside the serialized write (see ConfigRegistry.writeScenes); the route only
+    // maps it.
     const context = createTestApp();
-    context.store.listVehicleConfigs.mockReturnValue([
-      { deviceId: "agv-1", deviceName: "agv-1", defaultSceneId: "old-yard" },
-    ]);
-    context.store.listFormationConfigs.mockReturnValue([
-      { formationId: "f1", formationName: "f1", deviceIds: ["agv-1"], sceneId: "old-yard" },
-    ]);
+    context.store.writeScenes.mockRejectedValue(
+      new ConfigReferenceError("scene_in_use", "场景", [
+        "车辆 agv-1（old-yard）",
+        "编队 f1（old-yard）",
+      ]),
+    );
     const response = await request(context.app)
       .put("/api/scenes")
       .set("Cookie", ADMIN)
@@ -85,7 +87,7 @@ describe("PUT /api/scenes — references", () => {
     expect(body.error).toBe("scene_in_use");
     expect(body.detail).toContain("车辆 agv-1");
     expect(body.detail).toContain("编队 f1");
-    expect(context.store.writeScenes).not.toHaveBeenCalled();
+    expect(context.auditService.record).not.toHaveBeenCalled();
   });
 });
 

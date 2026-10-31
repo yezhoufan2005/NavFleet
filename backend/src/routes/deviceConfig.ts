@@ -41,19 +41,8 @@ export const buildDeviceConfigRouter = (
     const raw = unwrap(request.body, "vehicles");
     const vehicles = parseOrRespond(response, "invalid_vehicles", () => parseVehicles(raw));
     if (vehicles === undefined) return;
-    // Refuse to orphan a formation: removing a vehicle a formation still names would make the
-    // next config load fail. A clean 400 (writeVehicles re-checks as the authority).
-    const nextIds = new Set(vehicles.map((vehicle) => vehicle.deviceId));
-    for (const formation of store.listFormationConfigs()) {
-      const missing = formation.deviceIds.find((deviceId) => !nextIds.has(deviceId));
-      if (missing !== undefined) {
-        response.status(400).json({
-          error: "vehicle_referenced_by_formation",
-          detail: `deviceId ${missing} is still referenced by formation ${formation.formationId}`,
-        });
-        return;
-      }
-    }
+    // Removing a vehicle something still names (a formation, a rule or channel scope) is refused
+    // inside the serialized write, as a 409 `vehicle_in_use` listing who refers to it.
     // A vehicle's defaultSceneId must name a configured scene, or it resolves to a dangling id.
     const vehicleSceneIds = new Set(store.getScenes().map((scene) => scene.sceneId));
     const badVehicle = vehicles.find(
@@ -114,6 +103,7 @@ export const buildDeviceConfigRouter = (
         });
         return;
       }
+      // Removing a formation a rule or channel scope names: 409 `formation_in_use`, from the write.
       const saved = await store.writeFormations(raw, expectedConfigVersion(request));
       void audit.record({
         actor: request.user!.username,

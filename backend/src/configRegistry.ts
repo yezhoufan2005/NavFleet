@@ -324,6 +324,25 @@ const describeConfigError = (error: unknown): string =>
     .join("");
 
 /**
+ * A write that would remove a vehicle, formation or scene something still names — a formation's
+ * members, a rule's or an outbound channel's scope, a vehicle's or formation's scene. Nothing was
+ * written; the route answers 409 with `code` and a detail that lists who refers to it. Raised
+ * inside the serialized write, so a concurrent edit cannot slip a new reference past the check.
+ */
+export class ConfigReferenceError extends Error {
+  constructor(
+    readonly code: "vehicle_in_use" | "formation_in_use" | "scene_in_use",
+    noun: string,
+    users: readonly string[],
+  ) {
+    super(
+      `${noun}仍被引用：${users.slice(0, 10).join("、")}${users.length > 10 ? ` 等 ${users.length} 处` : ""}`,
+    );
+    this.name = "ConfigReferenceError";
+  }
+}
+
+/**
  * A config write that validated on its own but could not be applied together with the rest of
  * the configuration (e.g. a scene pointing at an .osm that does not parse). The file has been
  * restored to what it was; the route answers 409 with this message.
@@ -1021,9 +1040,24 @@ export class ConfigRegistry {
     const changed = CONFIG_FILE_KEYS.filter(
       (key) => lastGood[key] !== undefined && lastGood[key] !== current[key],
     );
-    const issueFor = (key: ConfigFileKey): ConfigIssue => ({
+    // Each reverted file's own reason: with several changed at once, every issue used to carry
+    // the first file's error. A file that loads on its own (it only fails in combination) keeps
+    // the combined error.
+    const ownError = async (key: ConfigFileKey): Promise<unknown> => {
+      if (changed.length < 2) return firstError;
+      // Only this file's edit applied; every other changed file back at its last-good copy.
+      const alone = { ...current };
+      for (const other of changed) if (other !== key) alone[other] = lastGood[other] ?? null;
+      try {
+        await this.buildSnapshot(alone);
+        return firstError;
+      } catch (error) {
+        return error;
+      }
+    };
+    const issueFor = async (key: ConfigFileKey): Promise<ConfigIssue> => ({
       file: path.basename(CONFIG_FILES[key].path),
-      message: describeConfigError(firstError),
+      message: describeConfigError(await ownError(key)),
       using: lastGood[key] === null ? "default" : "last-good",
     });
     const attempts: ConfigFileKey[][] = [
@@ -1038,7 +1072,7 @@ export class ConfigRegistry {
           snapshot: await this.buildSnapshot(raw),
           raw,
           current,
-          issues: reverted.map(issueFor),
+          issues: await Promise.all(reverted.map(issueFor)),
         };
       } catch {
         // Not this one; try the next combination.
@@ -1714,21 +1748,43 @@ export class ConfigRegistry {
     return this.serialize(() => this.writeVehiclesInternal(vehicles, expectedVersion));
   }
 
+  /**
+   * Who still names one of `removed` in a rule or outbound-channel scope, as display lines. A
+   * scope naming a deleted vehicle or formation silently matches nothing: the rule reads 启用 and
+   * never fires, the channel stops sending.
+   */
+  private scopeUsers(dimension: "deviceIds" | "formationIds", removed: Set<string>): string[] {
+    const users: string[] = [];
+    const ruleNames = { lowBattery: "低电量", offline: "离线" } as const;
+    for (const key of Object.keys(ruleNames) as Array<keyof typeof ruleNames>) {
+      for (const id of this.alertRules[key].scope?.[dimension] ?? []) {
+        if (removed.has(id)) users.push(`消息规则「${ruleNames[key]}」（${id}）`);
+      }
+    }
+    for (const channel of this.notifyConfig.channels) {
+      for (const id of channel.scope?.[dimension] ?? []) {
+        if (removed.has(id)) users.push(`外发渠道 ${channel.id}（${id}）`);
+      }
+    }
+    return users;
+  }
+
   private async writeVehiclesInternal(
     vehicles: DeviceConfig[],
     expectedVersion?: string,
   ): Promise<DeviceConfig[]> {
     this.ensureLoaded();
     const nextIds = new Set(vehicles.map((vehicle) => vehicle.deviceId));
-    for (const formation of this.formationConfigs.values()) {
-      for (const deviceId of formation.deviceIds) {
-        if (!nextIds.has(deviceId)) {
-          throw new Error(
-            `deviceId ${deviceId} is still referenced by formation ${formation.formationId}`,
-          );
-        }
-      }
-    }
+    const removed = new Set([...this.deviceConfigs.keys()].filter((id) => !nextIds.has(id)));
+    const users = [
+      ...[...this.formationConfigs.values()].flatMap((formation) =>
+        formation.deviceIds
+          .filter((deviceId) => removed.has(deviceId))
+          .map((deviceId) => `编队 ${formation.formationId}（${deviceId}）`),
+      ),
+      ...this.scopeUsers("deviceIds", removed),
+    ];
+    if (users.length) throw new ConfigReferenceError("vehicle_in_use", "车辆", users);
     for (const vehicle of vehicles) {
       if (vehicle.defaultSceneId && !this.sceneConfigs.has(vehicle.defaultSceneId)) {
         throw new Error(
@@ -1756,6 +1812,10 @@ export class ConfigRegistry {
     expectedVersion?: string,
   ): Promise<FormationConfig[]> {
     this.ensureLoaded();
+    const nextIds = new Set(formations.map((formation) => formation.formationId));
+    const removed = new Set([...this.formationConfigs.keys()].filter((id) => !nextIds.has(id)));
+    const users = this.scopeUsers("formationIds", removed);
+    if (users.length) throw new ConfigReferenceError("formation_in_use", "编队", users);
     for (const formation of formations) {
       for (const deviceId of formation.deviceIds) {
         if (!this.deviceConfigs.has(deviceId)) {
@@ -1779,15 +1839,26 @@ export class ConfigRegistry {
    * operator/deployment domain — the console renders these backdrops, it does not push maps to
    * vehicles — so the read-only red line holds. The config volume must be writable.
    */
-  writeScenes(raw: unknown, expectedVersion?: string): Promise<SceneMapDefinition[]> {
-    return this.writeWholeConfig(
-      raw,
-      parseScenes,
-      "scenes",
-      "scenes-write",
-      () => this.listScenes(),
-      expectedVersion,
-    );
+  async writeScenes(raw: unknown, expectedVersion?: string): Promise<SceneMapDefinition[]> {
+    const scenes = parseScenes(raw);
+    return this.serialize(async () => {
+      this.ensureLoaded();
+      // Checked here, in the queue, against the configuration as it is now: checked before
+      // queueing, a vehicle saved in between could take up a scene this write then removes, and
+      // the load would quietly blank that vehicle's scene.
+      const kept = new Set(scenes.map((scene) => scene.sceneId));
+      const users = [
+        ...[...this.deviceConfigs.values()]
+          .filter((vehicle) => vehicle.defaultSceneId && !kept.has(vehicle.defaultSceneId))
+          .map((vehicle) => `车辆 ${vehicle.deviceId}（${vehicle.defaultSceneId}）`),
+        ...[...this.formationConfigs.values()]
+          .filter((formation) => formation.sceneId && !kept.has(formation.sceneId))
+          .map((formation) => `编队 ${formation.formationId}（${formation.sceneId}）`),
+      ];
+      if (users.length) throw new ConfigReferenceError("scene_in_use", "场景", users);
+      await this.writeConfigAndApply("scenes", scenes, "scenes-write", expectedVersion);
+      return this.listScenes();
+    });
   }
 
   /**

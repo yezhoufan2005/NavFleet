@@ -774,7 +774,8 @@ export const fleetApi = {
   // Read + write vehicles.json / formations.json. Writing config is operator-domain (not
   // vehicle control); the backend validates, writes atomically, and hot-reloads. A refused
   // write surfaces as `error.message` = a stable code (invalid_vehicles / invalid_formations /
-  // unknown_device_in_formation / vehicle_referenced_by_formation) for the view to map.
+  // unknown_device_in_formation, or a 409 vehicle_in_use / formation_in_use whose `detail`
+  // lists what still refers to it) for the view to map.
   getVehicleConfig(): Promise<{ vehicles: DeviceConfig[] }> {
     return requestJson<{ vehicles: DeviceConfig[] }>("/api/v1/vehicles");
   },
