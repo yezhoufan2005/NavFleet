@@ -4,7 +4,8 @@
 # ⚠ 破坏性：使用 --drop 会先删除同名集合再导入，请务必确认目标环境。
 # 用法:
 #   deploy/tools/mongo-restore.sh <归档路径> [--yes]
-# 环境变量同 mongo-backup.sh（MONGO_INITDB_ROOT_USERNAME/PASSWORD、MONGO_DB_NAME、COMPOSE）。
+# 环境变量同 mongo-backup.sh（MONGO_INITDB_ROOT_USERNAME/PASSWORD、MONGO_DB_NAME、COMPOSE、
+# NAVFLEET_PROJECT）。
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -30,6 +31,9 @@ MONGO_USER="${MONGO_INITDB_ROOT_USERNAME:-root}"
 MONGO_PASS="${MONGO_INITDB_ROOT_PASSWORD:-example}"
 MONGO_DB="${MONGO_DB_NAME:-fleet_monitor}"
 COMPOSE="${COMPOSE:-docker compose}"
+# shellcheck source=compose-project.sh
+source "$SCRIPT_DIR/compose-project.sh"
+resolve_compose_project
 
 echo "⚠ 即将把 '${ARCHIVE}' 恢复到数据库 '${MONGO_DB}'（--drop 会覆盖同名集合）。"
 if [[ "$CONFIRM" != "--yes" ]]; then

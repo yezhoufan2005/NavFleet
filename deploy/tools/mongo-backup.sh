@@ -9,6 +9,7 @@
 #   MONGO_INITDB_ROOT_PASSWORD (默认 example)
 #   MONGO_DB_NAME              (默认 fleet_monitor)
 #   COMPOSE                    (默认 "docker compose")
+#   NAVFLEET_PROJECT           compose 项目名（默认取正在运行的那个，见 compose-project.sh）
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -38,18 +39,26 @@ MONGO_USER="${MONGO_INITDB_ROOT_USERNAME:-root}"
 MONGO_PASS="${MONGO_INITDB_ROOT_PASSWORD:-example}"
 MONGO_DB="${MONGO_DB_NAME:-fleet_monitor}"
 COMPOSE="${COMPOSE:-docker compose}"
+# shellcheck source=compose-project.sh
+source "$SCRIPT_DIR/compose-project.sh"
+resolve_compose_project
 
 mkdir -p "$OUT_DIR"
-STAMP="$(date +%Y%m%d-%H%M%S)"
+# UTC, like backup-loop.sh, so the two kinds of archive sort together by name.
+STAMP="$(date -u +%Y%m%d-%H%M%S)"
 ARCHIVE="$OUT_DIR/${MONGO_DB}-${STAMP}.gz"
 
 echo "备份数据库 '${MONGO_DB}' → ${ARCHIVE}"
+# 先写 .partial，成功后再改名：mongodump 中途失败时，重定向已建出的半截文件不能留成「最新的备份」，
+# 恢复演练按时间取最新的 *.gz。
+trap 'rm -f "$ARCHIVE.partial"; [[ -z "${CONFIG_ARCHIVE:-}" ]] || rm -f "$CONFIG_ARCHIVE.partial"' EXIT
 # -T 关闭 TTY 分配，使容器 stdout 能重定向到宿主机文件。密码经 env 传入容器，不出现在进程列表/日志。
 $COMPOSE -f "$COMPOSE_FILE" exec -T \
   -e MONGO_PASS="$MONGO_PASS" \
   mongo sh -c \
   "mongodump --quiet --archive --gzip --username='${MONGO_USER}' --password=\"\$MONGO_PASS\" --authenticationDatabase=admin --db='${MONGO_DB}'" \
-  > "$ARCHIVE"
+  > "$ARCHIVE.partial"
+mv "$ARCHIVE.partial" "$ARCHIVE"
 
 SIZE="$(du -h "$ARCHIVE" | cut -f1)"
 echo "完成：${ARCHIVE} (${SIZE})"
@@ -63,7 +72,8 @@ if [[ "$CONFIG_DIR" != /* ]]; then
 fi
 if [[ -d "$CONFIG_DIR" ]]; then
   CONFIG_ARCHIVE="$OUT_DIR/${MONGO_DB}-${STAMP}.config.tgz"
-  tar -czf "$CONFIG_ARCHIVE" --exclude=./.last-good -C "$CONFIG_DIR" .
+  tar -czf "$CONFIG_ARCHIVE.partial" --exclude=./.last-good -C "$CONFIG_DIR" .
+  mv "$CONFIG_ARCHIVE.partial" "$CONFIG_ARCHIVE"
   echo "配置：${CONFIG_ARCHIVE} ($(du -h "$CONFIG_ARCHIVE" | cut -f1))"
 else
   echo "⚠ 找不到配置目录 ${CONFIG_DIR}，本次只备份了数据库" >&2
