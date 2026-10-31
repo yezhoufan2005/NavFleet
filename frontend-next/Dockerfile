@@ -2,7 +2,7 @@
 # other two. **This is what compose deploys** by default: the `web` service builds
 # this file, and deploy/docker-compose.legacy-frontend.yml swaps in
 # frontend/Dockerfile for a rollback.
-FROM node:24-alpine AS build
+FROM node:25-alpine AS build
 WORKDIR /app
 
 ARG VITE_AMAP_KEY=
@@ -26,7 +26,7 @@ COPY packages/fleet-core ./packages/fleet-core
 COPY frontend-next ./frontend-next
 RUN npm run build -w navfleet-console
 
-FROM nginxinc/nginx-unprivileged:1.27-alpine
+FROM nginxinc/nginx-unprivileged:1.31-alpine
 # Unlike the v1.0.0 frontend image, this one needs its own conf: web history means
 # unknown paths must fall back to index.html. See frontend-next/nginx.conf.
 COPY --from=build /app/frontend-next/nginx.conf /etc/nginx/conf.d/default.conf
