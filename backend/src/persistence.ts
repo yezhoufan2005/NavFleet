@@ -1731,7 +1731,12 @@ export class Persistence {
       const items = await collection.find(filter).sort({ ts: -1 }).limit(cap).toArray();
       return { items, total, sampled: false };
     }
-    const bucketMs = Math.max(1, Math.ceil((toDate.getTime() - fromDate.getTime() + 1) / cap));
+    // Half as many buckets as the cap, and the first *and* last frame of each. With the first
+    // frame only, the window's newest frame survived only if it happened to open its bucket, so
+    // playback stopped up to a bucket short of now (about three minutes in a 24-hour window), and
+    // the last position before a gap was lost the same way. A bucket with one frame yields it once.
+    const buckets = Math.max(1, Math.floor(cap / 2));
+    const bucketMs = Math.max(1, Math.ceil((toDate.getTime() - fromDate.getTime() + 1) / buckets));
     const items = await collection
       .aggregate(
         [
@@ -1740,10 +1745,19 @@ export class Persistence {
           {
             $group: {
               _id: { $floor: { $divide: [{ $subtract: ["$ts", fromDate] }, bucketMs] } },
-              doc: { $first: "$$ROOT" },
+              first: { $first: "$$ROOT" },
+              last: { $last: "$$ROOT" },
             },
           },
-          { $replaceRoot: { newRoot: "$doc" } },
+          {
+            $project: {
+              docs: {
+                $cond: [{ $eq: ["$first._id", "$last._id"] }, ["$first"], ["$first", "$last"]],
+              },
+            },
+          },
+          { $unwind: "$docs" },
+          { $replaceRoot: { newRoot: "$docs" } },
           { $sort: { ts: -1 } },
         ],
         { allowDiskUse: true, maxTimeMS: config.reportQueryTimeoutMs },

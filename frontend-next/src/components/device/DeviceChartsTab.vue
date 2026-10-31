@@ -21,12 +21,11 @@
 import { computed, ref, watch } from "vue";
 import TimeSeriesChart from "@/components/charts/TimeSeriesChart.vue";
 import { fleetApi } from "@navfleet/fleet-core";
+import { toNumeric } from "@navfleet/shared";
 import type { TimeSeries } from "@/components/charts/timeSeriesOption";
 import { useLatestRequest } from "@/composables/useLatestRequest";
 
 const { deviceId } = defineProps<{ deviceId: string }>();
-
-const HISTORY_LIMIT = 240;
 
 const status = ref<"loading" | "ready" | "error">("loading");
 const errorMessage = ref("");
@@ -42,7 +41,9 @@ const load = async (id: string): Promise<void> => {
   status.value = "loading";
   errorMessage.value = "";
   try {
-    const payload = await fleetApi.getHistory(id, { limit: HISTORY_LIMIT });
+    // No `limit`: the backend returns its own cap (`MAX_HISTORY_POINTS`). A fixed 240 was a 400
+    // on every device for a deployment that set the cap below it.
+    const payload = await fleetApi.getHistory(id);
     // A slow response for a device you have navigated away from must not land.
     if (!isCurrent()) return;
 
@@ -50,19 +51,22 @@ const load = async (id: string): Promise<void> => {
       (left, right) =>
         new Date(left.ts).getTime() - new Date(right.ts).getTime(),
     );
-    // `[epoch ms, value]` pairs, oldest first — the shape the chart takes.
+    // `[epoch ms, value]` pairs, oldest first — the shape the chart takes. A missing reading is
+    // stored as null, and `Number(null)` is 0: a vehicle that reports no soc drew a flat line at
+    // 0 %. `toNumeric` leaves it out instead.
     const pointsOf = (
       pick: (item: (typeof samples)[number]) => unknown,
     ): [number, number][] =>
       samples
         .map(
           (item) =>
-            [new Date(item.ts).getTime(), Number(pick(item))] as [
-              number,
-              number,
-            ],
+            [new Date(item.ts).getTime(), toNumeric(pick(item))] as const,
         )
-        .filter(([ts, value]) => Number.isFinite(ts) && Number.isFinite(value));
+        .filter(
+          (point): point is readonly [number, number] =>
+            Number.isFinite(point[0]) && point[1] !== null,
+        )
+        .map(([ts, value]) => [ts, value]);
 
     speedSeries.value = [
       {

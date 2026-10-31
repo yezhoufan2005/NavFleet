@@ -961,7 +961,7 @@ describe("查询", () => {
     expect(calls.aggregate).toHaveLength(0);
   });
 
-  it("sampleHistory 超上限时按等长时间桶各取最早一帧，桶数不超过上限", async () => {
+  it("sampleHistory 超上限时按等长时间桶各取首末两帧，总数不超过上限", async () => {
     const rows = Array.from({ length: config.maxHistoryPoints + 1 }, () => ({ ts: new Date() }));
     const { db, calls } = createFakeDb({ telemetry_ts: rows }, {}, { telemetry_ts: [{}] });
     persistence.__setDbForTests(db);
@@ -973,9 +973,13 @@ describe("查询", () => {
     expect(result).toMatchObject({ total: config.maxHistoryPoints + 1, sampled: true });
     const pipeline = calls.aggregate[0]?.pipeline as Array<Record<string, unknown>>;
     expect(pipeline[1]).toEqual({ $sort: { ts: 1 } });
-    const group = pipeline[2]?.$group as { _id: unknown; doc: unknown };
-    expect(group.doc).toEqual({ $first: "$$ROOT" });
-    const bucketMs = Math.ceil((86_400_000 + 1) / config.maxHistoryPoints);
+    // First and last of each bucket: the window's newest frame and the last one before a gap
+    // survive wherever they fall in their bucket.
+    const group = pipeline[2]?.$group as { _id: unknown; first: unknown; last: unknown };
+    expect(group.first).toEqual({ $first: "$$ROOT" });
+    expect(group.last).toEqual({ $last: "$$ROOT" });
+    // Half the cap in buckets, so two frames each stays within it.
+    const bucketMs = Math.ceil((86_400_000 + 1) / Math.floor(config.maxHistoryPoints / 2));
     expect(group._id).toEqual({
       $floor: { $divide: [{ $subtract: ["$ts", anyDate] }, bucketMs] },
     });

@@ -51,7 +51,7 @@ import {
   pickTrailPose,
   taskStatusMap,
 } from "@navfleet/fleet-core";
-import type { DeviceSnapshot } from "@navfleet/shared";
+import { toNumeric, type DeviceSnapshot } from "@navfleet/shared";
 import UiSelect from "@/components/ui/UiSelect.vue";
 import type { TimeSeries } from "@/components/charts/timeSeriesOption";
 
@@ -285,15 +285,15 @@ const windowSeries = computed<TimeSeries[]>(() => [
       .map((sample) => {
         const info = measurementsOf(sample).vehicleInfo as
           { speed?: unknown } | undefined;
-        return [stampOf(sample), Number(info?.speed)] as [
-          number | null,
-          number,
-        ];
+        // `toNumeric`, not `Number`: a frame with no speed is stored as null, which `Number`
+        // turns into 0 m/s.
+        return [stampOf(sample), toNumeric(info?.speed)] as const;
       })
       .filter(
-        (point): point is [number, number] =>
-          point[0] !== null && Number.isFinite(point[1]),
-      ),
+        (point): point is readonly [number, number] =>
+          point[0] !== null && point[1] !== null,
+      )
+      .map(([ts, value]): [number, number] => [ts, value]),
   },
 ]);
 
