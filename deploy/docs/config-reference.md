@@ -290,8 +290,9 @@ config-runtime/scene-maps/kangcheng-airy/kangcheng_airy.osm
 
 CloudPoint 产出的是一张占据栅格图 + 它自己格式的元数据。
 `deploy/tools/import-cloudpoint-map.py` 负责把图拷进 `scene-maps/`，并按本章的
-schema 生成 `scenes.json` 条目 —— 关键是 `bounds` 必须是**米**为单位的图幅范围
-（`origin + 尺寸 × resolution`），前端整个世界坐标系都由它推导。
+schema 生成 `scenes.json` 条目。条目**不写 `bounds`**：后端按 `origin`（含 `yaw`）与图幅尺寸
+推导旋转后的外接框，手写的 `bounds` 会覆盖推导值，旋转过的地图因此被截掉一块，通常不必手填。
+初始视图的中心取地图正中，经场景位姿换算到世界坐标。
 
 ```bash
 # 先看一眼生成的条目
@@ -307,10 +308,12 @@ python3 deploy/tools/import-cloudpoint-map.py \
 ```
 
 `--variant full` 取未裁剪的整幅地图；`--min-zoom` / `--max-zoom` / `--default-zoom`
-覆盖缩放默认值。写入后无需重启：后端监听 `scenes.json` 并热加载。
+覆盖缩放默认值。写入后无需重启：后端监听 `scenes.json` 并热加载。`--write-scenes` 只替换
+同 sceneId 的条目或追加到末尾，其余条目保持原有顺序；`--scene-id` 只能用字母、数字与 `.`、`_`、`-`，
+否则后端会拒绝整个 `scenes.json`，脚本会先报错退出。
 
-Lanelet2 路网**不要**用这个脚本 —— 直接配 `osmUrl`（见 6.4）。脚本的 `--overlay`
-只为兼容早期流水线预生成的 overlay JSON 而保留。
+Lanelet2 路网**不要**用这个脚本 —— 直接配 `osmUrl`（见 6.4）。早期的 `--overlay` 已移除：拷过去的
+overlay JSON 从未被条目引用，`overlayUrl` 由后端生成。
 
 ## 7. `scene-maps/` 资源目录
 

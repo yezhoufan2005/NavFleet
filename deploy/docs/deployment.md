@@ -386,11 +386,14 @@ docker compose --env-file deploy/.env -f deploy/docker-compose.yml down -v
 
 ## 7. 运行期配置目录初始化
 
-如果服务器使用独立配置目录，可以用脚本从项目默认配置初始化：
+默认挂载的是仓库里的 `config-runtime/`。要让现场配置和代码分开（升级时直接替换代码目录），把配置
+初始化到仓库**外**的目录，再在 `deploy/.env` 里让 compose 挂它：
 
 ```bash
 cd /opt/navfleet
-sh deploy/tools/init-runtime-assets.sh /opt/navfleet/config-runtime
+sh deploy/tools/init-runtime-assets.sh /srv/navfleet/config-runtime
+# deploy/.env
+CONFIG_RUNTIME_HOST_PATH=/srv/navfleet/config-runtime
 ```
 
 脚本会创建：
@@ -401,7 +404,15 @@ sh deploy/tools/init-runtime-assets.sh /opt/navfleet/config-runtime
 - `scenes.json`
 - `scene-maps/`
 
-如果目标文件已存在，脚本不会覆盖 JSON 配置；地图资源会按缺失文件补齐。
+如果目标文件已存在，脚本不会覆盖 JSON 配置；地图资源会按缺失文件补齐，重复运行是安全的。目标若就是
+仓库自己的 `config-runtime/`，脚本会拒绝并说明。
+
+- 这四个文件是仓库的**示范车队**（29 车 / 6 编队 / 6 场景），要换成现场自己的车辆与场景。
+- `rules.json`、`codebook.json`、`notify.json`、`reports.json` 是可选的，脚本不复制：缺省时分别用
+  内置的消息规则、内置码表、不外发、不发定时报表。
+- 后端以 uid 1000 运行，会写这个目录（车辆向导、码表导入、场景上传）。Linux 上 bind mount 保留宿主
+  属主，所以要 `chown -R 1000:1000 /srv/navfleet/config-runtime`；以 root 建的目录不改属主，这些写操作
+  会以 EACCES 失败、接口返回 500。仓库自带的 `config-runtime/` 同理（4.1 上传后按需调整属主）。
 
 ## 8. 高德地图配置
 
