@@ -3,6 +3,8 @@ import type { DeviceSnapshot } from "@navfleet/shared";
 import {
   DEVICE_TONE_SEVERITY,
   deviceToneLabels,
+  activeCodeText,
+  alertHeadline,
   deviceToneRank,
   getDeviceTone,
 } from "../src/deviceTone";
@@ -127,5 +129,76 @@ describe("labels and ordering", () => {
     expect(deviceToneRank("warning")).toBeLessThan(deviceToneRank("notice"));
     expect(deviceToneRank("notice")).toBeLessThan(deviceToneRank("offline"));
     expect(deviceToneRank("offline")).toBeLessThan(deviceToneRank("normal"));
+  });
+});
+
+describe("getDeviceTone — active messages", () => {
+  it("counts a rule-raised message that has no code behind it", () => {
+    // 低电量预警 comes from the backend's rule engine with every code at 0.
+    expect(
+      getDeviceTone({ ...device(), alerts: [{ severity: "warning" }] }),
+    ).toBe("warning");
+  });
+
+  it("takes the worse of the codes and the messages", () => {
+    const withNotice = device({
+      infoCode: { code: 1301, info: "正在充电", stamp: null },
+    });
+    expect(
+      getDeviceTone({ ...withNotice, alerts: [{ severity: "critical" }] }),
+    ).toBe("critical");
+    expect(
+      getDeviceTone({
+        ...device({ errorCode: { code: 5102, info: "", stamp: null } }),
+        alerts: [{ severity: "notice" }],
+      }),
+    ).toBe("critical");
+  });
+
+  it("still lets offline win", () => {
+    expect(
+      getDeviceTone({
+        ...device({ online: false }),
+        alerts: [{ severity: "critical" }],
+      }),
+    ).toBe("offline");
+  });
+});
+
+describe("activeCodeText", () => {
+  it("ignores text left on a channel whose code has cleared", () => {
+    // The live snapshot had errorCode {code: 0, info: "路径规划超时，已触发急停"} beside an
+    // active 1301 — the overview showed the cleared 急停.
+    expect(
+      activeCodeText(
+        device({
+          errorCode: { code: 0, info: "路径规划超时，已触发急停", stamp: null },
+          infoCode: { code: 1301, info: "正在充电", stamp: null },
+        }),
+      ),
+    ).toBe("正在充电");
+    expect(activeCodeText(device())).toBe("");
+  });
+});
+
+describe("alertHeadline", () => {
+  it("leads with the fault for a report-code message, the title otherwise", () => {
+    expect(
+      alertHeadline({
+        title: "告警报码",
+        detail: "路径规划超时",
+        source: "error_code",
+      }),
+    ).toBe("路径规划超时");
+    expect(
+      alertHeadline({ title: "告警报码", detail: "", source: "error_code" }),
+    ).toBe("告警报码");
+    expect(
+      alertHeadline({
+        title: "低电量预警",
+        detail: "当前电量 12%，建议尽快安排回充",
+        source: "rule-engine",
+      }),
+    ).toBe("低电量预警");
   });
 });

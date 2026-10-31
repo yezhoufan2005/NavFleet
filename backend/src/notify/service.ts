@@ -67,6 +67,8 @@ export interface NotifyServiceDeps {
   resolveUserEmail: (username: string) => Promise<string | null>;
   maxAttempts: number;
   timeoutMs: number;
+  /** The deployment time zone (`REPORT_TIMEZONE`) that silence windows are read in. */
+  timezone: string;
   /** Injectable for tests; production omits it and reads `process.env`. */
   resolveEnv?: (name: string) => string | undefined;
   /** Injectable for tests; production omits it and uses the global `fetch`. */
@@ -158,7 +160,7 @@ export class NotifyService {
     config: NotifyConfig,
   ): Promise<void> {
     const eventKey = `${context.deviceId}:${context.alertId}`;
-    if (isWithinSilence(this.now(), channel.silenceWindows)) {
+    if (isWithinSilence(this.now(), channel.silenceWindows, this.deps.timezone)) {
       logger.debug({ channelId: channel.id, eventKey }, "Notify suppressed by silence window");
       return;
     }

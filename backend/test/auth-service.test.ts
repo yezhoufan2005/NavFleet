@@ -117,6 +117,23 @@ describe("AuthService — admin user management", () => {
     expect(differentCase).toEqual({ ok: false, error: "conflict" });
   });
 
+  it("resolves a recipient's email only while the account is enabled", async () => {
+    // Alert emails and scheduled reports address `@user` recipients through this; a disabled
+    // operator kept receiving both until their groups were edited too.
+    const service = await freshService();
+    await service.createUser({
+      username: "oncall",
+      password: A_PASSWORD,
+      role: "operator",
+      email: "oncall@example.com",
+    });
+    expect(await service.recipientEmail("oncall")).toBe("oncall@example.com");
+
+    await service.updateUser("admin", "oncall", { enabled: false });
+    expect(await service.recipientEmail("oncall")).toBeNull();
+    expect(await service.recipientEmail("nobody")).toBeNull();
+  });
+
   it("listUsers / getUser never expose passwordHash", async () => {
     const service = await freshService();
     const list = await service.listUsers();

@@ -32,7 +32,7 @@ import {
 import GpsMap from "@/components/map/GpsMap.vue";
 import { useFleetStore } from "@/stores/fleet";
 import { useNowTicker } from "@/composables/useNowTicker";
-import { formatDateTime } from "@navfleet/fleet-core";
+import { alertHeadline, formatDateTime } from "@navfleet/fleet-core";
 import {
   buildWallTiles,
   flattenActiveAlerts,
@@ -202,7 +202,9 @@ watch(activeAlerts, () => {
                   >{{ SEVERITY_LABELS[alert.severity] }}</span
                 >
                 <span class="wall-alert-body">
-                  <span class="wall-alert-headline">{{ alert.title }}</span>
+                  <span class="wall-alert-headline">{{
+                    alertHeadline(alert)
+                  }}</span>
                   <span class="wall-alert-meta"
                     >{{ alert.deviceName }} ·
                     {{ formatDateTime(alert.firstSeenAt) }}</span
@@ -222,7 +224,9 @@ watch(activeAlerts, () => {
                   >{{ SEVERITY_LABELS[alert.severity] }}</span
                 >
                 <span class="wall-alert-body">
-                  <span class="wall-alert-headline">{{ alert.title }}</span>
+                  <span class="wall-alert-headline">{{
+                    alertHeadline(alert)
+                  }}</span>
                   <span class="wall-alert-meta"
                     >{{ alert.deviceName }} ·
                     {{ formatDateTime(alert.firstSeenAt) }}</span

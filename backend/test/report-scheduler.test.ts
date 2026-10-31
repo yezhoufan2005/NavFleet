@@ -1,6 +1,7 @@
 import { describe, it, expect } from "vitest";
 import type { AlertStatsReport, AvailabilityReport, ReportScheduleConfig } from "@navfleet/shared";
-import { ReportScheduler, localParts, type ReportSchedulerDeps } from "../src/reports/scheduler";
+import { ReportScheduler, type ReportSchedulerDeps } from "../src/reports/scheduler";
+import { localParts } from "../src/localTime";
 import type { EmailMessage } from "../src/notify/email";
 import type { AttemptOutcome } from "../src/notify/retry";
 
@@ -128,6 +129,29 @@ describe("ReportScheduler.tick", () => {
     scheduler.tick();
     await flush();
     expect(sent).toHaveLength(0);
+  });
+
+  it("does not send at once for a schedule created, or retimed, after today's time has passed", async () => {
+    const schedules = [schedule({ id: "existing", time: "06:00" })];
+    const { scheduler, sent, now } = makeScheduler(schedules);
+    now.ms = shanghai(5, 0);
+    scheduler.tick();
+
+    // 15:00: a new daily 09:00 report is saved in the console, and the 06:00 one moved to 10:00.
+    now.ms = shanghai(15, 0);
+    schedules.splice(0, 1, schedule({ id: "existing", time: "10:00" }));
+    schedules.push(schedule({ id: "created", time: "09:00" }));
+    scheduler.tick();
+    await flush();
+    expect(sent).toHaveLength(0);
+
+    // Both fire normally from the next day on.
+    now.ms = shanghai(9, 30) + 86_400_000;
+    scheduler.tick();
+    now.ms = shanghai(10, 30) + 86_400_000;
+    scheduler.tick();
+    await flush();
+    expect(sent).toHaveLength(2);
   });
 
   it("only fires on the configured weekday for a weekly schedule", async () => {

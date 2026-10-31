@@ -295,6 +295,45 @@ describe("who needs attention", () => {
     expect(wrapper.text()).toContain("路径规划超时");
   });
 
+  it("shows the code in effect, not text a cleared channel left behind", async () => {
+    store.ingestPayload(
+      snapshot([
+        device({
+          error_code: code(0, "路径规划超时，已触发急停"),
+          info_code: code(1301, "正在充电"),
+        }),
+      ]),
+      "api",
+    );
+    const wrapper = await mountPage();
+    expect(wrapper.text()).toContain("正在充电");
+    expect(wrapper.text()).not.toContain("急停");
+  });
+
+  it("lists a vehicle whose only message is a rule-raised warning", async () => {
+    // 低电量预警 comes with every code at 0; the tone used to read the codes alone.
+    store.ingestPayload(
+      snapshot([
+        device({
+          alerts: [
+            {
+              id: "agv-01-low-soc",
+              title: "低电量预警",
+              detail: "当前电量 12%，建议尽快安排回充",
+              severity: "warning",
+              source: "rule-engine",
+              ts: "2026-10-31T00:00:00.000Z",
+            },
+          ],
+        }),
+      ]),
+      "api",
+    );
+    const wrapper = await mountPage();
+    expect(wrapper.text()).toContain("当前电量 12%");
+    expect(wrapper.text()).not.toContain("状态正常");
+  });
+
   it("says an offline vehicle's state may be stale instead of showing its last code", async () => {
     // Reporting a stale error as current would claim knowledge we do not have.
     store.ingestPayload(

@@ -102,6 +102,18 @@ export const buildChannelBody = (
 };
 
 /**
+ * The group robots' own verdict: both answer `{ errcode, errmsg }` with HTTP 200, and `errcode` 0
+ * is the only acceptance. A body without an `errcode` (an unexpected proxy page) is not counted as
+ * delivered either — the send log must not report a message nobody received.
+ */
+export const robotRejection = (payload: unknown): string | null => {
+  const { errcode, errmsg } = (payload ?? {}) as { errcode?: unknown; errmsg?: unknown };
+  if (errcode === 0) return null;
+  if (typeof errcode !== "number") return "响应中没有 errcode";
+  return `errcode ${errcode}${typeof errmsg === "string" && errmsg ? `：${errmsg}` : ""}`;
+};
+
+/**
  * Send one alert to one HTTP channel's resolved endpoint. Pure of policy — the caller has already
  * decided this channel should receive this alert and resolved its URL from env — this only
  * builds the body and posts it with bounded retry, returning the attempt outcome to record.
@@ -111,4 +123,8 @@ export const sendToChannel = (
   url: string,
   context: NotifyAlertContext,
   options: RetryOptions,
-): Promise<AttemptOutcome> => postWithRetry(url, buildChannelBody(type, context), options);
+): Promise<AttemptOutcome> =>
+  postWithRetry(url, buildChannelBody(type, context), {
+    ...options,
+    ...(type === "webhook" ? {} : { rejection: robotRejection }),
+  });
