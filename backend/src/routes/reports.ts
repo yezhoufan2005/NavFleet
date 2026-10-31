@@ -1,6 +1,6 @@
 import express from "express";
 import type { DashboardStore } from "../store";
-import { reportAvailabilityQuerySchema, reportRangeSchema } from "../validation";
+import { boundReportWindow, reportAvailabilityQuerySchema, reportRangeSchema } from "../validation";
 import { respondValidationError } from "./helpers";
 
 /**
@@ -21,7 +21,7 @@ export const buildReportsRouter = (store: DashboardStore): express.Router => {
       respondValidationError(response, parsed.error);
       return;
     }
-    const report = await store.getAlertStats(parsed.data);
+    const report = await store.getAlertStats(boundReportWindow(parsed.data));
     response.json(report);
   });
 
@@ -31,7 +31,7 @@ export const buildReportsRouter = (store: DashboardStore): express.Router => {
       respondValidationError(response, parsed.error);
       return;
     }
-    const report = await store.getAvailabilityReport(parsed.data);
+    const report = await store.getAvailabilityReport(boundReportWindow(parsed.data));
     response.json(report);
   });
 

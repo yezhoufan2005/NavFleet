@@ -6,6 +6,7 @@ import {
   type MongoClientEvents,
   type WriteError,
 } from "mongodb";
+import { parseTimeParam } from "./timeParam";
 import { config } from "./config";
 import { emptyAlertStatsReport, emptyAvailabilityReport } from "@navfleet/shared";
 import { MongoConnectionSupervisor, type MongoSession, redactMongoUri } from "./mongoConnection";
@@ -87,21 +88,12 @@ export interface TelemetryDocument {
 }
 
 /**
- * Coerce a history bound to a Date. Accepts ISO-8601 strings and numeric epoch
- * values (seconds or milliseconds), matching what the query schema advertises.
- * Returns null for unparseable input so callers can skip the bound.
+ * A query bound as a Date, read exactly as validation read it (`parseTimeParam`). Null for an
+ * absent bound; an unparseable one never gets this far.
  */
 const toBoundDate = (value: string | undefined): Date | null => {
-  if (!value) {
-    return null;
-  }
-  const trimmed = value.trim();
-  if (/^\d+$/.test(trimmed)) {
-    const epoch = Number(trimmed);
-    return new Date(epoch < 1e12 ? epoch * 1000 : epoch);
-  }
-  const ms = Date.parse(trimmed);
-  return Number.isFinite(ms) ? new Date(ms) : null;
+  const ms = parseTimeParam(value);
+  return ms === null ? null : new Date(ms);
 };
 
 /** Projected alert shape returned by /api/alerts (kept identical across the

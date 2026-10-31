@@ -40,6 +40,16 @@ describe("historyQuerySchema", () => {
     expect(historyQuerySchema.safeParse({ from: "not-a-date" }).success).toBe(false);
   });
 
+  it("refuses the number spellings the queries cannot read, instead of a 500 or a dropped bound", () => {
+    // `1.7e12` passed validation and then failed the even-sampling query; `2026` read as a year
+    // here and as 1970 in the query.
+    for (const from of ["1.7e12", "1700000000000.5", "2026", "-5"]) {
+      expect(historyQuerySchema.safeParse({ from }).success, from).toBe(false);
+    }
+    // Seconds and milliseconds epochs both still pass.
+    expect(historyQuerySchema.safeParse({ from: "1712472000" }).success).toBe(true);
+  });
+
   it("rejects a window whose end is before its start", () => {
     // The matching server-side guard for the frontend's own from>to check: a hand-built
     // or stale query that inverts the window gets a 400, not a silently empty result.
