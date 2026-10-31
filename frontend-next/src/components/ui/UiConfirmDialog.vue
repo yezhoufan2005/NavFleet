@@ -11,8 +11,9 @@
  * cancel affordance. reka's AlertDialog deliberately ignores a click outside; here a click on the
  * backdrop cancels, the same as every other dialog in the console and the same as Escape —
  * cancelling is always safe, so there is no reason this one dialog should be the exception. Not
- * while the action is in flight (`pending`), when the dialog has to stay up until it resolves. It is a **controlled** component: the parent owns `open` so it can keep the dialog up
- * while the async action runs (`pending`) and close it only once the request resolves.
+ * while the action is in flight (`pending`): then Escape, the backdrop and the close request are
+ * all ignored, and the dialog stays up until the request resolves. It is a **controlled**
+ * component: the parent owns `open` and closes it only once the request resolves.
  */
 import {
   AlertDialogCancel,
@@ -47,7 +48,10 @@ const emit = defineEmits<{ "update:open": [boolean]; confirm: [] }>();
 </script>
 
 <template>
-  <AlertDialogRoot :open="open" @update:open="emit('update:open', $event)">
+  <AlertDialogRoot
+    :open="open"
+    @update:open="(next) => (next || !pending) && emit('update:open', next)"
+  >
     <AlertDialogPortal>
       <AlertDialogOverlay
         class="fixed inset-0 z-50 bg-scrim/55"

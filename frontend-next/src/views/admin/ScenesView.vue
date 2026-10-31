@@ -47,7 +47,6 @@ import type { SceneMapDefinition } from "@navfleet/shared";
 const fleet = useFleetStore();
 
 const status = ref<"loading" | "ready" | "error">("loading");
-const errorMessage = ref("");
 const scenes = ref<SceneDefinition[]>([]);
 
 /** `url → present`. Absent from the map means "not checked yet". */
@@ -122,8 +121,9 @@ const urlsOf = (scene: SceneDefinition): string[] =>
   );
 
 const load = async (): Promise<void> => {
-  status.value = "loading";
-  errorMessage.value = "";
+  // Only before the first successful load: the focus refresh re-reads live, and blanking the
+  // list to 正在读取… each time the window regains focus would make it flicker away.
+  if (status.value !== "ready") status.value = "loading";
   try {
     const payload = await fleetApi.getScenes();
     scenes.value = [...(payload.items ?? [])].sort((left, right) =>
@@ -134,10 +134,8 @@ const load = async (): Promise<void> => {
     await Promise.all(
       scenes.value.flatMap((scene) => urlsOf(scene).map(checkResource)),
     );
-  } catch (error) {
+  } catch {
     status.value = "error";
-    errorMessage.value =
-      error instanceof Error ? error.message : "场景列表加载失败";
   }
 };
 
@@ -489,9 +487,9 @@ const formDirty = formSnapshot.dirty;
     <p
       v-else-if="status === 'error'"
       class="text-sm text-critical-ink"
-      role="status"
+      role="alert"
     >
-      {{ errorMessage }}
+      场景列表加载失败，请稍后重试
     </p>
 
     <p v-else-if="!scenes.length" class="text-sm text-ink-muted">
@@ -624,6 +622,7 @@ const formDirty = formSnapshot.dirty;
 
   <!-- Create / edit scene -->
   <UiModal
+    :pending="saving"
     :open="mode !== null"
     :dirty="formDirty"
     :autofocus="mode === 'create'"

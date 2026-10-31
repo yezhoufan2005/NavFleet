@@ -412,9 +412,17 @@ describe("NotifyView — channel editor", () => {
     vi.spyOn(fleetApi, "getNotifyConfigRaw").mockRejectedValue(
       new Error("HTTP 500"),
     );
+    const put = vi.spyOn(fleetApi, "putNotifyConfig");
     const wrapper = await mountView();
-    // The editor section still renders (writer), with the honest empty state.
+    // The send log still renders. The editor says it could not load instead of showing an empty
+    // config, and 新建渠道 is off: a save built from nothing would replace notify.json wholesale.
     expect(wrapper.find('[aria-label="配置渠道"]').exists()).toBe(true);
-    expect(wrapper.text()).toContain("还没配置渠道");
+    expect(wrapper.text()).toContain("无法加载渠道配置");
+    expect(wrapper.text()).not.toContain("还没配置渠道");
+    const create = wrapper
+      .findAll("button")
+      .find((b) => b.text().trim() === "新建渠道");
+    expect(create?.attributes("disabled")).toBeDefined();
+    expect(put).not.toHaveBeenCalled();
   });
 });

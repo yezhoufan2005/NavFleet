@@ -105,6 +105,11 @@ describe("ReportSchedulesView — listing", () => {
     );
     const wrapper = await mountView();
     expect(wrapper.find('[role="alert"]').exists()).toBe(true);
+    // A schedule created now would replace every schedule in reports.json.
+    const create = wrapper
+      .findAll("button")
+      .find((b) => b.text().trim() === "新建报表");
+    expect(create?.attributes("disabled")).toBeDefined();
   });
 });
 
