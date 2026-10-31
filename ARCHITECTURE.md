@@ -600,7 +600,7 @@ MongoDB time series collection，用于保存遥测历史。默认保留时间�
 - `{ severity: 1, active: 1, ts: -1 }`
 - `{ firstSeenAt: 1 }`（消息统计按发生时刻分桶）
 - `{ eventKey: 1 }`，唯一，仅约束 `active: true` 的文档
-- TTL：`lastSeenAt`
+- TTL：`lastSeenAt`。活跃期间每次同步都前移到当前帧，清除时定格在清除时刻，所以保留期从消息结束算起，进行中的消息不会过期
 
 报表的**在线率按时间加权**：每帧覆盖到同车下一帧，最多覆盖离线判定阈值（`rules.json` 的
 `offline.afterSeconds`，否则 `OFFLINE_AFTER_SECONDS`）；超出部分和没有帧的时段都算离线。数据源

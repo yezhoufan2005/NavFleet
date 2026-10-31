@@ -69,7 +69,8 @@ type SceneDefinitionRecord = SceneMapDefinition | Record<string, unknown>;
 /** A movement-trail sample (world-space point). */
 export type TrailPoint = { x: number; y: number };
 /** One grouped alert row: a device alert annotated with its owning device. */
-export type GroupedAlert = DeviceAlert & {
+// `firstSeenAt` is the snapshot's ISO onset on a DeviceAlert; here it is resolved to epoch ms.
+export type GroupedAlert = Omit<DeviceAlert, "firstSeenAt"> & {
   deviceId: string;
   deviceName: string;
   /**
@@ -545,7 +546,10 @@ export const useFleetStore = defineStore("fleet", () => {
     for (const device of Object.values(devicesById)) {
       for (const alert of device.alerts) {
         present.add(alert.id);
-        if (!alertFirstSeen.has(alert.id)) {
+        // The backend's onset wins: it saw the occurrence begin, this tab may have opened later.
+        if (alert.firstSeenAt) {
+          alertFirstSeen.set(alert.id, toTimestampMsOrNow(alert.firstSeenAt));
+        } else if (!alertFirstSeen.has(alert.id)) {
           alertFirstSeen.set(alert.id, toTimestampMsOrNow(alert.ts));
         }
       }
@@ -566,7 +570,8 @@ export const useFleetStore = defineStore("fleet", () => {
           // Falls back to `ts` only for an alert this store has not ingested yet,
           // which is the path tests take when they read the computed directly.
           firstSeenAt:
-            alertFirstSeen.get(alert.id) ?? toTimestampMsOrNow(alert.ts),
+            alertFirstSeen.get(alert.id) ??
+            toTimestampMsOrNow(alert.firstSeenAt ?? alert.ts),
         });
       });
     });

@@ -183,7 +183,7 @@ export class BackfillSink {
         active: true,
         code: alert.code ?? null,
         info: alert.info ?? "",
-        lastSeenAt: new Date(alert.ts),
+        lastSeenAt: at,
       };
       const existing = open.get(eventKey);
       if (existing) {
@@ -192,7 +192,7 @@ export class BackfillSink {
         open.set(eventKey, {
           doc: {
             ...fields,
-            firstSeenAt: new Date(alert.ts),
+            firstSeenAt: new Date(alert.firstSeenAt ?? alert.ts),
             clearedAt: null,
             ackedBy: null,
             ackedAt: null,

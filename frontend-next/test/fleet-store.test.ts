@@ -343,6 +343,34 @@ describe("告警的排序基准", () => {
     expect(store.groupedAlerts.critical[0]!.deviceId).toBe("agv-02");
   });
 
+  it("dates an alert to the onset the backend tracked, not to this tab's first sight", () => {
+    // Opened at 02:13 on an alert that began at 02:00: the snapshot carries `firstSeenAt`.
+    store.ingestPayload(
+      snapshot([
+        device({
+          deviceId: "agv-01",
+          alerts: [
+            {
+              id: "agv-01-low-soc",
+              title: "低电量预警",
+              detail: "",
+              severity: "warning",
+              source: "rule-engine",
+              ts: "2026-08-30T02:13:00.000Z",
+              firstSeenAt: "2026-08-30T02:00:00.000Z",
+              active: true,
+            },
+          ],
+          fusionLoc: { x: 0, y: 0, yaw: 0 },
+        }),
+      ]),
+      "api",
+    );
+    expect(store.groupedAlerts.warning[0]?.firstSeenAt).toBe(
+      Date.parse("2026-08-30T02:00:00.000Z"),
+    );
+  });
+
   it("gives a recurrence a fresh onset instead of the one from last time", () => {
     // The prune is what makes this true, and it is also what stops the map growing
     // for the life of the tab — the unbounded-device failure mode the backend guards against.

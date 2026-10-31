@@ -510,6 +510,11 @@ export const normalizeDevice = (
           code: toNumeric(alert.code, 0) ?? 0,
           info: asText(alert.info),
           ts: asText(alert.ts) || normalizedDevice.stamp,
+          // The occurrence's onset as the backend tracked it, so a page opened mid-incident
+          // dates the alert to when it began rather than to its own first sight.
+          ...(asText(alert.firstSeenAt)
+            ? { firstSeenAt: asText(alert.firstSeenAt) }
+            : {}),
           // Preserve the backend's `active` flag: this branch reads a snapshot the backend
           // already derived, where every alert carries `active`, so dropping it here made a
           // live alert read as inactive. Default true (mirrors the vendor branch) but keep an

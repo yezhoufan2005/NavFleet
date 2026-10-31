@@ -762,6 +762,21 @@ describe("upsertAlerts", () => {
     expect(clear?.update).toMatchObject({ $set: { active: false } });
   });
 
+  it("活跃期间 lastSeenAt 跟着本次同步前进，firstSeenAt 取这次发生的起点", async () => {
+    // TTL 建在 lastSeenAt 上：停在起点时，持续超过保留期的活跃消息会被删掉，确认一并丢失。
+    const { db, calls } = createFakeDb();
+    persistence.__setDbForTests(db);
+    const at = new Date("2026-01-08T00:00:00.000Z");
+    await persistence.upsertAlerts(
+      "agv-a",
+      [alert("low-soc", { ts: "2026-01-07T23:59:59.000Z", firstSeenAt: STAMP_A })],
+      at,
+    );
+    const update = calls.updateOne[0]?.update as Record<string, Record<string, unknown>>;
+    expect(update.$set?.lastSeenAt).toEqual(at);
+    expect(update.$setOnInsert?.firstSeenAt).toEqual(new Date(STAMP_A));
+  });
+
   it("firstSeenAt 只在插入时写 —— 反复上报同一条不会刷新它", async () => {
     const { db, calls } = createFakeDb();
     persistence.__setDbForTests(db);

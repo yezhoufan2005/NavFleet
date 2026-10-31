@@ -1433,6 +1433,7 @@ export class Persistence {
           ackedBy: alert.ackedBy,
           ackedAt: alert.ackedAt,
           comment: alert.comment,
+          firstSeenAt: alert.firstSeenAt,
         },
       ]),
     );
@@ -1453,8 +1454,8 @@ export class Persistence {
           info: alert.info ?? "",
           ts: alert.ts,
           active: true,
-          firstSeenAt: alert.ts,
-          lastSeenAt: alert.ts,
+          firstSeenAt: alert.firstSeenAt ?? ack?.firstSeenAt ?? alert.ts,
+          lastSeenAt: at.toISOString(),
           // The in-memory mirror holds active alerts only, so nothing here has cleared.
           clearedAt: null,
           ackedBy: ack?.ackedBy ?? null,
@@ -1495,10 +1496,13 @@ export class Persistence {
                 active: true,
                 code: alert.code ?? null,
                 info: alert.info ?? "",
-                lastSeenAt: new Date(alert.ts),
+                // The frame this sync is for: an occurrence still firing is still being seen. It
+                // used to stay at the onset, and the TTL on it then deleted a long-running active
+                // alert (and its acknowledgement) mid-incident.
+                lastSeenAt: at,
               },
               $setOnInsert: {
-                firstSeenAt: new Date(alert.ts),
+                firstSeenAt: new Date(alert.firstSeenAt ?? alert.ts),
                 clearedAt: null,
                 // A brand-new occurrence starts unacknowledged. On a re-report this
                 // branch is skipped, so an existing ack is preserved.
@@ -1555,6 +1559,7 @@ export class Persistence {
         detail: alert.detail,
         source: alert.source,
         ts: alert.ts,
+        firstSeenAt: alert.firstSeenAt,
         active: true,
         code: alert.code ?? undefined,
         info: alert.info,
