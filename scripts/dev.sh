@@ -254,7 +254,7 @@ if [[ "$MOCK_MODE" != "off" ]]; then
     PIDS+=($!)
   elif [[ "$MOCK_MODE" == "force" ]]; then
     echo "⚠ 未检测到 127.0.0.1:1883 的 MQTT broker，无法发布实时演示数据。"
-    echo "  可先启动 broker：docker compose --env-file deploy/.env -f deploy/docker-compose.yml up -d mosquitto"
+    echo "  可先启动 broker：docker compose --env-file deploy/.env -p navfleet -f deploy/docker-compose.yml up -d mosquitto"
   else
     echo "ℹ 未检测到本机 MQTT broker，跳过演示车队。"
   fi
