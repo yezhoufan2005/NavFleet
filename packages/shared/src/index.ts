@@ -165,6 +165,12 @@ export interface SceneMapDefinition {
     minY: number;
     maxY: number;
   };
+  /**
+   * Set by the backend when `bounds` was not configured but computed (from the geometry, or from
+   * the OSM overlay). Never part of `scenes.json`: the write parser drops a derived `bounds`, so an
+   * editor that sends back what it read does not freeze the computed box into the file.
+   */
+  boundsDerived?: boolean;
   defaultView?: {
     zoom: number;
     centerX: number;

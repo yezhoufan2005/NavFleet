@@ -1114,6 +1114,40 @@ describe("ConfigRegistry.writeScenes / writeSceneAsset (场景地图上传)", ()
     expect(scene?.bounds?.maxY).toBeCloseTo(4, 9);
   });
 
+  it("编辑器把读到的派生 bounds 原样写回时不固化，改尺寸后仍重算", async () => {
+    const registry = new ConfigRegistry();
+    await registry.load();
+    const [read] = await registry.writeScenes([
+      { sceneId: "grow", resolution: 0.1, width: 40, height: 20 },
+    ]);
+    expect(read?.boundsDerived).toBe(true);
+    // As ScenesView saves: the entry it read, with one field changed.
+    const [halved] = await registry.writeScenes([{ ...read, resolution: 0.05 }]);
+    expect(halved?.bounds?.maxX).toBeCloseTo(2, 9);
+    const onDisk = JSON.parse(
+      await fs.readFile(path.join(configRoot, "scenes.json"), "utf8"),
+    ) as Array<Record<string, unknown>>;
+    expect(onDisk[0]).not.toHaveProperty("bounds");
+    expect(onDisk[0]).not.toHaveProperty("boundsDerived");
+
+    // An explicit box is configuration and is kept.
+    const box = { minX: -5, maxX: 5, minY: -5, maxY: 5 };
+    const [explicit] = await registry.writeScenes([
+      { ...halved, boundsDerived: undefined, bounds: box },
+    ]);
+    expect(explicit?.bounds).toEqual(box);
+    expect(explicit?.boundsDerived).toBeUndefined();
+  });
+
+  it("加载时缺 origin 与写入一样按原点处理", async () => {
+    await writeConfig({
+      scenes: [{ sceneId: "scene-a", resolution: 0.05, width: 100, height: 200 }],
+    });
+    const registry = new ConfigRegistry();
+    await registry.load();
+    expect(registry.getScene("scene-a")?.origin).toEqual({ x: 0, y: 0, yaw: 0 });
+  });
+
   it("writeScenes 校验先行，非法几何直接抛不落盘", async () => {
     const registry = new ConfigRegistry();
     await registry.load();

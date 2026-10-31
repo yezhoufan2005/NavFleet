@@ -56,10 +56,15 @@ const optionalAssetUrl = (
 
 // APPEND-MARKER
 
+/**
+ * A number, and only a number. `Number()` coercion let `"0.35"` through here while the load path
+ * refuses it, and turned `""` and `null` into 0 — a rotated scene's yaw silently lost.
+ */
 const requireFinite = (value: unknown, label: string): number => {
-  const n = typeof value === "number" ? value : Number(value);
-  if (!Number.isFinite(n)) throw new Error(`${label} must be a finite number`);
-  return n;
+  if (typeof value !== "number" || !Number.isFinite(value)) {
+    throw new Error(`${label} must be a finite number`);
+  }
+  return value;
 };
 
 const requirePositive = (value: unknown, label: string): number => {
@@ -184,7 +189,12 @@ const parseScene = (value: unknown, label: string): SceneMapDefinition => {
     `${label}.osmProjectionOrigin`,
   );
   if (projectionOrigin) scene.osmProjectionOrigin = projectionOrigin;
-  const bounds = parseBounds(raw.bounds, `${label}.bounds`);
+  // A box the backend computed (`boundsDerived`) is not configuration: written back, it would stop
+  // following later geometry changes — halve the resolution and the map kept the old extent.
+  const bounds =
+    raw.boundsDerived === true
+      ? undefined
+      : parseBounds(raw.bounds, `${label}.bounds`);
   if (bounds) scene.bounds = bounds;
   const defaultView = parseDefaultView(raw.defaultView, `${label}.defaultView`);
   if (defaultView) scene.defaultView = defaultView;
