@@ -1,4 +1,5 @@
 import express from "express";
+import { config } from "../config";
 import type { DashboardStore } from "../store";
 import { boundReportWindow, reportAvailabilityQuerySchema, reportRangeSchema } from "../validation";
 import { respondValidationError } from "./helpers";
@@ -32,7 +33,8 @@ export const buildReportsRouter = (store: DashboardStore): express.Router => {
       return;
     }
     const report = await store.getAvailabilityReport(boundReportWindow(parsed.data));
-    response.json(report);
+    // The zone the buckets were cut in, so an export can write them as local times.
+    response.json({ ...report, timeZone: config.reportTimezone });
   });
 
   return router;

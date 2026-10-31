@@ -175,12 +175,12 @@ describe("the statistics", () => {
     expect(severityBar?.attributes("data-total")).toBe("3");
   });
 
-  it("labels the per-device chart 按消息数分布, not 告警", async () => {
+  it("labels the per-device chart by its dimension (按设备分布), not 告警", async () => {
     const wrapper = await mountPanel();
     const labels = wrapper
       .findAll(".bar-stub")
       .map((node) => node.attributes("data-label"));
-    expect(labels).toContain("按消息数分布");
+    expect(labels).toContain("按设备分布");
     expect(labels).toContain("按时间天频次");
   });
 
@@ -198,7 +198,7 @@ describe("the statistics", () => {
     const wrapper = await mountPanel();
     const deviceBar = wrapper
       .findAll(".bar-stub")
-      .find((node) => node.attributes("data-label") === "按消息数分布");
+      .find((node) => node.attributes("data-label") === "按设备分布");
     expect(deviceBar?.attributes("data-count")).toBe("10");
   });
 });

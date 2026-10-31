@@ -8,7 +8,7 @@
  * ISO 串，时序图要 `[epochMs, value]` 且旧点在前——mapper 已按桶起点升序，这里原样转。
  */
 
-import { csvField } from "@navfleet/shared";
+import { buildAvailabilityCsv, csvField } from "@navfleet/shared";
 import type { AlertStatsReport, AvailabilityReport } from "@navfleet/shared";
 import type { TimeSeries } from "@/components/charts/timeSeriesOption";
 import { SEVERITY_LABELS } from "@/lib/severity";
@@ -227,7 +227,7 @@ export const socSeries = (
   return points.length ? [{ name: foldedName(report, nameOf), points }] : [];
 };
 
-/** 「可用率与电量」分区可展开的按设备明细行。 */
+/** 「在线率与电量」分区可展开的按设备明细行。 */
 export interface DeviceAvailabilityRow {
   deviceId: string;
   /** 展示名（取自实时车队，无则回退 id）。 */
@@ -314,57 +314,25 @@ export const sparklinePoints = (
     .join(" ");
 };
 
-/** RFC-4180 转义：含逗号/引号/换行的字段用引号包起来，内部引号翻倍。 */
-
 /**
- * 可用率/电量按（设备 × 桶）导出为 CSV（交班/汇报的刚需）。BOM 由下载时加，不进这里。
- * `null` 的 soc 留空而不是写 0——空单元格是"这段没有电量样本"，0 会被读成"没电"。
+ * 在线率/电量按（设备 × 桶）导出为 CSV（交班/汇报的刚需）：与定时报表邮件的附件同一份构造（shared）。
+ * 桶起点按接口带回的部署时区写成本地时刻；旧后端不带时区时按浏览器时区。
  */
-export const buildAvailabilityCsv = (
+export const availabilityCsv = (
   report: AvailabilityReport,
   nameOf: DeviceNameOf,
-): string => {
-  const header = [
-    "设备ID",
-    "设备名称",
-    "时间桶",
-    "在线帧",
-    "总帧",
-    "在线秒数",
-    "统计秒数",
-    "在线率",
-    "电量均值",
-    "电量最低",
-  ];
-  const lines = [header.map(csvField).join(",")];
-  for (const device of report.devices) {
-    for (const bucket of device.buckets) {
-      lines.push(
-        [
-          device.deviceId,
-          nameOf(device.deviceId),
-          bucket.bucketStart,
-          bucket.onlineSamples,
-          bucket.totalSamples,
-          bucket.onlineSeconds,
-          bucket.spanSeconds,
-          bucket.onlineRatio.toFixed(4),
-          bucket.socMean ?? "",
-          bucket.socMin ?? "",
-        ]
-          .map(csvField)
-          .join(","),
-      );
-    }
-  }
-  return lines.join("\n");
-};
+): string =>
+  buildAvailabilityCsv(
+    report,
+    nameOf,
+    report.timeZone ?? Intl.DateTimeFormat().resolvedOptions().timeZone,
+  );
 
 /**
  * 消息统计（`/reports/alerts`）导出为 CSV，补齐与可用率导出的对等能力（1.6.1）。
  *
  * 报表是聚合而非逐行明细，所以用长表（分组/项/数值）把页面显示的一切都装进一个文件：严重度分布、
- * 设备 Top-N、按天频次，加上顶部 KPI（总数 / 确认率 / 时长）。`ackRate` 为 null（无记录）时留空，
+ * 设备 Top-N、按天频次，加上顶部 KPI（总数 / 确认率 / 持续时长）。`ackRate` 为 null（无记录）时留空，
  * 不写 0——空单元格是「没有可算确认率的样本」，0 会被读成「一条都没确认」。设备名用实时车队解析
  * （`topDevices` 只带 id），无则回退 id。
  */
@@ -377,10 +345,18 @@ export const buildAlertStatsCsv = (
     lines.push([group, item, value].map(csvField).join(","));
   };
 
+  // Percent and whole seconds, as the page shows them; 持续时长 is onset → cleared, not a response
+  // time to a human acknowledgement, so it does not say 处理.
+  const seconds = (ms: number | null): number | "" =>
+    ms === null ? "" : Math.round(ms / 1000);
   push("汇总", "消息总数", report.total);
-  push("汇总", "确认率", report.ackRate ?? "");
-  push("汇总", "平均处理时长(ms)", report.duration.meanMs ?? "");
-  push("汇总", "处理时长中位数(ms)", report.duration.p50Ms ?? "");
+  push(
+    "汇总",
+    "确认率(%)",
+    report.ackRate === null ? "" : (report.ackRate * 100).toFixed(1),
+  );
+  push("汇总", "平均持续时长(秒)", seconds(report.duration.meanMs));
+  push("汇总", "持续时长中位数(秒)", seconds(report.duration.p50Ms));
 
   for (const key of ["critical", "warning", "notice"] as const) {
     push("严重度", SEVERITY_LABELS[key], report.bySeverity[key]);

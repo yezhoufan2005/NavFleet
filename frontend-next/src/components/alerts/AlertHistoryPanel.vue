@@ -348,7 +348,7 @@ const pageRows = computed(() =>
         </dd>
       </div>
     </dl>
-    <!-- Three charts, one row, equal 240px height (the original). 「按消息数分布」lists every
+    <!-- Three charts, one row, equal 240px height (the original). 「按设备分布」lists every
          device (no Top-N cap) and scrolls inside its fixed-height card, so the full fleet is
          reachable without the card growing; the day-frequency chart likewise keeps `scroll`. The
          fixed height is the whole point — a scrollbar, never an ever-taller card. -->
@@ -364,7 +364,7 @@ const pageRows = computed(() =>
       <section class="rounded-md border border-border bg-surface-raised p-4">
         <CategoryBarChart
           :data="deviceData"
-          label="按消息数分布"
+          label="按设备分布"
           unit="条"
           orientation="horizontal"
           :height="240"
