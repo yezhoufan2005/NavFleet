@@ -26,7 +26,7 @@ COPY packages/fleet-core ./packages/fleet-core
 COPY frontend-next ./frontend-next
 RUN npm run build -w navfleet-console
 
-FROM nginxinc/nginx-unprivileged:1.27-alpine
+FROM nginxinc/nginx-unprivileged:1.31-alpine
 # Unlike the v1.0.0 frontend image, this one needs its own conf: web history means
 # unknown paths must fall back to index.html. See frontend-next/nginx.conf.
 COPY --from=build /app/frontend-next/nginx.conf /etc/nginx/conf.d/default.conf

@@ -59,7 +59,7 @@ services:
     restart: unless-stopped
 
   mailpit:
-    image: axllent/mailpit:v1.21.8
+    image: axllent/mailpit:v1.32.0
     networks:
       - bus
     ports:
