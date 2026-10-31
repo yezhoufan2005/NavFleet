@@ -29,6 +29,7 @@ import {
   hasGps,
   hasPose,
   taskStatusMap,
+  alertHeadline,
 } from "@navfleet/fleet-core";
 import type { DeviceSnapshot } from "@navfleet/shared";
 
@@ -179,7 +180,7 @@ const hiddenAlertCount = computed(() =>
         class="inline-flex h-8 items-center rounded-sm border px-3 text-sm"
         :class="SEVERITY_CLASS[alert.severity] ?? SEVERITY_CLASS.notice"
       >
-        {{ alert.title }}
+        {{ alertHeadline(alert) }}
       </span>
       <span v-if="hiddenAlertCount" class="text-xs text-ink-muted">
         另有 {{ hiddenAlertCount }} 条

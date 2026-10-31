@@ -24,6 +24,13 @@ export const SEVERITY_BADGE: Record<Severity, string> = {
   notice: "bg-notice-wash text-notice-ink",
 };
 
+/** Worst first: the order messages should be read in. */
+export const SEVERITY_RANK: Record<Severity, number> = {
+  critical: 0,
+  warning: 1,
+  notice: 2,
+};
+
 /**
  * Label for a severity that arrives as a plain string (a send-log row, a config list), where the
  * value is not statically a `Severity`. An unrecognized value falls back to itself.
