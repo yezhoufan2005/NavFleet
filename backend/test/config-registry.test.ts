@@ -1344,21 +1344,28 @@ describe("ConfigRegistry.writeScenes / writeSceneAsset (场景地图上传)", ()
       reloads.push(reason);
       return Promise.resolve(true);
     });
+    await fs.mkdir(assetPath("watch"), { recursive: true });
     registry.startWatching(() => undefined);
     try {
-      // chokidar 需要先完成初次扫描，否则事件会被当作初始文件吞掉。
-      await new Promise((resolve) => setTimeout(resolve, 300));
-      await fs.mkdir(assetPath("watch"), { recursive: true });
-      await fs.writeFile(assetPath("watch/ignored.osm.123.tmp"), "x");
-      await fs.writeFile(assetPath("watch/lanes.osm"), SAMPLE_OSM);
-      await vi.waitFor(() => expect(reloads.join(" ")).toContain("lanes.osm"), {
-        timeout: 8_000,
-        interval: 100,
-      });
-      expect(reloads.join(" ")).not.toContain(".tmp");
+      // chokidar 的初次扫描与 ready 之间没有可等的确切时点（Linux 上 ready 可能先于子目录扫描
+      // 完成，那时写入的文件被当作初始文件不发事件），所以反复改写，直到监听确实生效。
+      await vi.waitFor(
+        async () => {
+          await fs.writeFile(assetPath("watch/lanes.osm"), `${SAMPLE_OSM}<!-- ${Date.now()} -->`);
+          expect(reloads.join(" ")).toContain("lanes.osm");
+        },
+        { timeout: 12_000, interval: 1_500 },
+      );
+      // 监听已确认生效后，临时文件反复写入超过一个防抖加稳定期，不应再触发重载。
+      const before = reloads.length;
+      for (let i = 0; i < 4; i += 1) {
+        await fs.writeFile(assetPath("watch/lanes.osm.123.tmp"), `x${i}`);
+        await new Promise((resolve) => setTimeout(resolve, 700));
+      }
+      expect(reloads.slice(before).join(" ")).not.toContain(".tmp");
     } finally {
       await registry.closeWatcher();
       reload.mockRestore();
     }
-  }, 15_000);
+  }, 25_000);
 });

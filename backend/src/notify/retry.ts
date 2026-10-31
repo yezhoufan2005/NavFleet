@@ -104,7 +104,14 @@ export const withRetry = async (
 export const postWithRetry = (
   url: string,
   body: unknown,
-  options: RetryOptions,
+  options: RetryOptions & {
+    /**
+     * Reads a 2xx body for a business-level refusal the status does not carry, returning its
+     * message (or null when it was accepted). 企业微信 and 钉钉 answer HTTP 200 to a message they
+     * reject — wrong keyword, revoked bot, rate limit — and say so only in `errcode`.
+     */
+    rejection?: (payload: unknown) => string | null;
+  },
 ): Promise<AttemptOutcome> => {
   const fetchImpl = options.fetchImpl ?? fetch;
   return withRetry(
@@ -119,7 +126,10 @@ export const postWithRetry = (
         });
         const latencyMs = Date.now() - startedAt;
         if (response.ok) {
-          return { done: true, ok: true, httpStatus: response.status, latencyMs, error: null };
+          const refused = options.rejection?.(await response.json().catch(() => null)) ?? null;
+          return refused === null
+            ? { done: true, ok: true, httpStatus: response.status, latencyMs, error: null }
+            : { done: true, ok: false, httpStatus: response.status, latencyMs, error: refused };
         }
         const error = `HTTP ${response.status}`;
         // A 4xx other than 429 is the request's own fault (bad URL/body/revoked bot) — stop at once
