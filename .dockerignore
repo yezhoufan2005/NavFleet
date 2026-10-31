@@ -15,6 +15,9 @@ node_modules
 **/node_modules
 backend/dist
 frontend/dist
+frontend-next/dist
+# the demo simulator's local checkpoint (dev.sh); the sim image keeps its state in a volume
+backend/.demo-sim
 
 # test + audit output (regenerated locally; nothing in an image needs it)
 **/coverage

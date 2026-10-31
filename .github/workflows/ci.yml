@@ -234,12 +234,14 @@ jobs:
           restore-keys: ${{ runner.os }}-playwright-
       - run: npx playwright install --with-deps chromium
       # `e2e/` is the only source tree outside the npm workspaces, so the per-workspace gates in the
-      # other jobs never see it — its lint/type errors would reach main unchallenged. Node-version
-      # and shard independent, so run them once, on the first shard.
+      # other jobs never see it — its lint, type and format errors would reach main unchallenged.
+      # Node-version and shard independent, so run them once, on the first shard.
       - if: matrix.first
         run: npm run lint:e2e
       - if: matrix.first
         run: npm run typecheck:e2e
+      - if: matrix.first
+        run: npm run format:check:e2e
       # Playwright starts the backend and both vite dev servers itself; the run
       # needs neither MongoDB nor an MQTT broker (see e2e/support/harness.ts).
       # Two browser projects share one seeded fleet: `console` is the deployed v3

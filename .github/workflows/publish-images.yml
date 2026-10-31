@@ -77,6 +77,17 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
+      # Whether this tag is the newest release, judged by version order over the repo's tags.
+      - name: Is this the latest release
+        id: latest
+        env:
+          TAG: ${{ inputs.tag }}
+        run: |
+          git fetch --tags --force --quiet
+          newest="$(git tag --list 'v*' --sort=-v:refname | grep -E '^v[0-9]+\.[0-9]+\.[0-9]+$' | head -1)"
+          echo "is_latest=$([[ "$TAG" == "$newest" ]] && echo true || echo false)" >> "$GITHUB_OUTPUT"
+          echo "tag $TAG, newest release tag $newest"
+
       - name: Derive image tags
         id: meta
         uses: docker/metadata-action@v6
@@ -88,7 +99,9 @@ jobs:
           tags: |
             type=semver,pattern={{version}},value=${{ inputs.tag }}
             type=semver,pattern={{major}}.{{minor}},value=${{ inputs.tag }}
-            type=raw,value=latest
+            # Not for a rebuild of an older release: a manual dispatch for v1.6.x (to re-sign it,
+            # say) would point `latest` back at it, and hosts pulling `latest` would downgrade.
+            type=raw,value=latest,enable=${{ steps.latest.outputs.is_latest }}
             type=sha,format=short
 
       - name: Build and push
