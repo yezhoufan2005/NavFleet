@@ -45,7 +45,10 @@ import {
   TRAIL_MIN_DISTANCE,
 } from "@navfleet/fleet-core";
 import type { SceneDefinition } from "@navfleet/fleet-core";
+import { offlineAlertId } from "@navfleet/shared";
 import type {
+  AlertClearedPayload,
+  AlertCreatedPayload,
   DeviceAlert,
   DeviceSnapshot,
   FormationSnapshot,
@@ -170,7 +173,6 @@ export const useFleetStore = defineStore("fleet", () => {
   interface AckEntry {
     ackedBy: string;
     ackedAt: string;
-    comment: string | null;
   }
   const ackState = reactive(new Map<string, AckEntry>());
   const ackEventKey = (deviceId: string, alertId: string): string =>
@@ -179,26 +181,38 @@ export const useFleetStore = defineStore("fleet", () => {
     ackState.has(ackEventKey(deviceId, alertId));
   const getAck = (deviceId: string, alertId: string): AckEntry | null =>
     ackState.get(ackEventKey(deviceId, alertId)) ?? null;
+  /** Bumped on every live change to the overlay, so a seed can tell it was overtaken. */
+  let ackGeneration = 0;
   const applyAck = (eventKey: string, entry: AckEntry): void => {
+    ackGeneration += 1;
     ackState.set(eventKey, entry);
   };
   const applyUnack = (eventKey: string): void => {
+    ackGeneration += 1;
     ackState.delete(eventKey);
   };
 
   let ackSeedInFlight = false;
   /**
    * Reload the acknowledgement overlay from the backend. Called from the alerts view on mount
-   * (the one place the overlay is displayed) so a confirmation made while this console was
-   * disconnected — or by another operator — is picked up; between reads the WS
-   * `alert.acked`/`alert.unacked` events keep it current. A failure is swallowed: a missing
-   * overlay must not blank the page, and the live stream will still deliver new changes.
+   * (the one place the overlay is displayed) and whenever the realtime link comes back, so a
+   * confirmation made while this console was disconnected — or by another operator — is
+   * picked up; between reads the WS `alert.acked`/`alert.unacked` events keep it current.
+   *
+   * The read replaces the overlay only when it is the whole truth. If a live event changed
+   * the overlay while the read was in flight, or the server capped the list (`truncated`),
+   * the result is merged in instead: replacing would drop the newer change, or every
+   * confirmation beyond the cap. A failure is swallowed: a missing overlay must not blank
+   * the page, and the live stream will still deliver new changes.
    */
   const seedAckState = async (): Promise<void> => {
     if (ackSeedInFlight) return;
     ackSeedInFlight = true;
+    const generation = ackGeneration;
     try {
-      const { items } = await fleetApi.getAlerts({ status: "active" });
+      const { items, truncated } = await fleetApi.getAlerts({
+        status: "active",
+      });
       const next = new Map<string, AckEntry>();
       for (const item of items) {
         const eventKey =
@@ -207,15 +221,15 @@ export const useFleetStore = defineStore("fleet", () => {
             ? ackEventKey(item.deviceId, item.alertId)
             : null);
         if (eventKey && item.ackedBy && item.ackedAt) {
-          next.set(eventKey, {
-            ackedBy: item.ackedBy,
-            ackedAt: item.ackedAt,
-            comment: item.comment ?? null,
-          });
+          next.set(eventKey, { ackedBy: item.ackedBy, ackedAt: item.ackedAt });
         }
       }
-      ackState.clear();
-      for (const [key, entry] of next) ackState.set(key, entry);
+      if (generation === ackGeneration && !truncated) ackState.clear();
+      for (const [key, entry] of next) {
+        if (generation === ackGeneration || !ackState.has(key)) {
+          ackState.set(key, entry);
+        }
+      }
     } catch {
       // Keep whatever overlay we have; the WS stream will still deliver new changes.
     } finally {
@@ -644,8 +658,15 @@ export const useFleetStore = defineStore("fleet", () => {
    */
   const announcedOffline = new Set<string>();
 
-  /** Alert ids this tab has announced, so a clear is only reported if its onset was. */
-  const announcedAlerts = new Set<string>();
+  /**
+   * Alerts this tab has announced, by eventKey, with what the clear toast needs to name them:
+   * `alert.cleared` carries only the id, so the severity and title are the ones kept here.
+   * A clear is only reported if its onset was.
+   */
+  const announcedAlerts = new Map<
+    string,
+    { severity: Severity; title: string }
+  >();
 
   /**
    * Burst guard for the transition events.
@@ -701,10 +722,7 @@ export const useFleetStore = defineStore("fleet", () => {
    * would double-announce every critical.
    */
   const handleTransitionEvent = (type: string, payload: unknown): void => {
-    const frame = (payload ?? {}) as {
-      deviceId?: unknown;
-      alert?: { severity?: unknown; title?: unknown; id?: unknown } | null;
-    };
+    const frame = (payload ?? {}) as { deviceId?: unknown };
     const deviceId =
       typeof frame.deviceId === "string" ? frame.deviceId : undefined;
     if (!deviceId) return;
@@ -725,11 +743,7 @@ export const useFleetStore = defineStore("fleet", () => {
           typeof ack.ackedBy === "string" &&
           typeof ack.ackedAt === "string"
         ) {
-          applyAck(eventKey, {
-            ackedBy: ack.ackedBy,
-            ackedAt: ack.ackedAt,
-            comment: null,
-          });
+          applyAck(eventKey, { ackedBy: ack.ackedBy, ackedAt: ack.ackedAt });
         }
       } else {
         applyUnack(eventKey);
@@ -737,11 +751,14 @@ export const useFleetStore = defineStore("fleet", () => {
       return;
     }
 
+    // The one toast for a vehicle going silent. The offline monitor also raises a critical
+    // 设备离线 alert for the same moment, and that alert's own created/cleared toasts are
+    // skipped below, so the error tone here matches it.
     if (type === "device.offline") {
       announcedOffline.add(deviceId);
       if (!admitTransitionToast()) return;
       notify(`${displayNameOf(deviceId)} 已离线`, {
-        type: "warning",
+        type: "error",
         dedupeKey: `offline-${deviceId}`,
       });
       return;
@@ -757,20 +774,16 @@ export const useFleetStore = defineStore("fleet", () => {
       return;
     }
 
-    const alert = frame.alert;
-    if (!alert || typeof alert.id !== "string") return;
-    // A clear closes that occurrence, acknowledgement included; if the code fires again it is a
-    // new, unacknowledged occurrence under the same eventKey — drop the overlay entry so the new
-    // one does not inherit the old confirmation. Every severity, before the toast filter below.
-    if (type === "alert.cleared") applyUnack(ackEventKey(deviceId, alert.id));
-    // 提示级不弹。报码里的提示位在正常运行中就会亮，一台车一条就足以让提示流变成
-    // 背景噪声 —— 而背景噪声会让人连告警一起忽略。它们仍然进消息页与徽标。
-    const severity = alert.severity;
-    if (severity !== "critical" && severity !== "warning") return;
-    const title = typeof alert.title === "string" ? alert.title : "设备告警";
-
     if (type === "alert.created") {
-      announcedAlerts.add(alert.id);
+      const { alert } = payload as Partial<AlertCreatedPayload>;
+      if (!alert || typeof alert.id !== "string") return;
+      if (alert.id === offlineAlertId(deviceId)) return;
+      // 提示级不弹。报码里的提示位在正常运行中就会亮，一台车一条就足以让提示流变成
+      // 背景噪声 —— 而背景噪声会让人连告警一起忽略。它们仍然进消息页与徽标。
+      const severity = alert.severity;
+      if (severity !== "critical" && severity !== "warning") return;
+      const title = typeof alert.title === "string" ? alert.title : "设备告警";
+      announcedAlerts.set(ackEventKey(deviceId, alert.id), { severity, title });
       if (!admitTransitionToast()) return;
       notify(`${displayNameOf(deviceId)}：${title}`, {
         type: severity === "critical" ? "error" : "warning",
@@ -780,13 +793,22 @@ export const useFleetStore = defineStore("fleet", () => {
     }
 
     if (type === "alert.cleared") {
-      // Only if its onset was announced: otherwise a tab that opened mid-incident
-      // reports the recovery of something it never reported.
-      if (!announcedAlerts.delete(alert.id)) return;
+      const { alertId } = payload as Partial<AlertClearedPayload>;
+      if (typeof alertId !== "string") return;
+      const eventKey = ackEventKey(deviceId, alertId);
+      // A clear closes that occurrence, acknowledgement included; if the code fires again it is
+      // a new, unacknowledged occurrence under the same eventKey — drop the overlay entry so the
+      // new one does not inherit the old confirmation. Every severity, before any toast filter.
+      applyUnack(eventKey);
+      // Only if its onset was announced: otherwise a tab that opened mid-incident reports the
+      // recovery of something it never reported.
+      const announced = announcedAlerts.get(eventKey);
+      if (!announced) return;
+      announcedAlerts.delete(eventKey);
       if (!admitTransitionToast()) return;
-      notify(`${displayNameOf(deviceId)}：${title}已解除`, {
+      notify(`${displayNameOf(deviceId)}：${announced.title}已解除`, {
         type: "success",
-        dedupeKey: `alert-clear-${alert.id}`,
+        dedupeKey: `alert-clear-${alertId}`,
       });
     }
   };
@@ -916,6 +938,8 @@ export const useFleetStore = defineStore("fleet", () => {
     }
     if (status === "open" && previous === "reconnecting") {
       notify("实时连接已恢复", { type: "success", dedupeKey: "ws-restored" });
+      // Confirmations made while the link was down never arrived as events.
+      void seedAckState();
     }
   };
 
@@ -985,12 +1009,20 @@ export const useFleetStore = defineStore("fleet", () => {
   });
 
   // ── bootstrap ─────────────────────────────────────────────────────────────
-  const bootstrapFromBackend = async (): Promise<boolean> => {
+  /**
+   * Bumped by `stopRealtime`. A bootstrap still awaiting the backend when the user signs out
+   * must not go on to open the socket, or schedule a retry, for a session that has ended:
+   * that left a live, authenticated socket behind the login screen.
+   */
+  let sessionEpoch = 0;
+
+  const bootstrapFromBackend = async (epoch: number): Promise<boolean> => {
     let payload;
     try {
       await loadSceneCatalog();
       payload = await fleetApi.getSnapshot();
     } catch {
+      if (epoch !== sessionEpoch) return false;
       state.realtime.apiReady = false;
       notify("无法连接后端服务，请检查服务状态后重试", {
         type: "error",
@@ -998,6 +1030,8 @@ export const useFleetStore = defineStore("fleet", () => {
       });
       return false;
     }
+
+    if (epoch !== sessionEpoch) return false;
 
     // Reached separately from the request above on purpose: a snapshot we cannot
     // read is not an unreachable backend, and saying "检查服务状态" about a service
@@ -1053,8 +1087,10 @@ export const useFleetStore = defineStore("fleet", () => {
   const bootstrap = async (): Promise<boolean> => {
     clearBootstrapRetry();
     state.realtime.bootstrapPending = true;
+    const epoch = sessionEpoch;
     try {
-      const ready = await bootstrapFromBackend();
+      const ready = await bootstrapFromBackend(epoch);
+      if (epoch !== sessionEpoch) return false;
       if (ready) {
         bootstrapFailures = 0;
       } else {
@@ -1076,6 +1112,7 @@ export const useFleetStore = defineStore("fleet", () => {
 
   /** Stop retrying (signed out) and drop the socket. */
   const stopRealtime = (): void => {
+    sessionEpoch += 1;
     clearBootstrapRetry();
     bootstrapFailures = 0;
     disconnectRealtime();

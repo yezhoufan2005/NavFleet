@@ -26,6 +26,14 @@ export { asText, hasGps };
 
 type UnknownRecord = Record<string, unknown>;
 
+/** Thrown for a frame that names no device, neither in its body nor in its topic. */
+export class MissingDeviceIdError extends Error {
+  constructor() {
+    super("frame names no device: no deviceId in the payload and none in the topic");
+    this.name = "MissingDeviceIdError";
+  }
+}
+
 const isRecord = (value: unknown): value is UnknownRecord =>
   typeof value === "object" && value !== null && !Array.isArray(value);
 
@@ -37,13 +45,9 @@ const isNormalizedSnapshotRecord = (value: UnknownRecord): boolean =>
   "infoCode" in value ||
   "speedLimit" in value;
 
-const extractDeviceIdFromTopic = (topic: string): string => {
-  const match = String(topic || "").match(/^\/fleet\/([^/]+)\//);
-  return match?.[1] || "";
-};
-
-// Cache topic schemes per pattern so device-id extraction honors the configured
-// MQTT_TOPIC_PATTERN instead of assuming the default `/fleet/{deviceId}/...`.
+// Cache topic schemes per pattern. The pattern is the one MQTT is subscribed with
+// (MQTT_TOPIC_PATTERN), so the id is read from a topic exactly as the subscription matched it;
+// fleet.json's `topicPattern` is only shown in the console.
 const topicSchemeCache = new Map<string, TopicScheme>();
 const schemeForPattern = (pattern: string): TopicScheme => {
   let scheme = topicSchemeCache.get(pattern);
@@ -58,13 +62,7 @@ const resolveDeviceIdFromTopic = (topic: string, topicPattern: string): string =
   if (!topic) {
     return "";
   }
-  if (topicPattern) {
-    const matched = schemeForPattern(topicPattern).extractDeviceId(topic);
-    if (matched) {
-      return matched;
-    }
-  }
-  return extractDeviceIdFromTopic(topic);
+  return topicPattern ? schemeForPattern(topicPattern).extractDeviceId(topic) : "";
 };
 
 /**
@@ -290,14 +288,12 @@ export const normalizeDevice = (
   const isNormalizedSnapshot = isNormalizedSnapshotRecord(raw);
 
   const topic = asText(raw.topic || topicHint || existingDevice?.topic || "");
-  const deviceId = asText(
-    raw.deviceId ||
-      raw.id ||
-      raw.device_id ||
-      extractDeviceIdFromTopic(topic) ||
-      existingDevice?.deviceId ||
-      `device-${Date.now()}`,
-  );
+  const deviceId = asText(raw.deviceId || raw.id || raw.device_id || existingDevice?.deviceId);
+  // A frame that names no vehicle cannot be attributed to one. Inventing an id for it used to
+  // add a new device per frame (`device-<timestamp>`) until MAX_DEVICES was full.
+  if (!deviceId) {
+    throw new MissingDeviceIdError();
+  }
 
   const base = createDefaultDevice(deviceId);
   const fusionLoc = isRecord(raw.fusion_loc)

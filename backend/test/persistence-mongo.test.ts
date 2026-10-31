@@ -49,6 +49,12 @@ interface Recorded {
   deleteMany: Array<{ collection: string; filter: unknown }>;
   countDocuments: Array<{ collection: string; filter: unknown }>;
   aggregate: Array<{ collection: string; pipeline: unknown }>;
+  findOneAndUpdate: Array<{
+    collection: string;
+    filter: unknown;
+    update: unknown;
+    options: unknown;
+  }>;
 }
 
 /** A fake `Db` that records calls and replays canned rows. */
@@ -68,6 +74,7 @@ const createFakeDb = (
     deleteMany: [],
     countDocuments: [],
     aggregate: [],
+    findOneAndUpdate: [],
   };
 
   const collection = (name: string) => ({
@@ -126,6 +133,10 @@ const createFakeDb = (
     countDocuments: (filter: unknown = {}) => {
       calls.countDocuments.push({ collection: name, filter });
       return Promise.resolve((rows[name] ?? []).length);
+    },
+    findOneAndUpdate: (filter: unknown, update: unknown, options?: unknown) => {
+      calls.findOneAndUpdate.push({ collection: name, filter, update, options });
+      return Promise.resolve((rows[name] ?? [])[0] ?? null);
     },
     aggregate: (pipeline: unknown): AggregateCursor => {
       calls.aggregate.push({ collection: name, pipeline });
@@ -1246,6 +1257,21 @@ describe("登录锁定字段", () => {
     expect(write?.update).toEqual({
       $set: { failedAttempts: 5, lockedUntil: STAMP_B, updatedAt: STAMP_A },
     });
+  });
+
+  it("incrementLoginFailures 在一次原子更新里累加，锁已过期时从 1 重新计", async () => {
+    const { db, calls } = createFakeDb({ users: [{ username: "ops", failedAttempts: 3 }] });
+    persistence.__setDbForTests(db);
+
+    expect(await persistence.incrementLoginFailures("ops", STAMP_B, STAMP_A)).toBe(3);
+
+    const [write] = calls.findOneAndUpdate;
+    expect(write?.filter).toEqual({ username: "ops" });
+    // An update pipeline, so the new count is computed from the stored one by the server.
+    expect(Array.isArray(write?.update)).toBe(true);
+    expect(JSON.stringify(write?.update)).toContain(STAMP_B);
+    expect(write?.options).toMatchObject({ returnDocument: "after" });
+    expect(calls.updateOne).toHaveLength(0);
   });
 
   it("clearLoginFailures 归零并清空锁", async () => {

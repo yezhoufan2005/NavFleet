@@ -1,6 +1,7 @@
 import fs from "node:fs";
 import path from "node:path";
 import { z } from "zod";
+import { topicPatternProblem } from "./topics";
 
 const ENV_FILENAMES = [".env.local", ".env"];
 
@@ -136,7 +137,10 @@ const configSchema = z.object({
   LOG_LEVEL: envStr("info"),
   METRICS_ENABLED: envBool(true),
   FLEET_NAME: envStr("智能车队"),
-  MQTT_TOPIC_PATTERN: envStr("/fleet/{deviceId}/vehicle_info"),
+  MQTT_TOPIC_PATTERN: envStr("/fleet/{deviceId}/vehicle_info").superRefine((value, ctx) => {
+    const problem = topicPatternProblem(value);
+    if (problem) ctx.addIssue({ code: "custom", message: problem });
+  }),
   MQTT_URL: envStr("mqtt://127.0.0.1:1883"),
   MQTT_USERNAME: envStr(""),
   MQTT_PASSWORD: envStr(""),
