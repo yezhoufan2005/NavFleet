@@ -32,6 +32,7 @@ import { useChartTheme } from "@/composables/useChartTheme";
 import { useFleetStore } from "@/stores/fleet";
 import { fleetApi } from "@navfleet/fleet-core";
 import {
+  ALERT_STATS_TOP_N,
   REPORT_RANGE_LABELS,
   type AlertStatsReport,
   type AvailabilityReport,
@@ -39,7 +40,7 @@ import {
 } from "@navfleet/shared";
 import {
   buildAlertStatsCsv,
-  buildAvailabilityCsv,
+  availabilityCsv,
   defaultBucketForPreset,
   defaultBucketForSpanMs,
   deviceAvailabilityRows,
@@ -205,7 +206,7 @@ const load = (): void => {
       availStatus.value = "error";
       availError.value = loadErrorMessage(
         error,
-        "可用率报表加载失败，请稍后重试",
+        "在线率报表加载失败，请稍后重试",
       );
     });
 
@@ -353,7 +354,7 @@ const SEVERITY_SEGMENT_CLASS: Record<string, string> = {
   notice: "bg-notice",
 };
 
-/** 按设备明细行（「可用率与电量」分区可展开表）：每台真实设备一行，无聚合折叠。 */
+/** 按设备明细行（「在线率与电量」分区可展开表）：每台真实设备一行，无聚合折叠。 */
 const availabilityRows = computed(() =>
   availability.value ? deviceAvailabilityRows(availability.value, nameOf) : [],
 );
@@ -407,19 +408,27 @@ const deviceOptions = computed(() => {
 });
 
 // ── CSV export (client-side, no dependency; BOM so Excel reads the Chinese header) ───────
+/**
+ * What the file name says the window was: the dates for a custom range, else the preset. A custom
+ * range used to name the file after the preset it had fallen back to (`-12h`), so two different
+ * exports came out with the same name.
+ */
+const exportWindowTag = (): string =>
+  isCustom.value ? `${customFrom.value}_${customTo.value}` : range.value;
+
 const exportCsv = (): void => {
   if (!availability.value) return;
-  const csv = buildAvailabilityCsv(availability.value, nameOf);
+  const csv = availabilityCsv(availability.value, nameOf);
   const blob = new Blob(["﻿", csv], { type: "text/csv;charset=utf-8" });
   const url = URL.createObjectURL(blob);
   const anchor = document.createElement("a");
   anchor.href = url;
-  anchor.download = `navfleet-可用率-${range.value}.csv`;
+  anchor.download = `navfleet-在线率-${exportWindowTag()}.csv`;
   anchor.click();
   URL.revokeObjectURL(url);
 };
 
-/** 消息统计导出，与可用率对等（1.6.1）——聚合报表用长表装下页面显示的一切。 */
+/** 消息统计导出，与在线率对等（1.6.1）——聚合报表用长表装下页面显示的一切。 */
 const exportAlertsCsv = (): void => {
   if (!alertStats.value) return;
   const csv = buildAlertStatsCsv(alertStats.value, nameOf);
@@ -427,7 +436,7 @@ const exportAlertsCsv = (): void => {
   const url = URL.createObjectURL(blob);
   const anchor = document.createElement("a");
   anchor.href = url;
-  anchor.download = `navfleet-消息统计-${range.value}.csv`;
+  anchor.download = `navfleet-消息统计-${exportWindowTag()}.csv`;
   anchor.click();
   URL.revokeObjectURL(url);
 };
@@ -442,7 +451,7 @@ const exportAlertsCsv = (): void => {
         :disabled="availStatus !== 'ready' || !hasAvailabilityData"
         @click="exportCsv"
       >
-        导出可用率 ↗
+        导出在线率 ↗
       </UiButton>
       <UiButton
         variant="secondary"
@@ -642,7 +651,7 @@ const exportAlertsCsv = (): void => {
         </div>
       </dl>
 
-      <!-- Section 可用率与电量: the fleet-average trends, plus a per-device breakdown that opens
+      <!-- Section 在线率与电量: the fleet-average trends, plus a per-device breakdown that opens
            on demand — the comparison surface that turns the page into an analysis workstation
            without crowding the charts with N lines. -->
       <section class="flex flex-col gap-3" aria-labelledby="avail-heading">
@@ -650,7 +659,7 @@ const exportAlertsCsv = (): void => {
           class="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1"
         >
           <h2 id="avail-heading" class="m-0 text-sm font-semibold text-ink">
-            可用率与电量
+            在线率与电量
           </h2>
           <span class="text-2xs text-ink-subtle">
             {{
@@ -666,12 +675,12 @@ const exportAlertsCsv = (): void => {
           class="m-0 rounded-md border border-border bg-surface-raised p-4 text-sm text-critical-ink"
           role="alert"
         >
-          可用率加载失败：{{ availError }}
+          在线率加载失败：{{ availError }}
         </p>
         <!-- Loading placeholder matches the two charts' footprint (h-[272px] each) so switching
              devices never collapses the card — the 「消息分析」 heading below stays put. -->
         <template v-else-if="availStatus === 'loading' && !hasAvailabilityData">
-          <p class="sr-only" role="status">正在加载可用率…</p>
+          <p class="sr-only" role="status">正在加载在线率…</p>
           <div class="grid gap-4 lg:grid-cols-2" aria-hidden="true">
             <div
               class="h-[272px] rounded-md border border-border bg-surface-raised motion-safe:animate-pulse"
@@ -703,7 +712,7 @@ const exportAlertsCsv = (): void => {
             <TimeSeriesChart
               v-if="hasAvailabilityData"
               :series="batterySeries"
-              label="电量SOC均值"
+              label="平均电量趋势"
               unit="%"
               :height="240"
               legend-position="right"
@@ -821,7 +830,7 @@ const exportAlertsCsv = (): void => {
             <CategoryBarChart
               v-if="hasAlertData"
               :data="deviceData"
-              label="按消息数分布"
+              :label="`消息最多的 ${ALERT_STATS_TOP_N} 台设备`"
               unit="条"
               orientation="horizontal"
               :height="200"

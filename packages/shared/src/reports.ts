@@ -11,8 +11,12 @@
  * 时间戳一律是 ISO-8601 字符串（Mongo 的 `Date` 经 JSON 序列化后就是它）。
  */
 
+import { csvField } from "./csv";
 import type { Severity } from "./index";
 import type { NotifyRecipient } from "./notify";
+
+/** 消息统计里「消息最多的设备」最多列几台；报表页的图按它写明「前 N 台」。 */
+export const ALERT_STATS_TOP_N = 8;
 
 /**
  * 告警统计按「首次出现时间」（`firstSeenAt`）分桶。日频次按**部署配置的时区**切日界（见
@@ -107,6 +111,11 @@ export interface AvailabilityReport {
   devices: AvailabilityDeviceSeries[];
   /** 是否有历史后端（Mongo）。false ⇒ 诚实空态（同消息史「无 Mongo 无历史」先例）。 */
   available: boolean;
+  /**
+   * 桶按哪个时区切界（部署的 `REPORT_TIMEZONE`），由接口附上。导出时桶起点按它写成本地时刻：日桶的
+   * 起点在 UTC+8 是前一天 16:00Z，原样写进 CSV，表格软件会把它读成前一天。
+   */
+  timeZone?: string;
 }
 
 /** 空的可用率报表：无 Mongo 或区间内无遥测时的零值形状。 */
@@ -173,3 +182,67 @@ export interface ReportsConfig {
 
 /** 出厂零配置：不发任何定时报表（红线）。 */
 export const DEFAULT_REPORTS_CONFIG: ReportsConfig = { schedules: [] };
+
+/** 桶起点在 `timeZone` 里的本地时刻，`YYYY-MM-DD HH:mm`（24 小时制）。读不出的值原样返回。 */
+export const formatBucketStart = (iso: string, timeZone: string): string => {
+  const at = new Date(iso);
+  if (!Number.isFinite(at.getTime())) return iso;
+  const parts = new Intl.DateTimeFormat("en-CA", {
+    timeZone,
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+    hourCycle: "h23",
+  }).formatToParts(at);
+  const get = (type: string): string =>
+    parts.find((part) => part.type === type)?.value ?? "";
+  return `${get("year")}-${get("month")}-${get("day")} ${get("hour")}:${get("minute")}`;
+};
+
+/**
+ * 在线率/电量按（设备 × 桶）的 CSV，控制台导出与定时报表邮件的附件共用这一份（BOM 由调用方加）。
+ * 时间桶按部署时区写成本地时刻，列名里写明时区；在线率写成百分比（一位小数），与页面一致。`null`
+ * 的电量留空而不是写 0：空单元格是「这段没有电量样本」，0 会被读成「没电」。
+ */
+export const buildAvailabilityCsv = (
+  report: AvailabilityReport,
+  nameOf: (deviceId: string) => string,
+  timeZone: string,
+): string => {
+  const header = [
+    "设备ID",
+    "设备名称",
+    `时间桶（${timeZone}）`,
+    "在线帧",
+    "总帧",
+    "在线秒数",
+    "统计秒数",
+    "在线率(%)",
+    "电量均值",
+    "电量最低",
+  ];
+  const lines = [header.map(csvField).join(",")];
+  for (const device of report.devices) {
+    for (const bucket of device.buckets) {
+      lines.push(
+        [
+          device.deviceId,
+          nameOf(device.deviceId),
+          formatBucketStart(bucket.bucketStart, timeZone),
+          bucket.onlineSamples,
+          bucket.totalSamples,
+          bucket.onlineSeconds,
+          bucket.spanSeconds,
+          (bucket.onlineRatio * 100).toFixed(1),
+          bucket.socMean ?? "",
+          bucket.socMin ?? "",
+        ]
+          .map(csvField)
+          .join(","),
+      );
+    }
+  }
+  return lines.join("\n");
+};

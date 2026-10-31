@@ -1,15 +1,14 @@
 /**
  * 定时报表的邮件正文与附件构造——**纯函数，不碰 db / 不读 `Date.now()` / 不发送**。
  *
- * 输入是服务端的两个聚合报表（可用率/电量 + 告警统计），输出一封邮件的 `subject`/`text`/`html` 与
- * 一份可用率 CSV 附件。抽成纯函数的理由和图表 option builder、报表页纯逻辑一样：HTML 转义、KPI 汇总
+ * 输入是服务端的两个聚合报表（在线率/电量 + 消息统计），输出一封邮件的 `subject`/`text`/`html` 与
+ * 一份在线率 CSV 附件。抽成纯函数的理由和图表 option builder、报表页纯逻辑一样：HTML 转义、KPI 汇总
  * 的样本加权与零除、CSV 转义——机检看不出对错，钉在单测里最稳。scheduler 只负责取数、算收件人、发送。
  *
- * CSV 列与前端 `buildAvailabilityCsv` 保持一致，但**在后端各写一份**：backend 不能 import
- * frontend 代码，而把它下沉到 shared 又要牵动两个前端的测试，不值当为这十几行做那次重构。
+ * 附件 CSV 与控制台导出是同一个 `buildAvailabilityCsv`（shared），两边写出同一种文件。
  */
 
-import { csvField, REPORT_RANGE_LABELS } from "@navfleet/shared";
+import { buildAvailabilityCsv, REPORT_RANGE_LABELS } from "@navfleet/shared";
 import type { AlertStatsReport, AvailabilityReport, ReportRangePreset } from "@navfleet/shared";
 import { formatInstantInZone } from "../localTime";
 import type { EmailAttachment } from "../notify/email";
@@ -82,48 +81,8 @@ const formatDayInZone = (at: Date, timeZone: string): string =>
 
 /** RFC-4180 CSV 转义。 */
 
-/** 可用率/电量按（设备 × 桶）的 CSV（与前端导出同列）。BOM 让 Excel 正确读中文表头。 */
-const buildAvailabilityCsv = (report: AvailabilityReport, nameOf: DeviceNameOf): string => {
-  const header = [
-    "设备ID",
-    "设备名称",
-    "时间桶",
-    "在线帧",
-    "总帧",
-    "在线秒数",
-    "统计秒数",
-    "在线率",
-    "电量均值",
-    "电量最低",
-  ];
-  const lines = [header.map(csvField).join(",")];
-  for (const device of report.devices) {
-    for (const bucket of device.buckets) {
-      lines.push(
-        [
-          device.deviceId,
-          nameOf(device.deviceId),
-          bucket.bucketStart,
-          bucket.onlineSamples,
-          bucket.totalSamples,
-          bucket.onlineSeconds,
-          bucket.spanSeconds,
-          bucket.onlineRatio.toFixed(4),
-          bucket.socMean ?? "",
-          bucket.socMin ?? "",
-        ]
-          .map(csvField)
-          .join(","),
-      );
-    }
-  }
-  // Prepend the UTF-8 BOM (built from its code point so no irregular-whitespace char sits in
-  // source) so Excel reads the Chinese header as UTF-8 rather than mojibake.
-  return `${String.fromCharCode(0xfeff)}${lines.join("\n")}`;
-};
-
 /**
- * 一封定时报表邮件：HTML 摘要（KPI + 告警 Top）作正文，可用率明细 CSV 作附件，纯文本作降级正文。
+ * 一封定时报表邮件：HTML 摘要（KPI + 告警 Top）作正文，在线率明细 CSV 作附件，纯文本作降级正文。
  * 无 Mongo（两报表 `available:false`）时仍生成一封「本区间无可聚合历史」的邮件——收件人该知道任务在跑
  * 但没有历史后端，而不是收到一封空邮件或干脆不发（不发只留给「零收件人」）。
  */
@@ -164,7 +123,7 @@ export const buildReportEmail = (input: ReportEmailInput): ReportEmailContent =>
   if (noHistory) {
     textLines.push("", "注意：本部署未连接历史后端（MongoDB），无历史数据，以上指标不可用。");
   }
-  textLines.push("", "可用率与电量明细见附件 CSV。");
+  textLines.push("", "在线率与电量明细见附件 CSV。");
   const text = textLines.join("\n");
 
   const kpiRows = kpis
@@ -187,7 +146,7 @@ export const buildReportEmail = (input: ReportEmailInput): ReportEmailContent =>
     noHistory
       ? `<p style="color:#a00">注意：本部署未连接历史后端（MongoDB），无历史数据，以上指标不可用。</p>`
       : "",
-    `<p style="margin-top:16px;color:#555">可用率与电量明细见附件 CSV。</p>`,
+    `<p style="margin-top:16px;color:#555">在线率与电量明细见附件 CSV。</p>`,
   ]
     .filter(Boolean)
     .join("\n");
@@ -198,8 +157,10 @@ export const buildReportEmail = (input: ReportEmailInput): ReportEmailContent =>
     html,
     attachments: [
       {
-        filename: `navfleet-可用率-${range}-${day}.csv`,
-        content: buildAvailabilityCsv(availability, nameOf),
+        filename: `navfleet-在线率-${range}-${day}.csv`,
+        // UTF-8 BOM (from its code point, so no irregular-whitespace char sits in source): Excel
+        // reads the Chinese header as UTF-8 rather than mojibake.
+        content: `${String.fromCharCode(0xfeff)}${buildAvailabilityCsv(availability, nameOf, timeZone)}`,
       },
     ],
   };
