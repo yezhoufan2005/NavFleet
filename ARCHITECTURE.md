@@ -214,7 +214,8 @@ NavFleet/
 - 监听运行期配置变化并热加载。
 
 热加载监听范围：`config-runtime/` 下的八份 JSON（fleet / vehicles / formations / scenes / rules /
-codebook / notify / reports）与 `scene-maps/` 下的底图资源（osm / svg / png / jpg / pcd / json）。
+codebook / notify / reports）与 `scene-maps/` 下的底图资源（osm / svg / png / jpg / jpeg / pcd / json，
+含子目录）。经控制台上传的底图与写配置一样以「生效」为准，无法生效时文件退回原样。
 
 **坏配置不拖垮服务**：每次成功加载后，各文件的副本存进 `config-runtime/.last-good/`。某份文件改坏时
 （JSON 写错、校验不过、跨文件引用断了），只把这一份退回上一份可用版本（可选文件没有副本时用内置默认），

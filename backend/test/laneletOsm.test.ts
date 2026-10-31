@@ -139,4 +139,19 @@ describe("parseLaneletOsmText", () => {
     expect(Number.isFinite(overlay.bounds.maxY)).toBe(true);
     expect(overlay.bounds.maxY).toBeCloseTo(11.132, 2);
   });
+
+  it("reads nodes that carry <tag> children, alongside self-closing ones", () => {
+    // Autoware and JOSM write a node with an `ele` tag as <node …>…</node>.
+    const mixed = SAMPLE_OSM.replace(
+      '<node id="2" lat="31.2301" lon="121.4700"/>',
+      '<node id="2" lat="31.2301" lon="121.4700">\n    <tag k="ele" v="3.2"/>\n  </node>',
+    ).replace(
+      '<node id="4" lat="31.2301" lon="121.4702"/>',
+      "<node id='4' lat='31.2301' lon='121.4702' visible='true'><tag k='ele' v='3.1'/></node>",
+    );
+    const overlay = parseLaneletOsmText(mixed, "mixed.osm", "scene-x");
+    expect(overlay.stats.nodeCount).toBe(4);
+    expect(overlay.lanelets[0]?.left).toHaveLength(2);
+    expect(overlay.lanelets[0]?.right).toHaveLength(2);
+  });
 });

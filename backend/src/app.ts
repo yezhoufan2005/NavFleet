@@ -39,6 +39,9 @@ import type { NotifyService } from "./notify/service";
  */
 export const API_PREFIXES = ["/api/v1", "/api"] as const;
 
+/** `PUT {prefix}/scenes/:sceneId/asset/:kind`, under either prefix. */
+const SCENE_ASSET_UPLOAD_PATH = /^\/api(?:\/v1)?\/scenes\/[^/]+\/asset\/[^/]+$/;
+
 export interface AppDeps {
   store: DashboardStore;
   persistence: Persistence;
@@ -87,8 +90,8 @@ export const createApp = ({
     wsSlowBroadcasts,
     collectDefault: collectDefaultMetrics,
   });
-  // Feed each outbound send into the Prometheus counters/histogram now that the registry exists
-  //. NotifyService is built before the app, so the observer is wired here.
+  // Feed each outbound send into the Prometheus counters/histogram now that the registry exists.
+  // NotifyService is built before the app, so the observer is wired here.
   notifyService.setSendObserver(metrics.observeNotifySend);
   // Feed successful Mongo write latency into the histogram. Persistence is
   // built before the app, so — like the notify observer above — the observer is wired here.
@@ -121,7 +124,17 @@ export const createApp = ({
   if (config.corsOrigins.length) {
     app.use(cors({ origin: config.corsOrigins, credentials: true }));
   }
-  app.use(express.json({ limit: "2mb" }));
+  // A scene asset upload is raw file bytes, read by the route's own `express.raw`. A `.json`
+  // point-cloud metadata file arrives as `application/json`, so the global parser would consume
+  // it first (and cap it at 2 MB), leaving the route an empty body.
+  const jsonParser = express.json({ limit: "2mb" });
+  app.use((request, response, next) => {
+    if (SCENE_ASSET_UPLOAD_PATH.test(request.path)) {
+      next();
+      return;
+    }
+    jsonParser(request, response, next);
+  });
   app.use(cookieParser());
 
   // Correlation id first, so every later middleware (including the request log

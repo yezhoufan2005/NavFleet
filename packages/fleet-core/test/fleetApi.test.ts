@@ -404,6 +404,20 @@ describe("场景地图管理", () => {
     expect(calls.at(-1)?.init.credentials).toBe("include");
   });
 
+  it("sends every upload as application/octet-stream, whatever the Blob's own type", async () => {
+    // A .json point-cloud metadata file carries application/json; sent as-is, the backend's
+    // JSON parser would read it as a request body instead of the file.
+    stubFetch(200, { url: "/scene-maps/yard/pointcloudmeta.json" });
+    await fleetApi.uploadSceneAsset(
+      "yard",
+      "pointcloudmeta",
+      new Blob(["{}"], { type: "application/json" }),
+    );
+    expect(calls.at(-1)?.init.headers).toEqual({
+      "Content-Type": "application/octet-stream",
+    });
+  });
+
   it("percent-encodes the sceneId in the upload path", async () => {
     stubFetch(200, { url: "/scene-maps/a/image.svg" });
     await fleetApi.uploadSceneAsset("a b", "image", new Blob(["x"]));
