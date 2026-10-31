@@ -26,17 +26,28 @@ Usage:
         --write-scenes config-runtime/scenes.json
 
 A Lanelet2 road network does NOT need this script: point `osmUrl` at the .osm
-file and the backend parses it (see deploy/docs/config-reference.md). `--overlay`
-remains only for pre-built overlay JSON from older pipelines.
+file and the backend parses it (see deploy/docs/config-reference.md).
+
+The entry carries no `bounds`. The backend derives them from origin, yaw and size (the rotated
+map's bounding box, `mapFootprintBounds`), and a stated `bounds` would take precedence over
+that: this script used to state the unrotated rectangle, which cut off a rotated map. The
+initial view centres on the middle of the map, placed through the same pose.
 """
 
 from __future__ import annotations
 
 import argparse
 import json
+import math
+import re
 import shutil
+import sys
 from pathlib import Path
 from typing import Any
+
+# The backend's rule for a scene id (packages/shared/src/sceneConfig.ts): it names a folder and
+# a URL path. One that breaks it makes the backend reject the whole scenes.json.
+SCENE_ID = re.compile(r"^[A-Za-z0-9._-]+$")
 
 
 def parse_args() -> argparse.Namespace:
@@ -69,7 +80,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--overlay",
         default="",
-        help="Legacy pre-built lanelet overlay JSON to copy alongside. Prefer osmUrl.",
+        help=argparse.SUPPRESS,
     )
     parser.add_argument("--default-zoom", type=float, default=1.0, help="defaultView.zoom.")
     parser.add_argument("--min-zoom", type=float, default=0.8, help="minZoom for this scene.")
@@ -90,13 +101,14 @@ def resolve_cloudpoint_files(source_dir: Path, variant: str) -> tuple[Path, Path
     return image_path, meta_path
 
 
-def build_scene_entry(args: argparse.Namespace, meta: dict[str, Any]) -> dict[str, Any]:
-    """Turn CloudPoint metadata into a scenes.json entry.
+def map_to_world(origin: dict[str, float], u: float, v: float) -> tuple[float, float]:
+    """Map metres to world metres through the scene pose (shared's `mapToWorld`)."""
+    cos, sin = math.cos(origin["yaw"]), math.sin(origin["yaw"])
+    return origin["x"] + u * cos - v * sin, origin["y"] + u * sin + v * cos
 
-    `bounds` is the contract that matters: the frontend derives its whole world
-    coordinate space from it, so it has to be the image extent in metres, not
-    pixels — origin plus size times resolution.
-    """
+
+def build_scene_entry(args: argparse.Namespace, meta: dict[str, Any]) -> dict[str, Any]:
+    """Turn CloudPoint metadata into a scenes.json entry (no `bounds`: see the module note)."""
     width = int(meta["width"])
     height = int(meta["height"])
     resolution = float(meta["resolution"])
@@ -105,12 +117,7 @@ def build_scene_entry(args: argparse.Namespace, meta: dict[str, Any]) -> dict[st
         "y": float(meta["origin"]["y"]),
         "yaw": float(meta["origin"].get("yaw", 0.0)),
     }
-    bounds = {
-        "minX": origin["x"],
-        "maxX": origin["x"] + width * resolution,
-        "minY": origin["y"],
-        "maxY": origin["y"] + height * resolution,
-    }
+    center_x, center_y = map_to_world(origin, width * resolution / 2, height * resolution / 2)
 
     return {
         "sceneId": args.scene_id,
@@ -119,18 +126,12 @@ def build_scene_entry(args: argparse.Namespace, meta: dict[str, Any]) -> dict[st
         "mapFrame": "map",
         "resolution": resolution,
         "origin": origin,
-        # ROS occupancy-grid conventions, carried through unchanged so a scene
-        # imported here behaves like one authored by hand.
-        "occupiedThresh": 0.65,
-        "freeThresh": 0.2,
-        "negate": 0,
         "width": width,
         "height": height,
-        "bounds": bounds,
         "defaultView": {
             "zoom": args.default_zoom,
-            "centerX": round((bounds["minX"] + bounds["maxX"]) / 2, 4),
-            "centerY": round((bounds["minY"] + bounds["maxY"]) / 2, 4),
+            "centerX": round(center_x, 4),
+            "centerY": round(center_y, 4),
         },
         "minZoom": args.min_zoom,
         "maxZoom": args.max_zoom,
@@ -138,7 +139,7 @@ def build_scene_entry(args: argparse.Namespace, meta: dict[str, Any]) -> dict[st
 
 
 def write_scenes(scenes_path: Path, entry: dict[str, Any]) -> str:
-    """Insert or replace `entry` in scenes.json, keeping the file sorted by id."""
+    """Replace a same-id entry in place, or append; the rest of the file keeps its order."""
     scenes: list[dict[str, Any]] = []
     if scenes_path.exists():
         loaded = json.loads(scenes_path.read_text(encoding="utf-8"))
@@ -146,10 +147,13 @@ def write_scenes(scenes_path: Path, entry: dict[str, Any]) -> str:
             raise ValueError(f"{scenes_path} must contain a JSON array of scenes")
         scenes = loaded
 
-    replaced = any(scene.get("sceneId") == entry["sceneId"] for scene in scenes)
-    scenes = [scene for scene in scenes if scene.get("sceneId") != entry["sceneId"]]
-    scenes.append(entry)
-    scenes.sort(key=lambda scene: str(scene.get("sceneId", "")))
+    replaced = False
+    for index, scene in enumerate(scenes):
+        if scene.get("sceneId") == entry["sceneId"]:
+            scenes[index] = entry
+            replaced = True
+    if not replaced:
+        scenes.append(entry)
 
     scenes_path.write_text(
         json.dumps(scenes, ensure_ascii=False, indent=2) + "\n", encoding="utf-8"
@@ -159,6 +163,16 @@ def write_scenes(scenes_path: Path, entry: dict[str, Any]) -> str:
 
 def main() -> None:
     args = parse_args()
+    if args.overlay:
+        sys.exit(
+            "--overlay is gone: a copied overlay JSON was never referenced by the entry, and "
+            "overlayUrl is minted by the backend. Point osmUrl at the Lanelet2 .osm instead."
+        )
+    if not SCENE_ID.match(args.scene_id) or set(args.scene_id) == {"."}:
+        sys.exit(
+            f"--scene-id {args.scene_id!r}: use letters, digits, '.', '_' or '-' only; the "
+            "backend rejects the whole scenes.json over one bad id"
+        )
     source_dir = Path(args.source_dir).expanduser().resolve()
     output_dir = Path(args.output_root).expanduser().resolve() / args.scene_id
     output_dir.mkdir(parents=True, exist_ok=True)
@@ -168,16 +182,13 @@ def main() -> None:
 
     shutil.copy2(image_path, output_dir / "ros-map.png")
 
-    if args.overlay:
-        overlay_path = Path(args.overlay).expanduser().resolve()
-        if not overlay_path.exists():
-            raise FileNotFoundError(f"Overlay file not found: {overlay_path}")
-        shutil.copy2(overlay_path, output_dir / "lanelet-overlay.json")
-
     if args.write_scenes:
         action = write_scenes(Path(args.write_scenes).expanduser().resolve(), entry)
         print(f"# scenes.json: {action} scene '{entry['sceneId']}'")
-        print("# The backend watches this file and reloads it; no restart needed.")
+        print(
+            "# The backend watches this file and reloads it. If the scene does not appear, "
+            "the file was rejected: the backend log says why (系统 / 状态 shows the fallback)."
+        )
     else:
         print("# Paste this into config-runtime/scenes.json:")
 
