@@ -503,7 +503,17 @@ export class DashboardStore extends EventEmitter {
       // any live unconfigured device; this filter drops only the stale ones a roster change
       // left behind in device_latest.
       restored
-        .map((device) => normalizeDevice(device as unknown as Record<string, unknown>, null))
+        .map((device) =>
+          normalizeDevice(
+            device as unknown as Record<string, unknown>,
+            null,
+            "",
+            undefined,
+            undefined,
+            undefined,
+            { snapshotAlerts: true },
+          ),
+        )
         .filter((device) => this.configRegistry.hasDeviceConfig(device.deviceId))
         .forEach((device) => {
           this.rawDevices.set(device.deviceId, device);
@@ -722,6 +732,9 @@ export class DashboardStore extends EventEmitter {
       this.configRegistry.getAlertRules(),
       undefined,
       this.ruleMembership,
+      // A status frame says nothing about the vehicle's own alarms; read as "none", a heartbeat
+      // closed a continuing alarm and the next telemetry frame opened (and sent out) a new one.
+      { keepReportedAlerts: true },
     );
     const configuredDevice = this.applySnapshotConfig(normalizedRaw);
 
@@ -750,6 +763,14 @@ export class DashboardStore extends EventEmitter {
       const record = statusPayload as Record<string, unknown>;
       if (typeof record.online === "boolean") {
         return record.online;
+      }
+      // `{ online: 0 }` and `{ online: "false" }` are common last-will payloads; they used to fall
+      // through to the optimistic default and keep a vehicle that had just dropped off online.
+      if (typeof record.online === "number") {
+        return record.online !== 0;
+      }
+      if (typeof record.online === "string") {
+        return !isOfflineStatusToken(record.online);
       }
       // Shares `isOfflineStatusToken` with the bare-string branch rather than
       // testing `!== "offline"` on its own: the two spellings disagreed, so
