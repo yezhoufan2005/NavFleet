@@ -31,6 +31,7 @@ import { fleetApi, formatDateTime } from "@navfleet/fleet-core";
 import type { AlertRecord } from "@navfleet/fleet-core";
 import { SEVERITY_BADGE, SEVERITY_LABELS } from "@/lib/severity";
 import { useLatestRequest } from "@/composables/useLatestRequest";
+import { loadErrorMessage } from "@/lib/errorMessages";
 
 const { deviceId } = defineProps<{ deviceId: string }>();
 
@@ -64,8 +65,10 @@ const load = async (id: string): Promise<void> => {
     if (!isCurrent()) return;
     records.value = [];
     status.value = "error";
-    errorMessage.value =
-      error instanceof Error ? error.message : "消息历史加载失败";
+    errorMessage.value = loadErrorMessage(
+      error,
+      "消息历史加载失败，请稍后重试",
+    );
   }
 };
 

@@ -293,6 +293,14 @@ export const useAuth = () => {
         probeTimer = null;
         void fetchMe();
       }, RETRY_DELAYS_MS[0]);
+      // Said, like the unreachable case above: a backend that is down behind nginx answers 502
+      // here, and the page otherwise sat on 「正在加载…」 with no hint of why.
+      notify(
+        response.status === 429
+          ? "请求过于频繁，正在稍后重试…"
+          : `服务器暂时不可用（HTTP ${response.status}），正在自动重试…`,
+        { type: "error", dedupeKey: "session-probe-offline" },
+      );
       return false;
     }
     setAnonymous();

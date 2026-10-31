@@ -54,6 +54,7 @@ import {
 import { toNumeric, type DeviceSnapshot } from "@navfleet/shared";
 import UiSelect from "@/components/ui/UiSelect.vue";
 import type { TimeSeries } from "@/components/charts/timeSeriesOption";
+import { loadErrorMessage } from "@/lib/errorMessages";
 
 /** `0.5×` … `4×`, built once so the template stays a single element per option. */
 const speedOptions = PLAYBACK_SPEEDS.map((value) => ({
@@ -182,8 +183,10 @@ const load = async (): Promise<void> => {
     setSamples([]);
     sampledFrom.value = null;
     status.value = "error";
-    errorMessage.value =
-      error instanceof Error ? error.message : "加载历史数据失败，请稍后重试";
+    errorMessage.value = loadErrorMessage(
+      error,
+      "加载历史数据失败，请稍后重试",
+    );
   }
 };
 
@@ -392,7 +395,7 @@ const onScrub = (event: Event): void => {
         </span>
       </div>
 
-      <p v-if="rangeError" class="m-0 text-xs text-critical-ink" role="status">
+      <p v-if="rangeError" class="m-0 text-xs text-critical-ink" role="alert">
         {{ rangeError }}
       </p>
       <!-- The covered span beside the requested one, because they differ whenever the

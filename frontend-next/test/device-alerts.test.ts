@@ -179,7 +179,9 @@ describe("消息史", () => {
     getAlerts.mockRejectedValue(new Error("HTTP 503"));
     const wrapper = await mountTab();
 
-    expect(wrapper.text()).toContain("HTTP 503");
+    expect(wrapper.text()).toContain("消息历史加载失败");
+    // The backend's code is not shown to the operator.
+    expect(wrapper.text()).not.toContain("HTTP 503");
     expect(wrapper.text()).not.toContain("MongoDB");
   });
 

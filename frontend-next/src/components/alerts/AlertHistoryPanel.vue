@@ -31,6 +31,7 @@ import {
 } from "@/lib/alertStats";
 import { SEVERITY_BADGE, SEVERITY_LABELS } from "@/lib/severity";
 import { compileSearch } from "@/lib/searchQuery";
+import { loadErrorMessage } from "@/lib/errorMessages";
 
 const route = useRoute();
 const fleet = useFleetStore();
@@ -74,8 +75,10 @@ const load = async (): Promise<void> => {
     records.value = [];
     cappedAt.value = null;
     status.value = "error";
-    errorMessage.value =
-      error instanceof Error ? error.message : "消息历史加载失败";
+    errorMessage.value = loadErrorMessage(
+      error,
+      "消息历史加载失败，请稍后重试",
+    );
   }
 };
 
@@ -249,7 +252,7 @@ const { page, pageCount, pageSize, pageItems, setPage, setPageSize } =
   <p
     v-else-if="status === 'error'"
     class="m-0 text-sm text-critical-ink"
-    role="status"
+    role="alert"
   >
     {{ errorMessage }}
   </p>

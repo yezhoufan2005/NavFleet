@@ -49,6 +49,7 @@ import {
   windowForPreset,
   type RangePreset,
 } from "@/lib/reportsView";
+import { loadErrorMessage } from "@/lib/errorMessages";
 
 const RANGES: readonly { value: RangePreset; label: string }[] = [
   { value: "12h", label: "近 12 小时" },
@@ -199,8 +200,10 @@ const load = (): void => {
       onlineSeries.value = [];
       batterySeries.value = [];
       availStatus.value = "error";
-      availError.value =
-        error instanceof Error ? error.message : "可用率报表加载失败";
+      availError.value = loadErrorMessage(
+        error,
+        "可用率报表加载失败，请稍后重试",
+      );
     });
 
   alertStatus.value = "loading";
@@ -216,8 +219,10 @@ const load = (): void => {
       if (!isCurrent()) return;
       alertStats.value = null;
       alertStatus.value = "error";
-      alertError.value =
-        error instanceof Error ? error.message : "消息报表加载失败";
+      alertError.value = loadErrorMessage(
+        error,
+        "消息报表加载失败，请稍后重试",
+      );
     });
 };
 
@@ -656,7 +661,7 @@ const exportAlertsCsv = (): void => {
         <p
           v-if="availStatus === 'error'"
           class="m-0 rounded-md border border-border bg-surface-raised p-4 text-sm text-critical-ink"
-          role="status"
+          role="alert"
         >
           可用率加载失败：{{ availError }}
         </p>
@@ -792,7 +797,7 @@ const exportAlertsCsv = (): void => {
         <p
           v-if="alertStatus === 'error'"
           class="m-0 rounded-md border border-border bg-surface-raised p-4 text-sm text-critical-ink"
-          role="status"
+          role="alert"
         >
           消息统计加载失败：{{ alertError }}
         </p>

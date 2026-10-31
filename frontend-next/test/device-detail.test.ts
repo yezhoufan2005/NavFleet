@@ -528,7 +528,9 @@ describe("历史曲线", () => {
     seed();
     const wrapper = await mountCharts();
 
-    expect(wrapper.text()).toContain("HTTP 503");
+    expect(wrapper.text()).toContain("历史数据加载失败");
+    // The backend's code is not shown to the operator.
+    expect(wrapper.text()).not.toContain("HTTP 503");
   });
 
   it("costs no request at all while the 实时 tab is the one showing", async () => {

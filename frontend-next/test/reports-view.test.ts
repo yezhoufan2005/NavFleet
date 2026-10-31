@@ -129,7 +129,9 @@ describe("报表 状态与内容", () => {
       new Error("HTTP 503"),
     );
     const wrapper = await mountView();
-    expect(wrapper.text()).toContain("HTTP 503");
+    expect(wrapper.text()).toContain("可用率报表加载失败");
+    // The backend's code is not shown to the operator.
+    expect(wrapper.text()).not.toContain("HTTP 503");
     // The three message bar charts still rendered from the alert report that did come back.
     expect(wrapper.findAll(".bar-stub")).toHaveLength(3);
   });
