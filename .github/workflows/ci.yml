@@ -23,6 +23,8 @@ concurrency:
 
 # Monorepo (npm workspaces): a single root lockfile drives one install per job,
 # then each job runs its workspace's gates via `-w`, across a Node version matrix.
+# The install is `.github/actions/setup-workspace`: the installed trees are cached
+# per lockfile and Node version, so `npm ci` only runs when the lockfile changes.
 #
 # The matrix is **22 and 24**, and dropping 20 was overdue rather than a concession to a
 # dependency that demanded it: Node 20 reached end-of-life on 2026-04-30, so from that day
@@ -57,12 +59,9 @@ jobs:
         node: [22, 24]
     steps:
       - uses: actions/checkout@v7
-      - uses: actions/setup-node@v7
+      - uses: ./.github/actions/setup-workspace
         with:
           node-version: ${{ matrix.node }}
-          cache: npm
-          cache-dependency-path: package-lock.json
-      - run: npm ci
       # lint / format:check / typecheck are deterministic in the Node version — the TS compiler,
       # eslint and prettier produce the same verdict on 22 and 24 — so they run once, on the floor
       # of the matrix, instead of twice. Only what can actually differ across runtimes stays on
@@ -127,12 +126,9 @@ jobs:
         node: [22, 24]
     steps:
       - uses: actions/checkout@v7
-      - uses: actions/setup-node@v7
+      - uses: ./.github/actions/setup-workspace
         with:
           node-version: ${{ matrix.node }}
-          cache: npm
-          cache-dependency-path: package-lock.json
-      - run: npm ci
       # Static checks on the matrix floor only (see the backend job); test + build on both legs.
       - if: matrix.node == 22
         run: npm run lint -w navfleet-frontend
@@ -152,12 +148,9 @@ jobs:
         node: [22, 24]
     steps:
       - uses: actions/checkout@v7
-      - uses: actions/setup-node@v7
+      - uses: ./.github/actions/setup-workspace
         with:
           node-version: ${{ matrix.node }}
-          cache: npm
-          cache-dependency-path: package-lock.json
-      - run: npm ci
       # Static checks (lint / format:check / typecheck / check:map-contrast) are Node-version
       # independent, so they run once on the matrix floor; tests and build stay on both legs.
       #
@@ -202,25 +195,32 @@ jobs:
   e2e:
     # The suite is `workers: 1` on purpose — the specs share one seeded, server-side fleet, so
     # parallel workers race over it (see e2e/playwright.config.ts). It can't parallelise *within*
-    # a job, so it parallelises *across* jobs: Playwright `--shard=k/3` splits the specs over three
-    # runners, each booting its own backend + vite servers. Three rather than two because the axe
-    # accessibility audits are far slower per test than the rest and count-based sharding does not
-    # know that — with two shards they clustered onto one (285s vs 120s); three spreads them so the
-    # slowest shard drops. The job that used to dominate CI (~6min) is now ~3min. Browser cached.
-    name: E2E (playwright, shard ${{ matrix.shard }}/3)
+    # a job, so it parallelises *across* jobs, each runner booting its own backend + vite servers.
+    #
+    # Playwright's `--shard=k/n` splits by file and by test count, not by time, and the console axe
+    # audit is about 45% of the suite's time in a single file: wherever it landed, that shard took
+    # twice as long as the others (166s of tests against ~50s on the 2026-10-31 runs). So it gets a
+    # shard of its own (`e2e/shards/axe-console.txt`), and everything else is split over two more
+    # by `--test-list-invert` of that same list — a new spec file lands in those without an entry
+    # anywhere. Browser cached.
+    name: E2E (playwright, ${{ matrix.name }})
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
       matrix:
-        shard: [1, 2, 3]
+        include:
+          - name: console axe
+            args: --test-list e2e/shards/axe-console.txt
+            first: true
+          - name: rest 1/2
+            args: --test-list-invert e2e/shards/axe-console.txt --shard=1/2
+          - name: rest 2/2
+            args: --test-list-invert e2e/shards/axe-console.txt --shard=2/2
     steps:
       - uses: actions/checkout@v7
-      - uses: actions/setup-node@v7
+      - uses: ./.github/actions/setup-workspace
         with:
           node-version: 22
-          cache: npm
-          cache-dependency-path: package-lock.json
-      - run: npm ci
       # Cache the downloaded browser (~/.cache/ms-playwright) keyed on the lockfile, which changes
       # when the Playwright version does. On a hit the install below only pulls the apt system deps.
       - uses: actions/cache@v6
@@ -232,9 +232,9 @@ jobs:
       # `e2e/` is the only source tree outside the npm workspaces, so the per-workspace gates in the
       # other jobs never see it — its lint/type errors would reach main unchallenged. Node-version
       # and shard independent, so run them once, on the first shard.
-      - if: matrix.shard == 1
+      - if: matrix.first
         run: npm run lint:e2e
-      - if: matrix.shard == 1
+      - if: matrix.first
         run: npm run typecheck:e2e
       # Playwright starts the backend and both vite dev servers itself; the run
       # needs neither MongoDB nor an MQTT broker (see e2e/support/harness.ts).
@@ -242,13 +242,13 @@ jobs:
       # one, `frontend` is the frozen v1.0.0 one kept as the rollback. The latter's
       # specs run here rather than in its own job because they are the only proof
       # the frozen code still *runs* — and unlike lint or coverage, they never ask
-      # it to change. Called directly (not `npm run e2e`) so `--shard` reaches
+      # it to change. Called directly (not `npm run e2e`) so the shard arguments reach
       # `playwright test`; the browser is already installed above.
-      - run: npx playwright test -c e2e --shard=${{ matrix.shard }}/3
+      - run: npx playwright test -c e2e ${{ matrix.args }}
       - if: failure()
         uses: actions/upload-artifact@v7
         with:
-          name: playwright-report-shard-${{ matrix.shard }}
+          name: playwright-report-${{ strategy.job-index }}
           path: playwright-report/
           if-no-files-found: ignore
           retention-days: 14
