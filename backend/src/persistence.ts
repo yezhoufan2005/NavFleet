@@ -221,9 +221,26 @@ export const toTelemetryDocument = (snapshot: DeviceSnapshot): TelemetryDocument
 
 export class Persistence {
   private db: Db | null = null;
+  /**
+   * Connectivity of a `Db` attached by `__setDbForTests`, which has no supervisor behind it to
+   * report it; null when the handle came from a real session.
+   */
+  private testConnectivity: boolean | null = null;
+  /**
+   * Whether this process persists to MongoDB at all (`connect()` was called). Distinguishes "down,
+   * catch up later" from the in-memory mode, where there is nothing to catch up — `this.db` cannot
+   * tell them apart, because it is also null while a closed topology is being replaced.
+   */
+  private mongoEnabled = false;
   private pendingTelemetry: TelemetryDocument[] = [];
-  /** Devices whose last alert sync to MongoDB failed and must be replayed. */
+  /** Devices whose last alert sync to MongoDB failed, or was skipped while down, and must be replayed. */
   private readonly alertSyncPending = new Set<string>();
+  /**
+   * The newest `device_latest` snapshot per device that has not reached MongoDB (written while it
+   * was down, or a failed upsert). Only the newest matters — the document is replaced, not
+   * appended — so this holds one entry per device and replays on the write-behind timer.
+   */
+  private readonly latestSyncPending = new Map<string, DeviceSnapshot>();
   /** Short-TTL cache for report aggregations (see `REPORT_CACHE_TTL_MS`). Keyed by the resolved
    * query; value carries the report and the epoch-ms it expires at. Bounded by key cardinality
    * (preset×bucket×device combos) and swept lazily on read. */
@@ -293,6 +310,7 @@ export class Persistence {
   });
 
   async connect(): Promise<void> {
+    this.mongoEnabled = true;
     await this.mongo.start();
   }
 
@@ -312,8 +330,10 @@ export class Persistence {
    * The `__` prefix is the house marker for a test seam (see the console's
    * `dead-exports` gate, which recognises it by that prefix).
    */
-  __setDbForTests(db: Db | null): void {
+  __setDbForTests(db: Db | null, { connected = true }: { connected?: boolean } = {}): void {
     this.db = db;
+    this.testConnectivity = db === null ? null : connected;
+    this.mongoEnabled = db !== null;
     // Swapping the backing db invalidates any cached aggregation keyed to the old one.
     this.reportCache.clear();
   }
@@ -1102,27 +1122,70 @@ export class Persistence {
   forgetDevice(deviceId: string): void {
     this.telemetryBuffer.delete(deviceId);
     this.activeAlerts.delete(deviceId);
+    // A replayed snapshot would bring the departed device back on the next restart.
+    this.latestSyncPending.delete(deviceId);
+  }
+
+  /**
+   * The database handle for the per-frame write paths, or null while MongoDB is unreachable.
+   *
+   * `this.db` outlives a lost connection: the driver keeps the client and retries each operation
+   * until its own timeout, so the frame waited out a full `MONGO_WRITE_TIMEOUT_MS` per write. The
+   * writes run in the store's serial ingest queue, two or three per frame, which took the whole
+   * fleet from 1 Hz to a frame every few seconds and filled the queue. While the supervisor says
+   * the topology is down they go straight to the write-behind buffers instead.
+   */
+  private writableDb(): Db | null {
+    const connected = this.testConnectivity ?? this.mongo.isConnected();
+    return this.db && connected ? this.db : null;
   }
 
   async writeLatestSnapshot(snapshot: DeviceSnapshot): Promise<void> {
-    if (this.db) {
-      const start = Date.now();
-      try {
-        await this.db
-          .collection<DeviceSnapshot>("device_latest")
-          .updateOne(
-            { deviceId: snapshot.deviceId },
-            { $set: snapshot },
-            { upsert: true, timeoutMS: config.mongoWriteTimeoutMs },
-          );
-        this.mongoWrites += 1;
-        this.writeObserver?.((Date.now() - start) / 1000);
-      } catch (error) {
-        this.mongoWriteFailures += 1;
-        logger.warn(
-          { err: error, deviceId: snapshot.deviceId },
-          "Failed to upsert latest device snapshot",
+    const db = this.writableDb();
+    if (!db) {
+      // In the in-memory mode there is nothing to catch up later.
+      if (this.mongoEnabled) this.latestSyncPending.set(snapshot.deviceId, snapshot);
+      return;
+    }
+    if (await this.upsertLatest(db, snapshot)) {
+      this.latestSyncPending.delete(snapshot.deviceId);
+    } else {
+      this.latestSyncPending.set(snapshot.deviceId, snapshot);
+    }
+  }
+
+  private async upsertLatest(db: Db, snapshot: DeviceSnapshot): Promise<boolean> {
+    const start = Date.now();
+    try {
+      await db
+        .collection<DeviceSnapshot>("device_latest")
+        .updateOne(
+          { deviceId: snapshot.deviceId },
+          { $set: snapshot },
+          { upsert: true, timeoutMS: config.mongoWriteTimeoutMs },
         );
+      this.mongoWrites += 1;
+      this.writeObserver?.((Date.now() - start) / 1000);
+      return true;
+    } catch (error) {
+      this.mongoWriteFailures += 1;
+      logger.warn(
+        { err: error, deviceId: snapshot.deviceId },
+        "Failed to upsert latest device snapshot",
+      );
+      return false;
+    }
+  }
+
+  /** Replay the `device_latest` upserts that did not land, newest snapshot per device. */
+  private async resyncPendingLatest(): Promise<void> {
+    const db = this.writableDb();
+    if (!db || this.latestSyncPending.size === 0) return;
+    for (const [deviceId, snapshot] of [...this.latestSyncPending]) {
+      if (!(await this.upsertLatest(db, snapshot))) return;
+      // A newer frame may have replaced the entry during the await; keep that one.
+      if (this.latestSyncPending.get(deviceId) === snapshot) {
+        this.latestSyncPending.delete(deviceId);
       }
     }
   }
@@ -1136,14 +1199,15 @@ export class Persistence {
     // bare `return`, so every frame that arrived while MongoDB was down was gone — and
     // the reconnect path only ever flushed what a *failed write* had buffered, which is a
     // set that stays empty while there is no connection to fail against.
-    if (!this.db) {
+    const db = this.writableDb();
+    if (!db) {
       this.bufferTelemetry(document);
       return;
     }
 
     try {
       const start = Date.now();
-      await this.db
+      await db
         .collection<TelemetryDocument>("telemetry_ts")
         .insertOne(document, { timeoutMS: config.mongoWriteTimeoutMs });
       this.mongoWrites += 1;
@@ -1169,7 +1233,8 @@ export class Persistence {
    * invalidation leaves a slightly stale hour, and a telemetry write must not fail over it.
    */
   private async invalidateRollupFor(documents: readonly TelemetryDocument[]): Promise<void> {
-    if (!this.db) return;
+    const db = this.writableDb();
+    if (!db) return;
     const currentHour = floorToHour(Date.now(), config.reportTimezone);
     const hours = new Set<number>();
     for (const document of documents) {
@@ -1180,9 +1245,12 @@ export class Persistence {
     }
     if (!hours.size) return;
     try {
-      await this.db
+      await db
         .collection(ROLLUP_RUNS_COLLECTION)
-        .deleteMany({ hour: { $in: [...hours].map((hour) => new Date(hour)) } });
+        .deleteMany(
+          { hour: { $in: [...hours].map((hour) => new Date(hour)) } },
+          { timeoutMS: config.mongoWriteTimeoutMs },
+        );
     } catch (error) {
       logger.warn({ err: error }, "Failed to invalidate telemetry rollup hours");
     }
@@ -1295,19 +1363,23 @@ export class Persistence {
   async flushTelemetry(): Promise<void> {
     await this.flushPendingTelemetry();
     await this.resyncPendingAlerts();
+    await this.resyncPendingLatest();
   }
 
   private async flushPendingTelemetry(): Promise<void> {
-    if (!this.db || !this.pendingTelemetry.length) {
+    const db = this.writableDb();
+    if (!db || !this.pendingTelemetry.length) {
       return;
     }
     const copy = [...this.pendingTelemetry];
     this.pendingTelemetry = [];
     try {
       const start = Date.now();
-      await this.db
+      // Bounded like every other write: this runs on the telemetry write path too, after a
+      // successful insert, so an unbounded batch would hold up the ingest queue.
+      await db
         .collection<TelemetryDocument>("telemetry_ts")
-        .insertMany(copy, { ordered: false });
+        .insertMany(copy, { ordered: false, timeoutMS: config.mongoWriteTimeoutMs });
       this.mongoWrites += 1;
       this.writeObserver?.((Date.now() - start) / 1000);
       await this.invalidateRollupFor(copy);
@@ -1392,11 +1464,14 @@ export class Persistence {
       }),
     );
 
-    if (!this.db) {
+    const db = this.writableDb();
+    if (!db) {
+      // Replayed from the mirror above once MongoDB is back (see `resyncPendingAlerts`).
+      if (this.mongoEnabled) this.alertSyncPending.add(deviceId);
       return;
     }
 
-    const collection = this.db.collection("alerts");
+    const collection = db.collection("alerts");
     const activeKeys = new Set(alerts.map((alert) => `${deviceId}:${alert.id}`));
 
     try {
@@ -1471,7 +1546,7 @@ export class Persistence {
    * still land (a clear made during the outage is stamped when the re-sync succeeds).
    */
   private async resyncPendingAlerts(): Promise<void> {
-    if (!this.db || this.alertSyncPending.size === 0) return;
+    if (!this.writableDb() || this.alertSyncPending.size === 0) return;
     for (const deviceId of [...this.alertSyncPending]) {
       const active = (this.activeAlerts.get(deviceId) ?? []).map((alert) => ({
         id: alert.alertId,

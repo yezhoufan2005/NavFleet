@@ -599,7 +599,9 @@ describe("遥测写入与缓冲", () => {
 
     await persistence.flushTelemetry();
 
-    expect(calls.insertMany[0]?.options).toEqual({ ordered: false });
+    expect(calls.insertMany[0]?.options).toMatchObject({ ordered: false });
+    // Bounded: this batch also runs on the telemetry write path, inside the ingest queue.
+    expect(calls.insertMany[0]?.options).toHaveProperty("timeoutMS");
     // 关键行为：一次失败的 flush 不能吞掉它刚取出的那批。
     expect(persistence.telemetryBufferStats().pending).toBe(1);
   });
@@ -676,6 +678,58 @@ describe("writeLatestSnapshot", () => {
     persistence.__setDbForTests(db);
     // 快照写入在摄取路径上：一次 Mongo 抖动不该让这一帧的处理整体失败。
     await expect(persistence.writeLatestSnapshot(snapshot("agv-a"))).resolves.toBeUndefined();
+  });
+});
+
+describe("MongoDB 运行中断连", () => {
+  // 断连后 Db 句柄还在，原来每帧照常对它发写，在串行入库队列里逐个等到超时。
+  it("断连期间不碰数据库：遥测进缓冲、快照与告警记为待补写", async () => {
+    const { db, calls } = createFakeDb();
+    persistence.__setDbForTests(db, { connected: false });
+
+    await persistence.writeTelemetry(snapshot("agv-a"));
+    await persistence.writeLatestSnapshot(snapshot("agv-a"));
+    await persistence.upsertAlerts("agv-a", [alert("low-soc")]);
+    await persistence.flushTelemetry();
+
+    expect(calls.insertOne).toHaveLength(0);
+    expect(calls.insertMany).toHaveLength(0);
+    expect(calls.updateOne).toHaveLength(0);
+    expect(calls.updateMany).toHaveLength(0);
+    expect(persistence.telemetryBufferStats().pending).toBe(1);
+  });
+
+  it("恢复后补写：缓冲遥测、每车最新一份快照、告警全集", async () => {
+    const { db, calls } = createFakeDb();
+    persistence.__setDbForTests(db, { connected: false });
+    await persistence.writeTelemetry(snapshot("agv-a"));
+    await persistence.writeLatestSnapshot(snapshot("agv-a", { stamp: "2026-01-01T00:00:01.000Z" }));
+    await persistence.writeLatestSnapshot(snapshot("agv-a", { stamp: "2026-01-01T00:00:02.000Z" }));
+    await persistence.upsertAlerts("agv-a", [alert("low-soc")]);
+
+    persistence.__setDbForTests(db, { connected: true });
+    await persistence.flushTelemetry();
+
+    expect(calls.insertMany[0]?.docs).toHaveLength(1);
+    const latest = calls.updateOne.filter((call) => call.collection === "device_latest");
+    expect(latest).toHaveLength(1);
+    expect(latest[0]?.update).toMatchObject({ $set: { stamp: "2026-01-01T00:00:02.000Z" } });
+    expect(
+      calls.updateOne.filter((call) => call.collection === "alerts").map((call) => call.filter),
+    ).toEqual([{ eventKey: "agv-a:low-soc", active: true }]);
+
+    // 补写完成后不再重复。
+    await persistence.flushTelemetry();
+    expect(calls.updateOne.filter((call) => call.collection === "device_latest")).toHaveLength(1);
+  });
+
+  it("纯内存模式（从未连接 MongoDB）不积攒待补写", async () => {
+    await persistence.writeLatestSnapshot(snapshot("agv-a"));
+    await persistence.upsertAlerts("agv-a", [alert("low-soc")]);
+    const { db, calls } = createFakeDb();
+    persistence.__setDbForTests(db);
+    await persistence.flushTelemetry();
+    expect(calls.updateOne).toHaveLength(0);
   });
 });
 
