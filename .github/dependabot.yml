@@ -1,6 +1,6 @@
 version: 2
 updates:
-  # Root npm workspaces (backend, frontend, packages/*) — one lockfile at "/".
+  # Root npm workspaces (backend, frontend, frontend-next, packages/*) — one lockfile at "/".
   - package-ecosystem: npm
     directory: "/"
     schedule:
@@ -70,3 +70,39 @@ updates:
           - "*"
     commit-message:
       prefix: ci
+
+  # Base images: node / nginx-unprivileged in the two deployed images' Dockerfiles, and mongo,
+  # mosquitto, mailpit and the monitoring stack pinned in deploy/*.yml. Without these entries a
+  # security release of any of them reached nobody. frontend/Dockerfile is the frozen v1.0.0
+  # rollback image and is left out on purpose. Grouped per ecosystem, one PR a week each.
+  - package-ecosystem: docker
+    directories:
+      - "/backend"
+      - "/frontend-next"
+    schedule:
+      interval: weekly
+      day: monday
+      time: "09:07"
+      timezone: Asia/Shanghai
+    groups:
+      base-images:
+        patterns:
+          - "*"
+    commit-message:
+      prefix: chore
+      include: scope
+
+  - package-ecosystem: docker-compose
+    directory: "/deploy"
+    schedule:
+      interval: weekly
+      day: monday
+      time: "09:07"
+      timezone: Asia/Shanghai
+    groups:
+      compose-images:
+        patterns:
+          - "*"
+    commit-message:
+      prefix: chore
+      include: scope
