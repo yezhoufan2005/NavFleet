@@ -2,7 +2,7 @@ import { EventEmitter } from "node:events";
 import fs from "node:fs/promises";
 import path from "node:path";
 import { config } from "./config";
-import { deviceMatchesScope, applyRuleDebounce } from "@navfleet/shared";
+import { deviceMatchesScope, applyRuleDebounce, evaluateRuleAlerts } from "@navfleet/shared";
 import type { AlertClearedPayload, AlertCreatedPayload, ReportBucketUnit } from "@navfleet/shared";
 import {
   ConfigRegistry,
@@ -392,7 +392,7 @@ export class DashboardStore extends EventEmitter {
    * moment it reports again (and the restore path bounds what comes back at
    * startup). Returns how many were evicted.
    */
-  private evictSilentDevices(): number {
+  private async evictSilentDevices(): Promise<number> {
     const retentionMs = config.deviceRetentionSeconds * 1000;
     if (retentionMs <= 0) {
       return 0;
@@ -417,6 +417,7 @@ export class DashboardStore extends EventEmitter {
     }
 
     for (const deviceId of evictable) {
+      await this.closeAlertsOf(deviceId, "eviction");
       this.rawDevices.delete(deviceId);
       this.devices.delete(deviceId);
       this.lastIngestAt.delete(deviceId);
@@ -499,7 +500,9 @@ export class DashboardStore extends EventEmitter {
 
     await this.persistence.connect();
 
-    const restored = await this.persistence.restoreLatestDevices();
+    const restored = await this.persistence.restoreLatestDevices(
+      this.configRegistry.listVehicleConfigs().map((vehicle) => vehicle.deviceId),
+    );
     if (restored.length) {
       const now = this.now();
       // Restore only devices the current roster still configures. A restored row is a
@@ -525,10 +528,9 @@ export class DashboardStore extends EventEmitter {
         .filter((device) => this.configRegistry.hasDeviceConfig(device.deviceId))
         .forEach((device) => {
           this.rawDevices.set(device.deviceId, device);
-          // Seed the eviction clock from the persisted stamp, clamped to now so a
-          // device with a stamp in the future cannot outlive the retention window.
-          // The restore itself is already bounded to that window, so nothing that
-          // comes back here is immediately evictable — no restore/evict churn.
+          // Seed the silence clock from the persisted stamp, clamped to now so a device with a
+          // stamp in the future does not look fresher than it is. Declared vehicles are never
+          // evicted, so a long-silent one comes back and is judged offline, not dropped.
           this.lastIngestAt.set(device.deviceId, Math.min(Date.parse(device.stamp) || now, now));
         });
       this.rebuildConfiguredDevices();
@@ -546,8 +548,9 @@ export class DashboardStore extends EventEmitter {
     }
   }
 
-  private reloadConfigInternal(): void {
+  private async reloadConfigInternal(): Promise<void> {
     this.rebuildConfiguredDevices();
+    await this.reevaluateRuleAlerts();
     logger.info(
       {
         fleetName: this.fleetName,
@@ -556,6 +559,66 @@ export class DashboardStore extends EventEmitter {
       },
       "Applied reloaded runtime config to in-memory fleet state",
     );
+  }
+
+  /**
+   * Re-run the rules (low battery, offline) on every vehicle after `rules.json` or the roster
+   * changed. A vehicle that is still reporting would correct itself on its next frame; a silent
+   * one never would, so a rule turned off for maintenance left its offline alert active forever.
+   */
+  private async reevaluateRuleAlerts(): Promise<void> {
+    const rules = this.configRegistry.getAlertRules();
+    for (const device of [...this.rawDevices.values()]) {
+      const configured = this.applySnapshotConfig(device);
+      const evaluated = evaluateRuleAlerts(
+        { ...device, tags: configured.tags, formationIds: configured.formationIds },
+        rules,
+      );
+      // An alert that is still raised keeps the object it had (its `ts`); only the set changes.
+      const previous = new Map(device.alerts.map((alert) => [alert.id, alert]));
+      const ruleAlerts = applyRuleDebounce(
+        device.deviceId,
+        device.alerts,
+        evaluated.map((alert) => previous.get(alert.id) ?? alert),
+        rules,
+        this.now(),
+      ).filter((alert) => alert.source === "rule-engine");
+      const nextAlerts = carryAlertOnsets(device.alerts, [
+        ...device.alerts.filter((alert) => alert.source !== "rule-engine"),
+        ...ruleAlerts,
+      ]);
+      const before = device.alerts
+        .map((alert) => alert.id)
+        .sort()
+        .join("|");
+      const after = nextAlerts
+        .map((alert) => alert.id)
+        .sort()
+        .join("|");
+      if (before === after) continue;
+
+      const updatedRaw = { ...device, alerts: nextAlerts };
+      const updatedConfigured = this.applySnapshotConfig(updatedRaw);
+      this.rawDevices.set(device.deviceId, updatedRaw);
+      this.devices.set(device.deviceId, updatedConfigured);
+      this.emitChangeEvents(configured, updatedConfigured, "config-reload");
+      await this.persistState(updatedRaw);
+    }
+  }
+
+  /**
+   * Close a departing device's active alerts — in MongoDB and for the listeners (the consoles,
+   * the notify escalations). Eviction and a whole-fleet replace forget a device; without this its
+   * occurrences stayed `active` in `alerts` for good.
+   */
+  private async closeAlertsOf(deviceId: string, source: string): Promise<void> {
+    const device = this.rawDevices.get(deviceId);
+    if (!device?.alerts.length) return;
+    for (const alert of device.alerts) {
+      const payload: AlertClearedPayload = { source, deviceId, alertId: alert.id };
+      this.broadcast({ type: "alert.cleared", payload });
+    }
+    await this.persistence.upsertAlerts(deviceId, [], new Date(this.now()));
   }
 
   private refreshFleetMetadata(): void {
@@ -714,8 +777,9 @@ export class DashboardStore extends EventEmitter {
     // starts as a copy of the live map, so nothing can be missing and this would
     // be an O(fleet) walk on every telemetry frame.
     if (normalized.replace) {
-      for (const deviceId of this.rawDevices.keys()) {
+      for (const deviceId of [...this.rawDevices.keys()]) {
         if (!nextRawMap.has(deviceId)) {
+          await this.closeAlertsOf(deviceId, source);
           this.lastIngestAt.delete(deviceId);
           this.lastFrameStamp.delete(deviceId);
           this.persistence.forgetDevice(deviceId);
@@ -726,6 +790,11 @@ export class DashboardStore extends EventEmitter {
     this.rawDevices = nextRawMap;
     this.devices = nextDeviceMap;
     this.updatedAt = this.nowIso();
+    // A replace can drop devices, and deltas never remove one: an open console learns the new
+    // fleet only from a snapshot, as after an eviction or a config reload.
+    if (normalized.replace) {
+      this.broadcast({ type: "fleet.snapshot", payload: this.snapshot() });
+    }
   }
 
   private async applyStatusInternal(deviceId: string, statusPayload: unknown): Promise<void> {
@@ -800,6 +869,17 @@ export class DashboardStore extends EventEmitter {
   private async persistRawDevice(device: DeviceSnapshot): Promise<void> {
     await this.persistence.writeLatestSnapshot(device);
     await this.persistence.writeTelemetry(device);
+    await this.persistence.upsertAlerts(device.deviceId, device.alerts, new Date(this.now()));
+  }
+
+  /**
+   * Persist a change the store made itself (an offline verdict, a re-evaluated rule): the latest
+   * snapshot and the alerts, but no telemetry. Such a snapshot repeats the last frame's `stamp`;
+   * written as a frame it landed at the same instant as the real one, and the availability report
+   * then read that instant as online or offline depending on sort order.
+   */
+  private async persistState(device: DeviceSnapshot): Promise<void> {
+    await this.persistence.writeLatestSnapshot(device);
     await this.persistence.upsertAlerts(device.deviceId, device.alerts, new Date(this.now()));
   }
 
@@ -1097,24 +1177,29 @@ export class DashboardStore extends EventEmitter {
     // for a full window. Eviction below still runs — it is memory housekeeping, not a judgement.
     const sourceSettled = this.sourceUpSince !== null && now - this.sourceUpSince >= thresholdMs;
 
-    for (const device of sourceSettled ? this.rawDevices.values() : []) {
-      const isStale = now - Date.parse(device.stamp) > thresholdMs;
+    for (const device of sourceSettled ? [...this.rawDevices.values()] : []) {
+      // Silence is measured on arrival times, like eviction. The vehicle's own `stamp` is trusted
+      // within the clock tolerance, so a clock running 55 s slow was judged silent 55 s early, and
+      // with a short window flipped offline and back on every sweep.
+      const lastHeard = this.lastIngestAt.get(device.deviceId) ?? Date.parse(device.stamp);
+      const isStale = now - lastHeard > thresholdMs;
       if (!isStale || !device.online) {
         continue;
       }
-      // Scope by the configured snapshot: the raw one has no tags or formations of its own.
-      if (
-        !offlineRule.enabled ||
-        !deviceMatchesScope(this.applySnapshotConfig(device), offlineRule.scope)
-      ) {
-        continue;
-      }
+      // Silent past the window is offline whatever the rule says: the rule's switch and scope
+      // decide whether an offline *alert* is raised, not whether the vehicle is shown online. They
+      // used to skip both, so a vehicle out of scope stayed "online" at a six-hour-old position
+      // while the availability report counted the same hours offline.
+      const raisesAlert =
+        offlineRule.enabled &&
+        // Scope by the configured snapshot: the raw one has no tags or formations of its own.
+        deviceMatchesScope(this.applySnapshotConfig(device), offlineRule.scope);
 
       // Replace rather than append: a device that is already marked offline keeps its
       // alert from the previous sweep, and the id is the same either way.
       const nextAlerts: DeviceAlert[] = carryAlertOnsets(device.alerts, [
         ...device.alerts.filter((alert) => alert.id !== offlineAlertId(device.deviceId)),
-        buildOfflineAlert(device.deviceId, this.nowIso()),
+        ...(raisesAlert ? [buildOfflineAlert(device.deviceId, this.nowIso())] : []),
       ]);
 
       const updatedRaw = {
@@ -1128,14 +1213,14 @@ export class DashboardStore extends EventEmitter {
       this.rawDevices.set(device.deviceId, updatedRaw);
       this.devices.set(device.deviceId, updatedConfigured);
       this.emitChangeEvents(previousConfigured, updatedConfigured, "offline-monitor");
-      await this.persistRawDevice(updatedRaw);
+      await this.persistState(updatedRaw);
       this.updatedAt = this.nowIso();
     }
 
     // Same sweep, one step further along the same timeline: first mark the stale
     // ones offline, then forget the ones that have been silent long enough to have
     // no business occupying memory.
-    if (this.evictSilentDevices()) {
+    if (await this.evictSilentDevices()) {
       this.updatedAt = this.nowIso();
       // An authoritative snapshot rather than a new "device removed" event: a
       // long-lived tab has no other way to learn a device is gone, and the

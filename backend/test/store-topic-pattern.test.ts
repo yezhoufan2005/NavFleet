@@ -37,6 +37,7 @@ const createStore = (): DashboardStore => {
     getAlertRules: () => DEFAULT_ALERT_RULES,
     applyDeviceConfig: (snapshot: DeviceSnapshot): DeviceSnapshot => snapshot,
     hasDeviceConfig: (): boolean => true,
+    listVehicleConfigs: () => [],
     listScenes: () => [],
     buildFormationSnapshots: () => [],
   };

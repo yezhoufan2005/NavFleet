@@ -113,21 +113,19 @@ describe("rule scopes match the configured membership, not the frame's", () => {
     await store.applyPayload(frame("agv-cold", 80, stale), "seed");
     await store.applyPayload(frame("agv-other", 80, stale), "seed");
 
-    // The first window after start is a grace period (as after a source outage); sweep past it.
-    vi.useFakeTimers();
+    // Silence is measured from arrival: let the 60 s window pass, then sweep once.
+    vi.useFakeTimers({ now: Date.now() + 90_000, toFake: ["Date"] });
     try {
-      for (let step = 0; step < 6; step += 1) {
-        vi.setSystemTime(Date.now() + 15_000);
-        await store.evaluateOfflineDevices();
-      }
+      await store.evaluateOfflineDevices();
     } finally {
       vi.useRealTimers();
     }
 
     expect(store.getDevice("agv-cold")?.online).toBe(false);
     expect(alertIds(store, "agv-cold")).toContain("agv-cold-offline");
-    // Out of scope: left alone, however silent.
-    expect(store.getDevice("agv-other")?.online).toBe(true);
+    // Out of scope: no offline alert — but silent is still offline, not shown as online at a
+    // stale position.
+    expect(store.getDevice("agv-other")?.online).toBe(false);
     expect(alertIds(store, "agv-other")).not.toContain("agv-other-offline");
   });
 });
