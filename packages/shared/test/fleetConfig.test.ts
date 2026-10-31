@@ -1,5 +1,9 @@
 import { describe, it, expect } from "vitest";
-import { parseVehicles, parseFormations } from "../src/index";
+import {
+  isTopicSafeDeviceId,
+  parseVehicles,
+  parseFormations,
+} from "../src/index";
 
 /**
  * Shared validators for the device-onboarding wizard. They mirror `parseCodebook`:
@@ -141,5 +145,24 @@ describe("vehicle / formation field rules", () => {
       parseFormations([{ formationId: "f", deviceIds: ["a", "a ", "b"] }])[0]
         ?.deviceIds,
     ).toEqual(["a", "b"]);
+  });
+});
+
+describe("isTopicSafeDeviceId", () => {
+  it("is the rule the config parser and the backend's ingest gate share", () => {
+    expect(isTopicSafeDeviceId("agv-a01")).toBe(true);
+    expect(isTopicSafeDeviceId("vendor:7.x")).toBe(true);
+    for (const bad of [
+      "",
+      "a b",
+      "a/b",
+      "a+b",
+      "a#b",
+      "a\u0007b",
+      "x".repeat(201),
+    ]) {
+      expect(isTopicSafeDeviceId(bad), JSON.stringify(bad)).toBe(false);
+    }
+    expect(isTopicSafeDeviceId("x".repeat(200))).toBe(true);
   });
 });

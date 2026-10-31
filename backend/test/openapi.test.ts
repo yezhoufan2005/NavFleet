@@ -225,3 +225,52 @@ describe("input schemas generated from the validators", () => {
     expect([...documented].sort()).toEqual([...validated].sort());
   });
 });
+
+describe("references and parameters", () => {
+  const serialised = JSON.stringify(openApiDocument);
+  const schemas = (openApiDocument.components as { schemas: Record<string, unknown> }).schemas;
+
+  it("resolves every $ref", () => {
+    // Three user operations published `{"$ref":"AdminUserView"}`, a reference to nothing.
+    const refs = [...serialised.matchAll(/"\$ref":"([^"]+)"/g)].map((match) => match[1]!);
+    const dangling = refs.filter((ref) => {
+      const name = /^#\/components\/schemas\/(.+)$/.exec(ref)?.[1];
+      return !name || !(name in schemas);
+    });
+    expect(dangling).toEqual([]);
+  });
+
+  it("declares every {param} of a path on each of its operations", () => {
+    const paths = openApiDocument.paths as Record<
+      string,
+      Record<string, { parameters?: Array<{ name: string; in: string }> }>
+    >;
+    const missing: string[] = [];
+    for (const [path, operations] of Object.entries(paths)) {
+      const names = [...path.matchAll(/\{(\w+)\}/g)].map((match) => match[1]!);
+      for (const [method, operation] of Object.entries(operations)) {
+        for (const name of names) {
+          const declared = (operation.parameters ?? []).some(
+            (parameter) => parameter.in === "path" && parameter.name === name,
+          );
+          if (!declared) missing.push(`${method.toUpperCase()} ${path} {${name}}`);
+        }
+      }
+    }
+    expect(missing).toEqual([]);
+  });
+
+  it("wraps a user response the way the server sends it", () => {
+    const paths = openApiDocument.paths as Record<
+      string,
+      Record<
+        string,
+        { responses: Record<string, { content: Record<string, { schema: unknown }> }> }
+      >
+    >;
+    const body = paths["/api/v1/users/{username}"]?.get?.responses["200"]?.content[
+      "application/json"
+    ]?.schema as { properties?: { user?: { $ref?: string } } };
+    expect(body.properties?.user?.$ref).toBe("#/components/schemas/AdminUserView");
+  });
+});

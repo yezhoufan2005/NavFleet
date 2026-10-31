@@ -12,14 +12,13 @@
  */
 
 import type { Document } from "mongodb";
+import { SEVERITIES } from "@navfleet/shared";
 import type {
   AlertStatsReport,
   ReportDailyCount,
   ReportDeviceCount,
   Severity,
 } from "@navfleet/shared";
-
-const SEVERITIES: readonly Severity[] = ["critical", "warning", "notice"];
 
 export interface AlertStatsPipelineParams {
   /** 区间下界（含），按 `firstSeenAt` 过滤；null 表示不设下界。 */
@@ -140,7 +139,7 @@ const median = (sortedOrNot: readonly number[]): number | null => {
 
 /** 把未知/缺失的严重度归到最轻一档，和前端的 `severityOf` 保持一致。 */
 const normalizeSeverity = (value: unknown): Severity =>
-  SEVERITIES.includes(value as Severity) ? (value as Severity) : "notice";
+  (SEVERITIES as readonly string[]).includes(value as string) ? (value as Severity) : "notice";
 
 /**
  * facet 结果 → `AlertStatsReport`（纯映射，`available` 由调用方决定）。这里做三件机检看不出对错的事：

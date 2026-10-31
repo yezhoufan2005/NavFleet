@@ -1,3 +1,5 @@
+import { readdirSync, readFileSync } from "node:fs";
+import { join } from "node:path";
 import { describe, it, expect } from "vitest";
 import request from "supertest";
 import type { UserRole } from "../src/types";
@@ -26,6 +28,9 @@ const READ_ROUTES: Array<{ method: "get"; path: string }> = [
   { method: "get", path: "/api/codebook" },
   { method: "get", path: "/api/auth/me" },
   { method: "get", path: "/api/auth/sessions" },
+  { method: "get", path: "/api/reports/alerts" },
+  { method: "get", path: "/api/reports/availability" },
+  { method: "get", path: "/api/config/status" },
 ];
 
 /**
@@ -86,6 +91,57 @@ const ADMIN_ROUTES: Array<{ method: "get" | "post" | "patch" | "delete" | "put";
   { method: "patch", path: "/api/rbac/groups/g1" },
   { method: "delete", path: "/api/rbac/groups/g1" },
 ];
+
+/**
+ * Routes outside the role matrix on purpose: the public probes and auth endpoints (no session or
+ * the session itself), and the caller's own session management. Anything else a router registers
+ * must sit in one of the three tables above.
+ */
+const UNGATED = new Set([
+  "GET /health",
+  "GET /health/ready",
+  "GET /metrics",
+  "GET /openapi.json",
+  "POST /login",
+  "POST /refresh",
+  "POST /logout",
+  "POST /change-password",
+  "DELETE /sessions/{sessionId}",
+]);
+
+/** `METHOD /template` for every route the routers register (same reading as openapi.test.ts). */
+const registeredRoutes = (): string[] => {
+  const found = new Set<string>();
+  for (const dir of [join(__dirname, "../src/routes"), join(__dirname, "../src/auth")]) {
+    for (const file of readdirSync(dir).filter((name) => name.endsWith(".ts"))) {
+      const source = readFileSync(join(dir, file), "utf8");
+      for (const match of source.matchAll(/router\.(get|put|post|patch|delete)\(\s*"([^"]+)"/g)) {
+        found.add(`${match[1]!.toUpperCase()} ${match[2]!.replace(/:(\w+)/g, "{$1}")}`);
+      }
+    }
+  }
+  return [...found];
+};
+
+const TABLED = [...READ_ROUTES, ...OPERATOR_ROUTES, ...ADMIN_ROUTES];
+
+describe("RBAC matrix — covers every registered route", () => {
+  it("places each route in a table, or names it as ungated", () => {
+    // A write route added without `requireCapability` and without a row here would otherwise
+    // pass this file untouched; the two report reads had already slipped out of it.
+    const routes = registeredRoutes();
+    expect(routes.length).toBeGreaterThan(40);
+    const untabled = routes.filter((route) => {
+      if (UNGATED.has(route)) return false;
+      const [method, template] = route.split(" ") as [string, string];
+      const pattern = new RegExp(`^/api(/auth)?${template.replace(/\{\w+\}/g, "[^/]+")}$`);
+      return !TABLED.some(
+        (entry) => entry.method.toUpperCase() === method && pattern.test(entry.path),
+      );
+    });
+    expect(untabled).toEqual([]);
+  });
+});
 
 const ALL_ROLES: UserRole[] = ["viewer", "operator", "admin"];
 

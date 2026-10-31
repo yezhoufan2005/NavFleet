@@ -218,7 +218,6 @@ const TIME_RE = /^([01]\d|2[0-3]):[0-5]\d$/;
 
 const ERROR_MESSAGES: Record<string, string> = {
   invalid_notify: "配置校验未通过，请检查各字段后重试",
-  conflict: "渠道 ID 已存在",
 };
 const messageFor = makeMessageFor(ERROR_MESSAGES);
 

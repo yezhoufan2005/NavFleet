@@ -29,15 +29,23 @@ const nonEmptyString = (value: unknown, label: string): string => {
 
 /** Upper bound on free-text fields (names, notes, descriptions). */
 export const CONFIG_TEXT_MAX = 200;
-/** Longest device id the ingest path admits (`DEVICE_ID_MAX_LENGTH` in the backend). */
+/** Longest device id: the config parser here and the backend's ingest gate both use it. */
 export const DEVICE_ID_MAX = 200;
 /**
  * Characters a device id cannot contain: it is a topic segment on the broker, so whitespace and
  * the MQTT wildcards/separators (`/ + #`) or control characters could never match a report — a
- * vehicle configured with one would sit in the list forever without data. Same rule as ingest.
+ * vehicle configured with one would sit in the list forever without data. The backend's ingest
+ * gate tests the same expression (`isTopicSafeDeviceId`), so a vehicle the config accepts is one
+ * ingest admits.
  */
 // eslint-disable-next-line no-control-regex -- rejecting control characters is the point
-const FORBIDDEN_DEVICE_ID_CHARS = /[\s/+#\u0000-\u001f\u007f]/;
+export const FORBIDDEN_DEVICE_ID_CHARS = /[\s/+#\u0000-\u001f\u007f]/;
+
+/** Non-empty, at most `DEVICE_ID_MAX`, and no character that could not be in a topic segment. */
+export const isTopicSafeDeviceId = (deviceId: string): boolean =>
+  deviceId.length >= 1 &&
+  deviceId.length <= DEVICE_ID_MAX &&
+  !FORBIDDEN_DEVICE_ID_CHARS.test(deviceId);
 
 /** An id: trimmed, non-empty, bounded, and (optionally) free of characters that break a topic. */
 const requireId = (

@@ -1,6 +1,16 @@
 import type { Severity } from "./index";
 
 /**
+ * The three tiers, worst first, as a runtime tuple: the backend's query validation, the OpenAPI
+ * enums and the report pipeline build from it rather than each writing the three words again.
+ */
+export const SEVERITIES = [
+  "critical",
+  "warning",
+  "notice",
+] as const satisfies readonly Severity[];
+
+/**
  * House labels for the three severity tiers: the console's 消息 / 消息史 / 报表 / 大屏 / 外发 pages and
  * the outbound messages (企业微信 / 钉钉 / 邮件) all read them from here.
  *
