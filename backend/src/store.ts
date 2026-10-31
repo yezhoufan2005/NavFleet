@@ -100,6 +100,13 @@ export interface ApplyPayloadOptions extends NormalizePayloadOptions {
 export class DashboardStore extends EventEmitter {
   private rawDevices = new Map<string, DeviceSnapshot>();
   private devices = new Map<string, DeviceSnapshot>();
+  /**
+   * The snapshot map a telemetry frame is building, while it is being built. A frame's change
+   * events go out inside its loop, before `devices` is swapped at the end, so a listener that
+   * looks the device up again (the notify dispatcher, for scope and display name) would otherwise
+   * get the previous frame's view, or nothing for a vehicle's first frame.
+   */
+  private ingestingDevices: Map<string, DeviceSnapshot> | null = null;
   private fleetName = config.fleetName;
   private topicPattern = config.topicPattern;
   private updatedAt: string;
@@ -626,55 +633,60 @@ export class DashboardStore extends EventEmitter {
       ? new Map<string, DeviceSnapshot>()
       : new Map(this.devices);
 
-    for (const device of normalized.devices) {
-      // `nextRawMap`, not the live map: see `admitDevice`'s `observedFleet`.
-      if (!this.admitDevice(device.deviceId, nextRawMap)) {
-        continue;
-      }
-      if (checkClock) {
-        // After the clock check every stamp sits within the tolerance of its arrival, so this
-        // can hold a device back for at most twice the tolerance — never lock it out.
-        const stampMs = Date.parse(device.stamp);
-        const lastMs = this.lastFrameStamp.get(device.deviceId);
-        if (lastMs !== undefined && stampMs < lastMs) {
-          this.outOfOrderFrames += 1;
-          this.warnThrottled(
-            `out-of-order:${device.deviceId}`,
-            {
-              deviceId: device.deviceId,
-              stamp: device.stamp,
-              lastStamp: new Date(lastMs).toISOString(),
-            },
-            "Dropped a frame older than the device's last one",
-          );
+    this.ingestingDevices = nextDeviceMap;
+    try {
+      for (const device of normalized.devices) {
+        // `nextRawMap`, not the live map: see `admitDevice`'s `observedFleet`.
+        if (!this.admitDevice(device.deviceId, nextRawMap)) {
           continue;
         }
-        this.lastFrameStamp.set(device.deviceId, stampMs);
-      }
-      const existingRaw = this.rawDevices.get(device.deviceId);
-      const existingConfigured = this.devices.get(device.deviceId);
-      const mergedRaw = mergeDevice(existingRaw, device);
-      // Linger a debounced rule alert across the frame that would clear it.
-      // `mergeDevice` takes the freshly-evaluated alerts wholesale, so without this a low
-      // battery reading hovering on the threshold would flap on and off frame by frame.
-      // Measured on the frame's clock, the one the alert's `ts` is stamped with.
-      const frameMs = Date.parse(mergedRaw.stamp);
-      mergedRaw.alerts = applyRuleDebounce(
-        mergedRaw.deviceId,
-        existingRaw?.alerts ?? [],
-        mergedRaw.alerts,
-        alertRules,
-        Number.isFinite(frameMs) ? frameMs : this.now(),
-      );
-      const mergedConfigured = this.applySnapshotConfig(mergedRaw);
+        if (checkClock) {
+          // After the clock check every stamp sits within the tolerance of its arrival, so this
+          // can hold a device back for at most twice the tolerance — never lock it out.
+          const stampMs = Date.parse(device.stamp);
+          const lastMs = this.lastFrameStamp.get(device.deviceId);
+          if (lastMs !== undefined && stampMs < lastMs) {
+            this.outOfOrderFrames += 1;
+            this.warnThrottled(
+              `out-of-order:${device.deviceId}`,
+              {
+                deviceId: device.deviceId,
+                stamp: device.stamp,
+                lastStamp: new Date(lastMs).toISOString(),
+              },
+              "Dropped a frame older than the device's last one",
+            );
+            continue;
+          }
+          this.lastFrameStamp.set(device.deviceId, stampMs);
+        }
+        const existingRaw = this.rawDevices.get(device.deviceId);
+        const existingConfigured = this.devices.get(device.deviceId);
+        const mergedRaw = mergeDevice(existingRaw, device);
+        // Linger a debounced rule alert across the frame that would clear it.
+        // `mergeDevice` takes the freshly-evaluated alerts wholesale, so without this a low
+        // battery reading hovering on the threshold would flap on and off frame by frame.
+        // Measured on the frame's clock, the one the alert's `ts` is stamped with.
+        const frameMs = Date.parse(mergedRaw.stamp);
+        mergedRaw.alerts = applyRuleDebounce(
+          mergedRaw.deviceId,
+          existingRaw?.alerts ?? [],
+          mergedRaw.alerts,
+          alertRules,
+          Number.isFinite(frameMs) ? frameMs : this.now(),
+        );
+        const mergedConfigured = this.applySnapshotConfig(mergedRaw);
 
-      nextRawMap.set(mergedRaw.deviceId, mergedRaw);
-      nextDeviceMap.set(mergedConfigured.deviceId, mergedConfigured);
-      this.lastIngestAt.set(mergedRaw.deviceId, this.now());
-      // Broadcast first, persist second: the live view must not wait on the database. The write
-      // still runs inside the serial queue (ordering, backpressure) and is time-bounded.
-      this.emitChangeEvents(existingConfigured || null, mergedConfigured, source);
-      await this.persistRawDevice(mergedRaw);
+        nextRawMap.set(mergedRaw.deviceId, mergedRaw);
+        nextDeviceMap.set(mergedConfigured.deviceId, mergedConfigured);
+        this.lastIngestAt.set(mergedRaw.deviceId, this.now());
+        // Broadcast first, persist second: the live view must not wait on the database. The write
+        // still runs inside the serial queue (ordering, backpressure) and is time-bounded.
+        this.emitChangeEvents(existingConfigured || null, mergedConfigured, source);
+        await this.persistRawDevice(mergedRaw);
+      }
+    } finally {
+      this.ingestingDevices = null;
     }
 
     // A replace payload can drop devices, and rebuilding the two snapshot maps
@@ -880,7 +892,7 @@ export class DashboardStore extends EventEmitter {
    * read it (name/tags/formationIds) and never mutate.
    */
   getDevice(deviceId: string): DeviceSnapshot | null {
-    return this.devices.get(deviceId) ?? null;
+    return this.ingestingDevices?.get(deviceId) ?? this.devices.get(deviceId) ?? null;
   }
 
   getScenes(): SceneMapDefinition[] {

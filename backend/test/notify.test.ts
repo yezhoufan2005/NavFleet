@@ -6,6 +6,7 @@ import {
   buildDingtalkBody,
   buildWebhookBody,
   buildWecomBody,
+  robotRejection,
 } from "../src/notify/channels";
 import { selectChannelsForAlert } from "../src/notify/routing";
 import { resolveRecipients } from "../src/notify/recipients";
@@ -29,9 +30,13 @@ const alertOf = (over: Partial<DeviceAlert> = {}): DeviceAlert => ({
   ...over,
 });
 
-/** A minimal `fetch`-shaped stub: only `ok` + `status` are read by `postWithRetry`. */
-const respond = (status: number): Response =>
-  ({ ok: status >= 200 && status < 300, status }) as unknown as Response;
+/** A minimal `fetch`-shaped stub: `ok` + `status`, and a JSON body for the robot channels. */
+const respond = (status: number, body: unknown = {}): Response =>
+  ({
+    ok: status >= 200 && status < 300,
+    status,
+    json: () => Promise.resolve(body),
+  }) as unknown as Response;
 
 const noSleep = (): Promise<void> => Promise.resolve();
 
@@ -64,6 +69,23 @@ describe("postWithRetry", () => {
     const outcome = await postWithRetry("https://example/hook", {}, opts(fetchImpl));
     expect(outcome).toMatchObject({ ok: false, httpStatus: 503, attempts: 3, error: "HTTP 503" });
     expect(fetchImpl).toHaveBeenCalledTimes(3);
+  });
+
+  it("records a 2xx the rejection hook refuses as a failure, without retrying", async () => {
+    const fetchImpl = vi.fn(() =>
+      Promise.resolve(respond(200, { errcode: 310000, errmsg: "keywords not in content" })),
+    ) as unknown as typeof fetch;
+    const outcome = await postWithRetry(
+      "https://example/hook",
+      {},
+      { ...opts(fetchImpl), rejection: robotRejection },
+    );
+    expect(outcome).toMatchObject({
+      ok: false,
+      httpStatus: 200,
+      attempts: 1,
+      error: "errcode 310000：keywords not in content",
+    });
   });
 
   it("does not retry a 4xx other than 429", async () => {
@@ -213,6 +235,7 @@ describe("NotifyService.dispatch", () => {
       resolveUserEmail: over.resolveUserEmail ?? (() => Promise.resolve(null)),
       maxAttempts: 2,
       timeoutMs: 500,
+      timezone: "UTC",
       resolveEnv: (name) => (over.env ?? { NAVFLEET_TEST_WEBHOOK_URL: "https://hook" })[name],
       fetchImpl: over.fetchImpl ?? vi.fn(() => Promise.resolve(respond(200))),
       emailSendImpl: over.emailSendImpl,
@@ -468,6 +491,7 @@ describe("NotifyService read APIs", () => {
       resolveDevice: () => null,
       maxAttempts: 1,
       timeoutMs: 100,
+      timezone: "UTC",
       resolveUserEmail: () => Promise.resolve(null),
       resolveEnv: (name) => (name === "SET_ENV" ? "https://hook" : undefined),
     });
@@ -490,6 +514,7 @@ describe("NotifyService read APIs", () => {
       resolveUserEmail: () => Promise.resolve(null),
       maxAttempts: 1,
       timeoutMs: 100,
+      timezone: "UTC",
     });
     await service.queryLog({ deviceId: "agv-1", status: "failed" });
     expect(queryNotify).toHaveBeenCalledWith({ deviceId: "agv-1", status: "failed" });
@@ -516,32 +541,58 @@ describe("resolveRecipients", () => {
   });
 });
 
+describe("robotRejection (企业微信 / 钉钉)", () => {
+  it("accepts errcode 0 only", () => {
+    expect(robotRejection({ errcode: 0, errmsg: "ok" })).toBeNull();
+    expect(robotRejection({ errcode: 93000, errmsg: "invalid webhook url" })).toBe(
+      "errcode 93000：invalid webhook url",
+    );
+    // A 200 page without errcode (a proxy, a captive portal) did not reach the robot.
+    expect(robotRejection(null)).toBe("响应中没有 errcode");
+    expect(robotRejection({})).toBe("响应中没有 errcode");
+  });
+});
+
 describe("isWithinSilence", () => {
-  const at = (iso: string): Date => new Date(iso);
+  const at = (iso: string): Date => new Date(`${iso}Z`);
+  const inSilence = (now: Date, windows?: Parameters<typeof isWithinSilence>[1]): boolean =>
+    isWithinSilence(now, windows, "UTC");
 
   it("is false when there are no windows", () => {
-    expect(isWithinSilence(at("2026-09-19T03:00:00"), undefined)).toBe(false);
-    expect(isWithinSilence(at("2026-09-19T03:00:00"), [])).toBe(false);
+    expect(inSilence(at("2026-09-19T03:00:00"), undefined)).toBe(false);
+    expect(inSilence(at("2026-09-19T03:00:00"), [])).toBe(false);
   });
 
   it("matches a same-day window and rejects outside it", () => {
     const windows = [{ from: "09:00", to: "18:00" }];
-    expect(isWithinSilence(at("2026-09-19T10:00:00"), windows)).toBe(true);
-    expect(isWithinSilence(at("2026-09-19T20:00:00"), windows)).toBe(false);
+    expect(inSilence(at("2026-09-19T10:00:00"), windows)).toBe(true);
+    expect(inSilence(at("2026-09-19T20:00:00"), windows)).toBe(false);
   });
 
   it("handles a window that wraps past midnight", () => {
     const windows = [{ from: "22:00", to: "06:00" }];
-    expect(isWithinSilence(at("2026-09-19T23:30:00"), windows)).toBe(true);
-    expect(isWithinSilence(at("2026-09-19T02:00:00"), windows)).toBe(true);
-    expect(isWithinSilence(at("2026-09-19T12:00:00"), windows)).toBe(false);
+    expect(inSilence(at("2026-09-19T23:30:00"), windows)).toBe(true);
+    expect(inSilence(at("2026-09-19T02:00:00"), windows)).toBe(true);
+    expect(inSilence(at("2026-09-19T12:00:00"), windows)).toBe(false);
   });
 
   it("filters by day of week when days are listed", () => {
     // 2026-09-19 is a Saturday (day 6); the window lists only weekdays.
     const windows = [{ days: [1, 2, 3, 4, 5], from: "00:00", to: "23:59" }];
-    expect(isWithinSilence(at("2026-09-19T10:00:00"), windows)).toBe(false);
-    expect(isWithinSilence(at("2026-09-21T10:00:00"), windows)).toBe(true); // Monday
+    expect(inSilence(at("2026-09-19T10:00:00"), windows)).toBe(false);
+    expect(inSilence(at("2026-09-21T10:00:00"), windows)).toBe(true); // Monday
+  });
+
+  it("reads the window in the deployment time zone, not the server's", () => {
+    // 22:00–07:00 Beijing time is 14:00–23:00 UTC. Read in UTC (the container's zone), 23:30
+    // Beijing (15:30Z) would send and 10:00 Beijing (02:00Z) would be swallowed.
+    const windows = [{ from: "22:00", to: "07:00" }];
+    expect(isWithinSilence(at("2026-09-19T15:30:00"), windows, "Asia/Shanghai")).toBe(true);
+    expect(isWithinSilence(at("2026-09-19T02:00:00"), windows, "Asia/Shanghai")).toBe(false);
+    // The day of week too: 2026-09-20T20:00Z is already Monday in Shanghai.
+    const weekend = [{ days: [0, 6], from: "00:00", to: "23:59" }];
+    expect(isWithinSilence(at("2026-09-20T20:00:00"), weekend, "Asia/Shanghai")).toBe(false);
+    expect(isWithinSilence(at("2026-09-20T20:00:00"), weekend, "UTC")).toBe(true);
   });
 });
 

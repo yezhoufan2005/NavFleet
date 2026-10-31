@@ -1,6 +1,7 @@
 /**
- * Quiet-hours silence — pure. Is `now` (local time) inside any of a channel's
- * silence windows? A window is `{ days?, from, to }` in `"HH:MM"` local time; `days` uses
+ * Quiet-hours silence — pure. Is `now` inside any of a channel's silence windows, read as wall-clock
+ * time in `timezone` (the deployment's `REPORT_TIMEZONE`, the same zone report send times use)? A
+ * window is `{ days?, from, to }` in `"HH:MM"` local time; `days` uses
  * 0=Sunday..6=Saturday and, when absent/empty, means every day. `to <= from` marks a window that
  * wraps past midnight (e.g. `22:00`→`06:00`).
  *
@@ -9,6 +10,7 @@
  * refers to the current day, which is a documented simplification, not a bug.
  */
 import type { NotifySilenceWindow } from "@navfleet/shared";
+import { localParts } from "../localTime";
 
 const toMinutes = (value: string): number | null => {
   const match = /^(\d{1,2}):(\d{2})$/.exec(value.trim());
@@ -23,12 +25,17 @@ const toMinutes = (value: string): number | null => {
   return hours * 60 + minutes;
 };
 
-export const isWithinSilence = (now: Date, windows?: NotifySilenceWindow[]): boolean => {
+export const isWithinSilence = (
+  now: Date,
+  windows: NotifySilenceWindow[] | undefined,
+  timezone: string,
+): boolean => {
   if (!windows || windows.length === 0) {
     return false;
   }
-  const day = now.getDay();
-  const nowMinutes = now.getHours() * 60 + now.getMinutes();
+  const local = localParts(now.getTime(), timezone);
+  const day = local.weekday;
+  const nowMinutes = toMinutes(local.hm) ?? 0;
 
   return windows.some((window) => {
     const days = window.days && window.days.length ? window.days : [0, 1, 2, 3, 4, 5, 6];

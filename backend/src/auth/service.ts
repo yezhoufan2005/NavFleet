@@ -181,6 +181,16 @@ export class AuthService {
     return this.persistence.findUserByUsername(username);
   }
 
+  /**
+   * The address a `@user` recipient (alert email, scheduled report) resolves to. A disabled
+   * account receives nothing: disabling someone is how an admin takes them off duty, and their
+   * groups should not have to be edited as well.
+   */
+  async recipientEmail(username: string): Promise<string | null> {
+    const user = await this.persistence.findUserByUsername(username);
+    return user?.enabled ? (user.email ?? null) : null;
+  }
+
   /** Record a successful login timestamp (best-effort). */
   recordLogin(username: string): Promise<void> {
     return this.persistence.recordLogin(username, new Date().toISOString());

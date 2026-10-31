@@ -131,3 +131,23 @@ describe("rule scopes match the configured membership, not the frame's", () => {
     expect(alertIds(store, "agv-other")).not.toContain("agv-other-offline");
   });
 });
+
+describe("a vehicle's first frame is visible to the alert.created listeners", () => {
+  it("resolves the configured tags and formations while the frame's events go out", async () => {
+    // The notify dispatcher looks the device up again on alert.created, for its scope and display
+    // name. The events go out inside the ingest loop, before the snapshot map is swapped, so for a
+    // vehicle's first frame the lookup returned null and every tag- or formation-scoped channel
+    // missed the alert.
+    const store = createStore(lowBatteryScopedTo({}));
+    const seen: Array<{ tags: string[]; formationIds: string[] } | null> = [];
+    store.on("event", (event: { type: string; payload: { deviceId: string } }) => {
+      if (event.type !== "alert.created") return;
+      const device = store.getDevice(event.payload.deviceId);
+      seen.push(device ? { tags: device.tags, formationIds: device.formationIds } : null);
+    });
+
+    await store.applyPayload(frame("agv-line", 12), "mqtt");
+
+    expect(seen).toEqual([{ tags: [], formationIds: ["line-a"] }]);
+  });
+});

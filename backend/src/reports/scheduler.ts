@@ -25,6 +25,7 @@ import { buildReportEmail } from "./reportEmail";
 import { sendEmail, type EmailMessage } from "../notify/email";
 import type { AttemptOutcome } from "../notify/retry";
 import { moduleLogger } from "../logger";
+import { localParts } from "../localTime";
 
 const logger = moduleLogger("reports-scheduler");
 
@@ -64,48 +65,17 @@ const RANGE_HOURS: Record<ReportRangePreset, number> = {
   "30d": 24 * 30,
 };
 
-/** 一个时刻在某时区里的本地日历部件：日期串、"HH:MM"、星期（0=周日）。 */
-export const localParts = (
-  ms: number,
-  timezone: string,
-): { date: string; hm: string; weekday: number } => {
-  const parts = new Intl.DateTimeFormat("en-CA", {
-    timeZone: timezone,
-    year: "numeric",
-    month: "2-digit",
-    day: "2-digit",
-    hour: "2-digit",
-    minute: "2-digit",
-    hour12: false,
-    weekday: "short",
-  }).formatToParts(new Date(ms));
-  const get = (type: string): string => parts.find((part) => part.type === type)?.value ?? "";
-  const weekdayMap: Record<string, number> = {
-    Sun: 0,
-    Mon: 1,
-    Tue: 2,
-    Wed: 3,
-    Thu: 4,
-    Fri: 5,
-    Sat: 6,
-  };
-  // `en-CA` gives `2026-09-19` for the date parts and a 24h hour; `hour` can come back "24" at
-  // midnight in some engines, so normalise it to "00".
-  const hour = get("hour") === "24" ? "00" : get("hour");
-  return {
-    date: `${get("year")}-${get("month")}-${get("day")}`,
-    hm: `${hour}:${get("minute")}`,
-    weekday: weekdayMap[get("weekday")] ?? 0,
-  };
-};
-
 export class ReportScheduler {
   private readonly deps: ReportSchedulerDeps;
   private readonly clock: () => number;
   private readonly readSmtpUrl: (envName: string) => string | undefined;
   /** schedule id → 最近已发送（或启动时判为已过点而跳过）的本地日期串。 */
   private readonly lastFired = new Map<string, string>();
-  private started = false;
+  /**
+   * schedule id → 上次 tick 看到的发送时刻（`time` + `weekday`）。没见过或刚改过时刻的条目，
+   * 当天已过点的那一次不补发：重启、控制台新建、改发送时刻、重新启用都一样。
+   */
+  private readonly seenTiming = new Map<string, string>();
 
   constructor(deps: ReportSchedulerDeps) {
     this.deps = deps;
@@ -122,7 +92,14 @@ export class ReportScheduler {
     const nowMs = this.clock();
     const schedules = this.deps.getSchedules();
     for (const schedule of schedules) {
-      if (!schedule.enabled) continue;
+      if (!schedule.enabled) {
+        // Re-enabling one later in the day counts as first sight too.
+        this.seenTiming.delete(schedule.id);
+        continue;
+      }
+      const timing = `${schedule.time}|${schedule.weekday ?? ""}`;
+      const firstSight = this.seenTiming.get(schedule.id) !== timing;
+      this.seenTiming.set(schedule.id, timing);
       const local = localParts(nowMs, this.deps.timezone);
       // 每周：只在指定星期发。每天：任意星期。
       if (typeof schedule.weekday === "number" && schedule.weekday !== local.weekday) {
@@ -132,8 +109,9 @@ export class ReportScheduler {
       const due = local.hm >= schedule.time && this.lastFired.get(schedule.id) !== local.date;
       if (!due) continue;
 
-      // 首个 tick 遇到「启动前已过点」的日子：标记为已处理但不真发（重启不补发）。
-      if (!this.started) {
+      // 第一次见到这个发送时刻时已经过点（重启后的首个 tick、运行中新建或改了时刻）：标记为
+      // 已处理但不真发。否则 15:00 新建一条每天 09:00 的报表，下一个 tick 就会发出一封。
+      if (firstSight) {
         this.lastFired.set(schedule.id, local.date);
         continue;
       }
@@ -141,7 +119,6 @@ export class ReportScheduler {
       this.lastFired.set(schedule.id, local.date);
       void this.fire(schedule, nowMs);
     }
-    this.started = true;
   }
 
   /** Generate + send one schedule's report. Never throws (a bad schedule must not kill the loop). */

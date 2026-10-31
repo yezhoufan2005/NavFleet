@@ -324,7 +324,7 @@ export class BackfillSink {
     for (const channel of channels) {
       // No endpoint configured means the live service sends nothing, so neither does history.
       if (!process.env[channel.urlEnv]) continue;
-      if (isWithinSilence(new Date(onset), channel.silenceWindows)) continue;
+      if (isWithinSilence(new Date(onset), channel.silenceWindows, config.reportTimezone)) continue;
       const rng = new Rng(seedOf(`send:${eventKey}:${channel.id}:${onset}`));
       const latencyMs = Math.round(
         channel.type === "email" ? rng.between(300, 1500) : rng.between(60, 400),

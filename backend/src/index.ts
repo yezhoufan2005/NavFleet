@@ -29,13 +29,15 @@ rbacService.setUserLookup(
   async (username) => (await authService.findByUsername(username)) !== null,
 );
 const auditService = new AuditService(persistence);
+const resolveUserEmail = (username: string) => authService.recipientEmail(username);
 const notifyService = new NotifyService({
   persistence,
   getNotifyConfig: () => configRegistry.getNotifyConfig(),
   resolveDevice: (deviceId) => store.getDevice(deviceId),
-  resolveUserEmail: async (username) => (await authService.findByUsername(username))?.email ?? null,
+  resolveUserEmail,
   maxAttempts: config.notifyMaxAttempts,
   timeoutMs: config.notifyTimeoutMs,
+  timezone: config.reportTimezone,
 });
 // Scheduled email reports. Reuses the report aggregation (via the store) and notify's email
 // send + recipient resolution; driven by a ~60s poll below (no cron dependency). Zero schedules in
@@ -45,7 +47,7 @@ const reportScheduler = new ReportScheduler({
   getNotifyGroups: () => configRegistry.getNotifyConfig().groups,
   aggregateAlertStats: (range) => store.getAlertStats(range),
   aggregateAvailability: (params) => store.getAvailabilityReport(params),
-  resolveUserEmail: async (username) => (await authService.findByUsername(username))?.email ?? null,
+  resolveUserEmail,
   nameOf: (deviceId) => store.getDevice(deviceId)?.deviceName || deviceId,
   timezone: config.reportTimezone,
   maxAttempts: config.notifyMaxAttempts,
@@ -175,6 +177,15 @@ const shutdown = async (signal: string): Promise<void> => {
     await store.drain();
   } catch (error) {
     logger.warn({ err: error, signal }, "Failed to drain in-flight ingests");
+  }
+
+  // Buffered digests go out now, with the store drained (nothing more will join them) and MongoDB
+  // still open for their send records. A digest's alerts do not fire again after a restart, so a
+  // buffer left here was never sent at all.
+  try {
+    await notifyService.flushDigests(true);
+  } catch (error) {
+    logger.warn({ err: error, signal }, "Failed to flush notification digests");
   }
 
   try {
