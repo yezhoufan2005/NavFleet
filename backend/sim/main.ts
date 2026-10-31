@@ -54,7 +54,16 @@ const main = async (): Promise<void> => {
     case "inject": {
       const [deviceId, kind, minutes] = args;
       if (!deviceId || !kind) usage();
-      queueInjection(stateDir, deviceId!, kind!, minutes ? Number(minutes) : undefined);
+      const roster = JSON.parse(
+        fs.readFileSync(path.join(resolveConfigRoot(), "vehicles.json"), "utf8"),
+      ) as Array<{ deviceId: string }>;
+      queueInjection(
+        stateDir,
+        deviceId!,
+        kind!,
+        minutes ? Number(minutes) : undefined,
+        roster.map((vehicle) => vehicle.deviceId),
+      );
       console.log(`queued ${kind} for ${deviceId}; the live publisher applies it within a second`);
       break;
     }

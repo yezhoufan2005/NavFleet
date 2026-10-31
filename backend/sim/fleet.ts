@@ -10,7 +10,7 @@
 import fs from "node:fs";
 import path from "node:path";
 import { PROFILES, vehicleQuirks, type Category } from "./profiles";
-import { buildRoutes, sceneGpsOrigin, type SceneConfig } from "./routes";
+import { buildRoutes, SCENE_SLOTS, sceneGpsOrigin, sceneSlots, type SceneConfig } from "./routes";
 import { seedOf } from "./rng";
 import { initialState, type Site, type VehicleState } from "./vehicle";
 
@@ -27,8 +27,8 @@ export interface Fleet {
   sites: Site[];
   /** When each vehicle entered service (epoch ms), or null when vehicles.json does not say. */
   commissioned: Map<string, number | null>;
-  /** Vehicles sharing a scene, in roster order, for spreading their start positions. */
-  placement: Map<string, { ordinal: number; count: number }>;
+  /** Each vehicle's slot in its scene (`sceneSlots`), for spreading start positions and chargers. */
+  placement: Map<string, number>;
 }
 
 const BASE_LIMIT: Record<Category, number> = { 巡检: 2.0, 搬运: 1.5, 牵引: 2.0, 配料: 1.2 };
@@ -51,25 +51,25 @@ export const resolveConfigRoot = (): string => {
 export const loadFleet = async (configRoot: string): Promise<Fleet> => {
   const vehicles = readJson<VehicleConfig[]>(path.join(configRoot, "vehicles.json"));
   const scenes = readJson<SceneConfig[]>(path.join(configRoot, "scenes.json"));
+  const placement = sceneSlots(
+    vehicles.map((vehicle) => ({
+      deviceId: vehicle.deviceId,
+      sceneId: vehicle.defaultSceneId ?? "",
+    })),
+  );
   const routes = await buildRoutes(
     configRoot,
     scenes,
-    vehicles.map((vehicle, index) => ({ sceneId: vehicle.defaultSceneId ?? "", index })),
+    vehicles.map((vehicle) => ({
+      sceneId: vehicle.defaultSceneId ?? "",
+      slot: placement.get(vehicle.deviceId) ?? 0,
+    })),
   );
-  const counts = new Map<string, number>();
-  for (const vehicle of vehicles) {
-    const scene = vehicle.defaultSceneId ?? "";
-    counts.set(scene, (counts.get(scene) ?? 0) + 1);
-  }
-  const seen = new Map<string, number>();
-  const placement = new Map<string, { ordinal: number; count: number }>();
   const commissioned = new Map<string, number | null>();
 
   const sites = vehicles.map((vehicle, index): Site => {
     const sceneId = vehicle.defaultSceneId ?? "";
-    const ordinal = seen.get(sceneId) ?? 0;
-    seen.set(sceneId, ordinal + 1);
-    placement.set(vehicle.deviceId, { ordinal, count: counts.get(sceneId) ?? 1 });
+    const slot = placement.get(vehicle.deviceId) ?? 0;
     const parsed = Date.parse(vehicle.commissionedAt ?? "");
     commissioned.set(vehicle.deviceId, Number.isFinite(parsed) ? parsed : null);
 
@@ -87,13 +87,10 @@ export const loadFleet = async (configRoot: string): Promise<Fleet> => {
       route,
       pick: route.wrap(0.25 * L),
       drop: route.wrap(0.7 * L),
-      charger: route.wrap(0.02 * L + ordinal * 2.5),
+      charger: route.wrap(0.02 * L + slot * 2.5),
       zone: [route.wrap(0.45 * L), route.wrap(0.45 * L + Math.min(20, 0.08 * L))],
       baseLimit: BASE_LIMIT[category],
-      gps:
-        vehicle.gpsEnabled === false
-          ? null
-          : sceneGpsOrigin(scenes.findIndex((scene) => scene.sceneId === sceneId)),
+      gps: vehicle.gpsEnabled === false ? null : sceneGpsOrigin(sceneId),
       noiseSeed: seedOf(`noise:${vehicle.deviceId}`),
     };
   });
@@ -101,8 +98,7 @@ export const loadFleet = async (configRoot: string): Promise<Fleet> => {
 };
 
 export const newState = (fleet: Fleet, site: Site, t: number): VehicleState => {
-  const place = fleet.placement.get(site.deviceId) ?? { ordinal: 0, count: 1 };
-  return initialState(site, t, place.ordinal, place.count);
+  return initialState(site, t, fleet.placement.get(site.deviceId) ?? 0, SCENE_SLOTS);
 };
 
 // ── Checkpoint ────────────────────────────────────────────────────────────────
