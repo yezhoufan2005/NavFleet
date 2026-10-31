@@ -2,7 +2,7 @@
 # backend build context is `..`). npm workspaces means a single root lockfile and a
 # shared types package, so the build installs from the root and builds the backend
 # workspace specifically.
-FROM node:24-alpine AS build
+FROM node:25-alpine AS build
 WORKDIR /app
 
 # Manifests + root lockfile first for a cache-friendly install layer. Every workspace
@@ -38,7 +38,7 @@ HEALTHCHECK --interval=15s --timeout=5s --start-period=120m --retries=4 \
   CMD node -e "const s=require('fs').statSync('/state/live.heartbeat');process.exit(Date.now()-s.mtimeMs<15000?0:1)"
 CMD ["sh", "-c", "npx tsx sim/main.ts catchup && exec npx tsx sim/main.ts live"]
 
-FROM node:24-alpine AS runtime
+FROM node:25-alpine AS runtime
 WORKDIR /app
 ENV NODE_ENV=production
 
