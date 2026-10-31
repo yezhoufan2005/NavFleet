@@ -24,8 +24,9 @@
 
 - `消息` 是大类；`告警`=critical 一档、`预警`=warning、`提示`=notice。**不要用「告警」当大类名**，
   也不要在某个面板把 critical 写成「严重」。
-- 严重度的标签、徽章 class、渠道标签只有一个来源：前端 `src/lib/severity.ts`
-  （`SEVERITY_LABELS` / `SEVERITY_BADGE` / `CODE_CHANNEL_LABELS`）。需要时从这里取，不要再就地写一份。
+- 严重度的标签只有一个来源：`@navfleet/shared` 的 `SEVERITY_LABELS`，控制台（经前端 `src/lib/severity.ts`
+  转出）与后端外发消息都从这里取。徽章 class、渠道标签在 `src/lib/severity.ts`（`SEVERITY_BADGE` /
+  `CODE_CHANNEL_LABELS`）。需要时从这里取，不要再就地写一份。
 
 ## 3. 前端（Vue 3 `<script setup>` + Pinia + Tailwind）
 

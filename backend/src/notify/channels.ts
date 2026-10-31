@@ -14,7 +14,8 @@
  * or「IP 白名单」, 企业微信 key-in-URL) work as-is. 钉钉「加签」(per-request HMAC) needs a second
  * secret and is an extension — out of scope here, and noted so it is a decision, not a gap.
  */
-import type { NotifyChannelType, Severity } from "@navfleet/shared";
+import { SEVERITY_LABELS, type NotifyChannelType, type Severity } from "@navfleet/shared";
+import { formatInstantInZone } from "../localTime";
 import { postWithRetry, type AttemptOutcome, type RetryOptions } from "./retry";
 
 /** The channel types whose body is an HTTP JSON POST. `email` is not one — it has its own path. */
@@ -29,35 +30,42 @@ export interface NotifyAlertContext {
   title: string;
   detail: string;
   source: string;
+  /** ISO-8601, as the alert carries it; the generic webhook passes it on unchanged. */
   ts: string;
+  /**
+   * The deployment time zone (`REPORT_TIMEZONE`) the human-readable bodies show `ts` in. A bare UTC
+   * string made the on-call reader add eight hours in their head; the report emails already said
+   * local time.
+   */
+  timeZone: string;
 }
 
-/** Human-readable severity, for the group-chat message bodies. */
-export const SEVERITY_LABEL: Record<Severity, string> = {
-  critical: "严重",
-  warning: "警告",
-  notice: "提示",
+const label = (severity: Severity): string => SEVERITY_LABELS[severity];
+
+const when = (context: NotifyAlertContext): string => {
+  const at = new Date(context.ts);
+  return Number.isFinite(at.getTime()) ? formatInstantInZone(at, context.timeZone) : context.ts;
 };
 
 /** One markdown block, shared by the two group-robot channels so their wording stays identical. */
 const markdownLines = (context: NotifyAlertContext): string[] => [
-  `**【${SEVERITY_LABEL[context.severity]}】${context.title}**`,
+  `**【${label(context.severity)}】${context.title}**`,
   `设备：${context.deviceName}（${context.deviceId}）`,
   `详情：${context.detail}`,
-  `时间：${context.ts}`,
+  `时间：${when(context)}`,
 ];
 
 /** Plain-text lines for the email body (no markdown emphasis). Also reused for digest items. */
 export const plainLines = (context: NotifyAlertContext): string[] => [
-  `【${SEVERITY_LABEL[context.severity]}】${context.title}`,
+  `【${label(context.severity)}】${context.title}`,
   `设备：${context.deviceName}（${context.deviceId}）`,
   `详情：${context.detail}`,
-  `时间：${context.ts}`,
+  `时间：${when(context)}`,
 ];
 
 /** The email subject for a single alert. */
 export const emailSubject = (context: NotifyAlertContext): string =>
-  `【${SEVERITY_LABEL[context.severity]}】${context.deviceName} ${context.title}`;
+  `【${label(context.severity)}】${context.deviceName} ${context.title}`;
 
 /** The generic webhook body: the alert as a flat JSON object a receiver can map however it likes. */
 export const buildWebhookBody = (context: NotifyAlertContext): Record<string, unknown> => ({
@@ -81,7 +89,7 @@ export const buildWecomBody = (context: NotifyAlertContext): Record<string, unkn
 export const buildDingtalkBody = (context: NotifyAlertContext): Record<string, unknown> => ({
   msgtype: "markdown",
   markdown: {
-    title: `【${SEVERITY_LABEL[context.severity]}】${context.title}`,
+    title: `【${label(context.severity)}】${context.title}`,
     text: markdownLines(context).join("\n\n"),
   },
 });

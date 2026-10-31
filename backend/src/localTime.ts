@@ -38,3 +38,18 @@ export const localParts = (
     weekday: weekdayMap[get("weekday")] ?? 0,
   };
 };
+
+/**
+ * An instant as a person in `timezone` reads it, 24-hour clock: `2026/10/30 09:30`. The report
+ * emails and the outbound alert messages both print time this way.
+ */
+export const formatInstantInZone = (at: Date, timezone: string): string =>
+  new Intl.DateTimeFormat("zh-CN", {
+    timeZone: timezone,
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+    hour12: false,
+  }).format(at);

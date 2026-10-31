@@ -150,6 +150,7 @@ export class NotifyService {
       detail: alert.detail,
       source: alert.source,
       ts: alert.ts,
+      timeZone: this.deps.timezone,
     };
   }
 
@@ -383,10 +384,12 @@ export class NotifyService {
       deviceName: devices.size === 1 ? contexts[0]!.deviceName : `${devices.size} 台设备`,
       alertId: "digest",
       severity,
-      title: `${contexts.length} 条告警汇总`,
+      // Digests never hold a critical (see `shouldDigest`), so these are not 告警: 消息 is the umbrella.
+      title: `${contexts.length} 条消息汇总`,
       detail,
       source: "notify-digest",
       ts: this.now().toISOString(),
+      timeZone: this.deps.timezone,
     };
   }
 

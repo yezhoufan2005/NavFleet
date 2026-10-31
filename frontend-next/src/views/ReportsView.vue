@@ -31,10 +31,11 @@ import { useLatestRequest } from "@/composables/useLatestRequest";
 import { useChartTheme } from "@/composables/useChartTheme";
 import { useFleetStore } from "@/stores/fleet";
 import { fleetApi } from "@navfleet/fleet-core";
-import type {
-  AlertStatsReport,
-  AvailabilityReport,
-  ReportBucketUnit,
+import {
+  REPORT_RANGE_LABELS,
+  type AlertStatsReport,
+  type AvailabilityReport,
+  type ReportBucketUnit,
 } from "@navfleet/shared";
 import {
   buildAlertStatsCsv,
@@ -51,11 +52,13 @@ import {
 } from "@/lib/reportsView";
 import { loadErrorMessage } from "@/lib/errorMessages";
 
+// The three windows a scheduled report can cover take the schedule editor's and the email's names
+// (it read 近 1 天 here and 近 24 小时 there); 近 12 小时 is this page's own.
 const RANGES: readonly { value: RangePreset; label: string }[] = [
   { value: "12h", label: "近 12 小时" },
-  { value: "24h", label: "近 1 天" },
-  { value: "7d", label: "近 7 天" },
-  { value: "30d", label: "近 30 天" },
+  { value: "24h", label: REPORT_RANGE_LABELS["24h"] },
+  { value: "7d", label: REPORT_RANGE_LABELS["7d"] },
+  { value: "30d", label: REPORT_RANGE_LABELS["30d"] },
 ];
 const RANGE_VALUES: readonly RangePreset[] = ["12h", "24h", "7d", "30d"];
 const route = useRoute();

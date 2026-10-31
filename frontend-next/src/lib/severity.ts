@@ -1,17 +1,11 @@
-import type { CodeChannel, Severity } from "@navfleet/shared";
+import {
+  SEVERITY_LABELS,
+  type CodeChannel,
+  type Severity,
+} from "@navfleet/shared";
 
-/**
- * House labels for the three severity tiers, shared across 消息 / 消息史 / 报表 / 大屏 / 外发.
- *
- * `critical` reads **告警**, not 严重: per the house term rule, 消息 is the umbrella and 告警 is its
- * critical tier (预警 = warning, 提示 = notice). This map is the single source so the same alert never
- * shows as 告警 on one surface and 严重 on another.
- */
-export const SEVERITY_LABELS: Record<Severity, string> = {
-  critical: "告警",
-  warning: "预警",
-  notice: "提示",
-};
+// The labels live in shared, so the outbound messages the backend sends read the same three words.
+export { SEVERITY_LABELS };
 
 /**
  * Tailwind classes for a severity badge — a wash background with matching ink — shared by every

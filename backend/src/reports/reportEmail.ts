@@ -9,8 +9,9 @@
  * frontend 代码，而把它下沉到 shared 又要牵动两个前端的测试，不值当为这十几行做那次重构。
  */
 
-import { csvField } from "@navfleet/shared";
+import { csvField, REPORT_RANGE_LABELS } from "@navfleet/shared";
 import type { AlertStatsReport, AvailabilityReport, ReportRangePreset } from "@navfleet/shared";
+import { formatInstantInZone } from "../localTime";
 import type { EmailAttachment } from "../notify/email";
 
 /** deviceId → 展示名；取不到名字时回退 id（告警/聚合文档只带 id）。 */
@@ -38,12 +39,6 @@ export interface ReportEmailContent {
   html: string;
   attachments: EmailAttachment[];
 }
-
-const RANGE_LABEL: Record<ReportRangePreset, string> = {
-  "24h": "近 24 小时",
-  "7d": "近 7 天",
-  "30d": "近 30 天",
-};
 
 /** HTML 转义：设备名/发件配置都可能含 `<`、`&`，进 HTML 前必须转义，别让报表邮件成为注入点。 */
 const escapeHtml = (value: string): string =>
@@ -83,18 +78,6 @@ const formatDayInZone = (at: Date, timeZone: string): string =>
     year: "numeric",
     month: "2-digit",
     day: "2-digit",
-  }).format(at);
-
-/** 生成时刻在指定时区的可读本地时刻（给「截至」用），24 小时制。 */
-const formatInstantInZone = (at: Date, timeZone: string): string =>
-  new Intl.DateTimeFormat("zh-CN", {
-    timeZone,
-    year: "numeric",
-    month: "2-digit",
-    day: "2-digit",
-    hour: "2-digit",
-    minute: "2-digit",
-    hour12: false,
   }).format(at);
 
 /** RFC-4180 CSV 转义。 */
@@ -146,7 +129,7 @@ const buildAvailabilityCsv = (report: AvailabilityReport, nameOf: DeviceNameOf):
  */
 export const buildReportEmail = (input: ReportEmailInput): ReportEmailContent => {
   const { range, generatedAt, timeZone, availability, alertStats, nameOf } = input;
-  const rangeLabel = RANGE_LABEL[range];
+  const rangeLabel = REPORT_RANGE_LABELS[range];
   const generatedAtDate = new Date(generatedAt);
   const day = formatDayInZone(generatedAtDate, timeZone);
   const generatedAtLabel = formatInstantInZone(generatedAtDate, timeZone);
@@ -156,11 +139,13 @@ export const buildReportEmail = (input: ReportEmailInput): ReportEmailContent =>
   const { onlineRatio, socMean } = summarize(availability);
   const ackRate = alertStats.ackRate;
 
+  // 「消息」：total 数的是三档全部（告警只是 critical 一档），与报表页、CSV 同口径。没有历史后端时
+  // 写「--」而不是 0，0 会读成「这段时间什么都没发生」。
   const kpis: [string, string][] = [
     ["平均在线率", pct(onlineRatio)],
     ["平均电量", pct(socMean === null ? null : socMean / 100)],
-    ["告警总数", String(alertStats.total)],
-    ["确认率", ackRate === null ? "--" : `${Math.round(ackRate * 100)}%`],
+    ["消息总数", alertStats.available ? String(alertStats.total) : "--"],
+    ["确认率", !alertStats.available || ackRate === null ? "--" : `${Math.round(ackRate * 100)}%`],
   ];
 
   const topDevices = alertStats.topDevices.slice(0, 5);
@@ -171,13 +156,13 @@ export const buildReportEmail = (input: ReportEmailInput): ReportEmailContent =>
     ...kpis.map(([label, value]) => `${label}：${value}`),
   ];
   if (topDevices.length > 0) {
-    textLines.push("", "告警最多的设备：");
+    textLines.push("", "消息最多的设备：");
     for (const device of topDevices) {
       textLines.push(`  ${nameOf(device.deviceId)}：${device.count} 条`);
     }
   }
   if (noHistory) {
-    textLines.push("", "注意：本部署未连接历史后端（MongoDB），以上为零值，可用率明细为空。");
+    textLines.push("", "注意：本部署未连接历史后端（MongoDB），无历史数据，以上指标不可用。");
   }
   textLines.push("", "可用率与电量明细见附件 CSV。");
   const text = textLines.join("\n");
@@ -197,10 +182,10 @@ export const buildReportEmail = (input: ReportEmailInput): ReportEmailContent =>
     `<p style="margin:0 0 12px;color:#555">区间：${escapeHtml(rangeLabel)}（截至 ${escapeHtml(generatedAtLabel)}）</p>`,
     `<table style="border-collapse:collapse">${kpiRows}</table>`,
     topRows
-      ? `<h3 style="margin:16px 0 4px">告警最多的设备</h3><ol style="margin:0">${topRows}</ol>`
+      ? `<h3 style="margin:16px 0 4px">消息最多的设备</h3><ol style="margin:0">${topRows}</ol>`
       : "",
     noHistory
-      ? `<p style="color:#a00">注意：本部署未连接历史后端（MongoDB），以上为零值，可用率明细为空。</p>`
+      ? `<p style="color:#a00">注意：本部署未连接历史后端（MongoDB），无历史数据，以上指标不可用。</p>`
       : "",
     `<p style="margin-top:16px;color:#555">可用率与电量明细见附件 CSV。</p>`,
   ]
