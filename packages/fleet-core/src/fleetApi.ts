@@ -403,14 +403,16 @@ async function requestVoid(
 
 /**
  * PUT a raw binary body (a chosen File/Blob) and read a JSON reply. Used by the scene-map
- * upload: the backend takes the file bytes verbatim (`express.raw`), so no JSON wrapper and no
- * `Content-Type` we control — the browser sets one from the Blob, which the backend ignores.
+ * upload: the backend takes the file bytes verbatim (`express.raw`), so no JSON wrapper. The type
+ * is always `application/octet-stream`: left to the Blob, a `.json` file would be sent as
+ * `application/json` and read as a JSON body instead of as the file.
  */
 async function requestUpload<T>(path: string, file: Blob): Promise<T> {
   const response = await fetch(path, {
     method: "PUT",
     credentials: "include",
     cache: "no-store",
+    headers: { "Content-Type": "application/octet-stream" },
     body: file,
     signal: timeoutSignal(UPLOAD_TIMEOUT_MS),
   });

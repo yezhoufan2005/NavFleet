@@ -110,6 +110,25 @@ describe("PUT /api/scenes/:sceneId/asset/:kind", () => {
     );
   });
 
+  it("passes a JSON file (application/json) to the route as raw bytes, past the 2 MB JSON cap", async () => {
+    // Point-cloud metadata is a .json file; the global JSON parser used to consume it first.
+    const context = createTestApp();
+    context.store.writeSceneAsset.mockResolvedValue("/scene-maps/yard/pointcloudmeta.json");
+    const meta = Buffer.from(JSON.stringify({ padding: "x".repeat(3 * 1024 * 1024) }), "utf8");
+
+    for (const prefix of ["/api", "/api/v1"]) {
+      const response = await request(context.app)
+        .put(`${prefix}/scenes/yard/asset/pointcloudmeta`)
+        .set("Cookie", ADMIN)
+        .set("Content-Type", "application/json")
+        // A string, so supertest sends the bytes as they are instead of JSON-encoding a Buffer.
+        .send(meta.toString("utf8"));
+      expect(response.status).toBe(200);
+    }
+    const [, , body] = context.store.writeSceneAsset.mock.calls[0] ?? [];
+    expect(Buffer.isBuffer(body) && body.equals(meta)).toBe(true);
+  });
+
   it("400s a content-validation failure (SceneAssetValidationError) with invalid_asset", async () => {
     const context = createTestApp();
     context.store.writeSceneAsset.mockRejectedValue(

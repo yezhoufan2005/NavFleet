@@ -179,7 +179,9 @@ export const evaluateRuleAlerts = (
  * Linger a debounced rule alert across the frame that would clear it, so a reading hovering
  * on the threshold does not toggle the alert on and off. Pure, so the caller supplies the
  * clock: the store passes the previous frame's alerts, this frame's freshly-evaluated ones,
- * and `Date.now()`. Only the low-battery rule carries `debounceSeconds` — the offline rule's
+ * and this frame's stamp. That is the clock the alert's `ts` is on (the evaluator stamps it
+ * with the frame's stamp), so a vehicle whose clock runs a little fast or slow does not
+ * shorten or stretch the window. Only the low-battery rule carries `debounceSeconds` — the offline rule's
  * anti-flap is its `afterSeconds` silence window, applied before the alert is ever raised.
  *
  * An alert is retained only while it is within `debounceSeconds` of when it *last fired*

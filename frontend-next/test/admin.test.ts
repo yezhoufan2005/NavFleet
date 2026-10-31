@@ -651,6 +651,34 @@ describe("场景", () => {
     expect(saved?.imageUrl).toBe("/scene-maps/new-scene/image.svg");
   });
 
+  it("底图已就地替换而场景设置保存失败时，提示底图已经生效", async () => {
+    stubResources();
+    vi.spyOn(fleetApi, "uploadSceneAsset").mockResolvedValue({
+      url: "/scene-maps/yard/map.svg",
+    });
+    vi.spyOn(fleetApi, "putScenes").mockRejectedValue(new Error("网络错误"));
+    const wrapper = await mountScenes([
+      scene({ sceneId: "yard", imageUrl: "/scene-maps/yard/map.svg" }),
+    ]);
+
+    await wrapper
+      .findAll("button")
+      .find((b) => b.text() === "编辑")!
+      .trigger("click");
+    const fileInput =
+      document.body.querySelector<HTMLInputElement>("input[type='file']")!;
+    const file = new File(["<svg/>"], "map.svg", { type: "image/svg+xml" });
+    Object.defineProperty(fileInput, "files", {
+      value: [file],
+      configurable: true,
+    });
+    fileInput.dispatchEvent(new Event("change"));
+    document.body.querySelector("form")!.dispatchEvent(new Event("submit"));
+    await flushPromises();
+
+    expect(document.body.textContent).toContain("底图已替换并生效");
+  });
+
   it("refuses an oversized backdrop before uploading it, and filters the picker by kind", async () => {
     stubResources();
     const upload = vi.spyOn(fleetApi, "uploadSceneAsset");

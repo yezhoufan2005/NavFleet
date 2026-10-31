@@ -11,6 +11,7 @@ import {
   hasPose,
   normalizeSeverity,
   offlineAlertId,
+  parseTimestampMs,
   toIsoString,
   toNumeric,
 } from "@navfleet/shared";
@@ -64,19 +65,32 @@ const resolveDeviceIdFromTopic = (topic: string, topicPattern: string): string =
   return topicPattern ? schemeForPattern(topicPattern).extractDeviceId(topic) : "";
 };
 
-const normalizeCode = (rawCode: unknown, fallback?: CodeState): CodeState => {
+/**
+ * One report-code channel. What a frame leaves out is inherited only for the *same* code: a new
+ * code with no text or stamp of its own must not borrow the previous code's words or onset.
+ *
+ * - Text: code 0 has none. Otherwise a frame that carries `info` speaks for it, an empty string
+ *   included; only a frame that omits it for the same code keeps the old text. (`info: ""` used
+ *   to fall through to the inherited text, so stale words survived every later frame.)
+ * - Stamp: the frame's own `stamp` for this code, shifted like the frame's (see
+ *   `DeviceTime`); else, for the same code, the inherited one; else the frame's stamp.
+ */
+const normalizeCode = (
+  rawCode: unknown,
+  fallback: CodeState | undefined,
+  time: DeviceTime,
+): CodeState => {
   const source = isRecord(rawCode) ? rawCode : {};
   const code = Number(toNumeric(source.code, fallback?.code ?? 0) ?? 0);
-  return {
-    code,
-    // A frame that carries the code speaks for its text too: a code cleared to 0 with an empty
-    // text must not keep the previous code's words, or the live card reads "任务完成" against no
-    // code. Only a frame that omits the text for the *same* code inherits it.
-    info: asText(
-      source.info || (isRecord(rawCode) && code !== fallback?.code ? "" : fallback?.info || ""),
-    ),
-    stamp: source.stamp ? toIsoString(source.stamp) : fallback?.stamp || null,
-  };
+  const sameCode = code === fallback?.code;
+  const info =
+    code === 0 ? "" : "info" in source ? asText(source.info) : sameCode ? fallback?.info || "" : "";
+  const stamp = source.stamp
+    ? time.at(source.stamp)
+    : sameCode
+      ? fallback?.stamp || null
+      : time.frameStamp;
+  return { code, info, stamp };
 };
 
 const createDefaultDevice = (deviceId: string): DeviceSnapshot => ({
@@ -117,7 +131,7 @@ const createDefaultDevice = (deviceId: string): DeviceSnapshot => ({
   extra: {},
 });
 
-const buildRawAlerts = (raw: UnknownRecord, nowIso: string, deviceId: string): DeviceAlert[] => {
+const buildRawAlerts = (raw: UnknownRecord, time: DeviceTime, deviceId: string): DeviceAlert[] => {
   const sourceValue = Array.isArray(raw.alerts)
     ? raw.alerts
     : Array.isArray(raw.alarmList)
@@ -129,7 +143,7 @@ const buildRawAlerts = (raw: UnknownRecord, nowIso: string, deviceId: string): D
     detail: asText(item.detail || item.info || ""),
     severity: normalizeSeverity(item.severity || item.level),
     source: asText(item.source || "device-alert"),
-    ts: toIsoString(item.ts || item.timestamp || nowIso),
+    ts: item.ts || item.timestamp ? time.at(item.ts || item.timestamp) : time.frameStamp,
     active: true,
     code: Number(toNumeric(item.code, 0) ?? 0),
     info: item.info ? asText(item.info) : "",
@@ -209,23 +223,51 @@ const buildRuleAlerts = (
 export interface DeviceClockCheck {
   receivedAt: number;
   toleranceMs: number;
-  /** Called when the device's stamp was replaced by `receivedAt`. */
-  onUntrusted?: () => void;
+  /** Called when the device's stamp was replaced by `receivedAt`; `skewMs` = device − arrival. */
+  onUntrusted?: (event: { deviceId: string; skewMs: number }) => void;
 }
 
 /**
- * The stamp a frame is recorded under. A device stamp further than the tolerance from the
+ * The times a frame is recorded under. A device stamp further than the tolerance from the
  * arrival time — a clock that was never set, has drifted, or went back to 1970 after a
  * reboot — would put the frame at the wrong place in history, make a vehicle with a fast
  * clock look fresh long after it stopped reporting, and one with a slow clock look offline
  * while it is talking. The arrival time is the best time the backend has for it.
+ *
+ * Every other time in the frame (a report code's onset, the speed limit's, a self-reported
+ * alert's) comes from the same clock, so it is shifted by the same offset: correcting only
+ * the frame stamp left a 1970 onset on the alert, whose history row the retention TTL then
+ * deleted within a minute.
  */
-const trustedStamp = (value: unknown, clock: DeviceClockCheck | undefined): string => {
+interface DeviceTime {
+  /** The frame's own (trusted) stamp. */
+  frameStamp: string;
+  /** Another device time from this frame, on the same corrected clock. */
+  at(value: unknown): string;
+}
+
+const deviceTime = (
+  value: unknown,
+  clock: DeviceClockCheck | undefined,
+  deviceId: string,
+): DeviceTime => {
   const iso = toIsoString(value);
-  if (!clock) return iso;
-  if (Math.abs(Date.parse(iso) - clock.receivedAt) <= clock.toleranceMs) return iso;
-  clock.onUntrusted?.();
-  return new Date(clock.receivedAt).toISOString();
+  const deviceMs = Date.parse(iso);
+  if (!clock || Math.abs(deviceMs - clock.receivedAt) <= clock.toleranceMs) {
+    return { frameStamp: iso, at: (other) => toIsoString(other) };
+  }
+  const offsetMs = clock.receivedAt - deviceMs;
+  clock.onUntrusted?.({ deviceId, skewMs: -offsetMs });
+  return {
+    frameStamp: new Date(clock.receivedAt).toISOString(),
+    at: (other) => {
+      const ms = parseTimestampMs(other);
+      // Shifted, but never past arrival: a code stamped after its own frame is not later news.
+      return new Date(
+        ms === null ? clock.receivedAt : Math.min(ms + offsetMs, clock.receivedAt),
+      ).toISOString();
+    },
+  };
 };
 
 export const normalizeDevice = (
@@ -275,10 +317,12 @@ export const normalizeDevice = (
       ? raw.speedLimit
       : {};
   const gps = isRecord(raw.gps) ? raw.gps : isRecord(raw.location) ? raw.location : {};
-  const stamp = trustedStamp(
+  const time = deviceTime(
     raw.stamp || raw.lastSeen || raw.last_seen || raw.ts || raw.timestamp || Date.now(),
     clock,
+    deviceId,
   );
+  const stamp = time.frameStamp;
   const runtimeSceneId = asText(
     raw.scene_id ||
       raw.sceneId ||
@@ -362,9 +406,13 @@ export const normalizeDevice = (
       raw.platform_task_status ?? raw.platformTaskStatus,
       existingDevice?.platformTaskStatus ?? null,
     ),
-    infoCode: normalizeCode(raw.info_code || raw.infoCode, existingDevice?.infoCode),
-    warningCode: normalizeCode(raw.warning_code || raw.warningCode, existingDevice?.warningCode),
-    errorCode: normalizeCode(raw.error_code || raw.errorCode, existingDevice?.errorCode),
+    infoCode: normalizeCode(raw.info_code || raw.infoCode, existingDevice?.infoCode, time),
+    warningCode: normalizeCode(
+      raw.warning_code || raw.warningCode,
+      existingDevice?.warningCode,
+      time,
+    ),
+    errorCode: normalizeCode(raw.error_code || raw.errorCode, existingDevice?.errorCode, time),
     speedLimit: {
       limit: toNumeric(speedLimit.limit, existingDevice?.speedLimit.limit ?? null),
       slowdownTime: toNumeric(
@@ -372,7 +420,7 @@ export const normalizeDevice = (
         existingDevice?.speedLimit.slowdownTime ?? null,
       ),
       stamp: speedLimit.stamp
-        ? toIsoString(speedLimit.stamp)
+        ? time.at(speedLimit.stamp)
         : (existingDevice?.speedLimit.stamp ?? null),
       moduleName: asText(
         speedLimit.module_name ||
@@ -412,7 +460,7 @@ export const normalizeDevice = (
     );
   } else {
     snapshot.alerts = dedupeAlerts([
-      ...buildRawAlerts(raw, stamp, deviceId),
+      ...buildRawAlerts(raw, time, deviceId),
       ...buildCodeAlerts(snapshot),
       ...buildRuleAlerts(snapshot, rules, membership),
     ]);

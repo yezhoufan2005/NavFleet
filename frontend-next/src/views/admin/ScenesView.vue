@@ -364,6 +364,9 @@ const submit = async (): Promise<void> => {
   }
 
   saving.value = true;
+  // Set once an upload has overwritten the file the scene already uses: from then on the new
+  // backdrop is live, so a failed scenes.json save must say so instead of reading as "nothing saved".
+  let replacedInPlace = false;
   try {
     const existing =
       mode.value === "edit"
@@ -381,7 +384,8 @@ const submit = async (): Promise<void> => {
       origin: { x: originX, y: originY, yaw: originYaw },
     };
     // A chosen file uploads first; the returned /scene-maps/ URL goes onto the entry so the
-    // written scenes.json points at it (a new file) — an in-place replace returns the same URL.
+    // written scenes.json points at it (a new file, or a new extension). An in-place replace
+    // returns the same URL and is already in effect.
     if (fAssetFile.value) {
       const field = ASSET_KINDS.find(
         (k) => k.value === fAssetKind.value,
@@ -391,6 +395,7 @@ const submit = async (): Promise<void> => {
         fAssetKind.value,
         fAssetFile.value,
       );
+      replacedInPlace = url === entry[field];
       entry[field] = url;
     }
     const next = [
@@ -404,8 +409,11 @@ const submit = async (): Promise<void> => {
     close();
     await load();
   } catch (error) {
-    formError.value = messageFor(error);
-    notify(messageFor(error), {
+    const message = replacedInPlace
+      ? `底图已替换并生效，但场景设置未保存：${messageFor(error)}`
+      : messageFor(error);
+    formError.value = message;
+    notify(message, {
       type: "error",
       dedupeKey: "scene-write-failed",
     });

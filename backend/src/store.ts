@@ -606,8 +606,13 @@ export class DashboardStore extends EventEmitter {
               clock: {
                 receivedAt,
                 toleranceMs: config.deviceClockToleranceSeconds * 1000,
-                onUntrusted: () => {
+                onUntrusted: ({ deviceId, skewMs }) => {
                   this.untrustedStamps += 1;
+                  this.warnThrottled(
+                    `untrusted-stamp:${deviceId}`,
+                    { deviceId, skewMs },
+                    "Device clock outside tolerance; frame recorded at arrival time",
+                  );
                 },
               },
             }
@@ -633,6 +638,15 @@ export class DashboardStore extends EventEmitter {
         const lastMs = this.lastFrameStamp.get(device.deviceId);
         if (lastMs !== undefined && stampMs < lastMs) {
           this.outOfOrderFrames += 1;
+          this.warnThrottled(
+            `out-of-order:${device.deviceId}`,
+            {
+              deviceId: device.deviceId,
+              stamp: device.stamp,
+              lastStamp: new Date(lastMs).toISOString(),
+            },
+            "Dropped a frame older than the device's last one",
+          );
           continue;
         }
         this.lastFrameStamp.set(device.deviceId, stampMs);
@@ -643,12 +657,14 @@ export class DashboardStore extends EventEmitter {
       // Linger a debounced rule alert across the frame that would clear it.
       // `mergeDevice` takes the freshly-evaluated alerts wholesale, so without this a low
       // battery reading hovering on the threshold would flap on and off frame by frame.
+      // Measured on the frame's clock, the one the alert's `ts` is stamped with.
+      const frameMs = Date.parse(mergedRaw.stamp);
       mergedRaw.alerts = applyRuleDebounce(
         mergedRaw.deviceId,
         existingRaw?.alerts ?? [],
         mergedRaw.alerts,
         alertRules,
-        this.now(),
+        Number.isFinite(frameMs) ? frameMs : this.now(),
       );
       const mergedConfigured = this.applySnapshotConfig(mergedRaw);
 
