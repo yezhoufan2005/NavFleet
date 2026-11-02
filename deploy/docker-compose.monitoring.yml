@@ -59,7 +59,7 @@ services:
   # alertmanager/alertmanager.yml for what that means and how to attach email or
   # a webhook.
   alertmanager:
-    image: prom/alertmanager:v0.34.1
+    image: prom/alertmanager:v0.34.2
     command:
       - --config.file=/etc/alertmanager/alertmanager.yml
       - --storage.path=/alertmanager
