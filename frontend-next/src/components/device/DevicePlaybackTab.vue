@@ -52,7 +52,7 @@ import {
   pickTrailPose,
   taskStatusMap,
 } from "@navfleet/fleet-core";
-import { toNumeric, type DeviceSnapshot } from "@navfleet/shared";
+import { toNumeric, formatSoc, type DeviceSnapshot } from "@navfleet/shared";
 import UiSelect from "@/components/ui/UiSelect.vue";
 import type { TimeSeries } from "@/components/charts/timeSeriesOption";
 import { loadErrorMessage } from "@/lib/errorMessages";
@@ -337,9 +337,9 @@ const sampleRows = computed<Row[]>(() => {
       label: "速度",
       value: formatNumber(device.vehicleInfo?.speed, 2, " m/s"),
     },
-    // Same `(0, "%")` as 实时 and the device list, so the same vehicle never reads 82%
-    // on one tab and 82.3% on the next.
-    { label: "电量", value: formatNumber(device.vehicleInfo?.soc, 0, "%") },
+    // Same `formatSoc` as 实时 and the device list, so the same vehicle never reads one number
+    // here and another there.
+    { label: "电量", value: formatSoc(device.vehicleInfo?.soc) },
     { label: "融合 X", value: formatNumber(device.fusionLoc?.x, 2) },
     { label: "融合 Y", value: formatNumber(device.fusionLoc?.y, 2) },
     { label: "朝向 yaw（rad）", value: formatNumber(device.fusionLoc?.yaw, 3) },

@@ -307,6 +307,11 @@ export type LngLat = [number, number];
 // the two frontends share.
 export * from "./alertRules";
 
+// Vehicle-metric formatting whose precision must be identical everywhere a reading shows
+// (soc): one formatter the rule engine and the frontends both reach, so a reading never
+// renders as two different numbers on two surfaces.
+export * from "./metrics";
+
 // The report-code dictionary — built-in table, wire type, and the pure merge/lookup the
 // backend layers a deployment's codebook over and 下发s. Moved here from
 // fleet-core so the backend, which does not depend on fleet-core, can reach it.

@@ -20,7 +20,7 @@
  */
 import { computed, onMounted } from "vue";
 import { useFleetStore } from "@/stores/fleet";
-import { CODE_IMPACTS } from "@navfleet/shared";
+import { CODE_IMPACTS, formatSoc } from "@navfleet/shared";
 import {
   controlModeMap,
   describeEnum,
@@ -111,11 +111,11 @@ const vehicleRows = computed<Row[]>(() => {
       help: FIELD_HELP.device.omega,
       value: orMissing(formatNumber(info?.omega, 3, " rad/s")),
     },
-    // `"%"` without the leading space its neighbours have: a percent sign is not a unit
-    // symbol. 0 digits because SOC telemetry to 0.1% is false precision.
+    // `formatSoc` — one decimal, trailing zero dropped — is the one spelling of soc across every
+    // surface and the low-battery message, so a reading never shows as two numbers.
     {
       label: "电量",
-      value: orMissing(formatNumber(info?.soc, 0, "%")),
+      value: orMissing(formatSoc(info?.soc)),
       help: FIELD_HELP.device.soc,
     },
   ];
