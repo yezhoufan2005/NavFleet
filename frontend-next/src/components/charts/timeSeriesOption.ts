@@ -80,6 +80,32 @@ export interface TimeSeriesOptionInput {
    * the axis to the curve's range so the variation is actually visible.
    */
   yScale?: boolean;
+  /**
+   * Fix the value-axis bounds. Leave both unset for the default (anchored at 0, auto max — speed
+   * wants 下界0固定、上界随数据); set both for a known full range (电量 is 0–100, so it gets a
+   * fixed 0/100 axis rather than a dynamic one that would make a 70→72% wiggle look dramatic).
+   */
+  yMin?: number;
+  yMax?: number;
+  /**
+   * Per-chart color override, in series order. Defaults to the palette's fixed slot order;
+   * pass this only to re-order the hues for one chart (the 历史曲线's three days want 蓝绿橙,
+   * not the slot-order 蓝橙绿).
+   */
+  colors?: readonly string[];
+  /**
+   * Render the time axis as one 00:00–24:00 day: flat (un-rotated) HH:mm labels, and 24:00
+   * rather than 00:00 at the far-right max tick. For the 历史曲线, where every day is overlaid
+   * on a single day-of-the-clock axis and the span is wide enough that tilting is just noise.
+   */
+  dayAxis?: boolean;
+  /**
+   * Tune the update for a ~1 Hz flowing window: the line morphs to its new state over roughly
+   * one tick (linear), so appending a second reads as the curve sliding left and extending, not
+   * redrawing from scratch. The component also skips `replaceMerge` while streaming so ECharts
+   * updates the existing series instead of replacing it (a replace restarts the draw animation).
+   */
+  streaming?: boolean;
 }
 
 /** Points above this get LTTB-downsampled by ECharts before drawing. */
@@ -108,21 +134,39 @@ export const buildTimeSeriesOption = ({
   xMin,
   xMax,
   yScale = false,
+  yMin,
+  yMax,
+  colors,
+  dayAxis = false,
+  streaming = false,
 }: TimeSeriesOptionInput): EChartsOption => {
   const legendRight = legendPosition === "right" && series.length > 1;
   // End labels and a right-side legend both claim the right margin, so they are mutually
   // exclusive: with the legend on the right, identity comes from it, not from end labels.
   const directLabels = series.length <= DIRECT_LABEL_LIMIT && !legendRight;
   // When the axis is pinned to a fixed window (reports), tilt the time labels so none is dropped
-  // for lack of room — 选 12 小时时 22:00 被挤掉就是平排标签相撞被 hideOverlap 丢了。
-  const tilt = xMin !== undefined && xMax !== undefined;
+  // for lack of room — 选 12 小时时 22:00 被挤掉就是平排标签相撞被 hideOverlap 丢了。A day axis
+  // is wide and its ticks are whole hours, so it stays flat instead.
+  const tilt = xMin !== undefined && xMax !== undefined && !dayAxis;
+  const seriesColors = colors ?? palette.series;
+  // A day-of-the-clock axis labels every tick HH:mm, and the far-right boundary (the next
+  // midnight, === xMax) as 24:00 rather than a wrapped 00:00.
+  const dayAxisFormatter = (value: number): string => {
+    if (xMax !== undefined && value >= xMax) return "24:00";
+    const date = new Date(value);
+    const pad = (n: number): string => String(n).padStart(2, "0");
+    return `${pad(date.getHours())}:${pad(date.getMinutes())}`;
+  };
 
   return {
-    animation: animate,
+    // A streaming window renders every frame at its final position with no animation: the entrance
+    // tween (and the vertical re-tween when the auto max shifts) is what made the line "从上划到下"
+    // on load and each update. The flow comes from the window advancing ~1px/s, which needs none.
+    animation: streaming ? false : animate,
     // Colours are assigned in slot order and never cycled: slot N belongs to the
     // Nth series for as long as that series exists, so filtering the list cannot
     // repaint the survivors.
-    color: [...palette.series],
+    color: [...seriesColors],
     backgroundColor: "transparent",
     // Room on the right for the end labels (or the legend), and none wasted on a title
     // ECharts would draw in its own font — the surrounding card owns the heading.
@@ -140,7 +184,7 @@ export const buildTimeSeriesOption = ({
       !legendRight && series.length > 1
         ? {
             top: 0,
-            left: 0,
+            right: 0,
             icon: "roundRect",
             itemWidth: 10,
             itemHeight: 10,
@@ -174,6 +218,7 @@ export const buildTimeSeriesOption = ({
         fontSize: 11,
         hideOverlap: true,
         rotate: tilt ? 30 : 0,
+        formatter: dayAxis ? dayAxisFormatter : undefined,
       },
       splitLine: { show: false },
     },
@@ -182,6 +227,10 @@ export const buildTimeSeriesOption = ({
       name: unit,
       // Fold the axis to the data range when asked (在线率 hugs 100%); otherwise anchor at 0.
       scale: yScale,
+      // Fixed bounds win when given (电量 0–100). Left undefined, ECharts keeps its own —
+      // which with `scale: false` is 0 … auto-max, i.e. 下界0固定、上界随数据.
+      min: yMin,
+      max: yMax,
       nameTextStyle: { color: palette.inkMuted, fontSize: 11, align: "left" },
       axisLine: { show: false },
       axisTick: { show: false },

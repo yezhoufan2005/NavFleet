@@ -44,6 +44,13 @@ const {
   xMin,
   xMax,
   yScale = false,
+  yMin,
+  yMax,
+  showTableToggle = true,
+  labelHidden = false,
+  colors,
+  dayAxis = false,
+  streaming = false,
 } = defineProps<{
   series: readonly TimeSeries[];
   /** One unit for the chart — see `timeSeriesOption.ts` for why not per series. */
@@ -72,6 +79,30 @@ const {
   xMax?: number;
   /** Fold the value axis to the data's own range instead of anchoring at 0 (for near-flat series). */
   yScale?: boolean;
+  /** Fix the value-axis bounds; unset means anchored-at-0 with an auto max (see `timeSeriesOption`). */
+  yMin?: number;
+  yMax?: number;
+  /**
+   * Show the built-in 图表/数据表 toggle. False when a parent owns the toggle and its own table
+   * (the 曲线 tab's 历史 view renders a per-day table the built-in one cannot express, and its
+   * 实时 view has no table at all), so this stays chart-only and never switches itself.
+   */
+  showTableToggle?: boolean;
+  /**
+   * Keep `label` as the accessible name but drop it from the visible figcaption — for when the
+   * surrounding card already shows the heading, so the chart would otherwise print it twice.
+   */
+  labelHidden?: boolean;
+  /** Per-chart hue override in series order (see `timeSeriesOption`); defaults to the palette. */
+  colors?: readonly string[];
+  /** Render the x-axis as one 00:00–24:00 day (flat HH:mm, 24:00 at the right) — the 历史曲线. */
+  dayAxis?: boolean;
+  /**
+   * Flowing ~1 Hz window: the line morphs to its next state instead of redrawing, so appending a
+   * second reads as a slide-and-extend. Also skips `replaceMerge` on update (a replace restarts
+   * the draw animation, which is the "每秒重画、像没有线" the realtime view hit).
+   */
+  streaming?: boolean;
 }>();
 
 /**
@@ -123,6 +154,11 @@ const option = computed(() =>
     xMin,
     xMax,
     yScale,
+    yMin,
+    yMax,
+    colors,
+    dayAxis,
+    streaming,
   }),
 );
 
@@ -192,11 +228,19 @@ watch(
 // the 2 stale lines on the canvas, and a now-absent `legend` would linger — the "图全出 / 关掉选择
 // 不更新，要手动刷新" bug. Everything else (axis, grid, tooltip) still merges, so the axis extent
 // ECharts already computed on a pure data update is preserved.
+//
+// A streaming chart is the exception: it has one fixed series and never drops one, and a replace
+// re-initialises that series every tick — ECharts replays the left-to-right draw animation, which
+// is exactly the "每秒从头重画，看着像没有线" the realtime window hit. Plain merge updates the
+// existing series' data in place, so it morphs (slides + extends) instead.
 watch(
   option,
   (next) => {
     startedAt = performance.now();
-    chart?.setOption(next, { replaceMerge: ["series", "legend"] });
+    chart?.setOption(
+      next,
+      streaming ? undefined : { replaceMerge: ["series", "legend"] },
+    );
     applyCursor();
   },
   { flush: "post" },
@@ -251,9 +295,16 @@ const formatStamp = (stamp: number): string =>
 
 <template>
   <figure class="m-0 flex flex-col gap-2">
-    <figcaption class="flex items-center justify-between gap-3">
-      <span class="text-sm font-medium text-ink">{{ label }}</span>
+    <figcaption
+      v-if="!labelHidden || showTableToggle"
+      class="flex items-center justify-between gap-3"
+    >
+      <span v-if="!labelHidden" class="text-sm font-medium text-ink">{{
+        label
+      }}</span>
+      <span v-else aria-hidden="true" />
       <UiButton
+        v-if="showTableToggle"
         variant="ghost"
         size="sm"
         :aria-pressed="showTable"
