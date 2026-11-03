@@ -69,6 +69,13 @@ const {
   initialView?: "auto" | "fit";
 }>();
 
+/**
+ * Clicking a vehicle on the ROS map switches the active device, the same affordance the
+ * GPS map has (`@select` → `fleet.selectDevice` in `DevicesView`). Playback leaves it
+ * unbound, so a click there is a harmless no-op.
+ */
+const emit = defineEmits<{ select: [deviceId: string] }>();
+
 const hasBounds = (bounds: Partial<WorldBounds> | null | undefined): boolean =>
   Number.isFinite(bounds?.minX) &&
   Number.isFinite(bounds?.maxX) &&
@@ -290,9 +297,13 @@ const MARKER = {
   fusionCore: 10,
   lidarRing: 20,
   lidarCore: 8,
-  arrowHeight: 30,
-  arrowHalfWidth: 10,
+  arrowHeight: 22,
+  arrowHalfWidth: 8,
   peerCore: 7,
+  // Peers carry a heading arrow too (item 10), one notch smaller than the selected
+  // vehicle's so the selection still reads as the primary.
+  peerArrowHeight: 15,
+  peerArrowHalfWidth: 5,
   // Laser localization is demoted to a small companion dot beside the primary puck,
   // rather than a second full marker that read as a duplicate at high zoom.
   lidarDot: 5,
@@ -364,6 +375,7 @@ const formationPeerDevices = computed(() =>
         deviceId: device.deviceId,
         deviceName: device.deviceName || device.deviceId,
         pose: pose as WorldPoint,
+        heading: headingOf(pose),
         tone: getDeviceTone(device),
       };
     })
@@ -679,9 +691,23 @@ const cloudLabel = computed(() =>
           :key="peer.deviceId"
           class="ros-secondary-marker"
           :data-tone="peer.tone"
+          data-no-pan
           :transform="`translate(${round(peer.pose.x, 2)} ${round(peer.pose.y, 2)})`"
+          @click="emit('select', peer.deviceId)"
         >
           <g :transform="screenInvariantTransform">
+            <g :transform="`rotate(${peer.heading})`">
+              <path
+                class="ros-secondary-arrow"
+                :d="
+                  buildArrowPath(
+                    MARKER.peerArrowHeight,
+                    MARKER.peerArrowHalfWidth,
+                  )
+                "
+                vector-effect="non-scaling-stroke"
+              />
+            </g>
             <circle
               class="ros-secondary-core"
               cx="0"
@@ -705,6 +731,7 @@ const cloudLabel = computed(() =>
         <g
           v-if="selectedLidarPoint"
           class="ros-marker lidar"
+          data-no-pan
           :transform="`translate(${round(selectedLidarPoint.x, 2)} ${round(
             selectedLidarPoint.y,
             2,
@@ -726,10 +753,12 @@ const cloudLabel = computed(() =>
         <g
           v-if="selectedFusionPoint"
           class="ros-marker fusion"
+          data-no-pan
           :transform="`translate(${round(selectedFusionPoint.x, 2)} ${round(
             selectedFusionPoint.y,
             2,
           )})`"
+          @click="selectedDevice && emit('select', selectedDevice.deviceId)"
         >
           <g :transform="screenInvariantTransform">
             <!--
@@ -1119,9 +1148,12 @@ const cloudLabel = computed(() =>
 .ros-marker-arrow {
   fill: var(--color-brand);
   stroke: var(--color-surface-raised);
-  stroke-width: 1.5;
+  /* Same width AND paint-order (default: stroke straddles the edge over the fill) as
+     `.ros-marker-core`, so the arrow and the circle carry a visually equal white edge
+     (负责人 2026-11-03). `paint-order: stroke` here made the arrow's edge render as only
+     its outer half — about half the circle's — which read as a thinner outline. */
+  stroke-width: 2;
   stroke-linejoin: round;
-  paint-order: stroke;
 }
 /* Laser fix: the demoted companion dot, in its own violet (distinct from the fusion
    fix's brand blue) with the same light edge. */
@@ -1164,16 +1196,35 @@ const cloudLabel = computed(() =>
   stroke: var(--color-surface-raised);
   stroke-width: 1.5;
 }
-.ros-secondary-marker[data-tone="critical"] .ros-secondary-core {
+/* Peer heading arrow: same fill and edge as the peer core, and the same default
+   paint-order and stroke-width so its white edge matches the peer circle's (not the
+   outer-half that `paint-order: stroke` would give). */
+.ros-secondary-arrow {
+  fill: var(--color-ink-subtle);
+  stroke: var(--color-surface-raised);
+  stroke-width: 1.5;
+  stroke-linejoin: round;
+}
+/* A peer is a click target: pressing it switches the active vehicle (`data-no-pan` stops
+   the press from panning instead). */
+.ros-secondary-marker,
+.ros-marker.fusion {
+  cursor: pointer;
+}
+.ros-secondary-marker[data-tone="critical"] .ros-secondary-core,
+.ros-secondary-marker[data-tone="critical"] .ros-secondary-arrow {
   fill: var(--color-critical);
 }
-.ros-secondary-marker[data-tone="warning"] .ros-secondary-core {
+.ros-secondary-marker[data-tone="warning"] .ros-secondary-core,
+.ros-secondary-marker[data-tone="warning"] .ros-secondary-arrow {
   fill: var(--color-warning);
 }
-.ros-secondary-marker[data-tone="notice"] .ros-secondary-core {
+.ros-secondary-marker[data-tone="notice"] .ros-secondary-core,
+.ros-secondary-marker[data-tone="notice"] .ros-secondary-arrow {
   fill: var(--color-notice);
 }
-.ros-secondary-marker[data-tone="offline"] .ros-secondary-core {
+.ros-secondary-marker[data-tone="offline"] .ros-secondary-core,
+.ros-secondary-marker[data-tone="offline"] .ros-secondary-arrow {
   fill: var(--color-offline);
 }
 /*

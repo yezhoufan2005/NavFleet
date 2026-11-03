@@ -601,6 +601,11 @@ export function useSvgViewport(options: UseSvgViewportOptions) {
   function handlePointerDown(event: PointerEvent): void {
     if (!sceneReady.value || event.button !== 0) return;
 
+    // A press on a clickable marker (`data-no-pan`) selects the vehicle rather than
+    // panning: don't capture the pointer or start a drag, so the marker's own click
+    // handler fires. Without this the SVG's pointer capture would swallow the click.
+    if ((event.target as Element | null)?.closest?.("[data-no-pan]")) return;
+
     activePointers.set(event.pointerId, { x: event.clientX, y: event.clientY });
     svgRef.value?.setPointerCapture?.(event.pointerId);
 
@@ -613,8 +618,11 @@ export function useSvgViewport(options: UseSvgViewportOptions) {
       return;
     }
 
-    // A manual grab takes over from follow mode — the operator is driving now.
-    following.value = false;
+    // Follow mode owns the viewport, and a drag no longer cancels it (负责人 2026-11-03):
+    // while following, a single-pointer grab is inert — the map stays locked on the vehicle
+    // rather than panning and snapping back on the next pose tick. Zoom (wheel/pinch) still
+    // works, because follow re-centres around it. To pan freely, leave follow via its button.
+    if (following.value) return;
     isDragging = true;
     activePointerId = event.pointerId;
     dragging.value = true;
