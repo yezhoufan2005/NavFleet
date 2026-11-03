@@ -31,7 +31,7 @@ import {
   taskStatusMap,
   alertHeadline,
 } from "@navfleet/fleet-core";
-import type { DeviceSnapshot } from "@navfleet/shared";
+import type { DeviceAlert, DeviceSnapshot } from "@navfleet/shared";
 
 const { device, formationNames } = defineProps<{
   device: DeviceSnapshot;
@@ -134,11 +134,27 @@ const SEVERITY_CLASS: Record<string, string> = {
   notice: "border-notice bg-notice-wash text-notice-ink",
 };
 
+/**
+ * Onset instant of an alert in ms, for the secondary sort. `firstSeenAt` is when the
+ * incident began; it falls back to `ts` (the latest frame) only for an alert with no
+ * recorded onset, and to 0 if neither parses — a malformed stamp sinks to the bottom
+ * rather than throwing the comparator into NaN.
+ */
+const onsetMs = (alert: DeviceAlert): number => {
+  const value = new Date(alert.firstSeenAt ?? alert.ts).getTime();
+  return Number.isNaN(value) ? 0 : value;
+};
+
 const sortedAlerts = computed(() =>
   [...(device.alerts ?? [])].sort(
     (left, right) =>
+      // Severity first (worst → least), then onset time (newest → oldest), then id so
+      // the order is fully determined — without the last key two codes from the same
+      // frame would swap places on every recompute.
       (SEVERITY_RANK[left.severity] ?? 9) -
-      (SEVERITY_RANK[right.severity] ?? 9),
+        (SEVERITY_RANK[right.severity] ?? 9) ||
+      onsetMs(right) - onsetMs(left) ||
+      left.id.localeCompare(right.id),
   ),
 );
 
