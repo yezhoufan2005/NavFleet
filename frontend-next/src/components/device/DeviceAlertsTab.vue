@@ -31,6 +31,7 @@ import { RouterLink } from "vue-router";
 import { fleetApi, formatDateTime } from "@navfleet/fleet-core";
 import type { AlertRecord } from "@navfleet/fleet-core";
 import { SEVERITY_BADGE, SEVERITY_LABELS } from "@/lib/severity";
+import UiDisclosureArrow from "@/components/ui/UiDisclosureArrow.vue";
 import { useLatestRequest } from "@/composables/useLatestRequest";
 import { loadErrorMessage } from "@/lib/errorMessages";
 
@@ -281,21 +282,10 @@ const toggleDay = (dayKey: string): void => {
           :aria-expanded="isOpen(group.dayKey)"
           @click="toggleDay(group.dayKey)"
         >
-          <svg
-            class="size-3 shrink-0 text-ink-subtle transition-transform"
-            :class="{ 'rotate-90': isOpen(group.dayKey) }"
-            viewBox="0 0 12 12"
-            aria-hidden="true"
-          >
-            <path
-              d="M4 2.5 8 6l-4 3.5"
-              fill="none"
-              stroke="currentColor"
-              stroke-width="1.5"
-              stroke-linecap="round"
-              stroke-linejoin="round"
-            />
-          </svg>
+          <UiDisclosureArrow
+            :open="isOpen(group.dayKey)"
+            class="text-ink-subtle"
+          />
           <span class="font-mono text-sm text-ink">{{ group.label }}</span>
           <span class="font-mono text-2xs text-ink-muted"
             >{{ group.count }} 条</span
@@ -312,15 +302,16 @@ const toggleDay = (dayKey: string): void => {
         </button>
 
         <!-- Rows only while open: a busy month runs to many hundreds, and the closed card is the
-             point. Each is two lines, mirroring 消息·消息史 minus 设备 and 时长. -->
+             point. The open day is a recessed tray, each record a raised card on it — the same
+             shape as a user's expanded sessions. Two lines, mirroring 消息·消息史 minus 设备/时长. -->
         <ul
           v-if="isOpen(group.dayKey)"
-          class="m-0 flex list-none flex-col gap-2 border-t border-border p-3"
+          class="m-0 flex list-none flex-col gap-2 border-t border-border bg-surface-sunken p-3"
         >
           <li
             v-for="row in group.rows"
             :key="row.key"
-            class="flex flex-col gap-1"
+            class="flex flex-col gap-1 rounded-sm border border-border bg-surface-raised p-3"
             :data-severity="row.severity"
           >
             <div class="flex flex-wrap items-baseline gap-2">
