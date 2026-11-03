@@ -69,6 +69,13 @@ const {
   initialView?: "auto" | "fit";
 }>();
 
+/**
+ * Clicking a vehicle on the ROS map switches the active device, the same affordance the
+ * GPS map has (`@select` → `fleet.selectDevice` in `DevicesView`). Playback leaves it
+ * unbound, so a click there is a harmless no-op.
+ */
+const emit = defineEmits<{ select: [deviceId: string] }>();
+
 const hasBounds = (bounds: Partial<WorldBounds> | null | undefined): boolean =>
   Number.isFinite(bounds?.minX) &&
   Number.isFinite(bounds?.maxX) &&
@@ -293,6 +300,10 @@ const MARKER = {
   arrowHeight: 30,
   arrowHalfWidth: 10,
   peerCore: 7,
+  // Peers carry a heading arrow too (item 10), one notch smaller than the selected
+  // vehicle's so the selection still reads as the primary.
+  peerArrowHeight: 20,
+  peerArrowHalfWidth: 7,
   // Laser localization is demoted to a small companion dot beside the primary puck,
   // rather than a second full marker that read as a duplicate at high zoom.
   lidarDot: 5,
@@ -364,6 +375,7 @@ const formationPeerDevices = computed(() =>
         deviceId: device.deviceId,
         deviceName: device.deviceName || device.deviceId,
         pose: pose as WorldPoint,
+        heading: headingOf(pose),
         tone: getDeviceTone(device),
       };
     })
@@ -679,9 +691,23 @@ const cloudLabel = computed(() =>
           :key="peer.deviceId"
           class="ros-secondary-marker"
           :data-tone="peer.tone"
+          data-no-pan
           :transform="`translate(${round(peer.pose.x, 2)} ${round(peer.pose.y, 2)})`"
+          @click="emit('select', peer.deviceId)"
         >
           <g :transform="screenInvariantTransform">
+            <g :transform="`rotate(${peer.heading})`">
+              <path
+                class="ros-secondary-arrow"
+                :d="
+                  buildArrowPath(
+                    MARKER.peerArrowHeight,
+                    MARKER.peerArrowHalfWidth,
+                  )
+                "
+                vector-effect="non-scaling-stroke"
+              />
+            </g>
             <circle
               class="ros-secondary-core"
               cx="0"
@@ -705,6 +731,7 @@ const cloudLabel = computed(() =>
         <g
           v-if="selectedLidarPoint"
           class="ros-marker lidar"
+          data-no-pan
           :transform="`translate(${round(selectedLidarPoint.x, 2)} ${round(
             selectedLidarPoint.y,
             2,
@@ -726,10 +753,12 @@ const cloudLabel = computed(() =>
         <g
           v-if="selectedFusionPoint"
           class="ros-marker fusion"
+          data-no-pan
           :transform="`translate(${round(selectedFusionPoint.x, 2)} ${round(
             selectedFusionPoint.y,
             2,
           )})`"
+          @click="selectedDevice && emit('select', selectedDevice.deviceId)"
         >
           <g :transform="screenInvariantTransform">
             <!--
@@ -1119,7 +1148,9 @@ const cloudLabel = computed(() =>
 .ros-marker-arrow {
   fill: var(--color-brand);
   stroke: var(--color-surface-raised);
-  stroke-width: 1.5;
+  /* Same width as `.ros-marker-core` so the selected vehicle's arrow and circle carry an
+     equally-thick white edge (负责人 2026-11-03), rather than the arrow reading thinner. */
+  stroke-width: 2;
   stroke-linejoin: round;
   paint-order: stroke;
 }
@@ -1164,16 +1195,35 @@ const cloudLabel = computed(() =>
   stroke: var(--color-surface-raised);
   stroke-width: 1.5;
 }
-.ros-secondary-marker[data-tone="critical"] .ros-secondary-core {
+/* Peer heading arrow: same fill/edge as the peer core (one notch thinner edge than the
+   selected vehicle's, matching its smaller size), drawn under the core. */
+.ros-secondary-arrow {
+  fill: var(--color-ink-subtle);
+  stroke: var(--color-surface-raised);
+  stroke-width: 1.5;
+  stroke-linejoin: round;
+  paint-order: stroke;
+}
+/* A peer is a click target: pressing it switches the active vehicle (`data-no-pan` stops
+   the press from panning instead). */
+.ros-secondary-marker,
+.ros-marker.fusion {
+  cursor: pointer;
+}
+.ros-secondary-marker[data-tone="critical"] .ros-secondary-core,
+.ros-secondary-marker[data-tone="critical"] .ros-secondary-arrow {
   fill: var(--color-critical);
 }
-.ros-secondary-marker[data-tone="warning"] .ros-secondary-core {
+.ros-secondary-marker[data-tone="warning"] .ros-secondary-core,
+.ros-secondary-marker[data-tone="warning"] .ros-secondary-arrow {
   fill: var(--color-warning);
 }
-.ros-secondary-marker[data-tone="notice"] .ros-secondary-core {
+.ros-secondary-marker[data-tone="notice"] .ros-secondary-core,
+.ros-secondary-marker[data-tone="notice"] .ros-secondary-arrow {
   fill: var(--color-notice);
 }
-.ros-secondary-marker[data-tone="offline"] .ros-secondary-core {
+.ros-secondary-marker[data-tone="offline"] .ros-secondary-core,
+.ros-secondary-marker[data-tone="offline"] .ros-secondary-arrow {
   fill: var(--color-offline);
 }
 /*

@@ -550,6 +550,7 @@ watch(
           :scene-devices="fleet.sceneDevices"
           :trails="fleet.trailsByDeviceId"
           initial-view="fit"
+          @select="fleet.selectDevice"
         />
       </div>
 

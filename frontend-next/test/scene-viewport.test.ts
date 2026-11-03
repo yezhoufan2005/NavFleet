@@ -426,15 +426,36 @@ describe("follow mode", () => {
     expect(centreOf(api.viewport).y).toBeCloseTo(40, 4);
   });
 
-  it("turns off when the operator pans manually", () => {
+  it("stays on when the operator drags — a grab no longer breaks the lock (item 11)", () => {
     const { api } = mountViewport({
       device: { deviceId: "agv-01", fusionLoc: { x: 20, y: 10 } },
     });
     api.toggleFollow();
     expect(api.following.value).toBe(true);
+    const startX = api.viewport.offsetX;
 
     api.handlePointerDown(pointerAt(100, 100));
-    expect(api.following.value).toBe(false);
+    api.handlePointerMove(pointerAt(300, 100));
+
+    // Follow persists, and the drag is inert while it holds: the map stays locked on the
+    // vehicle rather than panning and snapping back on the next pose tick.
+    expect(api.following.value).toBe(true);
+    expect(api.viewport.offsetX).toBe(startX);
+    expect(api.dragging.value).toBe(false);
+  });
+
+  it("does not start a pan when the press lands on a clickable marker (data-no-pan)", () => {
+    const { api } = mountViewport();
+    const marker = document.createElement("div");
+    marker.setAttribute("data-no-pan", "");
+    const startX = api.viewport.offsetX;
+
+    api.handlePointerDown(pointerAt(100, 100, { target: marker }));
+    api.handlePointerMove(pointerAt(300, 100));
+
+    // The press is a vehicle selection, not a pan: the marker's own click handler runs.
+    expect(api.dragging.value).toBe(false);
+    expect(api.viewport.offsetX).toBe(startX);
   });
 
   it("turns off when 适应场景 or 定位车辆 is used (they conflict with follow)", () => {
