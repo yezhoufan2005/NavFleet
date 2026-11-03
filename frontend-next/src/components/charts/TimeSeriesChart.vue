@@ -44,6 +44,8 @@ const {
   xMin,
   xMax,
   yScale = false,
+  showTableToggle = true,
+  labelHidden = false,
 } = defineProps<{
   series: readonly TimeSeries[];
   /** One unit for the chart — see `timeSeriesOption.ts` for why not per series. */
@@ -72,6 +74,17 @@ const {
   xMax?: number;
   /** Fold the value axis to the data's own range instead of anchoring at 0 (for near-flat series). */
   yScale?: boolean;
+  /**
+   * Show the built-in 图表/数据表 toggle. False when a parent owns the toggle and its own table
+   * (the 曲线 tab's 历史 view renders a per-day table the built-in one cannot express, and its
+   * 实时 view has no table at all), so this stays chart-only and never switches itself.
+   */
+  showTableToggle?: boolean;
+  /**
+   * Keep `label` as the accessible name but drop it from the visible figcaption — for when the
+   * surrounding card already shows the heading, so the chart would otherwise print it twice.
+   */
+  labelHidden?: boolean;
 }>();
 
 /**
@@ -251,9 +264,16 @@ const formatStamp = (stamp: number): string =>
 
 <template>
   <figure class="m-0 flex flex-col gap-2">
-    <figcaption class="flex items-center justify-between gap-3">
-      <span class="text-sm font-medium text-ink">{{ label }}</span>
+    <figcaption
+      v-if="!labelHidden || showTableToggle"
+      class="flex items-center justify-between gap-3"
+    >
+      <span v-if="!labelHidden" class="text-sm font-medium text-ink">{{
+        label
+      }}</span>
+      <span v-else aria-hidden="true" />
       <UiButton
+        v-if="showTableToggle"
         variant="ghost"
         size="sm"
         :aria-pressed="showTable"

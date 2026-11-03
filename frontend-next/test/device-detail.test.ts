@@ -13,6 +13,7 @@ import type { HistorySample } from "@navfleet/fleet-core";
 import DeviceDetailView from "@/views/DeviceDetailView.vue";
 import DeviceLiveTab from "@/components/device/DeviceLiveTab.vue";
 import DeviceChartsTab from "@/components/device/DeviceChartsTab.vue";
+import DeviceMetricCurve from "@/components/device/DeviceMetricCurve.vue";
 import TimeSeriesChart from "@/components/charts/TimeSeriesChart.vue";
 import { useFleetStore } from "@/stores/fleet";
 
@@ -418,7 +419,7 @@ describe("视图切换", () => {
   });
 });
 
-describe("历史曲线", () => {
+describe("曲线", () => {
   /**
    * `measurements` is a `Partial<DeviceSnapshot>`, so a fixture carrying only
    * `vehicleInfo` needs the cast — the alternative is filling seventeen fields to
@@ -434,103 +435,42 @@ describe("历史曲线", () => {
   /**
    * Mounted on the `charts` child route, and that is the assertion as much as the
    * setup: the tab is a lazy child route, so a device opened on 实时 mounts neither this
-   * component nor its history request. `mountCharts()` failing to find a chart would
-   * mean the tab did not open.
+   * component nor its history request.
    */
   const mountCharts = () => mountDetail("agv-01", "charts");
 
-  it("draws speed and charge as two charts, never one with two axes", async () => {
+  it("draws speed and charge as two cards, never one chart with two axes", async () => {
     // m/s and % on shared axes would let the crossing point be chosen by whoever
     // picked the scales, which is the single most common way a chart misleads.
-    vi.spyOn(fleetApi, "getHistory").mockResolvedValue({
-      deviceId: "agv-01",
-      items: [
-        sample("2026-08-30T02:00:00.000Z", 1.1, 80),
-        sample("2026-08-30T02:00:10.000Z", 1.4, 79),
-      ],
-    });
     seed();
     const wrapper = await mountCharts();
 
-    const charts = wrapper.findAllComponents(TimeSeriesChart);
-    expect(charts).toHaveLength(2);
-    expect(charts[0]?.props("unit")).toBe("m/s");
-    expect(charts[1]?.props("unit")).toBe("%");
-    expect(charts[0]?.props("series")[0]?.points).toHaveLength(2);
+    const cards = wrapper.findAllComponents(DeviceMetricCurve);
+    expect(cards).toHaveLength(2);
+    expect(cards[0]?.props("metric")).toBe("speed");
+    expect(cards[0]?.props("unit")).toBe("m/s");
+    expect(cards[1]?.props("metric")).toBe("soc");
+    expect(cards[1]?.props("unit")).toBe("%");
   });
 
-  it("sorts samples oldest first whatever order they arrive in", async () => {
-    vi.spyOn(fleetApi, "getHistory").mockResolvedValue({
-      deviceId: "agv-01",
-      items: [
-        sample("2026-08-30T02:00:10.000Z", 1.4, 79),
-        sample("2026-08-30T02:00:00.000Z", 1.1, 80),
-      ],
-    });
-    seed();
-    const wrapper = await mountCharts();
-
-    const points = wrapper
-      .findAllComponents(TimeSeriesChart)[0]
-      ?.props("series")[0]?.points as readonly (readonly [number, number])[];
-    expect(points[0]![0]).toBeLessThan(points[1]![0]);
-  });
-
-  it("leaves out a reading stored as null instead of drawing it at 0", async () => {
-    // A vehicle that reports no soc has `soc: null`; `Number(null)` is 0, a flat line at 0 %.
+  it("opens both cards on 实时, seeded from a plain recent-history window", async () => {
     const getHistory = vi.spyOn(fleetApi, "getHistory").mockResolvedValue({
       deviceId: "agv-01",
-      items: [
-        sample("2026-08-30T02:00:00.000Z", 1.1, 80),
-        {
-          ts: "2026-08-30T02:00:10.000Z",
-          meta: { deviceId: "agv-01" },
-          measurements: { vehicleInfo: { speed: 1.2, soc: null } },
-        } as unknown as HistorySample,
-      ],
+      items: [sample("2026-11-03T11:55:00+08:00", 1.1, 80)],
     });
     seed();
     const wrapper = await mountCharts();
 
-    const charts = wrapper.findAllComponents(TimeSeriesChart);
-    expect(charts[1]?.props("series")[0]?.points).toHaveLength(1);
-    expect(charts[0]?.props("series")[0]?.points).toHaveLength(2);
-    // No fixed limit: the backend's own cap applies, whatever the deployment set it to.
-    expect(getHistory.mock.calls[0]?.[1]).toBeUndefined();
-  });
-
-  it("drops a sample whose value is not a number rather than plotting NaN", async () => {
-    vi.spyOn(fleetApi, "getHistory").mockResolvedValue({
-      deviceId: "agv-01",
-      items: [
-        sample("2026-08-30T02:00:00.000Z", 1.1, 80),
-        { ts: "2026-08-30T02:00:10.000Z", measurements: {} },
-      ],
-    });
-    seed();
-    const wrapper = await mountCharts();
-
+    // Each card shows its live chart straight away, seeded by a from/to query — never the
+    // three-day even-sampled span, which is only fetched when 历史 is selected.
+    expect(wrapper.findAllComponents(TimeSeriesChart)).toHaveLength(2);
     expect(
-      wrapper.findAllComponents(TimeSeriesChart)[0]?.props("series")[0]?.points,
-    ).toHaveLength(1);
-  });
-
-  it("says the device has no history rather than drawing an empty chart", async () => {
-    seed();
-    const wrapper = await mountCharts();
-
-    expect(wrapper.text()).toContain("还没有落库的历史遥测");
-    expect(wrapper.findAllComponents(TimeSeriesChart)).toHaveLength(0);
-  });
-
-  it("reports a failed request instead of looking like an empty device", async () => {
-    vi.spyOn(fleetApi, "getHistory").mockRejectedValue(new Error("HTTP 503"));
-    seed();
-    const wrapper = await mountCharts();
-
-    expect(wrapper.text()).toContain("历史数据加载失败");
-    // The backend's code is not shown to the operator.
-    expect(wrapper.text()).not.toContain("HTTP 503");
+      getHistory.mock.calls.every(([, p]) => p?.sampling === undefined),
+    ).toBe(true);
+    expect(getHistory.mock.calls[0]?.[1]).toMatchObject({
+      from: expect.any(String),
+      to: expect.any(String),
+    });
   });
 
   it("costs no request at all while the 实时 tab is the one showing", async () => {
