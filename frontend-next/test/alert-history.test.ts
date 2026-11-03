@@ -20,6 +20,13 @@ const barStub = {
   template:
     '<div class="bar-stub" :data-label="label" :data-count="data.length" :data-total="data.reduce((s, d) => s + d.value, 0)"></div>',
 };
+// 按严重度分布 defaults to the pie; same data shape, so a matching stub lets the data assertions
+// read it the same way as the bars.
+const pieStub = {
+  props: ["data", "label"],
+  template:
+    '<div class="pie-stub" :data-label="label" :data-count="data.length" :data-total="data.reduce((s, d) => s + d.value, 0)"></div>',
+};
 
 const record = (over: Partial<AlertRecord> = {}): AlertRecord => ({
   eventKey: "agv-01:e1",
@@ -50,7 +57,10 @@ const mountPanel = async (query = "") => {
   await router.push(`/${query}`);
   await router.isReady();
   const wrapper = mount(AlertHistoryPanel, {
-    global: { plugins: [router], stubs: { CategoryBarChart: barStub } },
+    global: {
+      plugins: [router],
+      stubs: { CategoryBarChart: barStub, PieChart: pieStub },
+    },
   });
   await flushPromises();
   return wrapper;
@@ -96,6 +106,7 @@ describe("the onset window (server-side, 1.6.1)", () => {
       status: "cleared",
       from: new Date("2026-03-01T00:00:00").toISOString(),
       to: new Date("2026-03-02T23:59:59.999").toISOString(),
+      limit: 10000,
     });
   });
 
@@ -107,21 +118,27 @@ describe("the onset window (server-side, 1.6.1)", () => {
     spy.mockClear();
     await router.push("/?from=2026-03-05");
     await flushPromises();
-    // A one-sided bound is honoured; only `from` is sent.
+    // A one-sided bound is honoured; only `from` is sent (plus the standing 10000-row cap).
     expect(spy).toHaveBeenCalledWith({
       status: "cleared",
       from: new Date("2026-03-05T00:00:00").toISOString(),
+      limit: 10000,
     });
   });
 });
 
 describe("loading and failure", () => {
-  it("reads only cleared alerts from the endpoint", async () => {
+  it("reads only cleared alerts, over the default 10-day window and 10000-row cap", async () => {
     const spy = vi
       .spyOn(fleetApi, "getAlerts")
       .mockResolvedValue({ items: [] });
     await mountPanel();
-    expect(spy).toHaveBeenCalledWith({ status: "cleared" });
+    // No 起 set, so the window defaults to the last 10 days; the cap rides every query.
+    expect(spy).toHaveBeenCalledWith(
+      expect.objectContaining({ status: "cleared", limit: 10000 }),
+    );
+    const [params] = spy.mock.calls[0]!;
+    expect(typeof (params as { from?: string }).from).toBe("string");
   });
 
   it("shows an error state when the history fails to load", async () => {
@@ -158,7 +175,7 @@ describe("the statistics", () => {
     expect(text).toContain("2小时0分"); // mean of 1h and 3h
   });
 
-  it("feeds the severity chart one bar per severity, summing to the total", async () => {
+  it("feeds the severity chart one slice per severity, summing to the total", async () => {
     vi.spyOn(fleetApi, "getAlerts").mockResolvedValue({
       items: [
         record({ severity: "critical" }),
@@ -167,11 +184,31 @@ describe("the statistics", () => {
       ],
     });
     const wrapper = await mountPanel();
+    // 按严重度分布 defaults to the pie.
+    const severity = wrapper
+      .findAll(".pie-stub")
+      .find((node) => node.attributes("data-label") === "按严重度分布");
+    expect(severity?.attributes("data-count")).toBe("3");
+    expect(severity?.attributes("data-total")).toBe("3");
+  });
+
+  it("toggles 按严重度分布 between pie and bar, pie first", async () => {
+    const wrapper = await mountPanel();
+    // Pie on arrival; the toggle offers the bar.
+    expect(wrapper.find(".pie-stub").exists()).toBe(true);
+    const toggle = wrapper
+      .findAll("button")
+      .find((button) => button.text() === "柱状图");
+    expect(toggle).toBeTruthy();
+
+    await toggle!.trigger("click");
+    await flushPromises();
+
     const severityBar = wrapper
       .findAll(".bar-stub")
       .find((node) => node.attributes("data-label") === "按严重度分布");
-    expect(severityBar?.attributes("data-count")).toBe("3");
-    expect(severityBar?.attributes("data-total")).toBe("3");
+    expect(severityBar).toBeTruthy();
+    expect(wrapper.find(".pie-stub").exists()).toBe(false);
   });
 
   it("labels the per-device chart by its dimension (按设备分布), not 告警", async () => {

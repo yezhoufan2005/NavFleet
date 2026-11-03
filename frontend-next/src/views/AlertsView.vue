@@ -712,22 +712,18 @@ watch(() => canAck.value && fleet.state.realtime.apiReady, runLegacyMigration);
             </span>
           </div>
 
-          <!-- A toggle that says it is one, rather than a button whose meaning is
-             carried by its colour.
-
-             Idle fill is `surface-sunken` — one step *down* from the row's own
-             `surface-raised`, so the control reads as a distinct button rather than a label
-             painted in the row's own colour (acceptance: the old `bg-surface` sat at the same
-             value as the surface behind it). The confirmed state carries the brand wash. -->
-          <button
+          <!-- Select-to-confirm per row, styled through UiButton so its size, colour and font
+               match the header's 确认当前筛选 — secondary while actionable, the brand fill once
+               confirmed. It stays a toggle (aria-pressed), so a mistaken confirm is one click back. -->
+          <UiButton
             v-if="canAck"
-            type="button"
-            class="inline-flex h-8 shrink-0 items-center rounded-sm border px-3 text-xs transition-colors duration-150 ease-standard"
-            :class="
+            size="sm"
+            :variant="
               ack.isAcknowledged(alert.deviceId, alert.id)
-                ? 'border-brand bg-brand-wash text-brand-ink hover:bg-surface-sunken'
-                : 'border-border-strong bg-surface-sunken text-ink hover:border-brand hover:bg-brand-wash hover:text-brand-ink'
+                ? 'primary'
+                : 'secondary'
             "
+            class="shrink-0"
             :aria-pressed="ack.isAcknowledged(alert.deviceId, alert.id)"
             :aria-label="`确认消息：${alert.title}`"
             @click="toggleOne(alert)"
@@ -735,7 +731,7 @@ watch(() => canAck.value && fleet.state.realtime.apiReady, runLegacyMigration);
             {{
               ack.isAcknowledged(alert.deviceId, alert.id) ? "已确认" : "确认"
             }}
-          </button>
+          </UiButton>
         </li>
       </ul>
 

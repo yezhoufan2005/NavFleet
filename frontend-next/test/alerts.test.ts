@@ -824,7 +824,9 @@ describe("the 消息史 tab", () => {
     await router.push("/alerts/history");
     await flushPromises();
 
-    expect(spy).toHaveBeenCalledWith({ status: "cleared" });
+    expect(spy).toHaveBeenCalledWith(
+      expect.objectContaining({ status: "cleared", limit: 10000 }),
+    );
     expect(wrapper.text()).toContain("暂无已清除");
     expect(wrapper.text()).not.toContain("显示已确认");
 

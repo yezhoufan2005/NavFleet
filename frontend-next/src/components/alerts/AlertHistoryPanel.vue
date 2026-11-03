@@ -15,6 +15,8 @@
 import { computed, onMounted, ref, watch } from "vue";
 import { RouterLink, useRoute } from "vue-router";
 import CategoryBarChart from "@/components/charts/CategoryBarChart.vue";
+import PieChart from "@/components/charts/PieChart.vue";
+import UiButton from "@/components/ui/UiButton.vue";
 import UiListPagination from "@/components/ui/UiListPagination.vue";
 import UiEmptyState from "@/components/ui/UiEmptyState.vue";
 import { useLatestRequest } from "@/composables/useLatestRequest";
@@ -44,6 +46,15 @@ const records = ref<AlertRecord[]>([]);
 const cappedAt = ref<number | null>(null);
 const latestRequest = useLatestRequest();
 
+/**
+ * The window this history covers out of the box, and the row cap asked of the server. Ten days
+ * by default (an explicit 起 in the filter bar reaches further back, within the cap); up to 10000
+ * rows — the former 500 page cut a busy fleet's ten days to its newest hours and read as
+ * 「没有更早的」. Both are query/display settings only; the DB's retention TTL is untouched.
+ */
+const HISTORY_DAYS = 10;
+const HISTORY_LIMIT = 10_000;
+
 /** Clear time in epoch ms, `-Infinity` when absent so undated rows sort last. */
 const clearedMs = (record: AlertRecord): number => {
   const parsed = Date.parse(String(record.clearedAt ?? ""));
@@ -61,6 +72,7 @@ const load = async (): Promise<void> => {
     const payload = await fleetApi.getAlerts({
       status: "cleared",
       ...queryWindow.value,
+      limit: HISTORY_LIMIT,
       // One device: asked of the server, so the row cap applies to that vehicle's history rather
       // than to the fleet's latest — a quiet vehicle's older records were otherwise cut off and
       // the filter read 「没有符合」.
@@ -123,8 +135,11 @@ const fromParam = computed(() => readParam("from"));
 const toParam = computed(() => readParam("to"));
 const queryWindow = computed<{ from?: string; to?: string }>(() => {
   const result: { from?: string; to?: string } = {};
-  if (fromParam.value)
-    result.from = new Date(`${fromParam.value}T00:00:00`).toISOString();
+  // Default to the last 10 days when no 起 is set — the window the history covers out of the box.
+  // An explicit 起 reaches further back; the cap then applies within whatever window is asked.
+  result.from = fromParam.value
+    ? new Date(`${fromParam.value}T00:00:00`).toISOString()
+    : new Date(Date.now() - HISTORY_DAYS * 24 * 60 * 60 * 1000).toISOString();
   if (toParam.value)
     result.to = new Date(`${toParam.value}T23:59:59.999`).toISOString();
   return result;
@@ -182,6 +197,12 @@ const filtered = computed(() =>
 );
 
 // ── Derived statistics + chart inputs ─────────────────────────────────────────────────────
+/**
+ * 按严重度分布 shows as a pie by default (the 占比 read) with a toggle to the bar, which is the
+ * better tool for comparing the three magnitudes. Per-viewer only; not worth a URL param.
+ */
+const severityView = ref<"pie" | "bar">("pie");
+
 // `topN: Infinity` — the per-device chart shows *every* device with cleared messages, not a Top-8.
 // The chart card has a fixed height and scrolls (see the grid comment), so "all of them" costs a
 // scrollbar, never an ever-taller card.
@@ -354,11 +375,36 @@ const pageRows = computed(() =>
          fixed height is the whole point — a scrollbar, never an ever-taller card. -->
     <div class="grid gap-4 lg:grid-cols-3">
       <section class="rounded-md border border-border bg-surface-raised p-4">
-        <CategoryBarChart
+        <!-- 按严重度分布: pie by default (占比), toggle to the bar (magnitude comparison). The card
+             owns the 饼图/柱状图 toggle, so both charts render plot-only (labelHidden, no table). -->
+        <div class="mb-2 flex items-center justify-between gap-3">
+          <span class="text-sm font-medium text-ink">按严重度分布</span>
+          <UiButton
+            variant="ghost"
+            size="sm"
+            :aria-pressed="severityView === 'bar'"
+            @click="severityView = severityView === 'pie' ? 'bar' : 'pie'"
+          >
+            {{ severityView === "pie" ? "柱状图" : "饼图" }}
+          </UiButton>
+        </div>
+        <PieChart
+          v-if="severityView === 'pie'"
           :data="severityData"
           label="按严重度分布"
           unit="条"
           :height="240"
+          label-hidden
+          :show-table-toggle="false"
+        />
+        <CategoryBarChart
+          v-else
+          :data="severityData"
+          label="按严重度分布"
+          unit="条"
+          :height="240"
+          label-hidden
+          :show-table-toggle="false"
         />
       </section>
       <section class="rounded-md border border-border bg-surface-raised p-4">
