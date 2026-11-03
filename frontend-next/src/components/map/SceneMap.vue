@@ -297,13 +297,13 @@ const MARKER = {
   fusionCore: 10,
   lidarRing: 20,
   lidarCore: 8,
-  arrowHeight: 30,
-  arrowHalfWidth: 10,
+  arrowHeight: 22,
+  arrowHalfWidth: 8,
   peerCore: 7,
   // Peers carry a heading arrow too (item 10), one notch smaller than the selected
   // vehicle's so the selection still reads as the primary.
-  peerArrowHeight: 20,
-  peerArrowHalfWidth: 7,
+  peerArrowHeight: 15,
+  peerArrowHalfWidth: 5,
   // Laser localization is demoted to a small companion dot beside the primary puck,
   // rather than a second full marker that read as a duplicate at high zoom.
   lidarDot: 5,
@@ -1148,11 +1148,12 @@ const cloudLabel = computed(() =>
 .ros-marker-arrow {
   fill: var(--color-brand);
   stroke: var(--color-surface-raised);
-  /* Same width as `.ros-marker-core` so the selected vehicle's arrow and circle carry an
-     equally-thick white edge (负责人 2026-11-03), rather than the arrow reading thinner. */
+  /* Same width AND paint-order (default: stroke straddles the edge over the fill) as
+     `.ros-marker-core`, so the arrow and the circle carry a visually equal white edge
+     (负责人 2026-11-03). `paint-order: stroke` here made the arrow's edge render as only
+     its outer half — about half the circle's — which read as a thinner outline. */
   stroke-width: 2;
   stroke-linejoin: round;
-  paint-order: stroke;
 }
 /* Laser fix: the demoted companion dot, in its own violet (distinct from the fusion
    fix's brand blue) with the same light edge. */
@@ -1195,14 +1196,14 @@ const cloudLabel = computed(() =>
   stroke: var(--color-surface-raised);
   stroke-width: 1.5;
 }
-/* Peer heading arrow: same fill/edge as the peer core (one notch thinner edge than the
-   selected vehicle's, matching its smaller size), drawn under the core. */
+/* Peer heading arrow: same fill and edge as the peer core, and the same default
+   paint-order and stroke-width so its white edge matches the peer circle's (not the
+   outer-half that `paint-order: stroke` would give). */
 .ros-secondary-arrow {
   fill: var(--color-ink-subtle);
   stroke: var(--color-surface-raised);
   stroke-width: 1.5;
   stroke-linejoin: round;
-  paint-order: stroke;
 }
 /* A peer is a click target: pressing it switches the active vehicle (`data-no-pan` stops
    the press from panning instead). */
