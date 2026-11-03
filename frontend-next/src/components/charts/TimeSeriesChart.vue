@@ -51,6 +51,7 @@ const {
   colors,
   dayAxis = false,
   streaming = false,
+  rightAxis,
 } = defineProps<{
   series: readonly TimeSeries[];
   /** One unit for the chart — see `timeSeriesOption.ts` for why not per series. */
@@ -103,6 +104,12 @@ const {
    * the draw animation, which is the "每秒重画、像没有线" the realtime view hit).
    */
   streaming?: boolean;
+  /**
+   * Opt into a second, right-hand value axis for series marked `axis: "right"` — off unless
+   * set (see `timeSeriesOption`). Only 回放 uses it: 速度 left, 电量 right, one time axis. Its
+   * `unit` also labels that series' column in the data table.
+   */
+  rightAxis?: { unit?: string; yMin?: number; yMax?: number };
 }>();
 
 /**
@@ -159,6 +166,7 @@ const option = computed(() =>
     colors,
     dayAxis,
     streaming,
+    rightAxis,
   }),
 );
 
@@ -291,6 +299,16 @@ const tableLabel = computed(() =>
 
 const formatStamp = (stamp: number): string =>
   new Date(stamp).toLocaleString(undefined, { hour12: false });
+
+/**
+ * A data-table column header: the series name, with its unit in parentheses. The unit is the
+ * right axis's own for a right-bound series (`电量 (%)`), else the chart's (`速度 (m/s)`).
+ * Built as one string so the name and unit never drift apart across a template line wrap.
+ */
+const columnHeader = (entry: TimeSeries): string => {
+  const columnUnit = entry.axis === "right" ? rightAxis?.unit : unit;
+  return columnUnit ? `${entry.name} (${columnUnit})` : entry.name;
+};
 </script>
 
 <template>
@@ -380,7 +398,7 @@ const formatStamp = (stamp: number): string =>
             scope="col"
             class="px-3 py-2 font-medium"
           >
-            {{ entry.name }}<template v-if="unit"> ({{ unit }})</template>
+            {{ columnHeader(entry) }}
           </th>
         </tr>
       </template>
