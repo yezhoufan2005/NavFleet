@@ -26,7 +26,7 @@
   "devDependencies": {
     "@eslint/js": "*",
     "@tailwindcss/vite": "^4.3.3",
-    "@types/node": "^26.6.5",
+    "@types/node": "^26.6.6",
     "@vitejs/plugin-vue": "^6.0.10",
     "@vitest/coverage-v8": "^5.0.5",
     "@vue/test-utils": "^2.5.1",
@@ -42,7 +42,7 @@
     "typescript-eslint": "*",
     "vite": "^8.3.5",
     "vitest": "^5.0.1",
-    "vue-tsc": "^3.3.13"
+    "vue-tsc": "^3.3.14"
   },
   "engines": {
     "node": "^22.13.0 || ^24.0.0 || >=26.0.0"
