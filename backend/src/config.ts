@@ -5,6 +5,16 @@ import { topicPatternProblem } from "./topics";
 
 const ENV_FILENAMES = [".env.local", ".env"];
 
+/**
+ * The most rows a single `GET /api/alerts` may ask for through its `limit` param — the default
+ * page is `MAX_ALERTS_PER_QUERY` (persistence), this is the hard ceiling a caller can raise it to.
+ * 设备消息史 asks for up to 1000 over a 30-day window, 消息·消息史 for up to 10000; past this a
+ * time window narrows the period instead, because one unbounded read is not a history browser.
+ * Lives here (not in persistence) so the request schema can read it without importing the Mongo
+ * layer — the same reason `maxHistoryPoints` is config, not a persistence constant.
+ */
+export const MAX_ALERTS_QUERY_LIMIT = 10_000;
+
 const parseEnvValue = (rawValue: string): string => {
   const trimmed = rawValue.trim();
   if (

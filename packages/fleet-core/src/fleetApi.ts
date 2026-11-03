@@ -131,6 +131,11 @@ export interface AlertsQueryParams {
    * server's most-recent page (the query is row-capped). */
   from?: string;
   to?: string;
+  /**
+   * Rows to return. Omitted leaves the server's default page (500); 设备消息史 asks for 1000 over
+   * a 30-day window, 消息·消息史 for 10000. The server clamps to its own ceiling.
+   */
+  limit?: number;
 }
 
 /** Range for the server-side report aggregation. Both optional; the aggregate spans

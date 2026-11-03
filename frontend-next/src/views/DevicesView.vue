@@ -24,6 +24,7 @@ import GpsMap from "@/components/map/GpsMap.vue";
 import SceneMap from "@/components/map/SceneMap.vue";
 import DeviceRowCard from "@/components/device/DeviceRowCard.vue";
 import UiSelect from "@/components/ui/UiSelect.vue";
+import UiDisclosureArrow from "@/components/ui/UiDisclosureArrow.vue";
 import UiSegmented from "@/components/ui/UiSegmented.vue";
 import UiInput from "@/components/ui/UiInput.vue";
 import UiMultiSelect from "@/components/ui/UiMultiSelect.vue";
@@ -795,9 +796,9 @@ watch(
                     :aria-label="`${row.device.deviceName || row.device.deviceId} 详情`"
                     @click.stop="toggleExpanded(row.device.deviceId)"
                   >
-                    <span aria-hidden="true" class="text-lg leading-none">
-                      {{ expandedId === row.device.deviceId ? "▾" : "▸" }}
-                    </span>
+                    <UiDisclosureArrow
+                      :open="expandedId === row.device.deviceId"
+                    />
                   </button>
                 </td>
                 <td class="px-3 py-2">
@@ -924,7 +925,7 @@ watch(
 
 /* An open row keeps its ordinary background (white / surface), so the summary row and the
    detail card below it stay visually distinct — a tint on the row made the two blur into
-   one grey block. The ▾ chevron is what marks the row open; colour is left to the status
+   one grey block. The rotating chevron is what marks the row open; colour is left to the status
    dot and the tone rows below. */
 
 /* Tone rows: a wash + inset edge in the tone colour. notice carries the same treatment as

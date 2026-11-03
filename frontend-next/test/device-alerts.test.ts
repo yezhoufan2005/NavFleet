@@ -3,18 +3,22 @@ import type { MockInstance } from "vitest";
 import { createPinia, setActivePinia } from "pinia";
 import { createMemoryHistory, createRouter } from "vue-router";
 import { enableAutoUnmount, flushPromises, mount } from "@vue/test-utils";
+import type { VueWrapper } from "@vue/test-utils";
 import { fleetApi, formatDateTime } from "@navfleet/fleet-core";
 import type { AlertRecord } from "@navfleet/fleet-core";
 import DeviceAlertsTab from "@/components/device/DeviceAlertsTab.vue";
 
 /**
  * 消息史 — the fourth L3 tab, and the first consumer of `/api/v1/alerts` anywhere in
- * the console (the alert centre was built on the store's live alerts and left the
- * endpoint at zero calls).
+ * the console.
  *
- * The tests that matter most are about the two states an operator can misread: an
- * empty history that is really a missing MongoDB, and a row that is still running
- * versus one that has ended.
+ * The history is grouped into one collapsible card per calendar day, closed on arrival with a
+ * summary (date · count · severity tally). So most assertions about a row's content expand its
+ * day first (`expandAll`); what reads while collapsed is the per-day summary.
+ *
+ * The states an operator can misread are still the point: an empty history that is really a
+ * missing MongoDB, a 发生 that is the onset and not the last report, and — unlike 消息·消息史 —
+ * a row that is still active rather than cleared.
  */
 enableAutoUnmount(afterEach);
 
@@ -42,8 +46,6 @@ const mountTab = async (deviceId = "agv-01") => {
     history: createMemoryHistory(),
     routes: [{ path: "/:rest(.*)*", component: { template: "<i />" } }],
   });
-  // Pushed before `isReady`: a memory history performs no initial navigation on its
-  // own, so awaiting readiness without a push never resolves.
   await router.push("/devices/agv-01");
   await router.isReady();
   const wrapper = mount(DeviceAlertsTab, {
@@ -53,6 +55,21 @@ const mountTab = async (deviceId = "agv-01") => {
   await flushPromises();
   return wrapper;
 };
+
+/** Open every collapsed day group so row-level content renders. */
+const expandAll = async (wrapper: VueWrapper): Promise<void> => {
+  for (const button of wrapper.findAll("button[aria-expanded]")) {
+    if (button.attributes("aria-expanded") === "false")
+      await button.trigger("click");
+  }
+  await flushPromises();
+};
+
+/** A day-group summary button (the thing rendered while collapsed). */
+const dayButtons = (wrapper: VueWrapper) =>
+  wrapper.findAll("button[aria-expanded]");
+/** A message row within an expanded day. */
+const rowItems = (wrapper: VueWrapper) => wrapper.findAll("li[data-severity]");
 
 beforeEach(() => {
   setActivePinia(createPinia());
@@ -64,24 +81,77 @@ beforeEach(() => {
 afterEach(() => {
   vi.restoreAllMocks();
 });
-
 describe("消息史", () => {
-  it("按设备取，而不是取全车队再筛", async () => {
+  it("按设备取，30 天窗 + 1000 条上限，而不是取全车队再筛", async () => {
     await mountTab("agv-07");
-    expect(getAlerts).toHaveBeenCalledWith({ deviceId: "agv-07" });
-  });
-
-  it("是这个端点在控制台里的第一个消费者", async () => {
-    // Worth an assertion rather than a comment: `/api/v1/alerts` was on record as
-    // having zero callers, and this tab is the change.
-    await mountTab();
     expect(getAlerts).toHaveBeenCalledTimes(1);
+    const [params] = getAlerts.mock.calls[0]!;
+    expect(params).toMatchObject({ deviceId: "agv-07", limit: 1000 });
+    expect(typeof params!.from).toBe("string");
   });
 
-  it("显示告警中心从不显示的三样：发生、结束、还在不在", async () => {
-    // The reason this is not the alert centre's row. That page renders live alerts —
-    // active by definition — so `ts` / `clearedAt` / `active` never appear there.
+  it("按天分组，组头给出条数与严重度概要", async () => {
+    getAlerts.mockResolvedValue({
+      items: [
+        record({ id: "a" }),
+        record({
+          id: "b",
+          active: false,
+          clearedAt: new Date(BASE).toISOString(),
+        }),
+      ],
+    });
     const wrapper = await mountTab();
+
+    // Both on the same calendar day → one group; its summary counts both and tallies severity.
+    expect(wrapper.text()).toContain("最近 30 天 · 2 条");
+    const summary = dayButtons(wrapper)[0]!;
+    expect(summary.text()).toContain("2 条");
+    expect(summary.text()).toContain("告警 2");
+  });
+
+  it("默认全部收起，点日期组才展开当天的记录", async () => {
+    const wrapper = await mountTab();
+    const summary = dayButtons(wrapper)[0]!;
+
+    expect(summary.attributes("aria-expanded")).toBe("false");
+    // Collapsed: the row (and its 发生/结束) is not in the DOM yet.
+    expect(rowItems(wrapper).length).toBe(0);
+
+    await summary.trigger("click");
+    await flushPromises();
+
+    expect(summary.attributes("aria-expanded")).toBe("true");
+    expect(rowItems(wrapper).length).toBe(1);
+  });
+  it("去掉了醒目的活跃计数与每条的活跃/已清除徽标，状态只落在结束一栏", async () => {
+    getAlerts.mockResolvedValue({
+      items: [
+        record({ id: "a" }),
+        record({
+          id: "b",
+          active: false,
+          clearedAt: new Date(BASE).toISOString(),
+        }),
+      ],
+    });
+    const wrapper = await mountTab();
+
+    // Header counts the total, not "N 条仍活跃"; the summary tallies severity, not active state.
+    expect(wrapper.text()).toContain("2 条");
+    expect(wrapper.text()).not.toContain("仍活跃");
+
+    await expandAll(wrapper);
+    // Expanded, 仍活跃 shows as the active row's 结束 value.
+    const activeRow = rowItems(wrapper).find((row) =>
+      row.text().includes("仍活跃"),
+    );
+    expect(activeRow).toBeTruthy();
+  });
+
+  it("每条写出发生、结束，仍在运行的写「仍活跃」", async () => {
+    const wrapper = await mountTab();
+    await expandAll(wrapper);
 
     expect(wrapper.text()).toContain("发生");
     expect(wrapper.text()).toContain("结束");
@@ -98,19 +168,12 @@ describe("消息史", () => {
       ],
     });
     const wrapper = await mountTab();
+    await expandAll(wrapper);
 
-    // Scoped to the row: the header legitimately says "0 条仍活跃".
-    const row = wrapper.get("li");
-    expect(row.text()).toContain("已清除");
-    expect(row.text()).not.toContain("仍活跃");
-    // Built with the same formatter rather than typed out. A literal "2026/8/30
-    // 10:01:30" is the UTC+8 rendering of this instant, so it asserted the author's
-    // timezone — it passed here and failed on both CI legs, which run UTC. The
-    // timezone is pinned in `vitest.config.ts` now; this still goes through the
-    // formatter, because what the test means is "the cleared instant is shown".
+    const row = rowItems(wrapper)[0]!;
     expect(row.text()).toContain(formatDateTime(BASE + 90_000));
+    expect(row.text()).not.toContain("仍活跃");
   });
-
   it("最新的排在最前，因为时间线是从现在往回读的", async () => {
     getAlerts.mockResolvedValue({
       items: [
@@ -127,14 +190,15 @@ describe("消息史", () => {
       ],
     });
     const wrapper = await mountTab();
-    const titles = wrapper.findAll("li strong").map((item) => item.text());
+    await expandAll(wrapper);
+    const titles = wrapper
+      .findAll("li[data-severity] strong")
+      .map((item) => item.text());
 
     expect(titles).toEqual(["较晚的一条", "较早的一条"]);
   });
 
-  it("没有时间戳的排最后，而不是自称就是现在", async () => {
-    // `formatDateTime` falls back to `Date.now()`, so the naive version both dates an
-    // undated record to this second and sorts it to the top.
+  it("没有时间戳的归到末尾的「未知时间」，而不是自称就是现在", async () => {
     getAlerts.mockResolvedValue({
       items: [
         record({ id: "undated", title: "无时间戳", ts: undefined }),
@@ -142,16 +206,19 @@ describe("消息史", () => {
       ],
     });
     const wrapper = await mountTab();
-    const items = wrapper.findAll("li");
 
-    expect(items[1]!.text()).toContain("无时间戳");
-    expect(items[1]!.text()).toContain("--");
+    // The undated bucket is the last group and is named 未知时间.
+    const groups = dayButtons(wrapper);
+    expect(groups[groups.length - 1]!.text()).toContain("未知时间");
+
+    await expandAll(wrapper);
+    const undatedRow = rowItems(wrapper).find((row) =>
+      row.text().includes("无时间戳"),
+    )!;
+    expect(undatedRow.text()).toContain("--");
   });
 
   it("空态说清缺的是 MongoDB，并给出能回答这件事的那一页", async () => {
-    // Without Mongo the endpoint can only answer with active alerts, so a vehicle with
-    // a long troubled history looks exactly like one that has never faulted. That is
-    // the state this copy exists to separate.
     getAlerts.mockResolvedValue({ items: [] });
     const wrapper = await mountTab();
 
@@ -159,32 +226,14 @@ describe("消息史", () => {
     expect(wrapper.find("a").attributes("href")).toBe("/system");
   });
 
-  it("数出仍活跃的条数，那是决定要不要动手的数字", async () => {
-    getAlerts.mockResolvedValue({
-      items: [
-        record({ id: "a" }),
-        record({
-          id: "b",
-          active: false,
-          clearedAt: new Date(BASE).toISOString(),
-        }),
-      ],
-    });
-    const wrapper = await mountTab();
-
-    expect(wrapper.text()).toContain("2 条 · 1 条仍活跃");
-  });
-
   it("请求失败就说失败，不装成没有历史", async () => {
     getAlerts.mockRejectedValue(new Error("HTTP 503"));
     const wrapper = await mountTab();
 
     expect(wrapper.text()).toContain("消息历史加载失败");
-    // The backend's code is not shown to the operator.
     expect(wrapper.text()).not.toContain("HTTP 503");
     expect(wrapper.text()).not.toContain("MongoDB");
   });
-
   it("换设备重新取，且旧设备的迟到响应不会落地", async () => {
     let settleFirst: (value: { items: AlertRecord[] }) => void = () =>
       undefined;
@@ -201,6 +250,7 @@ describe("消息史", () => {
 
     settleFirst({ items: [record({ title: "第一台的告警" })] });
     await flushPromises();
+    await expandAll(wrapper);
 
     expect(wrapper.text()).toContain("第二台的告警");
     expect(wrapper.text()).not.toContain("第一台的告警");
@@ -215,6 +265,7 @@ describe("消息史", () => {
       ],
     });
     const wrapper = await mountTab();
+    // The words ride the collapsed summary's severity tally — identity never colour alone.
     const text = wrapper.text();
 
     expect(text).toContain("告警");
@@ -223,7 +274,6 @@ describe("消息史", () => {
   });
 
   it("「发生」取这次发生的起点，不是最后一次上报", async () => {
-    // 一次发生一条记录，ts 随每帧前进；用 ts 当「发生」，三小时的预警看起来只有几秒。
     getAlerts.mockResolvedValue({
       items: [
         record({
@@ -235,7 +285,9 @@ describe("消息史", () => {
       ],
     });
     const wrapper = await mountTab();
+    await expandAll(wrapper);
     const text = wrapper.text();
+
     expect(text).toContain(
       formatDateTime(Date.parse("2026-08-30T00:00:00.000Z")),
     );
