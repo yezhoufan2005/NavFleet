@@ -29,7 +29,7 @@ import {
   getDeviceStatus,
   getDeviceTone,
 } from "@navfleet/fleet-core";
-import type { DeviceSnapshot } from "@navfleet/shared";
+import { formatSoc, type DeviceSnapshot } from "@navfleet/shared";
 
 const fleet = useFleetStore();
 
@@ -268,7 +268,7 @@ const attention = computed<AttentionRow[]>(() =>
             ? "已失联，最后状态可能已过期"
             : code || "无详细信息",
         status: deviceStatusLabels[getDeviceStatus(device)],
-        socLabel: Number.isFinite(soc) ? `${Math.round(soc as number)}%` : "--",
+        socLabel: formatSoc(soc),
       };
     }),
 );

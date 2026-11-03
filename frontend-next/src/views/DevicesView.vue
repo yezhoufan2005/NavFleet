@@ -45,10 +45,10 @@ import type {
 } from "@/composables/useDeviceView";
 import {
   deviceToneLabels,
-  formatNumber,
   formatStamp,
   getDeviceTone,
 } from "@navfleet/fleet-core";
+import { formatSoc } from "@navfleet/shared";
 
 const fleet = useFleetStore();
 const { state } = storeToRefs(fleet);
@@ -133,7 +133,7 @@ const rows = computed(() =>
       // Two columns v1.0.0 had and the port dropped. Without them "谁快没电了、谁的数据
       // 停了" needs one detail page per vehicle instead of one glance at the list.
       stamp: formatStamp(device.stamp),
-      soc: formatNumber(device.vehicleInfo?.soc, 0, "%"),
+      soc: formatSoc(device.vehicleInfo?.soc),
       formationNames: (device.formationIds ?? []).map(
         (formationId) =>
           state.value.formationsById[formationId]?.formationName || formationId,

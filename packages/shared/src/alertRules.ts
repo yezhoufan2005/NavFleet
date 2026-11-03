@@ -20,6 +20,7 @@
  */
 
 import type { DeviceAlert, DeviceSnapshot } from "./index";
+import { formatSoc } from "./metrics";
 
 /**
  * Which devices a rule applies to. An empty scope (no dimension listed) means **all
@@ -103,12 +104,6 @@ export const buildOfflineAlert = (
   active: true,
 });
 
-/** `round(15.0, 1)` is `15`, not `"15.0"` — the reason the detail text uses it (see below). */
-const round = (value: number, precision = 2): number => {
-  const factor = 10 ** precision;
-  return Math.round(value * factor) / factor;
-};
-
 /** Whether a rule with this scope watches this device. Empty scope = the whole fleet. */
 export const deviceMatchesScope = (
   device: Pick<DeviceSnapshot, "deviceId" | "formationIds" | "tags">,
@@ -152,9 +147,10 @@ export const evaluateRuleAlerts = (
       alerts.push({
         id: `${device.deviceId}-low-soc`,
         title: "低电量预警",
-        // `round`, not `toFixed(1)`: an integral reading must read "15%", not "15.0%".
-        // The two former copies drifted on exactly this before they were unified.
-        detail: `当前电量 ${round(soc, 1)}%，建议尽快安排回充`,
+        // `formatSoc` is the one spelling of soc (one decimal, trailing zero dropped), the same
+        // helper the chips use — so this message and the vehicle's live chip never show a reading
+        // as two different numbers (a 15.5% battery once read "15.5%" here and "16%" on the row).
+        detail: `当前电量 ${formatSoc(soc)}，建议尽快安排回充`,
         severity: "warning",
         source: "rule-engine",
         ts: device.stamp,
