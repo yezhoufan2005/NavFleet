@@ -281,8 +281,9 @@ mosquitto_pub -h 127.0.0.1 -p 1883 \
 ```
 
 也可以叠加项目自带的演示车队（模拟器 `sim` 与本机邮件收件箱 `mailpit`）。它用
-`MQTT_PUBLISHER_USERNAME` / `MQTT_PUBLISHER_PASSWORD` 连 broker，首次启动先生成保留期内的历史，
-之后每次启动只补停机期间的空档，再转为实时上报：
+`MQTT_PUBLISHER_USERNAME` / `MQTT_PUBLISHER_PASSWORD` 连 broker，首次启动先生成保留期内的历史
+（29 车 × 30 天，CPU 密集；按 `SIM_SHARDS` 分片并行、受 sim 容器 `SIM_CPUS` 上限约束，默认 4/4，
+宿主核够可在 `deploy/.env` 里一起调大加快首启），之后每次启动只补停机期间的空档，再转为实时上报：
 
 ```bash
 cd /opt/navfleet

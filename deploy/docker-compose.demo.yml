@@ -34,6 +34,10 @@ services:
       MQTT_PUBLISHER_USERNAME: ${MQTT_PUBLISHER_USERNAME:-navfleet-publisher}
       MQTT_PUBLISHER_PASSWORD: ${MQTT_PUBLISHER_PASSWORD:?MQTT_PUBLISHER_PASSWORD is required}
       TELEMETRY_RETENTION_SECONDS: ${TELEMETRY_RETENTION_SECONDS:-2592000}
+      # First-start catch-up shards the 30-day backfill across child processes; raise this
+      # together with the CPU limit below to speed up the one-time first start. Unset falls
+      # back to min(4, host CPUs).
+      SIM_SHARDS: ${SIM_SHARDS:-4}
       OFFLINE_AFTER_SECONDS: ${OFFLINE_AFTER_SECONDS:-60}
       REPORT_TIMEZONE: ${REPORT_TIMEZONE:-Asia/Shanghai}
       LOG_LEVEL: warn
@@ -54,7 +58,11 @@ services:
     deploy:
       resources:
         limits:
-          cpus: "2.00"
+          # The first start backfills 30 days of history (CPU-bound). This caps how many of
+          # the SIM_SHARDS catch-up processes actually run in parallel, so keep it >= SIM_SHARDS
+          # for the first start to go faster; raise both (e.g. SIM_CPUS=8, SIM_SHARDS=8) on a
+          # host with cores to spare, or lower on a small one. Steady-state live needs ~1.
+          cpus: "${SIM_CPUS:-4.00}"
           memory: 1536M
     restart: unless-stopped
 
