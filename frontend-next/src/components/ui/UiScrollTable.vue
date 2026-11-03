@@ -1,7 +1,7 @@
 <script setup lang="ts">
 /**
  * The one scroll-table shell every 报表 data table shares, so they finally read as one component
- * (负责人 reqs: 「抽取对齐，别乱写」). It gives:
+ * rather than each hand-rolling its own. It gives:
  *
  * - a gray header **outside** the vertical scroll box, so the scrollbar runs beside the records
  *   only (灰顶栏盖住滑条), padded right by the body's live scrollbar width so the two `table-fixed`

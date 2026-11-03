@@ -618,10 +618,10 @@ export function useSvgViewport(options: UseSvgViewportOptions) {
       return;
     }
 
-    // Follow mode owns the viewport, and a drag no longer cancels it (负责人 2026-11-03):
-    // while following, a single-pointer grab is inert — the map stays locked on the vehicle
-    // rather than panning and snapping back on the next pose tick. Zoom (wheel/pinch) still
-    // works, because follow re-centres around it. To pan freely, leave follow via its button.
+    // Follow mode owns the viewport, and a drag no longer cancels it: while following, a
+    // single-pointer grab is inert — the map stays locked on the vehicle rather than
+    // panning and snapping back on the next pose tick. Zoom (wheel/pinch) still works,
+    // because follow re-centres around it. To pan freely, leave follow via its button.
     if (following.value) return;
     isDragging = true;
     activePointerId = event.pointerId;

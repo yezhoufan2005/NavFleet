@@ -8,10 +8,9 @@ import {
 
 /**
  * 实时状态 is derived from fields already on the snapshot, so these tests pin the
- * priority order (负责人 2026-11-03): 离线 > 急停 > 故障 > 遥控 > 充电中 > 任务中 >
- * 异常中断 > 待命. The ordering is the part that breaks silently if someone reshuffles
- * the branches, so each case sets a higher-priority signal *and* a lower one and
- * asserts the higher wins.
+ * priority order: 离线 > 急停 > 故障 > 遥控 > 充电中 > 任务中 > 异常中断 > 待命. The
+ * ordering is the part that breaks silently if someone reshuffles the branches, so each
+ * case sets a higher-priority signal *and* a lower one and asserts the higher wins.
  */
 const device = (
   patch: Partial<

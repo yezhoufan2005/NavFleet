@@ -1149,9 +1149,9 @@ const cloudLabel = computed(() =>
   fill: var(--color-brand);
   stroke: var(--color-surface-raised);
   /* Same width AND paint-order (default: stroke straddles the edge over the fill) as
-     `.ros-marker-core`, so the arrow and the circle carry a visually equal white edge
-     (负责人 2026-11-03). `paint-order: stroke` here made the arrow's edge render as only
-     its outer half — about half the circle's — which read as a thinner outline. */
+     `.ros-marker-core`, so the arrow and the circle carry a visually equal white edge.
+     `paint-order: stroke` here made the arrow's edge render as only its outer half —
+     about half the circle's — which read as a thinner outline. */
   stroke-width: 2;
   stroke-linejoin: round;
 }
