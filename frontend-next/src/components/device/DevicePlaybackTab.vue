@@ -37,6 +37,7 @@ import TimeSeriesChart from "@/components/charts/TimeSeriesChart.vue";
 import UiButton from "@/components/ui/UiButton.vue";
 import { useFleetStore } from "@/stores/fleet";
 import { useLatestRequest } from "@/composables/useLatestRequest";
+import { useChartTheme } from "@/composables/useChartTheme";
 import {
   PLAYBACK_SPEEDS,
   useHistoryPlayback,
@@ -65,6 +66,7 @@ const speedOptions = PLAYBACK_SPEEDS.map((value) => ({
 const { deviceId } = defineProps<{ deviceId: string }>();
 
 const fleet = useFleetStore();
+const { palette } = useChartTheme();
 const liveDevice = computed<DeviceSnapshot | null>(
   () => fleet.state.devicesById[deviceId] ?? null,
 );
@@ -277,28 +279,43 @@ const trailsForMap = computed(() => ({ [deviceId]: trail.value }));
 const cursorAt = computed(() => stampOf(currentSample.value));
 
 /**
- * The window's speed curve, with the playhead on it. This is the linkage the standalone
- * history page could not have: the trail says *where*, the curve says *how fast*, and
- * the cursor is the one instant both are showing.
+ * The window's curve, with the playhead on it. This is the linkage the standalone
+ * history page could not have: the trail says *where*, the curve says *how fast* and
+ * *how full*, and the cursor is the one instant all three are showing.
+ *
+ * Two lines on one time axis, each on its own value axis: 速度 (m/s) left, 0 … auto; 电量
+ * (%) right, a fixed 0–100. Speed and charge share nothing but the clock, so a single value
+ * axis would flatten speed against the 0–100 charge scale — this is the one place the chart's
+ * default "never two y-axes" is deliberately opted out of (see `timeSeriesOption`), because
+ * the operator needs both against one playhead and the tab has no room for a second chart.
  */
+const metricPoints = (key: "speed" | "soc"): [number, number][] =>
+  samples.value
+    .map((sample) => {
+      const info = measurementsOf(sample).vehicleInfo as
+        Record<string, unknown> | undefined;
+      // `toNumeric`, not `Number`: a frame with no reading is stored as null, which `Number`
+      // turns into 0 (0 m/s, 0%) — a drawn-in value the vehicle never reported.
+      return [stampOf(sample), toNumeric(info?.[key])] as const;
+    })
+    .filter(
+      (point): point is readonly [number, number] =>
+        point[0] !== null && point[1] !== null,
+    )
+    .map(([ts, value]): [number, number] => [ts, value]);
+
 const windowSeries = computed<TimeSeries[]>(() => [
-  {
-    name: "速度",
-    points: samples.value
-      .map((sample) => {
-        const info = measurementsOf(sample).vehicleInfo as
-          { speed?: unknown } | undefined;
-        // `toNumeric`, not `Number`: a frame with no speed is stored as null, which `Number`
-        // turns into 0 m/s.
-        return [stampOf(sample), toNumeric(info?.speed)] as const;
-      })
-      .filter(
-        (point): point is readonly [number, number] =>
-          point[0] !== null && point[1] !== null,
-      )
-      .map(([ts, value]): [number, number] => [ts, value]),
-  },
+  { name: "速度", axis: "left", points: metricPoints("speed") },
+  { name: "电量", axis: "right", points: metricPoints("soc") },
 ]);
+
+/** 速度蓝、电量绿 (palette slots 0 and 2), overriding the slot-order 蓝橙 the two lines would take. */
+const curveColors = computed(() => {
+  const slots = palette.value.series;
+  return [slots[0], slots[2]].filter((color): color is string =>
+    Boolean(color),
+  );
+});
 
 interface Row {
   label: string;
@@ -494,7 +511,7 @@ const onScrub = (event: Event): void => {
         >
           <strong class="text-md text-ink">该轨迹缺少 ROS 位姿</strong>
           <span class="max-w-prose text-sm text-ink-muted">
-            这段历史里没有融合定位或激光定位坐标，无法在场景地图上回放；下方的采样详情与速度曲线仍然可用
+            这段历史里没有融合定位或激光定位坐标，无法在场景地图上回放；下方的采样详情与回放曲线仍然可用
           </span>
         </div>
 
@@ -586,11 +603,16 @@ const onScrub = (event: Event): void => {
         </div>
       </dl>
 
-      <!-- The cursor is the linkage: same instant as the marker on the map. -->
+      <!-- The cursor is the linkage: same instant as the marker on the map. 速度 left axis
+           (0 … auto), 电量 right axis (0–100); the centred legend tells the two lines apart
+           (top-right is taken by the right axis's % name). -->
       <TimeSeriesChart
         :series="windowSeries"
+        label="回放曲线"
         unit="m/s"
-        label="回放窗口速度"
+        :y-min="0"
+        :right-axis="{ unit: '%', yMin: 0, yMax: 100 }"
+        :colors="curveColors"
         :height="180"
         table-match-height
         :cursor-at="cursorAt"

@@ -383,7 +383,7 @@ describe("the map and the curve", () => {
     expect(chart().props("cursorAt")).toBe(BASE_MS + 5000);
   });
 
-  it("plots the window's speed and drops samples that have none", async () => {
+  it("plots speed and charge as two lines on their own axes", async () => {
     getHistory.mockResolvedValue({
       deviceId: "agv-01",
       items: [
@@ -393,9 +393,22 @@ describe("the map and the curve", () => {
     });
     const wrapper = await mountPlayback();
 
-    const series = wrapper.getComponent(TimeSeriesChart).props("series");
-    expect(series[0]!.name).toBe("速度");
+    const chart = wrapper.getComponent(TimeSeriesChart);
+    const series = chart.props("series");
+    expect(series.map((entry) => entry.name)).toEqual(["速度", "电量"]);
+    // Speed on the left axis (0 … auto), charge on the right (a fixed 0–100) — one time
+    // axis, so the operator reads how fast and how full at the same instant.
+    expect(series[0]!.axis).toBe("left");
+    expect(series[1]!.axis).toBe("right");
+    expect(chart.props("rightAxis")).toMatchObject({
+      unit: "%",
+      yMin: 0,
+      yMax: 100,
+    });
+    // The empty-measurements frame carries neither reading, so both lines drop it rather
+    // than drawing a 0.
     expect(series[0]!.points).toHaveLength(1);
+    expect(series[1]!.points).toHaveLength(1);
   });
 
   it("shows the sample under the cursor, in words where there are words", async () => {

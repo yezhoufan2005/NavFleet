@@ -46,17 +46,27 @@ export type TimePoint = readonly [number, number];
 export interface TimeSeries {
   name: string;
   points: readonly TimePoint[];
+  /**
+   * Which value axis this line reads. `"left"` (the default) is the only axis unless the
+   * chart opts into `rightAxis`; `"right"` binds the line to that second axis. See the
+   * `unit` note for why a second axis exists at all and stays off by default.
+   */
+  axis?: "left" | "right";
 }
 
 export interface TimeSeriesOptionInput {
   series: readonly TimeSeries[];
   palette: ChartPalette;
   /**
-   * The unit for the whole chart, not per series — and that is a deliberate
-   * structural choice. Two measurements on different scales must become two charts,
-   * never two y-axes: a dual-axis chart lets the author place the crossing point
-   * anywhere, so the reader sees a relationship that the data does not contain.
-   * Making the unit chart-level means the option builder cannot express one.
+   * The unit for the left value axis. By default it is the unit for the *whole* chart,
+   * and that is a deliberate structural choice: two measurements on different scales
+   * normally become two charts, never two y-axes, because a dual-axis chart lets the
+   * author place the crossing point anywhere and so shows a relationship the data does
+   * not contain. The default path cannot express a second axis, which keeps that mistake
+   * out of reach by accident. The one exception is `rightAxis` below — an explicit,
+   * opt-in second axis for the single case where one reader must watch two bounded
+   * measures against a shared timeline (回放's speed and charge), and the cost of two
+   * stacked charts is vertical space the view does not have.
    */
   unit?: string;
   /**
@@ -87,6 +97,14 @@ export interface TimeSeriesOptionInput {
    */
   yMin?: number;
   yMax?: number;
+  /**
+   * Opt into a second, right-hand value axis for series marked `axis: "right"`. Off by
+   * default (see `unit`): drawn only when this is set, and only 回放 sets it — speed on
+   * the left (0 … auto), charge on the right (a fixed 0–100), both over one time axis so
+   * the operator reads how fast and how full at the same instant without a second chart.
+   * Its own bounds live here; the left axis keeps using `yMin`/`yMax`/`yScale`.
+   */
+  rightAxis?: { unit?: string; yMin?: number; yMax?: number };
   /**
    * Per-chart color override, in series order. Defaults to the palette's fixed slot order;
    * pass this only to re-order the hues for one chart (the 历史曲线's three days want 蓝绿橙,
@@ -139,11 +157,19 @@ export const buildTimeSeriesOption = ({
   colors,
   dayAxis = false,
   streaming = false,
+  rightAxis,
 }: TimeSeriesOptionInput): EChartsOption => {
   const legendRight = legendPosition === "right" && series.length > 1;
+  const hasRightAxis = rightAxis !== undefined;
   // End labels and a right-side legend both claim the right margin, so they are mutually
   // exclusive: with the legend on the right, identity comes from it, not from end labels.
-  const directLabels = series.length <= DIRECT_LABEL_LIMIT && !legendRight;
+  // A right value axis also owns that margin, and there identity comes from the (top) legend.
+  const directLabels =
+    series.length <= DIRECT_LABEL_LIMIT && !legendRight && !hasRightAxis;
+  // The unit that belongs to a series, by the axis it reads — for the tooltip and nothing
+  // else. Left is the chart unit; right is the second axis's own unit.
+  const unitFor = (entry: TimeSeries): string =>
+    (entry.axis === "right" ? rightAxis?.unit : unit) ?? "";
   // When the axis is pinned to a fixed window (reports), tilt the time labels so none is dropped
   // for lack of room — 选 12 小时时 22:00 被挤掉就是平排标签相撞被 hideOverlap 丢了。A day axis
   // is wide and its ticks are whole hours, so it stays flat instead.
@@ -172,7 +198,7 @@ export const buildTimeSeriesOption = ({
     // ECharts would draw in its own font — the surrounding card owns the heading.
     grid: {
       top: series.length > 1 && !legendRight ? 32 : 12,
-      right: directLabels ? 72 : 16,
+      right: hasRightAxis ? 52 : directLabels ? 72 : 16,
       bottom: tilt ? 40 : 28,
       left: 52,
       containLabel: false,
@@ -184,7 +210,10 @@ export const buildTimeSeriesOption = ({
       !legendRight && series.length > 1
         ? {
             top: 0,
-            right: 0,
+            // Top-right by default. With a right axis that corner is taken by the axis
+            // name (电量's %), which would sit under the legend — so a dual-axis chart
+            // centres the legend instead.
+            ...(hasRightAxis ? { left: "center" } : { right: 0 }),
             icon: "roundRect",
             itemWidth: 10,
             itemHeight: 10,
@@ -200,10 +229,40 @@ export const buildTimeSeriesOption = ({
       backgroundColor: palette.surface,
       borderColor: palette.tooltipBorder,
       textStyle: { color: palette.ink, fontSize: 12 },
-      valueFormatter: (value) =>
-        typeof value === "number"
-          ? `${value.toFixed(2)}${unit ?? ""}`
-          : String(value),
+      // With one axis every value wears the same unit, so the simple per-value formatter
+      // does. With two axes a value's unit depends on which series it belongs to, which
+      // the per-value hook cannot see — so that case formats the whole row itself, giving
+      // each line its own axis's unit (速度 m/s, 电量 %).
+      ...(hasRightAxis
+        ? {
+            formatter: (params: unknown): string => {
+              const items = (Array.isArray(params) ? params : [params]) as {
+                seriesIndex: number;
+                seriesName: string;
+                marker: string;
+                axisValueLabel?: string;
+                value?: [number, number] | number;
+              }[];
+              const head = items[0]?.axisValueLabel ?? "";
+              const rows = items.map((item) => {
+                const raw = Array.isArray(item.value)
+                  ? item.value[1]
+                  : item.value;
+                const shown =
+                  typeof raw === "number" ? raw.toFixed(2) : String(raw ?? "");
+                const entry = series[item.seriesIndex];
+                const u = entry ? unitFor(entry) : "";
+                return `${item.marker}${item.seriesName}: ${shown}${u}`;
+              });
+              return [head, ...rows].join("<br/>");
+            },
+          }
+        : {
+            valueFormatter: (value) =>
+              typeof value === "number"
+                ? `${value.toFixed(2)}${unit ?? ""}`
+                : String(value),
+          }),
     },
     xAxis: {
       type: "time",
@@ -222,24 +281,68 @@ export const buildTimeSeriesOption = ({
       },
       splitLine: { show: false },
     },
-    yAxis: {
-      type: "value",
-      name: unit,
-      // Fold the axis to the data range when asked (在线率 hugs 100%); otherwise anchor at 0.
-      scale: yScale,
-      // Fixed bounds win when given (电量 0–100). Left undefined, ECharts keeps its own —
-      // which with `scale: false` is 0 … auto-max, i.e. 下界0固定、上界随数据.
-      min: yMin,
-      max: yMax,
-      nameTextStyle: { color: palette.inkMuted, fontSize: 11, align: "left" },
-      axisLine: { show: false },
-      axisTick: { show: false },
-      axisLabel: { color: palette.inkMuted, fontSize: 11 },
-      splitLine: { lineStyle: { color: palette.grid, width: 1 } },
-    },
+    // One value axis by default. A second, right-hand axis is drawn only when `rightAxis`
+    // opts in (回放): the left keeps 速度 (0 … auto), the right carries 电量 on its own
+    // 0–100, and only the left paints gridlines so the plot does not wear two grids.
+    yAxis: hasRightAxis
+      ? [
+          {
+            type: "value",
+            name: unit,
+            scale: yScale,
+            min: yMin,
+            max: yMax,
+            nameTextStyle: {
+              color: palette.inkMuted,
+              fontSize: 11,
+              align: "left",
+            },
+            axisLine: { show: false },
+            axisTick: { show: false },
+            axisLabel: { color: palette.inkMuted, fontSize: 11 },
+            splitLine: { lineStyle: { color: palette.grid, width: 1 } },
+          },
+          {
+            type: "value",
+            name: rightAxis?.unit,
+            position: "right",
+            min: rightAxis?.yMin,
+            max: rightAxis?.yMax,
+            nameTextStyle: {
+              color: palette.inkMuted,
+              fontSize: 11,
+              align: "right",
+            },
+            axisLine: { show: false },
+            axisTick: { show: false },
+            axisLabel: { color: palette.inkMuted, fontSize: 11 },
+            splitLine: { show: false },
+          },
+        ]
+      : {
+          type: "value",
+          name: unit,
+          // Fold the axis to the data range when asked (在线率 hugs 100%); otherwise anchor at 0.
+          scale: yScale,
+          // Fixed bounds win when given (电量 0–100). Left undefined, ECharts keeps its own —
+          // which with `scale: false` is 0 … auto-max, i.e. 下界0固定、上界随数据.
+          min: yMin,
+          max: yMax,
+          nameTextStyle: {
+            color: palette.inkMuted,
+            fontSize: 11,
+            align: "left",
+          },
+          axisLine: { show: false },
+          axisTick: { show: false },
+          axisLabel: { color: palette.inkMuted, fontSize: 11 },
+          splitLine: { lineStyle: { color: palette.grid, width: 1 } },
+        },
     series: series.map((entry, index) => ({
       type: "line",
       name: entry.name,
+      // Bind to the right axis when the series asks for it; 0 (the left/only axis) otherwise.
+      yAxisIndex: entry.axis === "right" ? 1 : 0,
       data: entry.points.map((point) => [point[0], point[1]]),
       // Thin marks. The line is 2px; points are drawn only on hover, because a
       // marker on every sample is noise at telemetry density.

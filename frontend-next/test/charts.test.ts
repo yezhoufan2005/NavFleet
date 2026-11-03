@@ -104,10 +104,10 @@ describe("buildTimeSeriesOption", () => {
     expect(option.color).toEqual(palette.series);
   });
 
-  it("declares exactly one y-axis, because two would let the author invent a story", () => {
-    // A dual-axis chart lets whoever built it choose where the lines cross. That is
-    // the single most common charting mistake, and the option builder is where it
-    // becomes impossible rather than discouraged.
+  it("declares one y-axis by default, because two would let the author invent a story", () => {
+    // A dual-axis chart lets whoever built it choose where the lines cross. That is the
+    // single most common charting mistake, so the default path cannot express one — a
+    // second axis appears only when `rightAxis` explicitly opts in (next test).
     const option = buildTimeSeriesOption({
       series: seriesOf(3),
       palette,
@@ -115,6 +115,48 @@ describe("buildTimeSeriesOption", () => {
     });
     expect(Array.isArray(option.yAxis)).toBe(false);
     expect(option.yAxis).toMatchObject({ type: "value", name: "%" });
+  });
+
+  it("draws a second right-hand axis only when rightAxis opts in, binding its series to it", () => {
+    // 回放 is the one caller: 速度 on the left (0 … auto), 电量 on the right (a fixed
+    // 0–100), one time axis. The opt-in keeps the misleading crossing-point out of every
+    // other chart while giving this one the second axis it genuinely needs.
+    const option = buildTimeSeriesOption({
+      series: [
+        { name: "速度", axis: "left", points: points(5) },
+        { name: "电量", axis: "right", points: points(5) },
+      ],
+      palette,
+      unit: "m/s",
+      yMin: 0,
+      rightAxis: { unit: "%", yMin: 0, yMax: 100 },
+    });
+
+    const axes = option.yAxis as {
+      name?: string;
+      position?: string;
+      min?: number;
+      max?: number;
+    }[];
+    expect(Array.isArray(axes)).toBe(true);
+    expect(axes).toHaveLength(2);
+    expect(axes[0]).toMatchObject({ name: "m/s", min: 0 });
+    expect(axes[1]).toMatchObject({
+      name: "%",
+      position: "right",
+      min: 0,
+      max: 100,
+    });
+
+    // The charge line reads the right axis; speed stays on the left.
+    const series = option.series as { name: string; yAxisIndex: number }[];
+    expect(series.find((entry) => entry.name === "速度")!.yAxisIndex).toBe(0);
+    expect(series.find((entry) => entry.name === "电量")!.yAxisIndex).toBe(1);
+    // Identity comes from the (top) legend, not end labels — the right axis owns that margin.
+    const endLabelled = (option.series as { endLabel?: unknown }[]).some(
+      (entry) => entry.endLabel !== undefined,
+    );
+    expect(endLabelled).toBe(false);
   });
 
   it("shows a legend for two or more series and none for one", () => {
