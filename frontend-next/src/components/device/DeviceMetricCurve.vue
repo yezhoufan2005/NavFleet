@@ -26,6 +26,7 @@ import UiSegmented from "@/components/ui/UiSegmented.vue";
 import UiScrollTable from "@/components/ui/UiScrollTable.vue";
 import { useFleetStore } from "@/stores/fleet";
 import { useNowTicker } from "@/composables/useNowTicker";
+import { useChartTheme } from "@/composables/useChartTheme";
 import { useLatestRequest } from "@/composables/useLatestRequest";
 import { loadErrorMessage } from "@/lib/errorMessages";
 import { buildMetricHistory } from "@/lib/metricHistory";
@@ -47,6 +48,16 @@ type Mode = "realtime" | "history";
 const REALTIME_WINDOW_MS = 15 * 60_000;
 const HISTORY_DAYS = 3;
 const HISTORY_BUCKET_MINUTES = 10;
+/**
+ * One height for the chart and for the data table alike, so toggling 图表 ⇆ 数据表 never resizes
+ * the card — the operator's eye stays put. The table pins to this height and scrolls within it
+ * rather than growing to its row count.
+ */
+const CHART_HEIGHT = 200;
+
+/** 电量 is a full-range 0–100 %; speed anchors at 0 and lets its max follow the data. */
+const yMin = metric === "soc" ? 0 : undefined;
+const yMax = metric === "soc" ? 100 : undefined;
 
 const mode = ref<Mode>("realtime");
 const modeOptions = computed(() => [
@@ -56,6 +67,19 @@ const modeOptions = computed(() => [
 
 const fleet = useFleetStore();
 const now = useNowTicker();
+const { palette } = useChartTheme();
+
+/**
+ * The three history days render 蓝绿橙 rather than the palette's slot-order 蓝橙绿: with one line
+ * per day, green reads apart from the first day's blue more easily than orange does, and the order
+ * is easier to follow. A per-chart override only — the global slot order is untouched.
+ */
+const historyColors = computed(() => {
+  const slots = palette.value.series;
+  return [slots[0], slots[2], slots[1]].filter((color): color is string =>
+    Boolean(color),
+  );
+});
 
 /** Reads this metric off a persisted sample; shape-tolerant, value coerced by the caller. */
 const pickSample = (sample: HistorySample): unknown =>
@@ -223,19 +247,31 @@ onMounted(() => {
       </UiButton>
     </header>
 
-    <!-- 实时: the flowing 15-minute window. No data table — see the module comment. -->
-    <TimeSeriesChart
-      v-if="mode === 'realtime'"
-      :series="realtimeSeries"
-      :unit="unit"
-      :label="realtimeLabel"
-      :height="200"
-      label-hidden
-      :show-table-toggle="false"
-      y-scale
-      :x-min="realtimeXMin"
-      :x-max="realtimeXMax"
-    />
+    <!-- 实时: the flowing 15-minute window. No data table — see the module comment. The chart
+         stays mounted; while the window holds nothing (no live reading yet, and no last-15-min
+         history to seed from) a hint sits over it so an empty grid does not read as broken. -->
+    <div v-if="mode === 'realtime'" class="relative">
+      <TimeSeriesChart
+        :series="realtimeSeries"
+        :unit="unit"
+        :label="realtimeLabel"
+        :height="CHART_HEIGHT"
+        label-hidden
+        :show-table-toggle="false"
+        :y-min="yMin"
+        :y-max="yMax"
+        streaming
+        :x-min="realtimeXMin"
+        :x-max="realtimeXMax"
+      />
+      <div
+        v-if="!liveBuffer.length"
+        class="pointer-events-none absolute inset-0 flex items-center justify-center text-sm text-ink-muted"
+        role="status"
+      >
+        正在等待实时数据……设备开始上报后曲线会实时出现
+      </div>
+    </div>
 
     <!-- 历史: three days overlaid, or the state that stands in for the chart. -->
     <template v-else>
@@ -258,15 +294,19 @@ onMounted(() => {
           :series="history.series"
           :unit="unit"
           :label="historyLabel"
-          :height="200"
+          :height="CHART_HEIGHT"
           label-hidden
           :show-table-toggle="false"
-          y-scale
+          :y-min="yMin"
+          :y-max="yMax"
+          day-axis
+          :colors="historyColors"
           :x-min="history.axisMin"
           :x-max="history.axisMax"
         />
-        <!-- One column per day, rows keyed by time-of-day (HH:mm) — 三天各一列. -->
-        <UiScrollTable v-else :label="historyLabel" max-height="24rem">
+        <!-- One column per day, rows keyed by time-of-day (HH:mm) — 三天各一列. Pinned to the
+             chart height so switching 图表 ⇆ 数据表 never changes the card's size. -->
+        <UiScrollTable v-else :label="historyLabel" :height="CHART_HEIGHT">
           <template #colgroup>
             <col class="w-[30%]" />
             <col v-for="day in history.table.dayLabels" :key="day" />

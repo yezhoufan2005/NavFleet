@@ -128,18 +128,37 @@ describe("DeviceMetricCurve 实时", () => {
     expect(chartOf(wrapper).props("series")[0]?.points).toHaveLength(1);
   });
 
-  it("pins the axis to a trailing 15-minute window and scales the value axis", async () => {
+  it("pins the axis to a trailing 15-minute window; speed anchors at 0 with an auto max", async () => {
     seed();
     const wrapper = mountCurve();
     await flushPromises();
 
     const chart = chartOf(wrapper);
-    expect(chart.props("yScale")).toBe(true);
+    // Speed: lower bound fixed at 0 (the default), upper bound follows the data — so no fixed
+    // yMax and no data-range yScale that would also float the floor.
+    expect(chart.props("yMin")).toBeUndefined();
+    expect(chart.props("yMax")).toBeUndefined();
+    expect(chart.props("yScale")).toBeFalsy();
     expect(chart.props("showTableToggle")).toBe(false);
     expect(chart.props("labelHidden")).toBe(true);
     expect(
       (chart.props("xMax") as number) - (chart.props("xMin") as number),
     ).toBe(15 * 60_000);
+  });
+
+  it("gives 电量 a fixed 0–100 axis rather than a dynamic one", async () => {
+    seed();
+    const wrapper = mountCurve({
+      metric: "soc",
+      unit: "%",
+      realtimeLabel: "实时电量",
+      historyLabel: "历史电量",
+    });
+    await flushPromises();
+
+    const chart = chartOf(wrapper);
+    expect(chart.props("yMin")).toBe(0);
+    expect(chart.props("yMax")).toBe(100);
   });
 
   it("appends the live reading once per second and drops nothing valid within the window", async () => {
