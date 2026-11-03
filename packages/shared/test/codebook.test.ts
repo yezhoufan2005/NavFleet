@@ -83,7 +83,12 @@ describe("parseCodebook", () => {
 describe("mergeCodebook", () => {
   it("overrides a built-in code, adds a new one, and sorts by code", () => {
     const overrides = [
-      entry({ code: 2301, label: "本厂电量低", hint: "推去充电区" }),
+      entry({
+        code: 2302,
+        subsystem: "power",
+        label: "本厂电池偏高",
+        hint: "停车通风降温",
+      }),
       entry({
         code: 3001,
         channel: "warning",
@@ -95,7 +100,7 @@ describe("mergeCodebook", () => {
     const byCode = new Map(merged.map((e) => [e.code, e]));
 
     // Same code, deployment meaning wins.
-    expect(byCode.get(2301)?.label).toBe("本厂电量低");
+    expect(byCode.get(2302)?.label).toBe("本厂电池偏高");
     // New code is present.
     expect(byCode.get(3001)?.label).toBe("夹具松动");
     // A built-in the overrides did not touch survives.
@@ -140,7 +145,7 @@ describe("describeCodeWith / describeDeviceCodesWith against a codebook", () => 
     const index = buildCodebookIndex(DEFAULT_REPORT_CODES);
     const rows = describeDeviceCodesWith(index, {
       errorCode: state(5102),
-      warningCode: state(2301),
+      warningCode: state(2302),
       infoCode: state(0),
     });
     expect(rows.map((row) => row.channel)).toEqual(["error", "warning"]);

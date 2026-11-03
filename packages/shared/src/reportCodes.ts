@@ -155,6 +155,24 @@ export const DEFAULT_REPORT_CODES: readonly ReportCodeEntry[] = Object.freeze([
     impact: "none",
   },
   {
+    code: 1502,
+    channel: "info",
+    subsystem: "task",
+    label: "任务完成待命",
+    description: "车辆完成当前任务后已回到待命状态，等待下一单派发",
+    hint: "无需处理；长时间无新单时查调度侧的派发队列",
+    impact: "none",
+  },
+  {
+    code: 1503,
+    channel: "info",
+    subsystem: "task",
+    label: "到达人工交接位",
+    description: "车辆已到达人工交接位，等待现场人员确认后继续",
+    hint: "现场确认交接完成后车辆会继续执行；长时间等待时提醒现场处理",
+    impact: "none",
+  },
+  {
     code: 1601,
     channel: "info",
     subsystem: "network",
@@ -193,15 +211,10 @@ export const DEFAULT_REPORT_CODES: readonly ReportCodeEntry[] = Object.freeze([
     hint: "尽快安排检查：轮径标定、载荷摆放、路面状况；偏差继续增大会升级为任务受阻",
     impact: "urgent",
   },
-  {
-    code: 2301,
-    channel: "warning",
-    subsystem: "power",
-    label: "电量偏低",
-    description: "剩余电量低于调度阈值，尚可完成当前任务但不宜接受长距离任务",
-    hint: "尽快安排返充；调度侧应停止向该车派发新的长距离任务",
-    impact: "urgent",
-  },
+  // No 电量低 report-code here on purpose: low battery is a single derived signal, the
+  // rule-engine 低电量预警 (see `alertRules.ts`), so it is never also a device report-code that
+  // could drift from it. A real device that does report its own low-battery code can still add
+  // one through its deployment codebook.
   {
     code: 2302,
     channel: "warning",
@@ -236,6 +249,15 @@ export const DEFAULT_REPORT_CODES: readonly ReportCodeEntry[] = Object.freeze([
     label: "载荷偏心",
     description: "载荷重心偏离托盘中心超过阈值，会加剧轨迹偏差与轮系磨损",
     hint: "尽快在下一个停靠点重新摆放载荷",
+    impact: "urgent",
+  },
+  {
+    code: 2802,
+    channel: "warning",
+    subsystem: "payload",
+    label: "载荷偏移超阈值",
+    description: "载荷横向偏移超过告警阈值，继续行驶会放大轨迹偏差、影响稳定",
+    hint: "尽快停靠检查货物与托盘摆放；偏移持续增大会升级为任务受阻",
     impact: "urgent",
   },
 
@@ -315,6 +337,15 @@ export const DEFAULT_REPORT_CODES: readonly ReportCodeEntry[] = Object.freeze([
     description: "安全雷达在保护区内持续检测到障碍物，车辆已减速至停止并保持",
     hint: "移走障碍物后车辆可自行恢复；若无可见障碍，检查安全雷达是否受污或标定漂移",
     impact: "blocked",
+  },
+  {
+    code: 5703,
+    channel: "error",
+    subsystem: "safety",
+    label: "避障等待超时",
+    description: "车辆为避障停车等待，超时后前方障碍仍未解除，已保持停止",
+    hint: "必须人工到场清理障碍或引导车辆绕行；障碍解除前该车无法继续或接新任务",
+    impact: "intervention",
   },
 ]);
 
