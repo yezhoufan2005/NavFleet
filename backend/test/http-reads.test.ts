@@ -206,6 +206,32 @@ describe("GET /api/alerts", () => {
       deviceId: DEVICE_ID,
     });
   });
+
+  it("raises the cap with limit and reports that as the applied cap", async () => {
+    // 设备消息史 asks for 1000 over a 30-day window; the applied cap comes back as `limit`.
+    const context = createTestApp();
+    const response = await authed(context, "/api/alerts?limit=1000");
+
+    expect(response.status).toBe(200);
+    expect(context.store.getAlerts).toHaveBeenCalledWith({ limit: 1000 });
+    expect((response.body as { limit: number }).limit).toBe(1000);
+  });
+
+  it("does not call 600 rows truncated once the limit is raised past the default 500", async () => {
+    const context = createTestApp();
+    context.store.getAlerts.mockResolvedValue(Array.from({ length: 600 }, () => sampleAlert()));
+    const response = await authed(context, "/api/alerts?limit=1000");
+
+    expect((response.body as { truncated: boolean }).truncated).toBe(false);
+  });
+
+  it("rejects a limit past the ceiling rather than reading an unbounded page", async () => {
+    const context = createTestApp();
+    const response = await authed(context, "/api/alerts?limit=99999");
+
+    expect(response.status).toBe(400);
+    expect(context.store.getAlerts).not.toHaveBeenCalled();
+  });
 });
 
 describe("GET /api/reports/alerts", () => {

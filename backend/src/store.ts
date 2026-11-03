@@ -1123,6 +1123,7 @@ export class DashboardStore extends EventEmitter {
     status?: string;
     from?: string;
     to?: string;
+    limit?: number;
   }): Promise<unknown[]> {
     return this.persistence.queryAlerts(filters);
   }

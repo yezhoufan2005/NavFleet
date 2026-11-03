@@ -2,7 +2,7 @@ import express from "express";
 import type { DashboardStore } from "../store";
 import { alertsQuerySchema, deviceIdParamSchema, historyQuerySchema } from "../validation";
 import { markTruncation, respondValidationError } from "./helpers";
-import { MAX_ALERTS_PER_QUERY } from "../persistence";
+import { alertsQueryCap } from "../persistence";
 
 /** Fleet read endpoints: snapshot, formations, per-device history, alerts. */
 export const buildFleetRouter = (store: DashboardStore): express.Router => {
@@ -52,7 +52,10 @@ export const buildFleetRouter = (store: DashboardStore): express.Router => {
       return;
     }
     const items = await store.getAlerts(parsed.data);
-    response.json({ items, ...markTruncation(response, items.length, MAX_ALERTS_PER_QUERY) });
+    response.json({
+      items,
+      ...markTruncation(response, items.length, alertsQueryCap(parsed.data.limit)),
+    });
   });
 
   return router;

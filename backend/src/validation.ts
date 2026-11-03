@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { config } from "./config";
+import { config, MAX_ALERTS_QUERY_LIMIT } from "./config";
 import { AUDIT_ACTIONS } from "./types";
 import { CAPABILITIES, DEVICE_ID_MAX, isTopicSafeDeviceId, SEVERITIES } from "@navfleet/shared";
 import { parseTimeParam } from "./timeParam";
@@ -107,6 +107,12 @@ export const alertsQuerySchema = z
     // always returned the most-recent page, leaving older cleared alerts unreachable.
     from: timestampString.optional(),
     to: timestampString.optional(),
+    /**
+     * Rows to return, default `MAX_ALERTS_PER_QUERY` (500) when absent. 设备消息史 raises it to
+     * 1000 over a 30-day window, 消息·消息史 to 10000; the ceiling is `MAX_ALERTS_QUERY_LIMIT`,
+     * past which a time window narrows the period rather than one ever-larger read.
+     */
+    limit: z.coerce.number().int().positive().max(MAX_ALERTS_QUERY_LIMIT).optional(),
   })
   .superRefine(rejectInvertedWindow);
 

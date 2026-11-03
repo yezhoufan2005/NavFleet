@@ -7,7 +7,7 @@ import {
   type WriteError,
 } from "mongodb";
 import { parseTimeParam } from "./timeParam";
-import { config } from "./config";
+import { config, MAX_ALERTS_QUERY_LIMIT } from "./config";
 import {
   ALERT_STATS_TOP_N,
   emptyAlertStatsReport,
@@ -141,6 +141,17 @@ interface StoredAlert {
  * in fixed pages of 20.
  */
 export const MAX_ALERTS_PER_QUERY = 500;
+
+/**
+ * The effective row cap for one alert query: the caller's `limit` clamped to [1, ceiling], or
+ * the default page when none was asked for. The route reports `truncated` against this same
+ * number, so "cut off" is measured against what was actually read. The ceiling lives in `config`
+ * (`MAX_ALERTS_QUERY_LIMIT`) so the request schema can read it without importing this module.
+ */
+export const alertsQueryCap = (limit?: number): number =>
+  limit === undefined
+    ? MAX_ALERTS_PER_QUERY
+    : Math.max(1, Math.min(Math.floor(limit), MAX_ALERTS_QUERY_LIMIT));
 
 /** Most audit rows one `GET /api/audit` returns; the in-memory fallback ring is bounded to it too. */
 export const MAX_AUDIT_PER_QUERY = 500;
@@ -1774,6 +1785,7 @@ export class Persistence {
     status?: string;
     from?: string;
     to?: string;
+    limit?: number;
   }): Promise<unknown[]> {
     if (!this.db) {
       return this.queryMemoryAlerts(filters);
@@ -1807,7 +1819,7 @@ export class Persistence {
       .collection("alerts")
       .find(query, { projection: { _id: 0 } })
       .sort({ ts: -1 })
-      .limit(MAX_ALERTS_PER_QUERY)
+      .limit(alertsQueryCap(filters.limit))
       .toArray();
   }
 
@@ -1817,6 +1829,7 @@ export class Persistence {
     status?: string;
     from?: string;
     to?: string;
+    limit?: number;
   }): StoredAlert[] {
     // Only active alerts are retained in memory; a "cleared" filter yields none.
     if (filters.status === "cleared") {
@@ -1844,7 +1857,7 @@ export class Persistence {
     }
     return items
       .sort((left, right) => Date.parse(right.ts) - Date.parse(left.ts))
-      .slice(0, MAX_ALERTS_PER_QUERY);
+      .slice(0, alertsQueryCap(filters.limit));
   }
 
   /**

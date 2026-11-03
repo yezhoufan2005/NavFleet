@@ -895,7 +895,9 @@ const [rbacGroups, rbacGroup] = rbacOperations({
     get: {
       tags: ["alerts"],
       summary: "告警查询",
-      parameters: queryParameters(alertsQuerySchema),
+      parameters: queryParameters(alertsQuerySchema, {
+        limit: "返回的最大条数（缺省 500，上限 10000）；需要更早的记录时用 from/to 窗口缩小周期",
+      }),
       responses: {
         "200": {
           description: "告警列表",
