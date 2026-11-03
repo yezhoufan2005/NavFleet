@@ -304,12 +304,11 @@ test.describe("console devices", () => {
     await page.goto(`/devices/${faulted.deviceId}/alerts`);
 
     const history = page.locator("section", { hasText: "消息史" });
-    // The history folds into one collapsible card per day, collapsed on arrival; open every day
-    // so the faulted vehicle's record is read wherever it sits.
+    // The history folds into one collapsible card per day, collapsed on arrival. Wait for the
+    // fetch to render its day groups, then open every day so the record is read wherever it sits.
     const days = history.locator("button[aria-expanded]");
-    const dayCount = await days.count();
-    for (let index = 0; index < dayCount; index += 1)
-      await days.nth(index).click();
+    await days.first().waitFor();
+    for (const day of await days.all()) await day.click();
     await expect(history).toContainText(String(faulted.errorCode!.code));
     // The three fields the alert centre never shows, because its source has no
     // history: when it started, when it ended, whether it is still running.
