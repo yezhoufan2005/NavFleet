@@ -203,9 +203,8 @@ const fitFleet = (): void => {
     map.setZoomAndCenter(18, only.position, false, 300);
     return;
   }
-  // Tighter still (负责人 2026-11-03「适应车队放大点」): less padding and the max zoom the
-  // `zooms` range allows (20), so a clustered fleet fills the frame instead of sitting as a
-  // knot of points in a mostly-empty map.
+  // Tight, so a clustered fleet fills the frame instead of sitting as a knot of points in
+  // a mostly-empty map: little padding and the max zoom the `zooms` range allows (20).
   map.setFitView(
     entries.map((entry) => entry.marker),
     false,

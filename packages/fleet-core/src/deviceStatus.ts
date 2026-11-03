@@ -49,7 +49,7 @@ const hasActiveCode = (code: unknown): boolean => {
 
 /**
  * Resolve a device to its 实时状态, by priority — the first state that applies wins,
- * worst/most-overriding first (负责人 2026-11-03 确认的顺序):
+ * worst/most-overriding first:
  *
  *   离线 > 急停 > 故障 > 遥控 > 充电中 > 任务中 > 异常中断 > 待命
  *
