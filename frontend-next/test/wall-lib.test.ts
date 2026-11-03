@@ -118,7 +118,7 @@ describe("buildWallTiles", () => {
   const summary = { totalCount: 6, onlineCount: 6, alertTotal: 0, gpsCount: 6 };
 
   it("keeps ok tones ok when the numbers are fine", () => {
-    const tiles = buildWallTiles(summary, 0, 3);
+    const tiles = buildWallTiles(summary, 0, 0, 3);
     const byKey = Object.fromEntries(tiles.map((tile) => [tile.key, tile]));
     expect(byKey.online?.tone).toBe("ok");
     expect(byKey.online?.note).toBe("全部在线");
@@ -132,41 +132,39 @@ describe("buildWallTiles", () => {
 
   it("warns when some are offline and alarms when the whole fleet is dark", () => {
     expect(
-      buildWallTiles({ ...summary, onlineCount: 4 }, 0, 0).find(
+      buildWallTiles({ ...summary, onlineCount: 4 }, 0, 0, 0).find(
         (tile) => tile.key === "online",
       )?.tone,
     ).toBe("warning");
-    const dark = buildWallTiles({ ...summary, onlineCount: 0 }, 0, 0).find(
+    const dark = buildWallTiles({ ...summary, onlineCount: 0 }, 0, 0, 0).find(
       (tile) => tile.key === "online",
     );
     expect(dark?.tone).toBe("critical");
     expect(dark?.note).toBe("6 台离线");
   });
 
-  it("makes the alert tile critical only when a critical-severity alert is up", () => {
-    expect(
-      buildWallTiles({ ...summary, alertTotal: 2 }, 0, 0).find(
+  it("alert tile follows the worst severity present: 告警→critical, 预警→warning, 提示→notice", () => {
+    const toneOf = (critical: number, warning: number) =>
+      buildWallTiles({ ...summary, alertTotal: 2 }, critical, warning, 0).find(
         (tile) => tile.key === "alerts",
-      )?.tone,
-    ).toBe("warning");
-    const withCritical = buildWallTiles(
-      { ...summary, alertTotal: 2 },
-      1,
-      0,
-    ).find((tile) => tile.key === "alerts");
+      );
+    // 提示-only (no 告警, no 预警) is blue, not amber — the bug this fixes.
+    expect(toneOf(0, 0)?.tone).toBe("notice");
+    expect(toneOf(0, 1)?.tone).toBe("warning");
+    const withCritical = toneOf(1, 0);
     expect(withCritical?.tone).toBe("critical");
     expect(withCritical?.note).toBe("1 条告警级");
   });
 
   it("counts GPS gaps and an unconfigured formation set", () => {
-    const tiles = buildWallTiles({ ...summary, gpsCount: 4 }, 0, 0);
+    const tiles = buildWallTiles({ ...summary, gpsCount: 4 }, 0, 0, 0);
     const byKey = Object.fromEntries(tiles.map((tile) => [tile.key, tile]));
     expect(byKey.gps?.note).toBe("2 台无定位");
     expect(byKey.formations?.note).toBe("未配置编队");
   });
 
   it("labels the four tiles the room expects", () => {
-    const labels = buildWallTiles(summary, 0, 0).map((tile) => tile.label);
+    const labels = buildWallTiles(summary, 0, 0, 0).map((tile) => tile.label);
     expect(labels).toEqual(["在线设备", "活跃消息", "GPS 覆盖", "设备编队"]);
   });
 });

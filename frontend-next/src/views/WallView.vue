@@ -83,6 +83,7 @@ const tiles = computed(() =>
       gpsCount: fleet.summary.gpsCount,
     },
     fleet.groupedAlerts.critical.length,
+    fleet.groupedAlerts.warning.length,
     fleet.formations.length,
   ),
 );
@@ -343,6 +344,9 @@ watch(activeAlerts, () => {
      only appears when the number is off — a permanently amber tile trains the room to
      ignore amber, so ok/muted get a neutral stripe. */
   box-shadow: inset 6px 0 0 var(--color-border-strong);
+}
+.wall-tile[data-tone="notice"] {
+  box-shadow: inset 6px 0 0 var(--color-notice);
 }
 .wall-tile[data-tone="warning"] {
   box-shadow: inset 6px 0 0 var(--color-warning);
