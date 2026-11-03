@@ -19,10 +19,10 @@ import { useAuth, __resetAuth } from "@/composables/useAuth";
 enableAutoUnmount(afterEach);
 
 const ENTRY: ReportCodeEntry = {
-  code: 2301,
+  code: 2302,
   channel: "warning",
   subsystem: "power",
-  label: "本厂电量低",
+  label: "本厂电池偏高",
   description: "低于本厂阈值",
   hint: "推去充电区",
   impact: "urgent",
@@ -65,10 +65,10 @@ describe("useCodebook", () => {
     expect(codebook.status.value).toBe("ready");
     const rows = codebook.describeDevice({
       errorCode: { code: 0, info: "", stamp: null },
-      warningCode: { code: 2301, info: "现场原文", stamp: null },
+      warningCode: { code: 2302, info: "现场原文", stamp: null },
       infoCode: { code: 0, info: "", stamp: null },
     });
-    expect(rows[0]?.described.label).toBe("本厂电量低");
+    expect(rows[0]?.described.label).toBe("本厂电池偏高");
   });
 
   it("keeps the built-in table and reports error when the fetch fails", async () => {
@@ -99,8 +99,8 @@ describe("CodebookView", () => {
     vi.spyOn(fleetApi, "getCodebook").mockResolvedValue({ items: [ENTRY] });
     const wrapper = await mountView();
 
-    expect(wrapper.text()).toContain("本厂电量低");
-    expect(wrapper.text()).toContain("2301");
+    expect(wrapper.text()).toContain("本厂电池偏高");
+    expect(wrapper.text()).toContain("2302");
   });
 
   it("exports the current table as a JSON blob", async () => {
@@ -143,7 +143,7 @@ describe("CodebookView", () => {
 
     // Nothing is written until the preview is confirmed.
     expect(importSpy).not.toHaveBeenCalled();
-    expect(document.body.textContent).toContain("新增 1 条：2301");
+    expect(document.body.textContent).toContain("新增 1 条：2302");
     const confirm = [...document.body.querySelectorAll("button")].find(
       (button) => button.textContent?.trim() === "导入",
     );
@@ -172,7 +172,7 @@ describe("CodebookView", () => {
     await input.trigger("change");
     await flushPromises();
 
-    expect(document.body.textContent).toContain("修改 1 条：2301");
+    expect(document.body.textContent).toContain("修改 1 条：2302");
     expect(document.body.textContent).toContain("删除自定义码 1 条：2988");
     const cancel = [...document.body.querySelectorAll("button")].find(
       (button) => button.textContent?.trim() === "取消",
@@ -396,7 +396,7 @@ describe("CodebookView — row editing (codebook:write)", () => {
 
   it("offers 恢复内置 (not 删除) for a re-defined built-in code", async () => {
     asWriter();
-    // 2301 is a built-in code; ENTRY re-defines its meaning for this deployment.
+    // 2302 is a built-in code; ENTRY re-defines its meaning for this deployment.
     vi.spyOn(fleetApi, "getCodebook").mockResolvedValue({ items: [ENTRY] });
     const put = vi
       .spyOn(fleetApi, "importCodebook")

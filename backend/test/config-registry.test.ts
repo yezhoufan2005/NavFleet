@@ -508,12 +508,12 @@ describe("ConfigRegistry.getAlertRules", () => {
 
 describe("ConfigRegistry.getCodebook / importCodebook", () => {
   const override = {
-    code: 2301,
+    code: 2302,
     channel: "warning",
     subsystem: "power",
-    label: "本厂电量低",
-    description: "低于本厂阈值",
-    hint: "推去充电区",
+    label: "本厂电池偏高",
+    description: "高于本厂阈值",
+    hint: "停车通风降温",
     impact: "urgent",
   };
 
@@ -532,7 +532,7 @@ describe("ConfigRegistry.getCodebook / importCodebook", () => {
     await registry.load();
 
     const byCode = new Map(registry.getCodebook().map((entry) => [entry.code, entry]));
-    expect(byCode.get(2301)?.label).toBe("本厂电量低"); // override wins
+    expect(byCode.get(2302)?.label).toBe("本厂电池偏高"); // override wins
     expect(byCode.get(9001)?.label).toBe("本厂新码"); // new code added
     expect(byCode.get(1101)?.label).toBe("定位稳定"); // untouched built-in survives
     // Merged table is longer than the built-in by exactly the one net-new code.
@@ -548,8 +548,8 @@ describe("ConfigRegistry.getCodebook / importCodebook", () => {
     await writeConfig({ codebook: [override] });
     const registry = new ConfigRegistry();
     await registry.load();
-    expect(new Map(registry.getCodebook().map((e) => [e.code, e])).get(2301)?.label).toBe(
-      "本厂电量低",
+    expect(new Map(registry.getCodebook().map((e) => [e.code, e])).get(2302)?.label).toBe(
+      "本厂电池偏高",
     );
 
     await writeConfig({ codebook: [{ ...override, impact: "nope" }] });
@@ -559,8 +559,8 @@ describe("ConfigRegistry.getCodebook / importCodebook", () => {
       using: "last-good",
     });
     // Old snapshot kept.
-    expect(new Map(registry.getCodebook().map((e) => [e.code, e])).get(2301)?.label).toBe(
-      "本厂电量低",
+    expect(new Map(registry.getCodebook().map((e) => [e.code, e])).get(2302)?.label).toBe(
+      "本厂电池偏高",
     );
   });
 
@@ -570,7 +570,7 @@ describe("ConfigRegistry.getCodebook / importCodebook", () => {
     await registry.load();
 
     const merged = await registry.importCodebook([override]);
-    expect(new Map(merged.map((e) => [e.code, e])).get(2301)?.label).toBe("本厂电量低");
+    expect(new Map(merged.map((e) => [e.code, e])).get(2302)?.label).toBe("本厂电池偏高");
     // Written to disk as codebook.json.
     const onDisk: unknown = JSON.parse(
       await fs.readFile(path.join(configRoot, "codebook.json"), "utf8"),
@@ -579,8 +579,8 @@ describe("ConfigRegistry.getCodebook / importCodebook", () => {
     // A fresh registry loading the same dir sees it.
     const reloaded = new ConfigRegistry();
     await reloaded.load();
-    expect(new Map(reloaded.getCodebook().map((e) => [e.code, e])).get(2301)?.label).toBe(
-      "本厂电量低",
+    expect(new Map(reloaded.getCodebook().map((e) => [e.code, e])).get(2302)?.label).toBe(
+      "本厂电池偏高",
     );
   });
 
@@ -603,7 +603,7 @@ describe("ConfigRegistry.getCodebook / importCodebook", () => {
     const restored = await registry.importCodebook(
       registry.getCodebook().filter((entry) => entry.code !== override.code),
     );
-    expect(restored.find((entry) => entry.code === override.code)?.label).not.toBe("本厂电量低");
+    expect(restored.find((entry) => entry.code === override.code)?.label).not.toBe("本厂电池偏高");
     expect(
       JSON.parse(await fs.readFile(path.join(configRoot, "codebook.json"), "utf8")) as unknown,
     ).toEqual([]);
