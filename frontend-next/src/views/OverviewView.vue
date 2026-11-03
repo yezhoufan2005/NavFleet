@@ -23,8 +23,10 @@ import { useNowTicker } from "@/composables/useNowTicker";
 import { SEVERITY_LABELS, SEVERITY_RANK } from "@/lib/severity";
 import {
   activeCodeText,
+  deviceStatusLabels,
   deviceToneLabels,
   formatDateTime,
+  getDeviceStatus,
   getDeviceTone,
 } from "@navfleet/fleet-core";
 import type { DeviceSnapshot } from "@navfleet/shared";
@@ -70,7 +72,7 @@ const serverTimeLabel = computed(() =>
     : "--",
 );
 
-type Tone = "ok" | "warning" | "critical" | "muted";
+type Tone = "ok" | "notice" | "warning" | "critical" | "muted";
 
 /** One coloured run of a tile's mini proportion bar; the unfilled remainder shows as track. */
 interface BarSegment {
@@ -157,7 +159,18 @@ const tiles = computed<Tile[]>(() => {
       label: "活跃消息",
       value: String(alertTotal),
       note: critical > 0 ? `${critical} 条告警级` : "无告警级",
-      tone: critical > 0 ? "critical" : alertTotal > 0 ? "warning" : "ok",
+      // The tile chrome follows the worst present severity, 提示 included: a 提示-only
+      // fleet is blue, not amber. Before this the tone fell straight from critical to a
+      // bare `alertTotal > 0 ? "warning"`, so any active-message state with no 告警 — even
+      // all 提示 — painted the card amber while its own composition bar below showed blue.
+      tone:
+        critical > 0
+          ? "critical"
+          : warning > 0
+            ? "warning"
+            : notice > 0
+              ? "notice"
+              : "ok",
       // Composition, not ratio: the three severities together are the whole bar, so it
       // reads as "what are these 14 made of" at a glance. Zero-width runs are dropped.
       segments: [
@@ -218,6 +231,10 @@ interface AttentionRow {
   tone: string;
   label: string;
   detail: string;
+  /** 实时状态 (任务中 / 充电中 / 故障…) — the operational detail behind the tone. */
+  status: string;
+  /** 实时电量, already formatted ("83%" or "--"). */
+  socLabel: string;
 }
 
 /**
@@ -241,6 +258,7 @@ const attention = computed<AttentionRow[]>(() =>
       const code =
         activeCodeText(device) ||
         (message ? message.detail || message.title : "");
+      const soc = device.vehicleInfo?.soc;
       return {
         device,
         tone,
@@ -249,6 +267,8 @@ const attention = computed<AttentionRow[]>(() =>
           tone === "offline"
             ? "已失联，最后状态可能已过期"
             : code || "无详细信息",
+        status: deviceStatusLabels[getDeviceStatus(device)],
+        socLabel: Number.isFinite(soc) ? `${Math.round(soc as number)}%` : "--",
       };
     }),
 );
@@ -394,7 +414,11 @@ const alertRows = computed(() =>
             colourblind operator read.
           -->
           <span
-            v-if="tile.tone === 'warning' || tile.tone === 'critical'"
+            v-if="
+              tile.tone === 'notice' ||
+              tile.tone === 'warning' ||
+              tile.tone === 'critical'
+            "
             class="tile-mark ml-auto size-2.5 shrink-0 rounded-full"
             aria-hidden="true"
           />
@@ -435,9 +459,15 @@ const alertRows = computed(() =>
       </article>
     </div>
 
-    <div class="grid min-h-0 gap-4 xl:grid-cols-[minmax(0,2fr)_minmax(0,1fr)]">
+    <!--
+      Three equal columns at xl, matching the stat-tile row above (`sm:grid-cols-3`,
+      `gap-3`): 待处理项 spans two, so 消息摘要 / 编队情况 sit under 设备编队 at exactly
+      1/3 and share its left edge. The old `[2fr_1fr]` with `gap-4` was close but its
+      column boundary never lined up with the tiles.
+    -->
+    <div class="grid min-h-0 gap-3 xl:grid-cols-3">
       <section
-        class="flex min-h-0 flex-col gap-3 rounded-md border border-border bg-surface-raised p-4"
+        class="flex min-h-0 flex-col gap-3 rounded-md border border-border bg-surface-raised p-4 xl:col-span-2"
         aria-labelledby="attention-heading"
       >
         <div class="flex items-baseline justify-between gap-3">
@@ -503,6 +533,18 @@ const alertRows = computed(() =>
                   <span class="block truncate text-xs text-ink-muted">{{
                     row.detail
                   }}</span>
+                </span>
+                <!-- 实时状态 + 实时电量, right-aligned: the tone/label on the left says how
+                     worried to be, this says what the vehicle is actually doing and how much
+                     charge it has left. -->
+                <span class="shrink-0 text-right">
+                  <span class="block text-xs text-ink-muted">{{
+                    row.status
+                  }}</span>
+                  <span
+                    class="block font-mono text-2xs tabular-nums text-ink-muted"
+                    >{{ row.socLabel }}</span
+                  >
                 </span>
               </RouterLink>
             </li>
@@ -650,6 +692,19 @@ const alertRows = computed(() =>
 
 :root[data-theme="dark"] .stat-tile {
   --tile-wash: 0%;
+}
+
+.stat-tile[data-tone="notice"] {
+  background: color-mix(
+    in oklab,
+    var(--color-notice-wash) var(--tile-wash),
+    var(--color-surface-raised)
+  );
+  box-shadow: inset 4px 0 0 var(--color-notice);
+}
+
+.stat-tile[data-tone="notice"] .tile-mark {
+  background: var(--color-notice);
 }
 
 .stat-tile[data-tone="warning"] {

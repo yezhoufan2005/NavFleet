@@ -144,6 +144,20 @@ describe("the counts", () => {
     expect(summary).toContain("告警");
     expect(summary).toContain("预警");
   });
+
+  it("paints 活跃消息 blue (notice), not amber, when every active message is 提示", async () => {
+    // 提示-only used to fall through to the amber `warning` branch, so the card's chrome
+    // disagreed with its own composition bar (already blue). Now the tone follows the
+    // worst severity present: no 告警, no 预警 → notice.
+    store.ingestPayload(
+      snapshot([device({ info_code: code(1501, "巡检轮次已完成") })]),
+      "api",
+    );
+    const wrapper = await mountPage();
+    const alertsTile = wrapper.findAll("article")[0];
+    expect(alertsTile?.attributes("data-tone")).toBe("notice");
+    expect(alertsTile?.find(".tile-mark").exists()).toBe(true);
+  });
 });
 
 describe("where a tile's tone lives", () => {
@@ -247,6 +261,29 @@ describe("who needs attention", () => {
     expect(rows[1]?.text()).toContain("预警车");
     expect(rows[2]?.text()).toContain("离线车");
     expect(wrapper.text()).not.toContain("健康车");
+  });
+
+  it("shows each row's 实时状态 and 实时电量 on the right", async () => {
+    // The tone/label on the left says how worried to be; 实时状态 + 电量 say what the
+    // vehicle is actually doing and how much charge is left — derived, no new field.
+    store.ingestPayload(
+      snapshot([
+        device({
+          deviceId: "agv-02",
+          deviceName: "充电车",
+          warning_code: code(2203, "电量偏低"),
+          task_status: 4, // 充电中
+          vehicle_info: { soc: 37, control_mode: 1 },
+        }),
+      ]),
+      "api",
+    );
+    const wrapper = await mountPage();
+    const row = wrapper
+      .find("section[aria-labelledby='attention-heading']")
+      .find("li");
+    expect(row.text()).toContain("充电中");
+    expect(row.text()).toContain("37%");
   });
 
   it("lists every abnormal vehicle and scrolls, without capping the count", async () => {

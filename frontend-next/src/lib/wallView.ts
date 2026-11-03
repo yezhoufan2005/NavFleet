@@ -24,6 +24,13 @@ export const WALL_STALE_CRITICAL_MS = 30_000;
 
 export type WallTone = "ok" | "warning" | "critical";
 
+/**
+ * A KPI tile's tone. Wider than `WallTone` by one: 活跃消息 can be 提示-only, which is
+ * blue (`notice`), not amber — the same 提示≠预警 fix the overview tile carries. Freshness
+ * never goes blue, so it keeps the narrower `WallTone`.
+ */
+export type WallTileTone = WallTone | "notice" | "muted";
+
 export interface WallFreshness {
   tone: WallTone;
   /** Age in ms, or `null` when nothing has ever been ingested. */
@@ -107,7 +114,7 @@ export interface WallTile {
   value: string;
   note: string;
   /** `muted` tiles never colour — a permanently-toned tile teaches the room to ignore the colour. */
-  tone: WallTone | "muted";
+  tone: WallTileTone;
 }
 
 /**
@@ -115,12 +122,14 @@ export interface WallTile {
  *
  * `tone` is only ever "not ok" when the number itself says so (the rule `OverviewView` settled
  * on): online is `critical` only when the whole fleet is dark, `warning` when some are; alerts
- * follow the presence of a critical-severity row. GPS coverage and formation count are context,
+ * follow the worst severity present — `critical` for a 告警 row, `warning` for a 预警, `notice`
+ * (blue) when the only active messages are 提示. GPS coverage and formation count are context,
  * so they stay `muted`.
  */
 export function buildWallTiles(
   summary: WallSummaryInput,
   criticalCount: number,
+  warningCount: number,
   formationCount: number,
 ): WallTile[] {
   const { totalCount, onlineCount, alertTotal, gpsCount } = summary;
@@ -145,7 +154,14 @@ export function buildWallTiles(
       label: "活跃消息",
       value: String(alertTotal),
       note: criticalCount > 0 ? `${criticalCount} 条告警级` : "无告警级",
-      tone: criticalCount > 0 ? "critical" : alertTotal > 0 ? "warning" : "ok",
+      tone:
+        criticalCount > 0
+          ? "critical"
+          : warningCount > 0
+            ? "warning"
+            : alertTotal > 0
+              ? "notice"
+              : "ok",
     },
     {
       key: "gps",
