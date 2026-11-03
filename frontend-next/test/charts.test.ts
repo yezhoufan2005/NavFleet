@@ -13,6 +13,8 @@ import {
   type CategoryDatum,
 } from "@/components/charts/categoryBarOption";
 import CategoryBarChart from "@/components/charts/CategoryBarChart.vue";
+import { buildPieOption } from "@/components/charts/pieOption";
+import PieChart from "@/components/charts/PieChart.vue";
 import { useChartTheme } from "@/composables/useChartTheme";
 import { __resetTheme, useTheme } from "@/composables/useTheme";
 
@@ -62,6 +64,23 @@ vi.mock("@/components/charts/categoryBarOption", async (importOriginal) => {
     await importOriginal<
       typeof import("@/components/charts/categoryBarOption")
     >();
+  return {
+    ...actual,
+    echarts: {
+      init: () => ({
+        setOption: vi.fn(),
+        on: vi.fn(),
+        resize: vi.fn(),
+        dispose: vi.fn(),
+      }),
+    },
+  };
+});
+
+// And the pie's option module — same split: real builder, stubbed renderer.
+vi.mock("@/components/charts/pieOption", async (importOriginal) => {
+  const actual =
+    await importOriginal<typeof import("@/components/charts/pieOption")>();
   return {
     ...actual,
     echarts: {
@@ -556,5 +575,77 @@ describe("CategoryBarChart", () => {
       "告警",
       "3",
     ]);
+  });
+});
+
+describe("buildPieOption", () => {
+  it("drops zero-value slices so an absent severity leaves no sliver", () => {
+    const option = buildPieOption({
+      data: [
+        { label: "告警", value: 2 },
+        { label: "预警", value: 0 },
+        { label: "提示", value: 5 },
+      ],
+      palette,
+    });
+    const slices = (option.series as { data: { name: string }[] }[])[0]!.data;
+    expect(slices.map((slice) => slice.name)).toEqual(["告警", "提示"]);
+  });
+
+  it("carries both channels: a legend for identity and a value on each slice", () => {
+    const option = buildPieOption({
+      data: [{ label: "告警", value: 2 }],
+      palette,
+      unit: "条",
+    });
+    // A legend names the slices (identity never colour-alone)…
+    expect(option.legend).toBeTruthy();
+    // …and the slice label prints the value, so the number is readable off the chart.
+    const series = (option.series as { label: { formatter: unknown } }[])[0]!;
+    expect(typeof series.label.formatter).toBe("function");
+  });
+
+  it("paints each slice with its own status token and rings it in the surface colour", () => {
+    const option = buildPieOption({
+      data: [
+        { label: "告警", value: 2, color: "#c00000" },
+        { label: "提示", value: 5, color: "#0060c0" },
+      ],
+      palette,
+    });
+    const series = (
+      option.series as {
+        itemStyle: { borderColor: string; borderWidth: number };
+        data: { itemStyle?: { color: string } }[];
+      }[]
+    )[0]!;
+    expect(series.data[0]!.itemStyle!.color).toBe("#c00000");
+    // 2px surface ring between fills (the method's spacer).
+    expect(series.itemStyle.borderColor).toBe(palette.surface);
+    expect(series.itemStyle.borderWidth).toBe(2);
+  });
+});
+
+describe("PieChart", () => {
+  const mountPie = (
+    data: CategoryDatum[],
+    props: Record<string, unknown> = {},
+  ) => mount(PieChart, { props: { data, label: "占比", ...props } });
+
+  it("names the figure and offers the table as an alternative", () => {
+    const wrapper = mountPie([{ label: "告警", value: 3 }]);
+    const surface = wrapper.get("[data-testid='pie-surface']");
+    expect(surface.attributes("role")).toBe("img");
+    expect(surface.attributes("aria-label")).toContain("占比");
+    expect(wrapper.get("button").text()).toBe("数据表");
+  });
+
+  it("hides its own caption and toggle when a parent owns them", () => {
+    const wrapper = mountPie([{ label: "告警", value: 3 }], {
+      labelHidden: true,
+      showTableToggle: false,
+    });
+    expect(wrapper.find("figcaption").exists()).toBe(false);
+    expect(wrapper.find("[data-testid='pie-surface']").exists()).toBe(true);
   });
 });

@@ -15,6 +15,8 @@
 import { computed, onMounted, ref, watch } from "vue";
 import { RouterLink, useRoute } from "vue-router";
 import CategoryBarChart from "@/components/charts/CategoryBarChart.vue";
+import PieChart from "@/components/charts/PieChart.vue";
+import UiButton from "@/components/ui/UiButton.vue";
 import UiListPagination from "@/components/ui/UiListPagination.vue";
 import UiEmptyState from "@/components/ui/UiEmptyState.vue";
 import { useLatestRequest } from "@/composables/useLatestRequest";
@@ -195,6 +197,12 @@ const filtered = computed(() =>
 );
 
 // ── Derived statistics + chart inputs ─────────────────────────────────────────────────────
+/**
+ * 按严重度分布 shows as a pie by default (the 占比 read) with a toggle to the bar, which is the
+ * better tool for comparing the three magnitudes. Per-viewer only; not worth a URL param.
+ */
+const severityView = ref<"pie" | "bar">("pie");
+
 // `topN: Infinity` — the per-device chart shows *every* device with cleared messages, not a Top-8.
 // The chart card has a fixed height and scrolls (see the grid comment), so "all of them" costs a
 // scrollbar, never an ever-taller card.
@@ -367,11 +375,36 @@ const pageRows = computed(() =>
          fixed height is the whole point — a scrollbar, never an ever-taller card. -->
     <div class="grid gap-4 lg:grid-cols-3">
       <section class="rounded-md border border-border bg-surface-raised p-4">
-        <CategoryBarChart
+        <!-- 按严重度分布: pie by default (占比), toggle to the bar (magnitude comparison). The card
+             owns the 饼图/柱状图 toggle, so both charts render plot-only (labelHidden, no table). -->
+        <div class="mb-2 flex items-center justify-between gap-3">
+          <span class="text-sm font-medium text-ink">按严重度分布</span>
+          <UiButton
+            variant="ghost"
+            size="sm"
+            :aria-pressed="severityView === 'bar'"
+            @click="severityView = severityView === 'pie' ? 'bar' : 'pie'"
+          >
+            {{ severityView === "pie" ? "柱状图" : "饼图" }}
+          </UiButton>
+        </div>
+        <PieChart
+          v-if="severityView === 'pie'"
           :data="severityData"
           label="按严重度分布"
           unit="条"
           :height="240"
+          label-hidden
+          :show-table-toggle="false"
+        />
+        <CategoryBarChart
+          v-else
+          :data="severityData"
+          label="按严重度分布"
+          unit="条"
+          :height="240"
+          label-hidden
+          :show-table-toggle="false"
         />
       </section>
       <section class="rounded-md border border-border bg-surface-raised p-4">

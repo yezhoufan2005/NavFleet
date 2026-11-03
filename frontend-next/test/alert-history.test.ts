@@ -20,6 +20,13 @@ const barStub = {
   template:
     '<div class="bar-stub" :data-label="label" :data-count="data.length" :data-total="data.reduce((s, d) => s + d.value, 0)"></div>',
 };
+// 按严重度分布 defaults to the pie; same data shape, so a matching stub lets the data assertions
+// read it the same way as the bars.
+const pieStub = {
+  props: ["data", "label"],
+  template:
+    '<div class="pie-stub" :data-label="label" :data-count="data.length" :data-total="data.reduce((s, d) => s + d.value, 0)"></div>',
+};
 
 const record = (over: Partial<AlertRecord> = {}): AlertRecord => ({
   eventKey: "agv-01:e1",
@@ -50,7 +57,10 @@ const mountPanel = async (query = "") => {
   await router.push(`/${query}`);
   await router.isReady();
   const wrapper = mount(AlertHistoryPanel, {
-    global: { plugins: [router], stubs: { CategoryBarChart: barStub } },
+    global: {
+      plugins: [router],
+      stubs: { CategoryBarChart: barStub, PieChart: pieStub },
+    },
   });
   await flushPromises();
   return wrapper;
@@ -165,7 +175,7 @@ describe("the statistics", () => {
     expect(text).toContain("2小时0分"); // mean of 1h and 3h
   });
 
-  it("feeds the severity chart one bar per severity, summing to the total", async () => {
+  it("feeds the severity chart one slice per severity, summing to the total", async () => {
     vi.spyOn(fleetApi, "getAlerts").mockResolvedValue({
       items: [
         record({ severity: "critical" }),
@@ -174,11 +184,31 @@ describe("the statistics", () => {
       ],
     });
     const wrapper = await mountPanel();
+    // 按严重度分布 defaults to the pie.
+    const severity = wrapper
+      .findAll(".pie-stub")
+      .find((node) => node.attributes("data-label") === "按严重度分布");
+    expect(severity?.attributes("data-count")).toBe("3");
+    expect(severity?.attributes("data-total")).toBe("3");
+  });
+
+  it("toggles 按严重度分布 between pie and bar, pie first", async () => {
+    const wrapper = await mountPanel();
+    // Pie on arrival; the toggle offers the bar.
+    expect(wrapper.find(".pie-stub").exists()).toBe(true);
+    const toggle = wrapper
+      .findAll("button")
+      .find((button) => button.text() === "柱状图");
+    expect(toggle).toBeTruthy();
+
+    await toggle!.trigger("click");
+    await flushPromises();
+
     const severityBar = wrapper
       .findAll(".bar-stub")
       .find((node) => node.attributes("data-label") === "按严重度分布");
-    expect(severityBar?.attributes("data-count")).toBe("3");
-    expect(severityBar?.attributes("data-total")).toBe("3");
+    expect(severityBar).toBeTruthy();
+    expect(wrapper.find(".pie-stub").exists()).toBe(false);
   });
 
   it("labels the per-device chart by its dimension (按设备分布), not 告警", async () => {

@@ -30,6 +30,8 @@ const {
   orientation = "vertical",
   color,
   scroll = false,
+  labelHidden = false,
+  showTableToggle = true,
 } = defineProps<{
   data: readonly CategoryDatum[];
   /** Accessible name for the figure, and the table's caption. */
@@ -44,6 +46,10 @@ const {
    * bars grow rightward (horizontal scroll). Off by default — a fixed 3-bar chart needs none.
    */
   scroll?: boolean;
+  /** Keep `label` as the accessible name but drop the visible caption (a parent shows the heading). */
+  labelHidden?: boolean;
+  /** Show the built-in 图表/数据表 toggle. False when a parent owns the view toggle. */
+  showTableToggle?: boolean;
 }>();
 
 const { palette, animate } = useChartTheme();
@@ -114,9 +120,16 @@ onBeforeUnmount(disposeChart);
 
 <template>
   <figure class="m-0 flex flex-col gap-2">
-    <figcaption class="flex items-center justify-between gap-3">
-      <span class="text-sm font-medium text-ink">{{ label }}</span>
+    <figcaption
+      v-if="!labelHidden || showTableToggle"
+      class="flex items-center justify-between gap-3"
+    >
+      <span v-if="!labelHidden" class="text-sm font-medium text-ink">{{
+        label
+      }}</span>
+      <span v-else aria-hidden="true" />
       <UiButton
+        v-if="showTableToggle"
         variant="ghost"
         size="sm"
         :aria-pressed="showTable"
