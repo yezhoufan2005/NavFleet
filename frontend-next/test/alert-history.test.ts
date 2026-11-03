@@ -96,6 +96,7 @@ describe("the onset window (server-side, 1.6.1)", () => {
       status: "cleared",
       from: new Date("2026-03-01T00:00:00").toISOString(),
       to: new Date("2026-03-02T23:59:59.999").toISOString(),
+      limit: 10000,
     });
   });
 
@@ -107,21 +108,27 @@ describe("the onset window (server-side, 1.6.1)", () => {
     spy.mockClear();
     await router.push("/?from=2026-03-05");
     await flushPromises();
-    // A one-sided bound is honoured; only `from` is sent.
+    // A one-sided bound is honoured; only `from` is sent (plus the standing 10000-row cap).
     expect(spy).toHaveBeenCalledWith({
       status: "cleared",
       from: new Date("2026-03-05T00:00:00").toISOString(),
+      limit: 10000,
     });
   });
 });
 
 describe("loading and failure", () => {
-  it("reads only cleared alerts from the endpoint", async () => {
+  it("reads only cleared alerts, over the default 10-day window and 10000-row cap", async () => {
     const spy = vi
       .spyOn(fleetApi, "getAlerts")
       .mockResolvedValue({ items: [] });
     await mountPanel();
-    expect(spy).toHaveBeenCalledWith({ status: "cleared" });
+    // No 起 set, so the window defaults to the last 10 days; the cap rides every query.
+    expect(spy).toHaveBeenCalledWith(
+      expect.objectContaining({ status: "cleared", limit: 10000 }),
+    );
+    const [params] = spy.mock.calls[0]!;
+    expect(typeof (params as { from?: string }).from).toBe("string");
   });
 
   it("shows an error state when the history fails to load", async () => {

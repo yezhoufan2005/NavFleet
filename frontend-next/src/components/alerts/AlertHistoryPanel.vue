@@ -44,6 +44,15 @@ const records = ref<AlertRecord[]>([]);
 const cappedAt = ref<number | null>(null);
 const latestRequest = useLatestRequest();
 
+/**
+ * The window this history covers out of the box, and the row cap asked of the server. Ten days
+ * by default (an explicit 起 in the filter bar reaches further back, within the cap); up to 10000
+ * rows — the former 500 page cut a busy fleet's ten days to its newest hours and read as
+ * 「没有更早的」. Both are query/display settings only; the DB's retention TTL is untouched.
+ */
+const HISTORY_DAYS = 10;
+const HISTORY_LIMIT = 10_000;
+
 /** Clear time in epoch ms, `-Infinity` when absent so undated rows sort last. */
 const clearedMs = (record: AlertRecord): number => {
   const parsed = Date.parse(String(record.clearedAt ?? ""));
@@ -61,6 +70,7 @@ const load = async (): Promise<void> => {
     const payload = await fleetApi.getAlerts({
       status: "cleared",
       ...queryWindow.value,
+      limit: HISTORY_LIMIT,
       // One device: asked of the server, so the row cap applies to that vehicle's history rather
       // than to the fleet's latest — a quiet vehicle's older records were otherwise cut off and
       // the filter read 「没有符合」.
@@ -123,8 +133,11 @@ const fromParam = computed(() => readParam("from"));
 const toParam = computed(() => readParam("to"));
 const queryWindow = computed<{ from?: string; to?: string }>(() => {
   const result: { from?: string; to?: string } = {};
-  if (fromParam.value)
-    result.from = new Date(`${fromParam.value}T00:00:00`).toISOString();
+  // Default to the last 10 days when no 起 is set — the window the history covers out of the box.
+  // An explicit 起 reaches further back; the cap then applies within whatever window is asked.
+  result.from = fromParam.value
+    ? new Date(`${fromParam.value}T00:00:00`).toISOString()
+    : new Date(Date.now() - HISTORY_DAYS * 24 * 60 * 60 * 1000).toISOString();
   if (toParam.value)
     result.to = new Date(`${toParam.value}T23:59:59.999`).toISOString();
   return result;
