@@ -8,7 +8,11 @@
  * ISO 串，时序图要 `[epochMs, value]` 且旧点在前——mapper 已按桶起点升序，这里原样转。
  */
 
-import { buildAvailabilityCsv, csvField } from "@navfleet/shared";
+import {
+  buildAvailabilityCsv,
+  buildBatteryCsv,
+  csvField,
+} from "@navfleet/shared";
 import type { AlertStatsReport, AvailabilityReport } from "@navfleet/shared";
 import type { TimeSeries } from "@/components/charts/timeSeriesOption";
 import { SEVERITY_LABELS } from "@/lib/severity";
@@ -323,6 +327,17 @@ export const availabilityCsv = (
   nameOf: DeviceNameOf,
 ): string =>
   buildAvailabilityCsv(
+    report,
+    nameOf,
+    report.timeZone ?? Intl.DateTimeFormat().resolvedOptions().timeZone,
+  );
+
+/** 电量单独导出，与在线率同口径（时区/分桶）——「导出详情」菜单里的「导出电量」。 */
+export const batteryCsv = (
+  report: AvailabilityReport,
+  nameOf: DeviceNameOf,
+): string =>
+  buildBatteryCsv(
     report,
     nameOf,
     report.timeZone ?? Intl.DateTimeFormat().resolvedOptions().timeZone,

@@ -41,6 +41,7 @@ import {
 import {
   buildAlertStatsCsv,
   availabilityCsv,
+  batteryCsv,
   defaultBucketForPreset,
   defaultBucketForSpanMs,
   deviceAvailabilityRows,
@@ -459,6 +460,19 @@ const exportCsv = (): void => {
   URL.revokeObjectURL(url);
 };
 
+/** 电量单独导出，与在线率同口径——「导出详情」里的「导出电量」。 */
+const exportBatteryCsv = (): void => {
+  if (!availability.value) return;
+  const csv = batteryCsv(availability.value, nameOf);
+  const blob = new Blob(["﻿", csv], { type: "text/csv;charset=utf-8" });
+  const url = URL.createObjectURL(blob);
+  const anchor = document.createElement("a");
+  anchor.href = url;
+  anchor.download = `navfleet-电量-${exportWindowTag()}.csv`;
+  anchor.click();
+  URL.revokeObjectURL(url);
+};
+
 /** 消息统计导出，与在线率对等（1.6.1）——聚合报表用长表装下页面显示的一切。 */
 const exportAlertsCsv = (): void => {
   if (!alertStats.value) return;
@@ -476,22 +490,45 @@ const exportAlertsCsv = (): void => {
 <template>
   <PageHeader title="报表">
     <template #actions>
-      <UiButton
-        variant="secondary"
-        size="sm"
-        :disabled="availStatus !== 'ready' || !hasAvailabilityData"
-        @click="exportCsv"
-      >
-        导出在线率 ↗
-      </UiButton>
-      <UiButton
-        variant="secondary"
-        size="sm"
-        :disabled="alertStatus !== 'ready' || !hasAlertData"
-        @click="exportAlertsCsv"
-      >
-        导出消息 ↗
-      </UiButton>
+      <!-- 导出详情：hover（或键盘聚焦进来，group-focus-within）展开，三项分别导出在线率/电量/消息。
+           菜单只在显隐之间，触发键是真 <button> 在组内，聚焦它即 focus-within 展开、再 Tab 进菜单项。 -->
+      <div class="group relative">
+        <UiButton variant="secondary" size="sm" aria-haspopup="menu">
+          导出详情 ↗
+        </UiButton>
+        <div
+          role="menu"
+          class="invisible absolute top-full right-0 z-20 mt-1 flex min-w-36 flex-col gap-0.5 rounded-md border border-border bg-surface-raised p-1 opacity-0 shadow-lg transition-opacity duration-150 group-focus-within:visible group-focus-within:opacity-100 group-hover:visible group-hover:opacity-100"
+        >
+          <button
+            type="button"
+            role="menuitem"
+            class="rounded-sm px-3 py-1.5 text-left text-sm text-ink transition-colors hover:bg-surface-sunken disabled:cursor-not-allowed disabled:opacity-50"
+            :disabled="availStatus !== 'ready' || !hasAvailabilityData"
+            @click="exportCsv"
+          >
+            导出在线率
+          </button>
+          <button
+            type="button"
+            role="menuitem"
+            class="rounded-sm px-3 py-1.5 text-left text-sm text-ink transition-colors hover:bg-surface-sunken disabled:cursor-not-allowed disabled:opacity-50"
+            :disabled="availStatus !== 'ready' || !hasAvailabilityData"
+            @click="exportBatteryCsv"
+          >
+            导出电量
+          </button>
+          <button
+            type="button"
+            role="menuitem"
+            class="rounded-sm px-3 py-1.5 text-left text-sm text-ink transition-colors hover:bg-surface-sunken disabled:cursor-not-allowed disabled:opacity-50"
+            :disabled="alertStatus !== 'ready' || !hasAlertData"
+            @click="exportAlertsCsv"
+          >
+            导出消息
+          </button>
+        </div>
+      </div>
     </template>
 
     <AppSectionTabs />

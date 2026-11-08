@@ -176,7 +176,7 @@ describe("报表 状态与内容", () => {
     const wrapper = await mountView();
     const exportButton = wrapper
       .findAll("button")
-      .find((button) => button.text().includes("导出"));
+      .find((button) => button.text().includes("导出在线率"));
     await exportButton!.trigger("click");
 
     expect(createUrl).toHaveBeenCalledOnce();
@@ -185,6 +185,24 @@ describe("报表 状态与内容", () => {
     expect(
       (click.mock.contexts[0] as HTMLAnchorElement | undefined)?.download,
     ).toBe("navfleet-在线率-12h.csv");
+  });
+
+  it("导出详情·导出电量 生成一份电量 CSV 下载", async () => {
+    vi.spyOn(URL, "createObjectURL").mockReturnValue("blob:stub");
+    vi.spyOn(URL, "revokeObjectURL").mockImplementation(() => undefined);
+    const click = vi
+      .spyOn(HTMLAnchorElement.prototype, "click")
+      .mockImplementation(() => undefined);
+
+    const wrapper = await mountView();
+    await wrapper
+      .findAll("button")
+      .find((button) => button.text().includes("导出电量"))!
+      .trigger("click");
+
+    expect(
+      (click.mock.contexts[0] as HTMLAnchorElement | undefined)?.download,
+    ).toBe("navfleet-电量-12h.csv");
   });
 
   it("names a custom-range export after its dates, not the preset it fell back to", async () => {

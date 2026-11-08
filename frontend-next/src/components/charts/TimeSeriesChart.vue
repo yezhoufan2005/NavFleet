@@ -386,7 +386,9 @@ const columnHeader = (entry: TimeSeries): string => {
       :min-width="tableMinWidth"
     >
       <template #colgroup>
-        <col class="w-[45%]" />
+        <!-- 时间列定宽，不用百分比：多选设备时表变宽，45% 会让时间列跟着变宽，而每行时间戳长度没变、
+             只是右边在加设备列——定宽让时间列恒定，新增的设备列去分剩余宽度。 -->
+        <col class="w-48" />
         <col v-for="entry in series" :key="entry.name" />
       </template>
       <template #head>

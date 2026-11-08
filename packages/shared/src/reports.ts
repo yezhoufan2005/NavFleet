@@ -246,3 +246,38 @@ export const buildAvailabilityCsv = (
   }
   return lines.join("\n");
 };
+
+/**
+ * 电量单独导出（设备 × 桶）：只含电量均值/最低，供「导出详情」里的「导出电量」用。与在线率共用时区/
+ * 分桶口径；`null` 的电量同样留空而非写 0——空是「这段没有电量样本」，0 会被读成「没电」。
+ */
+export const buildBatteryCsv = (
+  report: AvailabilityReport,
+  nameOf: (deviceId: string) => string,
+  timeZone: string,
+): string => {
+  const header = [
+    "设备ID",
+    "设备名称",
+    `时间桶（${timeZone}）`,
+    "电量均值",
+    "电量最低",
+  ];
+  const lines = [header.map(csvField).join(",")];
+  for (const device of report.devices) {
+    for (const bucket of device.buckets) {
+      lines.push(
+        [
+          device.deviceId,
+          nameOf(device.deviceId),
+          formatBucketStart(bucket.bucketStart, timeZone),
+          bucket.socMean ?? "",
+          bucket.socMin ?? "",
+        ]
+          .map(csvField)
+          .join(","),
+      );
+    }
+  }
+  return lines.join("\n");
+};

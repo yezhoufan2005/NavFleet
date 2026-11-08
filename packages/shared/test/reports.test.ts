@@ -3,6 +3,7 @@ import {
   emptyAlertStatsReport,
   emptyAvailabilityReport,
   buildAvailabilityCsv,
+  buildBatteryCsv,
   formatBucketStart,
 } from "../src/index";
 
@@ -69,5 +70,41 @@ describe("buildAvailabilityCsv", () => {
     expect(header).toContain("时间桶（Asia/Shanghai）");
     // Local day, percent, a blank null soc, and a formula-looking name defused.
     expect(row).toBe("agv-1,'=agv-1,2026-10-30 00:00,3,4,30,40,75.0,,12");
+  });
+});
+
+describe("buildBatteryCsv", () => {
+  it("exports just the battery columns, blank for a null mean", () => {
+    const csv = buildBatteryCsv(
+      {
+        bucket: "day",
+        available: true,
+        devices: [
+          {
+            deviceId: "agv-1",
+            buckets: [
+              {
+                bucketStart: "2026-10-29T16:00:00.000Z",
+                onlineSamples: 3,
+                totalSamples: 4,
+                onlineSeconds: 30,
+                spanSeconds: 40,
+                onlineRatio: 0.75,
+                socMean: null,
+                socMin: 12,
+              },
+            ],
+          },
+        ],
+      },
+      (id) => id,
+      "Asia/Shanghai",
+    );
+    const [header, row] = csv.split("\n");
+    expect(header).toBe(
+      "设备ID,设备名称,时间桶（Asia/Shanghai）,电量均值,电量最低",
+    );
+    // No online-rate columns; the null mean is a blank cell, not 0.
+    expect(row).toBe("agv-1,agv-1,2026-10-30 00:00,,12");
   });
 });
