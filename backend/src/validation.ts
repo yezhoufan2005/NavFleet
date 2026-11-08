@@ -335,6 +335,19 @@ export const reportRangeSchema = z
   .object({
     from: timestampString.optional(),
     to: timestampString.optional(),
+    // Comma-joined device list narrowing the aggregate to those vehicles (empty = whole fleet),
+    // the same shape the availability report takes — so a device filter narrows both halves of
+    // the 报表 page, not just the online-rate charts.
+    deviceId: z
+      .string()
+      .transform((raw) =>
+        raw
+          .split(",")
+          .map((part) => part.trim())
+          .filter(Boolean),
+      )
+      .pipe(z.array(z.string().min(1).max(200)))
+      .optional(),
   })
   .superRefine(rejectOversizedWindow);
 

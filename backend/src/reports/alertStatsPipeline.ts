@@ -25,6 +25,8 @@ export interface AlertStatsPipelineParams {
   from: Date | null;
   /** 区间上界（含）；null 表示不设上界。 */
   to: Date | null;
+  /** 限定到这些设备（空/缺省 = 全车队）；与在线率报表同口径，让设备筛选同时收窄这半页。 */
+  deviceIds?: string[] | null;
   /** Top-N 设备保留几个。 */
   topN: number;
   /** 切日界用的 IANA 时区（如 `Asia/Shanghai`），交给 `$dateToString`。 */
@@ -36,8 +38,13 @@ export interface AlertStatsPipelineParams {
  * 已清除告警的时长样本。用 `$facet` 而不是发五条独立聚合，是为了只扫一遍 `firstSeenAt` 区间。
  */
 export const buildAlertStatsPipeline = (params: AlertStatsPipelineParams): Document[] => {
-  const { from, to, topN, timezone } = params;
+  const { from, to, deviceIds, topN, timezone } = params;
   const pipeline: Document[] = [];
+
+  // 设备过滤先行：给了设备列表就只统计这些车，否则全车队。放在时间 `$match` 之前，和在线率报表一致。
+  if (deviceIds && deviceIds.length > 0) {
+    pipeline.push({ $match: { deviceId: { $in: [...deviceIds] } } });
+  }
 
   // 只在给了边界时才加 `$match`——不给就是「TTL 窗口内全部」。边界打在 `firstSeenAt`（Date）上。
   const range: Record<string, Date> = {};

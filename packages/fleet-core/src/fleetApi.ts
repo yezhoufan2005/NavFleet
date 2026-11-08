@@ -143,6 +143,9 @@ export interface AlertsQueryParams {
 export interface ReportRangeParams {
   from?: string;
   to?: string;
+  /** Comma-joined device list narrowing the alert aggregate to those vehicles (empty = whole
+   * fleet), mirroring the availability report — so a device filter narrows the whole 报表 page. */
+  deviceId?: string;
 }
 
 /** Query for the availability/battery time-series. `deviceId` is a comma-joined list

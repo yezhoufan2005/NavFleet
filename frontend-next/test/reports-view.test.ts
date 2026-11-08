@@ -263,6 +263,9 @@ describe("报表 状态与内容", () => {
     const avail = vi
       .spyOn(fleetApi, "getAvailabilityReport")
       .mockResolvedValue(availabilityReport());
+    const alerts = vi
+      .spyOn(fleetApi, "getAlertStatsReport")
+      .mockResolvedValue(alertStatsReport());
     const wrapper = await mountView();
 
     // 设备 is a multi-select now; emitting its set should refetch with the ids comma-joined
@@ -273,5 +276,7 @@ describe("报表 状态与内容", () => {
     await flushPromises();
 
     expect(avail.mock.calls.at(-1)![0]!.deviceId).toBe("agv-01,agv-02");
+    // The message stats narrow with the same filter — not just the online-rate charts.
+    expect(alerts.mock.calls.at(-1)![0]!.deviceId).toBe("agv-01,agv-02");
   });
 });

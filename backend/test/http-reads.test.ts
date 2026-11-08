@@ -278,6 +278,15 @@ describe("GET /api/reports/alerts", () => {
     expect(response.status).toBe(400);
     expect(context.store.getAlertStats).not.toHaveBeenCalled();
   });
+
+  it("forwards a device filter so the stats narrow with the rest of the page", async () => {
+    const context = createTestApp();
+    const response = await authed(context, "/api/reports/alerts?deviceId=agv-01,agv-02");
+
+    expect(response.status).toBe(200);
+    const [range] = context.store.getAlertStats.mock.calls[0] as [{ deviceId?: string[] }];
+    expect(range.deviceId).toEqual(["agv-01", "agv-02"]);
+  });
 });
 
 describe("GET /api/reports/availability", () => {

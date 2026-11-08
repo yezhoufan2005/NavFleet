@@ -213,7 +213,15 @@ const load = (): void => {
   alertStatus.value = "loading";
   alertError.value = "";
   fleetApi
-    .getAlertStatsReport({ from: window.from, to: window.to })
+    .getAlertStatsReport({
+      from: window.from,
+      to: window.to,
+      // Same device filter as the availability report, so a selected vehicle narrows the message
+      // stats (总数 / 严重度分布) too — not just the online-rate charts.
+      deviceId: deviceFilter.value.length
+        ? deviceFilter.value.join(",")
+        : undefined,
+    })
     .then((report) => {
       if (!isCurrent()) return;
       alertStats.value = report;
