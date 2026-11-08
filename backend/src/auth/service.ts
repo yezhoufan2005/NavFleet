@@ -12,14 +12,37 @@ export const toPublicUser = (user: UserRecord): PublicUser => ({
   role: user.role,
 });
 
-/** Strip `passwordHash` before a user record can reach a response body. */
+/**
+ * The bootstrap administrator (`ADMIN_USERNAME`) is a protected system account: it is seeded and
+ * changed only out of band (env / bootstrap). No *other* account may demote, disable, delete, reset
+ * or log it out through the user-management API — that keeps a debug/superuser entry the demo roles
+ * cannot touch. The bootstrap admin itself is the one exception: signed in as itself it operates on
+ * its own row like any user (see `protectedMutationBlocked`). Compared case-insensitively, the same
+ * way usernames are matched everywhere else.
+ */
+export const isProtectedAccount = (username: string): boolean =>
+  username.trim().toLowerCase() === config.adminUsername.trim().toLowerCase();
+
+/**
+ * Whether `actor` is forbidden from mutating `target`'s account by the protection rule: the target
+ * is the protected bootstrap admin and the actor is someone else. The bootstrap admin acting on
+ * itself is allowed (both are protected), so the console can still let it manage its own row.
+ */
+export const protectedMutationBlocked = (actor: string, target: string): boolean =>
+  isProtectedAccount(target) && !isProtectedAccount(actor);
+
+/** Strip `passwordHash` before a user record can reach a response body; mark the protected one. */
 export const toAdminUserView = ({
   passwordHash: _passwordHash,
   ...view
-}: UserRecord): AdminUserView => view;
+}: UserRecord): AdminUserView => ({
+  ...view,
+  protected: isProtectedAccount(view.username),
+});
 
 /** Why an admin action was refused, mapped to an HTTP status by the route. */
-export type AdminActionError = "not_found" | "conflict" | "last_admin" | "self_forbidden";
+export type AdminActionError =
+  "not_found" | "conflict" | "last_admin" | "self_forbidden" | "protected";
 
 export type AdminActionResult<T> = { ok: true; value: T } | { ok: false; error: AdminActionError };
 
@@ -346,6 +369,9 @@ export class AuthService {
     if (!target) {
       return { ok: false, error: "not_found" };
     }
+    if (protectedMutationBlocked(actor, target.username)) {
+      return { ok: false, error: "protected" };
+    }
 
     const demotes = fields.role !== undefined && fields.role !== "admin" && target.role === "admin";
     // Only disabling an *admin* can remove admin power, so only that case consults the guard.
@@ -374,12 +400,16 @@ export class AuthService {
   }
 
   async resetPassword(
+    actor: string,
     username: string,
     newPassword: string,
   ): Promise<AdminActionResult<AdminUserView>> {
     const target = await this.persistence.findUserByUsername(username);
     if (!target) {
       return { ok: false, error: "not_found" };
+    }
+    if (protectedMutationBlocked(actor, target.username)) {
+      return { ok: false, error: "protected" };
     }
     const hash = await hashPassword(newPassword);
     const at = new Date().toISOString();
@@ -395,10 +425,13 @@ export class AuthService {
   }
 
   /** Force-log-out a user from every device (admin). Returns not_found for an unknown user. */
-  async forceLogout(username: string): Promise<AdminActionResult<void>> {
+  async forceLogout(actor: string, username: string): Promise<AdminActionResult<void>> {
     const target = await this.persistence.findUserByUsername(username);
     if (!target) {
       return { ok: false, error: "not_found" };
+    }
+    if (protectedMutationBlocked(actor, target.username)) {
+      return { ok: false, error: "protected" };
     }
     await this.revokeAllSessions(username);
     return { ok: true, value: undefined };
@@ -408,6 +441,9 @@ export class AuthService {
     const target = await this.persistence.findUserByUsername(username);
     if (!target) {
       return { ok: false, error: "not_found" };
+    }
+    if (protectedMutationBlocked(actor, target.username)) {
+      return { ok: false, error: "protected" };
     }
     // Deleting an enabled admin removes their power — same lockout guard as disable/demote.
     if (target.role === "admin" && target.enabled) {

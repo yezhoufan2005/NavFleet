@@ -138,7 +138,7 @@ describe("users API — CRUD wiring (admin)", () => {
       .set("Cookie", ADMIN)
       .send({ newPassword: NEW_PASSWORD });
     expect(response.status).toBe(204);
-    expect(context.authService.resetPassword).toHaveBeenCalledWith("bob", NEW_PASSWORD);
+    expect(context.authService.resetPassword).toHaveBeenCalledWith("root", "bob", NEW_PASSWORD);
   });
 
   it("deletes a user (204) and passes the acting username", async () => {

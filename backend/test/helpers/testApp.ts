@@ -209,10 +209,14 @@ export interface AuthServiceStub {
     (actor: string, username: string, fields: unknown) => Promise<AdminActionResult<AdminUserView>>
   >;
   resetPassword: Mock<
-    (username: string, newPassword: string) => Promise<AdminActionResult<AdminUserView>>
+    (
+      actor: string,
+      username: string,
+      newPassword: string,
+    ) => Promise<AdminActionResult<AdminUserView>>
   >;
   deleteUser: Mock<(actor: string, username: string) => Promise<AdminActionResult<void>>>;
-  forceLogout: Mock<(username: string) => Promise<AdminActionResult<void>>>;
+  forceLogout: Mock<(actor: string, username: string) => Promise<AdminActionResult<void>>>;
   // Sessions.
   createSession: Mock<(input: unknown) => Promise<void>>;
   touchSession: Mock<(sessionId: string) => Promise<void>>;
@@ -240,7 +244,10 @@ const stubUser = (username: string, role: UserRole = "viewer"): UserRecord => ({
 });
 
 /** Strip `passwordHash`, mirroring the service's `toAdminUserView`. */
-const adminView = ({ passwordHash: _passwordHash, ...view }: UserRecord): AdminUserView => view;
+const adminView = ({ passwordHash: _passwordHash, ...view }: UserRecord): AdminUserView => ({
+  ...view,
+  protected: false,
+});
 
 export const createAuthServiceStub = (): AuthServiceStub => ({
   authenticate: vi.fn(() => Promise.resolve<AuthResult>({ ok: false, lockedJustNow: false })),
@@ -269,7 +276,7 @@ export const createAuthServiceStub = (): AuthServiceStub => ({
       value: adminView(stubUser(username)),
     }),
   ),
-  resetPassword: vi.fn((username) =>
+  resetPassword: vi.fn((_actor, username) =>
     Promise.resolve<AdminActionResult<AdminUserView>>({
       ok: true,
       value: adminView(stubUser(username)),

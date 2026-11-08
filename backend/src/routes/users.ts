@@ -1,6 +1,7 @@
 import express from "express";
 import { requireCapability } from "../auth/middleware";
 import type { AuthService, AdminActionError, UpdateUserInput } from "../auth/service";
+import { protectedMutationBlocked } from "../auth/service";
 import type { AdminUserView } from "../types";
 import type { AuditService } from "../audit/service";
 import type { RbacService } from "../rbac/service";
@@ -13,6 +14,9 @@ const STATUS_BY_ERROR: Record<AdminActionError, number> = {
   conflict: 409,
   last_admin: 409,
   self_forbidden: 409,
+  // The bootstrap admin is a protected system account — mutating it through the API is forbidden
+  // (console buttons are disabled too); it changes only out of band.
+  protected: 403,
 };
 
 const respondActionError = makeActionErrorResponder(STATUS_BY_ERROR);
@@ -122,6 +126,7 @@ export const buildUsersRouter = (
       return;
     }
     const result = await authService.resetPassword(
+      request.user!.username,
       request.params.username,
       parsed.data.newPassword,
     );
@@ -162,7 +167,7 @@ export const buildUsersRouter = (
    * is a legitimate "I lost a laptop" action — but always audited.
    */
   router.post("/users/:username/logout", async (request, response) => {
-    const result = await authService.forceLogout(request.params.username);
+    const result = await authService.forceLogout(request.user!.username, request.params.username);
     if (!result.ok) {
       respondActionError(response, result.error);
       return;
@@ -203,6 +208,12 @@ export const buildUsersRouter = (
   router.delete("/users/:username/sessions/:sessionId", async (request, response) => {
     const username = request.params.username;
     const sessionId = String(request.params.sessionId);
+    // The protected bootstrap admin is managed only out of band by anyone *else* — the console
+    // disables this too. The bootstrap admin signed in as itself may still revoke its own sessions.
+    if (protectedMutationBlocked(request.user!.username, username)) {
+      respondActionError(response, "protected");
+      return;
+    }
     const revoked = await authService.revokeSession(username, sessionId);
     if (!revoked) {
       response.status(404).json({ error: "not_found" });

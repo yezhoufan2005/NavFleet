@@ -182,6 +182,9 @@ export interface AdminUser {
   lockedUntil: string | null;
   /** Long-lived read-only wall-display account; absent/false for a normal account. */
   kiosk?: boolean;
+  /** The protected bootstrap admin: shown in the list but its actions are disabled (managed only
+   * out of band). Absent/false for every normal account. */
+  protected?: boolean;
   [key: string]: unknown;
 }
 
