@@ -69,11 +69,13 @@ export const useAlertAck = () => {
     const key = eventKey(deviceId, id);
     fleet.applyAck(key, optimisticEntry());
     try {
-      // Call without the third argument when there is no comment, so the request body carries
-      // no empty `comment` field (and call sites without one assert a clean two-arg call).
+      // Call without the third argument when there is no reason, so the request body carries
+      // no empty `reason` field (and call sites without one assert a clean two-arg call). The
+      // old "acknowledge" is the ignore disposition now; the returned payload is ignored here
+      // (the optimistic overlay + the WS broadcast carry the authoritative state).
       await (comment === undefined
-        ? fleetApi.ackAlert(deviceId, id)
-        : fleetApi.ackAlert(deviceId, id, comment));
+        ? fleetApi.ignoreAlert(deviceId, id)
+        : fleetApi.ignoreAlert(deviceId, id, comment));
       return true;
     } catch (error) {
       fleet.applyUnack(key);
@@ -97,7 +99,7 @@ export const useAlertAck = () => {
     const previous = fleet.getAck(deviceId, id);
     fleet.applyUnack(key);
     try {
-      await fleetApi.unackAlert(deviceId, id);
+      await fleetApi.unignoreAlert(deviceId, id);
       return true;
     } catch (error) {
       if (previous) fleet.applyAck(key, previous);

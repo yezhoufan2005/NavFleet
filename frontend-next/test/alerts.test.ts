@@ -4,7 +4,11 @@ import { createMemoryHistory, createRouter } from "vue-router";
 import type { Router } from "vue-router";
 import { enableAutoUnmount, flushPromises, mount } from "@vue/test-utils";
 import { fleetApi } from "@navfleet/fleet-core";
-import { capabilitiesForRole, type UserRole } from "@navfleet/shared";
+import {
+  capabilitiesForRole,
+  type UserRole,
+  type AlertDispositionPayload,
+} from "@navfleet/shared";
 import AlertsView from "@/views/AlertsView.vue";
 import UiMultiSelect from "@/components/ui/UiMultiSelect.vue";
 import NotificationHost from "@/components/NotificationHost.vue";
@@ -47,8 +51,21 @@ const device = (patch: Record<string, unknown> = {}) => ({
 
 let store: ReturnType<typeof useFleetStore>;
 let router: Router;
-/** Captured so an assertion reads the spy variable, not `fleetApi.ackAlert` unbound. */
+/** Captured so an assertion reads the spy variable, not `fleetApi.ignoreAlert` unbound. */
 let ackSpy: ReturnType<typeof vi.spyOn>;
+
+/** A disposition payload for the ignore/unignore mocks (the composable ignores the return). */
+const dispoPayload = (): AlertDispositionPayload => ({
+  deviceId: "agv-01",
+  alertId: "err-1",
+  version: 1,
+  disposition: "ignored",
+  claimedBy: null,
+  claimedAt: null,
+  ignoredBy: "op",
+  ignoredAt: "2026-01-01T00:00:00.000Z",
+  ignoreReason: null,
+});
 
 /** Sign in so `canAck` is true (operator+) unless a test asks for another role. */
 const signIn = (role: UserRole = "operator"): void => {
@@ -129,8 +146,8 @@ beforeEach(() => {
   // about a pre-existing ack drive the store overlay directly instead.
   vi.spyOn(fleetApi, "getAlerts").mockResolvedValue({ items: [] });
   // Acknowledgement writes succeed by default; tests that need a failure re-mock.
-  ackSpy = vi.spyOn(fleetApi, "ackAlert").mockResolvedValue();
-  vi.spyOn(fleetApi, "unackAlert").mockResolvedValue();
+  ackSpy = vi.spyOn(fleetApi, "ignoreAlert").mockResolvedValue(dispoPayload());
+  vi.spyOn(fleetApi, "unignoreAlert").mockResolvedValue(dispoPayload());
   store = useFleetStore();
   signIn();
 });
@@ -479,7 +496,7 @@ describe("acknowledging (server-backed)", () => {
   });
 
   it("rolls the row back and warns when the write fails", async () => {
-    vi.spyOn(fleetApi, "ackAlert").mockRejectedValue(new Error("forbidden"));
+    vi.spyOn(fleetApi, "ignoreAlert").mockRejectedValue(new Error("forbidden"));
     seedMixed();
     const wrapper = await mountAlerts("?acked=1");
     const button = wrapper.findAll("li")[0]!.findAll("button").at(-1)!;
@@ -541,7 +558,7 @@ describe("acknowledging (server-backed)", () => {
     // The operator must see one error, not one per alert stacked across the screen.
     seedMixed();
     const ackAlert = vi
-      .spyOn(fleetApi, "ackAlert")
+      .spyOn(fleetApi, "ignoreAlert")
       .mockRejectedValue(new Error("HTTP 503"));
     const wrapper = await mountAlerts();
 
@@ -868,7 +885,9 @@ describe("useAlertAck — the action layer", () => {
   });
 
   it("rolls back and reports when the write is refused", async () => {
-    vi.spyOn(fleetApi, "unackAlert").mockRejectedValue(new Error("not_found"));
+    vi.spyOn(fleetApi, "unignoreAlert").mockRejectedValue(
+      new Error("not_found"),
+    );
     seedMixed();
     const ack = useAlertAck();
     const ref = criticalRef();

@@ -46,10 +46,11 @@ import {
   TRAIL_MIN_DISTANCE,
 } from "@navfleet/fleet-core";
 import type { SceneDefinition } from "@navfleet/fleet-core";
-import { offlineAlertId } from "@navfleet/shared";
+import { offlineAlertId, alertDisposition } from "@navfleet/shared";
 import type {
   AlertClearedPayload,
   AlertCreatedPayload,
+  AlertDisposition,
   DeviceAlert,
   DeviceSnapshot,
   FormationSnapshot,
@@ -162,36 +163,88 @@ export const useFleetStore = defineStore("fleet", () => {
   });
 
   /**
-   * Server-backed acknowledgement overlay, keyed by eventKey (`deviceId:alertId`).
+   * Server-backed message-**disposition** overlay, keyed by eventKey (`deviceId:alertId`).
    *
-   * Confirmation used to live in browser localStorage, so it did not survive a different
-   * device, a different operator, or a cleared cache, and could not be audited. It now lives
-   * on the `alerts` collection; this map is the console's live view of it — seeded once from
-   * `GET /alerts?status=active` on bootstrap and kept current by `alert.disposition`
-   * WS events, so every open console agrees on what is confirmed and by whom, across users.
+   * The handling state (claim / ignore) lives on the `alerts` collection, not browser storage, so
+   * it survives a different device / operator / cleared cache and is audited. This map is the
+   * console's live view — seeded from `GET /alerts?status=active` and kept current by
+   * `alert.disposition` WS events — so every open console agrees on who is handling what. Kept
+   * **sparse**: an entry exists only while a message is claimed or ignored; absent = unhandled.
+   * `version` is the optimistic-lock value last seen, sent back on the next disposition write.
    *
-   * A reactive Map (not a plain object) so `useAlertAck`'s reads track individual keys.
+   * A reactive Map (not a plain object) so reads track individual keys.
    */
+  interface DispositionEntry {
+    claimedBy: string | null;
+    claimedAt: string | null;
+    ignoredBy: string | null;
+    ignoredAt: string | null;
+    version: number;
+  }
+  const dispositionState = reactive(new Map<string, DispositionEntry>());
+  const ackEventKey = (deviceId: string, alertId: string): string =>
+    `${deviceId}:${alertId}`;
+
+  const getDispositionEntry = (
+    deviceId: string,
+    alertId: string,
+  ): DispositionEntry | null =>
+    dispositionState.get(ackEventKey(deviceId, alertId)) ?? null;
+  const getDisposition = (
+    deviceId: string,
+    alertId: string,
+  ): AlertDisposition => {
+    const entry = dispositionState.get(ackEventKey(deviceId, alertId));
+    return entry ? alertDisposition(entry) : "unhandled";
+  };
+
+  /** Bumped on every live change to the overlay, so a seed can tell it was overtaken. */
+  let ackGeneration = 0;
+  /** Set or clear the overlay entry for a key. An entry that derives to "unhandled" (neither
+   *  claimed nor ignored) is removed, keeping the map sparse. */
+  const applyDisposition = (
+    eventKey: string,
+    entry: DispositionEntry,
+  ): void => {
+    ackGeneration += 1;
+    if (!entry.claimedBy && !entry.ignoredBy) dispositionState.delete(eventKey);
+    else dispositionState.set(eventKey, entry);
+  };
+
+  // Back-compat "acknowledgement" surface, where ack == the ignored disposition. The ignore flow
+  // (`useAlertAck`) and the alerts view read through this until the console UI batch swaps them
+  // for the disposition API above.
   interface AckEntry {
     ackedBy: string;
     ackedAt: string;
   }
-  const ackState = reactive(new Map<string, AckEntry>());
-  const ackEventKey = (deviceId: string, alertId: string): string =>
-    `${deviceId}:${alertId}`;
   const isAlertAcked = (deviceId: string, alertId: string): boolean =>
-    ackState.has(ackEventKey(deviceId, alertId));
-  const getAck = (deviceId: string, alertId: string): AckEntry | null =>
-    ackState.get(ackEventKey(deviceId, alertId)) ?? null;
-  /** Bumped on every live change to the overlay, so a seed can tell it was overtaken. */
-  let ackGeneration = 0;
+    getDisposition(deviceId, alertId) === "ignored";
+  const getAck = (deviceId: string, alertId: string): AckEntry | null => {
+    const entry = getDispositionEntry(deviceId, alertId);
+    return entry?.ignoredBy && entry.ignoredAt
+      ? { ackedBy: entry.ignoredBy, ackedAt: entry.ignoredAt }
+      : null;
+  };
   const applyAck = (eventKey: string, entry: AckEntry): void => {
-    ackGeneration += 1;
-    ackState.set(eventKey, entry);
+    const prev = dispositionState.get(eventKey);
+    applyDisposition(eventKey, {
+      claimedBy: prev?.claimedBy ?? null,
+      claimedAt: prev?.claimedAt ?? null,
+      ignoredBy: entry.ackedBy,
+      ignoredAt: entry.ackedAt,
+      version: prev?.version ?? 0,
+    });
   };
   const applyUnack = (eventKey: string): void => {
-    ackGeneration += 1;
-    ackState.delete(eventKey);
+    const prev = dispositionState.get(eventKey);
+    applyDisposition(eventKey, {
+      claimedBy: prev?.claimedBy ?? null,
+      claimedAt: prev?.claimedAt ?? null,
+      ignoredBy: null,
+      ignoredAt: null,
+      version: prev?.version ?? 0,
+    });
   };
 
   let ackSeedInFlight = false;
@@ -215,26 +268,27 @@ export const useFleetStore = defineStore("fleet", () => {
       const { items, truncated } = await fleetApi.getAlerts({
         status: "active",
       });
-      const next = new Map<string, AckEntry>();
+      const next = new Map<string, DispositionEntry>();
       for (const item of items) {
         const eventKey =
           item.eventKey ??
           (item.deviceId && item.alertId
             ? ackEventKey(item.deviceId, item.alertId)
             : null);
-        // The acknowledgement overlay is seeded from the "ignored" disposition (the redesign's
-        // reinterpretation of the old confirm); claim/release land with the console UI batch.
-        if (eventKey && item.ignoredBy && item.ignoredAt) {
+        if (eventKey && (item.claimedBy || item.ignoredBy)) {
           next.set(eventKey, {
-            ackedBy: item.ignoredBy,
-            ackedAt: item.ignoredAt,
+            claimedBy: item.claimedBy ?? null,
+            claimedAt: item.claimedAt ?? null,
+            ignoredBy: item.ignoredBy ?? null,
+            ignoredAt: item.ignoredAt ?? null,
+            version: typeof item.version === "number" ? item.version : 0,
           });
         }
       }
-      if (generation === ackGeneration && !truncated) ackState.clear();
+      if (generation === ackGeneration && !truncated) dispositionState.clear();
       for (const [key, entry] of next) {
-        if (generation === ackGeneration || !ackState.has(key)) {
-          ackState.set(key, entry);
+        if (generation === ackGeneration || !dispositionState.has(key)) {
+          dispositionState.set(key, entry);
         }
       }
     } catch {
@@ -775,21 +829,24 @@ export const useFleetStore = defineStore("fleet", () => {
 
     // Disposition events carry no `alert` object and never toast — they only reconcile the
     // overlay so every open console reflects the handling state the moment any operator (here or
-    // elsewhere) changes it. The overlay currently tracks the "ignored" disposition (the old
-    // confirm's reinterpretation); claim/release presentation lands with the console UI batch.
+    // elsewhere) changes it, carrying the full disposition and its optimistic-lock version.
     if (type === "alert.disposition") {
       const d = payload as {
         alertId?: unknown;
+        claimedBy?: unknown;
+        claimedAt?: unknown;
         ignoredBy?: unknown;
         ignoredAt?: unknown;
+        version?: unknown;
       };
       if (typeof d.alertId !== "string") return;
-      const eventKey = ackEventKey(deviceId, d.alertId);
-      if (typeof d.ignoredBy === "string" && typeof d.ignoredAt === "string") {
-        applyAck(eventKey, { ackedBy: d.ignoredBy, ackedAt: d.ignoredAt });
-      } else {
-        applyUnack(eventKey);
-      }
+      applyDisposition(ackEventKey(deviceId, d.alertId), {
+        claimedBy: typeof d.claimedBy === "string" ? d.claimedBy : null,
+        claimedAt: typeof d.claimedAt === "string" ? d.claimedAt : null,
+        ignoredBy: typeof d.ignoredBy === "string" ? d.ignoredBy : null,
+        ignoredAt: typeof d.ignoredAt === "string" ? d.ignoredAt : null,
+        version: typeof d.version === "number" ? d.version : 0,
+      });
       return;
     }
 
@@ -845,10 +902,16 @@ export const useFleetStore = defineStore("fleet", () => {
       const { alertId } = payload as Partial<AlertClearedPayload>;
       if (typeof alertId !== "string") return;
       const eventKey = ackEventKey(deviceId, alertId);
-      // A clear closes that occurrence, acknowledgement included; if the code fires again it is
-      // a new, unacknowledged occurrence under the same eventKey — drop the overlay entry so the
-      // new one does not inherit the old confirmation. Every severity, before any toast filter.
-      applyUnack(eventKey);
+      // A clear closes that occurrence, disposition included; if the code fires again it is a new,
+      // unhandled occurrence under the same eventKey — drop the whole overlay entry (claim and
+      // ignore) so the new one does not inherit the old handling. Every severity, before any toast.
+      applyDisposition(eventKey, {
+        claimedBy: null,
+        claimedAt: null,
+        ignoredBy: null,
+        ignoredAt: null,
+        version: 0,
+      });
       // Only if its onset was announced: otherwise a tab that opened mid-incident reports the
       // recovery of something it never reported.
       const announced = announcedAlerts.get(eventKey);
@@ -1202,9 +1265,11 @@ export const useFleetStore = defineStore("fleet", () => {
     summary,
     groupedAlerts,
     trailsByDeviceId,
-    // Acknowledgement overlay. `useAlertAck` reads `isAlertAcked`/`getAck` and
-    // drives optimistic updates through `applyAck`/`applyUnack`; the alerts view seeds it once
-    // on mount via `seedAckState`. The map itself stays internal — never poked from outside.
+    // Acknowledgement overlay (back-compat ignore surface over the disposition map). `useAlertAck`
+    // reads `isAlertAcked`/`getAck` and drives optimistic updates through `applyAck`/`applyUnack`;
+    // the alerts view seeds it on mount via `seedAckState`. The full disposition getters
+    // (`getDisposition` etc.) are exposed when the console UI batch consumes them. The map itself
+    // stays internal — never poked from outside.
     isAlertAcked,
     getAck,
     applyAck,
