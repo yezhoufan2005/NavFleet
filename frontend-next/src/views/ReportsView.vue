@@ -132,9 +132,32 @@ const isCustom = computed(
     customFrom.value <= customTo.value,
 );
 
+/** A window end/start as the `YYYY-MM-DD` a `type="date"` input shows, in local time. */
+const toDateInput = (iso: string): string => {
+  const date = new Date(iso);
+  const pad = (n: number): string => String(n).padStart(2, "0");
+  return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}`;
+};
+
+/**
+ * The dates the 起始/结束 inputs show — always populated, so the active window is visible even on
+ * a preset (the default was previously invisible: the inputs sat empty until you typed). On a
+ * preset these are the preset's resolved edges; in custom mode, the typed values.
+ */
+const effectiveDates = computed<{ from: string; to: string }>(() => {
+  if (isCustom.value) {
+    return { from: customFrom.value, to: customTo.value };
+  }
+  const window = windowForPreset(range.value, Date.now());
+  return { from: toDateInput(window.from), to: toDateInput(window.to) };
+});
+
 const setCustom = (patch: { from?: string; to?: string }): void => {
-  const nextFrom = patch.from ?? customFrom.value;
-  const nextTo = patch.to ?? customTo.value;
+  // Seed from the window currently shown, so editing one edge while on a preset switches to a
+  // custom range anchored at the preset's other edge rather than clearing it to empty.
+  const base = effectiveDates.value;
+  const nextFrom = patch.from ?? base.from;
+  const nextTo = patch.to ?? base.to;
   setFilter({ from: nextFrom || null, to: nextTo || null, range: null });
 };
 
@@ -486,13 +509,14 @@ const exportAlertsCsv = (): void => {
         />
       </UiFilterField>
 
-      <!-- 自定义起止：与预设是同一控件的两种形态，选日期即接管，选预设即清空。起 ≤ 止 由
-           原生 min/max 约束，另在 isCustom 里兜底。 -->
+      <!-- 自定义起止：与预设是同一控件的两种形态。输入框始终显示当前生效窗口（预设也回填其边界，
+           不再是空的），选日期即接管切自定义、选预设即还原。起 ≤ 止 由原生 min/max 约束，另在
+           isCustom 里兜底。 -->
       <UiFilterField label="起始时间">
         <UiInput
           type="date"
-          :model-value="customFrom"
-          :max="customTo || undefined"
+          :model-value="effectiveDates.from"
+          :max="effectiveDates.to || undefined"
           aria-label="自定义起始日期"
           @update:model-value="(value) => setCustom({ from: value })"
         />
@@ -500,8 +524,8 @@ const exportAlertsCsv = (): void => {
       <UiFilterField label="结束时间">
         <UiInput
           type="date"
-          :model-value="customTo"
-          :min="customFrom || undefined"
+          :model-value="effectiveDates.to"
+          :min="effectiveDates.from || undefined"
           aria-label="自定义结束日期"
           @update:model-value="(value) => setCustom({ to: value })"
         />

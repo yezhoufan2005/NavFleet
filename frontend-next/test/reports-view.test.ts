@@ -250,6 +250,19 @@ describe("报表 状态与内容", () => {
     expect(pressed).not.toContain("近 12 小时");
   });
 
+  it("预设也把生效窗口回填到起止输入，而不是留空", async () => {
+    // The default window was invisible before — the date inputs sat empty until you typed. On a
+    // preset they now show the preset's resolved edges, and the 7-day window spans two dates.
+    const wrapper = await mountView("?range=7d");
+    const dates = wrapper.findAll('input[type="date"]');
+    expect(dates).toHaveLength(2);
+    const from = (dates[0]!.element as HTMLInputElement).value;
+    const to = (dates[1]!.element as HTMLInputElement).value;
+    expect(from).toMatch(/^\d{4}-\d{2}-\d{2}$/);
+    expect(to).toMatch(/^\d{4}-\d{2}-\d{2}$/);
+    expect(Date.parse(from)).toBeLessThan(Date.parse(to));
+  });
+
   it("粒度随窗口自适应：长自定义区间自动用 month 聚合", async () => {
     const avail = vi
       .spyOn(fleetApi, "getAvailabilityReport")

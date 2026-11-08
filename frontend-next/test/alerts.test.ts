@@ -834,6 +834,24 @@ describe("the 消息史 tab", () => {
     await flushPromises();
     expect(wrapper.text()).toContain("显示已确认");
   });
+
+  it("在消息史默认把最近 10 天窗口回填到起止输入，而不是留空", async () => {
+    vi.spyOn(fleetApi, "getAlerts").mockResolvedValue({ items: [] });
+    const wrapper = await mountAlerts();
+    await router.push("/alerts/history");
+    await flushPromises();
+
+    const dates = wrapper.findAll('input[type="date"]');
+    expect(dates).toHaveLength(2);
+    const from = (dates[0]!.element as HTMLInputElement).value;
+    const to = (dates[1]!.element as HTMLInputElement).value;
+    expect(from).toMatch(/^\d{4}-\d{2}-\d{2}$/);
+    expect(to).toMatch(/^\d{4}-\d{2}-\d{2}$/);
+    // The default window the panel actually queries: the last ~10 days.
+    const days = (Date.parse(to) - Date.parse(from)) / 86_400_000;
+    expect(days).toBeGreaterThanOrEqual(9);
+    expect(days).toBeLessThanOrEqual(11);
+  });
 });
 
 describe("useAlertAck — the action layer", () => {

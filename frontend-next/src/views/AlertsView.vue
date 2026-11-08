@@ -137,6 +137,24 @@ const search = computed(() => readParam("q"));
  */
 const fromDate = computed(() => readParam("from"));
 const toDate = computed(() => readParam("to"));
+
+/**
+ * What the 起止 inputs display on the 消息史 tab: the typed bounds, or — when a bound is left
+ * empty — the default window `AlertHistoryPanel` actually queries (the last 10 days ending now),
+ * so the default is visible rather than an empty box. Display only; an empty URL param still
+ * means "use the default", the panel's own `HISTORY_DAYS`.
+ */
+const HISTORY_DEFAULT_DAYS = 10;
+const asDateInput = (at: Date): string => {
+  const pad = (n: number): string => String(n).padStart(2, "0");
+  return `${at.getFullYear()}-${pad(at.getMonth() + 1)}-${pad(at.getDate())}`;
+};
+const effectiveDates = computed<{ from: string; to: string }>(() => ({
+  from:
+    fromDate.value ||
+    asDateInput(new Date(Date.now() - HISTORY_DEFAULT_DAYS * 86_400_000)),
+  to: toDate.value || asDateInput(new Date()),
+}));
 const showAcknowledged = computed(() => readParam("acked") === "1");
 
 /**
@@ -568,8 +586,8 @@ watch(() => canAck.value && fleet.state.realtime.apiReady, runLegacyMigration);
       <UiFilterField v-if="!isLive" label="起始时间">
         <UiInput
           type="date"
-          :model-value="fromDate"
-          :max="toDate || undefined"
+          :model-value="effectiveDates.from"
+          :max="effectiveDates.to || undefined"
           aria-label="起始日期"
           @update:model-value="(value) => setFilter({ from: value || null })"
         />
@@ -577,8 +595,8 @@ watch(() => canAck.value && fleet.state.realtime.apiReady, runLegacyMigration);
       <UiFilterField v-if="!isLive" label="结束时间">
         <UiInput
           type="date"
-          :model-value="toDate"
-          :min="fromDate || undefined"
+          :model-value="effectiveDates.to"
+          :min="effectiveDates.from || undefined"
           aria-label="结束日期"
           @update:model-value="(value) => setFilter({ to: value || null })"
         />
