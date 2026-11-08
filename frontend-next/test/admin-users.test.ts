@@ -159,6 +159,20 @@ describe("UsersView — destructive actions", () => {
     expect(lastToast()).toContain("已强制下线");
   });
 
+  it("marks the protected bootstrap admin 系统账号 and disables its row actions", async () => {
+    const wrapper = await mountView([
+      user({ username: "admin", role: "admin", protected: true }),
+    ]);
+    const row = wrapper.get("tbody tr");
+    expect(row.text()).toContain("系统账号");
+    // Every action in the row is disabled — it is managed only out of band.
+    const actions = row.findAll("button");
+    expect(actions.length).toBeGreaterThan(0);
+    expect(actions.every((b) => b.attributes("disabled") !== undefined)).toBe(
+      true,
+    );
+  });
+
   it("maps the last-admin guard to a readable toast", async () => {
     vi.spyOn(fleetApi, "deleteUser").mockRejectedValue(new Error("last_admin"));
     const wrapper = await mountView([

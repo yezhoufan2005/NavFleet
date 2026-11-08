@@ -105,7 +105,11 @@ export interface SessionView {
  * it shows up here automatically, while the one field that must never reach a response body
  * stays excluded by construction.
  */
-export type AdminUserView = Omit<UserRecord, "passwordHash">;
+export type AdminUserView = Omit<UserRecord, "passwordHash"> & {
+  /** True for the bootstrap admin (`ADMIN_USERNAME`): a protected system account the console
+   * must not let anyone mutate — the row shows, its action buttons are disabled. */
+  protected: boolean;
+};
 
 // The auditable-action tuple lives in shared so the console's 审计 labels are typed against it too.
 export { AUDIT_ACTIONS, type AuditAction } from "@navfleet/shared";
