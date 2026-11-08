@@ -3,7 +3,7 @@ import { createPinia, setActivePinia } from "pinia";
 import { createMemoryHistory, createRouter } from "vue-router";
 import type { Router } from "vue-router";
 import { enableAutoUnmount, flushPromises, mount } from "@vue/test-utils";
-import { fleetApi } from "@navfleet/fleet-core";
+import { fleetApi, ApiError } from "@navfleet/fleet-core";
 import {
   capabilitiesForRole,
   type UserRole,
@@ -53,9 +53,12 @@ let store: ReturnType<typeof useFleetStore>;
 let router: Router;
 /** Captured so an assertion reads the spy variable, not `fleetApi.ignoreAlert` unbound. */
 let ackSpy: ReturnType<typeof vi.spyOn>;
+let claimSpy: ReturnType<typeof vi.spyOn>;
 
-/** A disposition payload for the ignore/unignore mocks (the composable ignores the return). */
-const dispoPayload = (): AlertDispositionPayload => ({
+/** A disposition payload for the action mocks; override per state. */
+const payload = (
+  over: Partial<AlertDispositionPayload> = {},
+): AlertDispositionPayload => ({
   deviceId: "agv-01",
   alertId: "err-1",
   version: 1,
@@ -65,7 +68,29 @@ const dispoPayload = (): AlertDispositionPayload => ({
   ignoredBy: "op",
   ignoredAt: "2026-01-01T00:00:00.000Z",
   ignoreReason: null,
+  ...over,
 });
+const dispoPayload = (): AlertDispositionPayload => payload();
+const investigatingPayload = (): AlertDispositionPayload =>
+  payload({
+    disposition: "investigating",
+    claimedBy: "op",
+    claimedAt: "2026-01-01T00:00:00.000Z",
+    ignoredBy: null,
+    ignoredAt: null,
+  });
+const unhandledPayload = (): AlertDispositionPayload =>
+  payload({
+    disposition: "unhandled",
+    claimedBy: null,
+    claimedAt: null,
+    ignoredBy: null,
+    ignoredAt: null,
+  });
+
+/** Click a segment of the 处置 filter by its visible label. */
+const segment = (wrapper: AlertsWrapper, label: string) =>
+  wrapper.findAll("button[role='radio']").find((b) => b.text() === label)!;
 
 /** Sign in so `canAck` is true (operator+) unless a test asks for another role. */
 const signIn = (role: UserRole = "operator"): void => {
@@ -145,9 +170,13 @@ beforeEach(() => {
   // AlertsView seeds the ack overlay from this on mount; default it empty. Tests that care
   // about a pre-existing ack drive the store overlay directly instead.
   vi.spyOn(fleetApi, "getAlerts").mockResolvedValue({ items: [] });
-  // Acknowledgement writes succeed by default; tests that need a failure re-mock.
+  // Disposition writes succeed by default; tests that need a failure/conflict re-mock.
   ackSpy = vi.spyOn(fleetApi, "ignoreAlert").mockResolvedValue(dispoPayload());
-  vi.spyOn(fleetApi, "unignoreAlert").mockResolvedValue(dispoPayload());
+  vi.spyOn(fleetApi, "unignoreAlert").mockResolvedValue(unhandledPayload());
+  claimSpy = vi
+    .spyOn(fleetApi, "claimAlert")
+    .mockResolvedValue(investigatingPayload());
+  vi.spyOn(fleetApi, "releaseAlert").mockResolvedValue(unhandledPayload());
   store = useFleetStore();
   signIn();
 });
@@ -362,18 +391,19 @@ describe("the controls the template wires up", () => {
     }
   });
 
-  it("reveals acknowledged alerts on request", async () => {
+  it("filters by the 处置 segment, writing it to the URL", async () => {
     seedMixed();
     const wrapper = await mountAlerts();
+    // Ignore the first row; under 全部 all three stay visible.
     await wrapper.findAll("li")[0]!.findAll("button").at(-1)!.trigger("click");
     await flushPromises();
-    expect(wrapper.findAll("li")).toHaveLength(2);
+    expect(wrapper.findAll("li")).toHaveLength(3);
 
-    await wrapper.find("input[type='checkbox']").setValue(true);
+    await segment(wrapper, "待处理").trigger("click");
     await flushPromises();
 
-    expect(router.currentRoute.value.query.acked).toBe("1");
-    expect(wrapper.findAll("li")).toHaveLength(3);
+    expect(router.currentRoute.value.query.handling).toBe("unhandled");
+    expect(wrapper.findAll("li")).toHaveLength(2);
   });
 
   it("pages a long list and clamps when a filter shrinks it", async () => {
@@ -439,30 +469,48 @@ describe("the controls the template wires up", () => {
   });
 });
 
-describe("acknowledging (server-backed)", () => {
-  it("is a toggle that says so, and writes through to the backend", async () => {
+describe("handling (server-backed)", () => {
+  it("ignores a row through its 忽略 button and writes through to the backend", async () => {
     seedMixed();
-    const wrapper = await mountAlerts("?acked=1");
-    const button = wrapper.findAll("li")[0]!.findAll("button").at(-1)!;
-
-    expect(button.attributes("aria-pressed")).toBe("false");
-    expect(button.attributes("aria-label")).toContain("确认消息");
+    const wrapper = await mountAlerts();
+    const row = wrapper.findAll("li")[0]!;
+    // An unhandled row offers 我来处理 + 忽略; the ignore button is last.
+    const ignore = row.findAll("button").at(-1)!;
+    expect(ignore.text()).toContain("忽略");
 
     const ref = criticalRef();
-    await button.trigger("click");
+    await ignore.trigger("click");
     await flushPromises();
 
-    expect(ackSpy).toHaveBeenCalledWith(ref.deviceId, ref.id);
-    expect(
-      wrapper
-        .findAll("li")[0]!
-        .findAll("button")
-        .at(-1)!
-        .attributes("aria-pressed"),
-    ).toBe("true");
+    expect(ackSpy).toHaveBeenCalledWith(
+      ref.deviceId,
+      ref.id,
+      undefined,
+      undefined,
+    );
+    // The row now reads 已忽略 and offers 取消忽略.
+    const after = wrapper.findAll("li")[0]!;
+    expect(after.text()).toContain("已忽略");
+    expect(after.findAll("button").at(-1)!.text()).toContain("取消忽略");
   });
 
-  it("toasts with an undo when a single row is confirmed", async () => {
+  it("claims a row through its 我来处理 button and shows 处理中", async () => {
+    seedMixed();
+    const wrapper = await mountAlerts();
+    const claim = wrapper.findAll("li")[0]!.findAll("button")[0]!;
+    expect(claim.text()).toContain("我来处理");
+
+    const ref = criticalRef();
+    await claim.trigger("click");
+    await flushPromises();
+
+    expect(claimSpy).toHaveBeenCalledWith(ref.deviceId, ref.id, undefined);
+    const row = wrapper.findAll("li")[0]!;
+    expect(row.text()).toContain("处理中");
+    expect(row.attributes("data-disposition")).toBe("investigating");
+  });
+
+  it("toasts with an undo when a single row is ignored", async () => {
     seedMixed();
     const wrapper = await mountAlerts();
 
@@ -470,140 +518,166 @@ describe("acknowledging (server-backed)", () => {
     await flushPromises();
 
     const toast = useNotifications().items.at(-1);
-    expect(toast?.message).toContain("已确认 1 条消息");
+    expect(toast?.message).toContain("已忽略 1 条消息");
     expect(toast?.action?.label).toBe("撤销");
   });
 
-  it("hides an acknowledged alert unless asked for", async () => {
+  it("the 待处理 segment hides an ignored row; 已忽略 shows only it", async () => {
     seedMixed();
     const wrapper = await mountAlerts();
     expect(wrapper.findAll("li")).toHaveLength(3);
 
+    // Ignore the first row — it stays visible (faded) under 全部.
     await wrapper.findAll("li")[0]!.findAll("button").at(-1)!.trigger("click");
     await flushPromises();
+    expect(wrapper.findAll("li")).toHaveLength(3);
 
+    await segment(wrapper, "待处理").trigger("click");
+    await flushPromises();
     expect(wrapper.findAll("li")).toHaveLength(2);
+
+    await segment(wrapper, "已忽略").trigger("click");
+    await flushPromises();
+    expect(wrapper.findAll("li")).toHaveLength(1);
   });
 
-  it("shows who confirmed a row", async () => {
+  it("shows who handled a row", async () => {
     // The whole point of moving off localStorage: the name is the same on every console.
     seedMixed();
-    const wrapper = await mountAlerts("?acked=1");
+    const wrapper = await mountAlerts();
     await wrapper.findAll("li")[0]!.findAll("button").at(-1)!.trigger("click");
     await flushPromises();
 
-    expect(wrapper.findAll("li")[0]!.text()).toContain("已确认 · op");
+    expect(wrapper.findAll("li")[0]!.text()).toContain("已忽略 · op");
   });
 
   it("rolls the row back and warns when the write fails", async () => {
     vi.spyOn(fleetApi, "ignoreAlert").mockRejectedValue(new Error("forbidden"));
     seedMixed();
-    const wrapper = await mountAlerts("?acked=1");
-    const button = wrapper.findAll("li")[0]!.findAll("button").at(-1)!;
+    const wrapper = await mountAlerts();
+    const row = wrapper.findAll("li")[0]!;
 
-    await button.trigger("click");
+    await row.findAll("button").at(-1)!.trigger("click");
     await flushPromises();
 
-    expect(
-      wrapper
-        .findAll("li")[0]!
-        .findAll("button")
-        .at(-1)!
-        .attributes("aria-pressed"),
-    ).toBe("false");
+    // Back to 待处理 (the optimistic ignore was rolled back) and a permission toast.
+    expect(wrapper.findAll("li")[0]!.attributes("data-disposition")).toBe(
+      "unhandled",
+    );
     expect(useNotifications().items.at(-1)?.message).toContain("权限");
   });
 
-  it("reflects an acknowledgement made on another console", async () => {
-    // A cross-console `alert.acked` lands in the store overlay; the open view must follow
-    // without a reload — that is what the WS branch buys.
+  it("reflects a disposition made on another console", async () => {
+    // A cross-console `alert.disposition` lands in the store overlay; the open view follows.
     seedMixed();
-    const wrapper = await mountAlerts("?acked=1");
+    const wrapper = await mountAlerts();
     const ref = criticalRef();
 
-    store.applyAck(`${ref.deviceId}:${ref.id}`, {
-      ackedBy: "someone-else",
-      ackedAt: "2026-01-01T00:00:00.000Z",
+    store.applyDisposition(`${ref.deviceId}:${ref.id}`, {
+      claimedBy: null,
+      claimedAt: null,
+      ignoredBy: "someone-else",
+      ignoredAt: "2026-01-01T00:00:00.000Z",
+      version: 1,
     });
     await flushPromises();
 
     const row = wrapper
       .findAll("li")
-      .find((li) => li.attributes("data-acknowledged") === "true");
-    expect(row?.text()).toContain("已确认 · someone-else");
+      .find((li) => li.attributes("data-disposition") === "ignored");
+    expect(row?.text()).toContain("已忽略 · someone-else");
   });
 
-  it("offers an undo after a bulk acknowledgement, and the undo works", async () => {
+  it("surfaces a claim conflict as a toast naming who holds it", async () => {
+    seedMixed();
+    const conflict = Object.assign(new ApiError("already_claimed", 409), {
+      data: {
+        current: {
+          deviceId: criticalRef().deviceId,
+          alertId: criticalRef().id,
+          version: 2,
+          disposition: "investigating",
+          claimedBy: "zhaoyun",
+          claimedAt: "2026-01-01T00:00:00.000Z",
+          ignoredBy: null,
+          ignoredAt: null,
+          ignoreReason: null,
+        },
+      },
+    });
+    vi.spyOn(fleetApi, "claimAlert").mockRejectedValue(conflict);
+    const wrapper = await mountAlerts();
+
+    await wrapper.findAll("li")[0]!.findAll("button")[0]!.trigger("click");
+    await flushPromises();
+
+    const toast = useNotifications().items.at(-1);
+    expect(toast?.type).toBe("warning");
+    expect(toast?.message).toContain("zhaoyun");
+    // The overlay reconciles to the backend's holder.
+    expect(wrapper.findAll("li")[0]!.text()).toContain("处理中 · zhaoyun");
+  });
+
+  it("offers an undo after a bulk ignore, and the undo works", async () => {
     seedMixed();
     const wrapper = await mountAlerts();
 
     const bulk = wrapper
       .findAll("button")
-      .find((button) => button.text().includes("确认当前筛选"));
+      .find((button) => button.text().includes("忽略当前筛选"));
     await bulk?.trigger("click");
     await flushPromises();
 
-    expect(wrapper.findAll("li")).toHaveLength(0);
+    // All three are now ignored (faded), still shown under 全部.
+    expect(
+      wrapper
+        .findAll("li")
+        .every((li) => li.attributes("data-disposition") === "ignored"),
+    ).toBe(true);
     const toast = useNotifications().items.at(-1);
-    expect(toast?.message).toContain("已确认 3 条");
+    expect(toast?.message).toContain("已忽略 3 条");
     expect(toast?.action?.label).toBe("撤销");
 
     toast!.action!.handler();
     await flushPromises();
-    expect(wrapper.findAll("li")).toHaveLength(3);
+    expect(
+      wrapper
+        .findAll("li")
+        .every((li) => li.attributes("data-disposition") === "unhandled"),
+    ).toBe(true);
   });
 
-  it("collapses a whole-batch acknowledge failure into a single error toast", async () => {
-    // A bulk confirm fans out with `Promise.all`; if the backend is down, every ref fails.
-    // The operator must see one error, not one per alert stacked across the screen.
+  it("collapses a whole-batch ignore failure into a single error toast", async () => {
+    // A bulk ignore fans out with `Promise.all`; if the backend is down, every ref fails.
     seedMixed();
-    const ackAlert = vi
+    const ignoreAlert = vi
       .spyOn(fleetApi, "ignoreAlert")
       .mockRejectedValue(new Error("HTTP 503"));
     const wrapper = await mountAlerts();
 
     await wrapper
       .findAll("button")
-      .find((button) => button.text().includes("确认当前筛选"))
+      .find((button) => button.text().includes("忽略当前筛选"))
       ?.trigger("click");
     await flushPromises();
 
-    expect(ackAlert.mock.calls.length).toBeGreaterThan(1);
+    expect(ignoreAlert.mock.calls.length).toBeGreaterThan(1);
     const errors = useNotifications().items.filter(
       (item) => item.type === "error",
     );
     expect(errors).toHaveLength(1);
   });
 
-  it("raises no toast when there was nothing left to acknowledge", async () => {
-    seedMixed();
-    const wrapper = await mountAlerts();
-    await wrapper
-      .findAll("button")
-      .find((button) => button.text().includes("确认当前筛选"))
-      ?.trigger("click");
-    await flushPromises();
-    __resetNotifications();
-    await flushPromises();
-
-    expect(
-      wrapper.findAll("button").some((b) => b.text().includes("确认当前筛选")),
-    ).toBe(false);
-    expect(useNotifications().items).toEqual([]);
-  });
-
-  it("hides every confirm control from a viewer", async () => {
-    // Acknowledging is the first operator-only capability; a viewer reads the list but
-    // cannot confirm. The backend enforces it too — this is the UI half.
+  it("hides every handling control from a viewer", async () => {
     __resetAuth();
     signIn("viewer");
     seedMixed();
-    const wrapper = await mountAlerts("?acked=1");
+    const wrapper = await mountAlerts();
 
     const rowButtons = wrapper.findAll("li")[0]!.findAll("button");
     expect(rowButtons).toHaveLength(0);
     expect(
-      wrapper.findAll("button").some((b) => b.text().includes("确认当前筛选")),
+      wrapper.findAll("button").some((b) => b.text().includes("忽略当前筛选")),
     ).toBe(false);
   });
 });
@@ -658,16 +732,16 @@ describe("what a row says without being read", () => {
     ).toHaveLength(0);
   });
 
-  it("fades an acknowledged row instead of making it identical", async () => {
+  it("fades an ignored row instead of making it identical", async () => {
     seedMixed();
-    const wrapper = await mountAlerts("?acked=1");
+    const wrapper = await mountAlerts();
     await wrapper.findAll("li")[0]!.findAll("button").at(-1)!.trigger("click");
     await flushPromises();
 
-    const acked = wrapper
+    const ignored = wrapper
       .findAll("li")
-      .filter((row) => row.attributes("data-acknowledged") === "true");
-    expect(acked).toHaveLength(1);
+      .filter((row) => row.attributes("data-disposition") === "ignored");
+    expect(ignored).toHaveLength(1);
   });
 
   it("names where the row came from", async () => {
@@ -723,12 +797,12 @@ describe("what a row says without being read", () => {
 });
 
 describe("acting on more than one row", () => {
-  it("acknowledges the whole filtered set, not just the visible page", async () => {
+  it("ignores the whole filtered set, not just the visible page", async () => {
     seedMixed();
     const wrapper = await mountAlerts();
     const bulk = wrapper
       .findAll("button")
-      .find((button) => button.text().includes("确认当前筛选"));
+      .find((button) => button.text().includes("忽略当前筛选"));
 
     expect(bulk?.text()).toContain("3");
   });
@@ -738,63 +812,69 @@ describe("acting on more than one row", () => {
     const wrapper = await mountAlerts("?severity=critical");
     const bulk = wrapper
       .findAll("button")
-      .find((button) => button.text().includes("确认当前筛选"));
+      .find((button) => button.text().includes("忽略当前筛选"));
 
     expect(bulk?.text()).toContain("1");
   });
 
-  it("offers 清除已经确认 with a count, and an undo", async () => {
+  it("offers 取消忽略 with a count, and an undo", async () => {
     seedMixed();
     const wrapper = await mountAlerts();
     await wrapper
       .findAll("button")
-      .find((button) => button.text().includes("确认当前筛选"))!
+      .find((button) => button.text().includes("忽略当前筛选"))!
       .trigger("click");
     await flushPromises();
     __resetNotifications();
 
     const clear = wrapper
       .findAll("button")
-      .find((button) => button.text().includes("清除已经确认"));
+      .find((button) => button.text().includes("取消忽略"));
     expect(clear?.text()).toContain("3");
 
     await clear!.trigger("click");
     await flushPromises();
 
-    expect(wrapper.findAll("li")).toHaveLength(3);
+    expect(
+      wrapper
+        .findAll("li")
+        .every((li) => li.attributes("data-disposition") === "unhandled"),
+    ).toBe(true);
     const toast = useNotifications().items.at(-1);
-    expect(toast?.message).toContain("已取消确认 3 条");
+    expect(toast?.message).toContain("已取消忽略 3 条");
     expect(toast?.action?.label).toBe("撤销");
   });
 
-  it("counts the acknowledged alerts present, not a stale overlay", async () => {
+  it("counts the ignored alerts present, not a stale overlay", async () => {
     seedMixed();
     const wrapper = await mountAlerts();
 
-    // Nothing present is acknowledged yet, so neither control appears.
+    // Nothing present is ignored yet, so the 取消忽略 control does not appear.
     expect(
-      wrapper.findAll("button").some((b) => b.text().includes("清除已经确认")),
+      wrapper.findAll("button").some((b) => b.text().includes("取消忽略")),
     ).toBe(false);
-    expect(wrapper.text()).not.toContain("显示已确认（");
   });
 
-  it("puts the count in the 显示已确认 label, so the checkbox says what it would reveal", async () => {
+  it("shows the 取消忽略 count once rows are ignored", async () => {
     seedMixed();
     const wrapper = await mountAlerts();
     await wrapper.findAll("li")[0]!.findAll("button").at(-1)!.trigger("click");
     await flushPromises();
 
-    expect(wrapper.text()).toContain("显示已确认（1）");
+    const clear = wrapper
+      .findAll("button")
+      .find((button) => button.text().includes("取消忽略"));
+    expect(clear?.text()).toContain("1");
   });
 });
 
-describe("selecting rows to confirm (确认选中)", () => {
+describe("selecting rows to ignore (忽略选中)", () => {
   const selectBoxes = (wrapper: AlertsWrapper) =>
     wrapper
       .findAll("input[type='checkbox']")
       .filter((box) => box.attributes("aria-label")?.startsWith("选择消息"));
 
-  it("confirms only the rows ticked via their checkbox, then clears the selection", async () => {
+  it("ignores only the rows ticked via their checkbox, then clears the selection", async () => {
     seedMixed();
     const wrapper = await mountAlerts();
     const ref = criticalRef(); // worst-first, so the first row is the critical one
@@ -804,7 +884,7 @@ describe("selecting rows to confirm (确认选中)", () => {
 
     const confirm = wrapper
       .findAll("button")
-      .find((button) => button.text().includes("确认选中"));
+      .find((button) => button.text().includes("忽略选中"));
     expect(confirm?.text()).toContain("1");
 
     await confirm!.trigger("click");
@@ -813,7 +893,7 @@ describe("selecting rows to confirm (确认选中)", () => {
     // Exactly the ticked occurrence was written, and the button is gone (selection cleared).
     expect(ackSpy).toHaveBeenCalledWith(ref.deviceId, ref.id);
     expect(
-      wrapper.findAll("button").some((b) => b.text().includes("确认选中")),
+      wrapper.findAll("button").some((b) => b.text().includes("忽略选中")),
     ).toBe(false);
   });
 
@@ -833,8 +913,8 @@ describe("the 消息史 tab", () => {
       .mockResolvedValue({ items: [] });
     const wrapper = await mountAlerts();
 
-    // Live tab: the live-only 显示已确认 control is present.
-    expect(wrapper.text()).toContain("显示已确认");
+    // Live tab: the live-only 处置 segmented filter is present.
+    expect(wrapper.text()).toContain("处置");
 
     // The tab is the route now (no toggle button): navigating to /alerts/history folds in the
     // cleared-alert history and drops the live-only control.
@@ -845,11 +925,11 @@ describe("the 消息史 tab", () => {
       expect.objectContaining({ status: "cleared", limit: 10000 }),
     );
     expect(wrapper.text()).toContain("暂无已清除");
-    expect(wrapper.text()).not.toContain("显示已确认");
+    expect(wrapper.text()).not.toContain("处置");
 
     await router.push("/alerts");
     await flushPromises();
-    expect(wrapper.text()).toContain("显示已确认");
+    expect(wrapper.text()).toContain("处置");
   });
 
   it("在消息史默认把最近 10 天窗口回填到起止输入，而不是留空", async () => {
@@ -871,36 +951,7 @@ describe("the 消息史 tab", () => {
   });
 });
 
-describe("useAlertAck — the action layer", () => {
-  it("acknowledges through the API and updates the overlay optimistically", async () => {
-    seedMixed();
-    const ack = useAlertAck();
-    const ref = criticalRef();
-
-    const ok = await ack.acknowledge(ref.deviceId, ref.id, "看到了");
-    expect(ok).toBe(true);
-    expect(ackSpy).toHaveBeenCalledWith(ref.deviceId, ref.id, "看到了");
-    expect(ack.isAcknowledged(ref.deviceId, ref.id)).toBe(true);
-    expect(ack.acknowledgedBy(ref.deviceId, ref.id)).toBe("op");
-  });
-
-  it("rolls back and reports when the write is refused", async () => {
-    vi.spyOn(fleetApi, "unignoreAlert").mockRejectedValue(
-      new Error("not_found"),
-    );
-    seedMixed();
-    const ack = useAlertAck();
-    const ref = criticalRef();
-    // Put it in the acked state first (its own call succeeds by default mock).
-    await ack.acknowledge(ref.deviceId, ref.id);
-
-    const ok = await ack.unacknowledge(ref.deviceId, ref.id);
-    expect(ok).toBe(false);
-    // The optimistic removal was undone, so it is acknowledged again.
-    expect(ack.isAcknowledged(ref.deviceId, ref.id)).toBe(true);
-    expect(useNotifications().items.at(-1)?.message).toContain("活跃");
-  });
-
+describe("useAlertAck — the bulk ignore + legacy migration layer", () => {
   it("reports only the refs a bulk call actually changed", async () => {
     seedMixed();
     const ack = useAlertAck();
@@ -911,10 +962,10 @@ describe("useAlertAck — the action layer", () => {
         id: store.groupedAlerts.warning[0]!.id,
       },
     ];
-    await ack.acknowledge(critical.deviceId, critical.id);
+    await ack.acknowledgeMany([critical]);
 
     const changed = await ack.acknowledgeMany([critical, warning]);
-    // The already-acked critical is not re-reported; only the warning changed.
+    // The already-ignored critical is not re-reported; only the warning changed.
     expect(changed).toEqual([warning]);
   });
 
