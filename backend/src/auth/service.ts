@@ -14,13 +14,22 @@ export const toPublicUser = (user: UserRecord): PublicUser => ({
 
 /**
  * The bootstrap administrator (`ADMIN_USERNAME`) is a protected system account: it is seeded and
- * changed only out of band (env / bootstrap), never through the user-management API, so it cannot
- * be demoted, disabled, deleted, reset or logged out from the console — not even by another admin.
- * That keeps a debug/superuser entry that the demo roles cannot touch. Compared case-insensitively,
- * the same way usernames are matched everywhere else.
+ * changed only out of band (env / bootstrap). No *other* account may demote, disable, delete, reset
+ * or log it out through the user-management API — that keeps a debug/superuser entry the demo roles
+ * cannot touch. The bootstrap admin itself is the one exception: signed in as itself it operates on
+ * its own row like any user (see `protectedMutationBlocked`). Compared case-insensitively, the same
+ * way usernames are matched everywhere else.
  */
 export const isProtectedAccount = (username: string): boolean =>
   username.trim().toLowerCase() === config.adminUsername.trim().toLowerCase();
+
+/**
+ * Whether `actor` is forbidden from mutating `target`'s account by the protection rule: the target
+ * is the protected bootstrap admin and the actor is someone else. The bootstrap admin acting on
+ * itself is allowed (both are protected), so the console can still let it manage its own row.
+ */
+export const protectedMutationBlocked = (actor: string, target: string): boolean =>
+  isProtectedAccount(target) && !isProtectedAccount(actor);
 
 /** Strip `passwordHash` before a user record can reach a response body; mark the protected one. */
 export const toAdminUserView = ({
@@ -360,7 +369,7 @@ export class AuthService {
     if (!target) {
       return { ok: false, error: "not_found" };
     }
-    if (isProtectedAccount(target.username)) {
+    if (protectedMutationBlocked(actor, target.username)) {
       return { ok: false, error: "protected" };
     }
 
@@ -391,6 +400,7 @@ export class AuthService {
   }
 
   async resetPassword(
+    actor: string,
     username: string,
     newPassword: string,
   ): Promise<AdminActionResult<AdminUserView>> {
@@ -398,7 +408,7 @@ export class AuthService {
     if (!target) {
       return { ok: false, error: "not_found" };
     }
-    if (isProtectedAccount(target.username)) {
+    if (protectedMutationBlocked(actor, target.username)) {
       return { ok: false, error: "protected" };
     }
     const hash = await hashPassword(newPassword);
@@ -415,12 +425,12 @@ export class AuthService {
   }
 
   /** Force-log-out a user from every device (admin). Returns not_found for an unknown user. */
-  async forceLogout(username: string): Promise<AdminActionResult<void>> {
+  async forceLogout(actor: string, username: string): Promise<AdminActionResult<void>> {
     const target = await this.persistence.findUserByUsername(username);
     if (!target) {
       return { ok: false, error: "not_found" };
     }
-    if (isProtectedAccount(target.username)) {
+    if (protectedMutationBlocked(actor, target.username)) {
       return { ok: false, error: "protected" };
     }
     await this.revokeAllSessions(username);
@@ -432,7 +442,7 @@ export class AuthService {
     if (!target) {
       return { ok: false, error: "not_found" };
     }
-    if (isProtectedAccount(target.username)) {
+    if (protectedMutationBlocked(actor, target.username)) {
       return { ok: false, error: "protected" };
     }
     // Deleting an enabled admin removes their power — same lockout guard as disable/demote.

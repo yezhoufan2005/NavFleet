@@ -209,10 +209,14 @@ export interface AuthServiceStub {
     (actor: string, username: string, fields: unknown) => Promise<AdminActionResult<AdminUserView>>
   >;
   resetPassword: Mock<
-    (username: string, newPassword: string) => Promise<AdminActionResult<AdminUserView>>
+    (
+      actor: string,
+      username: string,
+      newPassword: string,
+    ) => Promise<AdminActionResult<AdminUserView>>
   >;
   deleteUser: Mock<(actor: string, username: string) => Promise<AdminActionResult<void>>>;
-  forceLogout: Mock<(username: string) => Promise<AdminActionResult<void>>>;
+  forceLogout: Mock<(actor: string, username: string) => Promise<AdminActionResult<void>>>;
   // Sessions.
   createSession: Mock<(input: unknown) => Promise<void>>;
   touchSession: Mock<(sessionId: string) => Promise<void>>;
@@ -272,7 +276,7 @@ export const createAuthServiceStub = (): AuthServiceStub => ({
       value: adminView(stubUser(username)),
     }),
   ),
-  resetPassword: vi.fn((username) =>
+  resetPassword: vi.fn((_actor, username) =>
     Promise.resolve<AdminActionResult<AdminUserView>>({
       ok: true,
       value: adminView(stubUser(username)),

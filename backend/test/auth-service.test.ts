@@ -201,11 +201,11 @@ describe("AuthService — admin user management", () => {
     // A normal account (not the protected bootstrap admin, whose reset is refused).
     await service.createUser({ username: "vera", password: A_PASSWORD, role: "viewer" });
 
-    const ok = await service.resetPassword("vera", A_PASSWORD);
+    const ok = await service.resetPassword("admin", "vera", A_PASSWORD);
     expect(ok.ok).toBe(true);
     expect((await service.authenticate("vera", A_PASSWORD)).ok).toBe(true);
 
-    expect(await service.resetPassword("ghost", A_PASSWORD)).toEqual({
+    expect(await service.resetPassword("admin", "ghost", A_PASSWORD)).toEqual({
       ok: false,
       error: "not_found",
     });
@@ -246,9 +246,9 @@ describe("AuthService — sessions end where the account changes", () => {
     await service.createSession(session("s-1", "vera"));
 
     await service.revokeSession("vera", "s-1");
-    await service.forceLogout("vera");
+    await service.forceLogout("admin", "vera");
     await service.updateUser("admin", "vera", { enabled: false });
-    await service.resetPassword("vera", A_PASSWORD);
+    await service.resetPassword("admin", "vera", A_PASSWORD);
     await service.deleteUser("admin", "vera");
 
     expect(invalidations()).toBe(5);
@@ -344,7 +344,7 @@ describe("AuthService — login lockout", () => {
       await service.authenticate("vera", "wrong");
     }
     const reset = A_PASSWORD + "x";
-    await service.resetPassword("vera", reset);
+    await service.resetPassword("admin", "vera", reset);
 
     expect((await service.authenticate("vera", reset)).ok).toBe(true);
   });
@@ -394,7 +394,7 @@ describe("AuthService — kiosk session horizon", () => {
       return service;
     };
 
-    it("refuses to demote, disable, reset, force-logout or delete it — even by another admin", async () => {
+    it("refuses to demote, disable, reset, force-logout or delete it — by another admin", async () => {
       const service = await withTwoAdmins();
 
       expect((await service.updateUser("lifang", "admin", { role: "viewer" })).ok).toBe(false);
@@ -402,8 +402,20 @@ describe("AuthService — kiosk session horizon", () => {
       const del = await service.deleteUser("lifang", "admin");
       expect(del.ok).toBe(false);
       expect(del.ok === false && del.error).toBe("protected");
-      expect((await service.resetPassword("admin", "whatever1")).ok).toBe(false);
-      expect((await service.forceLogout("admin")).ok).toBe(false);
+      expect((await service.resetPassword("lifang", "admin", A_PASSWORD)).ok).toBe(false);
+      expect((await service.forceLogout("lifang", "admin")).ok).toBe(false);
+    });
+
+    it("lets the bootstrap admin, signed in as itself, manage its own account", async () => {
+      // The protection is against *other* users; the bootstrap admin keeps a debug/superuser
+      // entry over its own row. These pass the `protected` guard (actor is itself) and fall to the
+      // ordinary rules — reset/force-logout/profile edits have none, so they succeed.
+      const service = await withTwoAdmins();
+      expect((await service.resetPassword("admin", "admin", A_PASSWORD)).ok).toBe(true);
+      expect((await service.forceLogout("admin", "admin")).ok).toBe(true);
+      expect((await service.updateUser("admin", "admin", { displayName: "超级管理员" })).ok).toBe(
+        true,
+      );
     });
 
     it("marks it protected in the view and leaves normal accounts editable", async () => {

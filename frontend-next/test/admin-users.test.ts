@@ -8,6 +8,7 @@ import {
   useNotifications,
   __resetNotifications,
 } from "@/composables/useNotifications";
+import { useAuth, __resetAuth } from "@/composables/useAuth";
 
 /**
  * 用户 — admin user management. The create/edit/reset form lives in a reka Dialog portal, so
@@ -73,10 +74,12 @@ const PW = ["valid", "pass", "42"].join("");
 
 beforeEach(() => {
   __resetNotifications();
+  __resetAuth();
   vi.restoreAllMocks();
 });
 
 afterEach(() => {
+  __resetAuth();
   vi.restoreAllMocks();
 });
 
@@ -159,7 +162,11 @@ describe("UsersView — destructive actions", () => {
     expect(lastToast()).toContain("已强制下线");
   });
 
-  it("marks the protected bootstrap admin 系统账号 and disables its row actions", async () => {
+  it("marks the protected bootstrap admin 系统账号 and disables its row actions for other users", async () => {
+    // Signed in as a *different* admin (the demo 李芳): the protected row is view-only.
+    const auth = useAuth();
+    auth.state.user = { username: "lifang", role: "admin" };
+    auth.state.status = "authenticated";
     const wrapper = await mountView([
       user({ username: "admin", role: "admin", protected: true }),
     ]);
@@ -170,6 +177,24 @@ describe("UsersView — destructive actions", () => {
     expect(actions.length).toBeGreaterThan(0);
     expect(actions.every((b) => b.attributes("disabled") !== undefined)).toBe(
       true,
+    );
+  });
+
+  it("keeps the protected admin's own row actions enabled when signed in as itself", async () => {
+    // The bootstrap admin is a debug/superuser entry over its own account, so its row stays
+    // operable for itself even though the 系统账号 tag still shows.
+    const auth = useAuth();
+    auth.state.user = { username: "admin", role: "admin" };
+    auth.state.status = "authenticated";
+    const wrapper = await mountView([
+      user({ username: "admin", role: "admin", protected: true }),
+    ]);
+    const row = wrapper.get("tbody tr");
+    expect(row.text()).toContain("系统账号");
+    const actions = row.findAll("button");
+    expect(actions.length).toBeGreaterThan(0);
+    expect(actions.some((b) => b.attributes("disabled") !== undefined)).toBe(
+      false,
     );
   });
 

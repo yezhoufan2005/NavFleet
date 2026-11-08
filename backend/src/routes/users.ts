@@ -1,7 +1,7 @@
 import express from "express";
 import { requireCapability } from "../auth/middleware";
 import type { AuthService, AdminActionError, UpdateUserInput } from "../auth/service";
-import { isProtectedAccount } from "../auth/service";
+import { protectedMutationBlocked } from "../auth/service";
 import type { AdminUserView } from "../types";
 import type { AuditService } from "../audit/service";
 import type { RbacService } from "../rbac/service";
@@ -126,6 +126,7 @@ export const buildUsersRouter = (
       return;
     }
     const result = await authService.resetPassword(
+      request.user!.username,
       request.params.username,
       parsed.data.newPassword,
     );
@@ -166,7 +167,7 @@ export const buildUsersRouter = (
    * is a legitimate "I lost a laptop" action — but always audited.
    */
   router.post("/users/:username/logout", async (request, response) => {
-    const result = await authService.forceLogout(request.params.username);
+    const result = await authService.forceLogout(request.user!.username, request.params.username);
     if (!result.ok) {
       respondActionError(response, result.error);
       return;
@@ -207,8 +208,9 @@ export const buildUsersRouter = (
   router.delete("/users/:username/sessions/:sessionId", async (request, response) => {
     const username = request.params.username;
     const sessionId = String(request.params.sessionId);
-    // The protected bootstrap admin is managed only out of band — the console disables this too.
-    if (isProtectedAccount(username)) {
+    // The protected bootstrap admin is managed only out of band by anyone *else* — the console
+    // disables this too. The bootstrap admin signed in as itself may still revoke its own sessions.
+    if (protectedMutationBlocked(request.user!.username, username)) {
       respondActionError(response, "protected");
       return;
     }

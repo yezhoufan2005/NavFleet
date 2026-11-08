@@ -30,6 +30,7 @@ import { ROLE_LABELS } from "@/lib/accessLabels";
 import { notify } from "@/composables/useNotifications";
 import { useAutoRefresh } from "@/composables/useAutoRefresh";
 import { useFieldErrors } from "@/composables/useFieldErrors";
+import { useAuth } from "@/composables/useAuth";
 
 const ROLE_OPTIONS = (Object.keys(ROLE_LABELS) as UserRoleName[]).map(
   (value) => ({
@@ -67,6 +68,19 @@ onMounted(() => void load());
 
 const isLocked = (user: AdminUser): boolean =>
   user.lockedUntil !== null && Date.parse(user.lockedUntil) > Date.now();
+
+const { state: authState } = useAuth();
+
+/**
+ * The protected bootstrap admin is managed only out of band by *other* users, so its row actions
+ * are disabled for everyone else. The bootstrap admin signed in as itself is the one exception —
+ * it keeps a debug/superuser entry over its own account, mirroring the backend's
+ * `protectedMutationBlocked`. Compared case-insensitively, like usernames are everywhere.
+ */
+const isProtectedRowLocked = (user: AdminUser): boolean =>
+  user.protected === true &&
+  user.username.trim().toLowerCase() !==
+    (authState.user?.username ?? "").trim().toLowerCase();
 
 // ── Create / edit / reset dialog ───────────────────────────────────────────────
 type FormMode = "create" | "edit" | "reset" | null;
@@ -400,11 +414,12 @@ const formDirty = formSnapshot.dirty;
               <td class="px-3 py-2">
                 <div class="flex justify-end gap-1">
                   <!-- The protected bootstrap admin shows like any row but is managed only out of
-                       band (env/bootstrap), so every action here is disabled — see the 系统账号 tag. -->
+                       band (env/bootstrap), so its actions are disabled for *other* users — see
+                       the 系统账号 tag. Signed in as itself, the bootstrap admin keeps them. -->
                   <UiButton
                     variant="ghost"
                     size="sm"
-                    :disabled="user.protected"
+                    :disabled="isProtectedRowLocked(user)"
                     @click="toggleSessions(user.username)"
                   >
                     会话
@@ -412,21 +427,21 @@ const formDirty = formSnapshot.dirty;
                   <UiButton
                     variant="ghost"
                     size="sm"
-                    :disabled="user.protected"
+                    :disabled="isProtectedRowLocked(user)"
                     @click="openEdit(user)"
                     >编辑</UiButton
                   >
                   <UiButton
                     variant="ghost"
                     size="sm"
-                    :disabled="user.protected"
+                    :disabled="isProtectedRowLocked(user)"
                     @click="openReset(user)"
                     >重置</UiButton
                   >
                   <UiButton
                     variant="ghost"
                     size="sm"
-                    :disabled="user.protected"
+                    :disabled="isProtectedRowLocked(user)"
                     @click="confirm = { kind: 'logout', user }"
                   >
                     强制下线
@@ -434,7 +449,7 @@ const formDirty = formSnapshot.dirty;
                   <UiButton
                     variant="ghost"
                     size="sm"
-                    :disabled="user.protected"
+                    :disabled="isProtectedRowLocked(user)"
                     @click="confirm = { kind: 'delete', user }"
                   >
                     删除

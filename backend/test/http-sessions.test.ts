@@ -127,7 +127,7 @@ describe("POST /api/users/:username/logout (admin force-logout)", () => {
       .set("Cookie", sessionCookie("admin"));
 
     expect(response.status).toBe(204);
-    expect(context.authService.forceLogout).toHaveBeenCalledWith("bob");
+    expect(context.authService.forceLogout).toHaveBeenCalledWith("tester", "bob");
     expect(context.auditService.record).toHaveBeenCalledWith(
       expect.objectContaining({ action: "force_logout", target: "bob" }),
     );
