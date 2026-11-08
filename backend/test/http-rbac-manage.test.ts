@@ -110,12 +110,12 @@ describe("RBAC groups grant capabilities to their members (end-to-end)", () => {
     // bob is a viewer, but his group carries alerts:ack — the gate lets him through (404 from the
     // stubbed persistence, not 403). alice, a plain viewer, is refused at the gate.
     const grouped = await request(ctx.app)
-      .post("/api/alerts/ack")
+      .post("/api/alerts/claim")
       .set("Cookie", sessionCookie("viewer", "bob"))
       .send(body);
     expect(grouped.status).not.toBe(403);
     const plain = await request(ctx.app)
-      .post("/api/alerts/ack")
+      .post("/api/alerts/claim")
       .set("Cookie", sessionCookie("viewer", "alice"))
       .send(body);
     expect(plain.status).toBe(403);

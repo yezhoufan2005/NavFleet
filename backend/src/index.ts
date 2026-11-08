@@ -59,12 +59,12 @@ const topicScheme = buildTopicScheme(config.topicPattern);
 // the WebSocket bridge below — it taps `alert.created` (emitted once when an alert id first
 // appears) and dispatches fire-and-forget. Un-awaited on purpose: `alert.created` fires inside
 // the store's serial ingest queue, so awaiting a slow webhook here would stall all ingest;
-// `dispatch` contains its own failures and never rejects. `alert.acked`/`alert.cleared` cancel a
-// pending escalation — the alert has been attended to, or has gone away.
+// `dispatch` contains its own failures and never rejects. A disposition change (claimed/ignored)
+// or a clear cancels a pending escalation — the message has been attended to, or has gone away.
 store.on("event", (event: SocketEvent) => {
   if (event.type === "alert.created") {
     void notifyService.dispatch(event.payload as AlertCreatedEvent);
-  } else if (event.type === "alert.acked" || event.type === "alert.cleared") {
+  } else if (event.type === "alert.disposition" || event.type === "alert.cleared") {
     const payload = event.payload as { deviceId: string; alertId: string };
     notifyService.onAlertResolved(`${payload.deviceId}:${payload.alertId}`);
   }

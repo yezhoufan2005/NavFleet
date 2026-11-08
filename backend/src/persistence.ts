@@ -12,6 +12,12 @@ import {
   ALERT_STATS_TOP_N,
   emptyAlertStatsReport,
   emptyAvailabilityReport,
+  canClaim,
+  canRelease,
+  canIgnore,
+  canUnignore,
+  type DispositionState,
+  type DispositionTransitionError,
 } from "@navfleet/shared";
 import { MongoConnectionSupervisor, type MongoSession, redactMongoUri } from "./mongoConnection";
 import {
@@ -102,7 +108,7 @@ const toBoundDate = (value: string | undefined): Date | null => {
 
 /** Projected alert shape returned by /api/alerts (kept identical across the
  * MongoDB and in-memory fallback paths, and mirrored by the OpenAPI schema). */
-interface StoredAlert {
+export interface StoredAlert {
   eventKey: string;
   deviceId: string;
   alertId: string;
@@ -120,12 +126,33 @@ interface StoredAlert {
   // the clear path in Mongo; the in-memory mirror holds active alerts only, so it is always
   // null there. Declared here to match the OpenAPI Alert schema, which already carries it.
   clearedAt: string | null;
-  // Acknowledgement. null until an operator+ confirms the occurrence; kept when the occurrence
-  // clears (it is history). A re-fire is a new document and starts unacknowledged.
-  ackedBy: string | null;
-  ackedAt: string | null;
-  comment: string | null;
+  // Disposition (human-handling axis), orthogonal to the signal axis above. All kept when the
+  // occurrence clears (it is history); a re-fire is a new document that starts unhandled at
+  // version 0. `version` is the optimistic-lock counter, bumped on every disposition write.
+  claimedBy: string | null;
+  claimedAt: string | null;
+  ignoredBy: string | null;
+  ignoredAt: string | null;
+  ignoreReason: string | null;
+  version: number;
 }
+
+/**
+ * The outcome of a disposition write (claim / release / ignore / unignore). `not_found` = no active
+ * occurrence by that key (already cleared or unknown); `conflict` = the optimistic-lock version
+ * moved on between read and write, or the client's `expectedVersion` was stale; otherwise a
+ * transition-guard error (e.g. `already_claimed`). On success the updated row comes back so the
+ * route can broadcast and the client can refresh its version.
+ */
+export type DispositionOutcome =
+  | { ok: true; alert: StoredAlert }
+  | {
+      ok: false;
+      error: "not_found" | "conflict" | DispositionTransitionError;
+      /** The current stored row when one exists (for a conflict / guard refusal), so the route can
+       *  tell the client who now holds it; null only when there is no active occurrence. */
+      current: StoredAlert | null;
+    };
 
 /**
  * Most alerts `GET /api/alerts` will return in one response.
@@ -1421,17 +1448,19 @@ export class Persistence {
   async upsertAlerts(deviceId: string, alerts: DeviceAlert[], at = new Date()): Promise<void> {
     // Always mirror the current active set into memory so the /api/alerts
     // fallback works without MongoDB and stays consistent with the live snapshot.
-    // Carry any existing acknowledgement forward for an eventKey that is still active,
-    // so a re-report does not silently drop a confirmation (mirrors the Mongo path,
-    // whose $set leaves the ack fields untouched). A cleared eventKey simply falls out
-    // of the new set, which is the same as nulling its ack.
-    const priorAcks = new Map(
+    // Carry any existing disposition forward for an eventKey that is still active, so a re-report
+    // does not silently drop a claim/ignore (mirrors the Mongo path, whose $set leaves the
+    // disposition fields untouched). A cleared eventKey simply falls out of the new set.
+    const priorDisposition = new Map(
       (this.activeAlerts.get(deviceId) ?? []).map((alert) => [
         alert.eventKey,
         {
-          ackedBy: alert.ackedBy,
-          ackedAt: alert.ackedAt,
-          comment: alert.comment,
+          claimedBy: alert.claimedBy,
+          claimedAt: alert.claimedAt,
+          ignoredBy: alert.ignoredBy,
+          ignoredAt: alert.ignoredAt,
+          ignoreReason: alert.ignoreReason,
+          version: alert.version,
           firstSeenAt: alert.firstSeenAt,
         },
       ]),
@@ -1440,7 +1469,7 @@ export class Persistence {
       deviceId,
       alerts.map((alert) => {
         const eventKey = `${deviceId}:${alert.id}`;
-        const ack = priorAcks.get(eventKey);
+        const prior = priorDisposition.get(eventKey);
         return {
           eventKey,
           deviceId,
@@ -1453,13 +1482,16 @@ export class Persistence {
           info: alert.info ?? "",
           ts: alert.ts,
           active: true,
-          firstSeenAt: alert.firstSeenAt ?? ack?.firstSeenAt ?? alert.ts,
+          firstSeenAt: alert.firstSeenAt ?? prior?.firstSeenAt ?? alert.ts,
           lastSeenAt: at.toISOString(),
           // The in-memory mirror holds active alerts only, so nothing here has cleared.
           clearedAt: null,
-          ackedBy: ack?.ackedBy ?? null,
-          ackedAt: ack?.ackedAt ?? null,
-          comment: ack?.comment ?? null,
+          claimedBy: prior?.claimedBy ?? null,
+          claimedAt: prior?.claimedAt ?? null,
+          ignoredBy: prior?.ignoredBy ?? null,
+          ignoredAt: prior?.ignoredAt ?? null,
+          ignoreReason: prior?.ignoreReason ?? null,
+          version: prior?.version ?? 0,
         };
       }),
     );
@@ -1503,11 +1535,14 @@ export class Persistence {
               $setOnInsert: {
                 firstSeenAt: new Date(alert.firstSeenAt ?? alert.ts),
                 clearedAt: null,
-                // A brand-new occurrence starts unacknowledged. On a re-report this
-                // branch is skipped, so an existing ack is preserved.
-                ackedBy: null,
-                ackedAt: null,
-                comment: null,
+                // A brand-new occurrence starts unhandled at version 0. On a re-report this
+                // branch is skipped, so an existing disposition is preserved.
+                claimedBy: null,
+                claimedAt: null,
+                ignoredBy: null,
+                ignoredAt: null,
+                ignoreReason: null,
+                version: 0,
               },
             },
             { upsert: true, timeoutMS: config.mongoWriteTimeoutMs },
@@ -1522,8 +1557,8 @@ export class Persistence {
           eventKey: { $nin: [...activeKeys] },
         },
         {
-          // The occurrence is closed and kept as history, acknowledgement included: who confirmed
-          // it is part of what happened. A later re-fire is a separate (unacknowledged) document.
+          // The occurrence is closed and kept as history, disposition included: who claimed or
+          // ignored it is part of what happened. A later re-fire is a separate (unhandled) document.
           $set: {
             active: false,
             clearedAt: at,
@@ -1575,58 +1610,125 @@ export class Persistence {
   }
 
   /**
-   * Acknowledge one active alert occurrence. Returns true when a matching
-   * active row was found and updated, false otherwise (unknown eventKey, or already
-   * cleared) so the route can answer 404. Only active rows are touched — you cannot
-   * acknowledge an occurrence that is no longer happening.
+   * Claim an active occurrence for investigation (认领). Guard: firing + unhandled.
+   * `expectedVersion`, when given, must match the stored version (optimistic lock).
    */
-  async ackAlert(
+  async claimAlert(
     eventKey: string,
-    ackedBy: string,
-    comment: string | null,
+    by: string,
     at: Date,
-  ): Promise<boolean> {
-    const iso = at.toISOString();
-    if (!this.db) {
-      const alert = this.findMemoryActiveAlert(eventKey);
-      if (!alert) {
-        return false;
-      }
-      alert.ackedBy = ackedBy;
-      alert.ackedAt = iso;
-      alert.comment = comment;
-      return true;
-    }
-
-    const result = await this.db
-      .collection("alerts")
-      .updateOne(
-        { eventKey, active: true },
-        { $set: { ackedBy, ackedAt: new Date(iso), comment } },
-      );
-    return result.matchedCount > 0;
+    expectedVersion?: number,
+  ): Promise<DispositionOutcome> {
+    return this.transitionDisposition(eventKey, expectedVersion, canClaim, {
+      claimedBy: by,
+      claimedAt: at.toISOString(),
+    });
   }
 
-  /** Undo an acknowledgement. Same active-only match and 404 contract. */
-  async unackAlert(eventKey: string): Promise<boolean> {
-    if (!this.db) {
-      const alert = this.findMemoryActiveAlert(eventKey);
-      if (!alert) {
-        return false;
-      }
-      alert.ackedBy = null;
-      alert.ackedAt = null;
-      alert.comment = null;
-      return true;
+  /** Release a claim back to unhandled (本人或 admin). Guard: firing + investigating. */
+  async releaseAlert(
+    eventKey: string,
+    actor: string,
+    isAdmin: boolean,
+    expectedVersion?: number,
+  ): Promise<DispositionOutcome> {
+    return this.transitionDisposition(
+      eventKey,
+      expectedVersion,
+      (state) => canRelease(state, actor, isAdmin),
+      { claimedBy: null, claimedAt: null },
+    );
+  }
+
+  /** Ignore an active occurrence (忽略). Guard: firing + not already ignored. */
+  async ignoreAlert(
+    eventKey: string,
+    by: string,
+    reason: string | null,
+    at: Date,
+    expectedVersion?: number,
+  ): Promise<DispositionOutcome> {
+    return this.transitionDisposition(eventKey, expectedVersion, canIgnore, {
+      ignoredBy: by,
+      ignoredAt: at.toISOString(),
+      ignoreReason: reason,
+    });
+  }
+
+  /** Cancel an ignore back to unhandled (取消忽略). Guard: firing + currently ignored. */
+  async unignoreAlert(eventKey: string, expectedVersion?: number): Promise<DispositionOutcome> {
+    return this.transitionDisposition(eventKey, expectedVersion, canUnignore, {
+      ignoredBy: null,
+      ignoredAt: null,
+      ignoreReason: null,
+    });
+  }
+
+  /** The disposition primitives of a stored alert, as the shared transition guards want them. */
+  private static dispositionState(alert: StoredAlert): DispositionState {
+    return {
+      active: alert.active,
+      claimedBy: alert.claimedBy,
+      claimedAt: alert.claimedAt,
+      ignoredBy: alert.ignoredBy,
+      ignoredAt: alert.ignoredAt,
+      ignoreReason: alert.ignoreReason,
+      version: alert.version,
+    };
+  }
+
+  /**
+   * The shared core of the four disposition writes: read the active occurrence, run the transition
+   * guard, check the optimistic-lock version, then apply the field patch atomically — the write is
+   * conditioned on the version it read, so a concurrent change (or a stale `expectedVersion`) comes
+   * back as `conflict` rather than a lost update.
+   */
+  private async transitionDisposition(
+    eventKey: string,
+    expectedVersion: number | undefined,
+    guard: (state: DispositionState) => DispositionTransitionError | null,
+    patch: Partial<
+      Pick<StoredAlert, "claimedBy" | "claimedAt" | "ignoredBy" | "ignoredAt" | "ignoreReason">
+    >,
+  ): Promise<DispositionOutcome> {
+    const current = this.db
+      ? ((await this.db
+          .collection("alerts")
+          .findOne({ eventKey, active: true })) as StoredAlert | null)
+      : (this.findMemoryActiveAlert(eventKey) ?? null);
+    if (!current) {
+      return { ok: false, error: "not_found", current: null };
+    }
+    const guardError = guard(Persistence.dispositionState(current));
+    if (guardError) {
+      return { ok: false, error: guardError, current };
+    }
+    if (expectedVersion !== undefined && expectedVersion !== current.version) {
+      return { ok: false, error: "conflict", current };
     }
 
-    const result = await this.db
+    if (!this.db) {
+      // Single-threaded in-memory path: the object we read is the live one; patch it and bump.
+      Object.assign(current, patch);
+      current.version += 1;
+      return { ok: true, alert: current };
+    }
+
+    const updated = (await this.db
       .collection("alerts")
-      .updateOne(
-        { eventKey, active: true },
-        { $set: { ackedBy: null, ackedAt: null, comment: null } },
-      );
-    return result.matchedCount > 0;
+      .findOneAndUpdate(
+        { eventKey, active: true, version: current.version },
+        { $set: patch, $inc: { version: 1 } },
+        { returnDocument: "after" },
+      )) as StoredAlert | null;
+    if (!updated) {
+      // Lost the race since the read: re-read to report who now holds it.
+      const fresh = (await this.db
+        .collection("alerts")
+        .findOne({ eventKey, active: true })) as StoredAlert | null;
+      return { ok: false, error: "conflict", current: fresh };
+    }
+    return { ok: true, alert: updated };
   }
 
   private findMemoryActiveAlert(eventKey: string): StoredAlert | undefined {

@@ -3,8 +3,10 @@ import {
   historyQuerySchema,
   alertsQuerySchema,
   auditQuerySchema,
-  alertAckSchema,
-  alertUnackSchema,
+  alertClaimSchema,
+  alertReleaseSchema,
+  alertIgnoreSchema,
+  alertUnignoreSchema,
   ingestBodySchema,
   mqttTelemetrySchema,
   mqttStatusSchema,
@@ -125,27 +127,40 @@ describe("auditQuerySchema", () => {
   });
 });
 
-describe("alertAckSchema / alertUnackSchema", () => {
-  it("accepts a deviceId + alertId, with an optional comment", () => {
-    expect(alertAckSchema.safeParse({ deviceId: "agv-01", alertId: "e1" }).success).toBe(true);
+describe("alert disposition schemas", () => {
+  it("accepts a deviceId + alertId, with an optional version and ignore reason", () => {
+    expect(alertClaimSchema.safeParse({ deviceId: "agv-01", alertId: "e1" }).success).toBe(true);
     expect(
-      alertAckSchema.safeParse({ deviceId: "agv-01", alertId: "e1", comment: "看过了" }).success,
+      alertClaimSchema.safeParse({ deviceId: "agv-01", alertId: "e1", version: 3 }).success,
     ).toBe(true);
-    expect(alertUnackSchema.safeParse({ deviceId: "agv-01", alertId: "e1" }).success).toBe(true);
+    expect(alertUnignoreSchema.safeParse({ deviceId: "agv-01", alertId: "e1" }).success).toBe(true);
+    expect(
+      alertReleaseSchema.safeParse({ deviceId: "agv-01", alertId: "e1", version: 0 }).success,
+    ).toBe(true);
+    expect(
+      alertIgnoreSchema.safeParse({ deviceId: "agv-01", alertId: "e1", reason: "噪声" }).success,
+    ).toBe(true);
   });
 
   it("requires both ids and bounds their length", () => {
-    expect(alertAckSchema.safeParse({ deviceId: "agv-01" }).success).toBe(false);
-    expect(alertAckSchema.safeParse({ alertId: "e1" }).success).toBe(false);
-    expect(alertAckSchema.safeParse({ deviceId: "", alertId: "e1" }).success).toBe(false);
-    expect(alertAckSchema.safeParse({ deviceId: "a".repeat(201), alertId: "e1" }).success).toBe(
+    expect(alertClaimSchema.safeParse({ deviceId: "agv-01" }).success).toBe(false);
+    expect(alertClaimSchema.safeParse({ alertId: "e1" }).success).toBe(false);
+    expect(alertClaimSchema.safeParse({ deviceId: "", alertId: "e1" }).success).toBe(false);
+    expect(alertClaimSchema.safeParse({ deviceId: "a".repeat(201), alertId: "e1" }).success).toBe(
       false,
     );
   });
 
-  it("bounds the comment length", () => {
+  it("rejects a negative/non-integer version and an over-long reason", () => {
+    expect(alertClaimSchema.safeParse({ deviceId: "a", alertId: "e1", version: -1 }).success).toBe(
+      false,
+    );
+    expect(alertClaimSchema.safeParse({ deviceId: "a", alertId: "e1", version: 1.5 }).success).toBe(
+      false,
+    );
     expect(
-      alertAckSchema.safeParse({ deviceId: "a", alertId: "e1", comment: "x".repeat(501) }).success,
+      alertIgnoreSchema.safeParse({ deviceId: "a", alertId: "e1", reason: "x".repeat(501) })
+        .success,
     ).toBe(false);
   });
 });

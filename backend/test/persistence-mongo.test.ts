@@ -784,16 +784,19 @@ describe("upsertAlerts", () => {
     expect(update.$setOnInsert).toHaveProperty("firstSeenAt");
     expect(update.$set).not.toHaveProperty("firstSeenAt");
     expect(update.$set).toHaveProperty("lastSeenAt");
-    // 确认字段只在插入时初始化为 null；re-report 的 $set 不碰它们，确认得以保留。
+    // 处置字段只在插入时初始化；re-report 的 $set 不碰它们，处置得以保留。
     expect(update.$setOnInsert).toMatchObject({
-      ackedBy: null,
-      ackedAt: null,
-      comment: null,
+      claimedBy: null,
+      claimedAt: null,
+      ignoredBy: null,
+      ignoredAt: null,
+      ignoreReason: null,
+      version: 0,
     });
-    expect(update.$set).not.toHaveProperty("ackedBy");
+    expect(update.$set).not.toHaveProperty("claimedBy");
   });
 
-  it("清除即关闭这一次发生并保留其确认（历史）；重新触发插入的新文档从未确认、未清除开始", async () => {
+  it("清除即关闭这一次发生并保留其处置（历史）；重新触发插入的新文档从未处置、未清除开始", async () => {
     const { db, calls } = createFakeDb();
     persistence.__setDbForTests(db);
 
@@ -803,12 +806,13 @@ describe("upsertAlerts", () => {
     const clearSet = (clear?.update as { $set: Record<string, unknown> }).$set;
     expect(clearSet).toMatchObject({ active: false });
     expect(clearSet).toHaveProperty("clearedAt");
-    // 谁确认过是这次发生的一部分，清除时不抹掉。
-    expect(clearSet).not.toHaveProperty("ackedBy");
-    // 新的一次发生：插入时 clearedAt 为空、未确认。
+    // 谁认领/忽略过是这次发生的一部分，清除时不抹掉。
+    expect(clearSet).not.toHaveProperty("claimedBy");
+    expect(clearSet).not.toHaveProperty("ignoredBy");
+    // 新的一次发生：插入时 clearedAt 为空、未处置。
     const insert = (calls.updateOne[0]?.update as { $setOnInsert: Record<string, unknown> })
       .$setOnInsert;
-    expect(insert).toMatchObject({ clearedAt: null, ackedBy: null });
+    expect(insert).toMatchObject({ clearedAt: null, claimedBy: null, ignoredBy: null, version: 0 });
   });
 
   it("清除时刻取调用方给的时间（回填按模拟时刻关闭），不取写库那一刻", async () => {
@@ -854,73 +858,116 @@ describe("upsertAlerts", () => {
   });
 });
 
-describe("ackAlert / unackAlert", () => {
-  it("ack 只命中活跃行，写入确认三字段并返回命中（Mongo 路径）", async () => {
-    const { db, calls } = createFakeDb();
+describe("disposition: claim / release / ignore / unignore", () => {
+  const storedRow = () => ({
+    eventKey: "agv-a:low-soc",
+    deviceId: "agv-a",
+    alertId: "low-soc",
+    severity: "warning",
+    title: "t",
+    detail: "d",
+    source: "rule-engine",
+    code: null,
+    info: "",
+    ts: "2026-03-01T08:00:00.000Z",
+    active: true,
+    firstSeenAt: "2026-03-01T08:00:00.000Z",
+    lastSeenAt: "2026-03-01T08:00:00.000Z",
+    clearedAt: null,
+    claimedBy: null,
+    claimedAt: null,
+    ignoredBy: null,
+    ignoredAt: null,
+    ignoreReason: null,
+    version: 0,
+  });
+
+  it("claim 命中活跃行，乐观锁按 version 过滤并 $inc（Mongo 路径）", async () => {
+    const { db, calls } = createFakeDb({ alerts: [storedRow()] });
     persistence.__setDbForTests(db);
 
-    const at = new Date("2026-03-01T08:00:00.000Z");
-    const ok = await persistence.ackAlert("agv-a:low-soc", "op-1", "看过了", at);
+    const at = new Date("2026-03-01T09:00:00.000Z");
+    const result = await persistence.claimAlert("agv-a:low-soc", "op-1", at, 0);
 
-    expect(ok).toBe(true);
-    const [write] = calls.updateOne;
+    expect(result.ok).toBe(true);
+    const [write] = calls.findOneAndUpdate;
     expect(write?.collection).toBe("alerts");
-    // active:true 是契约的一半：不能确认一个已经不再发生的告警。
-    expect(write?.filter).toEqual({ eventKey: "agv-a:low-soc", active: true });
+    // 乐观锁：active:true + 读到的 version 一起作为条件，避免读改写之间的竞态。
+    expect(write?.filter).toEqual({ eventKey: "agv-a:low-soc", active: true, version: 0 });
     expect(write?.update).toEqual({
-      $set: { ackedBy: "op-1", ackedAt: at, comment: "看过了" },
+      $set: { claimedBy: "op-1", claimedAt: at.toISOString() },
+      $inc: { version: 1 },
     });
   });
 
-  it("unack 把三字段置回 null（Mongo 路径）", async () => {
-    const { db, calls } = createFakeDb();
+  it("claim 时客户端 version 落后 → conflict，不发起写", async () => {
+    const { db, calls } = createFakeDb({ alerts: [{ ...storedRow(), version: 2 }] });
     persistence.__setDbForTests(db);
 
-    const ok = await persistence.unackAlert("agv-a:low-soc");
+    const result = await persistence.claimAlert("agv-a:low-soc", "op-1", new Date(), 1);
 
-    expect(ok).toBe(true);
-    const [write] = calls.updateOne;
-    expect(write?.filter).toEqual({ eventKey: "agv-a:low-soc", active: true });
-    expect(write?.update).toEqual({
-      $set: { ackedBy: null, ackedAt: null, comment: null },
+    expect(result).toMatchObject({ ok: false, error: "conflict" });
+    expect(calls.findOneAndUpdate).toHaveLength(0);
+  });
+
+  it("内存降级路径：完整状态机 + 版本号 + 未知 key 返回 not_found", async () => {
+    persistence.__setDbForTests(null);
+    await persistence.upsertAlerts("agv-a", [alert("low-soc")]);
+
+    // 认领：待处理 → 处理中，版本 0 → 1。
+    const claimed = await persistence.claimAlert("agv-a:low-soc", "op-1", new Date());
+    expect(claimed).toMatchObject({ ok: true });
+    const [afterClaim] = (await persistence.queryAlerts({})) as Array<{
+      claimedBy: string | null;
+      version: number;
+    }>;
+    expect(afterClaim?.claimedBy).toBe("op-1");
+    expect(afterClaim?.version).toBe(1);
+
+    // 再认领：已被认领 → already_claimed。
+    expect(await persistence.claimAlert("agv-a:low-soc", "op-2", new Date())).toMatchObject({
+      ok: false,
+      error: "already_claimed",
+    });
+
+    // 他人释放被拒；本人释放回到待处理。
+    expect(await persistence.releaseAlert("agv-a:low-soc", "op-2", false)).toMatchObject({
+      ok: false,
+      error: "not_claimant",
+    });
+    expect(await persistence.releaseAlert("agv-a:low-soc", "op-1", false)).toMatchObject({
+      ok: true,
+    });
+
+    // 忽略 → unignore 往返。
+    expect(
+      await persistence.ignoreAlert("agv-a:low-soc", "op-1", "噪声", new Date()),
+    ).toMatchObject({ ok: true });
+    const [ignored] = (await persistence.queryAlerts({})) as Array<{ ignoredBy: string | null }>;
+    expect(ignored?.ignoredBy).toBe("op-1");
+    expect(await persistence.unignoreAlert("agv-a:low-soc")).toMatchObject({ ok: true });
+
+    // 未知 key：not_found（→ 路由 404）。
+    expect(await persistence.claimAlert("agv-a:ghost", "op-1", new Date())).toMatchObject({
+      ok: false,
+      error: "not_found",
     });
   });
 
-  it("内存降级路径：命中活跃告警则更新并返回 true，未知 eventKey 返回 false（→ 路由 404）", async () => {
-    persistence.__setDbForTests(null);
-    // 先让内存里有一条活跃告警。
-    await persistence.upsertAlerts("agv-a", [alert("low-soc")]);
-
-    const at = new Date("2026-03-01T08:00:00.000Z");
-    expect(await persistence.ackAlert("agv-a:low-soc", "op-1", null, at)).toBe(true);
-
-    const [acked] = (await persistence.queryAlerts({})) as Array<{
-      ackedBy: string | null;
-      ackedAt: string | null;
-    }>;
-    expect(acked?.ackedBy).toBe("op-1");
-    expect(acked?.ackedAt).toBe(at.toISOString());
-
-    // 未知 key：什么都不改，返回未命中。
-    expect(await persistence.ackAlert("agv-a:ghost", "op-1", null, at)).toBe(false);
-    expect(await persistence.unackAlert("agv-a:ghost")).toBe(false);
-
-    // unack 把它清回未确认。
-    expect(await persistence.unackAlert("agv-a:low-soc")).toBe(true);
-    const [cleared] = (await persistence.queryAlerts({})) as Array<{ ackedBy: string | null }>;
-    expect(cleared?.ackedBy).toBeNull();
-  });
-
-  it("内存降级路径：re-report 保留已存在的确认（与 Mongo 的 $set 不碰确认字段同构）", async () => {
+  it("内存降级路径：re-report 保留已存在的处置与版本号", async () => {
     persistence.__setDbForTests(null);
     await persistence.upsertAlerts("agv-a", [alert("low-soc")]);
-    await persistence.ackAlert("agv-a:low-soc", "op-1", null, new Date());
+    await persistence.ignoreAlert("agv-a:low-soc", "op-1", null, new Date());
 
     // 同一条告警再次上报（仍活跃）。
     await persistence.upsertAlerts("agv-a", [alert("low-soc")]);
 
-    const [item] = (await persistence.queryAlerts({})) as Array<{ ackedBy: string | null }>;
-    expect(item?.ackedBy).toBe("op-1");
+    const [item] = (await persistence.queryAlerts({})) as Array<{
+      ignoredBy: string | null;
+      version: number;
+    }>;
+    expect(item?.ignoredBy).toBe("op-1");
+    expect(item?.version).toBe(1);
   });
 });
 

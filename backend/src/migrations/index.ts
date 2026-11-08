@@ -82,6 +82,31 @@ export const migrations: readonly Migration[] = [
       ]);
     },
   },
+  {
+    version: 5,
+    name: "rename-alert-ack-to-disposition",
+    up: async (db) => {
+      // The message redesign splits acknowledgement into a disposition axis. The old
+      // `ackedBy`/`ackedAt`/`comment` (whose meaning was "confirmed") become the **ignore** fields;
+      // `claimedBy`/`claimedAt` (the new "investigating" state) and the optimistic-lock `version`
+      // are added. Scoped to rows missing `version` so a re-run touches nothing (idempotent, the
+      // same shape as earlier migrations); `$ifNull` carries each old value across and defaults the
+      // new fields.
+      await db.collection("alerts").updateMany({ version: { $exists: false } }, [
+        {
+          $set: {
+            ignoredBy: { $ifNull: ["$ackedBy", null] },
+            ignoredAt: { $ifNull: ["$ackedAt", null] },
+            ignoreReason: { $ifNull: ["$comment", null] },
+            claimedBy: { $ifNull: ["$claimedBy", null] },
+            claimedAt: { $ifNull: ["$claimedAt", null] },
+            version: { $ifNull: ["$version", 0] },
+          },
+        },
+        { $unset: ["ackedBy", "ackedAt", "comment"] },
+      ]);
+    },
+  },
 ];
 
 /**

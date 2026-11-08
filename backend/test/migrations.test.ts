@@ -190,6 +190,29 @@ describe("migration 列表自身", () => {
     });
   });
 
+  it("v5 把告警 ack 字段改名为处置态：过滤 version 不存在的行，迁移并 $unset 旧字段", async () => {
+    const v5 = migrations.find((migration) => migration.version === 5);
+    expect(v5).toBeDefined();
+    const { db, otherUpdates } = createFakeDb();
+    await v5!.up(db);
+
+    expect(otherUpdates).toHaveLength(1);
+    const [write] = otherUpdates;
+    expect(write?.collection).toBe("alerts");
+    // 幂等：只碰还没有 version 的行。
+    expect(write?.filter).toEqual({ version: { $exists: false } });
+    const pipeline = write?.update as Array<Record<string, unknown>>;
+    expect(pipeline[0]?.$set).toMatchObject({
+      ignoredBy: { $ifNull: ["$ackedBy", null] },
+      ignoredAt: { $ifNull: ["$ackedAt", null] },
+      ignoreReason: { $ifNull: ["$comment", null] },
+      claimedBy: { $ifNull: ["$claimedBy", null] },
+      claimedAt: { $ifNull: ["$claimedAt", null] },
+      version: { $ifNull: ["$version", 0] },
+    });
+    expect(pipeline[1]?.$unset).toEqual(["ackedBy", "ackedAt", "comment"]);
+  });
+
   it("版本有缺口时在加载期就抛错，而不是运行时静默跳过", () => {
     expect(() =>
       assertMigrationsWellFormed([

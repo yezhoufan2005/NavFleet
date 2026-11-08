@@ -44,8 +44,10 @@ const OPERATOR_ROUTES: Array<{
   path: string;
   body: Record<string, string>;
 }> = [
-  { method: "post", path: "/api/alerts/ack", body: { deviceId: DEVICE_ID, alertId: "a1" } },
-  { method: "post", path: "/api/alerts/unack", body: { deviceId: DEVICE_ID, alertId: "a1" } },
+  { method: "post", path: "/api/alerts/claim", body: { deviceId: DEVICE_ID, alertId: "a1" } },
+  { method: "post", path: "/api/alerts/release", body: { deviceId: DEVICE_ID, alertId: "a1" } },
+  { method: "post", path: "/api/alerts/ignore", body: { deviceId: DEVICE_ID, alertId: "a1" } },
+  { method: "post", path: "/api/alerts/unignore", body: { deviceId: DEVICE_ID, alertId: "a1" } },
 ];
 
 const ADMIN_ROUTES: Array<{ method: "get" | "post" | "patch" | "delete" | "put"; path: string }> = [
