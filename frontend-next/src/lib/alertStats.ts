@@ -112,7 +112,8 @@ export const computeAlertStats = (
       dayCounts.set(day, (dayCounts.get(day) ?? 0) + 1);
     }
 
-    if (record.ackedBy) acked += 1;
+    // "Acked" now means ignored (the redesign's reinterpretation of the old confirm).
+    if (record.ignoredBy) acked += 1;
 
     // A duration exists only when the alert has both an onset and a clear time.
     const cleared = record.clearedAt

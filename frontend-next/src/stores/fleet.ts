@@ -167,7 +167,7 @@ export const useFleetStore = defineStore("fleet", () => {
    * Confirmation used to live in browser localStorage, so it did not survive a different
    * device, a different operator, or a cleared cache, and could not be audited. It now lives
    * on the `alerts` collection; this map is the console's live view of it — seeded once from
-   * `GET /alerts?status=active` on bootstrap and kept current by `alert.acked`/`alert.unacked`
+   * `GET /alerts?status=active` on bootstrap and kept current by `alert.disposition`
    * WS events, so every open console agrees on what is confirmed and by whom, across users.
    *
    * A reactive Map (not a plain object) so `useAlertAck`'s reads track individual keys.
@@ -199,7 +199,7 @@ export const useFleetStore = defineStore("fleet", () => {
    * Reload the acknowledgement overlay from the backend. Called from the alerts view on mount
    * (the one place the overlay is displayed) and whenever the realtime link comes back, so a
    * confirmation made while this console was disconnected — or by another operator — is
-   * picked up; between reads the WS `alert.acked`/`alert.unacked` events keep it current.
+   * picked up; between reads the WS `alert.disposition` events keep it current.
    *
    * The read replaces the overlay only when it is the whole truth. If a live event changed
    * the overlay while the read was in flight, or the server capped the list (`truncated`),
@@ -222,8 +222,13 @@ export const useFleetStore = defineStore("fleet", () => {
           (item.deviceId && item.alertId
             ? ackEventKey(item.deviceId, item.alertId)
             : null);
-        if (eventKey && item.ackedBy && item.ackedAt) {
-          next.set(eventKey, { ackedBy: item.ackedBy, ackedAt: item.ackedAt });
+        // The acknowledgement overlay is seeded from the "ignored" disposition (the redesign's
+        // reinterpretation of the old confirm); claim/release land with the console UI batch.
+        if (eventKey && item.ignoredBy && item.ignoredAt) {
+          next.set(eventKey, {
+            ackedBy: item.ignoredBy,
+            ackedAt: item.ignoredAt,
+          });
         }
       }
       if (generation === ackGeneration && !truncated) ackState.clear();
@@ -768,24 +773,20 @@ export const useFleetStore = defineStore("fleet", () => {
       typeof frame.deviceId === "string" ? frame.deviceId : undefined;
     if (!deviceId) return;
 
-    // Acknowledgement events carry no `alert` object and never toast — they
-    // only reconcile the ack overlay so every open console reflects who confirmed what,
-    // the moment any operator (here or elsewhere) does it.
-    if (type === "alert.acked" || type === "alert.unacked") {
-      const ack = payload as {
+    // Disposition events carry no `alert` object and never toast — they only reconcile the
+    // overlay so every open console reflects the handling state the moment any operator (here or
+    // elsewhere) changes it. The overlay currently tracks the "ignored" disposition (the old
+    // confirm's reinterpretation); claim/release presentation lands with the console UI batch.
+    if (type === "alert.disposition") {
+      const d = payload as {
         alertId?: unknown;
-        ackedBy?: unknown;
-        ackedAt?: unknown;
+        ignoredBy?: unknown;
+        ignoredAt?: unknown;
       };
-      if (typeof ack.alertId !== "string") return;
-      const eventKey = ackEventKey(deviceId, ack.alertId);
-      if (type === "alert.acked") {
-        if (
-          typeof ack.ackedBy === "string" &&
-          typeof ack.ackedAt === "string"
-        ) {
-          applyAck(eventKey, { ackedBy: ack.ackedBy, ackedAt: ack.ackedAt });
-        }
+      if (typeof d.alertId !== "string") return;
+      const eventKey = ackEventKey(deviceId, d.alertId);
+      if (typeof d.ignoredBy === "string" && typeof d.ignoredAt === "string") {
+        applyAck(eventKey, { ackedBy: d.ignoredBy, ackedAt: d.ignoredAt });
       } else {
         applyUnack(eventKey);
       }

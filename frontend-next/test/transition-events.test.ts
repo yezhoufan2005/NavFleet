@@ -189,16 +189,18 @@ describe("transition events", () => {
   });
 });
 
-describe("acknowledgement events", () => {
-  // These carry no `alert` object and never toast — they only reconcile the ack overlay so
-  // every open console reflects who confirmed what, the moment any operator does it.
-  it("records who acknowledged, silently", () => {
+describe("disposition events", () => {
+  // These carry no `alert` object and never toast — they only reconcile the overlay so every open
+  // console reflects the handling state, the moment any operator does it. The overlay currently
+  // tracks the "ignored" disposition (the old confirm's reinterpretation).
+  it("records who handled it, silently", () => {
     const store = useFleetStore();
-    send("alert.acked", {
+    send("alert.disposition", {
       deviceId: "agv-a01",
       alertId: "err-1",
-      ackedBy: "operator-b",
-      ackedAt: "2026-01-01T00:00:00.000Z",
+      disposition: "ignored",
+      ignoredBy: "operator-b",
+      ignoredAt: "2026-01-01T00:00:00.000Z",
     });
 
     expect(store.isAlertAcked("agv-a01", "err-1")).toBe(true);
@@ -207,27 +209,35 @@ describe("acknowledgement events", () => {
     expect(messages()).toEqual([]);
   });
 
-  it("removes the acknowledgement when one is undone elsewhere", () => {
+  it("removes the overlay entry when the disposition goes back to unhandled elsewhere", () => {
     const store = useFleetStore();
-    send("alert.acked", {
+    send("alert.disposition", {
       deviceId: "agv-a01",
       alertId: "err-1",
-      ackedBy: "operator-b",
-      ackedAt: "2026-01-01T00:00:00.000Z",
+      disposition: "ignored",
+      ignoredBy: "operator-b",
+      ignoredAt: "2026-01-01T00:00:00.000Z",
     });
     expect(store.isAlertAcked("agv-a01", "err-1")).toBe(true);
 
-    send("alert.unacked", { deviceId: "agv-a01", alertId: "err-1" });
+    send("alert.disposition", {
+      deviceId: "agv-a01",
+      alertId: "err-1",
+      disposition: "unhandled",
+      ignoredBy: null,
+      ignoredAt: null,
+    });
     expect(store.isAlertAcked("agv-a01", "err-1")).toBe(false);
   });
 
-  it("drops the acknowledgement when its occurrence clears (a re-fire starts unacknowledged)", () => {
+  it("drops the overlay entry when its occurrence clears (a re-fire starts unhandled)", () => {
     const store = useFleetStore();
-    send("alert.acked", {
+    send("alert.disposition", {
       deviceId: "agv-a01",
       alertId: "info-1",
-      ackedBy: "operator-b",
-      ackedAt: "2026-01-01T00:00:00.000Z",
+      disposition: "ignored",
+      ignoredBy: "operator-b",
+      ignoredAt: "2026-01-01T00:00:00.000Z",
     });
     expect(store.isAlertAcked("agv-a01", "info-1")).toBe(true);
 
@@ -240,9 +250,13 @@ describe("acknowledgement events", () => {
     expect(store.isAlertAcked("agv-a01", "info-1")).toBe(false);
   });
 
-  it("ignores an acknowledgement frame with no alert id", () => {
+  it("ignores a disposition frame with no alert id", () => {
     const store = useFleetStore();
-    send("alert.acked", { deviceId: "agv-a01", ackedBy: "x", ackedAt: "y" });
+    send("alert.disposition", {
+      deviceId: "agv-a01",
+      ignoredBy: "x",
+      ignoredAt: "y",
+    });
     expect(store.isAlertAcked("agv-a01", "err-1")).toBe(false);
   });
 });

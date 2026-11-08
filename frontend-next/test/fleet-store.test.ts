@@ -575,20 +575,18 @@ describe("bootstrap", () => {
           alertId: "err-1",
           severity: "critical",
           active: true,
-          ackedBy: "operator-a",
-          ackedAt: "2026-01-01T00:00:00.000Z",
-          comment: null,
+          ignoredBy: "operator-a",
+          ignoredAt: "2026-01-01T00:00:00.000Z",
         },
-        // An active but unacknowledged alert contributes nothing to the overlay.
+        // An active but unhandled alert contributes nothing to the overlay.
         {
           eventKey: "agv-01:warn-1",
           deviceId: "agv-01",
           alertId: "warn-1",
           severity: "warning",
           active: true,
-          ackedBy: null,
-          ackedAt: null,
-          comment: null,
+          ignoredBy: null,
+          ignoredAt: null,
         },
       ],
     });
@@ -607,9 +605,8 @@ describe("bootstrap", () => {
     alertId,
     severity: "critical" as const,
     active: true,
-    ackedBy,
-    ackedAt: "2026-01-01T00:00:00.000Z",
-    comment: null,
+    ignoredBy: ackedBy,
+    ignoredAt: "2026-01-01T00:00:00.000Z",
   });
 
   it("does not let a seed overwrite a confirmation that arrived while it was in flight", async () => {

@@ -276,7 +276,8 @@ const rows = computed<Row[]>(() =>
       onset,
       clearedAt,
       duration: formatDurationMs(durationMs),
-      ackedBy: record.ackedBy ? String(record.ackedBy) : "",
+      // Shows the "ignored" disposition as the handled-by column (old confirm's reinterpretation).
+      ackedBy: record.ignoredBy ? String(record.ignoredBy) : "",
     };
   }),
 );

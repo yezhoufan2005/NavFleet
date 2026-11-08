@@ -19,7 +19,7 @@ const record = (over: Partial<AlertRecord> = {}): AlertRecord => ({
   deviceName: "A01",
   firstSeenAt: "2026-03-01T00:00:00.000Z",
   clearedAt: "2026-03-01T01:00:00.000Z",
-  ackedBy: null,
+  ignoredBy: null,
   ...over,
 });
 
@@ -97,10 +97,10 @@ describe("computeAlertStats", () => {
 
   it("computes the ack rate over the whole set", () => {
     const stats = computeAlertStats([
-      record({ ackedBy: "op" }),
-      record({ ackedBy: "op" }),
-      record({ ackedBy: null }),
-      record({ ackedBy: null }),
+      record({ ignoredBy: "op" }),
+      record({ ignoredBy: "op" }),
+      record({ ignoredBy: null }),
+      record({ ignoredBy: null }),
     ]);
     expect(stats.ackRate).toBe(0.5);
   });
