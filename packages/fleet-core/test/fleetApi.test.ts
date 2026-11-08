@@ -4,7 +4,7 @@
  */
 
 import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
-import { __resetConfigVersions, fleetApi } from "../src/fleetApi";
+import { __resetConfigVersions, fleetApi, ApiError } from "../src/fleetApi";
 
 interface FetchCall {
   url: string;
@@ -185,11 +185,15 @@ describe("fleetApi", () => {
     expect(calls.at(-1)?.url).toBe("/api/v1/audit?actor=root&action=login");
   });
 
-  it("ignores and unignores an alert, keeping the eventKey out of the path", async () => {
-    stubFetch(204, {});
-    await expect(
-      fleetApi.ackAlert("agv-01", "err-1", "看过了"),
-    ).resolves.toBeUndefined();
+  it("claims / ignores / releases / unignores, keeping the eventKey out of the path", async () => {
+    stubFetch(200, {
+      deviceId: "agv-01",
+      alertId: "err-1",
+      version: 1,
+      disposition: "ignored",
+    });
+    const ignored = await fleetApi.ignoreAlert("agv-01", "err-1", "看过了", 0);
+    expect(ignored.disposition).toBe("ignored");
     let call = calls.at(-1)!;
     expect(call.url).toBe("/api/v1/alerts/ignore");
     expect(call.init.method).toBe("POST");
@@ -197,24 +201,52 @@ describe("fleetApi", () => {
       deviceId: "agv-01",
       alertId: "err-1",
       reason: "看过了",
+      version: 0,
     });
 
-    // No reason → the body omits the field rather than sending an empty one.
-    await fleetApi.ackAlert("agv-01", "err-1");
+    // No reason / no version → the body omits those fields rather than sending empty ones.
+    await fleetApi.ignoreAlert("agv-01", "err-1");
     expect(JSON.parse(calls.at(-1)!.init.body as string)).toEqual({
       deviceId: "agv-01",
       alertId: "err-1",
     });
 
-    await expect(
-      fleetApi.unackAlert("agv-01", "err-1"),
-    ).resolves.toBeUndefined();
+    await fleetApi.claimAlert("agv-01", "err-1", 2);
     call = calls.at(-1)!;
-    expect(call.url).toBe("/api/v1/alerts/unignore");
+    expect(call.url).toBe("/api/v1/alerts/claim");
     expect(JSON.parse(call.init.body as string)).toEqual({
       deviceId: "agv-01",
       alertId: "err-1",
+      version: 2,
     });
+
+    await fleetApi.releaseAlert("agv-01", "err-1");
+    expect(calls.at(-1)!.url).toBe("/api/v1/alerts/release");
+
+    await fleetApi.unignoreAlert("agv-01", "err-1");
+    expect(calls.at(-1)!.url).toBe("/api/v1/alerts/unignore");
+  });
+
+  it("surfaces a 409 conflict as an ApiError whose data carries the current holder", async () => {
+    stubFetch(409, {
+      error: "already_claimed",
+      current: {
+        claimedBy: "zhaoyun",
+        disposition: "investigating",
+        version: 3,
+      },
+    });
+    const err = await fleetApi
+      .claimAlert("agv-01", "err-1", 0)
+      .catch((e: unknown) => e);
+    expect(err).toBeInstanceOf(ApiError);
+    const apiError = err as ApiError;
+    expect(apiError.status).toBe(409);
+    expect(apiError.message).toBe("already_claimed");
+    expect(
+      (apiError.data as { current?: { claimedBy?: string } }).current
+        ?.claimedBy,
+    ).toBe("zhaoyun");
   });
 
   it("reads the outbound send log with filters and the effective channels", async () => {

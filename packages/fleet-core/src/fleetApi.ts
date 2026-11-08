@@ -9,6 +9,7 @@
  */
 
 import type {
+  AlertDispositionPayload,
   AlertStatsReport,
   AlertRulesConfig,
   AvailabilityReport,
@@ -277,6 +278,9 @@ export class ApiError extends Error {
     readonly detail: string | null = null,
     /** Field-level problems from a schema-validated request (`invalid_request`). */
     readonly issues: { path: string; message: string }[] = [],
+    /** The full parsed error body, for endpoints that return extra context (e.g. a disposition
+     *  conflict's `current` holder). Null when the body was not JSON. */
+    readonly data: unknown = null,
   ) {
     super(code);
     this.name = "ApiError";
@@ -306,6 +310,7 @@ async function failureError(response: Response): Promise<Error> {
         response.status,
         typeof body.detail === "string" ? body.detail : null,
         issues,
+        body,
       );
     }
   } catch {
@@ -559,23 +564,68 @@ export const fleetApi = {
 
   // ── Message disposition (operator+) ──────────────────────────────
   // eventKey (deviceId:alertId) is assembled server-side from the body, so deviceId
-  // — which can hold arbitrary vendor characters — never enters a path segment. The old
-  // "acknowledge" is now "ignore" (the redesign's reinterpretation); claim/release land with
-  // the console UI batch.
-  ackAlert(deviceId: string, alertId: string, reason?: string): Promise<void> {
-    return requestVoid(
-      "/api/v1/alerts/ignore",
-      jsonBody(
-        "POST",
-        reason ? { deviceId, alertId, reason } : { deviceId, alertId },
-      ),
+  // — which can hold arbitrary vendor characters — never enters a path segment. Each returns the
+  // new disposition (with its optimistic-lock `version`); a 409 throws an ApiError whose `data`
+  // carries `current` (who now holds it). `version`, when given, is the If-Match the server checks.
+  claimAlert(
+    deviceId: string,
+    alertId: string,
+    version?: number,
+  ): Promise<AlertDispositionPayload> {
+    return requestJson<AlertDispositionPayload>(
+      "/api/v1/alerts/claim",
+      jsonBody("POST", {
+        deviceId,
+        alertId,
+        ...(version === undefined ? {} : { version }),
+      }),
     );
   },
 
-  unackAlert(deviceId: string, alertId: string): Promise<void> {
-    return requestVoid(
+  releaseAlert(
+    deviceId: string,
+    alertId: string,
+    version?: number,
+  ): Promise<AlertDispositionPayload> {
+    return requestJson<AlertDispositionPayload>(
+      "/api/v1/alerts/release",
+      jsonBody("POST", {
+        deviceId,
+        alertId,
+        ...(version === undefined ? {} : { version }),
+      }),
+    );
+  },
+
+  ignoreAlert(
+    deviceId: string,
+    alertId: string,
+    reason?: string,
+    version?: number,
+  ): Promise<AlertDispositionPayload> {
+    return requestJson<AlertDispositionPayload>(
+      "/api/v1/alerts/ignore",
+      jsonBody("POST", {
+        deviceId,
+        alertId,
+        ...(reason ? { reason } : {}),
+        ...(version === undefined ? {} : { version }),
+      }),
+    );
+  },
+
+  unignoreAlert(
+    deviceId: string,
+    alertId: string,
+    version?: number,
+  ): Promise<AlertDispositionPayload> {
+    return requestJson<AlertDispositionPayload>(
       "/api/v1/alerts/unignore",
-      jsonBody("POST", { deviceId, alertId }),
+      jsonBody("POST", {
+        deviceId,
+        alertId,
+        ...(version === undefined ? {} : { version }),
+      }),
     );
   },
 
