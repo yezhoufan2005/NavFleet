@@ -1870,26 +1870,36 @@ export class Persistence {
    * contract the cleared-alert paths already keep — rather than a zero-filled one that would
    * read as "there were no alerts".
    */
-  async aggregateAlertStats(range: { from?: string; to?: string }): Promise<AlertStatsReport> {
+  async aggregateAlertStats(range: {
+    from?: string;
+    to?: string;
+    deviceId?: string[];
+  }): Promise<AlertStatsReport> {
     if (!this.db) {
       return emptyAlertStatsReport(false);
     }
     const db = this.db;
-    return this.withReportCache(`alerts:${range.from ?? ""}:${range.to ?? ""}`, async () => {
-      const pipeline = buildAlertStatsPipeline({
-        from: toBoundDate(range.from),
-        to: toBoundDate(range.to),
-        topN: ALERT_STATS_TOP_N,
-        timezone: config.reportTimezone,
-      });
-      // `$facet` always yields exactly one document; the `?? {}` only satisfies the type for the
-      // (unreachable) empty-cursor case, and the mapper turns it into a zeroed but available report.
-      const [facet] = await db
-        .collection("alerts")
-        .aggregate<AlertStatsFacet>(pipeline, { maxTimeMS: config.reportQueryTimeoutMs })
-        .toArray();
-      return mapAlertStatsFacet(facet ?? {});
-    });
+    const deviceIds = range.deviceId?.length ? range.deviceId : null;
+    const deviceKey = deviceIds ? [...deviceIds].sort().join(",") : "*";
+    return this.withReportCache(
+      `alerts:${range.from ?? ""}:${range.to ?? ""}:${deviceKey}`,
+      async () => {
+        const pipeline = buildAlertStatsPipeline({
+          from: toBoundDate(range.from),
+          to: toBoundDate(range.to),
+          deviceIds,
+          topN: ALERT_STATS_TOP_N,
+          timezone: config.reportTimezone,
+        });
+        // `$facet` always yields exactly one document; the `?? {}` only satisfies the type for the
+        // (unreachable) empty-cursor case, and the mapper turns it into a zeroed but available report.
+        const [facet] = await db
+          .collection("alerts")
+          .aggregate<AlertStatsFacet>(pipeline, { maxTimeMS: config.reportQueryTimeoutMs })
+          .toArray();
+        return mapAlertStatsFacet(facet ?? {});
+      },
+    );
   }
 
   /**

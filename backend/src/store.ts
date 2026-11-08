@@ -1129,7 +1129,7 @@ export class DashboardStore extends EventEmitter {
   }
 
   /** Server-side alert statistics over the retention window; honest-empty without Mongo. */
-  async getAlertStats(range: { from?: string; to?: string }) {
+  async getAlertStats(range: { from?: string; to?: string; deviceId?: string[] }) {
     return this.persistence.aggregateAlertStats(range);
   }
 

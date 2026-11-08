@@ -41,6 +41,7 @@ import {
 import {
   buildAlertStatsCsv,
   availabilityCsv,
+  batteryCsv,
   defaultBucketForPreset,
   defaultBucketForSpanMs,
   deviceAvailabilityRows,
@@ -132,9 +133,32 @@ const isCustom = computed(
     customFrom.value <= customTo.value,
 );
 
+/** A window end/start as the `YYYY-MM-DD` a `type="date"` input shows, in local time. */
+const toDateInput = (iso: string): string => {
+  const date = new Date(iso);
+  const pad = (n: number): string => String(n).padStart(2, "0");
+  return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}`;
+};
+
+/**
+ * The dates the 起始/结束 inputs show — always populated, so the active window is visible even on
+ * a preset (the default was previously invisible: the inputs sat empty until you typed). On a
+ * preset these are the preset's resolved edges; in custom mode, the typed values.
+ */
+const effectiveDates = computed<{ from: string; to: string }>(() => {
+  if (isCustom.value) {
+    return { from: customFrom.value, to: customTo.value };
+  }
+  const window = windowForPreset(range.value, Date.now());
+  return { from: toDateInput(window.from), to: toDateInput(window.to) };
+});
+
 const setCustom = (patch: { from?: string; to?: string }): void => {
-  const nextFrom = patch.from ?? customFrom.value;
-  const nextTo = patch.to ?? customTo.value;
+  // Seed from the window currently shown, so editing one edge while on a preset switches to a
+  // custom range anchored at the preset's other edge rather than clearing it to empty.
+  const base = effectiveDates.value;
+  const nextFrom = patch.from ?? base.from;
+  const nextTo = patch.to ?? base.to;
   setFilter({ from: nextFrom || null, to: nextTo || null, range: null });
 };
 
@@ -213,7 +237,15 @@ const load = (): void => {
   alertStatus.value = "loading";
   alertError.value = "";
   fleetApi
-    .getAlertStatsReport({ from: window.from, to: window.to })
+    .getAlertStatsReport({
+      from: window.from,
+      to: window.to,
+      // Same device filter as the availability report, so a selected vehicle narrows the message
+      // stats (总数 / 严重度分布) too — not just the online-rate charts.
+      deviceId: deviceFilter.value.length
+        ? deviceFilter.value.join(",")
+        : undefined,
+    })
     .then((report) => {
       if (!isCurrent()) return;
       alertStats.value = report;
@@ -428,6 +460,19 @@ const exportCsv = (): void => {
   URL.revokeObjectURL(url);
 };
 
+/** 电量单独导出，与在线率同口径——「导出详情」里的「导出电量」。 */
+const exportBatteryCsv = (): void => {
+  if (!availability.value) return;
+  const csv = batteryCsv(availability.value, nameOf);
+  const blob = new Blob(["﻿", csv], { type: "text/csv;charset=utf-8" });
+  const url = URL.createObjectURL(blob);
+  const anchor = document.createElement("a");
+  anchor.href = url;
+  anchor.download = `navfleet-电量-${exportWindowTag()}.csv`;
+  anchor.click();
+  URL.revokeObjectURL(url);
+};
+
 /** 消息统计导出，与在线率对等（1.6.1）——聚合报表用长表装下页面显示的一切。 */
 const exportAlertsCsv = (): void => {
   if (!alertStats.value) return;
@@ -445,22 +490,45 @@ const exportAlertsCsv = (): void => {
 <template>
   <PageHeader title="报表">
     <template #actions>
-      <UiButton
-        variant="secondary"
-        size="sm"
-        :disabled="availStatus !== 'ready' || !hasAvailabilityData"
-        @click="exportCsv"
-      >
-        导出在线率 ↗
-      </UiButton>
-      <UiButton
-        variant="secondary"
-        size="sm"
-        :disabled="alertStatus !== 'ready' || !hasAlertData"
-        @click="exportAlertsCsv"
-      >
-        导出消息 ↗
-      </UiButton>
+      <!-- 导出详情：hover（或键盘聚焦进来，group-focus-within）展开，三项分别导出在线率/电量/消息。
+           菜单只在显隐之间，触发键是真 <button> 在组内，聚焦它即 focus-within 展开、再 Tab 进菜单项。 -->
+      <div class="group relative">
+        <UiButton variant="secondary" size="sm" aria-haspopup="menu">
+          导出详情 ↗
+        </UiButton>
+        <div
+          role="menu"
+          class="invisible absolute top-full right-0 z-20 mt-1 flex min-w-36 flex-col gap-0.5 rounded-md border border-border bg-surface-raised p-1 opacity-0 shadow-lg transition-opacity duration-150 group-focus-within:visible group-focus-within:opacity-100 group-hover:visible group-hover:opacity-100"
+        >
+          <button
+            type="button"
+            role="menuitem"
+            class="rounded-sm px-3 py-1.5 text-left text-sm text-ink transition-colors hover:bg-surface-sunken disabled:cursor-not-allowed disabled:opacity-50"
+            :disabled="availStatus !== 'ready' || !hasAvailabilityData"
+            @click="exportCsv"
+          >
+            导出在线率
+          </button>
+          <button
+            type="button"
+            role="menuitem"
+            class="rounded-sm px-3 py-1.5 text-left text-sm text-ink transition-colors hover:bg-surface-sunken disabled:cursor-not-allowed disabled:opacity-50"
+            :disabled="availStatus !== 'ready' || !hasAvailabilityData"
+            @click="exportBatteryCsv"
+          >
+            导出电量
+          </button>
+          <button
+            type="button"
+            role="menuitem"
+            class="rounded-sm px-3 py-1.5 text-left text-sm text-ink transition-colors hover:bg-surface-sunken disabled:cursor-not-allowed disabled:opacity-50"
+            :disabled="alertStatus !== 'ready' || !hasAlertData"
+            @click="exportAlertsCsv"
+          >
+            导出消息
+          </button>
+        </div>
+      </div>
     </template>
 
     <AppSectionTabs />
@@ -478,13 +546,14 @@ const exportAlertsCsv = (): void => {
         />
       </UiFilterField>
 
-      <!-- 自定义起止：与预设是同一控件的两种形态，选日期即接管，选预设即清空。起 ≤ 止 由
-           原生 min/max 约束，另在 isCustom 里兜底。 -->
+      <!-- 自定义起止：与预设是同一控件的两种形态。输入框始终显示当前生效窗口（预设也回填其边界，
+           不再是空的），选日期即接管切自定义、选预设即还原。起 ≤ 止 由原生 min/max 约束，另在
+           isCustom 里兜底。 -->
       <UiFilterField label="起始时间">
         <UiInput
           type="date"
-          :model-value="customFrom"
-          :max="customTo || undefined"
+          :model-value="effectiveDates.from"
+          :max="effectiveDates.to || undefined"
           aria-label="自定义起始日期"
           @update:model-value="(value) => setCustom({ from: value })"
         />
@@ -492,8 +561,8 @@ const exportAlertsCsv = (): void => {
       <UiFilterField label="结束时间">
         <UiInput
           type="date"
-          :model-value="customTo"
-          :min="customFrom || undefined"
+          :model-value="effectiveDates.to"
+          :min="effectiveDates.from || undefined"
           aria-label="自定义结束日期"
           @update:model-value="(value) => setCustom({ to: value })"
         />

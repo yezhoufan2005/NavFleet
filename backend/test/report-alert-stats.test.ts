@@ -45,6 +45,33 @@ describe("buildAlertStatsPipeline", () => {
     expect(pipeline[0]).toHaveProperty("$facet");
   });
 
+  it("narrows to the given devices before the facet, so a device filter cuts the stats too", () => {
+    const pipeline = buildAlertStatsPipeline({
+      from: null,
+      to: null,
+      deviceIds: ["agv-01", "agv-02"],
+      topN: 8,
+      timezone: TZ,
+    });
+    // Device match leads (same shape the availability report uses); the facet follows.
+    expect(pipeline[0]).toEqual({
+      $match: { deviceId: { $in: ["agv-01", "agv-02"] } },
+    });
+    expect(pipeline[1]).toHaveProperty("$facet");
+  });
+
+  it("ignores an empty device list — that means the whole fleet, not zero devices", () => {
+    const pipeline = buildAlertStatsPipeline({
+      from: null,
+      to: null,
+      deviceIds: [],
+      topN: 8,
+      timezone: TZ,
+    });
+    expect(pipeline).toHaveLength(1);
+    expect(pipeline[0]).toHaveProperty("$facet");
+  });
+
   it("threads topN into the Top-N limit and keeps a stable id tiebreaker", () => {
     const pipeline = buildAlertStatsPipeline({ from: null, to: null, topN: 3, timezone: TZ });
     const topDevices = facetOf(pipeline).topDevices as Record<string, unknown>[];

@@ -176,7 +176,7 @@ describe("报表 状态与内容", () => {
     const wrapper = await mountView();
     const exportButton = wrapper
       .findAll("button")
-      .find((button) => button.text().includes("导出"));
+      .find((button) => button.text().includes("导出在线率"));
     await exportButton!.trigger("click");
 
     expect(createUrl).toHaveBeenCalledOnce();
@@ -185,6 +185,24 @@ describe("报表 状态与内容", () => {
     expect(
       (click.mock.contexts[0] as HTMLAnchorElement | undefined)?.download,
     ).toBe("navfleet-在线率-12h.csv");
+  });
+
+  it("导出详情·导出电量 生成一份电量 CSV 下载", async () => {
+    vi.spyOn(URL, "createObjectURL").mockReturnValue("blob:stub");
+    vi.spyOn(URL, "revokeObjectURL").mockImplementation(() => undefined);
+    const click = vi
+      .spyOn(HTMLAnchorElement.prototype, "click")
+      .mockImplementation(() => undefined);
+
+    const wrapper = await mountView();
+    await wrapper
+      .findAll("button")
+      .find((button) => button.text().includes("导出电量"))!
+      .trigger("click");
+
+    expect(
+      (click.mock.contexts[0] as HTMLAnchorElement | undefined)?.download,
+    ).toBe("navfleet-电量-12h.csv");
   });
 
   it("names a custom-range export after its dates, not the preset it fell back to", async () => {
@@ -250,6 +268,19 @@ describe("报表 状态与内容", () => {
     expect(pressed).not.toContain("近 12 小时");
   });
 
+  it("预设也把生效窗口回填到起止输入，而不是留空", async () => {
+    // The default window was invisible before — the date inputs sat empty until you typed. On a
+    // preset they now show the preset's resolved edges, and the 7-day window spans two dates.
+    const wrapper = await mountView("?range=7d");
+    const dates = wrapper.findAll('input[type="date"]');
+    expect(dates).toHaveLength(2);
+    const from = (dates[0]!.element as HTMLInputElement).value;
+    const to = (dates[1]!.element as HTMLInputElement).value;
+    expect(from).toMatch(/^\d{4}-\d{2}-\d{2}$/);
+    expect(to).toMatch(/^\d{4}-\d{2}-\d{2}$/);
+    expect(Date.parse(from)).toBeLessThan(Date.parse(to));
+  });
+
   it("粒度随窗口自适应：长自定义区间自动用 month 聚合", async () => {
     const avail = vi
       .spyOn(fleetApi, "getAvailabilityReport")
@@ -263,6 +294,9 @@ describe("报表 状态与内容", () => {
     const avail = vi
       .spyOn(fleetApi, "getAvailabilityReport")
       .mockResolvedValue(availabilityReport());
+    const alerts = vi
+      .spyOn(fleetApi, "getAlertStatsReport")
+      .mockResolvedValue(alertStatsReport());
     const wrapper = await mountView();
 
     // 设备 is a multi-select now; emitting its set should refetch with the ids comma-joined
@@ -273,5 +307,7 @@ describe("报表 状态与内容", () => {
     await flushPromises();
 
     expect(avail.mock.calls.at(-1)![0]!.deviceId).toBe("agv-01,agv-02");
+    // The message stats narrow with the same filter — not just the online-rate charts.
+    expect(alerts.mock.calls.at(-1)![0]!.deviceId).toBe("agv-01,agv-02");
   });
 });
