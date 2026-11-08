@@ -43,6 +43,7 @@ import {
   ReportsConfig,
   SceneMapDefinition,
   SocketEvent,
+  AlertDispositionPayload,
 } from "./types";
 
 const logger = moduleLogger("dashboard-store");
@@ -958,23 +959,14 @@ export class DashboardStore extends EventEmitter {
   }
 
   /**
-   * Fan out an acknowledgement to every connected client. Unlike the
-   * fleet/device/alert events above, this is not derived from a telemetry delta — it is
-   * driven by the ack route after it has written to persistence — so it gets its own entry
-   * point rather than going through `emitChangeEvents`. The `wsBridge` already forwards
-   * anything the store emits as `"event"`.
+   * Fan out a disposition change (claim / release / ignore / unignore) to every connected client.
+   * Unlike the fleet/device/alert events above, this is not derived from a telemetry delta — it is
+   * driven by the disposition route after it has written to persistence — so it gets its own entry
+   * point rather than going through `emitChangeEvents`. The `wsBridge` already forwards anything the
+   * store emits as `"event"`.
    */
-  broadcastAlertAck(payload: {
-    deviceId: string;
-    alertId: string;
-    ackedBy: string;
-    ackedAt: string;
-  }): void {
-    this.broadcast({ type: "alert.acked", payload });
-  }
-
-  broadcastAlertUnack(payload: { deviceId: string; alertId: string }): void {
-    this.broadcast({ type: "alert.unacked", payload });
+  broadcastAlertDisposition(payload: AlertDispositionPayload): void {
+    this.broadcast({ type: "alert.disposition", payload });
   }
 
   snapshot(): FleetSnapshot {

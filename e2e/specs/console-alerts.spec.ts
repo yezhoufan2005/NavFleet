@@ -33,11 +33,11 @@ const resetAcks = async (page: Page): Promise<void> => {
   const response = await page.request.get("/api/v1/alerts?status=active");
   if (!response.ok()) return;
   const { items } = (await response.json()) as {
-    items: { deviceId: string; alertId: string; ackedBy: string | null }[];
+    items: { deviceId: string; alertId: string; ignoredBy: string | null }[];
   };
   for (const alert of items) {
-    if (alert.ackedBy) {
-      await page.request.post("/api/v1/alerts/unack", {
+    if (alert.ignoredBy) {
+      await page.request.post("/api/v1/alerts/unignore", {
         data: { deviceId: alert.deviceId, alertId: alert.alertId },
       });
     }

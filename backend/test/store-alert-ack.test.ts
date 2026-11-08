@@ -6,11 +6,10 @@ import type { DeviceSnapshot, FleetConfig, SocketEvent } from "../src/types";
 import { DEFAULT_ALERT_RULES } from "@navfleet/shared";
 
 /**
- * The two acknowledgement broadcasts. Unlike the fleet/device/alert events, these
- * are not derived from a telemetry delta — the ack route calls them directly after writing to
- * persistence — so they have their own entry points. What matters is that they emit on the
- * same `"event"` channel `wsBridge` forwards, carrying exactly the fields a client needs to
- * reconcile its overlay.
+ * The disposition broadcast. Unlike the fleet/device/alert events, this is not derived from a
+ * telemetry delta — the disposition route calls it directly after writing to persistence — so it
+ * has its own entry point. What matters is that it emits on the same `"event"` channel `wsBridge`
+ * forwards, carrying exactly the fields a client needs to reconcile its overlay.
  */
 const FLEET_CONFIG: FleetConfig = {
   fleetName: "ack-fleet",
@@ -48,37 +47,37 @@ const createStore = (): { store: DashboardStore; events: SocketEvent[] } => {
   return { store, events };
 };
 
-describe("DashboardStore — acknowledgement broadcasts", () => {
-  it("emits alert.acked with who and when on the event channel", () => {
+describe("DashboardStore — disposition broadcast", () => {
+  it("emits alert.disposition with the full disposition on the event channel", () => {
     const { store, events } = createStore();
 
-    store.broadcastAlertAck({
+    store.broadcastAlertDisposition({
       deviceId: "agv-01",
       alertId: "err-1",
-      ackedBy: "op-1",
-      ackedAt: "2026-03-01T08:00:00.000Z",
+      version: 1,
+      disposition: "investigating",
+      claimedBy: "op-1",
+      claimedAt: "2026-03-01T08:00:00.000Z",
+      ignoredBy: null,
+      ignoredAt: null,
+      ignoreReason: null,
     });
 
     expect(events).toEqual([
       {
-        type: "alert.acked",
+        type: "alert.disposition",
         payload: {
           deviceId: "agv-01",
           alertId: "err-1",
-          ackedBy: "op-1",
-          ackedAt: "2026-03-01T08:00:00.000Z",
+          version: 1,
+          disposition: "investigating",
+          claimedBy: "op-1",
+          claimedAt: "2026-03-01T08:00:00.000Z",
+          ignoredBy: null,
+          ignoredAt: null,
+          ignoreReason: null,
         },
       },
-    ]);
-  });
-
-  it("emits alert.unacked with just the ref", () => {
-    const { store, events } = createStore();
-
-    store.broadcastAlertUnack({ deviceId: "agv-01", alertId: "err-1" });
-
-    expect(events).toEqual([
-      { type: "alert.unacked", payload: { deviceId: "agv-01", alertId: "err-1" } },
     ]);
   });
 });

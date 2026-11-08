@@ -22,9 +22,14 @@ export const AUDIT_ACTIONS = [
   "session_revoke",
   "force_logout",
   "account_locked",
-  // Alert acknowledgement.
+  // Message disposition (human-handling axis). `alert_ack`/`alert_unack` are kept for history
+  // rows written before the redesign; new writes use the claim/ignore vocabulary.
   "alert_ack",
   "alert_unack",
+  "alert_claim",
+  "alert_release",
+  "alert_ignore",
+  "alert_unignore",
   // Report-code dictionary import.
   "codebook_import",
   // Outbound-notification config write.

@@ -185,21 +185,21 @@ describe("fleetApi", () => {
     expect(calls.at(-1)?.url).toBe("/api/v1/audit?actor=root&action=login");
   });
 
-  it("acks and unacks an alert, keeping the eventKey out of the path", async () => {
+  it("ignores and unignores an alert, keeping the eventKey out of the path", async () => {
     stubFetch(204, {});
     await expect(
       fleetApi.ackAlert("agv-01", "err-1", "看过了"),
     ).resolves.toBeUndefined();
     let call = calls.at(-1)!;
-    expect(call.url).toBe("/api/v1/alerts/ack");
+    expect(call.url).toBe("/api/v1/alerts/ignore");
     expect(call.init.method).toBe("POST");
     expect(JSON.parse(call.init.body as string)).toEqual({
       deviceId: "agv-01",
       alertId: "err-1",
-      comment: "看过了",
+      reason: "看过了",
     });
 
-    // No comment → the body omits the field rather than sending an empty one.
+    // No reason → the body omits the field rather than sending an empty one.
     await fleetApi.ackAlert("agv-01", "err-1");
     expect(JSON.parse(calls.at(-1)!.init.body as string)).toEqual({
       deviceId: "agv-01",
@@ -210,7 +210,7 @@ describe("fleetApi", () => {
       fleetApi.unackAlert("agv-01", "err-1"),
     ).resolves.toBeUndefined();
     call = calls.at(-1)!;
-    expect(call.url).toBe("/api/v1/alerts/unack");
+    expect(call.url).toBe("/api/v1/alerts/unignore");
     expect(JSON.parse(call.init.body as string)).toEqual({
       deviceId: "agv-01",
       alertId: "err-1",

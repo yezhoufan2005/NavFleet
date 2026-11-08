@@ -14,7 +14,10 @@
  * When the data model changes, edit it here once; both apps pick it up.
  */
 
-import type { AlertDispositionFields } from "./alertDisposition";
+import type {
+  AlertDisposition,
+  AlertDispositionFields,
+} from "./alertDisposition";
 
 export type Severity = "critical" | "warning" | "notice";
 
@@ -282,6 +285,23 @@ export interface AlertClearedPayload {
   source: string;
   deviceId: string;
   alertId: string;
+}
+
+/**
+ * Payload of `alert.disposition`: the human-handling state of one occurrence changed (claim /
+ * release / ignore / unignore). Carries the full disposition plus the optimistic-lock `version`
+ * so a console can patch the occurrence in place and refresh the version it holds.
+ */
+export interface AlertDispositionPayload {
+  deviceId: string;
+  alertId: string;
+  version: number;
+  disposition: AlertDisposition;
+  claimedBy: string | null;
+  claimedAt: string | null;
+  ignoredBy: string | null;
+  ignoredAt: string | null;
+  ignoreReason: string | null;
 }
 
 export interface HistoryQuery {

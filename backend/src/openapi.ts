@@ -17,8 +17,10 @@ import fs from "node:fs";
 import path from "node:path";
 import { z } from "zod";
 import {
-  alertAckSchema,
-  alertUnackSchema,
+  alertClaimSchema,
+  alertReleaseSchema,
+  alertIgnoreSchema,
+  alertUnignoreSchema,
   alertsQuerySchema,
   auditQuerySchema,
   createUserSchema,
@@ -249,9 +251,12 @@ export const openApiDocument = {
           firstSeenAt: { type: "string", format: "date-time" },
           lastSeenAt: { type: "string", format: "date-time" },
           clearedAt: { type: ["string", "null"], format: "date-time" },
-          ackedBy: { type: ["string", "null"] },
-          ackedAt: { type: ["string", "null"], format: "date-time" },
-          comment: { type: ["string", "null"] },
+          claimedBy: { type: ["string", "null"] },
+          claimedAt: { type: ["string", "null"], format: "date-time" },
+          ignoredBy: { type: ["string", "null"] },
+          ignoredAt: { type: ["string", "null"], format: "date-time" },
+          ignoreReason: { type: ["string", "null"] },
+          version: { type: "number" },
         },
       },
       HistorySample: {
@@ -967,39 +972,79 @@ const [rbacGroups, rbacGroup] = rbacOperations({
       },
     },
   },
-  "/api/v1/alerts/ack": {
+  "/api/v1/alerts/claim": {
     post: {
       tags: ["alerts"],
-      summary: "确认一条活跃告警（需 operator 或 admin）",
+      summary: "认领一条活跃消息进入处理中（需 operator 或 admin）",
       requestBody: {
         required: true,
-        content: { "application/json": { schema: fromValidator(alertAckSchema) } },
+        content: { "application/json": { schema: fromValidator(alertClaimSchema) } },
       },
       responses: {
-        "204": { description: "已确认" },
+        "200": { description: "已认领，返回最新处置态与版本号" },
         "400": badRequest,
         "401": unauthorized,
         "403": forbidden,
-        // 未知或已清除（非活跃）告警。
         "404": notFound,
+        // 乐观锁版本冲突，或已被他人认领 / 已忽略 / 已清除。
+        "409": { description: "处置态冲突，返回当前处置态" },
         ...apiWideResponses,
       },
     },
   },
-  "/api/v1/alerts/unack": {
+  "/api/v1/alerts/release": {
     post: {
       tags: ["alerts"],
-      summary: "取消确认一条活跃告警（需 operator 或 admin）",
+      summary: "释放认领回到待处理（本人或 admin）",
       requestBody: {
         required: true,
-        content: { "application/json": { schema: fromValidator(alertUnackSchema) } },
+        content: { "application/json": { schema: fromValidator(alertReleaseSchema) } },
       },
       responses: {
-        "204": { description: "已取消确认" },
+        "200": { description: "已释放，返回最新处置态与版本号" },
         "400": badRequest,
         "401": unauthorized,
         "403": forbidden,
         "404": notFound,
+        "409": { description: "处置态冲突，返回当前处置态" },
+        ...apiWideResponses,
+      },
+    },
+  },
+  "/api/v1/alerts/ignore": {
+    post: {
+      tags: ["alerts"],
+      summary: "忽略一条活跃消息（需 operator 或 admin）",
+      requestBody: {
+        required: true,
+        content: { "application/json": { schema: fromValidator(alertIgnoreSchema) } },
+      },
+      responses: {
+        "200": { description: "已忽略，返回最新处置态与版本号" },
+        "400": badRequest,
+        "401": unauthorized,
+        "403": forbidden,
+        "404": notFound,
+        "409": { description: "处置态冲突，返回当前处置态" },
+        ...apiWideResponses,
+      },
+    },
+  },
+  "/api/v1/alerts/unignore": {
+    post: {
+      tags: ["alerts"],
+      summary: "取消忽略回到待处理（需 operator 或 admin）",
+      requestBody: {
+        required: true,
+        content: { "application/json": { schema: fromValidator(alertUnignoreSchema) } },
+      },
+      responses: {
+        "200": { description: "已取消忽略，返回最新处置态与版本号" },
+        "400": badRequest,
+        "401": unauthorized,
+        "403": forbidden,
+        "404": notFound,
+        "409": { description: "处置态冲突，返回当前处置态" },
         ...apiWideResponses,
       },
     },

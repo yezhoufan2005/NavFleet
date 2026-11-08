@@ -382,20 +382,25 @@ export const notifyLogQuerySchema = z
     to: timestampString.optional(),
   })
   .superRefine(rejectInvertedWindow);
-// Alert acknowledgement. `eventKey` is assembled server-side from these two —
-// deviceId can contain arbitrary vendor characters, so it never goes into a path segment.
-// The comment is optional operator context, length-bounded like other free text.
+// Message disposition actions (claim / release / ignore / unignore). `eventKey` is assembled
+// server-side from these two — deviceId can contain arbitrary vendor characters, so it never goes
+// into a path segment. `version` is the optimistic-lock value the client last saw: when present it
+// must match the stored version or the write is a 409 conflict (If-Match semantics). `reason` is
+// optional operator context on an ignore, length-bounded like other free text.
 const alertRefSchema = {
   deviceId: z.string().min(1).max(200),
   alertId: z.string().min(1).max(200),
 };
+const alertVersion = z.number().int().min(0).optional();
 
-export const alertAckSchema = z.object({
+export const alertClaimSchema = z.object({ ...alertRefSchema, version: alertVersion });
+export const alertReleaseSchema = z.object({ ...alertRefSchema, version: alertVersion });
+export const alertIgnoreSchema = z.object({
   ...alertRefSchema,
-  comment: z.string().max(500).optional(),
+  reason: z.string().max(500).optional(),
+  version: alertVersion,
 });
-
-export const alertUnackSchema = z.object(alertRefSchema);
+export const alertUnignoreSchema = z.object({ ...alertRefSchema, version: alertVersion });
 
 /**
  * Custom-role + user-group write bodies (1.6.1 RBAC). `capabilities` is bounded to the known set

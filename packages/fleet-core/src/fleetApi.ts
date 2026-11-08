@@ -91,10 +91,14 @@ export interface AlertRecord {
   // Serialized as ISO strings over HTTP even though Mongo stores them as Date.
   firstSeenAt?: string;
   lastSeenAt?: string;
-  // Acknowledgement. Present on rows read back from the alerts collection.
-  ackedBy?: string | null;
-  ackedAt?: string | null;
-  comment?: string | null;
+  // Disposition (human-handling axis). Present on rows read back from the alerts collection;
+  // serialized as ISO strings over HTTP. See `@navfleet/shared` AlertDispositionFields.
+  claimedBy?: string | null;
+  claimedAt?: string | null;
+  ignoredBy?: string | null;
+  ignoredAt?: string | null;
+  ignoreReason?: string | null;
+  version?: number;
   [key: string]: unknown;
 }
 
@@ -553,22 +557,24 @@ export const fleetApi = {
     );
   },
 
-  // ── Alert acknowledgement (operator+) ────────────────────────────
+  // ── Message disposition (operator+) ──────────────────────────────
   // eventKey (deviceId:alertId) is assembled server-side from the body, so deviceId
-  // — which can hold arbitrary vendor characters — never enters a path segment.
-  ackAlert(deviceId: string, alertId: string, comment?: string): Promise<void> {
+  // — which can hold arbitrary vendor characters — never enters a path segment. The old
+  // "acknowledge" is now "ignore" (the redesign's reinterpretation); claim/release land with
+  // the console UI batch.
+  ackAlert(deviceId: string, alertId: string, reason?: string): Promise<void> {
     return requestVoid(
-      "/api/v1/alerts/ack",
+      "/api/v1/alerts/ignore",
       jsonBody(
         "POST",
-        comment ? { deviceId, alertId, comment } : { deviceId, alertId },
+        reason ? { deviceId, alertId, reason } : { deviceId, alertId },
       ),
     );
   },
 
   unackAlert(deviceId: string, alertId: string): Promise<void> {
     return requestVoid(
-      "/api/v1/alerts/unack",
+      "/api/v1/alerts/unignore",
       jsonBody("POST", { deviceId, alertId }),
     );
   },

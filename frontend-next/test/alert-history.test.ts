@@ -38,7 +38,7 @@ const record = (over: Partial<AlertRecord> = {}): AlertRecord => ({
   firstSeenAt: "2026-03-01T00:00:00.000Z",
   clearedAt: "2026-03-01T01:00:00.000Z",
   ts: "2026-03-01T00:00:00.000Z",
-  ackedBy: null,
+  ignoredBy: null,
   ...over,
 });
 
@@ -159,11 +159,11 @@ describe("the statistics", () => {
   it("summarises count, ack rate and duration", async () => {
     vi.spyOn(fleetApi, "getAlerts").mockResolvedValue({
       items: [
-        record({ ackedBy: "op", clearedAt: "2026-03-01T01:00:00.000Z" }), // 1h, acked
+        record({ ignoredBy: "op", clearedAt: "2026-03-01T01:00:00.000Z" }), // 1h, acked
         record({
           eventKey: "agv-02:e1",
           deviceId: "agv-02",
-          ackedBy: null,
+          ignoredBy: null,
           clearedAt: "2026-03-01T03:00:00.000Z",
         }), // 3h, not acked
       ],
@@ -250,7 +250,7 @@ describe("the cleared-alert list", () => {
 
   it("shows who acknowledged a cleared alert", async () => {
     vi.spyOn(fleetApi, "getAlerts").mockResolvedValue({
-      items: [record({ ackedBy: "supervisor" })],
+      items: [record({ ignoredBy: "supervisor" })],
     });
     const wrapper = await mountPanel();
     expect(wrapper.text()).toContain("已确认 · supervisor");

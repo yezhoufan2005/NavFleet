@@ -11,7 +11,7 @@ import type { AuditService } from "../../src/audit/service";
 import type { NotifyService } from "../../src/notify/service";
 import { RbacService } from "../../src/rbac/service";
 import type { RbacGroup, RbacRole } from "@navfleet/shared";
-import type { Persistence } from "../../src/persistence";
+import type { Persistence, DispositionOutcome, StoredAlert } from "../../src/persistence";
 import type { DashboardStore } from "../../src/store";
 import {
   DEFAULT_REPORT_CODES,
@@ -36,6 +36,7 @@ import type {
   ReportsConfig,
   DeviceConfig,
   FormationConfig,
+  AlertDispositionPayload,
 } from "../../src/types";
 import {
   SCENE_ID,
@@ -96,10 +97,7 @@ export interface StoreStub {
     (params: { deviceId?: string; from?: string; to?: string; bucket: string }) => Promise<unknown>
   >;
   applyPayload: Mock<(payload: unknown, source?: string) => Promise<FleetSnapshot>>;
-  broadcastAlertAck: Mock<
-    (payload: { deviceId: string; alertId: string; ackedBy: string; ackedAt: string }) => void
-  >;
-  broadcastAlertUnack: Mock<(payload: { deviceId: string; alertId: string }) => void>;
+  broadcastAlertDisposition: Mock<(payload: AlertDispositionPayload) => void>;
   ingestQueueStats: Mock<() => { depth: number; dropped: number; limit: number }>;
   deviceAdmissionStats: Mock<
     () => { rejected: number; capped: number; evicted: number; limit: number }
@@ -161,8 +159,7 @@ export const createStoreStub = (): StoreStub => ({
   getAlertStats: vi.fn(() => Promise.resolve(sampleAlertStatsReport())),
   getAvailabilityReport: vi.fn(() => Promise.resolve(sampleAvailabilityReport())),
   applyPayload: vi.fn(() => Promise.resolve(sampleSnapshot())),
-  broadcastAlertAck: vi.fn(() => undefined),
-  broadcastAlertUnack: vi.fn(() => undefined),
+  broadcastAlertDisposition: vi.fn(() => undefined),
   ingestQueueStats: vi.fn(() => ({ depth: 0, dropped: 0, limit: 1000 })),
   deviceAdmissionStats: vi.fn(() => ({ rejected: 0, capped: 0, evicted: 0, limit: 1000 })),
   deviceClockStats: vi.fn(() => ({ untrusted: 0, outOfOrder: 0 })),
@@ -175,22 +172,74 @@ export interface PersistenceStub {
   telemetryBufferStats: Mock<() => { pending: number; dropped: number; limit: number }>;
   mongoWriteStats: Mock<() => { writes: number; failures: number }>;
   setWriteObserver: Mock<(observe: (durationSeconds: number) => void) => void>;
-  ackAlert: Mock<
-    (eventKey: string, ackedBy: string, comment: string | null, at: Date) => Promise<boolean>
+  claimAlert: Mock<
+    (eventKey: string, by: string, at: Date, version?: number) => Promise<DispositionOutcome>
   >;
-  unackAlert: Mock<(eventKey: string) => Promise<boolean>>;
+  releaseAlert: Mock<
+    (
+      eventKey: string,
+      actor: string,
+      isAdmin: boolean,
+      version?: number,
+    ) => Promise<DispositionOutcome>
+  >;
+  ignoreAlert: Mock<
+    (
+      eventKey: string,
+      by: string,
+      reason: string | null,
+      at: Date,
+      version?: number,
+    ) => Promise<DispositionOutcome>
+  >;
+  unignoreAlert: Mock<(eventKey: string, version?: number) => Promise<DispositionOutcome>>;
   loadRbacState: Mock<() => Promise<{ roles: RbacRole[]; groups: RbacGroup[] }>>;
   saveRbacState: Mock<(state: { roles: RbacRole[]; groups: RbacGroup[] }) => Promise<void>>;
 }
+
+/** A minimal active StoredAlert for disposition-outcome stubs; override fields per case. */
+export const storedAlert = (over: Partial<StoredAlert> = {}): StoredAlert => ({
+  eventKey: "agv-01:err-1",
+  deviceId: "agv-01",
+  alertId: "err-1",
+  severity: "critical",
+  title: "t",
+  detail: "d",
+  source: "rule-engine",
+  code: null,
+  info: "",
+  ts: UPDATED_AT,
+  active: true,
+  firstSeenAt: UPDATED_AT,
+  lastSeenAt: UPDATED_AT,
+  clearedAt: null,
+  claimedBy: null,
+  claimedAt: null,
+  ignoredBy: null,
+  ignoredAt: null,
+  ignoreReason: null,
+  version: 0,
+  ...over,
+});
 
 export const createPersistenceStub = (): PersistenceStub => ({
   isMongoConnected: vi.fn(() => false),
   telemetryBufferStats: vi.fn(() => ({ pending: 0, dropped: 0, limit: 2000 })),
   mongoWriteStats: vi.fn(() => ({ writes: 0, failures: 0 })),
   setWriteObserver: vi.fn(),
-  // Default to "no such active alert" (→ 404); the ack behaviour tests override to true.
-  ackAlert: vi.fn(() => Promise.resolve(false)),
-  unackAlert: vi.fn(() => Promise.resolve(false)),
+  // Default to "no such active occurrence" (→ 404); disposition behaviour tests override to ok.
+  claimAlert: vi.fn(() =>
+    Promise.resolve<DispositionOutcome>({ ok: false, error: "not_found", current: null }),
+  ),
+  releaseAlert: vi.fn(() =>
+    Promise.resolve<DispositionOutcome>({ ok: false, error: "not_found", current: null }),
+  ),
+  ignoreAlert: vi.fn(() =>
+    Promise.resolve<DispositionOutcome>({ ok: false, error: "not_found", current: null }),
+  ),
+  unignoreAlert: vi.fn(() =>
+    Promise.resolve<DispositionOutcome>({ ok: false, error: "not_found", current: null }),
+  ),
   loadRbacState: vi.fn(() => Promise.resolve({ roles: [], groups: [] })),
   saveRbacState: vi.fn(() => Promise.resolve()),
 });

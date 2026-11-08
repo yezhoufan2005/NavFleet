@@ -83,9 +83,10 @@ export const buildAlertStatsPipeline = (params: AlertStatsPipelineParams): Docum
           $group: {
             _id: null,
             total: { $sum: 1 },
-            // `ackedBy` 非空即已确认；缺字段/ null 都记 0。
+            // `ignoredBy` 非空即已忽略（旧「确认」语义的延续）；缺字段 / null 都记 0。
+            // 认领率/自动恢复率等三指标在报表那批补齐，这里先沿用既有 acked 输出口径。
             acked: {
-              $sum: { $cond: [{ $ifNull: ["$ackedBy", false] }, 1, 0] },
+              $sum: { $cond: [{ $ifNull: ["$ignoredBy", false] }, 1, 0] },
             },
           },
         },
