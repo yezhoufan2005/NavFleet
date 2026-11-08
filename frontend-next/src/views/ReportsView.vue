@@ -17,7 +17,7 @@ import { computed, onMounted, ref, watch } from "vue";
 import { RouterLink, useRoute, useRouter } from "vue-router";
 import PageHeader from "@/components/PageHeader.vue";
 import AppSectionTabs from "@/components/shell/AppSectionTabs.vue";
-import UiButton from "@/components/ui/UiButton.vue";
+import UiHoverMenu from "@/components/ui/UiHoverMenu.vue";
 import UiScrollTable from "@/components/ui/UiScrollTable.vue";
 import UiInput from "@/components/ui/UiInput.vue";
 import UiSegmented from "@/components/ui/UiSegmented.vue";
@@ -490,22 +490,20 @@ const exportAlertsCsv = (): void => {
 <template>
   <PageHeader title="报表">
     <template #actions>
-      <!-- 导出详情：hover（或键盘聚焦进来，group-focus-within）展开，三项分别导出在线率/电量/消息。
-           菜单只在显隐之间，触发键是真 <button> 在组内，聚焦它即 focus-within 展开、再 Tab 进菜单项。 -->
-      <div class="group relative">
-        <UiButton variant="secondary" size="sm" aria-haspopup="menu">
-          导出详情 ↗
-        </UiButton>
-        <div
-          role="menu"
-          class="invisible absolute top-full right-0 z-20 mt-1 flex min-w-36 flex-col gap-0.5 rounded-md border border-border bg-surface-raised p-1 opacity-0 shadow-lg transition-opacity duration-150 group-focus-within:visible group-focus-within:opacity-100 group-hover:visible group-hover:opacity-100"
-        >
+      <!-- 导出详情：hover 展开、点击固定（再点或点外部/Esc 收起），见 UiHoverMenu。三项分别导出
+           在线率 / 电量 / 消息；选中后收起菜单。 -->
+      <UiHoverMenu label="导出详情" align="end">
+        <template #trigger>导出详情 ↗</template>
+        <template #default="{ close }">
           <button
             type="button"
             role="menuitem"
             class="rounded-sm px-3 py-1.5 text-left text-sm text-ink transition-colors hover:bg-surface-sunken disabled:cursor-not-allowed disabled:opacity-50"
             :disabled="availStatus !== 'ready' || !hasAvailabilityData"
-            @click="exportCsv"
+            @click="
+              exportCsv();
+              close();
+            "
           >
             导出在线率
           </button>
@@ -514,7 +512,10 @@ const exportAlertsCsv = (): void => {
             role="menuitem"
             class="rounded-sm px-3 py-1.5 text-left text-sm text-ink transition-colors hover:bg-surface-sunken disabled:cursor-not-allowed disabled:opacity-50"
             :disabled="availStatus !== 'ready' || !hasAvailabilityData"
-            @click="exportBatteryCsv"
+            @click="
+              exportBatteryCsv();
+              close();
+            "
           >
             导出电量
           </button>
@@ -523,12 +524,15 @@ const exportAlertsCsv = (): void => {
             role="menuitem"
             class="rounded-sm px-3 py-1.5 text-left text-sm text-ink transition-colors hover:bg-surface-sunken disabled:cursor-not-allowed disabled:opacity-50"
             :disabled="alertStatus !== 'ready' || !hasAlertData"
-            @click="exportAlertsCsv"
+            @click="
+              exportAlertsCsv();
+              close();
+            "
           >
             导出消息
           </button>
-        </div>
-      </div>
+        </template>
+      </UiHoverMenu>
     </template>
 
     <AppSectionTabs />
