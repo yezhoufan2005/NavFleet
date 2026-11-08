@@ -14,6 +14,8 @@
  * When the data model changes, edit it here once; both apps pick it up.
  */
 
+import type { AlertDispositionFields } from "./alertDisposition";
+
 export type Severity = "critical" | "warning" | "notice";
 
 export interface GpsPoint {
@@ -49,7 +51,13 @@ export interface SpeedLimitState {
   moduleName: string;
 }
 
-export interface DeviceAlert {
+/**
+ * A message as it rides on a snapshot. Its machine **signal** axis is `active` (firing) →
+ * cleared; its human **disposition** axis (claim / ignore) comes from the
+ * [[AlertDispositionFields]] it extends, derived into a state by `alertDisposition`. Both are
+ * optional on the wire so an older producer that sends neither still parses.
+ */
+export interface DeviceAlert extends AlertDispositionFields {
   id: string;
   title: string;
   detail: string;
@@ -352,6 +360,10 @@ export * from "./audit";
 // One CSV cell (with formula-injection defusing), shared by the console export and the
 // scheduled-report email so both write the same file.
 export * from "./csv";
+
+// The disposition (human-handling) axis of a message — states, close dispositions, labels and
+// the pure transition guards — orthogonal to the signal lifecycle on DeviceAlert.
+export * from "./alertDisposition";
 
 // The pure coercions both normalisers (backend ingest, fleet-core in the consoles) apply.
 export * from "./normalizeHelpers";
