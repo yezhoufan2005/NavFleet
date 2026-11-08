@@ -12,14 +12,28 @@ export const toPublicUser = (user: UserRecord): PublicUser => ({
   role: user.role,
 });
 
-/** Strip `passwordHash` before a user record can reach a response body. */
+/**
+ * The bootstrap administrator (`ADMIN_USERNAME`) is a protected system account: it is seeded and
+ * changed only out of band (env / bootstrap), never through the user-management API, so it cannot
+ * be demoted, disabled, deleted, reset or logged out from the console — not even by another admin.
+ * That keeps a debug/superuser entry that the demo roles cannot touch. Compared case-insensitively,
+ * the same way usernames are matched everywhere else.
+ */
+export const isProtectedAccount = (username: string): boolean =>
+  username.trim().toLowerCase() === config.adminUsername.trim().toLowerCase();
+
+/** Strip `passwordHash` before a user record can reach a response body; mark the protected one. */
 export const toAdminUserView = ({
   passwordHash: _passwordHash,
   ...view
-}: UserRecord): AdminUserView => view;
+}: UserRecord): AdminUserView => ({
+  ...view,
+  protected: isProtectedAccount(view.username),
+});
 
 /** Why an admin action was refused, mapped to an HTTP status by the route. */
-export type AdminActionError = "not_found" | "conflict" | "last_admin" | "self_forbidden";
+export type AdminActionError =
+  "not_found" | "conflict" | "last_admin" | "self_forbidden" | "protected";
 
 export type AdminActionResult<T> = { ok: true; value: T } | { ok: false; error: AdminActionError };
 
@@ -346,6 +360,9 @@ export class AuthService {
     if (!target) {
       return { ok: false, error: "not_found" };
     }
+    if (isProtectedAccount(target.username)) {
+      return { ok: false, error: "protected" };
+    }
 
     const demotes = fields.role !== undefined && fields.role !== "admin" && target.role === "admin";
     // Only disabling an *admin* can remove admin power, so only that case consults the guard.
@@ -381,6 +398,9 @@ export class AuthService {
     if (!target) {
       return { ok: false, error: "not_found" };
     }
+    if (isProtectedAccount(target.username)) {
+      return { ok: false, error: "protected" };
+    }
     const hash = await hashPassword(newPassword);
     const at = new Date().toISOString();
     await this.persistence.setPasswordAndInvalidate(username, hash, at);
@@ -400,6 +420,9 @@ export class AuthService {
     if (!target) {
       return { ok: false, error: "not_found" };
     }
+    if (isProtectedAccount(target.username)) {
+      return { ok: false, error: "protected" };
+    }
     await this.revokeAllSessions(username);
     return { ok: true, value: undefined };
   }
@@ -408,6 +431,9 @@ export class AuthService {
     const target = await this.persistence.findUserByUsername(username);
     if (!target) {
       return { ok: false, error: "not_found" };
+    }
+    if (isProtectedAccount(target.username)) {
+      return { ok: false, error: "protected" };
     }
     // Deleting an enabled admin removes their power — same lockout guard as disable/demote.
     if (target.role === "admin" && target.enabled) {

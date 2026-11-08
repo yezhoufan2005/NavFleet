@@ -387,28 +387,46 @@ const formDirty = formSnapshot.dirty;
                   >已锁定</span
                 >
                 <span v-else class="text-ink-muted">正常</span>
+                <span
+                  v-if="user.protected"
+                  class="ml-2 rounded-xs border border-border bg-surface-sunken px-1.5 py-0.5 text-2xs text-ink-muted"
+                  title="内置管理员，仅后台（env/bootstrap）可改"
+                  >系统账号</span
+                >
               </td>
               <td class="px-3 py-2 whitespace-nowrap text-ink-muted">
                 {{ formatTime(user.lastLoginAt) }}
               </td>
               <td class="px-3 py-2">
                 <div class="flex justify-end gap-1">
+                  <!-- The protected bootstrap admin shows like any row but is managed only out of
+                       band (env/bootstrap), so every action here is disabled — see the 系统账号 tag. -->
                   <UiButton
                     variant="ghost"
                     size="sm"
+                    :disabled="user.protected"
                     @click="toggleSessions(user.username)"
                   >
                     会话
                   </UiButton>
-                  <UiButton variant="ghost" size="sm" @click="openEdit(user)"
+                  <UiButton
+                    variant="ghost"
+                    size="sm"
+                    :disabled="user.protected"
+                    @click="openEdit(user)"
                     >编辑</UiButton
                   >
-                  <UiButton variant="ghost" size="sm" @click="openReset(user)"
+                  <UiButton
+                    variant="ghost"
+                    size="sm"
+                    :disabled="user.protected"
+                    @click="openReset(user)"
                     >重置</UiButton
                   >
                   <UiButton
                     variant="ghost"
                     size="sm"
+                    :disabled="user.protected"
                     @click="confirm = { kind: 'logout', user }"
                   >
                     强制下线
@@ -416,6 +434,7 @@ const formDirty = formSnapshot.dirty;
                   <UiButton
                     variant="ghost"
                     size="sm"
+                    :disabled="user.protected"
                     @click="confirm = { kind: 'delete', user }"
                   >
                     删除

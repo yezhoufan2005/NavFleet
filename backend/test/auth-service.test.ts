@@ -142,17 +142,19 @@ describe("AuthService — admin user management", () => {
     expect(await service.getUser("admin")).not.toHaveProperty("passwordHash");
   });
 
-  it("refuses to disable/demote/delete the last enabled admin", async () => {
+  it("refuses to disable or delete the bootstrap admin (protected, which also keeps one admin)", async () => {
     const service = await freshService();
 
-    // Only "admin" exists as an enabled admin. Another actor tries to disable it.
+    // "admin" is the protected bootstrap account; mutating it is refused as `protected` (this
+    // subsumes the old last-admin guard for it — it can never be removed, so an admin always
+    // remains).
     expect(await service.updateUser("someone", "admin", { enabled: false })).toEqual({
       ok: false,
-      error: "last_admin",
+      error: "protected",
     });
     expect(await service.deleteUser("someone", "admin")).toEqual({
       ok: false,
-      error: "last_admin",
+      error: "protected",
     });
   });
 
@@ -167,14 +169,14 @@ describe("AuthService — admin user management", () => {
 
   it("refuses to disable/delete/demote your own account", async () => {
     const service = await freshService();
-    // Add a second admin so the last-admin guard is not what trips; self guard must.
+    // Act on a non-protected admin's own account, so the self guard (not protected) is what trips.
     await service.createUser({ username: "admin2", password: A_PASSWORD, role: "admin" });
 
-    expect(await service.updateUser("admin", "admin", { enabled: false })).toEqual({
+    expect(await service.updateUser("admin2", "admin2", { enabled: false })).toEqual({
       ok: false,
       error: "self_forbidden",
     });
-    expect(await service.deleteUser("admin", "admin")).toEqual({
+    expect(await service.deleteUser("admin2", "admin2")).toEqual({
       ok: false,
       error: "self_forbidden",
     });
@@ -196,10 +198,12 @@ describe("AuthService — admin user management", () => {
 
   it("resetPassword sets a new hash and bumps the version; missing user → not_found", async () => {
     const service = await freshService();
+    // A normal account (not the protected bootstrap admin, whose reset is refused).
+    await service.createUser({ username: "vera", password: "oldpass12", role: "viewer" });
 
-    const ok = await service.resetPassword("admin", A_PASSWORD);
+    const ok = await service.resetPassword("vera", A_PASSWORD);
     expect(ok.ok).toBe(true);
-    expect((await service.authenticate("admin", A_PASSWORD)).ok).toBe(true);
+    expect((await service.authenticate("vera", A_PASSWORD)).ok).toBe(true);
 
     expect(await service.resetPassword("ghost", A_PASSWORD)).toEqual({
       ok: false,
@@ -373,5 +377,42 @@ describe("AuthService — kiosk session horizon", () => {
     const [session] = await service.listSessions("u");
     const days = (session!.expiresAt.getTime() - Date.now()) / 86_400_000;
     expect(days).toBeGreaterThan(150);
+  });
+
+  describe("the bootstrap admin is a protected account", () => {
+    // A second admin exists, so last_admin never masks the protection — these refusals are the
+    // protection itself: the bootstrap `admin` is managed only out of band.
+    const withTwoAdmins = async () => {
+      const service = new AuthService(new Persistence());
+      await service.initialize();
+      await service.createUser({
+        username: "lifang",
+        password: "lifang123",
+        role: "admin",
+        displayName: "李芳",
+      });
+      return service;
+    };
+
+    it("refuses to demote, disable, reset, force-logout or delete it — even by another admin", async () => {
+      const service = await withTwoAdmins();
+
+      expect((await service.updateUser("lifang", "admin", { role: "viewer" })).ok).toBe(false);
+      expect((await service.updateUser("lifang", "admin", { enabled: false })).ok).toBe(false);
+      const del = await service.deleteUser("lifang", "admin");
+      expect(del.ok).toBe(false);
+      expect(del.ok === false && del.error).toBe("protected");
+      expect((await service.resetPassword("admin", "whatever1")).ok).toBe(false);
+      expect((await service.forceLogout("admin")).ok).toBe(false);
+    });
+
+    it("marks it protected in the view and leaves normal accounts editable", async () => {
+      const service = await withTwoAdmins();
+      const users = await service.listUsers();
+      expect(users.find((u) => u.username === "admin")?.protected).toBe(true);
+      expect(users.find((u) => u.username === "lifang")?.protected).toBe(false);
+      // The demo admin is a normal account: it can be managed.
+      expect((await service.updateUser("admin", "lifang", { displayName: "李 芳" })).ok).toBe(true);
+    });
   });
 });

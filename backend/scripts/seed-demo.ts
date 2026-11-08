@@ -57,7 +57,7 @@ const authed = (cookie: string, path: string, init: RequestInit = {}): Promise<R
 type UserState = "normal" | "disabled" | "locked";
 interface DemoUser {
   username: string;
-  role: "operator" | "viewer";
+  role: "admin" | "operator" | "viewer";
   displayName: string;
   /** Demo address, so the 外发 on-call group's account reference resolves to someone. */
   email?: string;
@@ -67,9 +67,19 @@ interface DemoUser {
   userAgent: string;
 }
 
-// A plausible small-site roster: two operators, a read-only auditor, a kiosk wall account, an
-// ex-staff account kept disabled, and an outsourced account that got itself locked out.
+// A plausible small-site roster: a platform admin (the demo's own管理员, distinct from the
+// protected bootstrap `admin` which stays a debug-only account), two operators, a read-only
+// auditor, a kiosk wall account, an ex-staff account kept disabled, and an outsourced account
+// that got itself locked out.
 const DEMO_USERS: DemoUser[] = [
+  {
+    username: "lifang",
+    role: "admin",
+    displayName: "李芳 · 平台管理员",
+    email: "lifang@example.com",
+    state: "normal",
+    userAgent: "NavFleet-Console/admin-workstation",
+  },
   {
     username: "zhaoyun",
     role: "operator",

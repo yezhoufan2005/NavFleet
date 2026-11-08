@@ -240,7 +240,10 @@ const stubUser = (username: string, role: UserRole = "viewer"): UserRecord => ({
 });
 
 /** Strip `passwordHash`, mirroring the service's `toAdminUserView`. */
-const adminView = ({ passwordHash: _passwordHash, ...view }: UserRecord): AdminUserView => view;
+const adminView = ({ passwordHash: _passwordHash, ...view }: UserRecord): AdminUserView => ({
+  ...view,
+  protected: false,
+});
 
 export const createAuthServiceStub = (): AuthServiceStub => ({
   authenticate: vi.fn(() => Promise.resolve<AuthResult>({ ok: false, lockedJustNow: false })),
