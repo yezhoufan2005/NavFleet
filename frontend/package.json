@@ -21,7 +21,7 @@
     "@navfleet/fleet-core": "*",
     "@navfleet/shared": "*",
     "pinia": "^4.1.0",
-    "vue": "^3.5.44",
+    "vue": "^3.5.45",
     "vue-router": "^5.4.0"
   },
   "devDependencies": {
