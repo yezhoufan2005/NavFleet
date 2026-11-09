@@ -17,7 +17,7 @@ services:
       - monitoring
 
   prometheus:
-    image: prom/prometheus:v3.15.1
+    image: prom/prometheus:v3.16.0
     # Scrapes backend:3000/metrics from inside the network, which is exactly why
     # the edge nginx does not route /metrics at all.
     command:
