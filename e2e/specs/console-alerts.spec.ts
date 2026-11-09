@@ -73,38 +73,30 @@ test.describe("console alerts", () => {
     ).toHaveAttribute("aria-checked", "true");
   });
 
-  test("an acknowledgement survives a reload", async ({ page }) => {
+  test("an ignore survives a reload", async ({ page }) => {
     const row = page.locator("li").filter({ hasText: faulted.deviceName });
-    await row.getByRole("button", { name: /确认消息/ }).click();
+    await row.getByRole("button", { name: /忽略消息/ }).click();
 
-    // Acknowledged alerts are hidden by default, which is itself the assertion.
-    await expect(row).toBeHidden();
+    // Ignored rows stay visible (faded) under 全部, now reading 已忽略 and offering 取消忽略.
+    await expect(row).toContainText("已忽略");
+    await expect(row.getByRole("button", { name: /取消忽略/ })).toBeVisible();
 
     await page.reload();
     await expect(
       page.locator("li").filter({ hasText: faulted.deviceName }),
-    ).toBeHidden();
-
-    await page.getByRole("checkbox", { name: /显示已确认/ }).check();
-    await expect(
-      page
-        .locator("li")
-        .filter({ hasText: faulted.deviceName })
-        .getByRole("button", { name: /确认消息/ }),
-    ).toHaveAttribute("aria-pressed", "true");
+    ).toContainText("已忽略");
   });
 
-  test("records who confirmed it, not just that it is confirmed", async ({
+  test("records who handled it, not just that it is handled", async ({
     page,
   }) => {
-    // The point of moving acknowledgement off localStorage: it carries a who.
+    // The point of moving handling off localStorage: it carries a who.
     const row = page.locator("li").filter({ hasText: faulted.deviceName });
-    await row.getByRole("button", { name: /确认消息/ }).click();
+    await row.getByRole("button", { name: /忽略消息/ }).click();
 
-    await page.getByRole("checkbox", { name: /显示已确认/ }).check();
     await expect(
       page.locator("li").filter({ hasText: faulted.deviceName }),
-    ).toContainText(`已确认 · ${ADMIN.username}`);
+    ).toContainText(`已忽略 · ${ADMIN.username}`);
   });
 
   test("no longer claims acknowledgement is browser-local", async ({

@@ -37,12 +37,17 @@ import UiListPagination from "@/components/ui/UiListPagination.vue";
 import AlertHistoryPanel from "@/components/alerts/AlertHistoryPanel.vue";
 import { useFleetStore } from "@/stores/fleet";
 import { useAlertAck } from "@/composables/useAlertAck";
+import { useAlertDisposition } from "@/composables/useAlertDisposition";
 import { useListPagination } from "@/composables/useListPagination";
 import { useAuth } from "@/composables/useAuth";
 import { useDebouncedText } from "@/composables/useDebouncedText";
 import { useNotifications } from "@/composables/useNotifications";
 import { formatDateTime } from "@navfleet/fleet-core";
-import type { Severity } from "@navfleet/shared";
+import {
+  ALERT_DISPOSITION_LABELS,
+  type AlertDisposition,
+  type Severity,
+} from "@navfleet/shared";
 
 /**
  * The four `source` values the normalizer produces, in words.
@@ -83,6 +88,7 @@ const route = useRoute();
 const router = useRouter();
 const fleet = useFleetStore();
 const ack = useAlertAck();
+const disp = useAlertDisposition();
 const auth = useAuth();
 const { notify } = useNotifications();
 
@@ -155,7 +161,30 @@ const effectiveDates = computed<{ from: string; to: string }>(() => ({
     asDateInput(new Date(Date.now() - HISTORY_DEFAULT_DAYS * 86_400_000)),
   to: toDate.value || asDateInput(new Date()),
 }));
-const showAcknowledged = computed(() => readParam("acked") === "1");
+/**
+ * Handling-state filter (处置态): one of the four segments 全部 / 待处理 / 处理中 / 已忽略. Empty =
+ * 全部. Lives in the URL like the other filters so a pasted link reproduces the view. Replaces the
+ * old 显示已确认 checkbox, which could only hide/show one state.
+ */
+const HANDLING_VALUES = ["unhandled", "investigating", "ignored"] as const;
+const handling = computed<AlertDisposition | "">(() => {
+  const raw = readParam("handling");
+  return (HANDLING_VALUES as readonly string[]).includes(raw)
+    ? (raw as AlertDisposition)
+    : "";
+});
+const HANDLING_SEGMENTS: { value: AlertDisposition | ""; label: string }[] = [
+  { value: "", label: "全部" },
+  { value: "unhandled", label: ALERT_DISPOSITION_LABELS.unhandled },
+  { value: "investigating", label: ALERT_DISPOSITION_LABELS.investigating },
+  { value: "ignored", label: ALERT_DISPOSITION_LABELS.ignored },
+];
+/** Chip border + text colour per handling state (待处理 neutral / 处理中 brand / 已忽略 recessive). */
+const DISPOSITION_CHIP: Record<AlertDisposition, string> = {
+  unhandled: "border-border text-ink-muted",
+  investigating: "border-brand text-brand-ink",
+  ignored: "border-border text-ink-subtle",
+};
 
 /**
  * 消息 is a section with three tabs (1.6.2 IA): live alerts off the store (消息, this view at
@@ -208,16 +237,17 @@ const allAlerts = computed(() =>
 
 /**
  * The filter predicates, each over one axis, so 设备 can be faceted against the *others*.
- * `matchAcked` is the 显示已确认 rule folded in as a filter: hidden-by-default acknowledged
- * rows are simply "not matching" unless the toggle is on.
+ * `matchHandling` folds the 处置态 segment in as a filter: 全部 matches everything, otherwise only
+ * rows whose derived disposition equals the chosen state.
  */
 const matchSeverity = (alert: { severity: Severity }): boolean =>
   severity.value.length === 0 || severity.value.includes(alert.severity);
 const matchDevice = (alert: { deviceId: string }): boolean =>
   deviceFilter.value.length === 0 ||
   deviceFilter.value.includes(alert.deviceId);
-const matchAcked = (alert: { deviceId: string; id: string }): boolean =>
-  showAcknowledged.value || !ack.isAcknowledged(alert.deviceId, alert.id);
+const matchHandling = (alert: { deviceId: string; id: string }): boolean =>
+  handling.value === "" ||
+  disp.dispositionOf(alert.deviceId, alert.id) === handling.value;
 /**
  * Search is a boolean query (与/或/非 + 括号, see `compileSearch`), compiled once per committed
  * keystroke and run over the row's title / detail / device / 来源 joined. Both forms of 来源 are
@@ -257,7 +287,7 @@ const matchSearch = (alert: {
 const deviceOptions = computed(() => {
   const seen = new Map<string, string>();
   for (const alert of allAlerts.value) {
-    if (matchSeverity(alert) && matchSearch(alert) && matchAcked(alert)) {
+    if (matchSeverity(alert) && matchSearch(alert) && matchHandling(alert)) {
       if (!seen.has(alert.deviceId)) {
         seen.set(alert.deviceId, alert.deviceName || alert.deviceId);
       }
@@ -285,7 +315,7 @@ const filtered = computed(() =>
     (alert) =>
       matchSeverity(alert) &&
       matchDevice(alert) &&
-      matchAcked(alert) &&
+      matchHandling(alert) &&
       matchSearch(alert),
   ),
 );
@@ -307,23 +337,24 @@ const pageRows = pageItems;
  * fleet with sixty active alerts "确认本页" means four rounds of clicking through
  * pagination to do what v1.0.0 did once.
  */
-const unacknowledgedFiltered = computed(() =>
+const ignorableFiltered = computed(() =>
   filtered.value
-    .filter((alert) => !ack.isAcknowledged(alert.deviceId, alert.id))
+    .filter(
+      (alert) => disp.dispositionOf(alert.deviceId, alert.id) !== "ignored",
+    )
     .map((alert) => ({ deviceId: alert.deviceId, id: alert.id })),
 );
 
 /**
- * Acknowledging in bulk offers an undo, because it is the one action here that is both
- * easy to trigger by accident and tedious to reverse by hand. That matters more now that
- * the button reaches past the page — the undo is what makes the wider scope safe rather
- * than alarming. Each call is a backend write; `acknowledgeMany` returns only the refs that
- * actually landed, so the undo restores exactly those.
+ * Ignoring in bulk offers an undo, because it is the one action here that is both easy to trigger
+ * by accident and tedious to reverse by hand. The button reaches past the page — the undo is what
+ * makes the wider scope safe. Each call is a backend write; `acknowledgeMany` (the ignore fan-out)
+ * returns only the refs that actually landed, so the undo restores exactly those.
  */
-const acknowledgeFiltered = async (): Promise<void> => {
-  const changed = await ack.acknowledgeMany(unacknowledgedFiltered.value);
+const ignoreFiltered = async (): Promise<void> => {
+  const changed = await ack.acknowledgeMany(ignorableFiltered.value);
   if (!changed.length) return;
-  notify(`已确认 ${changed.length} 条消息`, {
+  notify(`已忽略 ${changed.length} 条消息`, {
     type: "success",
     action: {
       label: "撤销",
@@ -368,17 +399,17 @@ watch(allAlerts, (alerts) => {
 });
 
 /**
- * Confirm the ticked rows (minus any already acknowledged), then clear the selection. Same
- * undo-toast contract as 确认当前筛选 — `acknowledgeMany` returns only what actually landed.
+ * Ignore the ticked rows (minus any already ignored), then clear the selection. Same undo-toast
+ * contract as 忽略当前筛选 — `acknowledgeMany` returns only what actually landed.
  */
-const acknowledgeSelected = async (): Promise<void> => {
+const ignoreSelected = async (): Promise<void> => {
   const refs = [...selected.value.values()].filter(
-    (entry) => !ack.isAcknowledged(entry.deviceId, entry.id),
+    (entry) => disp.dispositionOf(entry.deviceId, entry.id) !== "ignored",
   );
   selected.value = new Map();
   const changed = await ack.acknowledgeMany(refs);
   if (!changed.length) return;
-  notify(`已确认 ${changed.length} 条消息`, {
+  notify(`已忽略 ${changed.length} 条消息`, {
     type: "success",
     action: {
       label: "撤销",
@@ -387,58 +418,66 @@ const acknowledgeSelected = async (): Promise<void> => {
   });
 };
 
+/** Claim one message for investigation (认领 / 我来处理). */
+const claimOne = (alert: { deviceId: string; id: string }): void => {
+  void disp.claim(alert.deviceId, alert.id);
+};
+/** Release one's own claim back to unhandled. */
+const releaseOne = (alert: { deviceId: string; id: string }): void => {
+  void disp.release(alert.deviceId, alert.id);
+};
+/** Cancel an ignore back to unhandled. */
+const unignoreOne = (alert: { deviceId: string; id: string }): void => {
+  void disp.unignore(alert.deviceId, alert.id);
+};
 /**
- * The per-row toggle. Confirming one message now gives the same feedback the bulk actions do —
- * a toast with an undo — because a single confirm is just as easy to misfire and was the one ack
- * path that happened silently. Un-confirming is the correction itself, so it stays quiet; a
- * failed write already surfaces its own error from `useAlertAck`.
+ * Ignore one message, with the same undo-toast the bulk action gives — a single ignore is just as
+ * easy to misfire. Claim / release / unignore stay quiet (the row's state chip is the feedback,
+ * and a failed or conflicting write already toasts from `useAlertDisposition`).
  */
-const toggleOne = async (alert: {
+const ignoreOne = async (alert: {
   deviceId: string;
   id: string;
 }): Promise<void> => {
-  if (ack.isAcknowledged(alert.deviceId, alert.id)) {
-    void ack.unacknowledge(alert.deviceId, alert.id);
-    return;
-  }
-  const ok = await ack.acknowledge(alert.deviceId, alert.id);
+  const ok = await disp.ignore(alert.deviceId, alert.id);
   if (!ok) return;
-  notify("已确认 1 条消息", {
+  notify("已忽略 1 条消息", {
     type: "success",
     action: {
       label: "撤销",
-      handler: () => void ack.unacknowledge(alert.deviceId, alert.id),
+      handler: () => void disp.unignore(alert.deviceId, alert.id),
     },
   });
 };
 
 /**
- * How many of the alerts currently in the fleet are acknowledged.
+ * How many of the alerts currently in the fleet are ignored.
  *
  * Deliberately **not** a stored count that would include ids for alerts that have since
- * cleared: this counts the acknowledged alerts currently in the fleet, so it cannot drift
- * upward past what the page can show. v1.0.0 made the same choice
- * (`frontend/src/views/AlertsView.vue:52-54`).
+ * cleared: this counts the ignored alerts currently in the fleet, so it cannot drift
+ * upward past what the page can show.
  */
-const acknowledgedPresent = computed(
+const ignoredPresent = computed(
   () =>
-    allAlerts.value.filter((alert) =>
-      ack.isAcknowledged(alert.deviceId, alert.id),
+    allAlerts.value.filter(
+      (alert) => disp.dispositionOf(alert.deviceId, alert.id) === "ignored",
     ).length,
 );
 
 /**
- * Clears the acknowledgement of every alert currently in the fleet. Symmetric with the bulk
- * confirm: it only touches alerts the page can see, so the undo can put back exactly those.
+ * Cancels the ignore of every alert currently in the fleet. Symmetric with the bulk ignore: it
+ * only touches alerts the page can see, so the undo can put back exactly those.
  */
-const clearAcknowledged = async (): Promise<void> => {
+const clearIgnored = async (): Promise<void> => {
   const cleared = await ack.unacknowledgeMany(
     allAlerts.value
-      .filter((alert) => ack.isAcknowledged(alert.deviceId, alert.id))
+      .filter(
+        (alert) => disp.dispositionOf(alert.deviceId, alert.id) === "ignored",
+      )
       .map((alert) => ({ deviceId: alert.deviceId, id: alert.id })),
   );
   if (!cleared.length) return;
-  notify(`已取消确认 ${cleared.length} 条消息`, {
+  notify(`已取消忽略 ${cleared.length} 条消息`, {
     type: "info",
     action: { label: "撤销", handler: () => void ack.acknowledgeMany(cleared) },
   });
@@ -492,44 +531,36 @@ watch(() => canAck.value && fleet.state.realtime.apiReady, runLegacyMigration);
 <template>
   <PageHeader title="消息">
     <template #actions>
-      <!--
-        确认选中 — the ticked rows (see the per-row checkboxes). Explicit counterpart to
-        确认当前筛选: the operator chose exactly these, possibly across pages.
-      -->
+      <!-- 忽略选中 — the ticked rows (see the per-row checkboxes). Explicit counterpart to
+           忽略当前筛选: the operator chose exactly these, possibly across pages. -->
       <UiButton
         v-if="isLive && canAck && selectedCount"
         variant="primary"
         size="sm"
-        @click="acknowledgeSelected"
+        @click="ignoreSelected"
       >
-        确认选中 {{ selectedCount }} 条
+        忽略选中 {{ selectedCount }} 条
       </UiButton>
 
-      <!--
-        「确认当前筛选」rather than 确认本页. The research note for this control says
-        「保持能力，补反馈与撤销」 —— the feedback and the undo are here; narrowing the
-        scope to one page was not part of it, and on sixty active alerts it turns one
-        action into four rounds of pagination.
-      -->
+      <!-- 忽略当前筛选 acts on the whole filtered set, not just the page, with feedback and an
+           undo so the wider scope is safe. -->
       <UiButton
-        v-if="isLive && canAck && unacknowledgedFiltered.length"
+        v-if="isLive && canAck && ignorableFiltered.length"
         variant="secondary"
         size="sm"
-        @click="acknowledgeFiltered"
+        @click="ignoreFiltered"
       >
-        确认当前筛选 {{ unacknowledgedFiltered.length }} 条
+        忽略当前筛选 {{ ignorableFiltered.length }} 条
       </UiButton>
 
-      <!-- The counterpart v1.0.0 had beside it (`frontend/src/views/AlertsView.vue:195-202`)
-           and the port dropped. The admin page's 清除本地数据 is not an equivalent: it
-           takes theme, sidebar, map mode and sound preferences with it. -->
+      <!-- Put every ignored message back to 待处理, for when a filter was too broad. -->
       <UiButton
-        v-if="isLive && canAck && acknowledgedPresent"
+        v-if="isLive && canAck && ignoredPresent"
         variant="secondary"
         size="sm"
-        @click="clearAcknowledged"
+        @click="clearIgnored"
       >
-        清除已经确认 {{ acknowledgedPresent }} 条
+        取消忽略 {{ ignoredPresent }} 条
       </UiButton>
     </template>
 
@@ -602,32 +633,32 @@ watch(() => canAck.value && fleet.state.realtime.apiReady, runLegacyMigration);
         />
       </UiFilterField>
 
-      <!--
-        `min-h-6` on the label and a 16px box: the audit at 390px found this input at
-        13×13, and WCAG 2.5.8 asks for a 24px target. The *label* is the target — clicking
-        the words toggles it — so the height goes there rather than on the box, which would
-        just make an oversized checkbox.
-      -->
-      <label
-        v-if="isLive"
-        class="flex min-h-6 items-center gap-2 text-xs text-ink-muted"
-      >
-        <input
-          type="checkbox"
-          class="size-4"
-          :checked="showAcknowledged"
-          @change="
-            setFilter({
-              acked: ($event.target as HTMLInputElement).checked ? '1' : null,
-            })
-          "
-        />
-        <!-- The count v1.0.0 carried in this label (`AlertsView.vue:185`). Without it the
-             checkbox does not say whether ticking it would reveal anything. -->
-        显示已确认<template v-if="acknowledgedPresent"
-          >（{{ acknowledgedPresent }}）</template
+      <!-- Handling-state segmented filter (replaces the old 显示已确认 checkbox). A radio group:
+           one segment active at a time, 全部 clears the URL param. -->
+      <UiFilterField v-if="isLive" label="处置">
+        <div
+          role="radiogroup"
+          aria-label="处置态筛选"
+          class="inline-flex overflow-hidden rounded-md border border-border"
         >
-      </label>
+          <button
+            v-for="segment in HANDLING_SEGMENTS"
+            :key="segment.value || 'all'"
+            type="button"
+            role="radio"
+            :aria-checked="handling === segment.value"
+            class="px-2.5 py-1 text-xs not-last:border-r not-last:border-border"
+            :class="
+              handling === segment.value
+                ? 'bg-brand text-brand-contrast'
+                : 'bg-surface-raised text-ink-muted hover:text-ink'
+            "
+            @click="setFilter({ handling: segment.value || null })"
+          >
+            {{ segment.label }}
+          </button>
+        </div>
+      </UiFilterField>
     </UiFilterBar>
 
     <AlertHistoryPanel v-if="!isLive" />
@@ -673,12 +704,10 @@ watch(() => canAck.value && fleet.state.realtime.apiReady, runLegacyMigration);
           :key="alert.id"
           class="alert-row flex flex-col gap-2 rounded-md border border-border bg-surface-raised p-3 sm:flex-row sm:items-start"
           :data-severity="alert.severity"
-          :data-acknowledged="
-            ack.isAcknowledged(alert.deviceId, alert.id) ? 'true' : undefined
-          "
+          :data-disposition="disp.dispositionOf(alert.deviceId, alert.id)"
         >
-          <!-- Select-to-confirm: ticking rows feeds 确认选中 above. Operator+ only, since the
-               whole point is bulk acknowledgement; viewers never see it. -->
+          <!-- Select to ignore in bulk: ticking rows feeds 忽略选中 above. Operator+ only;
+               viewers never see it. -->
           <input
             v-if="canAck"
             type="checkbox"
@@ -719,37 +748,75 @@ watch(() => canAck.value && fleet.state.realtime.apiReady, runLegacyMigration);
                  nothing until now; it decides whether the vehicle or the platform is the
                  thing to go look at. -->
               <span>{{ SOURCE_LABELS[alert.source] || alert.source }}</span>
-              <!-- Who confirmed it. Server-backed, so it is the same name on
-                 every console — the point of moving acknowledgement off localStorage. -->
+              <!-- Handling state: a chip showing 待处理 / 处理中 / 已忽略, with who holds it when
+                   claimed or ignored. Server-backed, so it is the same on every console. -->
               <span
-                v-if="ack.acknowledgedBy(alert.deviceId, alert.id)"
-                class="text-brand-ink"
-                >已确认 ·
-                {{ ack.acknowledgedBy(alert.deviceId, alert.id) }}</span
+                class="rounded-xs border px-1.5 py-0.5"
+                :class="
+                  DISPOSITION_CHIP[disp.dispositionOf(alert.deviceId, alert.id)]
+                "
               >
+                {{
+                  disp.dispositionLabel(
+                    disp.dispositionOf(alert.deviceId, alert.id),
+                  )
+                }}<template v-if="disp.handledBy(alert.deviceId, alert.id)">
+                  · {{ disp.handledBy(alert.deviceId, alert.id) }}</template
+                >
+              </span>
             </span>
           </div>
 
-          <!-- Select-to-confirm per row, styled through UiButton so its size, colour and font
-               match the header's 确认当前筛选 — secondary while actionable, the brand fill once
-               confirmed. It stays a toggle (aria-pressed), so a mistaken confirm is one click back. -->
-          <UiButton
-            v-if="canAck"
-            size="sm"
-            :variant="
-              ack.isAcknowledged(alert.deviceId, alert.id)
-                ? 'primary'
-                : 'secondary'
-            "
-            class="shrink-0"
-            :aria-pressed="ack.isAcknowledged(alert.deviceId, alert.id)"
-            :aria-label="`确认消息：${alert.title}`"
-            @click="toggleOne(alert)"
-          >
-            {{
-              ack.isAcknowledged(alert.deviceId, alert.id) ? "已确认" : "确认"
-            }}
-          </UiButton>
+          <!-- Per-row handling controls (operator+). The set shown depends on the state: 待处理
+               offers 我来处理 + 忽略; 处理中 offers 释放认领 to the claimant or an admin; 已忽略
+               offers 取消忽略. The backend enforces the same rules. -->
+          <div v-if="canAck" class="flex shrink-0 gap-1">
+            <template
+              v-if="
+                disp.dispositionOf(alert.deviceId, alert.id) === 'unhandled'
+              "
+            >
+              <UiButton
+                size="sm"
+                variant="primary"
+                :aria-label="`我来处理：${alert.title}`"
+                @click="claimOne(alert)"
+              >
+                我来处理
+              </UiButton>
+              <UiButton
+                size="sm"
+                variant="secondary"
+                :aria-label="`忽略消息：${alert.title}`"
+                @click="ignoreOne(alert)"
+              >
+                忽略
+              </UiButton>
+            </template>
+            <UiButton
+              v-else-if="
+                disp.dispositionOf(alert.deviceId, alert.id) ===
+                  'investigating' && disp.canRelease(alert.deviceId, alert.id)
+              "
+              size="sm"
+              variant="secondary"
+              :aria-label="`释放认领：${alert.title}`"
+              @click="releaseOne(alert)"
+            >
+              释放认领
+            </UiButton>
+            <UiButton
+              v-else-if="
+                disp.dispositionOf(alert.deviceId, alert.id) === 'ignored'
+              "
+              size="sm"
+              variant="secondary"
+              :aria-label="`取消忽略：${alert.title}`"
+              @click="unignoreOne(alert)"
+            >
+              取消忽略
+            </UiButton>
+          </div>
         </li>
       </ul>
 
@@ -795,11 +862,10 @@ watch(() => canAck.value && fleet.state.realtime.apiReady, runLegacyMigration);
  */
 
 /*
- * Acknowledged rows recede rather than disappear. They are hidden by default, so this
- * only shows once 显示已确认 is on — which is precisely when "which of these did I
- * already deal with" is the question being asked.
+ * Ignored rows recede rather than disappear: they are expected/noise, so they stay visible (and
+ * filterable) but step back from the firing ones that still need attention.
  */
-.alert-row[data-acknowledged="true"] {
+.alert-row[data-disposition="ignored"] {
   opacity: 0.55;
 }
 </style>

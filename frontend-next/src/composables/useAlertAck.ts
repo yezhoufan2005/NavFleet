@@ -53,13 +53,6 @@ export const useAlertAck = () => {
     ackedAt: new Date().toISOString(),
   });
 
-  const isAcknowledged = (deviceId: string, id: string): boolean =>
-    fleet.isAlertAcked(deviceId, id);
-
-  /** Who confirmed a still-active alert, for display next to the row. */
-  const acknowledgedBy = (deviceId: string, id: string): string | null =>
-    fleet.getAck(deviceId, id)?.ackedBy ?? null;
-
   const acknowledge = async (
     deviceId: string,
     id: string,
@@ -180,10 +173,9 @@ export const useAlertAck = () => {
   };
 
   return {
-    isAcknowledged,
-    acknowledgedBy,
-    acknowledge,
-    unacknowledge,
+    // The per-row ignore/claim surface moved to `useAlertDisposition`; this composable is now just
+    // the bulk ignore fan-out (with undo) and the one-time localStorage migration. The single-item
+    // `acknowledge`/`unacknowledge`/`isAcknowledged` stay internal (the bulk helpers use them).
     acknowledgeMany,
     unacknowledgeMany,
     migrateLegacyAcks,

@@ -1265,11 +1265,13 @@ export const useFleetStore = defineStore("fleet", () => {
     summary,
     groupedAlerts,
     trailsByDeviceId,
-    // Acknowledgement overlay (back-compat ignore surface over the disposition map). `useAlertAck`
-    // reads `isAlertAcked`/`getAck` and drives optimistic updates through `applyAck`/`applyUnack`;
-    // the alerts view seeds it on mount via `seedAckState`. The full disposition getters
-    // (`getDisposition` etc.) are exposed when the console UI batch consumes them. The map itself
-    // stays internal — never poked from outside.
+    // Disposition overlay. `useAlertDisposition` reads `getDisposition`/`getDispositionEntry` and
+    // drives optimistic updates through `applyDisposition`; `isAlertAcked`/`getAck`/`applyAck`/
+    // `applyUnack` remain as the back-compat ignore surface. Seeded on mount via `seedAckState`.
+    // The map itself stays internal — never poked from outside.
+    getDisposition,
+    getDispositionEntry,
+    applyDisposition,
     isAlertAcked,
     getAck,
     applyAck,
