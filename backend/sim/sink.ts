@@ -22,10 +22,14 @@
  * severities, device scope, silence windows — and a delivered send is recorded in `notify_log`,
  * so the outbound history matches the messages it is about.
  *
- * Closed occurrences are acknowledged the way a staffed site acknowledges them: by whoever is
- * on shift, mostly for faults, sometimes for warnings, rarely for notices, a few minutes after
- * onset, with an `alert_ack` audit entry at that moment. Occurrences still open at the hand-over
- * are left unacknowledged for the people using the console.
+ * Both open and closed occurrences carry a **disposition** the way a staffed site handles them —
+ * the human axis orthogonal to the signal (see `@navfleet/shared` `alertDisposition`). A few
+ * minutes after onset an on-shift operator either claims it (认领, investigating) or ignores it as
+ * expected noise (忽略), mostly claiming faults and ignoring notices; otherwise no one engages and
+ * it is left unhandled. For a closed occurrence that disposition decides its close kind
+ * (claimed→处理后消除, ignored→已忽略后消除, neither→自动恢复); for one still open at the hand-over
+ * it is the live state the console shows (处理中 / 已忽略 / 待处理). Each claim/ignore writes an
+ * `alert_claim` / `alert_ignore` audit entry at that moment and bumps the optimistic-lock version.
  */
 import { MongoClient, type Db } from "mongodb";
 import { config } from "../src/config";
@@ -52,23 +56,34 @@ interface AlertDoc {
   firstSeenAt: Date;
   lastSeenAt: Date;
   clearedAt: Date | null;
-  ackedBy: string | null;
-  ackedAt: Date | null;
-  comment: string | null;
+  // Disposition (human axis). `claimedAt`/`ignoredAt` are ISO strings like the live write path;
+  // `version` is the optimistic-lock counter (0 = untouched, bumped on each disposition write).
+  claimedBy: string | null;
+  claimedAt: string | null;
+  ignoredBy: string | null;
+  ignoredAt: string | null;
+  ignoreReason: string | null;
+  version: number;
 }
 
 const BATCH = 5000;
 
-const COMMENTS: Record<string, string[]> = {
-  "5101": ["已人工重定位", "现场确认后恢复"],
-  "5703": ["障碍已清除", "通道已清理"],
-  "5203": ["已断电重启驱动器", "已通知维修"],
-  "5301": ["已人工推回充电位"],
-  "5401": ["已清洁雷达并重启", "雷达线缆松动，已紧固"],
-  "5501": ["调度已重派", "已人工补料"],
-  "5701": ["现场已复位", "已通知维修，复位后恢复"],
-  "5702": ["已排查，误触发", "现场已确认"],
-  offline: ["网络已恢复", "已通知网络运维"],
+/**
+ * Why an occurrence was ignored (忽略) — dismissed as expected/noise, keyed by report code, with a
+ * planned-maintenance and an offline pool. A claim (认领) carries no reason: the console records
+ * only that someone is investigating, not an off-line resolution note (read-only monitoring).
+ */
+const IGNORE_REASONS: Record<string, string[]> = {
+  "5101": ["定位漂移，已复核"],
+  "5703": ["误触发，现场无障碍"],
+  "5203": ["瞬时报错，已自恢复"],
+  "5301": ["低电量，调度已知"],
+  "5401": ["雷达瞬时噪声"],
+  "5501": ["排产间隙，预期内"],
+  "5701": ["演练触发，非真实"],
+  "5702": ["误触发，已确认"],
+  offline: ["网络抖动，已知", "弱覆盖区，正常"],
+  planned: ["计划内维护"],
 };
 
 /** Day shift 08–20 and night shift — the two operators `seed-demo` creates. */
@@ -82,7 +97,8 @@ export interface SinkStats {
   skippedFrames: number;
   closed: number;
   handedOver: number;
-  acks: number;
+  claimed: number;
+  ignored: number;
   sends: number;
 }
 
@@ -102,7 +118,8 @@ export class BackfillSink {
     skippedFrames: 0,
     closed: 0,
     handedOver: 0,
-    acks: 0,
+    claimed: 0,
+    ignored: 0,
     sends: 0,
   };
 
@@ -194,9 +211,12 @@ export class BackfillSink {
             ...fields,
             firstSeenAt: new Date(alert.firstSeenAt ?? alert.ts),
             clearedAt: null,
-            ackedBy: null,
-            ackedAt: null,
-            comment: null,
+            claimedBy: null,
+            claimedAt: null,
+            ignoredBy: null,
+            ignoredAt: null,
+            ignoreReason: null,
+            version: 0,
           },
           stored: false,
         });
@@ -209,14 +229,19 @@ export class BackfillSink {
       entry.doc.active = false;
       entry.doc.clearedAt = at;
       entry.doc.lastSeenAt = at;
-      this.acknowledge(entry.doc);
+      this.dispose(entry.doc, at.getTime());
       if (entry.stored) {
         await this.requireDb()
           .collection("alerts")
           .updateOne(
             { eventKey, active: true },
             {
-              $set: { active: false, clearedAt: at, lastSeenAt: at, ...this.ackFields(entry.doc) },
+              $set: {
+                active: false,
+                clearedAt: at,
+                lastSeenAt: at,
+                ...this.dispositionFields(entry.doc),
+              },
             },
           );
       } else {
@@ -239,14 +264,37 @@ export class BackfillSink {
     for (const open of this.open.values()) {
       for (const { doc, stored } of open.values()) {
         if (stored) continue;
-        const { firstSeenAt, clearedAt, ackedBy, ackedAt, comment, ...rest } = doc;
-        await db
-          .collection("alerts")
-          .updateOne(
-            { eventKey: doc.eventKey, active: true },
-            { $set: rest, $setOnInsert: { firstSeenAt, clearedAt, ackedBy, ackedAt, comment } },
-            { upsert: true },
-          );
+        // Still firing at the hand-over: give it a live disposition (处理中 / 已忽略 / 待处理) the
+        // same way, bounded by the last frame we saw it in, then hand it to the live backend.
+        this.dispose(doc, doc.lastSeenAt.getTime());
+        const {
+          firstSeenAt,
+          clearedAt,
+          claimedBy,
+          claimedAt,
+          ignoredBy,
+          ignoredAt,
+          ignoreReason,
+          version,
+          ...rest
+        } = doc;
+        await db.collection("alerts").updateOne(
+          { eventKey: doc.eventKey, active: true },
+          {
+            $set: rest,
+            $setOnInsert: {
+              firstSeenAt,
+              clearedAt,
+              claimedBy,
+              claimedAt,
+              ignoredBy,
+              ignoredAt,
+              ignoreReason,
+              version,
+            },
+          },
+          { upsert: true },
+        );
         this.stats.handedOver += 1;
       }
     }
@@ -274,44 +322,79 @@ export class BackfillSink {
     return open;
   }
 
-  private ackFields(doc: AlertDoc) {
-    return { ackedBy: doc.ackedBy, ackedAt: doc.ackedAt, comment: doc.comment };
+  private dispositionFields(doc: AlertDoc) {
+    return {
+      claimedBy: doc.claimedBy,
+      claimedAt: doc.claimedAt,
+      ignoredBy: doc.ignoredBy,
+      ignoredAt: doc.ignoredAt,
+      ignoreReason: doc.ignoreReason,
+      version: doc.version,
+    };
   }
 
-  /** Decide whether, by whom and when a closed occurrence was acknowledged; deterministic per occurrence. */
-  private acknowledge(doc: AlertDoc): void {
-    if (doc.ackedBy) return;
+  /**
+   * Give an occurrence its human disposition, deterministic per occurrence: a few minutes after
+   * onset an on-shift operator claims it (认领) or ignores it (忽略), or no one engages and it is
+   * left unhandled. The split follows a staffed site — faults mostly claimed, notices mostly
+   * ignored or left alone; a long planned offline is ignored as 计划内维护. `boundMs` caps the
+   * action time (clearedAt for a closed occurrence, the last frame seen for one still open): past
+   * it, no one got to it in time, so it stays unhandled (→ 自动恢复 once closed).
+   */
+  private dispose(doc: AlertDoc, boundMs: number): void {
+    if (doc.claimedBy || doc.ignoredBy) return;
     const onset = doc.firstSeenAt.getTime();
-    const end = doc.clearedAt?.getTime() ?? onset;
-    const rng = new Rng(seedOf(`ack:${doc.eventKey}:${onset}`));
+    const rng = new Rng(seedOf(`disp:${doc.eventKey}:${onset}`));
     const offline = doc.alertId.endsWith("-offline");
-    const planned = offline && end - onset >= 90 * 60_000;
-    const chance = planned
-      ? 1
+    const planned = offline && boundMs - onset >= 90 * 60_000;
+    const actAt = onset + rng.between(0.5, planned ? 5 : 8) * 60_000;
+    if (actAt >= boundMs) return;
+
+    // claim / ignore probabilities by severity; the remainder is left unhandled. A planned outage
+    // is always ignored (计划内维护). Draw `roll` once and split the unit interval between the two.
+    const [claimP, ignoreP] = planned
+      ? [0, 1]
       : doc.severity === "critical"
-        ? 0.92
+        ? [0.55, 0.12]
         : doc.severity === "warning"
-          ? 0.4
-          : 0.03;
-    const ackAt = onset + rng.between(0.5, planned ? 5 : 8) * 60_000;
-    if (!rng.chance(chance) || ackAt >= end) return;
-    const pool = planned
-      ? ["计划内维护"]
-      : (COMMENTS[offline ? "offline" : String(doc.code)] ?? []);
-    // Planned maintenance too is acknowledged by whoever is on shift: an `admin` here named an
-    // account that may not exist (ADMIN_USERNAME is configurable) and never logged in.
-    doc.ackedBy = operatorAt(ackAt);
-    doc.ackedAt = new Date(ackAt);
-    doc.comment = pool.length && (planned || rng.chance(0.4)) ? (rng.pick(pool) ?? null) : null;
-    this.audits.push({
-      ts: doc.ackedAt,
-      actor: doc.ackedBy,
-      action: "alert_ack",
-      target: doc.eventKey,
-      outcome: "success",
-      ...(doc.comment ? { detail: { comment: doc.comment } } : {}),
-    });
-    this.stats.acks += 1;
+          ? [0.3, 0.28]
+          : [0.08, 0.32];
+    const roll = rng.next();
+    const actor = operatorAt(actAt);
+    const atIso = new Date(actAt).toISOString();
+    if (roll < claimP) {
+      doc.claimedBy = actor;
+      doc.claimedAt = atIso;
+      doc.version = 1;
+      this.audits.push({
+        ts: new Date(actAt),
+        actor,
+        action: "alert_claim",
+        target: doc.eventKey,
+        outcome: "success",
+      });
+      this.stats.claimed += 1;
+      return;
+    }
+    // __IGNORE_BRANCH__
+    if (roll < claimP + ignoreP) {
+      const pool =
+        IGNORE_REASONS[planned ? "planned" : offline ? "offline" : String(doc.code)] ?? [];
+      const reason = pool.length && (planned || rng.chance(0.6)) ? (rng.pick(pool) ?? null) : null;
+      doc.ignoredBy = actor;
+      doc.ignoredAt = atIso;
+      doc.ignoreReason = reason;
+      doc.version = 1;
+      this.audits.push({
+        ts: new Date(actAt),
+        actor,
+        action: "alert_ignore",
+        target: doc.eventKey,
+        outcome: "success",
+        ...(reason ? { detail: { reason } } : {}),
+      });
+      this.stats.ignored += 1;
+    }
   }
 
   /** What `NotifyService` would have delivered for this new occurrence. */

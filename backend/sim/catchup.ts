@@ -9,7 +9,7 @@
  * Frames go through a real `DashboardStore` on the simulated clock (see `sink.ts`), sharded over
  * a few child processes because the store is single-threaded: vehicles are independent, so each
  * shard runs its own store over its own vehicles. The parent then writes the checkpoint the live
- * publisher resumes from, the shift logins that go with the acknowledgements, and summarises the
+ * publisher resumes from, the shift logins that go with the dispositions, and summarises the
  * new hours for the reports — so the backend starts on a complete, consistent history.
  */
 import { spawn } from "node:child_process";
@@ -148,7 +148,7 @@ const runShards = async (jobs: ShardJob[], workDir: string): Promise<ShardResult
   );
 };
 
-/** Shift logins over `[from, to)`: the operators whose acknowledgements the history carries. */
+/** Shift logins over `[from, to)`: the operators whose claims/ignores the history carries. */
 const writeShiftLogins = async (from: number, to: number): Promise<number> => {
   const entries: Record<string, unknown>[] = [];
   const day = 24 * 3_600_000;
@@ -228,7 +228,7 @@ export const catchUp = async (options: {
     await client.close();
     if (existing > 0) {
       // Only telemetry can be checked against what is stored (per vehicle, by timestamp); messages,
-      // acknowledgements, send records and shift logins would all be written a second time, from
+      // dispositions, send records and shift logins would all be written a second time, from
       // a different timeline, so the reports would count the window twice.
       await persistence.close();
       throw new CatchUpRefused(
@@ -265,7 +265,8 @@ export const catchUp = async (options: {
     skippedFrames: 0,
     closed: 0,
     handedOver: 0,
-    acks: 0,
+    claimed: 0,
+    ignored: 0,
     sends: 0,
   };
   let logins = 0;
@@ -323,7 +324,7 @@ export const catchUp = async (options: {
   }
   log(
     `wrote ${totals.frames} frames (${totals.skippedFrames} already stored), ${totals.closed} closed messages ` +
-      `(${totals.acks} acknowledged), ${totals.handedOver} still active, ${totals.sends} notifications, ` +
+      `(${totals.claimed} claimed, ${totals.ignored} ignored), ${totals.handedOver} still active, ${totals.sends} notifications, ` +
       `${logins} shift logins`,
   );
   log(
