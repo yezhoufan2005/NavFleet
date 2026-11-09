@@ -31,6 +31,12 @@ import { RouterLink } from "vue-router";
 import { fleetApi, formatDateTime } from "@navfleet/fleet-core";
 import type { AlertRecord } from "@navfleet/fleet-core";
 import { SEVERITY_BADGE, SEVERITY_LABELS } from "@/lib/severity";
+import {
+  alertCloseDisposition,
+  alertDisposition,
+  ALERT_CLOSE_DISPOSITION_LABELS,
+  ALERT_DISPOSITION_LABELS,
+} from "@navfleet/shared";
 import UiDisclosureArrow from "@/components/ui/UiDisclosureArrow.vue";
 import { useLatestRequest } from "@/composables/useLatestRequest";
 import { loadErrorMessage } from "@/lib/errorMessages";
@@ -121,6 +127,10 @@ interface Row {
   startedLabel: string;
   /** When it cleared, or 仍活跃 — this history, unlike 消息·消息史, holds active rows. */
   endedLabel: string;
+  /** 结案处置（已清除）或在途处置（仍活跃）的中文标签。 */
+  dispositionLabel: string;
+  /** 经手人：认领人，否则忽略人；都没有则空。 */
+  handledBy: string;
 }
 
 const rows = computed<Row[]>(() =>
@@ -149,6 +159,14 @@ const rows = computed<Row[]>(() =>
         : Number.isFinite(cleared)
           ? formatDateTime(cleared)
           : "已清除",
+      // 仍活跃 → 在途处置（待处理/处理中/已忽略）；已清除 → 结案处置（处理后消除/自动恢复/已忽略后消除）。
+      dispositionLabel: active
+        ? ALERT_DISPOSITION_LABELS[alertDisposition(record)]
+        : ALERT_CLOSE_DISPOSITION_LABELS[
+            alertCloseDisposition({ ...record, active: false }) ??
+              "auto_recovered"
+          ],
+      handledBy: String(record.claimedBy || record.ignoredBy || ""),
     };
   }),
 );
@@ -342,6 +360,18 @@ const toggleDay = (dayKey: string): void => {
                 <dt class="text-2xs text-ink-subtle">结束</dt>
                 <dd class="m-0 font-mono text-xs text-ink">
                   {{ row.endedLabel }}
+                </dd>
+              </div>
+              <div
+                v-if="row.dispositionLabel"
+                class="flex items-baseline gap-1.5"
+              >
+                <dt class="text-2xs text-ink-subtle">处置</dt>
+                <dd class="m-0 text-xs text-ink">
+                  {{ row.dispositionLabel
+                  }}<template v-if="row.handledBy">
+                    · {{ row.handledBy }}</template
+                  >
                 </dd>
               </div>
             </dl>

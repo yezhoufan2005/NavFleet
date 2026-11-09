@@ -5,9 +5,9 @@
  * 消息史 was folded from a top-level page into a tab of `AlertsView`. The shared filter
  * bar (severity / device / search) lives in `AlertsView` and writes the URL; this panel reads
  * the same query params, fetches cleared alerts once on mount, and derives severity
- * distribution, per-device counts, per-day frequency, acknowledgement rate and clear-time
- * durations client-side (`lib/alertStats.ts`) — the split and the 500-row cap unchanged from
- * the former `AlertHistoryView`.
+ * distribution, per-device counts, per-day frequency, the disposition rates (认领/忽略/自动恢复)
+ * and clear-time durations client-side (`lib/alertStats.ts`) — the split and the 500-row cap
+ * unchanged from the former `AlertHistoryView`.
  *
  * Read-only. Without MongoDB a `cleared` query returns nothing, so the empty state links to
  * 系统 / 状态, the page that can say whether Mongo is connected.
@@ -31,6 +31,12 @@ import {
   severityOf,
   type Severity,
 } from "@/lib/alertStats";
+import {
+  alertCloseDisposition,
+  alertDisposition,
+  ALERT_CLOSE_DISPOSITION_LABELS,
+  ALERT_DISPOSITION_LABELS,
+} from "@navfleet/shared";
 import { SEVERITY_BADGE, SEVERITY_LABELS } from "@/lib/severity";
 import { compileSearch } from "@/lib/searchQuery";
 import { loadErrorMessage } from "@/lib/errorMessages";
@@ -229,10 +235,12 @@ const dailyData = computed(() =>
   stats.value.daily.map((entry) => ({ label: entry.day, value: entry.count })),
 );
 
-const ackRateLabel = computed(() =>
-  stats.value.ackRate === null
-    ? "--"
-    : `${Math.round(stats.value.ackRate * 100)}%`,
+const rateLabel = (value: number | null): string =>
+  value === null ? "--" : `${Math.round(value * 100)}%`;
+const claimRateLabel = computed(() => rateLabel(stats.value.claimRate));
+const ignoreRateLabel = computed(() => rateLabel(stats.value.ignoreRate));
+const autoRecoverRateLabel = computed(() =>
+  rateLabel(stats.value.autoRecoverRate),
 );
 
 interface Row {
@@ -246,7 +254,10 @@ interface Row {
   onset: number;
   clearedAt: number;
   duration: string;
-  ackedBy: string;
+  /** 结案处置（已清除）或在途处置（仍活跃）的中文标签。 */
+  dispositionLabel: string;
+  /** 经手人：认领人，否则忽略人；都没有则空。 */
+  handledBy: string;
 }
 
 const rows = computed<Row[]>(() =>
@@ -276,8 +287,17 @@ const rows = computed<Row[]>(() =>
       onset,
       clearedAt,
       duration: formatDurationMs(durationMs),
-      // Shows the "ignored" disposition as the handled-by column (old confirm's reinterpretation).
-      ackedBy: record.ignoredBy ? String(record.ignoredBy) : "",
+      // History is cleared occurrences → show the close disposition (结案处置); if a still-active
+      // record slips in, fall back to its live disposition so the column is never blank.
+      dispositionLabel: record.active
+        ? ALERT_DISPOSITION_LABELS[alertDisposition(record)]
+        : ALERT_CLOSE_DISPOSITION_LABELS[
+            alertCloseDisposition({
+              ...record,
+              active: record.active ?? false,
+            }) ?? "auto_recovered"
+          ],
+      handledBy: String(record.claimedBy || record.ignoredBy || ""),
     };
   }),
 );
@@ -344,7 +364,7 @@ const pageRows = computed(() =>
     </p>
 
     <!-- Summary tiles -->
-    <dl class="m-0 grid grid-cols-2 gap-3 sm:grid-cols-4">
+    <dl class="m-0 grid grid-cols-2 gap-3 sm:grid-cols-3">
       <div class="rounded-md border border-border bg-surface-raised p-3">
         <dt class="text-2xs text-ink-subtle">已清除</dt>
         <dd class="m-0 font-mono text-lg tabular-nums text-ink">
@@ -352,9 +372,21 @@ const pageRows = computed(() =>
         </dd>
       </div>
       <div class="rounded-md border border-border bg-surface-raised p-3">
-        <dt class="text-2xs text-ink-subtle">确认率</dt>
+        <dt class="text-2xs text-ink-subtle">认领率</dt>
         <dd class="m-0 font-mono text-lg tabular-nums text-ink">
-          {{ ackRateLabel }}
+          {{ claimRateLabel }}
+        </dd>
+      </div>
+      <div class="rounded-md border border-border bg-surface-raised p-3">
+        <dt class="text-2xs text-ink-subtle">忽略率</dt>
+        <dd class="m-0 font-mono text-lg tabular-nums text-ink">
+          {{ ignoreRateLabel }}
+        </dd>
+      </div>
+      <div class="rounded-md border border-border bg-surface-raised p-3">
+        <dt class="text-2xs text-ink-subtle">自动恢复率</dt>
+        <dd class="m-0 font-mono text-lg tabular-nums text-ink">
+          {{ autoRecoverRateLabel }}
         </dd>
       </div>
       <div class="rounded-md border border-border bg-surface-raised p-3">
@@ -455,9 +487,12 @@ const pageRows = computed(() =>
             row.detail
           }}</span>
           <span
-            v-if="row.ackedBy"
+            v-if="row.dispositionLabel"
             class="ml-auto font-mono text-2xs text-brand-ink"
-            >已确认 · {{ row.ackedBy }}</span
+            >{{ row.dispositionLabel
+            }}<template v-if="row.handledBy">
+              · {{ row.handledBy }}</template
+            ></span
           >
         </div>
 

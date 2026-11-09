@@ -43,8 +43,15 @@ export interface AlertStats {
   bySeverity: SeverityCounts;
   topDevices: DeviceCount[];
   daily: DailyCount[];
-  /** Acknowledged / total, in [0,1]; null when there are no records. */
-  ackRate: number | null;
+  /**
+   * Disposition rates over the records, each ÷ total (null when there are no records), matching
+   * the server (`AlertStatsReport`). Disjoint; the remainder is still-open-unhandled:
+   * claimRate = claimed-and-not-ignored, ignoreRate = ignored, autoRecoverRate = cleared with
+   * neither (auto-recovered, no one involved).
+   */
+  claimRate: number | null;
+  ignoreRate: number | null;
+  autoRecoverRate: number | null;
   duration: DurationStats;
 }
 
@@ -87,7 +94,9 @@ export const computeAlertStats = (
   const deviceCounts = new Map<string, DeviceCount>();
   const dayCounts = new Map<string, number>();
   const durations: number[] = [];
-  let acked = 0;
+  let claimed = 0;
+  let ignored = 0;
+  let autoRecovered = 0;
 
   for (const record of records) {
     bySeverity[severityOf(record)] += 1;
@@ -112,18 +121,19 @@ export const computeAlertStats = (
       dayCounts.set(day, (dayCounts.get(day) ?? 0) + 1);
     }
 
-    // "Acked" now means ignored (the redesign's reinterpretation of the old confirm).
-    if (record.ignoredBy) acked += 1;
-
     // A duration exists only when the alert has both an onset and a clear time.
     const cleared = record.clearedAt
       ? Date.parse(String(record.clearedAt))
       : NaN;
-    if (
-      Number.isFinite(onset) &&
-      Number.isFinite(cleared) &&
-      cleared >= onset
-    ) {
+    const isCleared = Number.isFinite(cleared);
+
+    // Disposition tallies, disjoint and matching the server: ignore supersedes a claim, and an
+    // occurrence that cleared with neither disposition auto-recovered with no one involved.
+    if (record.ignoredBy) ignored += 1;
+    else if (record.claimedBy) claimed += 1;
+    else if (isCleared) autoRecovered += 1;
+
+    if (Number.isFinite(onset) && isCleared && cleared >= onset) {
       durations.push(cleared - onset);
     }
   }
@@ -151,7 +161,9 @@ export const computeAlertStats = (
     bySeverity,
     topDevices,
     daily,
-    ackRate: total > 0 ? acked / total : null,
+    claimRate: total > 0 ? claimed / total : null,
+    ignoreRate: total > 0 ? ignored / total : null,
+    autoRecoverRate: total > 0 ? autoRecovered / total : null,
     duration: {
       count: durations.length,
       meanMs: mean,

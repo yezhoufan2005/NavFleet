@@ -1087,7 +1087,7 @@ describe("aggregateAlertStats（服务端聚合）", () => {
       { _id: "agv-2", count: 1 },
     ],
     daily: [{ _id: "2026-09-01", count: 5 }],
-    totals: [{ _id: null, total: 6, acked: 3 }],
+    totals: [{ _id: null, total: 6, claimed: 2, ignored: 3, autoRecovered: 1 }],
     durations: [{ _id: null, values: [1000, 3000, 2000] }],
   };
 
@@ -1128,7 +1128,9 @@ describe("aggregateAlertStats（服务端聚合）", () => {
       { deviceId: "agv-2", count: 1 },
     ]);
     expect(report.daily).toEqual([{ day: "2026-09-01", count: 5 }]);
-    expect(report.ackRate).toBe(0.5);
+    expect(report.claimRate).toBeCloseTo(2 / 6);
+    expect(report.ignoreRate).toBe(0.5);
+    expect(report.autoRecoverRate).toBeCloseTo(1 / 6);
     expect(report.duration).toEqual({ count: 3, meanMs: 2000, p50Ms: 2000 });
   });
 
@@ -1149,7 +1151,9 @@ describe("aggregateAlertStats（服务端聚合）", () => {
     expect(report.available).toBe(false);
     expect(report.total).toBe(0);
     expect(report.bySeverity).toEqual({ critical: 0, warning: 0, notice: 0 });
-    expect(report.ackRate).toBeNull();
+    expect(report.claimRate).toBeNull();
+    expect(report.ignoreRate).toBeNull();
+    expect(report.autoRecoverRate).toBeNull();
     expect(report.duration).toEqual({ count: 0, meanMs: null, p50Ms: null });
   });
 });

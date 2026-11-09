@@ -443,7 +443,9 @@ describe("buildAlertStatsCsv (1.6.1 export parity)", () => {
       { day: "2026-03-01", count: 2 },
       { day: "2026-03-02", count: 3 },
     ],
-    ackRate: 0.5,
+    claimRate: 0.6,
+    ignoreRate: 0.2,
+    autoRecoverRate: 0.2,
     duration: { count: 4, meanMs: 3_600_000, p50Ms: 1_800_000 },
     available: true,
     ...over,
@@ -456,7 +458,9 @@ describe("buildAlertStatsCsv (1.6.1 export parity)", () => {
     expect(lines[0]).toBe("分组,项,数值");
     expect(lines).toContain("汇总,消息总数,5");
     // Percent and whole seconds, as the page shows them; 持续 (onset → cleared), not 处理.
-    expect(lines).toContain("汇总,确认率(%),50.0");
+    expect(lines).toContain("汇总,认领率(%),60.0");
+    expect(lines).toContain("汇总,忽略率(%),20.0");
+    expect(lines).toContain("汇总,自动恢复率(%),20.0");
     expect(lines).toContain("汇总,平均持续时长(秒),3600");
     expect(lines).toContain("汇总,持续时长中位数(秒),1800");
     expect(lines).toContain("严重度,告警,2");
@@ -467,12 +471,19 @@ describe("buildAlertStatsCsv (1.6.1 export parity)", () => {
     expect(lines).toContain("按天,2026-03-01,2");
   });
 
-  it("leaves 确认率 blank (not 0) when there are no records to rate", () => {
+  it("leaves the three rates blank (not 0) when there are no records to rate", () => {
     const lines = buildAlertStatsCsv(
-      alertReport({ ackRate: null, total: 0 }),
+      alertReport({
+        claimRate: null,
+        ignoreRate: null,
+        autoRecoverRate: null,
+        total: 0,
+      }),
       nameOf,
     ).split("\n");
-    // A blank cell is "no sample to compute a rate"; 0 would read as "nothing was acknowledged".
-    expect(lines).toContain("汇总,确认率(%),");
+    // A blank cell is "no sample to compute a rate"; 0 would read as "nothing happened".
+    expect(lines).toContain("汇总,认领率(%),");
+    expect(lines).toContain("汇总,忽略率(%),");
+    expect(lines).toContain("汇总,自动恢复率(%),");
   });
 });

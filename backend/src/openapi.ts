@@ -352,7 +352,9 @@ export const openApiDocument = {
               },
             },
           },
-          ackRate: { type: ["number", "null"] },
+          claimRate: { type: ["number", "null"] },
+          ignoreRate: { type: ["number", "null"] },
+          autoRecoverRate: { type: ["number", "null"] },
           duration: {
             type: "object",
             description: "已清除告警的处理时长（毫秒）；count 为算得出时长的样本数",

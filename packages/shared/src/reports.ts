@@ -55,8 +55,16 @@ export interface AlertStatsReport {
   topDevices: ReportDeviceCount[];
   /** 按天升序。 */
   daily: ReportDailyCount[];
-  /** 已确认数 / 总数，落在 [0,1]；无记录时 null。 */
-  ackRate: number | null;
+  /**
+   * 处置三指标，分母统一为窗口内消息总数 `total`，`total` 为 0 时均为 null。三者互不重叠，余下部分
+   * 是「待处理·未结案」（仍活跃且无人处置）：
+   * - `claimRate` 认领率：被认领且未被忽略（处理中 / 处理后消除）÷ 总数；
+   * - `ignoreRate` 忽略率：已忽略（含已忽略后消除）÷ 总数；
+   * - `autoRecoverRate` 自动恢复率：已清除且无人处置（自动恢复·无人介入）÷ 总数。
+   */
+  claimRate: number | null;
+  ignoreRate: number | null;
+  autoRecoverRate: number | null;
   duration: ReportDurationStats;
   /** 是否有历史后端（Mongo）。false ⇒ 诚实空态，其余字段是零值而非"真的没有告警"。 */
   available: boolean;
@@ -70,7 +78,9 @@ export const emptyAlertStatsReport = (
   bySeverity: { critical: 0, warning: 0, notice: 0 },
   topDevices: [],
   daily: [],
-  ackRate: null,
+  claimRate: null,
+  ignoreRate: null,
+  autoRecoverRate: null,
   duration: { count: 0, meanMs: null, p50Ms: null },
   available,
 });

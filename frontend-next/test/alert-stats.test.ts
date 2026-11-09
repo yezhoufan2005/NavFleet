@@ -34,13 +34,15 @@ describe("severityOf", () => {
 });
 
 describe("computeAlertStats", () => {
-  it("returns an all-zero shape for an empty set, with a null ack rate", () => {
+  it("returns an all-zero shape for an empty set, with null disposition rates", () => {
     const stats = computeAlertStats([]);
     expect(stats.total).toBe(0);
     expect(stats.bySeverity).toEqual({ critical: 0, warning: 0, notice: 0 });
     expect(stats.topDevices).toEqual([]);
     expect(stats.daily).toEqual([]);
-    expect(stats.ackRate).toBeNull();
+    expect(stats.claimRate).toBeNull();
+    expect(stats.ignoreRate).toBeNull();
+    expect(stats.autoRecoverRate).toBeNull();
     expect(stats.duration).toEqual({ count: 0, meanMs: null, medianMs: null });
   });
 
@@ -95,14 +97,26 @@ describe("computeAlertStats", () => {
     expect(stats.daily).toEqual([{ day: "2026-03-05", count: 1 }]);
   });
 
-  it("computes the ack rate over the whole set", () => {
+  it("computes the three disposition rates over the whole set (disjoint; ignore beats claim)", () => {
     const stats = computeAlertStats([
+      // claimed-and-not-ignored → claim; ignored → ignore; cleared with neither → auto-recover;
+      // not cleared with neither → still-open-unhandled (the remainder, in no rate).
+      record({ claimedBy: "op" }),
       record({ ignoredBy: "op" }),
-      record({ ignoredBy: "op" }),
-      record({ ignoredBy: null }),
-      record({ ignoredBy: null }),
+      record({}),
+      record({ clearedAt: null }),
     ]);
-    expect(stats.ackRate).toBe(0.5);
+    expect(stats.claimRate).toBe(0.25);
+    expect(stats.ignoreRate).toBe(0.25);
+    expect(stats.autoRecoverRate).toBe(0.25);
+  });
+
+  it("counts a claimed-then-ignored record as ignored only (ignore supersedes)", () => {
+    const stats = computeAlertStats([
+      record({ claimedBy: "op", ignoredBy: "op2" }),
+    ]);
+    expect(stats.ignoreRate).toBe(1);
+    expect(stats.claimRate).toBe(0);
   });
 
   it("measures duration only for records that both started and cleared", () => {

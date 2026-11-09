@@ -47,7 +47,9 @@ const alertStats = (patch: Partial<AlertStatsReport> = {}): AlertStatsReport => 
   bySeverity: { critical: 2, warning: 2, notice: 1 },
   topDevices: [{ deviceId: "agv-1", count: 5 }],
   daily: [{ day: "2026-09-01", count: 5 }],
-  ackRate: 0.6,
+  claimRate: 0.6,
+  ignoreRate: 0.2,
+  autoRecoverRate: 0.2,
   duration: { count: 3, meanMs: 120000, p50Ms: 90000 },
   available: true,
   ...patch,
@@ -83,7 +85,9 @@ describe("buildReportEmail", () => {
     expect(content.text).toContain("平均在线率：95.0%");
     expect(content.text).toContain("平均电量：80.0%");
     expect(content.text).toContain("消息总数：5");
-    expect(content.text).toContain("确认率：60%");
+    expect(content.text).toContain("认领率：60%");
+    expect(content.text).toContain("忽略率：20%");
+    expect(content.text).toContain("自动恢复率：20%");
   });
 
   it("escapes device names in the HTML body", () => {
@@ -139,7 +143,9 @@ describe("buildReportEmail", () => {
     expect(content.html).toContain("未连接历史后端");
     // Not 0: zero reads as "nothing happened", and the same email showed -- for the other two.
     expect(content.text).toContain("消息总数：--");
-    expect(content.text).toContain("确认率：--");
+    expect(content.text).toContain("认领率：--");
+    expect(content.text).toContain("忽略率：--");
+    expect(content.text).toContain("自动恢复率：--");
     expect(content.text).not.toContain("零值");
   });
 });

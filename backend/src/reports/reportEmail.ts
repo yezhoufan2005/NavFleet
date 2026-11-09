@@ -94,15 +94,18 @@ export const buildReportEmail = (input: ReportEmailInput): ReportEmailContent =>
 
   const noHistory = !availability.available && !alertStats.available;
   const { onlineRatio, socMean } = summarize(availability);
-  const ackRate = alertStats.ackRate;
+  const rate = (value: number | null): string =>
+    !alertStats.available || value === null ? "--" : `${Math.round(value * 100)}%`;
 
   // 「消息」：total 数的是三档全部（告警只是 critical 一档），与报表页、CSV 同口径。没有历史后端时
-  // 写「--」而不是 0，0 会读成「这段时间什么都没发生」。
+  // 写「--」而不是 0，0 会读成「这段时间什么都没发生」。处置三率分母统一为消息总数。
   const kpis: [string, string][] = [
     ["平均在线率", pct(onlineRatio)],
     ["平均电量", pct(socMean === null ? null : socMean / 100)],
     ["消息总数", alertStats.available ? String(alertStats.total) : "--"],
-    ["确认率", !alertStats.available || ackRate === null ? "--" : `${Math.round(ackRate * 100)}%`],
+    ["认领率", rate(alertStats.claimRate)],
+    ["忽略率", rate(alertStats.ignoreRate)],
+    ["自动恢复率", rate(alertStats.autoRecoverRate)],
   ];
 
   const topDevices = alertStats.topDevices.slice(0, 5);

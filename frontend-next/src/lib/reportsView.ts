@@ -347,9 +347,9 @@ export const batteryCsv = (
  * 消息统计（`/reports/alerts`）导出为 CSV，补齐与可用率导出的对等能力（1.6.1）。
  *
  * 报表是聚合而非逐行明细，所以用长表（分组/项/数值）把页面显示的一切都装进一个文件：严重度分布、
- * 设备 Top-N、按天频次，加上顶部 KPI（总数 / 确认率 / 持续时长）。`ackRate` 为 null（无记录）时留空，
- * 不写 0——空单元格是「没有可算确认率的样本」，0 会被读成「一条都没确认」。设备名用实时车队解析
- * （`topDevices` 只带 id），无则回退 id。
+ * 设备 Top-N、按天频次，加上顶部 KPI（总数 / 认领率·忽略率·自动恢复率 / 持续时长）。处置三率为 null
+ * （无记录）时留空，不写 0——空单元格是「没有可算的样本」，0 会被读成「一条都没发生」。设备名用实时
+ * 车队解析（`topDevices` 只带 id），无则回退 id。
  */
 export const buildAlertStatsCsv = (
   report: AlertStatsReport,
@@ -364,12 +364,12 @@ export const buildAlertStatsCsv = (
   // time to a human acknowledgement, so it does not say 处理.
   const seconds = (ms: number | null): number | "" =>
     ms === null ? "" : Math.round(ms / 1000);
+  const percent = (value: number | null): string =>
+    value === null ? "" : (value * 100).toFixed(1);
   push("汇总", "消息总数", report.total);
-  push(
-    "汇总",
-    "确认率(%)",
-    report.ackRate === null ? "" : (report.ackRate * 100).toFixed(1),
-  );
+  push("汇总", "认领率(%)", percent(report.claimRate));
+  push("汇总", "忽略率(%)", percent(report.ignoreRate));
+  push("汇总", "自动恢复率(%)", percent(report.autoRecoverRate));
   push("汇总", "平均持续时长(秒)", seconds(report.duration.meanMs));
   push("汇总", "持续时长中位数(秒)", seconds(report.duration.p50Ms));
 
