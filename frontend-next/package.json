@@ -25,10 +25,10 @@
   },
   "devDependencies": {
     "@eslint/js": "*",
-    "@tailwindcss/vite": "^4.3.3",
+    "@tailwindcss/vite": "^4.3.4",
     "@types/node": "^26.6.6",
     "@vitejs/plugin-vue": "^6.0.10",
-    "@vitest/coverage-v8": "^5.0.5",
+    "@vitest/coverage-v8": "^5.1.0",
     "@vue/test-utils": "^2.5.1",
     "@vue/tsconfig": "^0.9.1",
     "eslint": "*",
@@ -40,7 +40,7 @@
     "tailwindcss": "^4.3.3",
     "typescript": "*",
     "typescript-eslint": "*",
-    "vite": "^8.3.5",
+    "vite": "^8.3.6",
     "vitest": "^5.0.1",
     "vue-tsc": "^3.3.14"
   },
