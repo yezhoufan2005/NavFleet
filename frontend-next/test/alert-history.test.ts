@@ -248,12 +248,12 @@ describe("the cleared-alert list", () => {
     expect(wrapper.text()).toContain("1小时0分");
   });
 
-  it("shows who acknowledged a cleared alert", async () => {
+  it("shows the close disposition and who handled a cleared alert", async () => {
     vi.spyOn(fleetApi, "getAlerts").mockResolvedValue({
       items: [record({ ignoredBy: "supervisor" })],
     });
     const wrapper = await mountPanel();
-    expect(wrapper.text()).toContain("已确认 · supervisor");
+    expect(wrapper.text()).toContain("已忽略后消除 · supervisor");
   });
 });
 

@@ -13,7 +13,9 @@ describe("empty report shapes", () => {
     expect(stats.available).toBe(false);
     expect(stats.total).toBe(0);
     expect(stats.bySeverity).toEqual({ critical: 0, warning: 0, notice: 0 });
-    expect(stats.ackRate).toBeNull();
+    expect(stats.claimRate).toBeNull();
+    expect(stats.ignoreRate).toBeNull();
+    expect(stats.autoRecoverRate).toBeNull();
     expect(emptyAlertStatsReport(true).available).toBe(true);
   });
 

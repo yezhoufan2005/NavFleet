@@ -104,7 +104,9 @@ export const sampleAlertStatsReport = (): Record<string, unknown> => ({
   bySeverity: { critical: 1, warning: 2, notice: 0 },
   topDevices: [{ deviceId: DEVICE_ID, count: 3 }],
   daily: [{ day: "2026-09-01", count: 3 }],
-  ackRate: 0.5,
+  claimRate: 1 / 3,
+  ignoreRate: 0.5,
+  autoRecoverRate: 0,
   duration: { count: 2, meanMs: 90000, p50Ms: 90000 },
   available: true,
 });

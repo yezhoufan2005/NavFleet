@@ -34,7 +34,7 @@ export interface AlertStatsPipelineParams {
 }
 
 /**
- * 构造 `alerts` 集合上的 `$facet` 管道：一次扫描算齐严重度分布 / 设备 Top-N / 日频次 / 总数与确认数 /
+ * 构造 `alerts` 集合上的 `$facet` 管道：一次扫描算齐严重度分布 / 设备 Top-N / 日频次 / 总数与处置计数 /
  * 已清除告警的时长样本。用 `$facet` 而不是发五条独立聚合，是为了只扫一遍 `firstSeenAt` 区间。
  */
 export const buildAlertStatsPipeline = (params: AlertStatsPipelineParams): Document[] => {
@@ -83,10 +83,39 @@ export const buildAlertStatsPipeline = (params: AlertStatsPipelineParams): Docum
           $group: {
             _id: null,
             total: { $sum: 1 },
-            // `ignoredBy` 非空即已忽略（旧「确认」语义的延续）；缺字段 / null 都记 0。
-            // 认领率/自动恢复率等三指标在报表那批补齐，这里先沿用既有 acked 输出口径。
-            acked: {
+            // 处置三指标的计数，分母统一用 total（见 shared `AlertStatsReport`）。三者互不重叠：
+            // claimed = 认领且未忽略；ignored = 已忽略（忽略盖过认领）；autoRecovered = 已清除且无人处置。
+            claimed: {
+              $sum: {
+                $cond: [
+                  {
+                    $and: [
+                      { $ifNull: ["$claimedBy", false] },
+                      { $not: [{ $ifNull: ["$ignoredBy", false] }] },
+                    ],
+                  },
+                  1,
+                  0,
+                ],
+              },
+            },
+            ignored: {
               $sum: { $cond: [{ $ifNull: ["$ignoredBy", false] }, 1, 0] },
+            },
+            autoRecovered: {
+              $sum: {
+                $cond: [
+                  {
+                    $and: [
+                      { $eq: [{ $type: "$clearedAt" }, "date"] },
+                      { $not: [{ $ifNull: ["$claimedBy", false] }] },
+                      { $not: [{ $ifNull: ["$ignoredBy", false] }] },
+                    ],
+                  },
+                  1,
+                  0,
+                ],
+              },
             },
           },
         },
@@ -134,7 +163,12 @@ export interface AlertStatsFacet {
   bySeverity?: CountBucket[];
   topDevices?: CountBucket[];
   daily?: CountBucket[];
-  totals?: { total?: number; acked?: number }[];
+  totals?: {
+    total?: number;
+    claimed?: number;
+    ignored?: number;
+    autoRecovered?: number;
+  }[];
   durations?: { values?: number[] }[];
 }
 
@@ -151,7 +185,7 @@ const normalizeSeverity = (value: unknown): Severity =>
 
 /**
  * facet 结果 → `AlertStatsReport`（纯映射，`available` 由调用方决定）。这里做三件机检看不出对错的事：
- * 未知严重度归并、确认率的零除保护、时长中位数的取值。
+ * 未知严重度归并、处置三率的零除保护、时长中位数的取值。
  */
 export const mapAlertStatsFacet = (facet: AlertStatsFacet): AlertStatsReport => {
   const bySeverity: Record<Severity, number> = {
@@ -175,7 +209,8 @@ export const mapAlertStatsFacet = (facet: AlertStatsFacet): AlertStatsReport => 
 
   const totals = facet.totals?.[0];
   const total = totals?.total ?? 0;
-  const acked = totals?.acked ?? 0;
+  const rate = (count: number | undefined): number | null =>
+    total > 0 ? (count ?? 0) / total : null;
 
   const values = facet.durations?.[0]?.values ?? [];
   const mean =
@@ -186,7 +221,9 @@ export const mapAlertStatsFacet = (facet: AlertStatsFacet): AlertStatsReport => 
     bySeverity,
     topDevices,
     daily,
-    ackRate: total > 0 ? acked / total : null,
+    claimRate: rate(totals?.claimed),
+    ignoreRate: rate(totals?.ignored),
+    autoRecoverRate: rate(totals?.autoRecovered),
     duration: {
       count: values.length,
       meanMs: mean,

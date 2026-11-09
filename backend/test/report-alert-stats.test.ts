@@ -110,7 +110,7 @@ describe("mapAlertStatsFacet", () => {
       { _id: "agv-2", count: 1 },
     ],
     daily: [{ _id: "2026-09-01", count: 5 }],
-    totals: [{ total: 6, acked: 3 }],
+    totals: [{ total: 6, claimed: 2, ignored: 3, autoRecovered: 1 }],
     durations: [{ values: [3000, 1000, 2000] }],
   };
 
@@ -125,7 +125,10 @@ describe("mapAlertStatsFacet", () => {
       { deviceId: "agv-2", count: 1 },
     ]);
     expect(report.daily).toEqual([{ day: "2026-09-01", count: 5 }]);
-    expect(report.ackRate).toBe(0.5);
+    // 处置三率，分母统一为 total=6：认领 2、忽略 3、自动恢复 1。
+    expect(report.claimRate).toBeCloseTo(2 / 6);
+    expect(report.ignoreRate).toBe(0.5);
+    expect(report.autoRecoverRate).toBeCloseTo(1 / 6);
   });
 
   it("computes mean and median over unsorted duration samples", () => {
@@ -142,14 +145,16 @@ describe("mapAlertStatsFacet", () => {
   });
 
   it("returns nulls, not zeros, when there is nothing to average or divide", () => {
-    // An empty facet (no docs matched): total 0 must give ackRate null (not 0/0 = NaN), and
-    // no duration samples must give null mean/median — a "no data" answer, not "0 ms".
+    // An empty facet (no docs matched): total 0 must give the three rates null (not 0/0 = NaN),
+    // and no duration samples must give null mean/median — a "no data" answer, not "0".
     const report = mapAlertStatsFacet({});
     expect(report.total).toBe(0);
     expect(report.bySeverity).toEqual({ critical: 0, warning: 0, notice: 0 });
     expect(report.topDevices).toEqual([]);
     expect(report.daily).toEqual([]);
-    expect(report.ackRate).toBeNull();
+    expect(report.claimRate).toBeNull();
+    expect(report.ignoreRate).toBeNull();
+    expect(report.autoRecoverRate).toBeNull();
     expect(report.duration).toEqual({ count: 0, meanMs: null, p50Ms: null });
     // Mapping never sets available:false — that is the persistence layer's call for no-Mongo.
     expect(report.available).toBe(true);

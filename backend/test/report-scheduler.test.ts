@@ -29,7 +29,9 @@ const emptyAlerts = (): AlertStatsReport => ({
   bySeverity: { critical: 0, warning: 0, notice: 0 },
   topDevices: [],
   daily: [],
-  ackRate: null,
+  claimRate: null,
+  ignoreRate: null,
+  autoRecoverRate: null,
   duration: { count: 0, meanMs: null, p50Ms: null },
   available: true,
 });

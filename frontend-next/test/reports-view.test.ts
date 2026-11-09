@@ -70,7 +70,9 @@ const alertStatsReport = (
   bySeverity: { critical: 1, warning: 2, notice: 1 },
   topDevices: [{ deviceId: "agv-01", count: 4 }],
   daily: [{ day: "2026-09-01", count: 4 }],
-  ackRate: 0.5,
+  claimRate: 0.5,
+  ignoreRate: 0.25,
+  autoRecoverRate: 0.25,
   duration: { count: 2, meanMs: 90000, p50Ms: 90000 },
   available: true,
   ...patch,
@@ -156,8 +158,12 @@ describe("报表 状态与内容", () => {
     expect(wrapper.text()).toContain("平均在线率");
     expect(wrapper.text()).toContain("95.0%");
     expect(wrapper.text()).toContain("79.0%");
-    // 确认率 0.5 → 50%; 消息总数 4.
+    // 认领率 0.5 → 50%，忽略率/自动恢复率 0.25 → 25%；消息总数 4。
+    expect(wrapper.text()).toContain("认领率");
     expect(wrapper.text()).toContain("50%");
+    expect(wrapper.text()).toContain("忽略率");
+    expect(wrapper.text()).toContain("自动恢复率");
+    expect(wrapper.text()).toContain("25%");
 
     // Two time-series (online + battery) and three bar charts (severity/top/daily).
     expect(wrapper.findAll(".line-stub")).toHaveLength(2);

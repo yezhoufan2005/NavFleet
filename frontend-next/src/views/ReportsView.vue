@@ -3,7 +3,7 @@
  * 报表 — 把已聚合的历史数据变成能交班/汇报的数字。
  *
  * 消费两个服务端聚合端点：`/reports/availability`（每设备每桶的在线率与电量）与
- * `/reports/alerts`（严重度分布 / 设备 Top-N / 日频次 / 确认率 / 处理时长）。页面自己不算聚合——
+ * `/reports/alerts`（严重度分布 / 设备 Top-N / 日频次 / 认领·忽略·自动恢复三率 / 处理时长）。页面自己不算聚合——
  * 那是服务端聚合的事；这里只取数、按版式 B（顶部 KPI 带 + 两栏）渲染、导出 CSV。
  *
  * 只读，viewer+。四态里空态最要紧：无 Mongo 时两个报表都回 `available:false`，一个长期运行的车队
@@ -332,12 +332,15 @@ const socLabel = computed(() =>
     ? "--"
     : `${summary.value.socMean.toFixed(1)}%`,
 );
-const ackRateLabel = computed(() =>
-  alertStats.value?.ackRate == null
-    ? "--"
-    : `${Math.round(alertStats.value.ackRate * 100)}%`,
-);
 const alertTotal = computed(() => alertStats.value?.total ?? 0);
+/** Percent label for a disposition rate, or `--` when null (no records). */
+const rateLabel = (value: number | null | undefined): string =>
+  value == null ? "--" : `${Math.round(value * 100)}%`;
+const claimRateLabel = computed(() => rateLabel(alertStats.value?.claimRate));
+const ignoreRateLabel = computed(() => rateLabel(alertStats.value?.ignoreRate));
+const autoRecoverRateLabel = computed(() =>
+  rateLabel(alertStats.value?.autoRecoverRate),
+);
 
 // ── Derived: KPI sparklines + per-device detail ───────────────────
 /** Mini trend under 平均在线率/平均电量 — always the fleet-average line (perDevice off) so the
@@ -360,11 +363,13 @@ const batterySpark = computed(() =>
     : "",
 );
 
-/** 确认率 context: 已确认 N / 共 M, derived from ackRate × total (the report carries no raw acked). */
-const ackedCount = computed(() =>
-  alertStats.value?.ackRate == null
-    ? null
-    : Math.round(alertStats.value.ackRate * alertTotal.value),
+/** Per-rate context count (N 条), derived from rate × total (the report carries no raw counts). */
+const rateCount = (value: number | null | undefined): number | null =>
+  value == null ? null : Math.round(value * alertTotal.value);
+const claimedCount = computed(() => rateCount(alertStats.value?.claimRate));
+const ignoredCount = computed(() => rateCount(alertStats.value?.ignoreRate));
+const autoRecoveredCount = computed(() =>
+  rateCount(alertStats.value?.autoRecoverRate),
 );
 
 /** 严重度占比条（顶部「消息总数」卡）：已取到的分布，按 critical→warning→notice 堆叠。 */
@@ -627,7 +632,7 @@ const exportAlertsCsv = (): void => {
       <!-- KPI band: fleet-wide headline numbers, each carrying a scrap of the data behind it
            (a sparkline / a distribution bar / a count) so the strip reads as analysis, not four
            lone digits. All from the data already fetched — no extra request. -->
-      <dl class="m-0 grid grid-cols-2 gap-3 sm:grid-cols-4">
+      <dl class="m-0 grid grid-cols-2 gap-3 sm:grid-cols-3">
         <div
           class="flex flex-col gap-2 rounded-md border border-border bg-surface-raised p-3"
         >
@@ -710,16 +715,48 @@ const exportAlertsCsv = (): void => {
           class="flex flex-col gap-2 rounded-md border border-border bg-surface-raised p-3"
         >
           <dt class="flex items-center gap-1 text-2xs text-ink-subtle">
-            确认率<UiHelpTip :text="FIELD_HELP.report.ackRate" />
+            认领率<UiHelpTip :text="FIELD_HELP.report.claimRate" />
           </dt>
           <dd class="m-0 font-mono text-lg tabular-nums text-ink">
-            {{ ackRateLabel }}
+            {{ claimRateLabel }}
           </dd>
           <span
-            v-if="ackedCount !== null"
+            v-if="claimedCount !== null"
             class="mt-auto text-2xs text-ink-subtle"
           >
-            已确认 {{ ackedCount }} / 共 {{ alertTotal }}
+            认领 {{ claimedCount }} / 共 {{ alertTotal }}
+          </span>
+        </div>
+        <div
+          class="flex flex-col gap-2 rounded-md border border-border bg-surface-raised p-3"
+        >
+          <dt class="flex items-center gap-1 text-2xs text-ink-subtle">
+            忽略率<UiHelpTip :text="FIELD_HELP.report.ignoreRate" />
+          </dt>
+          <dd class="m-0 font-mono text-lg tabular-nums text-ink">
+            {{ ignoreRateLabel }}
+          </dd>
+          <span
+            v-if="ignoredCount !== null"
+            class="mt-auto text-2xs text-ink-subtle"
+          >
+            忽略 {{ ignoredCount }} / 共 {{ alertTotal }}
+          </span>
+        </div>
+        <div
+          class="flex flex-col gap-2 rounded-md border border-border bg-surface-raised p-3"
+        >
+          <dt class="flex items-center gap-1 text-2xs text-ink-subtle">
+            自动恢复率<UiHelpTip :text="FIELD_HELP.report.autoRecoverRate" />
+          </dt>
+          <dd class="m-0 font-mono text-lg tabular-nums text-ink">
+            {{ autoRecoverRateLabel }}
+          </dd>
+          <span
+            v-if="autoRecoveredCount !== null"
+            class="mt-auto text-2xs text-ink-subtle"
+          >
+            自动恢复 {{ autoRecoveredCount }} / 共 {{ alertTotal }}
           </span>
         </div>
       </dl>
