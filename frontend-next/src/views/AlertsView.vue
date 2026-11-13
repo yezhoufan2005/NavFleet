@@ -27,6 +27,8 @@ import PageHeader from "@/components/PageHeader.vue";
 import AppSectionTabs from "@/components/shell/AppSectionTabs.vue";
 import UiButton from "@/components/ui/UiButton.vue";
 import UiInput from "@/components/ui/UiInput.vue";
+import UiSearchInput from "@/components/ui/UiSearchInput.vue";
+import UiSegmented from "@/components/ui/UiSegmented.vue";
 import UiMultiSelect from "@/components/ui/UiMultiSelect.vue";
 import UiFilterBar from "@/components/ui/UiFilterBar.vue";
 import UiFilterField from "@/components/ui/UiFilterField.vue";
@@ -71,11 +73,6 @@ const SOURCE_LABELS: Record<string, string> = {
   "rule-engine": "规则引擎",
   snapshot: "快照",
 };
-
-/** The severity filter is multi-select (worst-first); an empty set means 全部. */
-const SEVERITY_OPTIONS: readonly { value: Severity; label: string }[] = (
-  ["critical", "warning", "notice"] as const
-).map((value) => ({ value, label: SEVERITY_LABELS[value] }));
 
 /** Worst first — the order they should be worked, not the order they arrived. */
 const SEVERITY_WEIGHT: Record<Severity, number> = {
@@ -276,6 +273,27 @@ const matchSearch = (alert: {
       .filter(Boolean)
       .join(" "),
   );
+
+/**
+ * 严重度 options, faceted against the *other* filters (设备 / 搜索 / 处置) exactly as 设备 is:
+ * the multi-select only offers a severity that still has a matching alert, so narrowing by device
+ * or searching a code trims the severity list to what is actually present. Worst-first order is
+ * kept (not by appearance), and a currently-selected severity is always listed so it can be
+ * unticked even after its last matching alert clears (the filter lives in the URL).
+ */
+const severityOptions = computed(() => {
+  const present = new Set<Severity>();
+  for (const alert of allAlerts.value) {
+    if (matchDevice(alert) && matchSearch(alert) && matchHandling(alert)) {
+      present.add(alert.severity);
+    }
+  }
+  for (const value of severity.value) present.add(value);
+  return SEVERITY_VALUES.filter((value) => present.has(value)).map((value) => ({
+    value,
+    label: SEVERITY_LABELS[value],
+  }));
+});
 
 /**
  * 设备 options, faceted against the *other* filters (严重度 / 搜索 / 显示已确认): the dropdown
@@ -570,7 +588,7 @@ watch(() => canAck.value && fleet.state.realtime.apiReady, runLegacyMigration);
       <UiFilterField label="严重度">
         <UiMultiSelect
           :model-value="severity"
-          :options="SEVERITY_OPTIONS"
+          :options="severityOptions"
           placeholder="全部严重度"
           aria-label="严重度筛选"
           @update:model-value="
@@ -601,12 +619,11 @@ watch(() => canAck.value && fleet.state.realtime.apiReady, runLegacyMigration);
           "now" — and `search` inputs get a native clear button, whose `input` event goes
           through the same debounce.
         -->
-        <UiInput
-          type="search"
+        <UiSearchInput
           placeholder="标题/详情/设备/来源"
           :model-value="searchDraft"
           @update:model-value="onSearchInput"
-          @keydown.enter.prevent="flushSearch"
+          @enter="flushSearch"
         />
       </UiFilterField>
 
@@ -633,31 +650,18 @@ watch(() => canAck.value && fleet.state.realtime.apiReady, runLegacyMigration);
         />
       </UiFilterField>
 
-      <!-- Handling-state segmented filter (replaces the old 显示已确认 checkbox). A radio group:
-           one segment active at a time, 全部 clears the URL param. -->
+      <!-- Handling-state segmented filter (replaces the old 显示已确认 checkbox). One segment
+           active at a time, 全部 clears the URL param. Shares `UiSegmented` with 报表 的「范围」so
+           the two controls line up. -->
       <UiFilterField v-if="isLive" label="处置">
-        <div
-          role="radiogroup"
+        <UiSegmented
+          :model-value="handling"
+          :options="HANDLING_SEGMENTS"
           aria-label="处置态筛选"
-          class="inline-flex overflow-hidden rounded-md border border-border"
-        >
-          <button
-            v-for="segment in HANDLING_SEGMENTS"
-            :key="segment.value || 'all'"
-            type="button"
-            role="radio"
-            :aria-checked="handling === segment.value"
-            class="px-2.5 py-1 text-xs not-last:border-r not-last:border-border"
-            :class="
-              handling === segment.value
-                ? 'bg-brand text-brand-contrast'
-                : 'bg-surface-raised text-ink-muted hover:text-ink'
-            "
-            @click="setFilter({ handling: segment.value || null })"
-          >
-            {{ segment.label }}
-          </button>
-        </div>
+          @update:model-value="
+            (value) => setFilter({ handling: value || null })
+          "
+        />
       </UiFilterField>
     </UiFilterBar>
 

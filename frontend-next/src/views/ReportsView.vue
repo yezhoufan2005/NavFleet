@@ -333,9 +333,10 @@ const socLabel = computed(() =>
     : `${summary.value.socMean.toFixed(1)}%`,
 );
 const alertTotal = computed(() => alertStats.value?.total ?? 0);
-/** Percent label for a disposition rate, or `--` when null (no records). */
+/** Percent label for a disposition rate, at most 3 decimals (trailing zeros trimmed), or `--`
+ *  when null (no records). */
 const rateLabel = (value: number | null | undefined): string =>
-  value == null ? "--" : `${Math.round(value * 100)}%`;
+  value == null ? "--" : `${Number((value * 100).toFixed(3))}%`;
 const claimRateLabel = computed(() => rateLabel(alertStats.value?.claimRate));
 const ignoreRateLabel = computed(() => rateLabel(alertStats.value?.ignoreRate));
 const autoRecoverRateLabel = computed(() =>
@@ -722,9 +723,9 @@ const exportAlertsCsv = (): void => {
           </dd>
           <span
             v-if="claimedCount !== null"
-            class="mt-auto text-2xs text-ink-subtle"
+            class="mt-auto self-end font-mono text-lg tabular-nums text-ink"
           >
-            认领 {{ claimedCount }} / 共 {{ alertTotal }}
+            {{ claimedCount }} / {{ alertTotal }}
           </span>
         </div>
         <div
@@ -738,9 +739,9 @@ const exportAlertsCsv = (): void => {
           </dd>
           <span
             v-if="ignoredCount !== null"
-            class="mt-auto text-2xs text-ink-subtle"
+            class="mt-auto self-end font-mono text-lg tabular-nums text-ink"
           >
-            忽略 {{ ignoredCount }} / 共 {{ alertTotal }}
+            {{ ignoredCount }} / {{ alertTotal }}
           </span>
         </div>
         <div
@@ -754,9 +755,9 @@ const exportAlertsCsv = (): void => {
           </dd>
           <span
             v-if="autoRecoveredCount !== null"
-            class="mt-auto text-2xs text-ink-subtle"
+            class="mt-auto self-end font-mono text-lg tabular-nums text-ink"
           >
-            自动恢复 {{ autoRecoveredCount }} / 共 {{ alertTotal }}
+            {{ autoRecoveredCount }} / {{ alertTotal }}
           </span>
         </div>
       </dl>

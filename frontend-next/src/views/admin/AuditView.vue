@@ -12,6 +12,7 @@ import { fleetApi, type AuditRecord } from "@navfleet/fleet-core";
 import PageHeader from "@/components/PageHeader.vue";
 import AppSectionTabs from "@/components/shell/AppSectionTabs.vue";
 import UiInput from "@/components/ui/UiInput.vue";
+import UiSearchInput from "@/components/ui/UiSearchInput.vue";
 import UiListPagination from "@/components/ui/UiListPagination.vue";
 import UiMultiSelect from "@/components/ui/UiMultiSelect.vue";
 import UiFilterBar from "@/components/ui/UiFilterBar.vue";
@@ -139,7 +140,11 @@ const formatTime = (iso: string): string =>
 
     <UiFilterBar>
       <UiFilterField label="操作者">
-        <UiInput v-model="actor" type="search" placeholder="用户名" />
+        <UiSearchInput
+          v-model="actor"
+          placeholder="用户名"
+          aria-label="按用户名搜索"
+        />
       </UiFilterField>
       <UiFilterField label="动作">
         <UiMultiSelect

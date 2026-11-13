@@ -49,6 +49,7 @@ import UiButton from "@/components/ui/UiButton.vue";
 import UiConfirmDialog from "@/components/ui/UiConfirmDialog.vue";
 import UiModal from "@/components/ui/UiModal.vue";
 import UiInput from "@/components/ui/UiInput.vue";
+import UiSearchInput from "@/components/ui/UiSearchInput.vue";
 import UiListPagination from "@/components/ui/UiListPagination.vue";
 import UiSelect from "@/components/ui/UiSelect.vue";
 import UiFilterBar from "@/components/ui/UiFilterBar.vue";
@@ -619,10 +620,18 @@ const formDirty = formSnapshot.dirty;
 
     <UiFilterBar>
       <UiFilterField label="设备">
-        <UiInput v-model="deviceId" type="search" placeholder="设备 ID" />
+        <UiSearchInput
+          v-model="deviceId"
+          placeholder="设备 ID"
+          aria-label="按设备 ID 搜索"
+        />
       </UiFilterField>
       <UiFilterField label="渠道">
-        <UiInput v-model="channelId" type="search" placeholder="渠道 ID" />
+        <UiSearchInput
+          v-model="channelId"
+          placeholder="渠道 ID"
+          aria-label="按渠道 ID 搜索"
+        />
       </UiFilterField>
       <UiFilterField label="状态">
         <UiSelect
