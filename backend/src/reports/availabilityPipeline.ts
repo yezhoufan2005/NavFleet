@@ -117,12 +117,13 @@ export const buildAvailabilityPipeline = (params: AvailabilityPipelineParams): D
         onlineMs: {
           $sum: { $cond: ["$measurements.online", "$coveredMs", 0] },
         },
-        // `$sum`/`$min` 跳过缺失或非数值的 soc；桶内一个数值都没有时 socMin 是 null，而不是 0。
+        // `$sum`/`$min`/`$max` 跳过缺失或非数值的 soc；桶内一个数值都没有时 socMin/socMax 是 null，而不是 0。
         // Sum and count rather than `$avg`, so a bucket split between raw frames and the hourly
         // rollup can be merged into one exact mean.
         socSum: { $sum: "$measurements.vehicleInfo.soc" },
         socCount: { $sum: { $cond: [{ $isNumber: "$measurements.vehicleInfo.soc" }, 1, 0] } },
         socMin: { $min: "$measurements.vehicleInfo.soc" },
+        socMax: { $max: "$measurements.vehicleInfo.soc" },
       },
     },
     {
@@ -153,6 +154,7 @@ export interface AvailabilityRow {
   /** A precomputed mean, for rows that carry no sum/count. */
   socMean?: number | null;
   socMin?: number | null;
+  socMax?: number | null;
 }
 
 /** 把 soc 均值/最低这类浮点收敛到 3 位小数，别让报表里出现 79.99999999996。null 原样透传。 */
@@ -196,6 +198,7 @@ export const mergeAvailabilityRows = (rows: readonly AvailabilityRow[]): Availab
     const [first] = group;
     if (group.length === 1 && first) return first;
     const mins = group.map((row) => row.socMin).filter((v): v is number => typeof v === "number");
+    const maxs = group.map((row) => row.socMax).filter((v): v is number => typeof v === "number");
     const sum = (pick: (row: AvailabilityRow) => number | undefined): number =>
       group.reduce((total, row) => total + (pick(row) ?? 0), 0);
     return {
@@ -207,6 +210,7 @@ export const mergeAvailabilityRows = (rows: readonly AvailabilityRow[]): Availab
       socSum: sum((row) => row.socSum),
       socCount: sum((row) => row.socCount),
       socMin: mins.length ? Math.min(...mins) : null,
+      socMax: maxs.length ? Math.max(...maxs) : null,
     };
   });
   return merged.sort((left, right) => {
@@ -261,6 +265,7 @@ export const mapAvailabilityRows = (
       onlineRatio: spanMs > 0 ? onlineMs / spanMs : 0,
       socMean: round3(socMeanOf(row)),
       socMin: round3(row.socMin),
+      socMax: round3(row.socMax),
     };
     current.buckets.push(entry);
   }

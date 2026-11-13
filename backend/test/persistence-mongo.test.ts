@@ -1224,6 +1224,7 @@ describe("aggregateAvailability（可用率/电量时序）", () => {
             onlineRatio: 0.9,
             socMean: 82.5,
             socMin: 70,
+            socMax: null,
           },
         ],
       },

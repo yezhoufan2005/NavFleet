@@ -93,7 +93,7 @@ export type ReportBucketUnit = "hour" | "day" | "month";
  *
  * `onlineRatio = onlineSeconds / spanSeconds`：按**时间**加权——桶在窗口内的时长里，有多少被在线帧
  * 覆盖（每帧覆盖到同车下一帧，最多覆盖离线判定阈值；没有帧的时段算离线）。按帧数算会漏掉离线时段，
- * 因为车离线时不上报。`onlineSamples`/`totalSamples` 仍给出帧数，用于电量加权和样本量参考。`socMean`/`socMin` 来自 `vehicleInfo.soc`；桶内没有任何数值样本时为 null（`$avg`/`$min`
+ * 因为车离线时不上报。`onlineSamples`/`totalSamples` 仍给出帧数，用于电量加权和样本量参考。`socMean`/`socMin`/`socMax` 来自 `vehicleInfo.soc`；桶内没有任何数值样本时为 null（`$avg`/`$min`/`$max`
  * 会跳过缺失/非数值，不会把 null 当 0）。
  */
 export interface AvailabilityBucket {
@@ -108,6 +108,8 @@ export interface AvailabilityBucket {
   onlineRatio: number;
   socMean: number | null;
   socMin: number | null;
+  /** 期内最高电量读数；无样本时 null。后加入的字段，故可选——缺省按「无最高样本」(null) 处理。 */
+  socMax?: number | null;
 }
 
 export interface AvailabilityDeviceSeries {
@@ -232,6 +234,7 @@ export const buildAvailabilityCsv = (
     "在线率(%)",
     "电量均值",
     "电量最低",
+    "电量最高",
   ];
   const lines = [header.map(csvField).join(",")];
   for (const device of report.devices) {
@@ -248,6 +251,7 @@ export const buildAvailabilityCsv = (
           (bucket.onlineRatio * 100).toFixed(1),
           bucket.socMean ?? "",
           bucket.socMin ?? "",
+          bucket.socMax ?? "",
         ]
           .map(csvField)
           .join(","),
@@ -258,7 +262,7 @@ export const buildAvailabilityCsv = (
 };
 
 /**
- * 电量单独导出（设备 × 桶）：只含电量均值/最低，供「导出详情」里的「导出电量」用。与在线率共用时区/
+ * 电量单独导出（设备 × 桶）：只含电量均值/最低/最高，供「导出详情」里的「导出电量」用。与在线率共用时区/
  * 分桶口径；`null` 的电量同样留空而非写 0——空是「这段没有电量样本」，0 会被读成「没电」。
  */
 export const buildBatteryCsv = (
@@ -272,6 +276,7 @@ export const buildBatteryCsv = (
     `时间桶（${timeZone}）`,
     "电量均值",
     "电量最低",
+    "电量最高",
   ];
   const lines = [header.map(csvField).join(",")];
   for (const device of report.devices) {
@@ -283,6 +288,7 @@ export const buildBatteryCsv = (
           formatBucketStart(bucket.bucketStart, timeZone),
           bucket.socMean ?? "",
           bucket.socMin ?? "",
+          bucket.socMax ?? "",
         ]
           .map(csvField)
           .join(","),

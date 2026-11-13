@@ -60,6 +60,7 @@ describe("buildAvailabilityCsv", () => {
                 onlineRatio: 0.75,
                 socMean: null,
                 socMin: 12,
+                socMax: 90,
               },
             ],
           },
@@ -70,8 +71,8 @@ describe("buildAvailabilityCsv", () => {
     );
     const [header, row] = csv.split("\n");
     expect(header).toContain("时间桶（Asia/Shanghai）");
-    // Local day, percent, a blank null soc, and a formula-looking name defused.
-    expect(row).toBe("agv-1,'=agv-1,2026-10-30 00:00,3,4,30,40,75.0,,12");
+    // Local day, percent, a blank null mean, min and max, and a formula-looking name defused.
+    expect(row).toBe("agv-1,'=agv-1,2026-10-30 00:00,3,4,30,40,75.0,,12,90");
   });
 });
 
@@ -94,6 +95,7 @@ describe("buildBatteryCsv", () => {
                 onlineRatio: 0.75,
                 socMean: null,
                 socMin: 12,
+                socMax: 88,
               },
             ],
           },
@@ -104,9 +106,9 @@ describe("buildBatteryCsv", () => {
     );
     const [header, row] = csv.split("\n");
     expect(header).toBe(
-      "设备ID,设备名称,时间桶（Asia/Shanghai）,电量均值,电量最低",
+      "设备ID,设备名称,时间桶（Asia/Shanghai）,电量均值,电量最低,电量最高",
     );
     // No online-rate columns; the null mean is a blank cell, not 0.
-    expect(row).toBe("agv-1,agv-1,2026-10-30 00:00,,12");
+    expect(row).toBe("agv-1,agv-1,2026-10-30 00:00,,12,88");
   });
 });

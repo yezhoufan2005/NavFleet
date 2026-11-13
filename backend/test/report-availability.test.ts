@@ -168,6 +168,7 @@ describe("mapAvailabilityRows", () => {
         onlineMs: 0.8 * HOUR,
         socMean: 80,
         socMin: 60,
+        socMax: 95,
       }),
       row("agv-1", 1, {
         onlineSamples: 10,
@@ -196,6 +197,7 @@ describe("mapAvailabilityRows", () => {
       onlineRatio: 0.8,
       socMean: 80,
       socMin: 60,
+      socMax: 95,
     });
     // A device that never reported online is a real answer (ratio 0), and a null soc stays null.
     expect(second!.buckets[0]).toMatchObject({ onlineRatio: 0, socMean: null, socMin: null });
