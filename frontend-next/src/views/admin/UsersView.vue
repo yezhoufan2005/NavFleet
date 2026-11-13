@@ -436,7 +436,7 @@ const formDirty = formSnapshot.dirty;
                     size="sm"
                     :disabled="isProtectedRowLocked(user)"
                     @click="openReset(user)"
-                    >重置</UiButton
+                    >重置密码</UiButton
                   >
                   <UiButton
                     variant="ghost"

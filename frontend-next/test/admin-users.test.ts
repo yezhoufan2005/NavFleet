@@ -376,7 +376,7 @@ describe("UsersView — edit and reset", () => {
     const wrapper = await mountView([user({ username: "bob" })]);
     await wrapper
       .findAll("tbody button")
-      .find((b) => b.text() === "重置")!
+      .find((b) => b.text() === "重置密码")!
       .trigger("click");
     await flushPromises();
 
