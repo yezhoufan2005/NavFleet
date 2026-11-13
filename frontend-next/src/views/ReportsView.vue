@@ -333,9 +333,10 @@ const socLabel = computed(() =>
     : `${summary.value.socMean.toFixed(1)}%`,
 );
 const alertTotal = computed(() => alertStats.value?.total ?? 0);
-/** Percent label for a disposition rate, or `--` when null (no records). */
+/** Percent label for a disposition rate, at most 3 decimals (trailing zeros trimmed), or `--`
+ *  when null (no records). */
 const rateLabel = (value: number | null | undefined): string =>
-  value == null ? "--" : `${Math.round(value * 100)}%`;
+  value == null ? "--" : `${Number((value * 100).toFixed(3))}%`;
 const claimRateLabel = computed(() => rateLabel(alertStats.value?.claimRate));
 const ignoreRateLabel = computed(() => rateLabel(alertStats.value?.ignoreRate));
 const autoRecoverRateLabel = computed(() =>
@@ -717,15 +718,17 @@ const exportAlertsCsv = (): void => {
           <dt class="flex items-center gap-1 text-2xs text-ink-subtle">
             认领率<UiHelpTip :text="FIELD_HELP.report.claimRate" />
           </dt>
-          <dd class="m-0 font-mono text-lg tabular-nums text-ink">
-            {{ claimRateLabel }}
-          </dd>
-          <span
-            v-if="claimedCount !== null"
-            class="mt-auto text-2xs text-ink-subtle"
-          >
-            认领 {{ claimedCount }} / 共 {{ alertTotal }}
-          </span>
+          <div class="flex items-baseline justify-between gap-2">
+            <dd class="m-0 font-mono text-lg tabular-nums text-ink">
+              {{ claimRateLabel }}
+            </dd>
+            <span
+              v-if="claimedCount !== null"
+              class="font-mono text-lg tabular-nums text-ink"
+            >
+              {{ claimedCount }} / {{ alertTotal }}
+            </span>
+          </div>
         </div>
         <div
           class="flex flex-col gap-2 rounded-md border border-border bg-surface-raised p-3"
@@ -733,15 +736,17 @@ const exportAlertsCsv = (): void => {
           <dt class="flex items-center gap-1 text-2xs text-ink-subtle">
             忽略率<UiHelpTip :text="FIELD_HELP.report.ignoreRate" />
           </dt>
-          <dd class="m-0 font-mono text-lg tabular-nums text-ink">
-            {{ ignoreRateLabel }}
-          </dd>
-          <span
-            v-if="ignoredCount !== null"
-            class="mt-auto text-2xs text-ink-subtle"
-          >
-            忽略 {{ ignoredCount }} / 共 {{ alertTotal }}
-          </span>
+          <div class="flex items-baseline justify-between gap-2">
+            <dd class="m-0 font-mono text-lg tabular-nums text-ink">
+              {{ ignoreRateLabel }}
+            </dd>
+            <span
+              v-if="ignoredCount !== null"
+              class="font-mono text-lg tabular-nums text-ink"
+            >
+              {{ ignoredCount }} / {{ alertTotal }}
+            </span>
+          </div>
         </div>
         <div
           class="flex flex-col gap-2 rounded-md border border-border bg-surface-raised p-3"
@@ -749,15 +754,17 @@ const exportAlertsCsv = (): void => {
           <dt class="flex items-center gap-1 text-2xs text-ink-subtle">
             自动恢复率<UiHelpTip :text="FIELD_HELP.report.autoRecoverRate" />
           </dt>
-          <dd class="m-0 font-mono text-lg tabular-nums text-ink">
-            {{ autoRecoverRateLabel }}
-          </dd>
-          <span
-            v-if="autoRecoveredCount !== null"
-            class="mt-auto text-2xs text-ink-subtle"
-          >
-            自动恢复 {{ autoRecoveredCount }} / 共 {{ alertTotal }}
-          </span>
+          <div class="flex items-baseline justify-between gap-2">
+            <dd class="m-0 font-mono text-lg tabular-nums text-ink">
+              {{ autoRecoverRateLabel }}
+            </dd>
+            <span
+              v-if="autoRecoveredCount !== null"
+              class="font-mono text-lg tabular-nums text-ink"
+            >
+              {{ autoRecoveredCount }} / {{ alertTotal }}
+            </span>
+          </div>
         </div>
       </dl>
 

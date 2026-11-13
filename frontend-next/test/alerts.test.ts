@@ -88,9 +88,13 @@ const unhandledPayload = (): AlertDispositionPayload =>
     ignoredAt: null,
   });
 
-/** Click a segment of the 处置 filter by its visible label. */
+/** Click a segment of the 处置 filter by its visible label. The control is a `UiSegmented`
+ *  (role="group", buttons carry aria-pressed), shared with 报表's 范围. */
 const segment = (wrapper: AlertsWrapper, label: string) =>
-  wrapper.findAll("button[role='radio']").find((b) => b.text() === label)!;
+  wrapper
+    .get("[role='group'][aria-label='处置态筛选']")
+    .findAll("button")
+    .find((b) => b.text() === label)!;
 
 /** Sign in so `canAck` is true (operator+) unless a test asks for another role. */
 const signIn = (role: UserRole = "operator"): void => {
