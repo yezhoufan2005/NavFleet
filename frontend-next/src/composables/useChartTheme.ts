@@ -19,7 +19,7 @@ import { useTheme } from "@/composables/useTheme";
  * hands back `#rrggbb`, which works for every colour syntax the browser supports
  * rather than only the ones we happen to use today.
  */
-const CHART_SLOTS = 8;
+const CHART_SLOTS = 10;
 
 export interface ChartPalette {
   /** Series colours, in slot order. Assign in sequence and never cycle. */
@@ -39,7 +39,18 @@ export interface ChartPalette {
 }
 
 const FALLBACK: ChartPalette = {
-  series: ["#2a78d6", "#eb6834", "#1baf7a", "#eda100"],
+  series: [
+    "#2a78d6",
+    "#eb6834",
+    "#1baf7a",
+    "#eda100",
+    "#e87ba4",
+    "#008300",
+    "#4a3aa7",
+    "#e34948",
+    "#1098ad",
+    "#8250df",
+  ],
   grid: "#d1d9e0",
   axis: "#8c959f",
   ink: "#1f2328",
