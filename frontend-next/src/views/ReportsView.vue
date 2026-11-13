@@ -848,7 +848,7 @@ const exportAlertsCsv = (): void => {
              compare vehicles one row each. -->
         <details
           v-if="availStatus === 'ready' && availabilityRows.length"
-          class="group rounded-md border border-border bg-surface-raised"
+          class="group border border-border bg-surface-raised"
         >
           <summary
             class="cursor-pointer select-none list-none px-4 py-2 text-xs text-ink-muted marker:content-none hover:text-ink"
@@ -859,9 +859,10 @@ const exportAlertsCsv = (): void => {
             按设备明细（{{ availabilityRows.length }} 行）
           </summary>
           <!-- Shared scroll-table shell: gray header covers the scrollbar, columns aligned. -->
-          <UiScrollTable label="按设备明细" max-height="20rem">
+          <UiScrollTable label="按设备明细" max-height="20rem" flush>
             <template #colgroup>
               <col class="w-[32%]" />
+              <col />
               <col />
               <col />
               <col />
@@ -887,6 +888,11 @@ const exportAlertsCsv = (): void => {
                 </th>
                 <th class="px-4 py-2 text-right font-medium">
                   <span class="inline-flex items-center justify-end gap-1"
+                    >最高电量<UiHelpTip :text="FIELD_HELP.report.socMax"
+                  /></span>
+                </th>
+                <th class="px-4 py-2 text-right font-medium">
+                  <span class="inline-flex items-center justify-end gap-1"
                     >样本数<UiHelpTip :text="FIELD_HELP.report.samples"
                   /></span>
                 </th>
@@ -908,6 +914,9 @@ const exportAlertsCsv = (): void => {
               </td>
               <td class="px-4 py-2 text-right font-mono tabular-nums">
                 {{ fmtSoc(row.socMin) }}
+              </td>
+              <td class="px-4 py-2 text-right font-mono tabular-nums">
+                {{ fmtSoc(row.socMax) }}
               </td>
               <td class="px-4 py-2 text-right font-mono tabular-nums">
                 {{ row.totalSamples }}
