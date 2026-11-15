@@ -242,6 +242,8 @@ export interface DeviceAvailabilityRow {
   socMean: number | null;
   /** 期内最低电量；无样本时 null。 */
   socMin: number | null;
+  /** 期内最高电量；无样本时 null。 */
+  socMax: number | null;
   totalSamples: number;
 }
 
@@ -259,6 +261,7 @@ export const deviceAvailabilityRows = (
     let socWeighted = 0;
     let socWeight = 0;
     let socMin: number | null = null;
+    let socMax: number | null = null;
     for (const bucket of device.buckets) {
       online += bucket.onlineSeconds;
       total += bucket.spanSeconds;
@@ -270,6 +273,10 @@ export const deviceAvailabilityRows = (
         socMin =
           socMin === null ? bucket.socMin : Math.min(socMin, bucket.socMin);
       }
+      if (bucket.socMax != null) {
+        socMax =
+          socMax === null ? bucket.socMax : Math.max(socMax, bucket.socMax);
+      }
     }
     return {
       deviceId: device.deviceId,
@@ -277,6 +284,7 @@ export const deviceAvailabilityRows = (
       onlineRatio: total > 0 ? online / total : null,
       socMean: socWeight > 0 ? socWeighted / socWeight : null,
       socMin,
+      socMax,
       totalSamples: total,
     };
   });

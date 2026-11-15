@@ -19,7 +19,7 @@
 import { useTemplateRef } from "vue";
 import { useScrollbarGutter } from "@/composables/useScrollbarGutter";
 
-const { label, height, maxHeight, minWidth } = defineProps<{
+const { label, height, maxHeight, minWidth, flush } = defineProps<{
   /** Accessible name — the sr-only `<caption>` and the scroll region's `aria-label`. */
   label?: string;
   /** Fixed card height in px (keeps 图表/数据表 toggle from resizing). Omit for content height. */
@@ -28,6 +28,12 @@ const { label, height, maxHeight, minWidth } = defineProps<{
   maxHeight?: string;
   /** Floor width (CSS) below which columns would crush; past it the table scrolls horizontally. */
   minWidth?: string;
+  /**
+   * Drop this shell's own rounded border so it sits flush inside a container that already draws
+   * one (e.g. a bordered `<details>`), avoiding a double border and leaving the gray header with
+   * square, flat top corners rather than rounded ones.
+   */
+  flush?: boolean;
 }>();
 
 const body = useTemplateRef<HTMLElement>("body");
@@ -36,7 +42,8 @@ const gutter = useScrollbarGutter(body);
 
 <template>
   <div
-    class="flex flex-col overflow-x-auto overflow-y-hidden rounded-md border border-border bg-surface-raised"
+    class="flex flex-col overflow-x-auto overflow-y-hidden bg-surface-raised"
+    :class="flush ? '' : 'rounded-md border border-border'"
     :style="height ? { height: `${height}px` } : undefined"
   >
     <div

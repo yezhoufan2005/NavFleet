@@ -128,10 +128,10 @@ describe("buildReportEmail", () => {
     expect(attachment!.content.startsWith("﻿")).toBe(true);
     const lines = attachment!.content.replace("﻿", "").split("\n");
     expect(lines[0]).toBe(
-      "设备ID,设备名称,时间桶（UTC）,在线帧,总帧,在线秒数,统计秒数,在线率(%),电量均值,电量最低",
+      "设备ID,设备名称,时间桶（UTC）,在线帧,总帧,在线秒数,统计秒数,在线率(%),电量均值,电量最低,电量最高",
     );
     // Second bucket had a null soc → trailing cells empty, never 0.
-    expect(lines[2]).toBe("agv-1,A01 巡检车,2026-09-02 00:00,20,20,20,20,100.0,,");
+    expect(lines[2]).toBe("agv-1,A01 巡检车,2026-09-02 00:00,20,20,20,20,100.0,,,");
   });
 
   it("says so when there is no history backend, instead of dressing zeros as a real report", () => {

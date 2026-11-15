@@ -26,7 +26,7 @@ import DeviceRowCard from "@/components/device/DeviceRowCard.vue";
 import UiSelect from "@/components/ui/UiSelect.vue";
 import UiDisclosureArrow from "@/components/ui/UiDisclosureArrow.vue";
 import UiSegmented from "@/components/ui/UiSegmented.vue";
-import UiInput from "@/components/ui/UiInput.vue";
+import UiSearchInput from "@/components/ui/UiSearchInput.vue";
 import UiMultiSelect from "@/components/ui/UiMultiSelect.vue";
 import UiFilterBar from "@/components/ui/UiFilterBar.vue";
 import UiFilterField from "@/components/ui/UiFilterField.vue";
@@ -651,9 +651,8 @@ watch(
           />
         </UiFilterField>
         <UiFilterField label="搜索">
-          <UiInput
+          <UiSearchInput
             v-model="deviceSearch"
-            class="w-48"
             placeholder="名称/编号"
             aria-label="搜索设备"
           />

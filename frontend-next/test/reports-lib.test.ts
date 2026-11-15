@@ -413,14 +413,14 @@ describe("availabilityCsv", () => {
     const csv = availabilityCsv(built, () => "A01 巡检车");
     const lines = csv.split("\n");
     expect(lines[0]).toBe(
-      "设备ID,设备名称,时间桶（Asia/Shanghai）,在线帧,总帧,在线秒数,统计秒数,在线率(%),电量均值,电量最低",
+      "设备ID,设备名称,时间桶（Asia/Shanghai）,在线帧,总帧,在线秒数,统计秒数,在线率(%),电量均值,电量最低,电量最高",
     );
     // 2026-09-01T00:00Z is 08:00 in UTC+8; a raw UTC string read as the day before in a spreadsheet.
     expect(lines[1]).toBe(
-      "agv-1,A01 巡检车,2026-09-01 08:00,9,10,9,10,90.0,82.5,70",
+      "agv-1,A01 巡检车,2026-09-01 08:00,9,10,9,10,90.0,82.5,70,",
     );
     // A null soc is an empty cell (no sample), never 0 — 0 would read as "flat battery".
-    expect(lines[2]).toBe("agv-1,A01 巡检车,2026-09-01 09:00,4,4,4,4,100.0,,");
+    expect(lines[2]).toBe("agv-1,A01 巡检车,2026-09-01 09:00,4,4,4,4,100.0,,,");
   });
 
   it("quotes a field containing a comma and doubles inner quotes (RFC-4180)", () => {

@@ -393,6 +393,7 @@ export const openApiDocument = {
                       onlineRatio: { type: "number" },
                       socMean: { type: ["number", "null"] },
                       socMin: { type: ["number", "null"] },
+                      socMax: { type: ["number", "null"] },
                     },
                   },
                 },
