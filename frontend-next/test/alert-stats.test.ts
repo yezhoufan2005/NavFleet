@@ -4,6 +4,7 @@ import {
   computeAlertStats,
   formatDurationMs,
   severityOf,
+  weekHourHeatmap,
 } from "@/lib/alertStats";
 
 /**
@@ -192,5 +193,32 @@ describe("formatDurationMs", () => {
   it("renders a null or negative duration as a dash", () => {
     expect(formatDurationMs(null)).toBe("--");
     expect(formatDurationMs(-1)).toBe("--");
+  });
+});
+
+describe("weekHourHeatmap", () => {
+  it("buckets onsets into a dense 7×24 weekday×hour grid and reports the max", () => {
+    const iso = "2026-03-04T09:30:00.000Z";
+    const { cells, max } = weekHourHeatmap([
+      record({ firstSeenAt: iso }),
+      record({ firstSeenAt: iso }),
+    ]);
+    // Dense: every cell present (0 included), so the heatmap has no holes.
+    expect(cells).toHaveLength(7 * 24);
+    // Local time, Monday-first — computed the same way the function does, so it is TZ-safe.
+    const date = new Date(iso);
+    const weekday = (date.getDay() + 6) % 7;
+    const hit = cells.find(
+      (cell) => cell.weekday === weekday && cell.hour === date.getHours(),
+    );
+    expect(hit?.count).toBe(2);
+    expect(max).toBe(2);
+    expect(cells.filter((cell) => cell.count > 0)).toHaveLength(1);
+  });
+
+  it("skips records whose onset does not parse, reporting max 0", () => {
+    const { cells, max } = weekHourHeatmap([record({ firstSeenAt: "" })]);
+    expect(max).toBe(0);
+    expect(cells.every((cell) => cell.count === 0)).toBe(true);
   });
 });

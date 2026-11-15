@@ -194,3 +194,52 @@ export const formatDurationMs = (ms: number | null): string => {
   if (minutes > 0) return `${minutes}分${seconds}秒`;
   return `${seconds}秒`;
 };
+
+/** Weekday rows for the onset heatmap, Monday-first (ops read the work week left-to-right). */
+export const WEEKDAY_LABELS = [
+  "周一",
+  "周二",
+  "周三",
+  "周四",
+  "周五",
+  "周六",
+  "周日",
+] as const;
+
+/** One cell of the 星期 × 小时 onset heatmap. `weekday` 0=周一…6=周日; `hour` 0…23. */
+export interface WeekHourCell {
+  weekday: number;
+  hour: number;
+  count: number;
+}
+
+/**
+ * Bucket message onsets into a 7×24 (weekday × local hour) grid — the shape the 按时间 heatmap
+ * reads, so a reader sees *when* in the week messages cluster, not just the per-day total. Pure
+ * and clock-free (onset comes from the record), every cell present (0 included) so the grid is
+ * dense; returns the max for the sequential colour scale. `getDay()` is 0=Sun, shifted Monday-first.
+ */
+export const weekHourHeatmap = (
+  records: readonly AlertRecord[],
+): { cells: WeekHourCell[]; max: number } => {
+  const grid = Array.from({ length: 7 }, () => new Array<number>(24).fill(0));
+  for (const record of records) {
+    const onset = onsetOf(record);
+    if (!Number.isFinite(onset)) continue;
+    const date = new Date(onset);
+    const weekday = (date.getDay() + 6) % 7;
+    const hour = date.getHours();
+    const row = grid[weekday]!;
+    row[hour] = (row[hour] ?? 0) + 1;
+  }
+  const cells: WeekHourCell[] = [];
+  let max = 0;
+  for (let weekday = 0; weekday < 7; weekday += 1) {
+    for (let hour = 0; hour < 24; hour += 1) {
+      const count = grid[weekday]![hour]!;
+      cells.push({ weekday, hour, count });
+      if (count > max) max = count;
+    }
+  }
+  return { cells, max };
+};
