@@ -4,10 +4,10 @@
  *
  * Every filter bar had rolled its own `type="search"` box (消息 / 设备 / 审计 / 外发), each sized by
  * whatever sat around it, so they lined up at different widths down the page. This is that box
- * once, at a single fixed `w-72` (18rem) with `shrink-0` so a crowded filter bar cannot squeeze it
- * narrower and the width never tracks the placeholder length — every search field is exactly the
- * same width. Native `type="search"` keeps the `searchbox` role and the browser's clear button;
- * `enter` is forwarded so a caller that debounces can commit immediately on Enter.
+ * once, bounded `min-w-36`…`max-w-72` (9–18rem): it never collapses below a readable floor nor
+ * grows past 18rem, so every search field reads within the same band. Native `type="search"` keeps
+ * the `searchbox` role and the browser's clear button; `enter` is forwarded so a caller that
+ * debounces can commit immediately on Enter.
  */
 import UiInput from "@/components/ui/UiInput.vue";
 
@@ -23,7 +23,7 @@ defineEmits<{ "update:modelValue": [string]; enter: [] }>();
 <template>
   <UiInput
     type="search"
-    class="w-72 shrink-0"
+    class="w-full min-w-36 max-w-72"
     :model-value="modelValue"
     :placeholder="placeholder"
     :aria-label="ariaLabel"
