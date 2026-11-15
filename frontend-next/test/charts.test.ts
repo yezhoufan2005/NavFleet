@@ -18,6 +18,9 @@ import {
   type StackedSeries,
 } from "@/components/charts/stackedBarOption";
 import StackedBarChart from "@/components/charts/StackedBarChart.vue";
+import { buildWeekHourHeatmapOption } from "@/components/charts/heatmapOption";
+import WeekHourHeatmap from "@/components/charts/WeekHourHeatmap.vue";
+import type { WeekHourCell } from "@/lib/alertStats";
 import { buildPieOption } from "@/components/charts/pieOption";
 import PieChart from "@/components/charts/PieChart.vue";
 import { useChartTheme } from "@/composables/useChartTheme";
@@ -664,6 +667,77 @@ describe("StackedBarChart", () => {
       "1",
       "3",
     ]);
+  });
+});
+
+describe("buildWeekHourHeatmapOption", () => {
+  const cells: WeekHourCell[] = [
+    { weekday: 0, hour: 9, count: 3 },
+    { weekday: 6, hour: 23, count: 1 },
+  ];
+
+  it("maps cells to [hour, weekday, count] with weekdays inverse (周一 at top)", () => {
+    const option = buildWeekHourHeatmapOption({ cells, max: 3, palette });
+    expect(option.yAxis).toMatchObject({ type: "category", inverse: true });
+    expect(option.xAxis).toMatchObject({ type: "category" });
+    const data = (option.series as { data: number[][] }[])[0]!.data;
+    expect(data[0]).toEqual([9, 0, 3]);
+    expect(data[1]).toEqual([23, 6, 1]);
+  });
+
+  it("runs the sequential scale from surface to the notice token, max floored at 1", () => {
+    const option = buildWeekHourHeatmapOption({ cells: [], max: 0, palette });
+    expect(option.visualMap).toMatchObject({
+      min: 0,
+      max: 1,
+      inRange: { color: [palette.surface, palette.status.notice] },
+    });
+  });
+
+  it("can turn animation off for a reduced-motion viewer", () => {
+    expect(
+      buildWeekHourHeatmapOption({ cells, max: 3, palette, animate: false })
+        .animation,
+    ).toBe(false);
+  });
+});
+
+describe("WeekHourHeatmap", () => {
+  let warn: ReturnType<typeof vi.spyOn>;
+  beforeEach(() => {
+    warn = vi.spyOn(console, "warn").mockImplementation(() => undefined);
+  });
+  afterEach(() => {
+    warn.mockRestore();
+  });
+
+  const cells: WeekHourCell[] = [
+    { weekday: 0, hour: 9, count: 3 },
+    { weekday: 2, hour: 14, count: 1 },
+  ];
+  const mountHeatmap = () =>
+    mount(WeekHourHeatmap, { props: { cells, max: 3, label: "按时间" } });
+
+  it("names the figure for a screen reader and offers the table as an alternative", () => {
+    const wrapper = mountHeatmap();
+    const surface = wrapper.get("[data-testid='heatmap-surface']");
+    expect(surface.attributes("role")).toBe("img");
+    expect(surface.attributes("aria-label")).toContain("按时间");
+    expect(wrapper.get("button").text()).toBe("数据表");
+  });
+
+  it("switches to a weekday × hour table with a row total", async () => {
+    const wrapper = mountHeatmap();
+    await wrapper.get("button").trigger("click");
+    expect(wrapper.find("[data-testid='heatmap-surface']").exists()).toBe(
+      false,
+    );
+    // 7 weekday rows; the 周一 row totals its single 9:00 cell (3).
+    const bodyRows = wrapper.findAll("tbody tr");
+    expect(bodyRows).toHaveLength(7);
+    const monday = bodyRows[0]!.findAll("th, td");
+    expect(monday[0]!.text()).toBe("周一");
+    expect(monday.at(-1)!.text()).toBe("3");
   });
 });
 

@@ -16,6 +16,7 @@ import { computed, onMounted, ref, watch } from "vue";
 import { RouterLink, useRoute } from "vue-router";
 import CategoryBarChart from "@/components/charts/CategoryBarChart.vue";
 import StackedBarChart from "@/components/charts/StackedBarChart.vue";
+import WeekHourHeatmap from "@/components/charts/WeekHourHeatmap.vue";
 import PieChart from "@/components/charts/PieChart.vue";
 import UiButton from "@/components/ui/UiButton.vue";
 import UiListPagination from "@/components/ui/UiListPagination.vue";
@@ -30,6 +31,7 @@ import {
   computeAlertStats,
   formatDurationMs,
   severityOf,
+  weekHourHeatmap,
   type Severity,
 } from "@/lib/alertStats";
 import {
@@ -245,9 +247,8 @@ const deviceStacked = computed(() => {
   };
 });
 
-const dailyData = computed(() =>
-  stats.value.daily.map((entry) => ({ label: entry.day, value: entry.count })),
-);
+/** 按时间：星期 × 小时 的发生热力，显示一周里消息聚在何时。 */
+const weekHeatmap = computed(() => weekHourHeatmap(filtered.value));
 
 const rateLabel = (value: number | null): string =>
   value === null ? "--" : `${Math.round(value * 100)}%`;
@@ -416,9 +417,9 @@ const pageRows = computed(() =>
         </dd>
       </div>
     </dl>
-    <!-- Three charts, one row, equal 240px height. 「消息最多的设备」is a severity-stacked Top-10
-         bar; 「按时间天频次」keeps `scroll`. The fixed height is the whole point — a scrollbar, never
-         an ever-taller card. A roomier gap (gap-6) keeps the three cards from crowding. -->
+    <!-- Three charts, one row, equal 240px height: severity pie, a severity-stacked Top-10 device
+         bar, and a 星期×小时 onset heatmap. A roomier gap (gap-6) keeps the three cards from
+         crowding. -->
     <div class="grid gap-6 lg:grid-cols-3">
       <section class="rounded-md border border-border bg-surface-raised p-4">
         <!-- 按严重度分布: pie by default (占比), toggle to the bar (magnitude comparison). The card
@@ -464,12 +465,11 @@ const pageRows = computed(() =>
         />
       </section>
       <section class="rounded-md border border-border bg-surface-raised p-4">
-        <CategoryBarChart
-          :data="dailyData"
-          label="按时间天频次"
-          unit="条"
+        <WeekHourHeatmap
+          :cells="weekHeatmap.cells"
+          :max="weekHeatmap.max"
+          label="按时间（星期 × 小时）"
           :height="240"
-          scroll
         />
       </section>
     </div>

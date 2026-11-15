@@ -33,6 +33,12 @@ const stackStub = {
   template:
     '<div class="stack-stub" :data-label="label" :data-count="categories.length" :data-series="series.map((s) => s.name).join(\',\')"></div>',
 };
+// 按时间 is a 星期×小时 heatmap (cells + max), a different shape again.
+const heatmapStub = {
+  props: ["cells", "max", "label"],
+  template:
+    '<div class="heatmap-stub" :data-label="label" :data-count="cells.length" :data-max="max"></div>',
+};
 
 const record = (over: Partial<AlertRecord> = {}): AlertRecord => ({
   eventKey: "agv-01:e1",
@@ -69,6 +75,7 @@ const mountPanel = async (query = "") => {
         CategoryBarChart: barStub,
         PieChart: pieStub,
         StackedBarChart: stackStub,
+        WeekHourHeatmap: heatmapStub,
       },
     },
   });
@@ -230,10 +237,10 @@ describe("the statistics", () => {
     expect(wrapper.find(".stack-stub").attributes("data-series")).toBe(
       "告警,预警,提示",
     );
-    const barLabels = wrapper
-      .findAll(".bar-stub")
-      .map((node) => node.attributes("data-label"));
-    expect(barLabels).toContain("按时间天频次");
+    // The time dimension is now a 星期×小时 heatmap, not a per-day bar.
+    expect(wrapper.find(".heatmap-stub").attributes("data-label")).toBe(
+      "按时间（星期 × 小时）",
+    );
   });
 
   it("caps the per-device stacked chart at the Top 10 (点 4)", async () => {
