@@ -15,6 +15,7 @@
 import { computed, onMounted, ref, watch } from "vue";
 import { RouterLink, useRoute } from "vue-router";
 import CategoryBarChart from "@/components/charts/CategoryBarChart.vue";
+import StackedBarChart from "@/components/charts/StackedBarChart.vue";
 import PieChart from "@/components/charts/PieChart.vue";
 import UiButton from "@/components/ui/UiButton.vue";
 import UiListPagination from "@/components/ui/UiListPagination.vue";
@@ -224,12 +225,25 @@ const severityData = computed(() =>
   })),
 );
 
-const deviceData = computed(() =>
-  stats.value.topDevices.map((device) => ({
-    label: deviceNameOf(device.deviceId, device.deviceName),
-    value: device.count,
-  })),
-);
+/**
+ * 消息最多的设备 Top 10, as a bar stacked by severity: one row per vehicle shows both how many
+ * messages it raised and of what kind, worst-first. `topDevices` is already count-desc, so the top
+ * ten are the slice; each severity is a stacked series wearing its status colour.
+ */
+const DEVICE_TOP_N = 10;
+const deviceStacked = computed(() => {
+  const top = stats.value.topDevices.slice(0, DEVICE_TOP_N);
+  return {
+    categories: top.map((device) =>
+      deviceNameOf(device.deviceId, device.deviceName),
+    ),
+    series: (["critical", "warning", "notice"] as const).map((key) => ({
+      name: SEVERITY_LABELS[key],
+      color: palette.value.status[key],
+      data: top.map((device) => device.bySeverity[key]),
+    })),
+  };
+});
 
 const dailyData = computed(() =>
   stats.value.daily.map((entry) => ({ label: entry.day, value: entry.count })),
@@ -402,11 +416,10 @@ const pageRows = computed(() =>
         </dd>
       </div>
     </dl>
-    <!-- Three charts, one row, equal 240px height (the original). 「按设备分布」lists every
-         device (no Top-N cap) and scrolls inside its fixed-height card, so the full fleet is
-         reachable without the card growing; the day-frequency chart likewise keeps `scroll`. The
-         fixed height is the whole point — a scrollbar, never an ever-taller card. -->
-    <div class="grid gap-4 lg:grid-cols-3">
+    <!-- Three charts, one row, equal 240px height. 「消息最多的设备」is a severity-stacked Top-10
+         bar; 「按时间天频次」keeps `scroll`. The fixed height is the whole point — a scrollbar, never
+         an ever-taller card. A roomier gap (gap-6) keeps the three cards from crowding. -->
+    <div class="grid gap-6 lg:grid-cols-3">
       <section class="rounded-md border border-border bg-surface-raised p-4">
         <!-- 按严重度分布: pie by default (占比), toggle to the bar (magnitude comparison). The card
              owns the 饼图/柱状图 toggle, so both charts render plot-only (labelHidden, no table). -->
@@ -441,11 +454,11 @@ const pageRows = computed(() =>
         />
       </section>
       <section class="rounded-md border border-border bg-surface-raised p-4">
-        <CategoryBarChart
-          :data="deviceData"
-          label="按设备分布"
+        <StackedBarChart
+          :categories="deviceStacked.categories"
+          :series="deviceStacked.series"
+          label="消息最多的设备 (Top 10)"
           unit="条"
-          orientation="horizontal"
           :height="240"
           scroll
         />

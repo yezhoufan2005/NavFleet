@@ -68,9 +68,32 @@ describe("computeAlertStats", () => {
       { topN: 2 },
     );
     expect(stats.topDevices).toEqual([
-      { deviceId: "a", deviceName: "A", count: 2 },
-      { deviceId: "b", deviceName: "B", count: 1 },
+      {
+        deviceId: "a",
+        deviceName: "A",
+        count: 2,
+        bySeverity: { critical: 0, warning: 2, notice: 0 },
+      },
+      {
+        deviceId: "b",
+        deviceName: "B",
+        count: 1,
+        bySeverity: { critical: 0, warning: 1, notice: 0 },
+      },
     ]);
+  });
+
+  it("splits each device's count by severity for the stacked bar", () => {
+    const stats = computeAlertStats([
+      record({ deviceId: "a", deviceName: "A", severity: "critical" }),
+      record({ deviceId: "a", deviceName: "A", severity: "warning" }),
+      record({ deviceId: "a", deviceName: "A", severity: "critical" }),
+    ]);
+    expect(stats.topDevices[0]!.bySeverity).toEqual({
+      critical: 2,
+      warning: 1,
+      notice: 0,
+    });
   });
 
   it("buckets onset by local day, ascending", () => {

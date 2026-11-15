@@ -23,6 +23,8 @@ export interface DeviceCount {
   deviceId: string;
   deviceName: string;
   count: number;
+  /** Per-severity split of this device's count, for a stacked Top-N bar. Sums to `count`. */
+  bySeverity: SeverityCounts;
 }
 
 export interface DailyCount {
@@ -103,14 +105,23 @@ export const computeAlertStats = (
 
     const deviceId = String(record.deviceId ?? "");
     if (deviceId) {
+      const severity = severityOf(record);
       const existing = deviceCounts.get(deviceId);
       if (existing) {
         existing.count += 1;
+        existing.bySeverity[severity] += 1;
       } else {
+        const perSeverity: SeverityCounts = {
+          critical: 0,
+          warning: 0,
+          notice: 0,
+        };
+        perSeverity[severity] += 1;
         deviceCounts.set(deviceId, {
           deviceId,
           deviceName: String(record.deviceName || deviceId),
           count: 1,
+          bySeverity: perSeverity,
         });
       }
     }
