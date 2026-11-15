@@ -20,6 +20,7 @@
  */
 import { ref } from "vue";
 import {
+  TooltipArrow,
   TooltipContent,
   TooltipPortal,
   TooltipProvider,
@@ -75,6 +76,9 @@ const open = ref(false);
           class="z-50 max-w-72 rounded-md border border-border bg-surface-raised px-3 py-2 text-xs leading-relaxed text-ink shadow-overlay"
         >
           {{ text }}
+          <!-- A little triangle caret pointing back at the "?" so the bubble reads as attached to
+               the field, not floating free. Filled with the bubble's surface so it looks of a piece. -->
+          <TooltipArrow :width="11" :height="5" class="fill-surface-raised" />
         </TooltipContent>
       </TooltipPortal>
     </TooltipRoot>
