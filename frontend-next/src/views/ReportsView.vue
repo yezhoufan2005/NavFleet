@@ -848,7 +848,7 @@ const exportAlertsCsv = (): void => {
              compare vehicles one row each. -->
         <details
           v-if="availStatus === 'ready' && availabilityRows.length"
-          class="group border border-border bg-surface-raised"
+          class="group overflow-hidden rounded-md border border-border bg-surface-raised"
         >
           <summary
             class="cursor-pointer select-none list-none px-4 py-2 text-xs text-ink-muted marker:content-none hover:text-ink"
