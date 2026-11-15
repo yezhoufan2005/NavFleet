@@ -27,6 +27,12 @@ const pieStub = {
   template:
     '<div class="pie-stub" :data-label="label" :data-count="data.length" :data-total="data.reduce((s, d) => s + d.value, 0)"></div>',
 };
+// 消息最多的设备 is a severity-stacked Top-N bar (categories + series), a different shape.
+const stackStub = {
+  props: ["categories", "series", "label"],
+  template:
+    '<div class="stack-stub" :data-label="label" :data-count="categories.length" :data-series="series.map((s) => s.name).join(\',\')"></div>',
+};
 
 const record = (over: Partial<AlertRecord> = {}): AlertRecord => ({
   eventKey: "agv-01:e1",
@@ -59,7 +65,11 @@ const mountPanel = async (query = "") => {
   const wrapper = mount(AlertHistoryPanel, {
     global: {
       plugins: [router],
-      stubs: { CategoryBarChart: barStub, PieChart: pieStub },
+      stubs: {
+        CategoryBarChart: barStub,
+        PieChart: pieStub,
+        StackedBarChart: stackStub,
+      },
     },
   });
   await flushPromises();
@@ -211,19 +221,26 @@ describe("the statistics", () => {
     expect(wrapper.find(".pie-stub").exists()).toBe(false);
   });
 
-  it("labels the per-device chart by its dimension (按设备分布), not 告警", async () => {
+  it("labels the per-device chart by its dimension (消息最多的设备), not 告警", async () => {
     const wrapper = await mountPanel();
-    const labels = wrapper
+    expect(wrapper.find(".stack-stub").attributes("data-label")).toBe(
+      "消息最多的设备 (Top 10)",
+    );
+    // Stacked by the three severities.
+    expect(wrapper.find(".stack-stub").attributes("data-series")).toBe(
+      "告警,预警,提示",
+    );
+    const barLabels = wrapper
       .findAll(".bar-stub")
       .map((node) => node.attributes("data-label"));
-    expect(labels).toContain("按设备分布");
-    expect(labels).toContain("按时间天频次");
+    expect(barLabels).toContain("按时间天频次");
   });
 
-  it("feeds the per-device chart every device, not a Top-N (点 4)", async () => {
-    // 10 devices, one cleared message each: the chart gets all 10 (the card scrolls), not 8.
+  it("caps the per-device stacked chart at the Top 10 (点 4)", async () => {
+    // 12 devices, one cleared message each: the stacked device chart shows the top 10, the card
+    // scrolls — not every device, and not the old Top-8.
     vi.spyOn(fleetApi, "getAlerts").mockResolvedValue({
-      items: Array.from({ length: 10 }, (_unused, index) =>
+      items: Array.from({ length: 12 }, (_unused, index) =>
         record({
           eventKey: `agv-${index}:e`,
           deviceId: `agv-${index}`,
@@ -232,10 +249,7 @@ describe("the statistics", () => {
       ),
     });
     const wrapper = await mountPanel();
-    const deviceBar = wrapper
-      .findAll(".bar-stub")
-      .find((node) => node.attributes("data-label") === "按设备分布");
-    expect(deviceBar?.attributes("data-count")).toBe("10");
+    expect(wrapper.find(".stack-stub").attributes("data-count")).toBe("10");
   });
 });
 

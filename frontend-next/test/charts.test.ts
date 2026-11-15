@@ -13,6 +13,11 @@ import {
   type CategoryDatum,
 } from "@/components/charts/categoryBarOption";
 import CategoryBarChart from "@/components/charts/CategoryBarChart.vue";
+import {
+  buildStackedBarOption,
+  type StackedSeries,
+} from "@/components/charts/stackedBarOption";
+import StackedBarChart from "@/components/charts/StackedBarChart.vue";
 import { buildPieOption } from "@/components/charts/pieOption";
 import PieChart from "@/components/charts/PieChart.vue";
 import { useChartTheme } from "@/composables/useChartTheme";
@@ -573,6 +578,90 @@ describe("CategoryBarChart", () => {
     const firstRow = wrapper.findAll("tbody tr")[0]!;
     expect(firstRow.findAll("th, td").map((cell) => cell.text())).toEqual([
       "告警",
+      "3",
+    ]);
+  });
+});
+
+describe("buildStackedBarOption", () => {
+  const categories = ["车 A", "车 B"];
+  const series: StackedSeries[] = [
+    { name: "告警", color: "#c00000", data: [2, 1] },
+    { name: "预警", color: "#c07000", data: [1, 3] },
+  ];
+
+  it("stacks every series on one total, value on X and categories inverse on Y", () => {
+    const option = buildStackedBarOption({ categories, series, palette });
+    expect(option.xAxis).toMatchObject({ type: "value", min: 0 });
+    expect(option.yAxis).toMatchObject({ type: "category", inverse: true });
+    const bars = option.series as { stack: string; name: string }[];
+    expect(bars.map((b) => b.stack)).toEqual(["total", "total"]);
+    expect(bars.map((b) => b.name)).toEqual(["告警", "预警"]);
+  });
+
+  it("paints each series with its own colour and focuses the series on emphasis", () => {
+    const bars = buildStackedBarOption({ categories, series, palette })
+      .series as {
+      itemStyle: { color: string };
+      emphasis: { focus: string };
+    }[];
+    expect(bars[0]!.itemStyle.color).toBe("#c00000");
+    expect(bars[0]!.emphasis.focus).toBe("series");
+  });
+
+  it("can turn animation off for a reduced-motion viewer", () => {
+    expect(
+      buildStackedBarOption({ categories, series, palette, animate: false })
+        .animation,
+    ).toBe(false);
+  });
+});
+
+describe("StackedBarChart", () => {
+  let warn: ReturnType<typeof vi.spyOn>;
+  beforeEach(() => {
+    warn = vi.spyOn(console, "warn").mockImplementation(() => undefined);
+  });
+  afterEach(() => {
+    warn.mockRestore();
+  });
+
+  const series: StackedSeries[] = [
+    { name: "告警", color: "#c00000", data: [2, 1] },
+    { name: "预警", color: "#c07000", data: [1, 3] },
+  ];
+  const mountStacked = () =>
+    mount(StackedBarChart, {
+      props: {
+        categories: ["车 A", "车 B"],
+        series,
+        label: "设备",
+        unit: "条",
+      },
+    });
+
+  it("names the figure for a screen reader and offers the table as an alternative", () => {
+    const wrapper = mountStacked();
+    const surface = wrapper.get("[data-testid='stacked-bar-surface']");
+    expect(surface.attributes("role")).toBe("img");
+    expect(surface.attributes("aria-label")).toContain("设备");
+    expect(wrapper.get("button").text()).toBe("数据表");
+  });
+
+  it("switches to a table with a column per series and a row total", async () => {
+    const wrapper = mountStacked();
+    await wrapper.get("button").trigger("click");
+    expect(wrapper.find("[data-testid='stacked-bar-surface']").exists()).toBe(
+      false,
+    );
+    const headers = wrapper.findAll("thead th").map((cell) => cell.text());
+    expect(headers).toEqual(["设备", "告警", "预警", "合计"]);
+    const firstRow = wrapper.findAll("tbody tr")[0]!;
+    // 车 A: 2 告警 + 1 预警 = 3 合计.
+    expect(firstRow.findAll("th, td").map((cell) => cell.text())).toEqual([
+      "车 A",
+      "2",
+      "1",
       "3",
     ]);
   });
