@@ -394,7 +394,7 @@ const alertRows = computed(() =>
       </template>
     </section>
 
-    <div class="grid gap-3 sm:grid-cols-3" :aria-busy="fleet.bootstrapPending">
+    <div class="grid gap-4 sm:grid-cols-3" :aria-busy="fleet.bootstrapPending">
       <article
         v-for="tile in tiles"
         :key="tile.key"
@@ -465,7 +465,7 @@ const alertRows = computed(() =>
       1/3 and share its left edge. The old `[2fr_1fr]` with `gap-4` was close but its
       column boundary never lined up with the tiles.
     -->
-    <div class="grid min-h-0 gap-3 xl:grid-cols-3">
+    <div class="grid min-h-0 gap-4 xl:grid-cols-3">
       <section
         class="flex min-h-0 flex-col gap-3 rounded-md border border-border bg-surface-raised p-4 xl:col-span-2"
         aria-labelledby="attention-heading"

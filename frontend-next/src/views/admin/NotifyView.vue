@@ -501,7 +501,7 @@ const formDirty = formSnapshot.dirty;
       </p>
       <ul
         v-else
-        class="grid list-none grid-cols-1 gap-3 p-0 md:grid-cols-2 3xl:grid-cols-3"
+        class="grid list-none grid-cols-1 gap-4 p-0 md:grid-cols-2 3xl:grid-cols-3"
       >
         <li
           v-for="channel in channels"

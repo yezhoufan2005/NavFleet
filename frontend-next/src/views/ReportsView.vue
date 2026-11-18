@@ -597,7 +597,7 @@ const exportAlertsCsv = (): void => {
          slow. Blocks are decorative; a screen reader hears the sr-only status instead. -->
     <div v-if="initialLoading" class="flex flex-col gap-4">
       <p class="sr-only" role="status">正在加载报表…</p>
-      <dl class="m-0 grid grid-cols-2 gap-3 sm:grid-cols-4" aria-hidden="true">
+      <dl class="m-0 grid grid-cols-2 gap-4 sm:grid-cols-4" aria-hidden="true">
         <div
           v-for="n in 4"
           :key="n"
@@ -633,7 +633,7 @@ const exportAlertsCsv = (): void => {
       <!-- KPI band: fleet-wide headline numbers, each carrying a scrap of the data behind it
            (a sparkline / a distribution bar / a count) so the strip reads as analysis, not four
            lone digits. All from the data already fetched — no extra request. -->
-      <dl class="m-0 grid grid-cols-2 gap-3 sm:grid-cols-3">
+      <dl class="m-0 grid grid-cols-2 gap-4 sm:grid-cols-3">
         <div
           class="flex flex-col gap-2 rounded-md border border-border bg-surface-raised p-3"
         >

@@ -391,7 +391,7 @@ const AREA_LABELS: Record<StoredEntry["area"], string> = {
       </ul>
     </section>
 
-    <div class="grid gap-3 lg:grid-cols-2">
+    <div class="grid gap-4 lg:grid-cols-2">
       <section
         class="flex flex-col gap-2 rounded-md border border-border bg-surface-raised p-4"
         aria-labelledby="fleet-heading"
