@@ -6,7 +6,7 @@ updates:
     schedule:
       interval: weekly
       day: monday
-      time: "09:07"
+      time: "10:00"
       timezone: Asia/Shanghai
     open-pull-requests-limit: 10
     groups:
@@ -62,7 +62,7 @@ updates:
     schedule:
       interval: weekly
       day: monday
-      time: "09:07"
+      time: "10:00"
       timezone: Asia/Shanghai
     groups:
       github-actions:
@@ -88,7 +88,7 @@ updates:
     schedule:
       interval: weekly
       day: monday
-      time: "09:07"
+      time: "10:00"
       timezone: Asia/Shanghai
     groups:
       base-images:
@@ -109,7 +109,7 @@ updates:
     schedule:
       interval: weekly
       day: monday
-      time: "09:07"
+      time: "10:00"
       timezone: Asia/Shanghai
     groups:
       compose-images:
