@@ -254,7 +254,7 @@ const formDirty = formSnapshot.dirty;
             <tr>
               <th scope="col" class="px-3 py-2">编队 ID</th>
               <th scope="col" class="px-3 py-2">名称</th>
-              <th scope="col" class="px-3 py-2">车辆</th>
+              <th scope="col" class="px-3 py-2">设备数量</th>
               <th scope="col" class="px-3 py-2">场景</th>
               <th scope="col" class="py-2 pr-6 pl-3 text-right">操作</th>
             </tr>
