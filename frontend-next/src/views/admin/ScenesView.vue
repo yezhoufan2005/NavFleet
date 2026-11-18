@@ -68,7 +68,7 @@ const RESOURCE_KINDS: readonly ResourceKind[] = [
   {
     field: "imageUrl",
     label: "栅格底图",
-    consequence: "地图没有底图，只剩边框与车辆标记",
+    consequence: "地图没有底图，只剩边框与设备标记",
   },
   {
     field: "metadataUrl",
@@ -88,7 +88,7 @@ const RESOURCE_KINDS: readonly ResourceKind[] = [
   {
     field: "overlayUrl",
     label: "路网叠加（Lanelet2）",
-    consequence: "地图上没有车道线，只有底图与车辆",
+    consequence: "地图上没有车道线，只有底图与设备",
   },
   {
     field: "osmUrl",
@@ -848,7 +848,7 @@ const formDirty = formSnapshot.dirty;
   <UiConfirmDialog
     :open="confirmDelete !== null"
     :title="`删除场景 ${confirmDelete?.label ?? ''}？`"
-    description="仅从 scenes.json 移除该场景条目；已上传的底图文件不受影响；该场景上的车辆会退回 GPS 或空白地图"
+    description="仅从 scenes.json 移除该场景条目；已上传的底图文件不受影响；该场景上的设备会退回 GPS 或空白地图"
     confirm-label="删除"
     :pending="deleting"
     @update:open="

@@ -30,7 +30,7 @@ import { loadDefaultSceneOptions } from "@/lib/sceneOptions";
 
 const ERROR_MESSAGES: Record<string, string> = {
   invalid_formations: "编队配置不合法，请检查各字段",
-  unknown_device_in_formation: "编队引用了未配置的车辆",
+  unknown_device_in_formation: "编队引用了未配置的设备",
   unknown_scene_in_formation: "所选场景不存在，请重新选择",
   forbidden: "当前账号没有编辑编队的权限",
 };
@@ -147,7 +147,7 @@ const submit = async (): Promise<void> => {
     fieldErrors.name = "请输入名称";
   }
   if (fDeviceIds.value.length === 0) {
-    fieldErrors.deviceIds = "请至少选择一台车辆";
+    fieldErrors.deviceIds = "请至少选择一台设备";
   }
   if (report(fieldErrors)) return;
   saving.value = true;
@@ -365,7 +365,7 @@ const formDirty = formSnapshot.dirty;
       </label>
       <fieldset class="flex flex-col gap-1">
         <legend class="text-sm font-medium text-ink">
-          车辆 <span class="text-critical-ink">*</span>
+          设备 <span class="text-critical-ink">*</span>
         </legend>
         <div
           class="flex max-h-40 flex-col gap-1 overflow-auto rounded-sm border p-2"
@@ -445,7 +445,7 @@ const formDirty = formSnapshot.dirty;
   <UiConfirmDialog
     :open="confirmDelete !== null"
     :title="`删除编队 ${confirmDelete?.label ?? ''}？`"
-    description="移除该编队配置，不影响其中车辆本身"
+    description="移除该编队配置，不影响其中设备本身"
     confirm-label="删除"
     :pending="deleting"
     @update:open="

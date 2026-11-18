@@ -211,7 +211,7 @@ describe("系统状态", () => {
       readyBody({ store: true, mongo: true, mqtt: false }),
     );
 
-    expect(wrapper.text()).toContain("后端收不到车辆上报");
+    expect(wrapper.text()).toContain("后端收不到设备上报");
   });
 
   it("每一项状态都有词，不只有颜色", async () => {

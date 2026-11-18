@@ -184,7 +184,7 @@ const backendChecks = computed<Check[]>(() => {
       label: "MQTT broker",
       value: checks.mqtt ? "已连接" : "未连接",
       tone: checks.mqtt ? "ok" : "critical",
-      detail: checks.mqtt ? "车辆上报的链路连通" : "后端收不到车辆上报",
+      detail: checks.mqtt ? "设备上报的链路连通" : "后端收不到设备上报",
     },
   ];
 });

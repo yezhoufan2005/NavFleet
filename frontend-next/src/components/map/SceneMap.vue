@@ -841,8 +841,8 @@ const cloudLabel = computed(() =>
       <button
         type="button"
         class="map-btn map-btn-icon"
-        aria-label="定位车辆"
-        title="定位车辆"
+        aria-label="定位设备"
+        title="定位设备"
         @click="focusSelectedDevice"
       >
         <svg
@@ -866,8 +866,8 @@ const cloudLabel = computed(() =>
         class="map-btn map-btn-icon"
         :class="{ 'is-active': following }"
         :aria-pressed="following"
-        aria-label="跟随选中车辆"
-        title="跟随选中车辆"
+        aria-label="跟随选中设备"
+        title="跟随选中设备"
         @click="toggleFollow"
       >
         <svg

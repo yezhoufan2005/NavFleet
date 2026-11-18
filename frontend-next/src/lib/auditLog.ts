@@ -29,7 +29,7 @@ export const ACTION_LABELS: Record<AuditAction, string> = {
   notify_write: "写入外发配置",
   rules_write: "写入消息规则",
   reports_write: "写入定时报表",
-  vehicles_write: "写入车辆配置",
+  vehicles_write: "写入设备配置",
   formations_write: "写入编队配置",
   scenes_write: "写入场景配置",
   scene_asset_upload: "上传场景资源",

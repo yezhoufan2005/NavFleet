@@ -496,7 +496,7 @@ const alertRows = computed(() =>
         </p>
         <p v-else-if="!attention.length" class="text-sm text-ink-muted">
           全部
-          {{ fleet.summary.totalCount }} 台设备状态正常，没有需要处理的车辆
+          {{ fleet.summary.totalCount }} 台设备状态正常，没有需要处理的设备
         </p>
 
         <!--
