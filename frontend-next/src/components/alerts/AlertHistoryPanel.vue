@@ -373,9 +373,9 @@ const pageRows = computed(() =>
 
   <template v-else>
     <!-- 消息史 is the reference page for the 1.8.0 spacing standard: major 分区 (cap notice /
-         统计 / 图表 / 列表) sit in one column at gap-6 (L0, 24px), cards within a 分区 at gap-4
+         统计 / 图表 / 列表) sit in one column at gap-5 (L0, 20px), cards within a 分区 at gap-4
          (L1, 16px), card bodies at gap-2/gap-3 (L2), inline label/value at gap-1 (L3). -->
-    <div class="flex flex-col gap-6">
+    <div class="flex flex-col gap-5">
       <p v-if="cappedAt !== null" class="m-0 text-2xs text-ink-subtle">
         仅统计最近
         {{ cappedAt }}
