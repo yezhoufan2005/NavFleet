@@ -73,11 +73,12 @@ const open = ref(false);
           side="top"
           :side-offset="6"
           :collision-padding="8"
-          class="z-50 max-w-72 rounded-md border border-border bg-surface-raised px-3 py-2 text-xs leading-relaxed text-ink shadow-overlay"
+          class="z-50 max-w-72 rounded-md bg-surface-raised px-3 py-2 text-xs leading-relaxed text-ink shadow-overlay"
         >
           {{ text }}
           <!-- A little triangle caret pointing back at the "?" so the bubble reads as attached to
-               the field, not floating free. Filled with the bubble's surface so it looks of a piece. -->
+               the field. Filled with the bubble's surface and the bubble carries no border, so the
+               caret joins the box seamlessly — no hairline between the two. -->
           <TooltipArrow :width="11" :height="5" class="fill-surface-raised" />
         </TooltipContent>
       </TooltipPortal>
