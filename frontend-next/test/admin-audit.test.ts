@@ -180,6 +180,35 @@ describe("AuditView", () => {
     );
   });
 
+  it("defaults the date filter to the last 10 days, like 消息史", async () => {
+    // No URL params: the 起止 inputs pre-fill with the last-10-days window and the first query
+    // carries it, rather than fetching unbounded history. Day bounds are local, same as a pick.
+    const asDateInput = (at: Date): string => {
+      const pad = (n: number): string => String(n).padStart(2, "0");
+      return `${at.getFullYear()}-${pad(at.getMonth() + 1)}-${pad(at.getDate())}`;
+    };
+    const spy = vi
+      .spyOn(fleetApi, "getAuditLog")
+      .mockResolvedValue({ entries: [entry()] });
+    const router = routerFor();
+    await router.push("/admin/audit");
+    await router.isReady();
+    const wrapper = mount(AuditView, { global: { plugins: [router] } });
+    await flushPromises();
+
+    const fromDay = asDateInput(new Date(Date.now() - 10 * 86_400_000));
+    const toDay = asDateInput(new Date());
+    expect(spy).toHaveBeenCalledWith(
+      expect.objectContaining({
+        from: new Date(`${fromDay}T00:00:00`).toISOString(),
+        to: new Date(`${toDay}T23:59:59.999`).toISOString(),
+      }),
+    );
+    const dates = wrapper.findAll("input[type=date]");
+    expect((dates[0]!.element as HTMLInputElement).value).toBe(fromDay);
+    expect((dates[1]!.element as HTMLInputElement).value).toBe(toDay);
+  });
+
   it("labels every action the backend can record, and offers each in the 动作 filter", async () => {
     const wrapper = await mountView([
       entry({ action: "group_update", target: "uuid-1" }),

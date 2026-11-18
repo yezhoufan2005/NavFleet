@@ -45,8 +45,18 @@ const readParamList = (key: string): string[] => {
 
 const actor = ref(readParam("actor"));
 const action = ref<string[]>(readParamList("action"));
-const from = ref(readParam("from"));
-const to = ref(readParam("to"));
+// 审计列表默认只查最近 10 天，和 消息史 一致：未显式指定起始时，从今天往前推 10 天、结束默认今天，
+// 筛选框里直接显示这个默认窗口（而非空白），清空某一端即解除该侧边界。
+const AUDIT_DEFAULT_DAYS = 10;
+const asDateInput = (at: Date): string => {
+  const pad = (n: number): string => String(n).padStart(2, "0");
+  return `${at.getFullYear()}-${pad(at.getMonth() + 1)}-${pad(at.getDate())}`;
+};
+const from = ref(
+  readParam("from") ||
+    asDateInput(new Date(Date.now() - AUDIT_DEFAULT_DAYS * 86_400_000)),
+);
+const to = ref(readParam("to") || asDateInput(new Date()));
 
 const entries = ref<AuditRecord[]>([]);
 /** The server's row cap when it cut the list (older matches exist), else null. */
