@@ -109,7 +109,7 @@ const vehicleRows = computed<Row[]>(() => {
     {
       label: "角速度",
       help: FIELD_HELP.device.omega,
-      value: orMissing(formatNumber(info?.omega, 3, " rad/s")),
+      value: orMissing(formatNumber(info?.omega, 2, " rad/s")),
     },
     // `formatSoc` — one decimal, trailing zero dropped — is the one spelling of soc across every
     // surface and the low-battery message, so a reading never shows as two numbers.
