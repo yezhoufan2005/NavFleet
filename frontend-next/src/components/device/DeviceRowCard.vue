@@ -94,7 +94,7 @@ const fields = computed<Field[]>(() => {
     { label: "速度", value: orMissing(formatNumber(info?.speed, 2, " m/s")) },
     {
       label: "角速度",
-      value: orMissing(formatNumber(info?.omega, 3, " rad/s")),
+      value: orMissing(formatNumber(info?.omega, 2, " rad/s")),
     },
     {
       label: "编队",
