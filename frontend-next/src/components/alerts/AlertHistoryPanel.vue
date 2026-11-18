@@ -373,9 +373,10 @@ const pageRows = computed(() =>
 
   <template v-else>
     <!-- 消息史 is the reference page for the 1.8.0 spacing standard: major 分区 (cap notice /
-         统计 / 图表 / 列表) sit in one column at gap-5 (L0, 20px), cards within a 分区 at gap-4
-         (L1, 16px), card bodies at gap-2/gap-3 (L2), inline label/value at gap-1 (L3). -->
-    <div class="flex flex-col gap-5">
+         统计 / 图表 / 列表) and the cards within them share one gap-4 (16px) rhythm; only the
+         deliberately tight spots stay smaller — list↔pager at gap-2 (8px), card bodies at
+         gap-2/gap-3, inline label/value at gap-1. 16px is the single vertical/horizontal step. -->
+    <div class="flex flex-col gap-4">
       <p v-if="cappedAt !== null" class="m-0 text-2xs text-ink-subtle">
         仅统计最近
         {{ cappedAt }}
