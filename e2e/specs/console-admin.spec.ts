@@ -78,7 +78,7 @@ test.describe("console admin", () => {
 
     const tabs = page.getByRole("navigation", { name: "分区导航" });
     await expect(
-      tabs.getByRole("link", { name: "车辆", exact: true }),
+      tabs.getByRole("link", { name: "设备", exact: true }),
     ).toBeVisible();
     await tabs.getByRole("link", { name: "场景", exact: true }).click();
     await expect(page).toHaveURL(/\/deploy\/scenes$/);
