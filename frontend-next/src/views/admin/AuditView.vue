@@ -148,114 +148,120 @@ const formatTime = (iso: string): string =>
   <PageHeader title="系统">
     <AppSectionTabs />
 
-    <UiFilterBar>
-      <UiFilterField label="操作者">
-        <UiSearchInput
-          v-model="actor"
-          placeholder="用户名"
-          aria-label="按用户名搜索"
-        />
-      </UiFilterField>
-      <UiFilterField label="动作">
-        <UiMultiSelect
-          v-model="action"
-          :options="ACTION_OPTIONS"
-          placeholder="全部动作"
-          aria-label="按动作筛选"
-        />
-      </UiFilterField>
-      <!-- 起 ≤ 止 enforced with native min/max so an inverted range cannot be picked at all. -->
-      <UiFilterField label="起始时间">
-        <UiInput v-model="from" type="date" :max="to || undefined" />
-      </UiFilterField>
-      <UiFilterField label="结束时间">
-        <UiInput v-model="to" type="date" :min="from || undefined" />
-      </UiFilterField>
-    </UiFilterBar>
+    <!-- 审计筛选属于这张列表本身，故 筛选 + 列表 + 分页 同处一个列表分区（16px 节奏）；列表与分页
+         再归一层 gap-2（8px）贴合，与 消息史 的列表块一致。 -->
+    <div class="flex flex-col gap-4">
+      <UiFilterBar>
+        <UiFilterField label="操作者">
+          <UiSearchInput
+            v-model="actor"
+            placeholder="用户名"
+            aria-label="按用户名搜索"
+          />
+        </UiFilterField>
+        <UiFilterField label="动作">
+          <UiMultiSelect
+            v-model="action"
+            :options="ACTION_OPTIONS"
+            placeholder="全部动作"
+            aria-label="按动作筛选"
+          />
+        </UiFilterField>
+        <!-- 起 ≤ 止 enforced with native min/max so an inverted range cannot be picked at all. -->
+        <UiFilterField label="起始时间">
+          <UiInput v-model="from" type="date" :max="to || undefined" />
+        </UiFilterField>
+        <UiFilterField label="结束时间">
+          <UiInput v-model="to" type="date" :min="from || undefined" />
+        </UiFilterField>
+      </UiFilterBar>
 
-    <p v-if="status === 'loading'" class="text-sm text-ink-muted">加载中…</p>
-    <p
-      v-else-if="status === 'error'"
-      class="text-sm text-critical-ink"
-      role="alert"
-    >
-      无法加载审计日志
-    </p>
-    <UiEmptyState v-else-if="entries.length === 0">
-      没有符合当前筛选条件的审计记录
-    </UiEmptyState>
-    <template v-else>
-      <p v-if="cappedAt !== null" class="m-0 text-2xs text-ink-subtle">
-        仅显示最近
-        {{ cappedAt }} 条（后端单次查询上限），缩小时间范围可查看更早的记录
+      <p v-if="status === 'loading'" class="text-sm text-ink-muted">加载中…</p>
+      <p
+        v-else-if="status === 'error'"
+        class="text-sm text-critical-ink"
+        role="alert"
+      >
+        无法加载审计日志
       </p>
-      <!-- Same shell as the device list: the table itself does not scroll (`overflow-hidden`
+      <UiEmptyState v-else-if="entries.length === 0">
+        没有符合当前筛选条件的审计记录
+      </UiEmptyState>
+      <template v-else>
+        <p v-if="cappedAt !== null" class="m-0 text-2xs text-ink-subtle">
+          仅显示最近
+          {{ cappedAt }} 条（后端单次查询上限），缩小时间范围可查看更早的记录
+        </p>
+        <div class="flex flex-col gap-2">
+          <!-- Same shell as the device list: the table itself does not scroll (`overflow-hidden`
            clips its corners), the page scrolls. -->
-      <div :class="[tableClasses.wrapper, 'overflow-hidden']">
-        <table :class="[tableClasses.table, 'table-fixed']">
-          <!-- Fixed column widths so the geometry does not shift as rows change between queries
+          <div :class="[tableClasses.wrapper, 'overflow-hidden']">
+            <table :class="[tableClasses.table, 'table-fixed']">
+              <!-- Fixed column widths so the geometry does not shift as rows change between queries
                (same reason 设备 pins its columns). An over-long value wraps inside its cell rather
                than widening the column; `truncate` keeps the common case to one tidy line. -->
-          <colgroup>
-            <col class="w-44" />
-            <col class="w-28" />
-            <col class="w-28" />
-            <col class="w-56" />
-            <col class="w-20" />
-          </colgroup>
-          <caption class="sr-only">
-            鉴权与用户管理事件，最新在前
-          </caption>
-          <thead :class="tableClasses.thead">
-            <tr>
-              <th scope="col" class="px-3 py-2">时间</th>
-              <th scope="col" class="px-3 py-2">操作者</th>
-              <th scope="col" class="px-3 py-2">动作</th>
-              <th scope="col" class="px-3 py-2">对象</th>
-              <th scope="col" class="px-3 py-2">结果</th>
-            </tr>
-          </thead>
-          <tbody>
-            <tr
-              v-for="(entry, index) in pageRows"
-              :key="`${entry.ts}-${index}`"
-              :class="tableClasses.row"
-            >
-              <td class="px-3 py-2 whitespace-nowrap text-ink-muted">
-                {{ formatTime(entry.ts) }}
-              </td>
-              <td class="truncate px-3 py-2 text-ink">{{ entry.actor }}</td>
-              <td class="truncate px-3 py-2 text-ink">
-                {{ actionLabel(entry.action) }}
-              </td>
-              <td
-                class="truncate px-3 py-2 text-ink-muted"
-                :title="auditObject(entry)"
-              >
-                {{ auditObject(entry) }}
-              </td>
-              <td class="px-3 py-2">
-                <span
-                  :class="
-                    entry.outcome === 'failure'
-                      ? 'text-critical-ink'
-                      : 'text-ink-muted'
-                  "
-                  >{{ entry.outcome === "failure" ? "失败" : "成功" }}</span
+              <colgroup>
+                <col class="w-44" />
+                <col class="w-28" />
+                <col class="w-28" />
+                <col class="w-56" />
+                <col class="w-20" />
+              </colgroup>
+              <caption class="sr-only">
+                鉴权与用户管理事件，最新在前
+              </caption>
+              <thead :class="tableClasses.thead">
+                <tr>
+                  <th scope="col" class="px-3 py-2">时间</th>
+                  <th scope="col" class="px-3 py-2">操作者</th>
+                  <th scope="col" class="px-3 py-2">动作</th>
+                  <th scope="col" class="px-3 py-2">对象</th>
+                  <th scope="col" class="px-3 py-2">结果</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr
+                  v-for="(entry, index) in pageRows"
+                  :key="`${entry.ts}-${index}`"
+                  :class="tableClasses.row"
                 >
-              </td>
-            </tr>
-          </tbody>
-        </table>
-      </div>
-      <UiListPagination
-        :page="page"
-        :page-count="pageCount"
-        :page-size="pageSize"
-        :total="entries.length"
-        @update:page="setPage"
-        @update:page-size="setPageSize"
-      />
-    </template>
+                  <td class="px-3 py-2 whitespace-nowrap text-ink-muted">
+                    {{ formatTime(entry.ts) }}
+                  </td>
+                  <td class="truncate px-3 py-2 text-ink">{{ entry.actor }}</td>
+                  <td class="truncate px-3 py-2 text-ink">
+                    {{ actionLabel(entry.action) }}
+                  </td>
+                  <td
+                    class="truncate px-3 py-2 text-ink-muted"
+                    :title="auditObject(entry)"
+                  >
+                    {{ auditObject(entry) }}
+                  </td>
+                  <td class="px-3 py-2">
+                    <span
+                      :class="
+                        entry.outcome === 'failure'
+                          ? 'text-critical-ink'
+                          : 'text-ink-muted'
+                      "
+                      >{{ entry.outcome === "failure" ? "失败" : "成功" }}</span
+                    >
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+          <UiListPagination
+            :page="page"
+            :page-count="pageCount"
+            :page-size="pageSize"
+            :total="entries.length"
+            @update:page="setPage"
+            @update:page-size="setPageSize"
+          />
+        </div>
+      </template>
+    </div>
   </PageHeader>
 </template>

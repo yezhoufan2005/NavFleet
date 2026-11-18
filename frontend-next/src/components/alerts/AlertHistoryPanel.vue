@@ -354,7 +354,7 @@ const pageRows = computed(() =>
        page that can say whether Mongo is connected. -->
   <p
     v-else-if="!records.length"
-    class="m-0 max-w-prose rounded-md border border-border bg-surface-raised p-8 text-center text-sm text-ink-muted"
+    class="m-0 max-w-prose rounded-md border border-border bg-surface-raised p-4 text-center text-sm text-ink-muted"
     role="status"
   >
     暂无已清除的消息；已清除的消息需要后端连接 MongoDB 才会留存 ——

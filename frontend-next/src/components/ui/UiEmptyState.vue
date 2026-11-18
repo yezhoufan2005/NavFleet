@@ -11,7 +11,7 @@
 
 <template>
   <p
-    class="m-0 rounded-md border border-border bg-surface-raised px-4 py-6 text-center text-sm text-ink-muted"
+    class="m-0 rounded-md border border-border bg-surface-raised p-4 text-center text-sm text-ink-muted"
     role="status"
   >
     <slot />

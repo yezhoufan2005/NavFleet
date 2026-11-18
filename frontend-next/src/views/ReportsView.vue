@@ -617,7 +617,7 @@ const exportAlertsCsv = (): void => {
     <!-- No Mongo ⇒ both reports honest-empty; say what is missing and link to 系统状态. -->
     <p
       v-else-if="noHistory"
-      class="m-0 max-w-prose rounded-md border border-border bg-surface-raised p-8 text-center text-sm text-ink-muted"
+      class="m-0 max-w-prose rounded-md border border-border bg-surface-raised p-4 text-center text-sm text-ink-muted"
       role="status"
     >
       暂无历史可聚合：报表依赖后端连接MongoDB——
