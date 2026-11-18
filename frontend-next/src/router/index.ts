@@ -311,7 +311,7 @@ const routes: RouteRecordRaw[] = [
       tabs: [
         {
           routeName: "deploy-vehicles",
-          label: "车辆",
+          label: "设备",
           capability: "vehicles:write",
         },
         {

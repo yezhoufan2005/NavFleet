@@ -116,7 +116,7 @@ describe("VehiclesView — edit & delete", () => {
       .trigger("click");
     await flushPromises();
 
-    expect(bodyText()).toContain("编辑车辆");
+    expect(bodyText()).toContain("编辑设备");
     const nameInput = [
       ...document.body.querySelectorAll<HTMLInputElement>("input[type='text']"),
     ].find((input) => input.value === "一号车");

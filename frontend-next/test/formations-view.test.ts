@@ -122,7 +122,7 @@ describe("FormationsView — create", () => {
     document.body.querySelector("form")!.dispatchEvent(new Event("submit"));
     await flushPromises();
 
-    expect(bodyText()).toContain("请至少选择一台车辆");
+    expect(bodyText()).toContain("请至少选择一台设备");
     expect(put).not.toHaveBeenCalled();
   });
 });

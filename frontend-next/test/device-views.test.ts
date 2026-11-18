@@ -332,8 +332,8 @@ describe("what else the scene map draws", () => {
       ?.trigger("click");
     expect(zoom()).not.toBe(focused);
 
-    // 定位车辆 is an icon button now, so it is found by its accessible name.
-    await wrapper.find("button[aria-label='定位车辆']").trigger("click");
+    // 定位设备 is an icon button now, so it is found by its accessible name.
+    await wrapper.find("button[aria-label='定位设备']").trigger("click");
     expect(zoom()).toBe(focused);
   });
 

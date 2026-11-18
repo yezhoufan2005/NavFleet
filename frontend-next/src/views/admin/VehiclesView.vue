@@ -30,9 +30,9 @@ import { useFieldErrors } from "@/composables/useFieldErrors";
 import { loadDefaultSceneOptions } from "@/lib/sceneOptions";
 
 const ERROR_MESSAGES: Record<string, string> = {
-  invalid_vehicles: "车辆配置不合法，请检查各字段",
+  invalid_vehicles: "设备配置不合法，请检查各字段",
   unknown_scene_in_vehicle: "默认场景不存在，请重新选择",
-  forbidden: "当前账号没有编辑车辆的权限",
+  forbidden: "当前账号没有编辑设备的权限",
 };
 const messageFor = makeMessageFor(ERROR_MESSAGES);
 
@@ -190,7 +190,7 @@ const submit = async (): Promise<void> => {
   const ok = await persist(next);
   saving.value = false;
   if (ok) {
-    notify(mode.value === "create" ? "已新增车辆" : "已更新车辆", {
+    notify(mode.value === "create" ? "已新增设备" : "已更新设备", {
       type: "success",
     });
     mode.value = null;
@@ -215,7 +215,7 @@ const runDelete = async (): Promise<void> => {
 };
 
 const dialogTitle = computed(() =>
-  mode.value === "create" ? "新增车辆" : "编辑车辆",
+  mode.value === "create" ? "新增设备" : "编辑设备",
 );
 
 // Unsaved-changes guard for the dialog: snapshot the form once it is filled, so Esc / a backdrop
@@ -248,7 +248,7 @@ const formDirty = formSnapshot.dirty;
   <PageHeader title="部署">
     <template #actions>
       <UiButton size="sm" :disabled="status !== 'ready'" @click="openCreate"
-        >新增车辆</UiButton
+        >新增设备</UiButton
       >
     </template>
 
@@ -260,7 +260,7 @@ const formDirty = formSnapshot.dirty;
       class="text-sm text-critical-ink"
       role="alert"
     >
-      无法加载车辆配置
+      无法加载设备配置
     </p>
 
     <template v-else>
@@ -283,14 +283,14 @@ const formDirty = formSnapshot.dirty;
               <th scope="col" class="px-3 py-2">名称</th>
               <th scope="col" class="px-3 py-2">默认场景</th>
               <th scope="col" class="px-3 py-2">标签</th>
-              <th scope="col" class="px-3 py-2">GPS / 场景图</th>
+              <th scope="col" class="px-3 py-2">GPS / ROS</th>
               <th scope="col" class="py-2 pr-6 pl-3 text-right">操作</th>
             </tr>
           </thead>
           <tbody>
             <tr v-if="vehicles.length === 0">
               <td colspan="6" class="px-3 py-3 text-sm text-ink-muted">
-                暂无车辆配置；新增后，对应车辆上报时即套用这些覆盖项
+                暂无设备配置；新增后，对应设备上报时即套用这些覆盖项
               </td>
             </tr>
             <tr
@@ -315,7 +315,7 @@ const formDirty = formSnapshot.dirty;
               </td>
               <td class="px-3 py-2 text-ink-muted">
                 {{ vehicle.gpsEnabled === false ? "—" : "GPS" }} /
-                {{ vehicle.rosMapEnabled === false ? "—" : "场景图" }}
+                {{ vehicle.rosMapEnabled === false ? "—" : "ROS" }}
               </td>
               <td class="px-3 py-2">
                 <div class="flex justify-end gap-1">
@@ -350,7 +350,7 @@ const formDirty = formSnapshot.dirty;
     :dirty="formDirty"
     :autofocus="mode === 'create'"
     :title="dialogTitle"
-    description="填写车辆配置后提交"
+    description="填写设备配置后提交"
     @update:open="
       (o) => {
         if (!o) close();
@@ -505,8 +505,8 @@ const formDirty = formSnapshot.dirty;
 
   <UiConfirmDialog
     :open="confirmDelete !== null"
-    :title="`删除车辆配置 ${confirmDelete?.label ?? ''}？`"
-    description="仅移除配置覆盖；已上报的车辆快照不受影响；仍被编队引用时会被拒绝"
+    :title="`删除设备配置 ${confirmDelete?.label ?? ''}？`"
+    description="仅移除配置覆盖；已上报的设备快照不受影响；仍被编队引用时会被拒绝"
     confirm-label="删除"
     :pending="deleting"
     @update:open="

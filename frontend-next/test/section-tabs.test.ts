@@ -72,7 +72,7 @@ describe("AppSectionTabs", () => {
       "codebook:write",
     ]);
     expect(all.findAll("a").map((a) => a.text())).toEqual([
-      "车辆",
+      "设备",
       "编队",
       "场景",
       "报码字典",

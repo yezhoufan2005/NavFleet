@@ -229,7 +229,7 @@ const canFit = computed(() => fitTargetCount.value > 0);
 const fitTitle = computed(() =>
   canFit.value
     ? "适应车队"
-    : "该编队没有 GPS 车辆（可能是室内场景），无法在卫星图上取景",
+    : "该编队没有 GPS 设备（可能是室内场景），无法在卫星图上取景",
 );
 
 /** Animate to the picked vehicle, keeping at least street-level zoom. */

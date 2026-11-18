@@ -93,7 +93,7 @@ test.describe("console devices", () => {
     await expect(page.getByRole("img", { name: "ROS 场景地图" })).toBeVisible();
     const framed = await markerOffsetFromCentre(page);
 
-    await page.getByRole("button", { name: "定位车辆" }).click();
+    await page.getByRole("button", { name: "定位设备" }).click();
     const located = await markerOffsetFromCentre(page);
     expect(located).toBeLessThan(24);
     // Opening framed leaves the vehicle further from centre than locating it does.
@@ -107,7 +107,7 @@ test.describe("console devices", () => {
     await expect(page.getByRole("img", { name: "ROS 场景地图" })).toBeVisible();
 
     // Centre on the vehicle first; framing the scene then moves it off centre again.
-    await page.getByRole("button", { name: "定位车辆" }).click();
+    await page.getByRole("button", { name: "定位设备" }).click();
     const focused = await markerOffsetFromCentre(page);
     expect(focused).toBeLessThan(24);
 
@@ -155,7 +155,7 @@ test.describe("console devices", () => {
     // at the centre until 定位车辆 is pressed — which also proves the restored surface's
     // map and its controls are live after the reload, not a frozen backdrop.
     expect(await markerOffsetFromCentre(page)).toBeGreaterThan(24);
-    await page.getByRole("button", { name: "定位车辆" }).click();
+    await page.getByRole("button", { name: "定位设备" }).click();
     expect(await markerOffsetFromCentre(page)).toBeLessThan(24);
   });
 
@@ -266,7 +266,7 @@ test.describe("console devices", () => {
     await page.getByRole("button", { name: "ROS", exact: true }).click();
     await expect(page.getByRole("img", { name: "ROS 场景地图" })).toBeVisible();
 
-    await page.getByRole("button", { name: "定位车辆" }).click();
+    await page.getByRole("button", { name: "定位设备" }).click();
     expect(await markerOffsetFromCentre(page)).toBeLessThan(24);
   });
 
