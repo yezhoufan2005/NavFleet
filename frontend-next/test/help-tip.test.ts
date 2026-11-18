@@ -61,9 +61,12 @@ describe("UiHelpTip in a dialog", () => {
     const wrapper = mount(UiHelpTip, { props: { text: "说明" } });
     const classes = wrapper.get("button").classes();
     expect(classes).toContain("border-current");
-    // At rest the ? takes the ring's own light grey; only hover / keyboard focus darkens both.
+    // At rest the ? takes the ring's own light grey; only a direct mouse hover darkens it. A
+    // keyboard-tabbed focus shows the global focus ring (base.css) rather than recolouring the
+    // glyph, so focusing a field never makes the neighbouring ? look active.
     expect(classes).toContain("text-border-strong");
     expect(classes).not.toContain("text-ink-subtle");
+    expect(classes).not.toContain("focus-visible:text-ink-subtle");
     expect(classes.some((name) => name.includes("brand"))).toBe(false);
   });
 });
