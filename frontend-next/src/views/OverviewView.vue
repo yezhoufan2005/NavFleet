@@ -425,20 +425,25 @@ const alertRows = computed(() =>
         </span>
         <!-- The `value` variant reserves this element's own line box, so the card does
              not resize when the real number lands. -->
+        <!-- 数字与第三层说明同一行：数字在左，说明右对齐同基线，再到比例条。字体样式不变。 -->
         <template v-if="fleet.bootstrapPending">
-          <UiSkeleton variant="value" />
-          <!--
-            The note is a placeholder too, and that is not tidiness. Every note is
-            derived from counts that are all zero before the snapshot arrives, so a
-            loading 总览 was stating 全部在线 · 无告警级 · 全部已定位 — four confident
-            claims about data it did not have. That is the same defect as
-            `formatNumber(null)` rendering `0.00`, one layer up.
-          -->
-          <UiSkeleton />
+          <div class="flex items-baseline justify-between gap-2">
+            <UiSkeleton variant="value" />
+            <!--
+              The note is a placeholder too, and that is not tidiness. Every note is
+              derived from counts that are all zero before the snapshot arrives, so a
+              loading 总览 was stating 全部在线 · 无告警级 · 全部已定位 — four confident
+              claims about data it did not have. That is the same defect as
+              `formatNumber(null)` rendering `0.00`, one layer up.
+            -->
+            <UiSkeleton class="w-24" />
+          </div>
         </template>
         <template v-else>
-          <strong :class="TILE_VALUE_CLASS">{{ tile.value }}</strong>
-          <span class="text-xs text-ink-muted">{{ tile.note }}</span>
+          <div class="flex items-baseline justify-between gap-2">
+            <strong :class="TILE_VALUE_CLASS">{{ tile.value }}</strong>
+            <span class="text-xs text-ink-muted">{{ tile.note }}</span>
+          </div>
         </template>
         <!--
           Mini proportion bar, anchored to the card's bottom (`mt-auto`) so it fills the
