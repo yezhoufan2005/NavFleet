@@ -189,73 +189,75 @@ const formatTime = (iso: string): string =>
         仅显示最近
         {{ cappedAt }} 条（后端单次查询上限），缩小时间范围可查看更早的记录
       </p>
-      <!-- Same shell as the device list: the table itself does not scroll (`overflow-hidden`
+      <div class="flex flex-col gap-2">
+        <!-- Same shell as the device list: the table itself does not scroll (`overflow-hidden`
            clips its corners), the page scrolls. -->
-      <div :class="[tableClasses.wrapper, 'overflow-hidden']">
-        <table :class="[tableClasses.table, 'table-fixed']">
-          <!-- Fixed column widths so the geometry does not shift as rows change between queries
+        <div :class="[tableClasses.wrapper, 'overflow-hidden']">
+          <table :class="[tableClasses.table, 'table-fixed']">
+            <!-- Fixed column widths so the geometry does not shift as rows change between queries
                (same reason 设备 pins its columns). An over-long value wraps inside its cell rather
                than widening the column; `truncate` keeps the common case to one tidy line. -->
-          <colgroup>
-            <col class="w-44" />
-            <col class="w-28" />
-            <col class="w-28" />
-            <col class="w-56" />
-            <col class="w-20" />
-          </colgroup>
-          <caption class="sr-only">
-            鉴权与用户管理事件，最新在前
-          </caption>
-          <thead :class="tableClasses.thead">
-            <tr>
-              <th scope="col" class="px-3 py-2">时间</th>
-              <th scope="col" class="px-3 py-2">操作者</th>
-              <th scope="col" class="px-3 py-2">动作</th>
-              <th scope="col" class="px-3 py-2">对象</th>
-              <th scope="col" class="px-3 py-2">结果</th>
-            </tr>
-          </thead>
-          <tbody>
-            <tr
-              v-for="(entry, index) in pageRows"
-              :key="`${entry.ts}-${index}`"
-              :class="tableClasses.row"
-            >
-              <td class="px-3 py-2 whitespace-nowrap text-ink-muted">
-                {{ formatTime(entry.ts) }}
-              </td>
-              <td class="truncate px-3 py-2 text-ink">{{ entry.actor }}</td>
-              <td class="truncate px-3 py-2 text-ink">
-                {{ actionLabel(entry.action) }}
-              </td>
-              <td
-                class="truncate px-3 py-2 text-ink-muted"
-                :title="auditObject(entry)"
+            <colgroup>
+              <col class="w-44" />
+              <col class="w-28" />
+              <col class="w-28" />
+              <col class="w-56" />
+              <col class="w-20" />
+            </colgroup>
+            <caption class="sr-only">
+              鉴权与用户管理事件，最新在前
+            </caption>
+            <thead :class="tableClasses.thead">
+              <tr>
+                <th scope="col" class="px-3 py-2">时间</th>
+                <th scope="col" class="px-3 py-2">操作者</th>
+                <th scope="col" class="px-3 py-2">动作</th>
+                <th scope="col" class="px-3 py-2">对象</th>
+                <th scope="col" class="px-3 py-2">结果</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr
+                v-for="(entry, index) in pageRows"
+                :key="`${entry.ts}-${index}`"
+                :class="tableClasses.row"
               >
-                {{ auditObject(entry) }}
-              </td>
-              <td class="px-3 py-2">
-                <span
-                  :class="
-                    entry.outcome === 'failure'
-                      ? 'text-critical-ink'
-                      : 'text-ink-muted'
-                  "
-                  >{{ entry.outcome === "failure" ? "失败" : "成功" }}</span
+                <td class="px-3 py-2 whitespace-nowrap text-ink-muted">
+                  {{ formatTime(entry.ts) }}
+                </td>
+                <td class="truncate px-3 py-2 text-ink">{{ entry.actor }}</td>
+                <td class="truncate px-3 py-2 text-ink">
+                  {{ actionLabel(entry.action) }}
+                </td>
+                <td
+                  class="truncate px-3 py-2 text-ink-muted"
+                  :title="auditObject(entry)"
                 >
-              </td>
-            </tr>
-          </tbody>
-        </table>
+                  {{ auditObject(entry) }}
+                </td>
+                <td class="px-3 py-2">
+                  <span
+                    :class="
+                      entry.outcome === 'failure'
+                        ? 'text-critical-ink'
+                        : 'text-ink-muted'
+                    "
+                    >{{ entry.outcome === "failure" ? "失败" : "成功" }}</span
+                  >
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+        <UiListPagination
+          :page="page"
+          :page-count="pageCount"
+          :page-size="pageSize"
+          :total="entries.length"
+          @update:page="setPage"
+          @update:page-size="setPageSize"
+        />
       </div>
-      <UiListPagination
-        :page="page"
-        :page-count="pageCount"
-        :page-size="pageSize"
-        :total="entries.length"
-        @update:page="setPage"
-        @update:page-size="setPageSize"
-      />
     </template>
   </PageHeader>
 </template>

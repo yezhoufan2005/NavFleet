@@ -11,16 +11,16 @@
 # deploy/.env 里这两个一起调大（如 8/8）让首次起栈更快，不改数据规模。
 #
 # 用法:
-#   scripts/verify-stack.sh              起栈 + 演示车队 + 演示账号/记录 + 全部断言，跑完把栈留着
-#   scripts/verify-stack.sh --down       跑完停栈（保留数据卷，下次起栈接着补齐）
-#   scripts/verify-stack.sh --purge      开跑前删掉本 project 的全部卷（库与演示状态），从空库重来
-#   scripts/verify-stack.sh --no-mock    不叠加演示车队（断言里与数据量有关的几条会跳过）
-#   scripts/verify-stack.sh --no-seed    不注入演示账号/角色/组/会话/审计（只保留 admin）
-#   scripts/verify-stack.sh --fresh      先停掉并删除本 project 的容器再起（保留卷）
-#   scripts/verify-stack.sh --check-only 不碰 compose，只对已经在跑的栈跑断言（也不注入演示数据）
+#   scripts/verify-stack.sh               起栈 + 演示车队 + 演示账号/记录 + 全部断言，跑完把栈留着
+#   scripts/verify-stack.sh --down        跑完停栈（保留数据卷，下次起栈接着补齐）
+#   scripts/verify-stack.sh --purge       开跑前删掉本 project 的全部卷（库与演示状态），从空库重来
+#   scripts/verify-stack.sh --no-mock     不叠加演示车队（断言里与数据量有关的几条会跳过）
+#   scripts/verify-stack.sh --no-seed     不注入演示账号/角色/组/会话/审计（只保留 admin）
+#   scripts/verify-stack.sh --fresh       先停掉并删除本 project 的容器再起（保留卷）
+#   scripts/verify-stack.sh --check-only  不碰 compose，只对已经在跑的栈跑断言（也不注入演示数据）
 #   scripts/verify-stack.sh --allow-dirty 工作树有未提交改动时仍继续（默认拦下，见下）
-#   scripts/verify-stack.sh --mqtt-tls   叠加 TLS broker（mqtts://8883），验证加密摄入链路
-#   scripts/verify-stack.sh --monitoring 叠加监控栈，断言三个 exporter 在 Prometheus 里 up
+#   scripts/verify-stack.sh --mqtt-tls    叠加 TLS broker（mqtts://8883），验证加密摄入链路
+#   scripts/verify-stack.sh --monitoring  叠加监控栈，断言三个 exporter 在 Prometheus 里 up
 #
 # 每次都「干净地更新+重启」：compose 从磁盘当前文件构建镜像，故开工前会打印构建依据的 HEAD，
 # 工作树脏则默认拦下（镜像会含改到一半的文件，正是 vue-tsc 偶发失败的根因）；启动用
@@ -183,7 +183,7 @@ if [[ "$CHECK_ONLY" == "0" ]]; then
     git -C "$ROOT" status --short 2>/dev/null | sed 's/^/    /'
     if [[ "$ALLOW_DIRTY" == "0" ]]; then
       echo "  这常是「构建撞上正在进行的编辑」。确认无误（在测本地改动）就加 --allow-dirty 重跑；"
-      echo "  否则先提交/暂存，或等编辑结束，再 sh verify-stack.sh。"
+      echo "  否则先提交/暂存，或等编辑结束，再 bash verify-stack.sh。"
       exit 1
     fi
     echo "  （--allow-dirty：按当前磁盘状态继续）"

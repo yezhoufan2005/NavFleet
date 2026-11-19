@@ -73,7 +73,7 @@ const TONE_BADGE: Record<string, string> = {
 
     <div
       v-if="!device"
-      class="grid place-content-center gap-2 rounded-md border border-border bg-surface-raised p-10 text-center"
+      class="grid place-content-center gap-2 rounded-md border border-border bg-surface-raised p-4 text-center"
     >
       <strong class="text-md text-ink">{{
         fleet.bootstrapPending ? "正在加载车队…" : "找不到这台设备"

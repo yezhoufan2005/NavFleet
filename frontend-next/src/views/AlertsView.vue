@@ -668,18 +668,21 @@ watch(() => canAck.value && fleet.state.realtime.apiReady, runLegacyMigration);
     <AlertHistoryPanel v-if="!isLive" />
 
     <template v-else>
-      <!-- A live region: filtering down to nothing has to be announced, not leave a
+      <!-- The live list and its pager are one 分区: grouped at gap-2 (8px) so the pager hugs the
+           list, matching 消息史 (AlertHistoryPanel). The rest of the page keeps the 16px rhythm. -->
+      <div class="flex flex-col gap-2">
+        <!-- A live region: filtering down to nothing has to be announced, not leave a
            blank panel behind. -->
-      <UiEmptyState v-if="!pageRows.length">
-        {{
-          allAlerts.length
-            ? "没有符合当前筛选条件的消息"
-            : "当前车队没有活跃消息"
-        }}
-      </UiEmptyState>
+        <UiEmptyState v-if="!pageRows.length">
+          {{
+            allAlerts.length
+              ? "没有符合当前筛选条件的消息"
+              : "当前车队没有活跃消息"
+          }}
+        </UiEmptyState>
 
-      <ul v-else class="m-0 flex list-none flex-col gap-2 p-0">
-        <!--
+        <ul v-else class="m-0 flex list-none flex-col gap-2 p-0">
+          <!--
         Two visual encodings the port dropped, both restored on this element rather than
         on the badge:
 
@@ -703,135 +706,140 @@ watch(() => canAck.value && fleet.state.realtime.apiReady, runLegacyMigration);
         on screen accounted for it. A cue whose cause is off-screen is noise, however
         faithful it is to the original.
       -->
-        <li
-          v-for="alert in pageRows"
-          :key="alert.id"
-          class="alert-row flex flex-col gap-2 rounded-md border border-border bg-surface-raised p-3 sm:flex-row sm:items-start"
-          :data-severity="alert.severity"
-          :data-disposition="disp.dispositionOf(alert.deviceId, alert.id)"
-        >
-          <!-- Select to ignore in bulk: ticking rows feeds 忽略选中 above. Operator+ only;
-               viewers never see it. -->
-          <input
-            v-if="canAck"
-            type="checkbox"
-            class="mt-0.5 size-4 shrink-0"
-            :checked="isSelected(alert)"
-            :aria-label="`选择消息：${alert.title}`"
-            @change="toggleSelected(alert)"
-          />
-
-          <span
-            class="shrink-0 rounded-xs px-2 py-0.5 font-mono text-2xs"
-            :class="SEVERITY_BADGE[alert.severity]"
-            >{{ SEVERITY_LABELS[alert.severity] }}</span
+          <li
+            v-for="alert in pageRows"
+            :key="alert.id"
+            class="alert-row flex flex-col gap-2 rounded-md border border-border bg-surface-raised p-3 sm:flex-row sm:items-start"
+            :data-severity="alert.severity"
+            :data-disposition="disp.dispositionOf(alert.deviceId, alert.id)"
           >
+            <!-- Select to ignore in bulk: ticking rows feeds 忽略选中 above. Operator+ only;
+               viewers never see it. -->
+            <input
+              v-if="canAck"
+              type="checkbox"
+              class="mt-0.5 size-4 shrink-0"
+              :checked="isSelected(alert)"
+              :aria-label="`选择消息：${alert.title}`"
+              @change="toggleSelected(alert)"
+            />
 
-          <div class="flex min-w-0 flex-1 flex-col gap-0.5">
-            <strong class="text-sm text-ink">{{ alert.title }}</strong>
-            <span v-if="alert.detail" class="text-xs text-ink-muted">{{
-              alert.detail
-            }}</span>
             <span
-              class="flex flex-wrap items-center gap-2 text-2xs text-ink-subtle"
+              class="shrink-0 rounded-xs px-2 py-0.5 font-mono text-2xs"
+              :class="SEVERITY_BADGE[alert.severity]"
+              >{{ SEVERITY_LABELS[alert.severity] }}</span
             >
-              <!-- The row reaches the vehicle: diagnosing an alert used to mean reading
-                 the device id and going to find it. -->
-              <RouterLink
-                :to="`/devices/${alert.deviceId}`"
-                class="text-brand-ink underline-offset-2 hover:underline"
-                >{{ alert.deviceName || alert.deviceId }}</RouterLink
-              >
-              <!-- The onset, not the last report. `ts` is refreshed on every telemetry
-                 cycle, so rendering it made this line rewrite itself once a second. -->
-              <span class="font-mono">{{
-                formatDateTime(alert.firstSeenAt)
+
+            <div class="flex min-w-0 flex-1 flex-col gap-0.5">
+              <strong class="text-sm text-ink">{{ alert.title }}</strong>
+              <span v-if="alert.detail" class="text-xs text-ink-muted">{{
+                alert.detail
               }}</span>
-              <span v-if="alert.code" class="font-mono">#{{ alert.code }}</span>
-              <!-- Where the row came from. Computed on every alert and read by
+              <span
+                class="flex flex-wrap items-center gap-2 text-2xs text-ink-subtle"
+              >
+                <!-- The row reaches the vehicle: diagnosing an alert used to mean reading
+                 the device id and going to find it. -->
+                <RouterLink
+                  :to="`/devices/${alert.deviceId}`"
+                  class="text-brand-ink underline-offset-2 hover:underline"
+                  >{{ alert.deviceName || alert.deviceId }}</RouterLink
+                >
+                <!-- The onset, not the last report. `ts` is refreshed on every telemetry
+                 cycle, so rendering it made this line rewrite itself once a second. -->
+                <span class="font-mono">{{
+                  formatDateTime(alert.firstSeenAt)
+                }}</span>
+                <span v-if="alert.code" class="font-mono"
+                  >#{{ alert.code }}</span
+                >
+                <!-- Where the row came from. Computed on every alert and read by
                  nothing until now; it decides whether the vehicle or the platform is the
                  thing to go look at. -->
-              <span>{{ SOURCE_LABELS[alert.source] || alert.source }}</span>
-              <!-- Handling state: a chip showing 待处理 / 处理中 / 已忽略, with who holds it when
+                <span>{{ SOURCE_LABELS[alert.source] || alert.source }}</span>
+                <!-- Handling state: a chip showing 待处理 / 处理中 / 已忽略, with who holds it when
                    claimed or ignored. Server-backed, so it is the same on every console. -->
-              <span
-                class="rounded-xs border px-1.5 py-0.5"
-                :class="
-                  DISPOSITION_CHIP[disp.dispositionOf(alert.deviceId, alert.id)]
-                "
-              >
-                {{
-                  disp.dispositionLabel(
-                    disp.dispositionOf(alert.deviceId, alert.id),
-                  )
-                }}<template v-if="disp.handledBy(alert.deviceId, alert.id)">
-                  · {{ disp.handledBy(alert.deviceId, alert.id) }}</template
+                <span
+                  class="rounded-xs border px-1.5 py-0.5"
+                  :class="
+                    DISPOSITION_CHIP[
+                      disp.dispositionOf(alert.deviceId, alert.id)
+                    ]
+                  "
                 >
+                  {{
+                    disp.dispositionLabel(
+                      disp.dispositionOf(alert.deviceId, alert.id),
+                    )
+                  }}<template v-if="disp.handledBy(alert.deviceId, alert.id)">
+                    · {{ disp.handledBy(alert.deviceId, alert.id) }}</template
+                  >
+                </span>
               </span>
-            </span>
-          </div>
+            </div>
 
-          <!-- Per-row handling controls (operator+). The set shown depends on the state: 待处理
+            <!-- Per-row handling controls (operator+). The set shown depends on the state: 待处理
                offers 我来处理 + 忽略; 处理中 offers 释放认领 to the claimant or an admin; 已忽略
                offers 取消忽略. The backend enforces the same rules. -->
-          <div v-if="canAck" class="flex shrink-0 gap-1">
-            <template
-              v-if="
-                disp.dispositionOf(alert.deviceId, alert.id) === 'unhandled'
-              "
-            >
-              <UiButton
-                size="sm"
-                variant="primary"
-                :aria-label="`我来处理：${alert.title}`"
-                @click="claimOne(alert)"
+            <div v-if="canAck" class="flex shrink-0 gap-1">
+              <template
+                v-if="
+                  disp.dispositionOf(alert.deviceId, alert.id) === 'unhandled'
+                "
               >
-                我来处理
-              </UiButton>
+                <UiButton
+                  size="sm"
+                  variant="primary"
+                  :aria-label="`我来处理：${alert.title}`"
+                  @click="claimOne(alert)"
+                >
+                  我来处理
+                </UiButton>
+                <UiButton
+                  size="sm"
+                  variant="secondary"
+                  :aria-label="`忽略消息：${alert.title}`"
+                  @click="ignoreOne(alert)"
+                >
+                  忽略
+                </UiButton>
+              </template>
               <UiButton
+                v-else-if="
+                  disp.dispositionOf(alert.deviceId, alert.id) ===
+                    'investigating' && disp.canRelease(alert.deviceId, alert.id)
+                "
                 size="sm"
                 variant="secondary"
-                :aria-label="`忽略消息：${alert.title}`"
-                @click="ignoreOne(alert)"
+                :aria-label="`释放认领：${alert.title}`"
+                @click="releaseOne(alert)"
               >
-                忽略
+                释放认领
               </UiButton>
-            </template>
-            <UiButton
-              v-else-if="
-                disp.dispositionOf(alert.deviceId, alert.id) ===
-                  'investigating' && disp.canRelease(alert.deviceId, alert.id)
-              "
-              size="sm"
-              variant="secondary"
-              :aria-label="`释放认领：${alert.title}`"
-              @click="releaseOne(alert)"
-            >
-              释放认领
-            </UiButton>
-            <UiButton
-              v-else-if="
-                disp.dispositionOf(alert.deviceId, alert.id) === 'ignored'
-              "
-              size="sm"
-              variant="secondary"
-              :aria-label="`取消忽略：${alert.title}`"
-              @click="unignoreOne(alert)"
-            >
-              取消忽略
-            </UiButton>
-          </div>
-        </li>
-      </ul>
+              <UiButton
+                v-else-if="
+                  disp.dispositionOf(alert.deviceId, alert.id) === 'ignored'
+                "
+                size="sm"
+                variant="secondary"
+                :aria-label="`取消忽略：${alert.title}`"
+                @click="unignoreOne(alert)"
+              >
+                取消忽略
+              </UiButton>
+            </div>
+          </li>
+        </ul>
 
-      <UiListPagination
-        :page="page"
-        :page-count="pageCount"
-        :page-size="pageSize"
-        :total="filtered.length"
-        @update:page="setPage"
-        @update:page-size="setPageSize"
-      />
+        <UiListPagination
+          :page="page"
+          :page-count="pageCount"
+          :page-size="pageSize"
+          :total="filtered.length"
+          @update:page="setPage"
+          @update:page-size="setPageSize"
+        />
+      </div>
     </template>
   </PageHeader>
 </template>

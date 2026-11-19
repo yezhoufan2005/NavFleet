@@ -354,7 +354,7 @@ const pageRows = computed(() =>
        page that can say whether Mongo is connected. -->
   <p
     v-else-if="!records.length"
-    class="m-0 max-w-prose rounded-md border border-border bg-surface-raised p-8 text-center text-sm text-ink-muted"
+    class="m-0 max-w-prose rounded-md border border-border bg-surface-raised p-4 text-center text-sm text-ink-muted"
     role="status"
   >
     暂无已清除的消息；已清除的消息需要后端连接 MongoDB 才会留存 ——
@@ -372,180 +372,197 @@ const pageRows = computed(() =>
   </UiEmptyState>
 
   <template v-else>
-    <p v-if="cappedAt !== null" class="m-0 text-2xs text-ink-subtle">
-      仅统计最近
-      {{ cappedAt }}
-      条已清除消息（后端单次查询上限），缩小时间范围可查看更早的记录
-    </p>
+    <!-- 消息史 is the reference page for the 1.8.0 spacing standard: major 分区 (cap notice /
+         统计 / 图表 / 列表) and the cards within them share one gap-4 (16px) rhythm; only the
+         deliberately tight spots stay smaller — list↔pager at gap-2 (8px), card bodies at
+         gap-2/gap-3, inline label/value at gap-1. 16px is the single vertical/horizontal step. -->
+    <div class="flex flex-col gap-4">
+      <p v-if="cappedAt !== null" class="m-0 text-2xs text-ink-subtle">
+        仅统计最近
+        {{ cappedAt }}
+        条已清除消息（后端单次查询上限），缩小时间范围可查看更早的记录
+      </p>
 
-    <!-- Summary tiles -->
-    <dl class="m-0 grid grid-cols-2 gap-3 sm:grid-cols-3">
-      <div class="rounded-md border border-border bg-surface-raised p-3">
-        <dt class="text-2xs text-ink-subtle">已清除</dt>
-        <dd class="m-0 font-mono text-lg tabular-nums text-ink">
-          {{ stats.total }}
-        </dd>
-      </div>
-      <div class="rounded-md border border-border bg-surface-raised p-3">
-        <dt class="text-2xs text-ink-subtle">认领率</dt>
-        <dd class="m-0 font-mono text-lg tabular-nums text-ink">
-          {{ claimRateLabel }}
-        </dd>
-      </div>
-      <div class="rounded-md border border-border bg-surface-raised p-3">
-        <dt class="text-2xs text-ink-subtle">忽略率</dt>
-        <dd class="m-0 font-mono text-lg tabular-nums text-ink">
-          {{ ignoreRateLabel }}
-        </dd>
-      </div>
-      <div class="rounded-md border border-border bg-surface-raised p-3">
-        <dt class="text-2xs text-ink-subtle">自动恢复率</dt>
-        <dd class="m-0 font-mono text-lg tabular-nums text-ink">
-          {{ autoRecoverRateLabel }}
-        </dd>
-      </div>
-      <div class="rounded-md border border-border bg-surface-raised p-3">
-        <dt class="text-2xs text-ink-subtle">平均时长</dt>
-        <dd class="m-0 font-mono text-lg tabular-nums text-ink">
-          {{ formatDurationMs(stats.duration.meanMs) }}
-        </dd>
-      </div>
-      <div class="rounded-md border border-border bg-surface-raised p-3">
-        <dt class="text-2xs text-ink-subtle">时长中位数</dt>
-        <dd class="m-0 font-mono text-lg tabular-nums text-ink">
-          {{ formatDurationMs(stats.duration.medianMs) }}
-        </dd>
-      </div>
-    </dl>
-    <!-- Three charts, one row, equal 240px height: severity pie, a severity-stacked Top-10 device
-         bar, and a 星期×小时 onset heatmap. A roomier gap (gap-6) keeps the three cards from
-         crowding. -->
-    <div class="grid gap-6 lg:grid-cols-3">
-      <section class="rounded-md border border-border bg-surface-raised p-4">
-        <!-- 按严重度分布: pie by default (占比), toggle to the bar (magnitude comparison). The card
+      <!-- Summary tiles -->
+      <dl class="m-0 grid grid-cols-2 gap-4 sm:grid-cols-3">
+        <div class="rounded-md border border-border bg-surface-raised p-3">
+          <dt class="text-2xs text-ink-subtle">已清除</dt>
+          <dd class="m-0 font-mono text-lg tabular-nums text-ink">
+            {{ stats.total }}
+          </dd>
+        </div>
+        <div class="rounded-md border border-border bg-surface-raised p-3">
+          <dt class="text-2xs text-ink-subtle">认领率</dt>
+          <dd class="m-0 font-mono text-lg tabular-nums text-ink">
+            {{ claimRateLabel }}
+          </dd>
+        </div>
+        <div class="rounded-md border border-border bg-surface-raised p-3">
+          <dt class="text-2xs text-ink-subtle">忽略率</dt>
+          <dd class="m-0 font-mono text-lg tabular-nums text-ink">
+            {{ ignoreRateLabel }}
+          </dd>
+        </div>
+        <div class="rounded-md border border-border bg-surface-raised p-3">
+          <dt class="text-2xs text-ink-subtle">自动恢复率</dt>
+          <dd class="m-0 font-mono text-lg tabular-nums text-ink">
+            {{ autoRecoverRateLabel }}
+          </dd>
+        </div>
+        <div class="rounded-md border border-border bg-surface-raised p-3">
+          <dt class="text-2xs text-ink-subtle">平均时长</dt>
+          <dd class="m-0 font-mono text-lg tabular-nums text-ink">
+            {{ formatDurationMs(stats.duration.meanMs) }}
+          </dd>
+        </div>
+        <div class="rounded-md border border-border bg-surface-raised p-3">
+          <dt class="text-2xs text-ink-subtle">时长中位数</dt>
+          <dd class="m-0 font-mono text-lg tabular-nums text-ink">
+            {{ formatDurationMs(stats.duration.medianMs) }}
+          </dd>
+        </div>
+      </dl>
+      <!-- Three charts, one row, equal 240px height: severity pie, a severity-stacked Top-10 device
+         bar, and a 星期×小时 onset heatmap. gap-4 (L1) matches the summary grid above, so the three
+         chart columns line up with the stat tiles rather than drifting on a wider gap. -->
+      <div class="grid gap-4 lg:grid-cols-3">
+        <section class="rounded-md border border-border bg-surface-raised p-4">
+          <!-- 按严重度分布: pie by default (占比), toggle to the bar (magnitude comparison). The card
              owns the 饼图/柱状图 toggle, so both charts render plot-only (labelHidden, no table). -->
-        <div class="mb-2 flex items-center justify-between gap-3">
-          <span class="text-sm font-medium text-ink">按严重度分布</span>
-          <UiButton
-            variant="ghost"
-            size="sm"
-            :aria-pressed="severityView === 'bar'"
-            @click="severityView = severityView === 'pie' ? 'bar' : 'pie'"
-          >
-            {{ severityView === "pie" ? "柱状图" : "饼图" }}
-          </UiButton>
-        </div>
-        <PieChart
-          v-if="severityView === 'pie'"
-          :data="severityData"
-          label="按严重度分布"
-          unit="条"
-          :height="240"
-          label-hidden
-          :show-table-toggle="false"
-        />
-        <CategoryBarChart
-          v-else
-          :data="severityData"
-          label="按严重度分布"
-          unit="条"
-          :height="240"
-          label-hidden
-          :show-table-toggle="false"
-        />
-      </section>
-      <section class="rounded-md border border-border bg-surface-raised p-4">
-        <StackedBarChart
-          :categories="deviceStacked.categories"
-          :series="deviceStacked.series"
-          label="消息最多的设备 (Top 10)"
-          unit="条"
-          :height="240"
-          scroll
-        />
-      </section>
-      <section class="rounded-md border border-border bg-surface-raised p-4">
-        <WeekHourHeatmap
-          :cells="weekHeatmap.cells"
-          :max="weekHeatmap.max"
-          label="按时间（星期 × 小时）"
-          :height="240"
-        />
-      </section>
-    </div>
+          <div class="mb-2 flex items-center justify-between gap-3">
+            <span class="text-sm font-medium text-ink">按严重度分布</span>
+            <UiButton
+              variant="ghost"
+              size="sm"
+              :aria-pressed="severityView === 'bar'"
+              @click="severityView = severityView === 'pie' ? 'bar' : 'pie'"
+            >
+              {{ severityView === "pie" ? "柱状图" : "饼图" }}
+            </UiButton>
+          </div>
+          <PieChart
+            v-if="severityView === 'pie'"
+            :data="severityData"
+            label="按严重度分布"
+            unit="条"
+            :height="240"
+            label-hidden
+            :show-table-toggle="false"
+          />
+          <CategoryBarChart
+            v-else
+            :data="severityData"
+            label="按严重度分布"
+            unit="条"
+            :height="240"
+            label-hidden
+            :show-table-toggle="false"
+          />
+        </section>
+        <section class="rounded-md border border-border bg-surface-raised p-4">
+          <StackedBarChart
+            :categories="deviceStacked.categories"
+            :series="deviceStacked.series"
+            label="消息最多的设备 (Top 10)"
+            unit="条"
+            :height="240"
+            scroll
+          />
+        </section>
+        <section class="rounded-md border border-border bg-surface-raised p-4">
+          <WeekHourHeatmap
+            :cells="weekHeatmap.cells"
+            :max="weekHeatmap.max"
+            label="按时间（星期 × 小时）"
+            :height="240"
+          />
+        </section>
+      </div>
 
-    <!-- Cleared-message list, newest clear first, paged like the other lists. Each row is two
-         lines: the code+title (with the detail inline to its right) over the device/时间/时长 facts. -->
-    <ul class="m-0 flex list-none flex-col gap-2 p-0">
-      <li
-        v-for="row in pageRows"
-        :key="row.key"
-        class="flex flex-col gap-1 rounded-md border border-border bg-surface-raised p-3"
-        :data-severity="row.severity"
-      >
-        <div class="flex flex-wrap items-baseline gap-2">
-          <span
-            class="rounded-xs px-1.5 py-0.5 font-mono text-2xs"
-            :class="SEVERITY_BADGE[row.severity]"
-            >{{ SEVERITY_LABELS[row.severity] }}</span
+      <!-- Cleared-message list, newest clear first, paged like the other lists. Each row is two
+         lines: the code+title (with the detail inline to its right) over the device/时间/时长 facts.
+         The list and its pager are one 分区, grouped at gap-2 so the pager hugs the list. -->
+      <div class="flex flex-col gap-2">
+        <ul class="m-0 flex list-none flex-col gap-2 p-0">
+          <li
+            v-for="row in pageRows"
+            :key="row.key"
+            class="flex flex-col gap-1 rounded-md border border-border bg-surface-raised p-3"
+            :data-severity="row.severity"
           >
-          <span
-            v-if="row.code"
-            class="font-mono text-sm tabular-nums text-ink"
-            >{{ row.code }}</span
-          >
-          <strong class="text-sm text-ink">{{ row.title }}</strong>
-          <!-- The detail sits inline after the title (was its own line), so a row is two lines. -->
-          <span v-if="row.detail" class="text-xs text-ink-muted">{{
-            row.detail
-          }}</span>
-          <span
-            v-if="row.dispositionLabel"
-            class="ml-auto font-mono text-2xs text-brand-ink"
-            >{{ row.dispositionLabel
-            }}<template v-if="row.handledBy">
-              · {{ row.handledBy }}</template
-            ></span
-          >
-        </div>
-
-        <dl class="m-0 flex flex-wrap gap-x-4 gap-y-0.5">
-          <div class="flex items-baseline gap-1.5">
-            <dt class="text-2xs text-ink-subtle">设备</dt>
-            <dd class="m-0">
-              <RouterLink
-                v-if="row.deviceId"
-                :to="`/devices/${row.deviceId}/alerts`"
-                class="text-xs text-brand-ink underline-offset-2 hover:underline"
-                >{{ row.deviceName }}</RouterLink
+            <div class="flex flex-wrap items-baseline gap-2">
+              <span
+                class="rounded-xs px-1.5 py-0.5 font-mono text-2xs"
+                :class="SEVERITY_BADGE[row.severity]"
+                >{{ SEVERITY_LABELS[row.severity] }}</span
               >
-              <span v-else class="text-xs text-ink">{{ row.deviceName }}</span>
-            </dd>
-          </div>
-          <div class="flex items-baseline gap-1.5">
-            <dt class="text-2xs text-ink-subtle">发生</dt>
-            <dd class="m-0 font-mono text-xs text-ink">{{ row.started }}</dd>
-          </div>
-          <div class="flex items-baseline gap-1.5">
-            <dt class="text-2xs text-ink-subtle">清除</dt>
-            <dd class="m-0 font-mono text-xs text-ink">{{ row.cleared }}</dd>
-          </div>
-          <div class="flex items-baseline gap-1.5">
-            <dt class="text-2xs text-ink-subtle">时长</dt>
-            <dd class="m-0 font-mono text-xs text-ink">{{ row.duration }}</dd>
-          </div>
-        </dl>
-      </li>
-    </ul>
+              <span
+                v-if="row.code"
+                class="font-mono text-sm tabular-nums text-ink"
+                >{{ row.code }}</span
+              >
+              <strong class="text-sm text-ink">{{ row.title }}</strong>
+              <!-- The detail sits inline after the title (was its own line), so a row is two lines. -->
+              <span v-if="row.detail" class="text-xs text-ink-muted">{{
+                row.detail
+              }}</span>
+              <span
+                v-if="row.dispositionLabel"
+                class="ml-auto font-mono text-2xs text-brand-ink"
+                >{{ row.dispositionLabel
+                }}<template v-if="row.handledBy">
+                  · {{ row.handledBy }}</template
+                ></span
+              >
+            </div>
 
-    <UiListPagination
-      :page="page"
-      :page-count="pageCount"
-      :page-size="pageSize"
-      :total="rows.length"
-      unit="条"
-      @update:page="setPage"
-      @update:page-size="setPageSize"
-    />
+            <dl class="m-0 flex flex-wrap gap-x-4 gap-y-0.5">
+              <div class="flex items-baseline gap-1.5">
+                <dt class="text-2xs text-ink-subtle">设备</dt>
+                <dd class="m-0">
+                  <RouterLink
+                    v-if="row.deviceId"
+                    :to="`/devices/${row.deviceId}/alerts`"
+                    class="text-xs text-brand-ink underline-offset-2 hover:underline"
+                    >{{ row.deviceName }}</RouterLink
+                  >
+                  <span v-else class="text-xs text-ink">{{
+                    row.deviceName
+                  }}</span>
+                </dd>
+              </div>
+              <div class="flex items-baseline gap-1.5">
+                <dt class="text-2xs text-ink-subtle">发生</dt>
+                <dd class="m-0 font-mono text-xs text-ink">
+                  {{ row.started }}
+                </dd>
+              </div>
+              <div class="flex items-baseline gap-1.5">
+                <dt class="text-2xs text-ink-subtle">清除</dt>
+                <dd class="m-0 font-mono text-xs text-ink">
+                  {{ row.cleared }}
+                </dd>
+              </div>
+              <div class="flex items-baseline gap-1.5">
+                <dt class="text-2xs text-ink-subtle">时长</dt>
+                <dd class="m-0 font-mono text-xs text-ink">
+                  {{ row.duration }}
+                </dd>
+              </div>
+            </dl>
+          </li>
+        </ul>
+
+        <UiListPagination
+          :page="page"
+          :page-count="pageCount"
+          :page-size="pageSize"
+          :total="rows.length"
+          unit="条"
+          @update:page="setPage"
+          @update:page-size="setPageSize"
+        />
+      </div>
+    </div>
   </template>
 </template>

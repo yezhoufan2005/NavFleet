@@ -503,7 +503,7 @@ watch(
 
     <div
       v-else-if="!devices.length"
-      class="grid place-content-center gap-2 rounded-md border border-border bg-surface-raised p-10 text-center"
+      class="grid place-content-center gap-2 rounded-md border border-border bg-surface-raised p-4 text-center"
     >
       <strong class="text-md text-ink">{{
         state.selectedFormationId ? "该编队下没有设备" : "暂无设备"
@@ -623,7 +623,7 @@ watch(
       </aside>
     </div>
 
-    <div v-else class="flex min-h-0 flex-1 flex-col gap-3">
+    <div v-else class="flex min-h-0 flex-1 flex-col gap-4">
       <!--
         List filters: a search over name/id, plus 状态 and 场景 as multi-selects (empty =
         all). On top of the formation filter in the header; local (not in the URL) because
@@ -659,8 +659,10 @@ watch(
         </UiFilterField>
       </UiFilterBar>
 
-      <div :class="[tableClasses.wrapper, 'overflow-x-auto']">
-        <!--
+      <!-- 设备筛选属于这张列表，筛选已和表格同处列表分区；表格与分页再归一层 gap-2（8px）贴合。 -->
+      <div class="flex min-h-0 flex-1 flex-col gap-2">
+        <div :class="[tableClasses.wrapper, 'overflow-x-auto']">
+          <!--
         `table-fixed` + `<colgroup>`: column widths are pinned by the colgroup, not by
         content, so nothing reflows when you sort. This is the fix for two reports:
         re-sorting changed which rows are on the page, which changed each column's widest
@@ -672,19 +674,19 @@ watch(
         own now-fixed cell; overflowing text in the 设备/编号/场景 columns truncates rather than
         wrapping.
       -->
-        <table :class="[tableClasses.tableNumeric, 'table-fixed']">
-          <caption class="sr-only">
-            设备列表，共
-            {{
-              filteredRows.length
-            }}
-            台，当前第
-            {{
-              Math.min(page, pageCount)
-            }}
-            页
-          </caption>
-          <!--
+          <table :class="[tableClasses.tableNumeric, 'table-fixed']">
+            <caption class="sr-only">
+              设备列表，共
+              {{
+                filteredRows.length
+              }}
+              台，当前第
+              {{
+                Math.min(page, pageCount)
+              }}
+              页
+            </caption>
+            <!--
           Widths in render order: expand · 状态 · 设备 · 编号 · 场景 · 最近上报 · 电量.
           Every column is pinned (none is left width-less): a `w-full` fixed-layout table
           distributes leftover width *proportionally* across the columns, so on a wide screen
@@ -692,74 +694,74 @@ watch(
           from 编号. 设备/编号 stay tight to their content; 场景 (long scene names) carries the
           most base so the slack lands there; 最近上报 fits the longest localised stamp.
         -->
-          <colgroup>
-            <col class="w-8" />
-            <col class="w-24" />
-            <col class="w-36" />
-            <col class="w-28" />
-            <col class="w-44" />
-            <col class="w-48" />
-            <col class="w-20" />
-          </colgroup>
-          <thead :class="tableClasses.thead">
-            <tr class="text-left">
-              <!--
+            <colgroup>
+              <col class="w-8" />
+              <col class="w-24" />
+              <col class="w-36" />
+              <col class="w-28" />
+              <col class="w-44" />
+              <col class="w-48" />
+              <col class="w-20" />
+            </colgroup>
+            <thead :class="tableClasses.thead">
+              <tr class="text-left">
+                <!--
               The expand column has no label, and `sr-only` text rather than an empty
               `th`: a blank header cell is announced as nothing at all, so the column's
               buttons arrive with no context.
             -->
-              <th class="w-8 px-1 py-2">
-                <span class="sr-only">展开</span>
-              </th>
-              <!--
+                <th class="w-8 px-1 py-2">
+                  <span class="sr-only">展开</span>
+                </th>
+                <!--
               Every header is a button inside a `th` carrying `aria-sort`. That pairing is
               the pattern rather than a clickable `th`, because a `th` is not focusable
               and a sort that only a mouse can reach is not a sort everyone has.
             -->
-              <th
-                v-for="column in COLUMNS"
-                :key="column.key"
-                :class="
-                  column.numeric ? NUMERIC_HEAD_CLASS : 'px-3 py-2 text-left'
-                "
-                :aria-sort="ariaSortFor(column.key)"
-              >
-                <!--
+                <th
+                  v-for="column in COLUMNS"
+                  :key="column.key"
+                  :class="
+                    column.numeric ? NUMERIC_HEAD_CLASS : 'px-3 py-2 text-left'
+                  "
+                  :aria-sort="ariaSortFor(column.key)"
+                >
+                  <!--
                 The arrow is always on the label's right, including on 电量. It used to be
                 flipped there (`flex-row-reverse`) so it would sit against the numbers it
                 describes — which put one of six arrows on the other side of its word and
                 made the row of headers read as two different controls.
               -->
-                <button
-                  type="button"
-                  class="inline-flex items-center gap-1 transition-colors duration-150 ease-standard hover:text-ink"
-                  :class="sortKey === column.key ? 'text-ink' : ''"
-                  @click="toggleSort(column.key)"
-                >
-                  <!-- Wrapped so the label's own edge is measurable: `console-devices.spec.ts`
+                  <button
+                    type="button"
+                    class="inline-flex items-center gap-1 transition-colors duration-150 ease-standard hover:text-ink"
+                    :class="sortKey === column.key ? 'text-ink' : ''"
+                    @click="toggleSort(column.key)"
+                  >
+                    <!-- Wrapped so the label's own edge is measurable: `console-devices.spec.ts`
                      asserts it lines up with the numbers below it, which is the thing that
                      was wrong and the thing no class assertion can see. -->
-                  <span class="sort-label">{{ column.label }}</span>
-                  <!--
+                    <span class="sort-label">{{ column.label }}</span>
+                    <!--
                   The glyph is only on the active column — a permanent up/down on all six
                   says "sortable" and then says nothing about which one is in effect. The
                   *slot* is always there, which is a different thing: without it, the
                   column that gained the arrow moved its own label by the arrow's width,
                   visibly so on the right-aligned 电量. See `NUMERIC_VALUE_CLASS`.
                 -->
-                  <span class="w-2.5 text-center" aria-hidden="true">{{
-                    sortKey === column.key
-                      ? sortDirection === "asc"
-                        ? "↑"
-                        : "↓"
-                      : ""
-                  }}</span>
-                </button>
-              </th>
-            </tr>
-          </thead>
-          <tbody>
-            <!--
+                    <span class="w-2.5 text-center" aria-hidden="true">{{
+                      sortKey === column.key
+                        ? sortDirection === "asc"
+                          ? "↑"
+                          : "↓"
+                        : ""
+                    }}</span>
+                  </button>
+                </th>
+              </tr>
+            </thead>
+            <tbody>
+              <!--
             No selected-row highlight here, and that is the fix for a real bug rather
             than a styling preference.
 
@@ -773,45 +775,47 @@ watch(
             The map's own side panel keeps its highlight, where it does mean something:
             the vehicle the map is currently showing, and it moves when you click.
           -->
-            <template v-for="row in pageRows" :key="row.device.deviceId">
-              <!--
+              <template v-for="row in pageRows" :key="row.device.deviceId">
+                <!--
               Clicking anywhere on the row toggles its card. The chevron is the real
               control — a `<tr>` handler is mouse-only — and the device link stops
               propagation, because a click target inside a click target is how you get
               "I clicked the row and it navigated instead".
             -->
-              <tr
-                class="device-row border-b border-border last:border-0"
-                :data-tone="row.tone"
-                :data-expanded="expandedId === row.device.deviceId || undefined"
-                @click="toggleExpanded(row.device.deviceId)"
-              >
-                <td class="px-1 py-2">
-                  <button
-                    type="button"
-                    class="grid size-6 place-content-center rounded-sm text-ink-subtle transition-colors duration-150 ease-standard hover:text-ink"
-                    :aria-expanded="expandedId === row.device.deviceId"
-                    :aria-controls="`device-card-${row.device.deviceId}`"
-                    :aria-label="`${row.device.deviceName || row.device.deviceId} 详情`"
-                    @click.stop="toggleExpanded(row.device.deviceId)"
-                  >
-                    <UiDisclosureArrow
-                      :open="expandedId === row.device.deviceId"
-                    />
-                  </button>
-                </td>
-                <td class="px-3 py-2">
-                  <span class="flex items-center gap-2 text-ink-muted">
-                    <span
-                      class="size-2 shrink-0 rounded-full"
-                      :class="TONE_DOT[row.tone]"
-                      aria-hidden="true"
-                    />
-                    {{ row.label }}
-                  </span>
-                </td>
-                <td class="truncate px-3 py-2">
-                  <!--
+                <tr
+                  class="device-row border-b border-border last:border-0"
+                  :data-tone="row.tone"
+                  :data-expanded="
+                    expandedId === row.device.deviceId || undefined
+                  "
+                  @click="toggleExpanded(row.device.deviceId)"
+                >
+                  <td class="px-1 py-2">
+                    <button
+                      type="button"
+                      class="grid size-6 place-content-center rounded-sm text-ink-subtle transition-colors duration-150 ease-standard hover:text-ink"
+                      :aria-expanded="expandedId === row.device.deviceId"
+                      :aria-controls="`device-card-${row.device.deviceId}`"
+                      :aria-label="`${row.device.deviceName || row.device.deviceId} 详情`"
+                      @click.stop="toggleExpanded(row.device.deviceId)"
+                    >
+                      <UiDisclosureArrow
+                        :open="expandedId === row.device.deviceId"
+                      />
+                    </button>
+                  </td>
+                  <td class="px-3 py-2">
+                    <span class="flex items-center gap-2 text-ink-muted">
+                      <span
+                        class="size-2 shrink-0 rounded-full"
+                        :class="TONE_DOT[row.tone]"
+                        aria-hidden="true"
+                      />
+                      {{ row.label }}
+                    </span>
+                  </td>
+                  <td class="truncate px-3 py-2">
+                    <!--
                   A link to the device, not a button that only moves the map's selection.
                   Until this changed, a healthy vehicle's detail page — and therefore the
                   four tabs on it — could not be reached by clicking anything: this cell
@@ -821,50 +825,65 @@ watch(
                   It still sets the selection on the way out, so coming back to the map
                   lands on the vehicle you just looked at.
                 -->
-                  <RouterLink
-                    :to="`/devices/${row.device.deviceId}`"
-                    class="text-ink underline-offset-2 hover:text-brand-ink hover:underline"
-                    @click.stop="fleet.selectDevice(row.device.deviceId)"
+                    <RouterLink
+                      :to="`/devices/${row.device.deviceId}`"
+                      class="text-ink underline-offset-2 hover:text-brand-ink hover:underline"
+                      @click.stop="fleet.selectDevice(row.device.deviceId)"
+                    >
+                      {{ row.device.deviceName || row.device.deviceId }}
+                    </RouterLink>
+                  </td>
+                  <td
+                    class="truncate px-3 py-2 font-mono text-xs text-ink-muted"
                   >
-                    {{ row.device.deviceName || row.device.deviceId }}
-                  </RouterLink>
-                </td>
-                <td class="truncate px-3 py-2 font-mono text-xs text-ink-muted">
-                  {{ row.device.deviceId }}
-                </td>
-                <td class="truncate px-3 py-2 text-ink-muted">
-                  {{ row.sceneLabel }}
-                </td>
-                <td class="px-3 py-2 text-ink-muted">
-                  {{ row.stamp }}
-                </td>
-                <td
-                  class="font-mono text-xs text-ink"
-                  :class="NUMERIC_VALUE_CLASS"
-                >
-                  <span class="soc-value">{{ row.soc }}</span>
-                </td>
-              </tr>
-              <Transition name="dev-expand">
-                <tr
-                  v-if="expandedId === row.device.deviceId"
-                  :id="`device-card-${row.device.deviceId}`"
-                  class="dev-expand-row border-b border-border last:border-0"
-                >
-                  <td :colspan="COLUMNS.length + 1" class="p-0">
-                    <div class="dev-card-clip">
-                      <DeviceRowCard
-                        :device="row.device"
-                        :formation-names="row.formationNames"
-                        @focus-on-map="focusOnMap"
-                      />
-                    </div>
+                    {{ row.device.deviceId }}
+                  </td>
+                  <td class="truncate px-3 py-2 text-ink-muted">
+                    {{ row.sceneLabel }}
+                  </td>
+                  <td class="px-3 py-2 text-ink-muted">
+                    {{ row.stamp }}
+                  </td>
+                  <td
+                    class="font-mono text-xs text-ink"
+                    :class="NUMERIC_VALUE_CLASS"
+                  >
+                    <span class="soc-value">{{ row.soc }}</span>
                   </td>
                 </tr>
-              </Transition>
-            </template>
-          </tbody>
-        </table>
+                <Transition name="dev-expand">
+                  <tr
+                    v-if="expandedId === row.device.deviceId"
+                    :id="`device-card-${row.device.deviceId}`"
+                    class="dev-expand-row border-b border-border last:border-0"
+                  >
+                    <td :colspan="COLUMNS.length + 1" class="p-0">
+                      <div class="dev-card-clip">
+                        <DeviceRowCard
+                          :device="row.device"
+                          :formation-names="row.formationNames"
+                          @focus-on-map="focusOnMap"
+                        />
+                      </div>
+                    </td>
+                  </tr>
+                </Transition>
+              </template>
+            </tbody>
+          </table>
+        </div>
+        <!-- Shared footer: 每页条数 + pager (with jump), the same control 消息/审计/外发 use;
+             grouped with the list at gap-2 so the pager hugs it. -->
+        <UiListPagination
+          v-if="filteredRows.length"
+          :page="page"
+          :page-count="pageCount"
+          :page-size="pageSize"
+          :total="filteredRows.length"
+          unit="台"
+          @update:page="setPage"
+          @update:page-size="setPageSize"
+        />
       </div>
 
       <!-- The filters narrowed the list to nothing: say so, rather than leave a header
@@ -873,19 +892,6 @@ watch(
         没有符合当前筛选条件的设备
       </UiEmptyState>
     </div>
-
-    <!-- Shared footer: 每页条数 + pager (with jump), the same control 消息/审计/外发 use.
-         Shown even on a single page so it does not come and go. -->
-    <UiListPagination
-      v-if="layout === 'list' && filteredRows.length"
-      :page="page"
-      :page-count="pageCount"
-      :page-size="pageSize"
-      :total="filteredRows.length"
-      unit="台"
-      @update:page="setPage"
-      @update:page-size="setPageSize"
-    />
   </PageHeader>
 </template>
 

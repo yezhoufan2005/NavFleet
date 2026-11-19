@@ -283,7 +283,7 @@ const panels = computed(() => [
     </section>
 
     <!-- The six panels in a fixed 3-column grid: 状态 / 位姿 / 限速, then 场景 / 任务 / GPS. -->
-    <div class="grid grid-cols-1 gap-3 md:grid-cols-3">
+    <div class="grid grid-cols-1 gap-4 md:grid-cols-3">
       <section
         v-for="panel in panels"
         :key="panel.key"
