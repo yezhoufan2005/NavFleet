@@ -384,7 +384,7 @@ const pageRows = computed(() =>
       </p>
 
       <!-- Two summary cards: 数量与时长 (left) and 处置率 (right). Each groups three metrics in a
-           3-up row, left/center/right aligned and split by thin vertical rules, so one card frame
+           3-up row, every metric left-aligned within its own divider segment, so one card frame
            carries each read (how much cleared / how it closed) instead of six loose tiles. -->
       <div class="grid gap-4 sm:grid-cols-2">
         <div
@@ -398,13 +398,13 @@ const pageRows = computed(() =>
                 {{ stats.total }}
               </dd>
             </div>
-            <div class="flex flex-col gap-0.5 px-3 text-center">
+            <div class="flex flex-col gap-0.5 px-3 text-left">
               <dt class="text-2xs text-ink-subtle">平均时长</dt>
               <dd class="m-0 font-mono text-lg tabular-nums text-ink">
                 {{ formatDurationMs(stats.duration.meanMs) }}
               </dd>
             </div>
-            <div class="flex flex-col gap-0.5 pl-3 text-right">
+            <div class="flex flex-col gap-0.5 pl-3 text-left">
               <dt class="text-2xs text-ink-subtle">时长中位数</dt>
               <dd class="m-0 font-mono text-lg tabular-nums text-ink">
                 {{ formatDurationMs(stats.duration.medianMs) }}
@@ -423,13 +423,13 @@ const pageRows = computed(() =>
                 {{ claimRateLabel }}
               </dd>
             </div>
-            <div class="flex flex-col gap-0.5 px-3 text-center">
+            <div class="flex flex-col gap-0.5 px-3 text-left">
               <dt class="text-2xs text-ink-subtle">忽略率</dt>
               <dd class="m-0 font-mono text-lg tabular-nums text-ink">
                 {{ ignoreRateLabel }}
               </dd>
             </div>
-            <div class="flex flex-col gap-0.5 pl-3 text-right">
+            <div class="flex flex-col gap-0.5 pl-3 text-left">
               <dt class="text-2xs text-ink-subtle">自动恢复率</dt>
               <dd class="m-0 font-mono text-lg tabular-nums text-ink">
                 {{ autoRecoverRateLabel }}
