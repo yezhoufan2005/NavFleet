@@ -14,10 +14,10 @@ import type { DateHourCell } from "@/lib/alertStats";
  * 日期 × 小时 onset heatmap, registered with only the parts it needs (Heatmap + VisualMap + grid +
  * tooltip), the same explicit-registration pattern as `categoryBarOption`/`timeSeriesOption`.
  *
- * Sequential by magnitude (dataviz: one hue, low→high): the scale runs from the chart surface (a 0
- * cell blends in) to the design system's green (`--color-success`), both theme-aware via the
- * palette, so "more green = more messages" reads the same in light and dark and never collides with
- * the blue brand/notice or the status colours. Pure builder — asserted without a canvas.
+ * Sequential by magnitude (dataviz: one hue, low→high): a five-step green ramp (`palette.heatmap`,
+ * modelled on GitHub's contribution graph) that is theme-aware — dark mode has its own greens
+ * (deep→bright), so the low end stays a visible tile instead of going black, and it never collides
+ * with the blue brand/notice or the status colours. Pure builder — asserted without a canvas.
  */
 echarts.use([
   HeatmapChart,
@@ -91,7 +91,7 @@ export const buildDateHourHeatmapOption = ({
     itemHeight: 64,
     text: ["多", "少"],
     textStyle: { color: palette.inkMuted, fontSize: 10 },
-    inRange: { color: [palette.surface, palette.success] },
+    inRange: { color: [...palette.heatmap] },
   },
   series: [
     {

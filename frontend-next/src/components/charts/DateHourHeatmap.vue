@@ -128,7 +128,7 @@ onBeforeUnmount(disposeChart);
          this wrapper scrolls (focusable so it is reachable from the keyboard, like the data table). -->
     <div
       v-if="!showTable"
-      class="w-full overflow-y-auto"
+      class="w-full overflow-x-hidden overflow-y-auto"
       :style="{ height: `${height}px` }"
       :tabindex="scrollable ? 0 : undefined"
       :role="scrollable ? 'region' : undefined"

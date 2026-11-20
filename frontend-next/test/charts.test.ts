@@ -20,6 +20,7 @@ import {
 import StackedBarChart from "@/components/charts/StackedBarChart.vue";
 import { buildDateHourHeatmapOption } from "@/components/charts/heatmapOption";
 import DateHourHeatmap from "@/components/charts/DateHourHeatmap.vue";
+import TopNSelect from "@/components/charts/TopNSelect.vue";
 import type { DateHourCell } from "@/lib/alertStats";
 import { buildPieOption } from "@/components/charts/pieOption";
 import PieChart from "@/components/charts/PieChart.vue";
@@ -112,6 +113,7 @@ const palette = {
   tooltipBorder: "#eeeeee",
   status: { critical: "#c00000", warning: "#c07000", notice: "#0060c0" },
   success: "#007000",
+  heatmap: ["#eef", "#9e9", "#4c6", "#3a4", "#263"],
 };
 
 const points = (count: number, offset = 0): [number, number][] =>
@@ -707,7 +709,7 @@ describe("buildDateHourHeatmapOption", () => {
     expect((option.xAxis as { data: string[] }).data).toHaveLength(24);
   });
 
-  it("runs the sequential scale from surface to the success (green) token, max floored at 1", () => {
+  it("runs the sequential scale across the green heatmap ramp, max floored at 1", () => {
     const option = buildDateHourHeatmapOption({
       dates: [],
       cells: [],
@@ -717,7 +719,7 @@ describe("buildDateHourHeatmapOption", () => {
     expect(option.visualMap).toMatchObject({
       min: 0,
       max: 1,
-      inRange: { color: [palette.surface, palette.success] },
+      inRange: { color: palette.heatmap },
     });
   });
 
@@ -773,6 +775,45 @@ describe("DateHourHeatmap", () => {
     const newest = bodyRows[0]!.findAll("th, td");
     expect(newest[0]!.text()).toBe("03-04");
     expect(newest.at(-1)!.text()).toBe("3");
+  });
+});
+
+describe("TopNSelect", () => {
+  const UiSelectStub = {
+    name: "UiSelect",
+    props: ["modelValue", "options", "ariaLabel"],
+    emits: ["update:modelValue"],
+    template:
+      '<div class="select-stub" :data-value="modelValue" :data-options="options.map((o) => o.value).join(\',\')" />',
+  };
+  const mountSel = (modelValue: number) =>
+    mount(TopNSelect, {
+      props: { modelValue },
+      global: { stubs: { UiSelect: UiSelectStub } },
+    });
+
+  it("offers the numeric presets plus 全部 and shows the current value", () => {
+    const stub = mountSel(10).get(".select-stub");
+    expect(stub.attributes("data-options")).toBe("5,10,20,all");
+    expect(stub.attributes("data-value")).toBe("10");
+  });
+
+  it("maps 全部 to Infinity and a preset back to its number", () => {
+    const wrapper = mountSel(10);
+    const select = wrapper.findComponent(UiSelectStub);
+    select.vm.$emit("update:modelValue", "all");
+    select.vm.$emit("update:modelValue", "20");
+    const events = wrapper.emitted("update:modelValue");
+    expect(events?.[0]).toEqual([Infinity]);
+    expect(events?.[1]).toEqual([20]);
+  });
+
+  it("shows 全部 as the current value when modelValue is Infinity", () => {
+    expect(
+      mountSel(Number.POSITIVE_INFINITY)
+        .get(".select-stub")
+        .attributes("data-value"),
+    ).toBe("all");
   });
 });
 

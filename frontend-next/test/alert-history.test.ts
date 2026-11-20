@@ -231,7 +231,7 @@ describe("the statistics", () => {
   it("labels the per-device chart by its dimension (消息最多的设备), not 告警", async () => {
     const wrapper = await mountPanel();
     expect(wrapper.find(".stack-stub").attributes("data-label")).toBe(
-      "消息最多的设备 (Top 10)",
+      "消息最多的设备",
     );
     // Stacked by the three severities.
     expect(wrapper.find(".stack-stub").attributes("data-series")).toBe(
@@ -243,9 +243,9 @@ describe("the statistics", () => {
     );
   });
 
-  it("caps the per-device stacked chart at the Top 10 (点 4)", async () => {
-    // 12 devices, one cleared message each: the stacked device chart shows the top 10, the card
-    // scrolls — not every device, and not the old Top-8.
+  it("defaults the per-device stacked chart to the top 10", async () => {
+    // 12 devices, one cleared message each: the stacked device chart defaults to the top 10 and the
+    // card scrolls — not every device, and not the old Top-8. The header selector can widen it.
     vi.spyOn(fleetApi, "getAlerts").mockResolvedValue({
       items: Array.from({ length: 12 }, (_unused, index) =>
         record({

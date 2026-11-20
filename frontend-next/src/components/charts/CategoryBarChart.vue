@@ -41,9 +41,10 @@ const {
   orientation?: BarOrientation;
   color?: string;
   /**
-   * Keep the card at `height` and let the plot grow past it with one scrollbar, instead of
-   * compressing every bar to fit. Horizontal bars grow downward (vertical scroll), vertical
-   * bars grow rightward (horizontal scroll). Off by default — a fixed 3-bar chart needs none.
+   * Keep the card at `height` and let the plot grow downward past it with one vertical scrollbar,
+   * instead of compressing every bar to fit. Applies to horizontal bars only — charts never scroll
+   * sideways (that is reserved for data tables), so a vertical-bar chart ignores this and fills the
+   * width. Off by default — a fixed 3-bar chart needs none.
    */
   scroll?: boolean;
   /** Keep `label` as the accessible name but drop the visible caption (a parent shows the heading). */
@@ -58,16 +59,19 @@ const { palette, animate } = useChartTheme();
 const SLOT_PX = 32;
 
 /**
- * The plotting surface size. Without `scroll` it fills the fixed-height card. With it, the
- * card stays `height` and scrolls while the surface grows along the bars' axis — down for
- * horizontal bars, right for vertical — so a long Top-N or a wide day range stays readable.
+ * The plotting surface size. Without `scroll` it fills the fixed-height card. With it, the card
+ * stays `height` and the surface grows **downward** while the card scrolls vertically, so a long
+ * Top-N stays readable. Charts never scroll horizontally (that is reserved for data tables), so a
+ * vertical-orientation chart ignores `scroll` and fills the width, letting the bars compress.
  */
 const surfaceStyle = computed<CSSProperties>(() => {
-  if (!scroll) return { width: "100%", height: "100%" };
-  const extent = data.length * SLOT_PX;
-  return orientation === "horizontal"
-    ? { width: "100%", height: `${Math.max(height, extent)}px` }
-    : { height: "100%", minWidth: `${extent}px` };
+  if (!scroll || orientation !== "horizontal") {
+    return { width: "100%", height: "100%" };
+  }
+  return {
+    width: "100%",
+    height: `${Math.max(height, data.length * SLOT_PX)}px`,
+  };
 });
 
 const surface = useTemplateRef<HTMLElement>("surface");
@@ -141,7 +145,7 @@ onBeforeUnmount(disposeChart);
 
     <div
       v-if="!showTable"
-      class="w-full overflow-auto"
+      class="w-full overflow-x-hidden overflow-y-auto"
       :style="{ height: `${height}px` }"
     >
       <div

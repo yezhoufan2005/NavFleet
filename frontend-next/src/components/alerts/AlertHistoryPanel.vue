@@ -16,6 +16,7 @@ import { computed, onMounted, ref, watch } from "vue";
 import { RouterLink, useRoute } from "vue-router";
 import CategoryBarChart from "@/components/charts/CategoryBarChart.vue";
 import StackedBarChart from "@/components/charts/StackedBarChart.vue";
+import TopNSelect from "@/components/charts/TopNSelect.vue";
 import DateHourHeatmap from "@/components/charts/DateHourHeatmap.vue";
 import PieChart from "@/components/charts/PieChart.vue";
 import UiButton from "@/components/ui/UiButton.vue";
@@ -228,13 +229,15 @@ const severityData = computed(() =>
 );
 
 /**
- * 消息最多的设备 Top 10, as a bar stacked by severity: one row per vehicle shows both how many
- * messages it raised and of what kind, worst-first. `topDevices` is already count-desc, so the top
- * ten are the slice; each severity is a stacked series wearing its status colour.
+ * 消息最多的设备, as a bar stacked by severity: one row per vehicle shows both how many messages it
+ * raised and of what kind, worst-first. `topDevices` is already count-desc, so the cut-off is a
+ * slice; each severity is a stacked series wearing its status colour. The operator picks how many
+ * to show (`deviceTopN`, default 10, 全部 = Infinity) from the chart header; the card scrolls when
+ * the bars outgrow it, so 全部 costs a scrollbar, never an ever-taller card.
  */
-const DEVICE_TOP_N = 10;
+const deviceTopN = ref(10);
 const deviceStacked = computed(() => {
-  const top = stats.value.topDevices.slice(0, DEVICE_TOP_N);
+  const top = stats.value.topDevices.slice(0, deviceTopN.value);
   return {
     categories: top.map((device) =>
       deviceNameOf(device.deviceId, device.deviceName),
@@ -463,11 +466,15 @@ const pageRows = computed(() =>
           <StackedBarChart
             :categories="deviceStacked.categories"
             :series="deviceStacked.series"
-            label="消息最多的设备 (Top 10)"
+            label="消息最多的设备"
             unit="条"
             :height="240"
             scroll
-          />
+          >
+            <template #actions>
+              <TopNSelect v-model="deviceTopN" aria-label="显示的设备数量" />
+            </template>
+          </StackedBarChart>
         </section>
         <section class="rounded-md border border-border bg-surface-raised p-4">
           <DateHourHeatmap
