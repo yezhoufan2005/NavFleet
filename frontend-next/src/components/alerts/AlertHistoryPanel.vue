@@ -383,45 +383,61 @@ const pageRows = computed(() =>
         条已清除消息（后端单次查询上限），缩小时间范围可查看更早的记录
       </p>
 
-      <!-- Summary tiles -->
-      <dl class="m-0 grid grid-cols-2 gap-4 sm:grid-cols-3">
-        <div class="rounded-md border border-border bg-surface-raised p-3">
-          <dt class="text-2xs text-ink-subtle">已清除</dt>
-          <dd class="m-0 font-mono text-lg tabular-nums text-ink">
-            {{ stats.total }}
-          </dd>
+      <!-- Two summary cards: 数量与时长 (left) and 处置率 (right). Each groups three metrics in a
+           3-up row, every metric left-aligned within its own divider segment, so one card frame
+           carries each read (how much cleared / how it closed) instead of six loose tiles. -->
+      <div class="grid gap-4 sm:grid-cols-2">
+        <div
+          class="flex flex-col gap-3 rounded-md border border-border bg-surface-raised p-4"
+        >
+          <p class="m-0 text-sm font-medium text-ink">数量与时长</p>
+          <dl class="m-0 grid grid-cols-3 divide-x divide-border">
+            <div class="flex flex-col gap-0.5 pr-3 text-left">
+              <dt class="text-2xs text-ink-subtle">已清除</dt>
+              <dd class="m-0 font-mono text-lg tabular-nums text-ink">
+                {{ stats.total }}
+              </dd>
+            </div>
+            <div class="flex flex-col gap-0.5 px-3 text-left">
+              <dt class="text-2xs text-ink-subtle">平均时长</dt>
+              <dd class="m-0 font-mono text-lg tabular-nums text-ink">
+                {{ formatDurationMs(stats.duration.meanMs) }}
+              </dd>
+            </div>
+            <div class="flex flex-col gap-0.5 pl-3 text-left">
+              <dt class="text-2xs text-ink-subtle">时长中位数</dt>
+              <dd class="m-0 font-mono text-lg tabular-nums text-ink">
+                {{ formatDurationMs(stats.duration.medianMs) }}
+              </dd>
+            </div>
+          </dl>
         </div>
-        <div class="rounded-md border border-border bg-surface-raised p-3">
-          <dt class="text-2xs text-ink-subtle">认领率</dt>
-          <dd class="m-0 font-mono text-lg tabular-nums text-ink">
-            {{ claimRateLabel }}
-          </dd>
+        <div
+          class="flex flex-col gap-3 rounded-md border border-border bg-surface-raised p-4"
+        >
+          <p class="m-0 text-sm font-medium text-ink">处置率</p>
+          <dl class="m-0 grid grid-cols-3 divide-x divide-border">
+            <div class="flex flex-col gap-0.5 pr-3 text-left">
+              <dt class="text-2xs text-ink-subtle">认领率</dt>
+              <dd class="m-0 font-mono text-lg tabular-nums text-ink">
+                {{ claimRateLabel }}
+              </dd>
+            </div>
+            <div class="flex flex-col gap-0.5 px-3 text-left">
+              <dt class="text-2xs text-ink-subtle">忽略率</dt>
+              <dd class="m-0 font-mono text-lg tabular-nums text-ink">
+                {{ ignoreRateLabel }}
+              </dd>
+            </div>
+            <div class="flex flex-col gap-0.5 pl-3 text-left">
+              <dt class="text-2xs text-ink-subtle">自动恢复率</dt>
+              <dd class="m-0 font-mono text-lg tabular-nums text-ink">
+                {{ autoRecoverRateLabel }}
+              </dd>
+            </div>
+          </dl>
         </div>
-        <div class="rounded-md border border-border bg-surface-raised p-3">
-          <dt class="text-2xs text-ink-subtle">忽略率</dt>
-          <dd class="m-0 font-mono text-lg tabular-nums text-ink">
-            {{ ignoreRateLabel }}
-          </dd>
-        </div>
-        <div class="rounded-md border border-border bg-surface-raised p-3">
-          <dt class="text-2xs text-ink-subtle">自动恢复率</dt>
-          <dd class="m-0 font-mono text-lg tabular-nums text-ink">
-            {{ autoRecoverRateLabel }}
-          </dd>
-        </div>
-        <div class="rounded-md border border-border bg-surface-raised p-3">
-          <dt class="text-2xs text-ink-subtle">平均时长</dt>
-          <dd class="m-0 font-mono text-lg tabular-nums text-ink">
-            {{ formatDurationMs(stats.duration.meanMs) }}
-          </dd>
-        </div>
-        <div class="rounded-md border border-border bg-surface-raised p-3">
-          <dt class="text-2xs text-ink-subtle">时长中位数</dt>
-          <dd class="m-0 font-mono text-lg tabular-nums text-ink">
-            {{ formatDurationMs(stats.duration.medianMs) }}
-          </dd>
-        </div>
-      </dl>
+      </div>
       <!-- Three charts, one row, equal 240px height: severity pie, a severity-stacked Top-10 device
          bar, and a 星期×小时 onset heatmap. gap-4 (L1) matches the summary grid above, so the three
          chart columns line up with the stat tiles rather than drifting on a wider gap. -->
