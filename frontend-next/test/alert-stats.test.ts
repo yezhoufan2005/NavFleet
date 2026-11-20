@@ -4,7 +4,7 @@ import {
   computeAlertStats,
   formatDurationMs,
   severityOf,
-  weekHourHeatmap,
+  dateHourHeatmap,
 } from "@/lib/alertStats";
 
 /**
@@ -196,29 +196,49 @@ describe("formatDurationMs", () => {
   });
 });
 
-describe("weekHourHeatmap", () => {
-  it("buckets onsets into a dense 7×24 weekday×hour grid and reports the max", () => {
+describe("dateHourHeatmap", () => {
+  it("buckets onsets into dense date×hour rows, newest day first, and reports the max", () => {
     const iso = "2026-03-04T09:30:00.000Z";
-    const { cells, max } = weekHourHeatmap([
+    const { dates, cells, max } = dateHourHeatmap([
       record({ firstSeenAt: iso }),
       record({ firstSeenAt: iso }),
     ]);
-    // Dense: every cell present (0 included), so the heatmap has no holes.
-    expect(cells).toHaveLength(7 * 24);
-    // Local time, Monday-first — computed the same way the function does, so it is TZ-safe.
-    const date = new Date(iso);
-    const weekday = (date.getDay() + 6) % 7;
+    // One day in range → one row of 24 hourly cells (0 included), so the row has no holes.
+    expect(dates).toHaveLength(1);
+    expect(cells).toHaveLength(24);
+    // Local time — computed the same way the function does, so it is TZ-safe.
     const hit = cells.find(
-      (cell) => cell.weekday === weekday && cell.hour === date.getHours(),
+      (cell) => cell.dateIndex === 0 && cell.hour === new Date(iso).getHours(),
     );
     expect(hit?.count).toBe(2);
     expect(max).toBe(2);
     expect(cells.filter((cell) => cell.count > 0)).toHaveLength(1);
   });
 
-  it("skips records whose onset does not parse, reporting max 0", () => {
-    const { cells, max } = weekHourHeatmap([record({ firstSeenAt: "" })]);
+  it("fills quiet days between the first and last onset and orders rows newest-first", () => {
+    // Two onsets three local days apart → four rows (both ends plus the two blank days between).
+    const first = new Date(2026, 2, 1, 10, 0, 0);
+    const last = new Date(2026, 2, 4, 15, 0, 0);
+    const { dates, cells } = dateHourHeatmap([
+      record({ firstSeenAt: first.toISOString() }),
+      record({ firstSeenAt: last.toISOString() }),
+    ]);
+    expect(dates).toEqual(["03-04", "03-03", "03-02", "03-01"]);
+    expect(cells).toHaveLength(4 * 24);
+    expect(cells.find((c) => c.dateIndex === 0 && c.hour === 15)?.count).toBe(
+      1,
+    );
+    expect(cells.find((c) => c.dateIndex === 3 && c.hour === 10)?.count).toBe(
+      1,
+    );
+  });
+
+  it("returns empty when no onset parses", () => {
+    const { dates, cells, max } = dateHourHeatmap([
+      record({ firstSeenAt: "" }),
+    ]);
+    expect(dates).toEqual([]);
+    expect(cells).toEqual([]);
     expect(max).toBe(0);
-    expect(cells.every((cell) => cell.count === 0)).toBe(true);
   });
 });

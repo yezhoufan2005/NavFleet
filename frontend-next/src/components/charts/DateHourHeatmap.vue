@@ -1,26 +1,34 @@
 <script setup lang="ts">
 /**
- * 星期 × 小时 onset heatmap, plus the data table that stands in for it.
+ * 日期 × 小时 onset heatmap, plus the data table that stands in for it.
  *
  * Same contract as the other charts here: a pure option builder (`heatmapOption.ts`), a
  * theme-watching rebuild (ECharts copies colours at `setOption`), and a colour-independent data
- * table (weekday rows × hour columns + a row total) so the magnitudes are readable without colour.
+ * table (date rows × hour columns + a row total) so the magnitudes are readable without colour.
+ *
+ * Rows are one calendar day each, newest first. The default 10-day window fits the fixed card
+ * height; a wider window grows the canvas past it, and the chart scrolls vertically inside the card
+ * rather than compressing the rows to nothing — the row height (`ROW_H`) is held constant so a cell
+ * stays legible however many days are in range.
  */
 import { computed, onBeforeUnmount, ref, useTemplateRef, watch } from "vue";
 import type { ECharts } from "echarts/core";
 import UiButton from "@/components/ui/UiButton.vue";
 import UiScrollTable from "@/components/ui/UiScrollTable.vue";
 import { useChartTheme } from "@/composables/useChartTheme";
-import { WEEKDAY_LABELS, type WeekHourCell } from "@/lib/alertStats";
-import { buildWeekHourHeatmapOption, echarts } from "./heatmapOption";
+import type { DateHourCell } from "@/lib/alertStats";
+import { buildDateHourHeatmapOption, echarts } from "./heatmapOption";
 
 const {
+  dates,
   cells,
   max,
   label,
   height = 260,
 } = defineProps<{
-  cells: readonly WeekHourCell[];
+  /** Row labels, newest day first (`MM-DD`). */
+  dates: readonly string[];
+  cells: readonly DateHourCell[];
   max: number;
   /** Accessible name for the figure, and the table's caption. */
   label: string;
@@ -29,13 +37,23 @@ const {
 
 const { palette, animate } = useChartTheme();
 
+/** Held-constant row height, and the grid's top+bottom margins, so the canvas can grow past the
+ * card and scroll instead of squeezing rows. ~16px keeps the y labels legible. */
+const ROW_H = 16;
+const GRID_MARGIN = 54;
+const canvasHeight = computed(() => dates.length * ROW_H + GRID_MARGIN);
+const scrollable = computed(() => canvasHeight.value > height);
+/** Fill the card when the days fit; otherwise take the full grown height and let the card scroll. */
+const surfaceHeight = computed(() => Math.max(height, canvasHeight.value));
+
 const surface = useTemplateRef<HTMLElement>("surface");
 const showTable = ref(false);
 let chart: ECharts | null = null;
 let observer: ResizeObserver | null = null;
 
 const option = computed(() =>
-  buildWeekHourHeatmapOption({
+  buildDateHourHeatmapOption({
+    dates,
     cells,
     max,
     palette: palette.value,
@@ -43,13 +61,13 @@ const option = computed(() =>
   }),
 );
 
-/** Weekday row → the 24 hourly counts and the row total, for the data table. */
+/** Date row → the 24 hourly counts and the row total, for the data table. */
 const rows = computed(() =>
-  WEEKDAY_LABELS.map((name, weekday) => {
+  dates.map((name, dateIndex) => {
     const hours = Array.from(
       { length: 24 },
       (_unused, hour) =>
-        cells.find((cell) => cell.weekday === weekday && cell.hour === hour)
+        cells.find((cell) => cell.dateIndex === dateIndex && cell.hour === hour)
           ?.count ?? 0,
     );
     return { name, hours, total: hours.reduce((sum, n) => sum + n, 0) };
@@ -106,10 +124,20 @@ onBeforeUnmount(disposeChart);
       </UiButton>
     </figcaption>
 
-    <div v-if="!showTable" class="w-full" :style="{ height: `${height}px` }">
+    <!-- The card height is fixed; when more days are in range than fit, the canvas grows past it and
+         this wrapper scrolls (focusable so it is reachable from the keyboard, like the data table). -->
+    <div
+      v-if="!showTable"
+      class="w-full overflow-x-hidden overflow-y-auto"
+      :style="{ height: `${height}px` }"
+      :tabindex="scrollable ? 0 : undefined"
+      :role="scrollable ? 'region' : undefined"
+      :aria-label="scrollable ? `${label}（图表，可纵向滚动）` : undefined"
+    >
       <div
         ref="surface"
-        class="h-full w-full"
+        class="w-full"
+        :style="{ height: `${surfaceHeight}px` }"
         role="img"
         :aria-label="`${label}（图表；可切换为数据表）`"
         data-testid="heatmap-surface"
@@ -124,7 +152,7 @@ onBeforeUnmount(disposeChart);
       </template>
       <template #head>
         <tr>
-          <th scope="col" class="px-2 py-2 font-medium">星期</th>
+          <th scope="col" class="px-2 py-2 font-medium">日期</th>
           <th
             v-for="hour in HOURS"
             :key="hour"
@@ -143,7 +171,7 @@ onBeforeUnmount(disposeChart);
       >
         <th
           scope="row"
-          class="px-2 py-1.5 text-xs font-normal whitespace-nowrap text-ink-muted"
+          class="px-2 py-1.5 font-mono text-xs font-normal whitespace-nowrap text-ink-muted tabular-nums"
         >
           {{ row.name }}
         </th>

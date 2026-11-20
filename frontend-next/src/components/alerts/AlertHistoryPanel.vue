@@ -16,7 +16,8 @@ import { computed, onMounted, ref, watch } from "vue";
 import { RouterLink, useRoute } from "vue-router";
 import CategoryBarChart from "@/components/charts/CategoryBarChart.vue";
 import StackedBarChart from "@/components/charts/StackedBarChart.vue";
-import WeekHourHeatmap from "@/components/charts/WeekHourHeatmap.vue";
+import TopNSelect from "@/components/charts/TopNSelect.vue";
+import DateHourHeatmap from "@/components/charts/DateHourHeatmap.vue";
 import PieChart from "@/components/charts/PieChart.vue";
 import UiButton from "@/components/ui/UiButton.vue";
 import UiListPagination from "@/components/ui/UiListPagination.vue";
@@ -31,7 +32,7 @@ import {
   computeAlertStats,
   formatDurationMs,
   severityOf,
-  weekHourHeatmap,
+  dateHourHeatmap,
   type Severity,
 } from "@/lib/alertStats";
 import {
@@ -228,13 +229,15 @@ const severityData = computed(() =>
 );
 
 /**
- * 消息最多的设备 Top 10, as a bar stacked by severity: one row per vehicle shows both how many
- * messages it raised and of what kind, worst-first. `topDevices` is already count-desc, so the top
- * ten are the slice; each severity is a stacked series wearing its status colour.
+ * 消息最多的设备, as a bar stacked by severity: one row per vehicle shows both how many messages it
+ * raised and of what kind, worst-first. `topDevices` is already count-desc, so the cut-off is a
+ * slice; each severity is a stacked series wearing its status colour. The operator picks how many
+ * to show (`deviceTopN`, default 10, 全部 = Infinity) from the chart header; the card scrolls when
+ * the bars outgrow it, so 全部 costs a scrollbar, never an ever-taller card.
  */
-const DEVICE_TOP_N = 10;
+const deviceTopN = ref(10);
 const deviceStacked = computed(() => {
-  const top = stats.value.topDevices.slice(0, DEVICE_TOP_N);
+  const top = stats.value.topDevices.slice(0, deviceTopN.value);
   return {
     categories: top.map((device) =>
       deviceNameOf(device.deviceId, device.deviceName),
@@ -247,8 +250,8 @@ const deviceStacked = computed(() => {
   };
 });
 
-/** 按时间：星期 × 小时 的发生热力，显示一周里消息聚在何时。 */
-const weekHeatmap = computed(() => weekHourHeatmap(filtered.value));
+/** 按时间：日期 × 小时 的发生热力，显示所查窗口里消息聚在哪天的哪个钟点。 */
+const dateHeatmap = computed(() => dateHourHeatmap(filtered.value));
 
 const rateLabel = (value: number | null): string =>
   value === null ? "--" : `${Math.round(value * 100)}%`;
@@ -439,7 +442,7 @@ const pageRows = computed(() =>
         </div>
       </div>
       <!-- Three charts, one row, equal 240px height: severity pie, a severity-stacked Top-10 device
-         bar, and a 星期×小时 onset heatmap. gap-4 (L1) matches the summary grid above, so the three
+         bar, and a 日期×小时 onset heatmap. gap-4 (L1) matches the summary grid above, so the three
          chart columns line up with the stat tiles rather than drifting on a wider gap. -->
       <div class="grid gap-4 lg:grid-cols-3">
         <section class="rounded-md border border-border bg-surface-raised p-4">
@@ -479,17 +482,22 @@ const pageRows = computed(() =>
           <StackedBarChart
             :categories="deviceStacked.categories"
             :series="deviceStacked.series"
-            label="消息最多的设备 (Top 10)"
+            label="按设备分布"
             unit="条"
             :height="240"
             scroll
-          />
+          >
+            <template #actions>
+              <TopNSelect v-model="deviceTopN" aria-label="显示的设备数量" />
+            </template>
+          </StackedBarChart>
         </section>
         <section class="rounded-md border border-border bg-surface-raised p-4">
-          <WeekHourHeatmap
-            :cells="weekHeatmap.cells"
-            :max="weekHeatmap.max"
-            label="按时间（星期 × 小时）"
+          <DateHourHeatmap
+            :dates="dateHeatmap.dates"
+            :cells="dateHeatmap.cells"
+            :max="dateHeatmap.max"
+            label="按时间分布（日 × 时）"
             :height="240"
           />
         </section>

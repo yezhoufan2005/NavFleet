@@ -8,15 +8,16 @@ import {
 import { CanvasRenderer } from "echarts/renderers";
 import type { EChartsOption } from "echarts";
 import type { ChartPalette } from "@/composables/useChartTheme";
-import { WEEKDAY_LABELS, type WeekHourCell } from "@/lib/alertStats";
+import type { DateHourCell } from "@/lib/alertStats";
 
 /**
- * 星期 × 小时 onset heatmap, registered with only the parts it needs (Heatmap + VisualMap + grid +
+ * 日期 × 小时 onset heatmap, registered with only the parts it needs (Heatmap + VisualMap + grid +
  * tooltip), the same explicit-registration pattern as `categoryBarOption`/`timeSeriesOption`.
  *
- * Sequential by magnitude (dataviz: one hue, low→high): the scale runs from the chart surface (a 0
- * cell blends in) to the notice-blue token, both theme-aware via the palette, so "more blue = more
- * messages" reads the same in light and dark. Pure builder — the option is asserted without a canvas.
+ * Sequential by magnitude (dataviz: one hue, low→high): a five-step green ramp (`palette.heatmap`,
+ * modelled on GitHub's contribution graph) that is theme-aware — dark mode has its own greens
+ * (deep→bright), so the low end stays a visible tile instead of going black, and it never collides
+ * with the blue brand/notice or the status colours. Pure builder — asserted without a canvas.
  */
 echarts.use([
   HeatmapChart,
@@ -30,14 +31,17 @@ export { echarts };
 const HOURS = Array.from({ length: 24 }, (_unused, hour) => String(hour));
 
 export interface HeatmapOptionInput {
-  cells: readonly WeekHourCell[];
+  /** Row labels, newest day first (`MM-DD`); the y-axis renders row 0 at the top with `inverse`. */
+  dates: readonly string[];
+  cells: readonly DateHourCell[];
   /** Largest cell count, for the colour scale's upper bound (floored at 1 to avoid 0→0). */
   max: number;
   palette: ChartPalette;
   animate?: boolean;
 }
 
-export const buildWeekHourHeatmapOption = ({
+export const buildDateHourHeatmapOption = ({
+  dates,
   cells,
   max,
   palette,
@@ -53,8 +57,8 @@ export const buildWeekHourHeatmapOption = ({
     textStyle: { color: palette.ink, fontSize: 12 },
     formatter: (params: unknown): string => {
       const point = params as { value: [number, number, number] };
-      const [hour, weekday, count] = point.value;
-      return `${WEEKDAY_LABELS[weekday] ?? ""} ${hour}:00 · ${count} 条`;
+      const [hour, dateIndex, count] = point.value;
+      return `${dates[dateIndex] ?? ""} ${hour}:00 · ${count} 条`;
     },
   },
   xAxis: {
@@ -63,17 +67,18 @@ export const buildWeekHourHeatmapOption = ({
     splitArea: { show: false },
     axisLine: { lineStyle: { color: palette.axis } },
     axisTick: { show: false },
-    // 24 hours crowd the axis; label every third (0/3/6…) and keep them small.
-    axisLabel: { color: palette.inkMuted, fontSize: 10, interval: 2 },
+    // All 24 hours labelled (interval 0); kept small so they clear each other across the row.
+    axisLabel: { color: palette.inkMuted, fontSize: 9, interval: 0 },
   },
   yAxis: {
     type: "category",
-    data: [...WEEKDAY_LABELS],
+    data: [...dates],
+    // Row 0 is the newest day; `inverse` puts it at the top so dates read newest-to-oldest downward.
     inverse: true,
     splitArea: { show: false },
     axisLine: { lineStyle: { color: palette.axis } },
     axisTick: { show: false },
-    axisLabel: { color: palette.inkMuted, fontSize: 11 },
+    axisLabel: { color: palette.inkMuted, fontSize: 10 },
   },
   visualMap: {
     min: 0,
@@ -86,12 +91,12 @@ export const buildWeekHourHeatmapOption = ({
     itemHeight: 64,
     text: ["多", "少"],
     textStyle: { color: palette.inkMuted, fontSize: 10 },
-    inRange: { color: [palette.surface, palette.status.notice] },
+    inRange: { color: [...palette.heatmap] },
   },
   series: [
     {
       type: "heatmap",
-      data: cells.map((cell) => [cell.hour, cell.weekday, cell.count]),
+      data: cells.map((cell) => [cell.hour, cell.dateIndex, cell.count]),
       // A 1px surface hairline between cells so the grid reads as cells, not a wash.
       itemStyle: { borderColor: palette.surface, borderWidth: 1 },
       emphasis: {

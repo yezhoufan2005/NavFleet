@@ -65,6 +65,13 @@
   --color-chart-grid: var(--color-slate-200);
   --color-chart-axis: var(--color-slate-400);
 
+  /* 消息史日期×小时热力图的绿色顺序色阶，低→高（参考 GitHub 贡献格）。深色自成一套，低格不发黑。 */
+  --color-heat-0: #ebedf0;
+  --color-heat-1: #9be9a8;
+  --color-heat-2: #40c463;
+  --color-heat-3: #30a14e;
+  --color-heat-4: #216e39;
+
   /* 地图：ros-* 为原值搬迁的字面值，网格/比例尺取自 ramp。 */
   --color-ros-canvas: #e9eef4;
   --color-ros-free: #c4cfdc;
@@ -138,6 +145,12 @@
     --color-chart-grid: var(--color-slate-700);
     --color-chart-axis: var(--color-slate-500);
 
+    --color-heat-0: #161b22;
+    --color-heat-1: #0e4429;
+    --color-heat-2: #006d32;
+    --color-heat-3: #26a641;
+    --color-heat-4: #39d353;
+
     /* 地图：ros-* 为原值搬迁的字面值，网格/比例尺取自 ramp。 */
     --color-ros-canvas: #071119;
     --color-ros-free: #8c9498;
@@ -210,6 +223,12 @@
   --color-chart-10: #a371f7;
   --color-chart-grid: var(--color-slate-700);
   --color-chart-axis: var(--color-slate-500);
+
+  --color-heat-0: #161b22;
+  --color-heat-1: #0e4429;
+  --color-heat-2: #006d32;
+  --color-heat-3: #26a641;
+  --color-heat-4: #39d353;
 
   /* 地图：ros-* 为原值搬迁的字面值，网格/比例尺取自 ramp。 */
   --color-ros-canvas: #071119;

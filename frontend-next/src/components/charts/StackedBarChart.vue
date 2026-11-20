@@ -104,7 +104,11 @@ onBeforeUnmount(disposeChart);
 <template>
   <figure class="m-0 flex flex-col gap-2">
     <figcaption class="flex items-center justify-between gap-3">
-      <span class="text-sm font-medium text-ink">{{ label }}</span>
+      <div class="flex items-center gap-2">
+        <span class="text-sm font-medium text-ink">{{ label }}</span>
+        <!-- Header controls the parent injects (e.g. a Top-N selector), right of the title. -->
+        <slot name="actions" />
+      </div>
       <UiButton
         variant="ghost"
         size="sm"
@@ -117,7 +121,7 @@ onBeforeUnmount(disposeChart);
 
     <div
       v-if="!showTable"
-      class="w-full overflow-auto"
+      class="w-full overflow-x-hidden overflow-y-auto"
       :style="{ height: `${height}px` }"
     >
       <div
@@ -132,8 +136,8 @@ onBeforeUnmount(disposeChart);
     <UiScrollTable v-else :label="label" :height="height">
       <template #colgroup>
         <col />
-        <col v-for="s in series" :key="s.name" class="w-20" />
-        <col class="w-20" />
+        <col v-for="s in series" :key="s.name" class="w-14" />
+        <col class="w-14" />
       </template>
       <template #head>
         <tr>
@@ -142,11 +146,11 @@ onBeforeUnmount(disposeChart);
             v-for="s in series"
             :key="s.name"
             scope="col"
-            class="px-3 py-2 text-right font-medium"
+            class="px-2 py-2 text-right font-medium"
           >
             {{ s.name }}
           </th>
-          <th scope="col" class="px-3 py-2 text-right font-medium">合计</th>
+          <th scope="col" class="px-2 py-2 text-right font-medium">合计</th>
         </tr>
       </template>
       <tr
@@ -163,12 +167,12 @@ onBeforeUnmount(disposeChart);
         <td
           v-for="s in series"
           :key="s.name"
-          class="px-3 py-1.5 text-right font-mono text-xs tabular-nums text-ink"
+          class="px-2 py-1.5 text-right font-mono text-xs tabular-nums text-ink"
         >
           {{ s.data[index] ?? 0 }}
         </td>
         <td
-          class="px-3 py-1.5 text-right font-mono text-xs font-medium tabular-nums text-ink"
+          class="px-2 py-1.5 text-right font-mono text-xs font-medium tabular-nums text-ink"
         >
           {{ totals[index] }}
         </td>

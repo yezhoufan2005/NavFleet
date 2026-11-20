@@ -18,9 +18,10 @@ import {
   type StackedSeries,
 } from "@/components/charts/stackedBarOption";
 import StackedBarChart from "@/components/charts/StackedBarChart.vue";
-import { buildWeekHourHeatmapOption } from "@/components/charts/heatmapOption";
-import WeekHourHeatmap from "@/components/charts/WeekHourHeatmap.vue";
-import type { WeekHourCell } from "@/lib/alertStats";
+import { buildDateHourHeatmapOption } from "@/components/charts/heatmapOption";
+import DateHourHeatmap from "@/components/charts/DateHourHeatmap.vue";
+import TopNSelect from "@/components/charts/TopNSelect.vue";
+import type { DateHourCell } from "@/lib/alertStats";
 import { buildPieOption } from "@/components/charts/pieOption";
 import PieChart from "@/components/charts/PieChart.vue";
 import { useChartTheme } from "@/composables/useChartTheme";
@@ -111,6 +112,7 @@ const palette = {
   surface: "#ffffff",
   tooltipBorder: "#eeeeee",
   status: { critical: "#c00000", warning: "#c07000", notice: "#0060c0" },
+  heatmap: ["#eef", "#9e9", "#4c6", "#3a4", "#263"],
 };
 
 const points = (count: number, offset = 0): [number, number][] =>
@@ -670,39 +672,70 @@ describe("StackedBarChart", () => {
   });
 });
 
-describe("buildWeekHourHeatmapOption", () => {
-  const cells: WeekHourCell[] = [
-    { weekday: 0, hour: 9, count: 3 },
-    { weekday: 6, hour: 23, count: 1 },
+describe("buildDateHourHeatmapOption", () => {
+  const dates = ["03-04", "03-03"];
+  const cells: DateHourCell[] = [
+    { dateIndex: 0, hour: 9, count: 3 },
+    { dateIndex: 1, hour: 23, count: 1 },
   ];
 
-  it("maps cells to [hour, weekday, count] with weekdays inverse (周一 at top)", () => {
-    const option = buildWeekHourHeatmapOption({ cells, max: 3, palette });
-    expect(option.yAxis).toMatchObject({ type: "category", inverse: true });
+  it("maps cells to [hour, dateIndex, count] with dates inverse (newest at top)", () => {
+    const option = buildDateHourHeatmapOption({
+      dates,
+      cells,
+      max: 3,
+      palette,
+    });
+    expect(option.yAxis).toMatchObject({
+      type: "category",
+      inverse: true,
+      data: dates,
+    });
     expect(option.xAxis).toMatchObject({ type: "category" });
     const data = (option.series as { data: number[][] }[])[0]!.data;
     expect(data[0]).toEqual([9, 0, 3]);
-    expect(data[1]).toEqual([23, 6, 1]);
+    expect(data[1]).toEqual([23, 1, 1]);
   });
 
-  it("runs the sequential scale from surface to the notice token, max floored at 1", () => {
-    const option = buildWeekHourHeatmapOption({ cells: [], max: 0, palette });
+  it("labels all 24 hours on the x axis", () => {
+    const option = buildDateHourHeatmapOption({
+      dates,
+      cells,
+      max: 3,
+      palette,
+    });
+    expect(option.xAxis).toMatchObject({ axisLabel: { interval: 0 } });
+    expect((option.xAxis as { data: string[] }).data).toHaveLength(24);
+  });
+
+  it("runs the sequential scale across the green heatmap ramp, max floored at 1", () => {
+    const option = buildDateHourHeatmapOption({
+      dates: [],
+      cells: [],
+      max: 0,
+      palette,
+    });
     expect(option.visualMap).toMatchObject({
       min: 0,
       max: 1,
-      inRange: { color: [palette.surface, palette.status.notice] },
+      inRange: { color: palette.heatmap },
     });
   });
 
   it("can turn animation off for a reduced-motion viewer", () => {
     expect(
-      buildWeekHourHeatmapOption({ cells, max: 3, palette, animate: false })
-        .animation,
+      buildDateHourHeatmapOption({
+        dates,
+        cells,
+        max: 3,
+        palette,
+        animate: false,
+      }).animation,
     ).toBe(false);
   });
 });
 
-describe("WeekHourHeatmap", () => {
+describe("DateHourHeatmap", () => {
   let warn: ReturnType<typeof vi.spyOn>;
   beforeEach(() => {
     warn = vi.spyOn(console, "warn").mockImplementation(() => undefined);
@@ -711,12 +744,15 @@ describe("WeekHourHeatmap", () => {
     warn.mockRestore();
   });
 
-  const cells: WeekHourCell[] = [
-    { weekday: 0, hour: 9, count: 3 },
-    { weekday: 2, hour: 14, count: 1 },
+  const dates = ["03-04", "03-03", "03-02"];
+  const cells: DateHourCell[] = [
+    { dateIndex: 0, hour: 9, count: 3 },
+    { dateIndex: 2, hour: 14, count: 1 },
   ];
   const mountHeatmap = () =>
-    mount(WeekHourHeatmap, { props: { cells, max: 3, label: "按时间" } });
+    mount(DateHourHeatmap, {
+      props: { dates, cells, max: 3, label: "按时间" },
+    });
 
   it("names the figure for a screen reader and offers the table as an alternative", () => {
     const wrapper = mountHeatmap();
@@ -726,18 +762,57 @@ describe("WeekHourHeatmap", () => {
     expect(wrapper.get("button").text()).toBe("数据表");
   });
 
-  it("switches to a weekday × hour table with a row total", async () => {
+  it("switches to a date × hour table with a row total", async () => {
     const wrapper = mountHeatmap();
     await wrapper.get("button").trigger("click");
     expect(wrapper.find("[data-testid='heatmap-surface']").exists()).toBe(
       false,
     );
-    // 7 weekday rows; the 周一 row totals its single 9:00 cell (3).
+    // One row per date; the newest (03-04) row totals its single 9:00 cell (3).
     const bodyRows = wrapper.findAll("tbody tr");
-    expect(bodyRows).toHaveLength(7);
-    const monday = bodyRows[0]!.findAll("th, td");
-    expect(monday[0]!.text()).toBe("周一");
-    expect(monday.at(-1)!.text()).toBe("3");
+    expect(bodyRows).toHaveLength(3);
+    const newest = bodyRows[0]!.findAll("th, td");
+    expect(newest[0]!.text()).toBe("03-04");
+    expect(newest.at(-1)!.text()).toBe("3");
+  });
+});
+
+describe("TopNSelect", () => {
+  const UiSelectStub = {
+    name: "UiSelect",
+    props: ["modelValue", "options", "ariaLabel"],
+    emits: ["update:modelValue"],
+    template:
+      '<div class="select-stub" :data-value="modelValue" :data-options="options.map((o) => o.value).join(\',\')" />',
+  };
+  const mountSel = (modelValue: number) =>
+    mount(TopNSelect, {
+      props: { modelValue },
+      global: { stubs: { UiSelect: UiSelectStub } },
+    });
+
+  it("offers the numeric presets plus 全部 and shows the current value", () => {
+    const stub = mountSel(10).get(".select-stub");
+    expect(stub.attributes("data-options")).toBe("5,10,20,all");
+    expect(stub.attributes("data-value")).toBe("10");
+  });
+
+  it("maps 全部 to Infinity and a preset back to its number", () => {
+    const wrapper = mountSel(10);
+    const select = wrapper.findComponent(UiSelectStub);
+    select.vm.$emit("update:modelValue", "all");
+    select.vm.$emit("update:modelValue", "20");
+    const events = wrapper.emitted("update:modelValue");
+    expect(events?.[0]).toEqual([Infinity]);
+    expect(events?.[1]).toEqual([20]);
+  });
+
+  it("shows 全部 as the current value when modelValue is Infinity", () => {
+    expect(
+      mountSel(Number.POSITIVE_INFINITY)
+        .get(".select-stub")
+        .attributes("data-value"),
+    ).toBe("all");
   });
 });
 

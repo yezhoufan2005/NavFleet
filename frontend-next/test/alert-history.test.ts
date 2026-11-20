@@ -35,7 +35,7 @@ const stackStub = {
 };
 // 按时间 is a 星期×小时 heatmap (cells + max), a different shape again.
 const heatmapStub = {
-  props: ["cells", "max", "label"],
+  props: ["dates", "cells", "max", "label"],
   template:
     '<div class="heatmap-stub" :data-label="label" :data-count="cells.length" :data-max="max"></div>',
 };
@@ -75,7 +75,7 @@ const mountPanel = async (query = "") => {
         CategoryBarChart: barStub,
         PieChart: pieStub,
         StackedBarChart: stackStub,
-        WeekHourHeatmap: heatmapStub,
+        DateHourHeatmap: heatmapStub,
       },
     },
   });
@@ -228,24 +228,24 @@ describe("the statistics", () => {
     expect(wrapper.find(".pie-stub").exists()).toBe(false);
   });
 
-  it("labels the per-device chart by its dimension (消息最多的设备), not 告警", async () => {
+  it("labels the per-device chart by its dimension (按设备分布), not 告警", async () => {
     const wrapper = await mountPanel();
     expect(wrapper.find(".stack-stub").attributes("data-label")).toBe(
-      "消息最多的设备 (Top 10)",
+      "按设备分布",
     );
     // Stacked by the three severities.
     expect(wrapper.find(".stack-stub").attributes("data-series")).toBe(
       "告警,预警,提示",
     );
-    // The time dimension is now a 星期×小时 heatmap, not a per-day bar.
+    // The time dimension is a 日×时 heatmap, not a per-day bar.
     expect(wrapper.find(".heatmap-stub").attributes("data-label")).toBe(
-      "按时间（星期 × 小时）",
+      "按时间分布（日 × 时）",
     );
   });
 
-  it("caps the per-device stacked chart at the Top 10 (点 4)", async () => {
-    // 12 devices, one cleared message each: the stacked device chart shows the top 10, the card
-    // scrolls — not every device, and not the old Top-8.
+  it("defaults the per-device stacked chart to the top 10", async () => {
+    // 12 devices, one cleared message each: the stacked device chart defaults to the top 10 and the
+    // card scrolls — not every device, and not the old Top-8. The header selector can widen it.
     vi.spyOn(fleetApi, "getAlerts").mockResolvedValue({
       items: Array.from({ length: 12 }, (_unused, index) =>
         record({

@@ -36,6 +36,12 @@ export interface ChartPalette {
    * badges use elsewhere — not the reserved `--color-chart-*` series slots.
    */
   status: { critical: string; warning: string; notice: string };
+  /**
+   * Sequential green ramp (low→high) for the 日期×小时 heatmap. Five steps read from `--color-heat-*`,
+   * so it is theme-aware: in dark mode it is its own set of greens (deep→bright) rather than a flip,
+   * keeping the low end a visible green tile instead of going black.
+   */
+  heatmap: readonly string[];
 }
 
 const FALLBACK: ChartPalette = {
@@ -58,6 +64,7 @@ const FALLBACK: ChartPalette = {
   surface: "#ffffff",
   tooltipBorder: "#d1d9e0",
   status: { critical: "#cf222e", warning: "#9a6700", notice: "#0969da" },
+  heatmap: ["#ebedf0", "#9be9a8", "#40c463", "#30a14e", "#216e39"],
 };
 
 let probe: CanvasRenderingContext2D | null = null;
@@ -105,6 +112,9 @@ const readPalette = (): ChartPalette => ({
     warning: readToken("--color-warning", FALLBACK.status.warning),
     notice: readToken("--color-notice", FALLBACK.status.notice),
   },
+  heatmap: Array.from({ length: 5 }, (_unused, index) =>
+    readToken(`--color-heat-${index}`, FALLBACK.heatmap[index] ?? "#40c463"),
+  ),
 });
 
 /**
