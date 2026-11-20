@@ -861,7 +861,7 @@ const exportAlertsCsv = (): void => {
           <!-- Shared scroll-table shell: gray header covers the scrollbar, columns aligned. -->
           <UiScrollTable label="按设备明细" max-height="20rem" flush>
             <template #colgroup>
-              <col class="w-[32%]" />
+              <col class="w-[22%]" />
               <col />
               <col />
               <col />
