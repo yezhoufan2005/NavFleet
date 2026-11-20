@@ -936,6 +936,30 @@ describe("the 消息史 tab", () => {
     expect(wrapper.text()).toContain("处置");
   });
 
+  it("does not cascade the history filters, so the distribution stays whole", async () => {
+    // Live cascades (the faceted test above); history must not, or picking one filter would hide
+    // severities/devices from the others and skew the distribution charts.
+    vi.spyOn(fleetApi, "getAlerts").mockResolvedValue({ items: [] });
+    seedMixed();
+    const wrapper = await mountAlerts("/history?severity=warning");
+    await flushPromises();
+
+    // All three vehicles stay offered despite 严重度=预警 (live would narrow to just agv-02).
+    const devices = deviceSelect(wrapper).props("options");
+    expect(devices.map((option) => option.value).sort()).toEqual([
+      "agv-01",
+      "agv-02",
+      "agv-03",
+    ]);
+    // All three severities stay offered too.
+    const severities = severitySelect(wrapper).props("options");
+    expect(severities.map((option) => option.value)).toEqual([
+      "critical",
+      "warning",
+      "notice",
+    ]);
+  });
+
   it("在消息史默认把最近 10 天窗口回填到起止输入，而不是留空", async () => {
     vi.spyOn(fleetApi, "getAlerts").mockResolvedValue({ items: [] });
     const wrapper = await mountAlerts();

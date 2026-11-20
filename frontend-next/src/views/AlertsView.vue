@@ -275,13 +275,27 @@ const matchSearch = (alert: {
   );
 
 /**
- * 严重度 options, faceted against the *other* filters (设备 / 搜索 / 处置) exactly as 设备 is:
- * the multi-select only offers a severity that still has a matching alert, so narrowing by device
- * or searching a code trims the severity list to what is actually present. Worst-first order is
- * kept (not by appearance), and a currently-selected severity is always listed so it can be
- * unticked even after its last matching alert clears (the filter lives in the URL).
+ * 严重度 options.
+ *
+ * 消息 (live) tab: faceted against the *other* filters (设备 / 搜索 / 处置) exactly as 设备 is — the
+ * multi-select only offers a severity that still has a matching alert, so narrowing by device or
+ * searching a code trims the severity list to what is actually present. Worst-first order is kept
+ * (not by appearance), and a currently-selected severity is always listed so it can be unticked even
+ * after its last matching alert clears (the filter lives in the URL).
+ *
+ * 消息史 (history) tab: **never faceted** — all three severities are always offered. Faceting would
+ * skew the history distribution charts, where the point is to compare how messages split across
+ * severities/devices: if picking 设备=X hid 预警 because that device had none, the reader could no
+ * longer reach the full split. The live tab cascades (shows only what is currently firing); history
+ * does not.
  */
 const severityOptions = computed(() => {
+  if (view.value === "history") {
+    return SEVERITY_VALUES.map((value) => ({
+      value,
+      label: SEVERITY_LABELS[value],
+    }));
+  }
   const present = new Set<Severity>();
   for (const alert of allAlerts.value) {
     if (matchDevice(alert) && matchSearch(alert) && matchHandling(alert)) {
@@ -296,13 +310,33 @@ const severityOptions = computed(() => {
 });
 
 /**
- * 设备 options, faceted against the *other* filters (严重度 / 搜索 / 显示已确认): the dropdown
- * only offers vehicles that still have a matching alert, so narrowing 严重度=预警 (or searching
- * a code) trims the device list to the vehicles that actually have such an alert — the same
- * cascading 设备 页 does. A currently-selected device is always kept listed so it can be
- * unticked even after its own alert clears (the filter lives in the URL and outlives the alert).
+ * 设备 options.
+ *
+ * 消息 (live) tab: faceted against the *other* filters (严重度 / 搜索 / 显示已确认) — the dropdown only
+ * offers vehicles that still have a matching alert, so narrowing 严重度=预警 (or searching a code)
+ * trims the device list to the vehicles that actually have such an alert — the same cascading 设备 页
+ * does. A currently-selected device is always kept listed so it can be unticked even after its own
+ * alert clears (the filter lives in the URL and outlives the alert).
+ *
+ * 消息史 (history) tab: **never faceted** — the whole fleet is offered (sorted by name), so any
+ * device's history is reachable and the per-device distribution stays complete whatever the other
+ * filters are. See `severityOptions` for why history must not cascade.
  */
 const deviceOptions = computed(() => {
+  if (view.value === "history") {
+    const seen = new Map<string, string>();
+    for (const device of fleet.devices) {
+      seen.set(device.deviceId, device.deviceName || device.deviceId);
+    }
+    for (const id of deviceFilter.value) {
+      if (!seen.has(id)) seen.set(id, id);
+    }
+    return [...seen]
+      .map(([value, label]) => ({ value, label }))
+      .sort((left, right) =>
+        left.label.localeCompare(right.label, "zh-Hans-CN"),
+      );
+  }
   const seen = new Map<string, string>();
   for (const alert of allAlerts.value) {
     if (matchSeverity(alert) && matchSearch(alert) && matchHandling(alert)) {
