@@ -228,18 +228,18 @@ describe("the statistics", () => {
     expect(wrapper.find(".pie-stub").exists()).toBe(false);
   });
 
-  it("labels the per-device chart by its dimension (消息最多的设备), not 告警", async () => {
+  it("labels the per-device chart by its dimension (按设备分布), not 告警", async () => {
     const wrapper = await mountPanel();
     expect(wrapper.find(".stack-stub").attributes("data-label")).toBe(
-      "消息最多的设备",
+      "按设备分布",
     );
     // Stacked by the three severities.
     expect(wrapper.find(".stack-stub").attributes("data-series")).toBe(
       "告警,预警,提示",
     );
-    // The time dimension is a 日期×小时 heatmap, not a per-day bar.
+    // The time dimension is a 日×时 heatmap, not a per-day bar.
     expect(wrapper.find(".heatmap-stub").attributes("data-label")).toBe(
-      "按时间（日期 × 小时）",
+      "按时间分布（日 × 时）",
     );
   });
 

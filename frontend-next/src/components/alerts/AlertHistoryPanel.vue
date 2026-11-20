@@ -466,7 +466,7 @@ const pageRows = computed(() =>
           <StackedBarChart
             :categories="deviceStacked.categories"
             :series="deviceStacked.series"
-            label="消息最多的设备"
+            label="按设备分布"
             unit="条"
             :height="240"
             scroll
@@ -481,7 +481,7 @@ const pageRows = computed(() =>
             :dates="dateHeatmap.dates"
             :cells="dateHeatmap.cells"
             :max="dateHeatmap.max"
-            label="按时间（日期 × 小时）"
+            label="按时间分布（日 × 时）"
             :height="240"
           />
         </section>

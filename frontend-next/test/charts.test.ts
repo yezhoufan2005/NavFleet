@@ -112,7 +112,6 @@ const palette = {
   surface: "#ffffff",
   tooltipBorder: "#eeeeee",
   status: { critical: "#c00000", warning: "#c07000", notice: "#0060c0" },
-  success: "#007000",
   heatmap: ["#eef", "#9e9", "#4c6", "#3a4", "#263"],
 };
 

@@ -104,19 +104,19 @@ onBeforeUnmount(disposeChart);
 <template>
   <figure class="m-0 flex flex-col gap-2">
     <figcaption class="flex items-center justify-between gap-3">
-      <span class="text-sm font-medium text-ink">{{ label }}</span>
       <div class="flex items-center gap-2">
-        <!-- Header controls the parent injects (e.g. a Top-N selector), left of the table toggle. -->
+        <span class="text-sm font-medium text-ink">{{ label }}</span>
+        <!-- Header controls the parent injects (e.g. a Top-N selector), right of the title. -->
         <slot name="actions" />
-        <UiButton
-          variant="ghost"
-          size="sm"
-          :aria-pressed="showTable"
-          @click="showTable = !showTable"
-        >
-          {{ showTable ? "图表" : "数据表" }}
-        </UiButton>
       </div>
+      <UiButton
+        variant="ghost"
+        size="sm"
+        :aria-pressed="showTable"
+        @click="showTable = !showTable"
+      >
+        {{ showTable ? "图表" : "数据表" }}
+      </UiButton>
     </figcaption>
 
     <div
