@@ -195,51 +195,64 @@ export const formatDurationMs = (ms: number | null): string => {
   return `${seconds}秒`;
 };
 
-/** Weekday rows for the onset heatmap, Monday-first (ops read the work week left-to-right). */
-export const WEEKDAY_LABELS = [
-  "周一",
-  "周二",
-  "周三",
-  "周四",
-  "周五",
-  "周六",
-  "周日",
-] as const;
-
-/** One cell of the 星期 × 小时 onset heatmap. `weekday` 0=周一…6=周日; `hour` 0…23. */
-export interface WeekHourCell {
-  weekday: number;
+/** One cell of the 日期 × 小时 onset heatmap. `dateIndex` indexes the row's date list; `hour` 0…23. */
+export interface DateHourCell {
+  dateIndex: number;
   hour: number;
   count: number;
 }
 
 /**
- * Bucket message onsets into a 7×24 (weekday × local hour) grid — the shape the 按时间 heatmap
- * reads, so a reader sees *when* in the week messages cluster, not just the per-day total. Pure
- * and clock-free (onset comes from the record), every cell present (0 included) so the grid is
- * dense; returns the max for the sequential colour scale. `getDay()` is 0=Sun, shifted Monday-first.
+ * Bucket message onsets into a (date × local hour) grid — one row per calendar day the data spans,
+ * newest day first, every hour 0…23 present (0 included) so the grid is dense. Days between the
+ * first and last onset with no messages stay as blank rows, so the time axis is continuous rather
+ * than skipping quiet days. Pure and clock-free (dates come from the records); returns the ordered
+ * `MM-DD` day labels and the max cell for the sequential colour scale.
  */
-export const weekHourHeatmap = (
+export const dateHourHeatmap = (
   records: readonly AlertRecord[],
-): { cells: WeekHourCell[]; max: number } => {
-  const grid = Array.from({ length: 7 }, () => new Array<number>(24).fill(0));
+): { dates: string[]; cells: DateHourCell[]; max: number } => {
+  // Local-midnight day key, so an onset is filed under the day the operator saw it.
+  const dayStart = (ms: number): number => {
+    const date = new Date(ms);
+    date.setHours(0, 0, 0, 0);
+    return date.getTime();
+  };
+  const perDay = new Map<number, number[]>(); // day-start ms → 24 hourly counts
+  let minDay = Number.POSITIVE_INFINITY;
+  let maxDay = Number.NEGATIVE_INFINITY;
   for (const record of records) {
     const onset = onsetOf(record);
     if (!Number.isFinite(onset)) continue;
-    const date = new Date(onset);
-    const weekday = (date.getDay() + 6) % 7;
-    const hour = date.getHours();
-    const row = grid[weekday]!;
+    const key = dayStart(onset);
+    const hour = new Date(onset).getHours();
+    const row = perDay.get(key) ?? new Array<number>(24).fill(0);
     row[hour] = (row[hour] ?? 0) + 1;
+    perDay.set(key, row);
+    if (key < minDay) minDay = key;
+    if (key > maxDay) maxDay = key;
   }
-  const cells: WeekHourCell[] = [];
+  if (!Number.isFinite(minDay)) return { dates: [], cells: [], max: 0 };
+
+  const dates: string[] = [];
+  const cells: DateHourCell[] = [];
   let max = 0;
-  for (let weekday = 0; weekday < 7; weekday += 1) {
+  // Walk newest day → oldest (one calendar day at a time, DST-safe), so row 0 is the newest; the
+  // y-axis then renders it at the top with `inverse`. `dateIndex` is the row's position.
+  const cursor = new Date(maxDay);
+  let dateIndex = 0;
+  while (cursor.getTime() >= minDay) {
+    const mm = String(cursor.getMonth() + 1).padStart(2, "0");
+    const dd = String(cursor.getDate()).padStart(2, "0");
+    dates.push(`${mm}-${dd}`);
+    const row = perDay.get(cursor.getTime()) ?? [];
     for (let hour = 0; hour < 24; hour += 1) {
-      const count = grid[weekday]![hour]!;
-      cells.push({ weekday, hour, count });
+      const count = row[hour] ?? 0;
+      cells.push({ dateIndex, hour, count });
       if (count > max) max = count;
     }
+    cursor.setDate(cursor.getDate() - 1);
+    dateIndex += 1;
   }
-  return { cells, max };
+  return { dates, cells, max };
 };

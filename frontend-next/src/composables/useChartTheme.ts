@@ -36,6 +36,12 @@ export interface ChartPalette {
    * badges use elsewhere — not the reserved `--color-chart-*` series slots.
    */
   status: { critical: string; warning: string; notice: string };
+  /**
+   * The design system's green (`--color-success`), used as the far end of the 日期×小时 heatmap's
+   * sequential scale. Kept distinct from the blue brand/notice, amber warning and rose critical, so
+   * "more green = more messages" reads as magnitude, not as a status.
+   */
+  success: string;
 }
 
 const FALLBACK: ChartPalette = {
@@ -58,6 +64,7 @@ const FALLBACK: ChartPalette = {
   surface: "#ffffff",
   tooltipBorder: "#d1d9e0",
   status: { critical: "#cf222e", warning: "#9a6700", notice: "#0969da" },
+  success: "#1a7f37",
 };
 
 let probe: CanvasRenderingContext2D | null = null;
@@ -105,6 +112,7 @@ const readPalette = (): ChartPalette => ({
     warning: readToken("--color-warning", FALLBACK.status.warning),
     notice: readToken("--color-notice", FALLBACK.status.notice),
   },
+  success: readToken("--color-success", FALLBACK.success),
 });
 
 /**

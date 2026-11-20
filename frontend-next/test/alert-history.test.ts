@@ -35,7 +35,7 @@ const stackStub = {
 };
 // 按时间 is a 星期×小时 heatmap (cells + max), a different shape again.
 const heatmapStub = {
-  props: ["cells", "max", "label"],
+  props: ["dates", "cells", "max", "label"],
   template:
     '<div class="heatmap-stub" :data-label="label" :data-count="cells.length" :data-max="max"></div>',
 };
@@ -75,7 +75,7 @@ const mountPanel = async (query = "") => {
         CategoryBarChart: barStub,
         PieChart: pieStub,
         StackedBarChart: stackStub,
-        WeekHourHeatmap: heatmapStub,
+        DateHourHeatmap: heatmapStub,
       },
     },
   });
@@ -237,9 +237,9 @@ describe("the statistics", () => {
     expect(wrapper.find(".stack-stub").attributes("data-series")).toBe(
       "告警,预警,提示",
     );
-    // The time dimension is now a 星期×小时 heatmap, not a per-day bar.
+    // The time dimension is a 日期×小时 heatmap, not a per-day bar.
     expect(wrapper.find(".heatmap-stub").attributes("data-label")).toBe(
-      "按时间（星期 × 小时）",
+      "按时间（日期 × 小时）",
     );
   });
 
