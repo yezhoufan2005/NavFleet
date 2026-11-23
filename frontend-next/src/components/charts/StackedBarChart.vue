@@ -140,12 +140,12 @@ onBeforeUnmount(disposeChart);
       v-else
       :label="label"
       :height="height"
-      :min-width="`${10 + (series.length + 1) * 3.5}rem`"
+      :min-width="`${7 + (series.length + 1) * 2.5}rem`"
     >
       <template #colgroup>
-        <col class="w-40" />
-        <col v-for="s in series" :key="s.name" class="w-14" />
-        <col class="w-14" />
+        <col class="w-28" />
+        <col v-for="s in series" :key="s.name" class="w-10" />
+        <col class="w-10" />
       </template>
       <template #head>
         <tr>

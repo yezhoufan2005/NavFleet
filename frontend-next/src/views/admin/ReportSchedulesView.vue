@@ -312,16 +312,16 @@ const formDirty = formSnapshot.dirty;
           :class="[
             tableClasses.table,
             'table-fixed',
-            canWrite ? 'min-w-[49rem]' : 'min-w-[40rem]',
+            canWrite ? 'min-w-[42rem]' : 'min-w-[33rem]',
           ]"
         >
-          <!-- Shared column-width standard (`tableClasses`): sized by field, slack spread
-               proportionally. 发件人 is the longest field. -->
+          <!-- Shared column-width standard (`tableClasses`): bases are measured content widths,
+               slack spread proportionally. -->
           <colgroup>
             <col class="w-40" />
             <col class="w-24" />
-            <col class="w-32" />
-            <col class="w-64" />
+            <col class="w-24" />
+            <col class="w-44" />
             <col v-if="canWrite" class="w-36" />
           </colgroup>
           <thead :class="tableClasses.thead">

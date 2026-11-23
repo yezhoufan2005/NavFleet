@@ -19,11 +19,15 @@
  *   widths, so on a wide screen they all grow evenly. A single width-less column would instead take
  *   all of the slack while the sized ones stay at their minimum (the cramped 状态 / overlapping
  *   最近登录 seen on the user list).
- * - Base widths follow the field's length: 时间戳 `w-44`, 状态/严重度/类型 `w-20`–`w-24`, 计数 `w-16`–`w-20`,
- *   ID `w-28`–`w-36`, 名称 `w-40`–`w-48`, 操作 by button count (two `sm` buttons `w-36`). The longest
- *   field (说明、能力、标题…) gets the largest base, so it also takes the largest share of the slack.
- * - The table carries a `min-w-[…]` equal to the sum of its bases (`w-N` = N/4 rem). Below that the
- *   wrapper scrolls the table sideways instead of crushing the columns; the page itself never does.
+ * - Each base width is the **measured** width the column's content needs on one line (widest cell
+ *   or header, plus cell padding), rounded up to 16px — field length decides it, not a guess. Free
+ *   text that truncates (names, IDs, tags, titles) gets a floor of `w-24`–`w-40` by kind; columns
+ *   that wrap by design (说明、能力、值) get a reading width (`w-48`–`w-80`). Typical results:
+ *   时间戳 `w-40`, 状态/计数 `w-16`–`w-20`, two `sm` buttons `w-36`.
+ * - The bases sum to the table's floor (`min-w-[…]`, `w-N` = N/4 rem — the fixed columns cannot
+ *   shrink below it anyway). Below it the wrapper scrolls the table sideways instead of crushing
+ *   the columns; the page itself never does. A table whose content fits a 1024px screen therefore
+ *   does not scroll there at all.
  * - Text that must stay on one line (timestamps, badges) is `whitespace-nowrap`; free text truncates
  *   or wraps inside its own column.
  *

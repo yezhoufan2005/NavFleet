@@ -240,15 +240,15 @@ const formDirty = formSnapshot.dirty;
     <template v-else>
       <p class="m-0 text-xs text-ink-subtle">{{ countLabel }}</p>
       <div :class="tableClasses.wrapper">
-        <table :class="[tableClasses.table, 'table-fixed', 'min-w-[41rem]']">
-          <!-- Shared column-width standard (`tableClasses`): sized by field, slack spread
-               proportionally; long names truncate. -->
+        <table :class="[tableClasses.table, 'table-fixed', 'min-w-[40rem]']">
+          <!-- Shared column-width standard (`tableClasses`): bases are measured content widths,
+               slack spread proportionally; long names truncate. -->
           <colgroup>
-            <col class="w-32" />
             <col class="w-40" />
+            <col class="w-32" />
             <col class="w-20" />
             <col class="w-36" />
-            <col class="w-36" />
+            <col class="w-32" />
           </colgroup>
           <thead :class="tableClasses.thead">
             <tr>

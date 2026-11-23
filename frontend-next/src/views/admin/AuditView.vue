@@ -199,12 +199,12 @@ const formatTime = (iso: string): string =>
           role="region"
           aria-label="审计记录"
         >
-          <table :class="[tableClasses.table, 'table-fixed', 'min-w-[46rem]']">
+          <table :class="[tableClasses.table, 'table-fixed', 'min-w-[36rem]']">
             <colgroup>
-              <col class="w-44" />
-              <col class="w-28" />
-              <col class="w-32" />
-              <col class="w-64" />
+              <col class="w-40" />
+              <col class="w-24" />
+              <col class="w-24" />
+              <col class="w-40" />
               <col class="w-16" />
             </colgroup>
             <caption class="sr-only">

@@ -217,18 +217,18 @@ const formatTime = (iso: string): string =>
         role="region"
         aria-label="我的会话列表"
       >
-        <table :class="[tableClasses.table, 'table-fixed', 'min-w-[52rem]']">
+        <table :class="[tableClasses.table, 'table-fixed', 'min-w-[44rem]']">
           <caption class="sr-only">
             当前账号的活跃登录会话
           </caption>
-          <!-- Shared column-width standard (`tableClasses`): sized by field, slack spread
-               proportionally. 设备 (the user-agent string) is the longest field and truncates. -->
+          <!-- Shared column-width standard (`tableClasses`): bases are measured content widths,
+               slack spread proportionally. 设备 (the user-agent string) truncates. -->
           <colgroup>
-            <col class="w-64" />
-            <col class="w-32" />
-            <col class="w-44" />
-            <col class="w-44" />
-            <col class="w-24" />
+            <col class="w-48" />
+            <col class="w-28" />
+            <col class="w-40" />
+            <col class="w-40" />
+            <col class="w-20" />
           </colgroup>
           <thead :class="tableClasses.thead">
             <tr>

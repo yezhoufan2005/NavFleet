@@ -475,15 +475,15 @@ const AREA_LABELS: Record<StoredEntry["area"], string> = {
         role="region"
         aria-label="本浏览器留存的数据"
       >
-        <table :class="[tableClasses.table, 'table-fixed', 'min-w-[46rem]']">
-          <!-- Shared column-width standard (`tableClasses`): sized by field, slack spread
-               proportionally. 值 is the longest field and wraps (`break-all`); 项目 keeps its
-               label + key on their own two lines. -->
+        <table :class="[tableClasses.table, 'table-fixed', 'min-w-[33rem]']">
+          <!-- Shared column-width standard (`tableClasses`): bases are measured content widths,
+               slack spread proportionally. 值 wraps (`break-all`); 项目 keeps its label + key on
+               their own two lines. -->
           <colgroup>
-            <col class="w-56" />
-            <col class="w-24" />
-            <col class="w-80" />
-            <col class="w-24" />
+            <col class="w-48" />
+            <col class="w-16" />
+            <col class="w-48" />
+            <col class="w-20" />
           </colgroup>
           <caption class="sr-only">
             本浏览器留存的 NavFleet 数据，共

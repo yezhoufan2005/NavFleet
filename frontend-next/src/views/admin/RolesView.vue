@@ -180,12 +180,12 @@ const formDirty = formSnapshot.dirty;
         共 {{ roles.length }} 条记录
       </p>
       <div v-if="roles.length" :class="tableClasses.wrapper">
-        <table :class="[tableClasses.table, 'table-fixed', 'min-w-[43rem]']">
-          <!-- Shared column-width standard (`tableClasses`): sized by field, slack spread
-               proportionally. 能力 (the long capability list) wraps within its column. -->
+        <table :class="[tableClasses.table, 'table-fixed', 'min-w-[33rem]']">
+          <!-- Shared column-width standard (`tableClasses`): bases are measured content widths,
+               slack spread proportionally. 能力 (the long capability list) wraps within its column. -->
           <colgroup>
-            <col class="w-40" />
-            <col class="w-96" />
+            <col class="w-32" />
+            <col class="w-64" />
             <col class="w-36" />
           </colgroup>
           <thead :class="tableClasses.thead">

@@ -544,14 +544,14 @@ const formDirty = formSnapshot.dirty;
         还没配置渠道
       </p>
       <div v-else-if="rawConfig" :class="tableClasses.wrapper">
-        <table :class="[tableClasses.table, 'table-fixed', 'min-w-[42rem]']">
-          <!-- Shared column-width standard (`tableClasses`): sized by field, slack spread
-               proportionally. 严重度 (a list of levels) is the longest field. -->
+        <table :class="[tableClasses.table, 'table-fixed', 'min-w-[38rem]']">
+          <!-- Shared column-width standard (`tableClasses`): bases are measured content widths,
+               slack spread proportionally. -->
           <colgroup>
-            <col class="w-40" />
+            <col class="w-32" />
             <col class="w-24" />
-            <col class="w-40" />
-            <col class="w-28" />
+            <col class="w-36" />
+            <col class="w-24" />
             <col class="w-36" />
           </colgroup>
           <thead :class="tableClasses.thead">
@@ -662,19 +662,20 @@ const formDirty = formSnapshot.dirty;
           role="region"
           aria-label="发送记录"
         >
-          <table :class="[tableClasses.table, 'table-fixed', 'min-w-[70rem]']">
+          <table :class="[tableClasses.table, 'table-fixed', 'min-w-[59rem]']">
             <!-- Shared column-width standard (`tableClasses`): fixed so the geometry does not shift
-               as the log reloads under a filter; 标题 is the longest field, text cells truncate. -->
+               as the log reloads under a filter; bases are measured content widths, text cells
+               truncate. -->
             <colgroup>
-              <col class="w-44" />
-              <col class="w-28" />
-              <col class="w-56" />
+              <col class="w-40" />
+              <col class="w-24" />
+              <col class="w-40" />
+              <col class="w-40" />
+              <col class="w-16" />
+              <col class="w-16" />
+              <col class="w-12" />
+              <col class="w-16" />
               <col class="w-32" />
-              <col class="w-20" />
-              <col class="w-16" />
-              <col class="w-16" />
-              <col class="w-20" />
-              <col class="w-48" />
             </colgroup>
             <caption class="sr-only">
               消息外发的发送记录，最新在前

@@ -864,16 +864,16 @@ const exportAlertsCsv = (): void => {
           <UiScrollTable
             label="按设备明细"
             max-height="20rem"
-            min-width="47rem"
+            min-width="38rem"
             flush
           >
             <template #colgroup>
-              <col class="w-48" />
-              <col class="w-28" />
-              <col class="w-28" />
-              <col class="w-28" />
-              <col class="w-28" />
-              <col class="w-28" />
+              <col class="w-32" />
+              <col class="w-24" />
+              <col class="w-24" />
+              <col class="w-24" />
+              <col class="w-24" />
+              <col class="w-24" />
             </template>
             <template #head>
               <tr class="text-left">

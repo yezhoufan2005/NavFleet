@@ -357,19 +357,15 @@ const formDirty = formSnapshot.dirty;
       role="region"
       aria-label="用户列表"
     >
-      <table :class="[tableClasses.table, 'table-fixed', 'min-w-[63rem]']">
-        <!-- Column-width standard: every column is sized (no width-less column), so a `table-fixed
-             w-full` table spreads leftover space *proportionally* and all columns grow evenly on a
-             wide screen — a single flexible column would instead eat all the slack and leave 状态/
-             最近登录 cramped. Base widths follow field length (用户名 widest → carries the most slack);
-             状态 is wide enough for its 系统账号 badge; 操作 fits its five buttons at the floor. A
-             table `min-width` floors it so a narrow viewport scrolls the table (wrapper overflow)
-             rather than crushing the columns. -->
+      <table :class="[tableClasses.table, 'table-fixed', 'min-w-[56rem]']">
+        <!-- Shared column-width standard (`tableClasses`): each base is the measured width of the
+             field's content, so leftover space spreads in proportion to what each column holds and
+             the sum is the table's floor. 状态 fits its 系统账号 badge; 操作 its five buttons. -->
         <colgroup>
-          <col class="w-64" />
+          <col class="w-56" />
+          <col class="w-16" />
           <col class="w-24" />
-          <col class="w-32" />
-          <col class="w-44" />
+          <col class="w-40" />
           <col class="w-88" />
         </colgroup>
         <caption class="sr-only">

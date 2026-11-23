@@ -314,7 +314,7 @@ onMounted(() => {
           min-width="22rem"
         >
           <template #colgroup>
-            <col class="w-20" />
+            <col class="w-16" />
             <col
               v-for="day in history.table.dayLabels"
               :key="day"

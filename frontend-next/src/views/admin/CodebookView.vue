@@ -448,19 +448,19 @@ const formDirty = formSnapshot.dirty;
           :class="[
             tableClasses.table,
             'table-fixed',
-            canWrite ? 'min-w-[67rem]' : 'min-w-[57rem]',
+            canWrite ? 'min-w-[60rem]' : 'min-w-[50rem]',
           ]"
         >
-          <!-- Shared column-width standard (`tableClasses`): sized by field, slack spread
-               proportionally. 说明 (the longest field) has the largest base and wraps; the rest
+          <!-- Shared column-width standard (`tableClasses`): bases are measured content widths,
+               slack spread proportionally. 说明 has a reading-width base and wraps; the rest
                truncate. 操作 fits 编辑 + 恢复内置. -->
           <colgroup>
-            <col class="w-20" />
-            <col class="w-40" />
-            <col class="w-20" />
-            <col class="w-20" />
+            <col class="w-16" />
             <col class="w-32" />
-            <col class="w-96" />
+            <col class="w-16" />
+            <col class="w-24" />
+            <col class="w-32" />
+            <col class="w-80" />
             <col v-if="canWrite" class="w-40" />
           </colgroup>
           <caption class="sr-only">

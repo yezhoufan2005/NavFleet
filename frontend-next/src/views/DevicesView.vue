@@ -675,7 +675,7 @@ watch(
         wrapping.
       -->
           <table
-            :class="[tableClasses.tableNumeric, 'table-fixed', 'min-w-[52rem]']"
+            :class="[tableClasses.tableNumeric, 'table-fixed', 'min-w-[44rem]']"
           >
             <caption class="sr-only">
               设备列表，共
@@ -693,16 +693,16 @@ watch(
           Every column is pinned (none is left width-less): a `w-full` fixed-layout table
           distributes leftover width *proportionally* across the columns, so on a wide screen
           they grow evenly — whereas an unsized column soaks up all the slack and blew 设备 far
-          from 编号. 设备/编号 stay tight to their content; 场景 (long scene names) carries the
-          most base so the slack lands there; 最近上报 fits the longest localised stamp.
+          from 编号. Each base is the measured width of the column's content (shared standard in
+          `tableClasses`); 最近上报 fits the longest localised stamp.
         -->
             <colgroup>
               <col class="w-8" />
+              <col class="w-20" />
+              <col class="w-32" />
               <col class="w-24" />
-              <col class="w-36" />
-              <col class="w-28" />
-              <col class="w-44" />
-              <col class="w-48" />
+              <col class="w-32" />
+              <col class="w-40" />
               <col class="w-20" />
             </colgroup>
             <thead :class="tableClasses.thead">
