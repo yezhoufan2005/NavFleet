@@ -53,19 +53,20 @@ describe("UiHelpTip in a dialog", () => {
    * the browser's answer is stubbed here and the test checks that the tip follows it.
    */
   const focusWith = async (focusVisible: boolean) => {
-    const original = Element.prototype.matches;
-    const spy = vi
-      .spyOn(Element.prototype, "matches")
-      .mockImplementation(function (this: Element, selector: string) {
-        return selector === ":focus-visible"
-          ? focusVisible
-          : original.call(this, selector);
-      });
     const wrapper = mount(UiHelpTip, {
       props: { text: "设备的唯一标识" },
       attachTo: document.body,
     });
-    (wrapper.get("button").element as HTMLButtonElement).focus();
+    const button = wrapper.get("button").element as HTMLButtonElement;
+    // Stub on the trigger itself, so the fallback can still reach the prototype's real `matches`.
+    const spy = vi
+      .spyOn(button, "matches")
+      .mockImplementation((selector: string) =>
+        selector === ":focus-visible"
+          ? focusVisible
+          : Element.prototype.matches.call(button, selector),
+      );
+    button.focus();
     await wrapper.get("button").trigger("focus");
     await flushPromises();
     spy.mockRestore();
