@@ -352,24 +352,25 @@ const formDirty = formSnapshot.dirty;
     </p>
     <div
       v-if="status !== 'loading' && status !== 'error'"
-      :class="[tableClasses.wrapper, 'overflow-auto']"
+      :class="tableClasses.wrapper"
       tabindex="0"
       role="region"
       aria-label="用户列表"
     >
-      <table :class="[tableClasses.table, 'table-fixed', 'min-w-[58rem]']">
+      <table :class="[tableClasses.table, 'table-fixed', 'min-w-[63rem]']">
         <!-- Column-width standard: every column is sized (no width-less column), so a `table-fixed
              w-full` table spreads leftover space *proportionally* and all columns grow evenly on a
              wide screen — a single flexible column would instead eat all the slack and leave 状态/
              最近登录 cramped. Base widths follow field length (用户名 widest → carries the most slack);
-             状态 is wide enough for its 系统账号 badge. A table `min-width` floors it so a narrow
-             viewport scrolls the table (wrapper overflow) rather than crushing the columns. -->
+             状态 is wide enough for its 系统账号 badge; 操作 fits its five buttons at the floor. A
+             table `min-width` floors it so a narrow viewport scrolls the table (wrapper overflow)
+             rather than crushing the columns. -->
         <colgroup>
           <col class="w-64" />
           <col class="w-24" />
           <col class="w-32" />
           <col class="w-44" />
-          <col class="w-72" />
+          <col class="w-88" />
         </colgroup>
         <caption class="sr-only">
           账号、角色、状态与管理操作

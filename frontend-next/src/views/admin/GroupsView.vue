@@ -210,18 +210,15 @@ const formDirty = formSnapshot.dirty;
       <p v-else class="m-0 text-xs text-ink-subtle">
         共 {{ groups.length }} 条记录
       </p>
-      <div
-        v-if="groups.length"
-        :class="[tableClasses.wrapper, 'overflow-hidden']"
-      >
-        <table :class="[tableClasses.table, 'table-fixed']">
-          <!-- Fixed widths, every column pinned (none width-less) so the columns grow evenly on a
-               wide table — modelled on the device list. 角色 carries the slack and truncates. -->
+      <div v-if="groups.length" :class="tableClasses.wrapper">
+        <table :class="[tableClasses.table, 'table-fixed', 'min-w-[40rem]']">
+          <!-- Shared column-width standard (`tableClasses`): sized by field, slack spread
+               proportionally. 角色 is the longest field and truncates. -->
           <colgroup>
             <col class="w-40" />
             <col class="w-64" />
             <col class="w-20" />
-            <col class="w-28" />
+            <col class="w-36" />
           </colgroup>
           <thead :class="tableClasses.thead">
             <tr>

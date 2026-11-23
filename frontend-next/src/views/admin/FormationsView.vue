@@ -239,16 +239,16 @@ const formDirty = formSnapshot.dirty;
 
     <template v-else>
       <p class="m-0 text-xs text-ink-subtle">{{ countLabel }}</p>
-      <div :class="[tableClasses.wrapper, 'overflow-auto']">
-        <table :class="[tableClasses.table, 'table-fixed']">
-          <!-- Fixed widths, every column pinned (none width-less) so the columns grow evenly on a
-               wide table — modelled on the device list; long names truncate. -->
+      <div :class="tableClasses.wrapper">
+        <table :class="[tableClasses.table, 'table-fixed', 'min-w-[41rem]']">
+          <!-- Shared column-width standard (`tableClasses`): sized by field, slack spread
+               proportionally; long names truncate. -->
           <colgroup>
             <col class="w-32" />
             <col class="w-40" />
             <col class="w-20" />
             <col class="w-36" />
-            <col class="w-28" />
+            <col class="w-36" />
           </colgroup>
           <thead :class="tableClasses.thead">
             <tr>

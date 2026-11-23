@@ -300,16 +300,29 @@ const formDirty = formSnapshot.dirty;
       <p v-if="!schedules.length" class="text-sm text-ink-muted" role="status">
         还没有定时报表
       </p>
-      <div v-else :class="[tableClasses.wrapper, 'overflow-hidden']">
-        <table :class="[tableClasses.table, 'table-fixed']">
-          <!-- Fixed widths, every column pinned (none width-less) so the columns grow evenly on a
-               wide table — modelled on the device list. 发件人 carries the slack. -->
+      <!-- Without write access there are no buttons inside, so the region takes focus itself. -->
+      <div
+        v-else
+        :class="tableClasses.wrapper"
+        tabindex="0"
+        role="region"
+        aria-label="定时报表"
+      >
+        <table
+          :class="[
+            tableClasses.table,
+            'table-fixed',
+            canWrite ? 'min-w-[49rem]' : 'min-w-[40rem]',
+          ]"
+        >
+          <!-- Shared column-width standard (`tableClasses`): sized by field, slack spread
+               proportionally. 发件人 is the longest field. -->
           <colgroup>
             <col class="w-40" />
-            <col class="w-28" />
+            <col class="w-24" />
             <col class="w-32" />
             <col class="w-64" />
-            <col v-if="canWrite" class="w-28" />
+            <col v-if="canWrite" class="w-36" />
           </colgroup>
           <thead :class="tableClasses.thead">
             <tr>

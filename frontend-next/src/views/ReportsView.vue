@@ -858,15 +858,22 @@ const exportAlertsCsv = (): void => {
             >
             按设备明细（{{ availabilityRows.length }} 行）
           </summary>
-          <!-- Shared scroll-table shell: gray header covers the scrollbar, columns aligned. -->
-          <UiScrollTable label="按设备明细" max-height="20rem" flush>
+          <!-- Shared scroll-table shell: gray header covers the scrollbar, columns aligned. Columns
+               follow the shared width standard (`tableClasses`): 设备 has the largest base, each
+               metric (header + help icon) its own, slack spread proportionally. -->
+          <UiScrollTable
+            label="按设备明细"
+            max-height="20rem"
+            min-width="47rem"
+            flush
+          >
             <template #colgroup>
-              <col class="w-[22%]" />
-              <col />
-              <col />
-              <col />
-              <col />
-              <col />
+              <col class="w-48" />
+              <col class="w-28" />
+              <col class="w-28" />
+              <col class="w-28" />
+              <col class="w-28" />
+              <col class="w-28" />
             </template>
             <template #head>
               <tr class="text-left">

@@ -212,15 +212,24 @@ const formatTime = (iso: string): string =>
       </p>
       <div
         v-else
-        :class="[tableClasses.wrapper, 'overflow-auto']"
+        :class="tableClasses.wrapper"
         tabindex="0"
         role="region"
         aria-label="我的会话列表"
       >
-        <table :class="tableClasses.table">
+        <table :class="[tableClasses.table, 'table-fixed', 'min-w-[52rem]']">
           <caption class="sr-only">
             当前账号的活跃登录会话
           </caption>
+          <!-- Shared column-width standard (`tableClasses`): sized by field, slack spread
+               proportionally. 设备 (the user-agent string) is the longest field and truncates. -->
+          <colgroup>
+            <col class="w-64" />
+            <col class="w-32" />
+            <col class="w-44" />
+            <col class="w-44" />
+            <col class="w-24" />
+          </colgroup>
           <thead :class="tableClasses.thead">
             <tr>
               <th scope="col" class="px-3 py-2">设备</th>
@@ -237,20 +246,22 @@ const formatTime = (iso: string): string =>
               :class="tableClasses.row"
             >
               <td class="px-3 py-2 text-ink">
-                <span class="block max-w-64 truncate">{{
+                <span class="block truncate">{{
                   s.userAgent || "未知设备"
                 }}</span>
                 <span
                   v-if="s.current"
-                  class="mt-0.5 inline-block rounded-sm bg-brand-wash px-1.5 py-0.5 font-mono text-2xs text-brand-ink"
+                  class="mt-0.5 inline-block rounded-sm bg-brand-wash px-1.5 py-0.5 font-mono text-2xs whitespace-nowrap text-brand-ink"
                   >当前会话</span
                 >
               </td>
-              <td class="px-3 py-2 text-ink-muted">{{ s.ip || "—" }}</td>
-              <td class="px-3 py-2 text-ink-muted">
+              <td class="truncate px-3 py-2 text-ink-muted">
+                {{ s.ip || "—" }}
+              </td>
+              <td class="px-3 py-2 whitespace-nowrap text-ink-muted">
                 {{ formatTime(s.createdAt) }}
               </td>
-              <td class="px-3 py-2 text-ink-muted">
+              <td class="px-3 py-2 whitespace-nowrap text-ink-muted">
                 {{ formatTime(s.lastSeenAt) }}
               </td>
               <td class="px-3 py-2 text-right">

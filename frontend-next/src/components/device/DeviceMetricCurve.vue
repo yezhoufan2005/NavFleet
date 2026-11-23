@@ -305,11 +305,21 @@ onMounted(() => {
           :x-max="history.axisMax"
         />
         <!-- One column per day, rows keyed by time-of-day (HH:mm) — 三天各一列. Pinned to the
-             chart height so switching 图表 ⇆ 数据表 never changes the card's size. -->
-        <UiScrollTable v-else :label="historyLabel" :height="CHART_HEIGHT">
+             chart height so switching 图表 ⇆ 数据表 never changes the card's size. Columns follow
+             the shared width standard: 时间 and each day column sized, slack spread evenly. -->
+        <UiScrollTable
+          v-else
+          :label="historyLabel"
+          :height="CHART_HEIGHT"
+          min-width="22rem"
+        >
           <template #colgroup>
-            <col class="w-[30%]" />
-            <col v-for="day in history.table.dayLabels" :key="day" />
+            <col class="w-20" />
+            <col
+              v-for="day in history.table.dayLabels"
+              :key="day"
+              class="w-24"
+            />
           </template>
           <template #head>
             <tr>

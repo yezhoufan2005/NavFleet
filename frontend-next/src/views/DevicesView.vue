@@ -661,7 +661,7 @@ watch(
 
       <!-- 设备筛选属于这张列表，筛选已和表格同处列表分区；表格与分页再归一层 gap-2（8px）贴合。 -->
       <div class="flex min-h-0 flex-1 flex-col gap-2">
-        <div :class="[tableClasses.wrapper, 'overflow-x-auto']">
+        <div :class="tableClasses.wrapper">
           <!--
         `table-fixed` + `<colgroup>`: column widths are pinned by the colgroup, not by
         content, so nothing reflows when you sort. This is the fix for two reports:
@@ -674,7 +674,9 @@ watch(
         own now-fixed cell; overflowing text in the 设备/编号/场景 columns truncates rather than
         wrapping.
       -->
-          <table :class="[tableClasses.tableNumeric, 'table-fixed']">
+          <table
+            :class="[tableClasses.tableNumeric, 'table-fixed', 'min-w-[52rem]']"
+          >
             <caption class="sr-only">
               设备列表，共
               {{

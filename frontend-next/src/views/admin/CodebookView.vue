@@ -437,19 +437,31 @@ const formDirty = formSnapshot.dirty;
     <template v-else>
       <p class="m-0 text-xs text-ink-subtle">{{ overrideHint }}</p>
 
-      <div :class="[tableClasses.wrapper, 'overflow-x-auto']">
-        <table :class="[tableClasses.table, 'table-fixed']">
-          <!-- Fixed widths, every column pinned (none width-less) so the columns grow evenly on a
-               wide table — modelled on the device list. 说明 (the longest field) carries the slack
-               and wraps; the rest truncate. -->
+      <!-- Without write access there are no buttons inside, so the region takes focus itself. -->
+      <div
+        :class="tableClasses.wrapper"
+        tabindex="0"
+        role="region"
+        aria-label="报码字典"
+      >
+        <table
+          :class="[
+            tableClasses.table,
+            'table-fixed',
+            canWrite ? 'min-w-[67rem]' : 'min-w-[57rem]',
+          ]"
+        >
+          <!-- Shared column-width standard (`tableClasses`): sized by field, slack spread
+               proportionally. 说明 (the longest field) has the largest base and wraps; the rest
+               truncate. 操作 fits 编辑 + 恢复内置. -->
           <colgroup>
             <col class="w-20" />
             <col class="w-40" />
-            <col class="w-24" />
-            <col class="w-24" />
-            <col class="w-28" />
-            <col class="w-80" />
-            <col v-if="canWrite" class="w-28" />
+            <col class="w-20" />
+            <col class="w-20" />
+            <col class="w-32" />
+            <col class="w-96" />
+            <col v-if="canWrite" class="w-40" />
           </colgroup>
           <caption class="sr-only">
             生效的报码字典：报码、名称、通道、等级、子系统、说明与处理建议

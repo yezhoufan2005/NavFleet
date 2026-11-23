@@ -158,10 +158,11 @@ onBeforeUnmount(disposeChart);
     </div>
 
     <!-- Data-table view — the shared scroll-table shell (gray header covers the scrollbar, columns
-         aligned, pinned to the chart's height so toggling never resizes the card). -->
-    <UiScrollTable v-else :label="label" :height="height">
+         aligned, pinned to the chart's height so toggling never resizes the card). Both columns
+         sized per the shared width standard; 项 (device / severity name) has the larger base. -->
+    <UiScrollTable v-else :label="label" :height="height" min-width="16rem">
       <template #colgroup>
-        <col />
+        <col class="w-40" />
         <col class="w-24" />
       </template>
       <template #head>

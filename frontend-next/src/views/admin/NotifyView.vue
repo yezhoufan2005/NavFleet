@@ -543,19 +543,16 @@ const formDirty = formSnapshot.dirty;
       >
         还没配置渠道
       </p>
-      <div
-        v-else-if="rawConfig"
-        :class="[tableClasses.wrapper, 'overflow-hidden']"
-      >
-        <table :class="[tableClasses.table, 'table-fixed']">
-          <!-- Fixed widths, every column pinned (none width-less) so the columns grow evenly on a
-               wide table — modelled on the device list. 严重度 carries the slack. -->
+      <div v-else-if="rawConfig" :class="tableClasses.wrapper">
+        <table :class="[tableClasses.table, 'table-fixed', 'min-w-[42rem]']">
+          <!-- Shared column-width standard (`tableClasses`): sized by field, slack spread
+               proportionally. 严重度 (a list of levels) is the longest field. -->
           <colgroup>
             <col class="w-40" />
             <col class="w-24" />
-            <col class="w-48" />
-            <col class="w-32" />
+            <col class="w-40" />
             <col class="w-28" />
+            <col class="w-36" />
           </colgroup>
           <thead :class="tableClasses.thead">
             <tr>
@@ -660,21 +657,21 @@ const formDirty = formSnapshot.dirty;
       <!-- 列表与分页成组、贴 8px，与 消息史/审计/设备 一致。 -->
       <div class="flex flex-col gap-2">
         <div
-          :class="[tableClasses.wrapper, 'overflow-auto']"
+          :class="tableClasses.wrapper"
           tabindex="0"
           role="region"
           aria-label="发送记录"
         >
-          <table :class="[tableClasses.table, 'table-fixed']">
-            <!-- Fixed widths so the geometry does not shift as the log reloads under a filter; the
-               region scrolls sideways when the columns do not fit, text cells truncate. -->
+          <table :class="[tableClasses.table, 'table-fixed', 'min-w-[70rem]']">
+            <!-- Shared column-width standard (`tableClasses`): fixed so the geometry does not shift
+               as the log reloads under a filter; 标题 is the longest field, text cells truncate. -->
             <colgroup>
-              <col class="w-40" />
+              <col class="w-44" />
               <col class="w-28" />
               <col class="w-56" />
               <col class="w-32" />
               <col class="w-20" />
-              <col class="w-20" />
+              <col class="w-16" />
               <col class="w-16" />
               <col class="w-20" />
               <col class="w-48" />
