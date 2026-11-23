@@ -200,13 +200,27 @@ export const createApp = ({
   // resistance against legitimate bursts from one address (a shared-NAT office,
   // or a test suite that signs in per case), and a constant cannot be tuned
   // without a fork.
+  // `/refresh` gets its own bucket instead of sharing the login one. It carries no password (only
+  // the httpOnly refresh cookie) and every full page load calls it once, so sharing the
+  // 50-per-15-minutes login budget locked out an operator who reloaded a few dozen times. It is
+  // still limited per IP — at its own, larger number — so refresh-token stuffing stays bounded,
+  // and reloads never spend the login attempts a brute-force guard depends on.
   const authLimiter = rateLimit({
     windowMs: config.authRateLimitWindowMs,
     limit: config.authRateLimitMax,
     standardHeaders: true,
     legacyHeaders: false,
     message: { error: "too_many_requests" },
+    skip: (request) => request.path === "/refresh",
   });
+  const refreshLimiter = rateLimit({
+    windowMs: config.authRateLimitWindowMs,
+    limit: config.authRefreshRateLimitMax,
+    standardHeaders: true,
+    legacyHeaders: false,
+    message: { error: "too_many_requests" },
+  });
+  app.use("/api/auth/refresh", refreshLimiter);
   app.use(
     "/api/auth",
     authLimiter,

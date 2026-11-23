@@ -256,6 +256,10 @@ const configSchema = z.object({
   // because a test suite that logs in per case has no way to raise a constant.
   AUTH_RATE_LIMIT_WINDOW_MS: envInt(15 * 60_000, 1_000),
   AUTH_RATE_LIMIT_MAX: envInt(50, 1),
+  // Token refresh has its own per-IP bucket over the same window: no password is involved, but a
+  // full page load refreshes once, so it needs room for an operator reloading through a shift
+  // without spending the login attempts above.
+  AUTH_REFRESH_RATE_LIMIT_MAX: envInt(300, 1),
   // Account-level login lockout, orthogonal to the per-IP AUTH_RATE_LIMIT above:
   // after this many consecutive failures a single account is locked for AUTH_LOCK_WINDOW_MS,
   // which stops it being brute-forced from a rotating set of source addresses (the per-IP
@@ -324,6 +328,7 @@ export const parseConfig = (env: NodeJS.ProcessEnv) => {
     rateLimitMax: e.RATE_LIMIT_MAX,
     authRateLimitWindowMs: e.AUTH_RATE_LIMIT_WINDOW_MS,
     authRateLimitMax: e.AUTH_RATE_LIMIT_MAX,
+    authRefreshRateLimitMax: e.AUTH_REFRESH_RATE_LIMIT_MAX,
     authLockThreshold: e.AUTH_LOCK_THRESHOLD,
     authLockWindowMs: e.AUTH_LOCK_WINDOW_MS,
   };

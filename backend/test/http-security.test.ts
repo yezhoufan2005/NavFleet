@@ -59,6 +59,31 @@ describe("API rate limit", () => {
     );
   });
 
+  it("gives token refresh its own bucket, apart from the credential limit", async () => {
+    // Every full page load refreshes once; sharing the login budget locked out an operator who
+    // reloaded a few dozen times. Refresh is still limited — at its own number.
+    const { app } = createTestApp({
+      configOverrides: { authRateLimitMax: 2, authRefreshRateLimitMax: 4, rateLimitMax: 1_000 },
+    });
+
+    const refreshes: number[] = [];
+    for (let attempt = 0; attempt < 5; attempt += 1) {
+      refreshes.push((await request(app).post("/api/auth/refresh")).status);
+    }
+    expect(refreshes.slice(0, 4)).not.toContain(429);
+    expect(refreshes[4]).toBe(429);
+
+    // Login keeps its own tight budget, unspent by the refreshes above.
+    const logins: number[] = [];
+    for (let attempt = 0; attempt < 3; attempt += 1) {
+      const response = await request(app)
+        .post("/api/auth/login")
+        .send({ username: "nobody", password: "wrong-on-purpose" });
+      logins.push(response.status);
+    }
+    expect(logins).toEqual([401, 401, 429]);
+  });
+
   it("never throttles the probes and the metrics scrape", async () => {
     const { app } = createTestApp({ configOverrides: { rateLimitMax: 1 } });
 
