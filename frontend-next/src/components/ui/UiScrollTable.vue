@@ -16,7 +16,7 @@
  * header and body tables, so widths match), `head` (a `<tr>` of `<th>`), and the default slot (the
  * body `<tr>`s).
  */
-import { useTemplateRef } from "vue";
+import { computed, useTemplateRef } from "vue";
 import { useScrollbarGutter } from "@/composables/useScrollbarGutter";
 
 const { label, height, maxHeight, minWidth, flush } = defineProps<{
@@ -38,6 +38,16 @@ const { label, height, maxHeight, minWidth, flush } = defineProps<{
 
 const body = useTemplateRef<HTMLElement>("body");
 const gutter = useScrollbarGutter(body);
+
+/**
+ * The shared track's floor is the columns' width **plus** the body's scrollbar. The body loses that
+ * gutter to its vertical scrollbar, so a track of exactly `minWidth` left the body table a
+ * scrollbar-width too wide and the body grew a second horizontal scrollbar of its own under the
+ * shell's (with classic, non-overlay scrollbars).
+ */
+const trackStyle = computed(() =>
+  minWidth ? { minWidth: `calc(${minWidth} + ${gutter.value}px)` } : undefined,
+);
 </script>
 
 <template>
@@ -46,10 +56,7 @@ const gutter = useScrollbarGutter(body);
     :class="flush ? '' : 'rounded-md border border-border'"
     :style="height ? { height: `${height}px` } : undefined"
   >
-    <div
-      class="flex min-h-0 flex-1 flex-col"
-      :style="minWidth ? { minWidth } : undefined"
-    >
+    <div class="flex min-h-0 flex-1 flex-col" :style="trackStyle">
       <div class="bg-surface-sunken" :style="{ paddingRight: `${gutter}px` }">
         <table class="w-full table-fixed border-collapse text-left text-sm">
           <caption v-if="label" class="sr-only">
@@ -65,7 +72,7 @@ const gutter = useScrollbarGutter(body);
       </div>
       <div
         ref="body"
-        class="min-h-0 flex-1 overflow-y-auto border-t border-border"
+        class="min-h-0 flex-1 overflow-x-hidden overflow-y-auto border-t border-border"
         :style="maxHeight && !height ? { maxHeight } : undefined"
         tabindex="0"
         role="region"
