@@ -1,4 +1,4 @@
-import { describe, it, expect, afterEach } from "vitest";
+import { describe, it, expect, afterEach, vi } from "vitest";
 import { enableAutoUnmount, flushPromises, mount } from "@vue/test-utils";
 import UiHelpTip from "@/components/ui/UiHelpTip.vue";
 import { FIELD_HELP } from "@/lib/fieldHelp";
@@ -46,15 +46,39 @@ describe("UiHelpTip", () => {
 });
 
 describe("UiHelpTip in a dialog", () => {
-  it("does not open when focus lands on it programmatically (a dialog focusing its first field)", async () => {
+  /**
+   * Whether a focus is keyboard focus is the browser's call: Reka asks `matches(":focus-visible")`,
+   * and a browser answers false for the focus a dialog moves to its first field after a mouse click.
+   * jsdom has no input-modality heuristic (from v31 it treats every `:focus` as `:focus-visible`), so
+   * the browser's answer is stubbed here and the test checks that the tip follows it.
+   */
+  const focusWith = async (focusVisible: boolean) => {
     const wrapper = mount(UiHelpTip, {
       props: { text: "设备的唯一标识" },
       attachTo: document.body,
     });
-    (wrapper.get("button").element as HTMLButtonElement).focus();
+    const button = wrapper.get("button").element as HTMLButtonElement;
+    // Stub on the trigger itself, so the fallback can still reach the prototype's real `matches`.
+    const spy = vi
+      .spyOn(button, "matches")
+      .mockImplementation((selector: string) =>
+        selector === ":focus-visible"
+          ? focusVisible
+          : Element.prototype.matches.call(button, selector),
+      );
+    button.focus();
     await wrapper.get("button").trigger("focus");
     await flushPromises();
-    expect(tipText()).toBe("");
+    spy.mockRestore();
+    return tipText();
+  };
+
+  it("does not open when focus lands on it programmatically (a dialog focusing its first field)", async () => {
+    expect(await focusWith(false)).toBe("");
+  });
+
+  it("opens on keyboard focus (Tab onto the ?)", async () => {
+    expect(await focusWith(true)).toContain("设备的唯一标识");
   });
 
   it("draws the ? and its ring in one grey", () => {
