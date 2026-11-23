@@ -112,22 +112,69 @@ export interface Checkpoint {
 
 export const checkpointPath = (stateDir: string): string => path.join(stateDir, "checkpoint.json");
 
+/** The checkpoint file exists but cannot be used (empty, truncated, or not this format). */
+export class CheckpointCorrupt extends Error {}
+
+/**
+ * `null` only when there is no checkpoint file at all. A file that is present but unreadable throws
+ * `CheckpointCorrupt` instead: treating it as "no checkpoint" sent catch-up down the first-start path
+ * and the operator got a refusal about the database already holding history, which points at the
+ * wrong cause.
+ */
 export const readCheckpoint = (stateDir: string): Checkpoint | null => {
+  const file = checkpointPath(stateDir);
+  let raw: string;
   try {
-    const checkpoint = readJson<Checkpoint>(checkpointPath(stateDir));
-    return checkpoint.version === 1 && Array.isArray(checkpoint.states) ? checkpoint : null;
-  } catch {
-    return null;
+    raw = fs.readFileSync(file, "utf8");
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code === "ENOENT") return null;
+    throw error;
   }
+  let checkpoint: Checkpoint;
+  try {
+    checkpoint = JSON.parse(raw) as Checkpoint;
+  } catch {
+    throw new CheckpointCorrupt(
+      `${file} is ${raw.length === 0 ? "empty" : "not valid JSON"} — the state volume was cut off ` +
+        "mid-write (e.g. the Docker VM stopped). Restore it, or start both the database and the state " +
+        "from empty (verify-stack --purge; under dev.sh, remove the dev Mongo container and backend/.demo-sim).",
+    );
+  }
+  if (checkpoint?.version !== 1 || !Array.isArray(checkpoint.states)) {
+    throw new CheckpointCorrupt(`${file} is not a version-1 checkpoint`);
+  }
+  return checkpoint;
 };
 
-/** Atomic (tmp + rename), so a crash mid-write leaves the previous checkpoint intact. */
+/**
+ * Durable as well as atomic: tmp + fsync + rename + fsync of the directory. The rename alone keeps
+ * the previous checkpoint through a process crash, but not through the host or Docker VM stopping
+ * — the rename can reach disk before the data, leaving an empty `checkpoint.json`.
+ */
 export const writeCheckpoint = (stateDir: string, checkpoint: Checkpoint): void => {
   fs.mkdirSync(stateDir, { recursive: true });
   const target = checkpointPath(stateDir);
   const tmp = `${target}.${process.pid}.tmp`;
-  fs.writeFileSync(tmp, JSON.stringify(checkpoint));
+  const fd = fs.openSync(tmp, "w");
+  try {
+    fs.writeFileSync(fd, JSON.stringify(checkpoint));
+    fs.fsyncSync(fd);
+  } finally {
+    fs.closeSync(fd);
+  }
   fs.renameSync(tmp, target);
+  // Persist the rename itself. Best effort: some filesystems refuse fsync on a directory handle,
+  // and the data is already durable by then.
+  try {
+    const dir = fs.openSync(stateDir, "r");
+    try {
+      fs.fsyncSync(dir);
+    } finally {
+      fs.closeSync(dir);
+    }
+  } catch {
+    // ignore — see above
+  }
 };
 
 /**
