@@ -8,9 +8,11 @@
  *   tables stay column-aligned (see `useScrollbarGutter`);
  * - a vertically scrolling body, optionally pinned to a fixed `height` (toggle 图表 ⇆ 数据表 never
  *   resizes the card) or capped by `maxHeight` (content-sized up to it);
- * - whole-table **horizontal** scroll when `minWidth` exceeds the box — header and body sit in one
- *   `minWidth` track and scroll together, so many device columns stay aligned instead of the header
- *   drifting away from the body (the 电量SOC表 右滚错位 bug).
+ * - **horizontal** scroll when `minWidth` exceeds the box. The body is the one scroller for both
+ *   directions, so both scrollbars sit on the visible box's edges (a vertical bar at the far right
+ *   of a wider track was unreachable until you scrolled sideways). The header is clipped and
+ *   follows the body's `scrollLeft`, so many device columns stay aligned instead of drifting (the
+ *   电量SOC表 右滚错位 bug).
  *
  * Callers provide the columns and cells through three slots: `colgroup` (rendered into both the
  * header and body tables, so widths match), `head` (a `<tr>` of `<th>`), and the default slot (the
@@ -36,28 +38,43 @@ const { label, height, maxHeight, minWidth, flush } = defineProps<{
   flush?: boolean;
 }>();
 
+const head = useTemplateRef<HTMLElement>("head");
 const body = useTemplateRef<HTMLElement>("body");
 const gutter = useScrollbarGutter(body);
 
 /**
- * The shared track's floor is the columns' width **plus** the body's scrollbar. The body loses that
- * gutter to its vertical scrollbar, so a track of exactly `minWidth` left the body table a
- * scrollbar-width too wide and the body grew a second horizontal scrollbar of its own under the
- * shell's (with classic, non-overlay scrollbars).
+ * The header's track is the body's content width: the columns (`minWidth` floor) plus the body's
+ * vertical-scrollbar gutter, kept as right padding so both tables get the same width and the
+ * header can scroll exactly as far as the body.
  */
-const trackStyle = computed(() =>
-  minWidth ? { minWidth: `calc(${minWidth} + ${gutter.value}px)` } : undefined,
-);
+const headTrackStyle = computed(() => ({
+  paddingRight: `${gutter.value}px`,
+  ...(minWidth ? { minWidth: `calc(${minWidth} + ${gutter.value}px)` } : {}),
+}));
+
+/** The header follows the body's horizontal scroll. */
+const syncHead = (): void => {
+  if (head.value && body.value) head.value.scrollLeft = body.value.scrollLeft;
+};
+
+/** A horizontal swipe over the header scrolls the body (the header itself never scrolls). */
+const forwardWheel = (event: WheelEvent): void => {
+  if (body.value && event.deltaX) body.value.scrollLeft += event.deltaX;
+};
 </script>
 
 <template>
   <div
-    class="flex flex-col overflow-x-auto overflow-y-hidden bg-surface-raised"
+    class="flex flex-col overflow-hidden bg-surface-raised"
     :class="flush ? '' : 'rounded-md border border-border'"
     :style="height ? { height: `${height}px` } : undefined"
   >
-    <div class="flex min-h-0 flex-1 flex-col" :style="trackStyle">
-      <div class="bg-surface-sunken" :style="{ paddingRight: `${gutter}px` }">
+    <div
+      ref="head"
+      class="shrink-0 overflow-hidden bg-surface-sunken"
+      @wheel="forwardWheel"
+    >
+      <div :style="headTrackStyle">
         <table class="w-full table-fixed border-collapse text-left text-sm">
           <caption v-if="label" class="sr-only">
             {{
@@ -70,21 +87,25 @@ const trackStyle = computed(() =>
           </thead>
         </table>
       </div>
-      <div
-        ref="body"
-        class="min-h-0 flex-1 overflow-x-hidden overflow-y-auto border-t border-border"
-        :style="maxHeight && !height ? { maxHeight } : undefined"
-        tabindex="0"
-        role="region"
-        :aria-label="label ? `${label} 数据表` : undefined"
+    </div>
+    <div
+      ref="body"
+      class="min-h-0 flex-1 overflow-auto border-t border-border"
+      :style="maxHeight && !height ? { maxHeight } : undefined"
+      tabindex="0"
+      role="region"
+      :aria-label="label ? `${label} 数据表` : undefined"
+      @scroll="syncHead"
+    >
+      <table
+        class="w-full table-fixed border-collapse text-left text-sm"
+        :style="minWidth ? { minWidth } : undefined"
       >
-        <table class="w-full table-fixed border-collapse text-left text-sm">
-          <slot name="colgroup" />
-          <tbody>
-            <slot />
-          </tbody>
-        </table>
-      </div>
+        <slot name="colgroup" />
+        <tbody>
+          <slot />
+        </tbody>
+      </table>
     </div>
   </div>
 </template>
