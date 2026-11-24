@@ -173,8 +173,8 @@ describe("报码解读", () => {
     expect(section.text()).toContain("路径规划超时");
     expect(section.text()).toContain("目标点被占据");
     expect(section.text()).toContain("重新派发");
-    // The device's own words survive alongside the canonical label.
-    expect(section.text()).toContain("路径规划超时，已触发急停");
+    // The card reads the codebook, not the firmware string (车端上报 was dropped from it).
+    expect(section.text()).not.toContain("路径规划超时，已触发急停");
   });
 
   it("states what the vehicle can still do, not how bad it feels", async () => {
@@ -184,7 +184,24 @@ describe("报码解读", () => {
     const wrapper = await mountDetail();
 
     expect(wrapper.text()).toContain("任务受阻");
-    expect(wrapper.text()).toContain("无法继续当前任务");
+    // The sentence behind the tag rides on its tooltip.
+    expect(wrapper.get("[title*='无法继续当前任务']").text()).toBe("任务受阻");
+  });
+
+  it("keeps a long code name inside the card: wraps to two lines, the tag stays put", async () => {
+    seed({ error_code: code(5102) });
+    const wrapper = await mountDetail();
+    const card = wrapper.get("section[aria-labelledby='codes-heading']");
+    const name = card.get("strong");
+    expect(name.classes()).toEqual(
+      expect.arrayContaining(["line-clamp-2", "wrap-break-word"]),
+    );
+    expect(name.attributes("title")).toBe(name.text());
+    // The title row is a grid whose middle track can shrink below its content.
+    expect(name.element.parentElement?.className).toContain("minmax(0,1fr)");
+    const meta = card.get("p.font-mono");
+    expect(meta.classes()).toContain("truncate");
+    expect(meta.attributes("title")).toBe("5102 · 导航与定位");
   });
 
   it("distinguishes intervention from merely blocked", async () => {
@@ -192,7 +209,7 @@ describe("报码解读", () => {
     const wrapper = await mountDetail();
 
     expect(wrapper.text()).toContain("需人工介入");
-    expect(wrapper.text()).toContain("必须人工到场");
+    expect(wrapper.get("[title*='必须人工到场']").text()).toBe("需人工介入");
   });
 
   it("says a code is unknown rather than inventing a meaning", async () => {

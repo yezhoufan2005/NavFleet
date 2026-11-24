@@ -4,9 +4,8 @@
  * 实时 tab beside 当前任务, in the same card shape (`DeviceTaskCard`): a title row with a tag, the
  * primary reading, then a hairline and two-column label/value fields.
  *
- * Per code it answers, in order: what it is (tier badge, code, name, subsystem), what the vehicle
- * can still do (two capability chips — the part a dispatcher acts on), what it means and what to
- * do, then when it fired, how long it has stood, and what the vehicle itself said.
+ * Per code it answers, in order: what it is (tier badge, name, impact tag; code and subsystem), what
+ * it means and what to do, then when it fired and how long it has stood.
  *
  * With no active code it renders as a title-only placeholder (no "nothing here" sentence); the
  * parent decides the placeholder's shape and widens it again the moment a code arrives.
@@ -17,7 +16,6 @@ import {
   CODE_SUBSYSTEMS,
   parseTimestampMs,
   type CodeChannel,
-  type CodeImpact,
   type DescribedCode,
 } from "@navfleet/shared";
 import { formatStamp } from "@navfleet/fleet-core";
@@ -46,18 +44,6 @@ const CHANNEL_BADGE: Record<CodeChannel, string> = {
   info: SEVERITY_BADGE.notice,
 };
 
-/**
- * What each impact tier leaves the vehicle able to do — the two questions `CODE_IMPACTS` answers
- * in prose, as two yes/no chips. Worded both ways so the state never rides colour alone.
- */
-const CAPABILITY: Record<CodeImpact, { current: boolean; next: boolean }> = {
-  none: { current: true, next: true },
-  watch: { current: true, next: true },
-  urgent: { current: true, next: true },
-  blocked: { current: false, next: true },
-  intervention: { current: false, next: false },
-};
-
 const lasted = (since: string | null): string => {
   const start = since ? parseTimestampMs(since) : null;
   const end = parseTimestampMs(stamp);
@@ -70,8 +56,12 @@ const rows = computed(() =>
   codes.map(({ channel, described }) => ({
     channel,
     described,
-    capability: CAPABILITY[described.impact],
-    subsystem: described.subsystem ? CODE_SUBSYSTEMS[described.subsystem] : "",
+    meta: [
+      String(described.code),
+      described.subsystem ? CODE_SUBSYSTEMS[described.subsystem] : "",
+    ]
+      .filter(Boolean)
+      .join(" · "),
     fields: [
       {
         label: "触发时间",
@@ -81,9 +71,6 @@ const rows = computed(() =>
     ],
   })),
 );
-
-const CHIP_OK = "border-border text-ink-muted";
-const CHIP_NO = "border-critical/40 bg-critical-wash text-critical-ink";
 </script>
 
 <template>
@@ -120,57 +107,46 @@ const CHIP_NO = "border-critical/40 bg-critical-wash text-critical-ink";
         :key="row.channel"
         class="flex flex-col gap-2.5 py-3 first:pt-0 last:pb-0"
       >
+        <!-- Title row on a 3-column grid: the badge and the impact tag keep their size, the name
+             takes the rest and wraps — up to two lines, then … with the full name on hover. A
+             long name never pushes the tag onto its own line. -->
         <div class="flex flex-col gap-1">
-          <div class="flex flex-wrap items-center gap-x-2 gap-y-1">
+          <div
+            class="grid grid-cols-[auto_minmax(0,1fr)_auto] items-start gap-x-2"
+          >
             <span
               class="rounded-xs px-1.5 py-0.5 text-2xs font-medium whitespace-nowrap"
               :class="CHANNEL_BADGE[row.channel]"
               >{{ CODE_CHANNEL_LABELS[row.channel] }}</span
             >
-            <strong class="text-sm font-semibold text-ink">{{
-              row.described.label
-            }}</strong>
+            <strong
+              class="line-clamp-2 text-sm font-semibold wrap-break-word text-ink"
+              :title="row.described.label"
+              >{{ row.described.label }}</strong
+            >
             <span
-              class="ml-auto rounded-xs border border-border bg-surface-sunken px-1.5 py-0.5 text-2xs whitespace-nowrap text-ink-muted"
+              class="rounded-xs border border-border bg-surface-sunken px-1.5 py-0.5 text-2xs whitespace-nowrap text-ink-muted"
+              :title="CODE_IMPACTS[row.described.impact].meaning"
               >{{ CODE_IMPACTS[row.described.impact].label }}</span
             >
           </div>
-          <p class="m-0 font-mono text-2xs text-ink-subtle">
-            {{ row.described.code
-            }}<template v-if="row.subsystem"> · {{ row.subsystem }}</template>
-          </p>
-        </div>
-
-        <!-- What the vehicle can still do — the part a dispatcher acts on — and the sentence behind it. -->
-        <div class="flex flex-col gap-1">
-          <ul
-            class="m-0 flex list-none flex-wrap gap-1.5 p-0"
-            aria-label="车辆能力"
+          <!-- Code · subsystem is metadata: one line, … past the edge, full text on hover. -->
+          <p
+            class="m-0 truncate font-mono text-2xs text-ink-subtle"
+            :title="row.meta"
           >
-            <li
-              class="rounded-xs border px-1.5 py-0.5 text-2xs"
-              :class="row.capability.current ? CHIP_OK : CHIP_NO"
-            >
-              {{
-                row.capability.current ? "可继续当前任务" : "不能继续当前任务"
-              }}
-            </li>
-            <li
-              class="rounded-xs border px-1.5 py-0.5 text-2xs"
-              :class="row.capability.next ? CHIP_OK : CHIP_NO"
-            >
-              {{ row.capability.next ? "可接受新任务" : "不能接受新任务" }}
-            </li>
-          </ul>
-          <p class="m-0 text-2xs text-ink-subtle">
-            {{ CODE_IMPACTS[row.described.impact].meaning }}
+            {{ row.meta }}
           </p>
         </div>
 
         <div class="flex flex-col gap-1">
-          <p class="m-0 text-sm text-ink">{{ row.described.description }}</p>
-          <p class="m-0 text-xs text-ink-muted">
-            <span class="text-ink-subtle">处理建议 </span
+          <!-- Body text wraps in full; wrap-break-word only splits a run with no break point
+               (a long Latin token or path) so it cannot overflow the card. -->
+          <p class="m-0 text-sm wrap-break-word text-ink">
+            {{ row.described.description }}
+          </p>
+          <p class="m-0 text-xs wrap-break-word text-ink-muted">
+            <span class="text-ink-subtle">处理建议：</span
             >{{ row.described.hint }}
           </p>
           <p
@@ -193,20 +169,11 @@ const CHIP_NO = "border-critical/40 bg-critical-wash text-critical-ink";
             <dt class="w-14 shrink-0 text-2xs text-ink-subtle">
               {{ field.label }}
             </dt>
-            <dd class="m-0 truncate text-ink tabular-nums" :title="field.value">
-              {{ field.value }}
-            </dd>
-          </div>
-          <div
-            v-if="row.described.reported && !row.described.unknown"
-            class="col-span-2 flex min-w-0 items-baseline gap-2"
-          >
-            <dt class="w-14 shrink-0 text-2xs text-ink-subtle">车端上报</dt>
             <dd
-              class="m-0 truncate text-ink-muted"
-              :title="row.described.reported"
+              class="m-0 min-w-0 truncate text-ink tabular-nums"
+              :title="field.value"
             >
-              {{ row.described.reported }}
+              {{ field.value }}
             </dd>
           </div>
         </dl>
