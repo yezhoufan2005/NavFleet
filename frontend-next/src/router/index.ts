@@ -64,6 +64,12 @@ declare module "vue-router" {
      */
     bare?: boolean;
     /**
+     * Keep the full content width on wide monitors instead of the reading-width cap the shell applies
+     * by default. For dashboards (总览 / 大屏) whose charts and tiles use the whole screen; reading
+     * pages (lists, admin, reports) omit it and sit left-aligned within ~1440px.
+     */
+    fullWidth?: boolean;
+    /**
      * Capability required on this route (1.6.1 RBAC). Absent = any authenticated user (viewer+).
      * The auth guard bounces an authenticated user who lacks it to the landing page.
      */
@@ -97,7 +103,7 @@ const routes: RouteRecordRaw[] = [
     path: "/",
     name: "overview",
     component: () => import("@/views/OverviewView.vue"),
-    meta: { title: "总览" },
+    meta: { title: "总览", fullWidth: true },
   },
   {
     path: "/devices",
@@ -430,7 +436,7 @@ const routes: RouteRecordRaw[] = [
     path: "/wall",
     name: "wall",
     component: () => import("@/views/WallView.vue"),
-    meta: { title: "大屏值班", bare: true },
+    meta: { title: "大屏值班", bare: true, fullWidth: true },
   },
   /**
    * The chart performance harness — a development tool, not a page.

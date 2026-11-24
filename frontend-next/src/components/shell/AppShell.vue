@@ -163,9 +163,19 @@ onBeforeUnmount(stopNavigationFocus);
         tabindex="-1"
         class="min-w-0 flex-1 overflow-y-auto p-4 focus-visible:-outline-offset-2 3xl:p-6"
       >
-        <ErrorBoundary :reset-key="route.fullPath">
-          <RouterView />
-        </ErrorBoundary>
+        <!-- Reading-oriented pages (lists, admin, reports) cap their width on very wide monitors and
+             sit left-aligned, so a 2000px+ screen does not stretch a table into huge empty gaps.
+             Dashboards (总览 / 大屏) opt out with `meta.fullWidth` and keep the whole width.
+             `h-full` passes `main`'s height through, so a `fillHeight` page (the 设备 map) still
+             fills the screen; taller pages overflow it and `main` scrolls as before. -->
+        <div
+          class="h-full"
+          :class="route.meta.fullWidth ? '' : 'max-w-[90rem]'"
+        >
+          <ErrorBoundary :reset-key="route.fullPath">
+            <RouterView />
+          </ErrorBoundary>
+        </div>
       </main>
     </div>
   </div>

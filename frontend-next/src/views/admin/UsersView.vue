@@ -352,21 +352,21 @@ const formDirty = formSnapshot.dirty;
     </p>
     <div
       v-if="status !== 'loading' && status !== 'error'"
-      :class="[tableClasses.wrapper, 'overflow-auto']"
+      :class="tableClasses.wrapper"
       tabindex="0"
       role="region"
       aria-label="用户列表"
     >
-      <table :class="[tableClasses.table, 'table-fixed']">
-        <!-- Fixed widths, every column pinned (none width-less) so the columns grow evenly on a
-             wide table — modelled on the device list. 用户名 carries the slack; 操作 fits its five
-             buttons; an over-long value truncates rather than widening its column. -->
+      <table :class="[tableClasses.table, 'table-fixed', 'min-w-[56rem]']">
+        <!-- Shared column-width standard (`tableClasses`): each base is the measured width of the
+             field's content, so leftover space spreads in proportion to what each column holds and
+             the sum is the table's floor. 状态 fits its 系统账号 badge; 操作 its five buttons. -->
         <colgroup>
-          <col class="w-64" />
-          <col class="w-20" />
+          <col class="w-56" />
+          <col class="w-16" />
           <col class="w-24" />
-          <col class="w-44" />
-          <col class="w-72" />
+          <col class="w-40" />
+          <col class="w-88" />
         </colgroup>
         <caption class="sr-only">
           账号、角色、状态与管理操作
@@ -395,7 +395,7 @@ const formDirty = formSnapshot.dirty;
               <td class="px-3 py-2 text-ink-muted">
                 {{ ROLE_LABELS[user.role] }}
               </td>
-              <td class="px-3 py-2">
+              <td class="px-3 py-2 whitespace-nowrap">
                 <span v-if="!user.enabled" class="text-ink-subtle">已停用</span>
                 <span v-else-if="isLocked(user)" class="text-warning-ink"
                   >已锁定</span
@@ -403,7 +403,7 @@ const formDirty = formSnapshot.dirty;
                 <span v-else class="text-ink-muted">正常</span>
                 <span
                   v-if="user.protected"
-                  class="ml-2 rounded-xs border border-border bg-surface-sunken px-1.5 py-0.5 text-2xs text-ink-muted"
+                  class="ml-2 rounded-xs border border-border bg-surface-sunken px-1.5 py-0.5 text-2xs whitespace-nowrap text-ink-muted"
                   title="内置管理员，仅后台（env/bootstrap）可改"
                   >系统账号</span
                 >

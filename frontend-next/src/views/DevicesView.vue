@@ -661,7 +661,7 @@ watch(
 
       <!-- 设备筛选属于这张列表，筛选已和表格同处列表分区；表格与分页再归一层 gap-2（8px）贴合。 -->
       <div class="flex min-h-0 flex-1 flex-col gap-2">
-        <div :class="[tableClasses.wrapper, 'overflow-x-auto']">
+        <div :class="tableClasses.wrapper">
           <!--
         `table-fixed` + `<colgroup>`: column widths are pinned by the colgroup, not by
         content, so nothing reflows when you sort. This is the fix for two reports:
@@ -674,7 +674,9 @@ watch(
         own now-fixed cell; overflowing text in the 设备/编号/场景 columns truncates rather than
         wrapping.
       -->
-          <table :class="[tableClasses.tableNumeric, 'table-fixed']">
+          <table
+            :class="[tableClasses.tableNumeric, 'table-fixed', 'min-w-[44rem]']"
+          >
             <caption class="sr-only">
               设备列表，共
               {{
@@ -691,16 +693,16 @@ watch(
           Every column is pinned (none is left width-less): a `w-full` fixed-layout table
           distributes leftover width *proportionally* across the columns, so on a wide screen
           they grow evenly — whereas an unsized column soaks up all the slack and blew 设备 far
-          from 编号. 设备/编号 stay tight to their content; 场景 (long scene names) carries the
-          most base so the slack lands there; 最近上报 fits the longest localised stamp.
+          from 编号. Each base is the measured width of the column's content (shared standard in
+          `tableClasses`); 最近上报 fits the longest localised stamp.
         -->
             <colgroup>
               <col class="w-8" />
+              <col class="w-20" />
+              <col class="w-32" />
               <col class="w-24" />
-              <col class="w-36" />
-              <col class="w-28" />
-              <col class="w-44" />
-              <col class="w-48" />
+              <col class="w-32" />
+              <col class="w-40" />
               <col class="w-20" />
             </colgroup>
             <thead :class="tableClasses.thead">

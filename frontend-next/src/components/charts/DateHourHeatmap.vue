@@ -144,10 +144,10 @@ onBeforeUnmount(disposeChart);
       />
     </div>
 
-    <UiScrollTable v-else :label="label" :height="height" min-width="52rem">
+    <UiScrollTable v-else :label="label" :height="height" min-width="54.5rem">
       <template #colgroup>
         <col class="w-14" />
-        <col v-for="hour in HOURS" :key="hour" />
+        <col v-for="hour in HOURS" :key="hour" class="w-8" />
         <col class="w-12" />
       </template>
       <template #head>

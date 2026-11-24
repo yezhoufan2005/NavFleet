@@ -133,11 +133,19 @@ onBeforeUnmount(disposeChart);
       />
     </div>
 
-    <UiScrollTable v-else :label="label" :height="height">
+    <!-- Every column sized per the shared width standard: 设备 has the largest base, each severity
+         and the total a narrow numeric one; below `min-width` the table scrolls sideways so 设备
+         is never squeezed onto two lines. -->
+    <UiScrollTable
+      v-else
+      :label="label"
+      :height="height"
+      :min-width="`${7 + (series.length + 1) * 2.5}rem`"
+    >
       <template #colgroup>
-        <col />
-        <col v-for="s in series" :key="s.name" class="w-14" />
-        <col class="w-14" />
+        <col class="w-28" />
+        <col v-for="s in series" :key="s.name" class="w-10" />
+        <col class="w-10" />
       </template>
       <template #head>
         <tr>

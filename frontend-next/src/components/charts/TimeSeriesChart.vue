@@ -144,12 +144,11 @@ const seriesColor = (index: number): string =>
   palette.value.ink;
 
 /**
- * Give the data table a floor width once it has many columns (one per vehicle), so the cells do
- * not crush together — the block then scrolls horizontally instead. Few columns fit, so no floor.
+ * The data table's floor width: the sum of its measured column bases (时间 `w-44` + one `w-28` per
+ * vehicle, wide enough for a 「名称 (单位)」 header), so the cells never crush together — below it
+ * the block scrolls horizontally instead.
  */
-const tableMinWidth = computed(() =>
-  series.length > 3 ? `${200 + series.length * 88}px` : undefined,
-);
+const tableMinWidth = computed(() => `${11 + series.length * 7}rem`);
 
 const option = computed(() =>
   buildTimeSeriesOption({
@@ -387,9 +386,9 @@ const columnHeader = (entry: TimeSeries): string => {
     >
       <template #colgroup>
         <!-- 时间列定宽，不用百分比：多选设备时表变宽，45% 会让时间列跟着变宽，而每行时间戳长度没变、
-             只是右边在加设备列——定宽让时间列恒定，新增的设备列去分剩余宽度。 -->
-        <col class="w-48" />
-        <col v-for="entry in series" :key="entry.name" />
+             只是右边在加设备列。每个设备列也定宽（共用列宽标准），余量按比例摊开。 -->
+        <col class="w-44" />
+        <col v-for="entry in series" :key="entry.name" class="w-28" />
       </template>
       <template #head>
         <tr>
