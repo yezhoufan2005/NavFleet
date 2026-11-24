@@ -117,11 +117,11 @@ onBeforeUnmount(disposeChart);
     </div>
 
     <!-- Data-table view — the shared scroll-table shell, pinned to the chart's height so toggling
-         never resizes the card. -->
-    <UiScrollTable v-else :label="label" :height="height">
+         never resizes the card. Both columns sized per the shared width standard. -->
+    <UiScrollTable v-else :label="label" :height="height" min-width="12rem">
       <template #colgroup>
-        <col />
-        <col class="w-24" />
+        <col class="w-28" />
+        <col class="w-20" />
       </template>
       <template #head>
         <tr>

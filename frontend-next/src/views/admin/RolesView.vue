@@ -179,18 +179,14 @@ const formDirty = formSnapshot.dirty;
       <p v-else class="m-0 text-xs text-ink-subtle">
         共 {{ roles.length }} 条记录
       </p>
-      <div
-        v-if="roles.length"
-        :class="[tableClasses.wrapper, 'overflow-hidden']"
-      >
-        <table :class="[tableClasses.table, 'table-fixed']">
-          <!-- Fixed widths, every column pinned (none width-less) so the columns grow evenly on a
-               wide table — modelled on the device list. 能力 (the long capability list) carries the
-               slack and wraps within its column. -->
+      <div v-if="roles.length" :class="tableClasses.wrapper">
+        <table :class="[tableClasses.table, 'table-fixed', 'min-w-[33rem]']">
+          <!-- Shared column-width standard (`tableClasses`): bases are measured content widths,
+               slack spread proportionally. 能力 (the long capability list) wraps within its column. -->
           <colgroup>
-            <col class="w-40" />
-            <col class="w-96" />
-            <col class="w-28" />
+            <col class="w-32" />
+            <col class="w-64" />
+            <col class="w-36" />
           </colgroup>
           <thead :class="tableClasses.thead">
             <tr>

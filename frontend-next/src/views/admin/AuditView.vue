@@ -190,19 +190,22 @@ const formatTime = (iso: string): string =>
         {{ cappedAt }} 条（后端单次查询上限），缩小时间范围可查看更早的记录
       </p>
       <div class="flex flex-col gap-2">
-        <!-- Same shell as the device list: the table itself does not scroll (`overflow-hidden`
-           clips its corners), the page scrolls. -->
-        <div :class="[tableClasses.wrapper, 'overflow-hidden']">
-          <table :class="[tableClasses.table, 'table-fixed']">
-            <!-- Fixed column widths so the geometry does not shift as rows change between queries
-               (same reason 设备 pins its columns). An over-long value wraps inside its cell rather
-               than widening the column; `truncate` keeps the common case to one tidy line. -->
+        <!-- Column widths follow the shared standard (`tableClasses`): every column sized by its
+           field so leftover space spreads proportionally; below `min-w` the table scrolls sideways.
+           No buttons inside, so the region itself takes focus for keyboard scrolling. -->
+        <div
+          :class="tableClasses.wrapper"
+          tabindex="0"
+          role="region"
+          aria-label="审计记录"
+        >
+          <table :class="[tableClasses.table, 'table-fixed', 'min-w-[36rem]']">
             <colgroup>
-              <col class="w-44" />
-              <col class="w-28" />
-              <col class="w-28" />
-              <col class="w-56" />
-              <col class="w-20" />
+              <col class="w-40" />
+              <col class="w-24" />
+              <col class="w-24" />
+              <col class="w-40" />
+              <col class="w-16" />
             </colgroup>
             <caption class="sr-only">
               鉴权与用户管理事件，最新在前
