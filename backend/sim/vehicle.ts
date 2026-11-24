@@ -82,7 +82,20 @@ export interface VehicleState {
   limitKey: string;
   limitSince: number;
   pending: Array<{ at: number; kind: FollowUp }>;
+  /**
+   * The task the dispatcher has the vehicle on, as reported in the frame's `task` (see `taskOf`).
+   * Optional so a checkpoint written before these fields existed still loads: missing reads as
+   * "no task yet", and the next task the vehicle starts gets an id.
+   */
+  taskKind?: TaskKind | null;
+  taskId?: string | null;
+  taskStartedAt?: number;
+  /** Tasks issued to this vehicle so far, for the sequence part of the id. */
+  taskSeq?: number;
 }
+
+/** A work task (巡检 round / 搬运·牵引·配料 job) or a trip to the charger. */
+export type TaskKind = "work" | "charge";
 
 export interface Site {
   deviceId: string;
@@ -196,6 +209,10 @@ export const initialState = (site: Site, t: number, slot: number, slots: number)
     limitKey: "",
     limitSince: t,
     pending: [],
+    taskKind: null,
+    taskId: null,
+    taskStartedAt: 0,
+    taskSeq: 0,
   };
   state.nextMaintenanceAt = maintenanceSlot(t, rng.between(2, 12), rng);
   state.rng = rng.save();
@@ -628,6 +645,93 @@ const TASK_PHASES: ReadonlySet<Phase> = new Set([
   "handover",
 ]);
 
+/** Which task the current phase belongs to; null while idle, charging, parked or in maintenance. */
+const taskKindOf = (phase: Phase): TaskKind | null =>
+  TASK_PHASES.has(phase) || phase === "complete" ? "work" : phase === "toCharger" ? "charge" : null;
+
+/** `YYYYMMDD` in the deployment's local time (UTC+8, as `localHour`). */
+const localDay = (ms: number): string =>
+  new Date(ms + 8 * 3_600_000).toISOString().slice(0, 10).replaceAll("-", "");
+
+/**
+ * Keep the task bookkeeping in step with the phase: a new kind of task (or a fresh one after an
+ * idle spell) gets the next id and its start time; no task clears it. A patrol moving between its
+ * stops, or a job going from 装货 to 卸货, stays one task.
+ */
+const syncTask = (state: VehicleState, t: number): void => {
+  const kind = taskKindOf(state.phase);
+  if (kind === (state.taskKind ?? null) && (kind === null || state.taskId)) return;
+  state.taskKind = kind;
+  if (kind === null) {
+    state.taskId = null;
+    return;
+  }
+  state.taskSeq = (state.taskSeq ?? 0) + 1;
+  state.taskId = `${state.deviceId}-${localDay(t)}-${String(state.taskSeq).padStart(4, "0")}`;
+  state.taskStartedAt = t;
+};
+
+/** A station name the vehicle's job runs between, stable per vehicle. */
+const station = (prefix: string, letter: string, seed: number): string =>
+  `${prefix} ${letter}${String((seed % 12) + 1).padStart(2, "0")}`;
+
+/**
+ * The frame's `task`: what the dispatcher has the vehicle doing, step by step. Read-only on the
+ * platform side — the console shows it, nothing is sent back.
+ */
+export const taskOf = (state: VehicleState, site: Site): Record<string, unknown> | null => {
+  if (!state.taskKind || !state.taskId) return null;
+  const base = { id: state.taskId, started_at: state.taskStartedAt ?? state.t };
+  if (state.taskKind === "charge") {
+    return {
+      ...base,
+      type: "充电",
+      from: null,
+      to: "充电位",
+      step: 1,
+      steps: 1,
+      step_name: "前往充电位",
+    };
+  }
+  const done = state.phase === "complete";
+  if (!site.profile.carries) {
+    const steps = PATROL_STOPS.length;
+    const stop = Math.min(state.stop, steps - 1) + 1;
+    return {
+      ...base,
+      type: site.category,
+      from: null,
+      to: `巡检点 ${stop}`,
+      step: done ? steps : stop,
+      steps,
+      step_name: done
+        ? "巡检完成"
+        : state.phase === "loading"
+          ? `巡检点 ${stop} 检测中`
+          : `前往巡检点 ${stop}`,
+    };
+  }
+  const STEP: Partial<Record<Phase, [number, string]>> = {
+    toPick: [1, "前往取货位"],
+    loading: [2, site.category === "牵引" ? "挂车" : "装货"],
+    toDrop: [3, "前往卸货位"],
+    docking: [4, "倒车入位"],
+    unloading: [4, site.category === "牵引" ? "摘挂" : "卸货"],
+    handover: [4, "等待人工交接"],
+    complete: [4, "任务完成"],
+  };
+  const [step, stepName] = STEP[state.phase] ?? [1, "前往取货位"];
+  return {
+    ...base,
+    type: site.category,
+    from: station("取货位", "P", site.noiseSeed),
+    to: station("卸货位", "D", site.noiseSeed >>> 4),
+    step,
+    steps: 4,
+    step_name: stepName,
+  };
+};
+
 /**
  * Advance one vehicle by one second: apply `injections` due now, run the second at `state.t`,
  * and return what the vehicle reported during it. `withFrame: false` skips building the frame —
@@ -781,6 +885,8 @@ export const step = (
     state.limitSince = t;
   }
 
+  syncTask(state, t);
+
   if (!withFrame || silent) return finish(null);
 
   const pose = site.route.pose(state.s);
@@ -840,6 +946,7 @@ export const step = (
             : inTask
               ? 2
               : 0,
+    task: taskOf(state, site),
     info_code: code(state.info),
     warning_code: code(state.warning),
     error_code: code(state.error),

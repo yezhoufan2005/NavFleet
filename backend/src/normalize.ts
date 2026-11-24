@@ -11,6 +11,7 @@ import {
   hasPose,
   normalizeSeverity,
   offlineAlertId,
+  parseDeviceTask,
   parseTimestampMs,
   toIsoString,
   toNumeric,
@@ -123,6 +124,7 @@ const createDefaultDevice = (deviceId: string): DeviceSnapshot => ({
   },
   taskStatus: null,
   platformTaskStatus: null,
+  task: null,
   infoCode: createDefaultCode(),
   warningCode: createDefaultCode(),
   errorCode: createDefaultCode(),
@@ -423,6 +425,7 @@ export const normalizeDevice = (
       soc: toNumeric(vehicleInfo.soc, existingDevice?.vehicleInfo.soc ?? null),
     },
     taskStatus: toNumeric(raw.task_status ?? raw.taskStatus, existingDevice?.taskStatus ?? null),
+    task: parseDeviceTask(raw, existingDevice?.task, (value) => time.at(value)),
     platformTaskStatus: toNumeric(
       raw.platform_task_status ?? raw.platformTaskStatus,
       existingDevice?.platformTaskStatus ?? null,

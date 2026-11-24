@@ -29,6 +29,7 @@ import {
   hasPose,
   mapFootprintBounds,
   normalizeSeverity,
+  parseDeviceTask,
   parseTimestampMs,
   toIsoString,
   toIsoStringOrNull,
@@ -163,6 +164,7 @@ export const createDefaultDevice = (
   },
   taskStatus: null,
   platformTaskStatus: null,
+  task: null,
   infoCode: createDefaultCode(),
   warningCode: createDefaultCode(),
   errorCode: createDefaultCode(),
@@ -481,6 +483,7 @@ export const normalizeDevice = (
       raw.platform_task_status ?? raw.platformTaskStatus,
       existingDevice?.platformTaskStatus ?? null,
     ),
+    task: parseDeviceTask(raw, existingDevice?.task, toIsoStringOrNull),
     infoCode: normalizeCode(
       raw.info_code || raw.infoCode || existingDevice?.infoCode,
     ),

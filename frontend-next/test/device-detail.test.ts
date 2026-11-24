@@ -247,6 +247,41 @@ describe("遥测面板", () => {
     expect(wrapper.text()).toContain("82%");
   });
 
+  it("shows the task the vehicle reports — id, route and step — read-only", async () => {
+    seed({
+      task: {
+        id: "agv-01-20261124-0003",
+        type: "搬运",
+        from: "取货位 P03",
+        to: "卸货位 D07",
+        step: 2,
+        steps: 4,
+        step_name: "装货",
+        started_at: "2026-11-24T02:00:00.000Z",
+      },
+    });
+    const wrapper = await mountDetail();
+    const text = wrapper.text();
+    expect(text).toContain("搬运 · agv-01-20261124-0003");
+    expect(text).toContain("取货位 P03 → 卸货位 D07");
+    expect(text).toContain("第 2 / 4 步 · 装货");
+    // Read-only: the task block offers nothing to press.
+    const block = wrapper
+      .findAll("section")
+      .find((section) => section.text().includes("当前任务"))!;
+    expect(
+      block
+        .findAll("button")
+        .filter((b) => !b.attributes("aria-label")?.includes("说明")),
+    ).toHaveLength(0);
+  });
+
+  it("says 无 when the vehicle reports no task", async () => {
+    seed({ task: null });
+    const wrapper = await mountDetail();
+    expect(wrapper.text()).toMatch(/当前任务\s*无/);
+  });
+
   it("explains an enum code on hover, not just names it", async () => {
     // `describeEnum` has lived in fleet-core with tests and had zero readers:
     // the port took `formatEnum`'s label and left the sentence behind. The dotted

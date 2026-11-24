@@ -89,6 +89,7 @@ export interface TelemetryDocument {
     vehicleInfo: DeviceSnapshot["vehicleInfo"];
     taskStatus: DeviceSnapshot["taskStatus"];
     platformTaskStatus: DeviceSnapshot["platformTaskStatus"];
+    task: DeviceSnapshot["task"];
     infoCode: DeviceSnapshot["infoCode"];
     warningCode: DeviceSnapshot["warningCode"];
     errorCode: DeviceSnapshot["errorCode"];
@@ -243,6 +244,7 @@ export const toTelemetryDocument = (snapshot: DeviceSnapshot): TelemetryDocument
     vehicleInfo: snapshot.vehicleInfo,
     taskStatus: snapshot.taskStatus,
     platformTaskStatus: snapshot.platformTaskStatus,
+    task: snapshot.task ?? null,
     infoCode: snapshot.infoCode,
     warningCode: snapshot.warningCode,
     errorCode: snapshot.errorCode,

@@ -20,7 +20,12 @@
  */
 import { computed, onMounted } from "vue";
 import { useFleetStore } from "@/stores/fleet";
-import { CODE_IMPACTS, formatSoc } from "@navfleet/shared";
+import {
+  CODE_IMPACTS,
+  formatSoc,
+  formatTaskRoute,
+  formatTaskStep,
+} from "@navfleet/shared";
 import {
   controlModeMap,
   describeEnum,
@@ -121,7 +126,12 @@ const vehicleRows = computed<Row[]>(() => {
   ];
 });
 
+/**
+ * The task block: the two status enums, then — when the vehicle reports one — the task itself
+ * (id, type, route, step, start). Read-only telemetry; the platform dispatches nothing.
+ */
 const taskRows = computed<Row[]>(() => [
+  ...taskContentRows.value,
   {
     label: "车端任务",
     value: orMissing(formatEnum(device.value?.taskStatus, taskStatusMap)),
@@ -136,6 +146,29 @@ const taskRows = computed<Row[]>(() => [
     title: describeEnum(device.value?.platformTaskStatus, taskStatusMap),
   },
 ]);
+
+const taskContentRows = computed<Row[]>(() => {
+  const task = device.value?.task;
+  if (!task) {
+    return [
+      {
+        label: "当前任务",
+        help: FIELD_HELP.device.task,
+        value: "无",
+      },
+    ];
+  }
+  return [
+    {
+      label: "当前任务",
+      help: FIELD_HELP.device.task,
+      value: task.type ? `${task.type} · ${task.id}` : task.id,
+    },
+    { label: "路线", value: orMissing(formatTaskRoute(task)) },
+    { label: "进度", value: orMissing(formatTaskStep(task)) },
+    { label: "开始时间", value: orMissing(formatStamp(task.startedAt)) },
+  ];
+});
 
 const speedLimitRows = computed<Row[]>(() => {
   const limit = device.value?.speedLimit;
