@@ -1,4 +1,5 @@
 import { describe, it, expect } from "vitest";
+import { DURATION_BUCKETS, durationBucketOf } from "@navfleet/shared";
 import {
   buildAlertStatsPipeline,
   mapAlertStatsFacet,
@@ -109,7 +110,16 @@ describe("mapAlertStatsFacet", () => {
       { _id: "agv-1", count: 4 },
       { _id: "agv-2", count: 1 },
     ],
-    daily: [{ _id: "2026-09-01", count: 5 }],
+    daily: [{ _id: "2026-09-01", count: 5, claimed: 2, ignored: 2, autoRecovered: 1 }],
+    topTypes: [
+      { _id: { title: "提示报码", code: 1301 }, count: 3, rank: 0, detail: "正在充电" },
+      { _id: { title: "低电量预警", code: null }, count: 2, rank: 1, detail: "当前电量 17.7%" },
+    ],
+    durationBuckets: [
+      { _id: { bucket: "lt5m", severity: "warning" }, count: 2 },
+      { _id: { bucket: "gt8h", severity: "critical" }, count: 1 },
+      { _id: { bucket: "bogus", severity: "warning" }, count: 9 },
+    ],
     totals: [{ total: 6, claimed: 2, ignored: 3, autoRecovered: 1 }],
     durations: [{ values: [3000, 1000, 2000] }],
   };
@@ -124,11 +134,38 @@ describe("mapAlertStatsFacet", () => {
       { deviceId: "agv-1", count: 4 },
       { deviceId: "agv-2", count: 1 },
     ]);
-    expect(report.daily).toEqual([{ day: "2026-09-01", count: 5 }]);
+    expect(report.daily).toEqual([
+      { day: "2026-09-01", count: 5, claimed: 2, ignored: 2, autoRecovered: 1 },
+    ]);
     // 处置三率，分母统一为 total=6：认领 2、忽略 3、自动恢复 1。
     expect(report.claimRate).toBeCloseTo(2 / 6);
     expect(report.ignoreRate).toBe(0.5);
     expect(report.autoRecoverRate).toBeCloseTo(1 / 6);
+  });
+
+  it("names message types by title + code, keeping the code's meaning but not a rule alert's detail", () => {
+    expect(mapAlertStatsFacet(full).topTypes).toEqual([
+      { title: "提示报码", code: 1301, detail: "正在充电", severity: "notice", count: 3 },
+      { title: "低电量预警", code: null, detail: "", severity: "warning", count: 2 },
+    ]);
+  });
+
+  it("returns every duration bucket in order, dropping unknown ones", () => {
+    const buckets = mapAlertStatsFacet(full).durationBuckets;
+    expect(buckets.map((bucket) => bucket.bucket)).toEqual([
+      "lt5m",
+      "5m-30m",
+      "30m-2h",
+      "2h-8h",
+      "gt8h",
+    ]);
+    expect(buckets[0]!.bySeverity).toEqual({ critical: 0, warning: 2, notice: 0 });
+    expect(buckets[4]!.bySeverity).toEqual({ critical: 1, warning: 0, notice: 0 });
+    const total = buckets.reduce(
+      (sum, bucket) => sum + Object.values(bucket.bySeverity).reduce((a, b) => a + b, 0),
+      0,
+    );
+    expect(total).toBe(3);
   });
 
   it("computes mean and median over unsorted duration samples", () => {
@@ -158,5 +195,33 @@ describe("mapAlertStatsFacet", () => {
     expect(report.duration).toEqual({ count: 0, meanMs: null, p50Ms: null });
     // Mapping never sets available:false — that is the persistence layer's call for no-Mongo.
     expect(report.available).toBe(true);
+  });
+});
+
+describe("duration buckets", () => {
+  it("buckets in Mongo by the same boundaries as the shared table", () => {
+    const pipeline = buildAlertStatsPipeline({ from: null, to: null, topN: 8, timezone: TZ });
+    const stages = facetOf(pipeline).durationBuckets as Record<string, unknown>[];
+    const group = stages.find((stage) => "$group" in stage)!.$group as {
+      _id: {
+        bucket: {
+          $switch: {
+            branches: { case: { $lt: [string, number] }; then: string }[];
+            default: string;
+          };
+        };
+      };
+    };
+    const { branches, default: last } = group._id.bucket.$switch;
+    expect(branches.map((branch) => [branch.case.$lt[1], branch.then])).toEqual(
+      DURATION_BUCKETS.slice(0, 4).map((bucket) => [bucket.maxMs, bucket.key]),
+    );
+    expect(last).toBe("gt8h");
+  });
+
+  it("puts a boundary value in the upper bucket", () => {
+    expect(durationBucketOf(0)).toBe("lt5m");
+    expect(durationBucketOf(5 * 60_000)).toBe("5m-30m");
+    expect(durationBucketOf(8 * 3_600_000)).toBe("gt8h");
   });
 });

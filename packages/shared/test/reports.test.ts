@@ -1,5 +1,8 @@
 import { describe, it, expect } from "vitest";
 import {
+  DURATION_BUCKETS,
+  durationBucketOf,
+  emptyDurationBuckets,
   emptyAlertStatsReport,
   emptyAvailabilityReport,
   buildAvailabilityCsv,
@@ -110,5 +113,28 @@ describe("buildBatteryCsv", () => {
     );
     // No online-rate columns; the null mean is a blank cell, not 0.
     expect(row).toBe("agv-1,agv-1,2026-10-30 00:00,,12,88");
+  });
+});
+
+describe("duration buckets", () => {
+  it("covers every duration, the upper bound of each bucket exclusive", () => {
+    expect(durationBucketOf(0)).toBe("lt5m");
+    expect(durationBucketOf(5 * 60_000 - 1)).toBe("lt5m");
+    expect(durationBucketOf(5 * 60_000)).toBe("5m-30m");
+    expect(durationBucketOf(2 * 3_600_000)).toBe("2h-8h");
+    expect(durationBucketOf(30 * 86_400_000)).toBe("gt8h");
+  });
+
+  it("starts every report with all buckets present and zeroed", () => {
+    const buckets = emptyDurationBuckets();
+    expect(buckets.map((bucket) => bucket.bucket)).toEqual(
+      DURATION_BUCKETS.map((bucket) => bucket.key),
+    );
+    expect(emptyAlertStatsReport(true).durationBuckets).toEqual(buckets);
+    expect(buckets[0]!.bySeverity).toEqual({
+      critical: 0,
+      warning: 0,
+      notice: 0,
+    });
   });
 });

@@ -13,7 +13,14 @@ import {
   buildBatteryCsv,
   csvField,
 } from "@navfleet/shared";
-import type { AlertStatsReport, AvailabilityReport } from "@navfleet/shared";
+import {
+  DURATION_BUCKETS,
+  type AlertStatsReport,
+  type AvailabilityReport,
+  type ReportMessageType,
+} from "@navfleet/shared";
+import type { StackedSeries } from "@/components/charts/stackedBarOption";
+import type { ChartPalette } from "@/composables/useChartTheme";
 import type { TimeSeries } from "@/components/charts/timeSeriesOption";
 import { SEVERITY_LABELS } from "@/lib/severity";
 
@@ -390,6 +397,99 @@ export const buildAlertStatsCsv = (
   for (const entry of report.daily) {
     push("按天", entry.day, entry.count);
   }
+  for (const entry of report.daily) {
+    for (const [name, value] of dispositionParts(entry)) {
+      push(`按天处置·${name}`, entry.day, value);
+    }
+  }
+  for (const type of report.topTypes) {
+    push("消息类型", messageTypeLabel(type), type.count);
+  }
+  for (const [index, bucket] of report.durationBuckets.entries()) {
+    const label = DURATION_BUCKETS[index]?.label ?? bucket.bucket;
+    for (const key of ["critical", "warning", "notice"] as const) {
+      push(`处置时长·${SEVERITY_LABELS[key]}`, label, bucket.bySeverity[key]);
+    }
+  }
 
   return lines.join("\n");
 };
+
+// ── 消息分析：处置趋势 / 高频消息类型 / 处置时长分布 ────────────────────────────────────────────────
+
+/**
+ * 一天的四段处置构成，顺序即图例与堆叠顺序。未处置 = 总数 − 其余三段（三段互不重叠，见 shared
+ * `ReportDailyDisposition`），不会为负。
+ */
+const dispositionParts = (
+  entry: AlertStatsReport["daily"][number],
+): [string, number][] => [
+  ["已认领", entry.claimed],
+  ["已忽略", entry.ignored],
+  ["自动恢复", entry.autoRecovered],
+  [
+    "未处置",
+    Math.max(
+      0,
+      entry.count - entry.claimed - entry.ignored - entry.autoRecovered,
+    ),
+  ],
+];
+
+/**
+ * 处置趋势：按天的堆叠柱。四段是一个分类维度（不是严重度），按固定顺序取图表色槽 0–3，从不循环。
+ */
+export const dispositionTrend = (
+  report: AlertStatsReport,
+  palette: ChartPalette,
+): { categories: string[]; series: StackedSeries[] } => {
+  const parts = report.daily.map(dispositionParts);
+  const names = ["已认领", "已忽略", "自动恢复", "未处置"];
+  return {
+    // MM-DD：同一窗口内年份不变，省掉它让日期在窄卡里不挤。
+    categories: report.daily.map((entry) => entry.day.slice(5)),
+    series: names.map((name, index) => ({
+      name,
+      color: palette.series[index] ?? palette.axis,
+      data: parts.map((part) => part[index]![1]),
+    })),
+  };
+};
+
+/**
+ * 一类消息的显示名。报码消息的标题是通用的（「提示报码」），说明不了是哪类，所以用报码含义 + 码号；
+ * 规则消息的标题本身就是类型（「低电量预警」）。
+ */
+export const messageTypeLabel = (type: ReportMessageType): string =>
+  type.code === null
+    ? type.title
+    : `${type.detail || type.title} #${type.code}`;
+
+/** 高频消息类型的前 `n` 类（`Infinity` = 全部），柱色取该类最重的严重度。 */
+export const topMessageTypes = (
+  report: AlertStatsReport,
+  n: number,
+  palette: ChartPalette,
+): { label: string; value: number; color: string }[] =>
+  report.topTypes.slice(0, n).map((type) => ({
+    label: messageTypeLabel(type),
+    value: type.count,
+    color: palette.status[type.severity],
+  }));
+
+/** 处置时长分布：每档一根柱，按严重度堆叠（严重度是状态维度，用状态色）。 */
+export const durationHistogram = (
+  report: AlertStatsReport,
+  palette: ChartPalette,
+): { categories: string[]; series: StackedSeries[] } => ({
+  categories: DURATION_BUCKETS.map((bucket) => bucket.label),
+  series: (["critical", "warning", "notice"] as const).map((key) => ({
+    name: SEVERITY_LABELS[key],
+    color: palette.status[key],
+    data: DURATION_BUCKETS.map(
+      (bucket) =>
+        report.durationBuckets.find((entry) => entry.bucket === bucket.key)
+          ?.bySeverity[key] ?? 0,
+    ),
+  })),
+});

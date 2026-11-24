@@ -26,6 +26,8 @@ const {
   unit,
   height = 260,
   scroll = false,
+  orientation = "horizontal",
+  categoryLabel = "设备",
 } = defineProps<{
   categories: readonly string[];
   series: readonly StackedSeries[];
@@ -35,6 +37,10 @@ const {
   height?: number;
   /** Keep the card at `height` and let the plot grow downward with one scrollbar past it. */
   scroll?: boolean;
+  /** `vertical` for a trend or histogram (see `stackedBarOption`); `scroll` applies to horizontal only. */
+  orientation?: "horizontal" | "vertical";
+  /** The data table's first-column header — what a category is (设备 / 日期 / 时长). */
+  categoryLabel?: string;
 }>();
 
 const { palette, animate } = useChartTheme();
@@ -43,7 +49,7 @@ const { palette, animate } = useChartTheme();
 const SLOT_PX = 34;
 
 const surfaceStyle = computed<CSSProperties>(() =>
-  scroll
+  scroll && orientation === "horizontal"
     ? {
         width: "100%",
         height: `${Math.max(height, categories.length * SLOT_PX)}px`,
@@ -63,6 +69,7 @@ const option = computed(() =>
     palette: palette.value,
     unit,
     animate: animate.value,
+    orientation,
   }),
 );
 
@@ -133,7 +140,7 @@ onBeforeUnmount(disposeChart);
       />
     </div>
 
-    <!-- Every column sized per the shared width standard: 设备 has the largest base, each severity
+    <!-- Every column sized per the shared width standard: the category column has the largest base, each severity
          and the total a narrow numeric one; below `min-width` the table scrolls sideways so 设备
          is never squeezed onto two lines. -->
     <UiScrollTable
@@ -149,7 +156,9 @@ onBeforeUnmount(disposeChart);
       </template>
       <template #head>
         <tr>
-          <th scope="col" class="px-3 py-2 font-medium">设备</th>
+          <th scope="col" class="px-3 py-2 font-medium">
+            {{ categoryLabel }}
+          </th>
           <th
             v-for="s in series"
             :key="s.name"

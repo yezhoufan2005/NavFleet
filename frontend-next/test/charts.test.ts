@@ -620,6 +620,17 @@ describe("buildStackedBarOption", () => {
         .animation,
     ).toBe(false);
   });
+  it("lays categories along the bottom, in the order given, when vertical", () => {
+    const option = buildStackedBarOption({
+      categories,
+      series,
+      palette,
+      orientation: "vertical",
+    });
+    expect(option.xAxis).toMatchObject({ type: "category", data: categories });
+    expect(option.xAxis).not.toHaveProperty("inverse");
+    expect(option.yAxis).toMatchObject({ type: "value", min: 0 });
+  });
 });
 
 describe("StackedBarChart", () => {

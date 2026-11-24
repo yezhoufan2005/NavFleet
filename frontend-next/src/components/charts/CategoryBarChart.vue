@@ -128,9 +128,11 @@ onBeforeUnmount(disposeChart);
       v-if="!labelHidden || showTableToggle"
       class="flex items-center justify-between gap-3"
     >
-      <span v-if="!labelHidden" class="text-sm font-medium text-ink">{{
-        label
-      }}</span>
+      <div v-if="!labelHidden" class="flex items-center gap-2">
+        <span class="text-sm font-medium text-ink">{{ label }}</span>
+        <!-- Header controls the parent injects (e.g. a Top-N selector), right of the title. -->
+        <slot name="actions" />
+      </div>
       <span v-else aria-hidden="true" />
       <UiButton
         v-if="showTableToggle"

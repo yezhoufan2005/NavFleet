@@ -33,6 +33,53 @@ export interface ReportDailyCount {
   count: number;
 }
 
+/**
+ * 某一天的处置构成，四段互不重叠、加起来等于 `count`：已认领（未被忽略）/ 已忽略 / 自动恢复（已清除且
+ * 无人处置）/ 余下的未处置（仍活跃且无人处置）。口径与报表的三率一致，只是按天拆开。
+ */
+export interface ReportDailyDisposition extends ReportDailyCount {
+  claimed: number;
+  ignored: number;
+  autoRecovered: number;
+}
+
+/** 一类消息：同标题、同报码（规则消息无报码）归为一类。 */
+export interface ReportMessageType {
+  title: string;
+  /** 车端报码；规则引擎产生的消息没有。 */
+  code: number | null;
+  /** 报码消息的含义（报码字典文案）；规则消息为空串，其详情因条而异、不代表一类。 */
+  detail: string;
+  /** 该类里最重的一档严重度。 */
+  severity: Severity;
+  count: number;
+}
+
+/**
+ * 处置时长的分档（已清除的消息，`clearedAt - firstSeenAt`）。上界不含，最后一档无上界。
+ * 档位取运营上「几分钟内自愈 / 半小时内处理 / 一个班次内 / 跨班次」的自然分界。
+ */
+export const DURATION_BUCKETS = [
+  { key: "lt5m", label: "< 5 分钟", maxMs: 5 * 60_000 },
+  { key: "5m-30m", label: "5–30 分钟", maxMs: 30 * 60_000 },
+  { key: "30m-2h", label: "30 分钟–2 小时", maxMs: 2 * 3_600_000 },
+  { key: "2h-8h", label: "2–8 小时", maxMs: 8 * 3_600_000 },
+  { key: "gt8h", label: "> 8 小时", maxMs: Number.POSITIVE_INFINITY },
+] as const;
+
+export type DurationBucketKey = (typeof DURATION_BUCKETS)[number]["key"];
+
+/** 一档时长里各严重度的条数。 */
+export interface ReportDurationBucket {
+  bucket: DurationBucketKey;
+  bySeverity: Record<Severity, number>;
+}
+
+/** 毫秒时长落在哪一档。 */
+export const durationBucketOf = (ms: number): DurationBucketKey =>
+  (DURATION_BUCKETS.find((bucket) => ms < bucket.maxMs) ?? DURATION_BUCKETS[4])
+    .key;
+
 export interface ReportDurationStats {
   /** 同时有起点（`firstSeenAt`）与清除时间（`clearedAt`）、因而算得出时长的告警条数。 */
   count: number;
@@ -53,8 +100,12 @@ export interface AlertStatsReport {
   bySeverity: Record<Severity, number>;
   /** 按告警条数降序的设备 Top-N。 */
   topDevices: ReportDeviceCount[];
-  /** 按天升序。 */
-  daily: ReportDailyCount[];
+  /** 按天升序，每天带处置构成。 */
+  daily: ReportDailyDisposition[];
+  /** 消息类型按条数降序（全部类型，前端按 Top-N 截取）。 */
+  topTypes: ReportMessageType[];
+  /** 已清除消息的处置时长分档，按 `DURATION_BUCKETS` 顺序、每档都在（空档为 0）。 */
+  durationBuckets: ReportDurationBucket[];
   /**
    * 处置三指标，分母统一为窗口内消息总数 `total`，`total` 为 0 时均为 null。三者互不重叠，余下部分
    * 是「待处理·未结案」（仍活跃且无人处置）：
@@ -70,6 +121,13 @@ export interface AlertStatsReport {
   available: boolean;
 }
 
+/** 每一档都在、计数为 0 的时长分档。 */
+export const emptyDurationBuckets = (): ReportDurationBucket[] =>
+  DURATION_BUCKETS.map((bucket) => ({
+    bucket: bucket.key,
+    bySeverity: { critical: 0, warning: 0, notice: 0 },
+  }));
+
 /** 空报表：无 Mongo（`available:false`）或区间内确无告警（`available:true`）时的零值形状。 */
 export const emptyAlertStatsReport = (
   available: boolean,
@@ -78,6 +136,8 @@ export const emptyAlertStatsReport = (
   bySeverity: { critical: 0, warning: 0, notice: 0 },
   topDevices: [],
   daily: [],
+  topTypes: [],
+  durationBuckets: emptyDurationBuckets(),
   claimRate: null,
   ignoreRate: null,
   autoRecoverRate: null,

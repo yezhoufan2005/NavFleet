@@ -1,5 +1,6 @@
 import { describe, it, expect } from "vitest";
 import type { AlertStatsReport, AvailabilityReport } from "@navfleet/shared";
+import { emptyDurationBuckets } from "@navfleet/shared";
 import { buildReportEmail } from "../src/reports/reportEmail";
 
 /**
@@ -46,7 +47,9 @@ const alertStats = (patch: Partial<AlertStatsReport> = {}): AlertStatsReport => 
   total: 5,
   bySeverity: { critical: 2, warning: 2, notice: 1 },
   topDevices: [{ deviceId: "agv-1", count: 5 }],
-  daily: [{ day: "2026-09-01", count: 5 }],
+  daily: [{ day: "2026-09-01", count: 5, claimed: 3, ignored: 1, autoRecovered: 1 }],
+  topTypes: [],
+  durationBuckets: emptyDurationBuckets(),
   claimRate: 0.6,
   ignoreRate: 0.2,
   autoRecoverRate: 0.2,

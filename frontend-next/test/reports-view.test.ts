@@ -3,7 +3,11 @@ import { createPinia, setActivePinia } from "pinia";
 import { createMemoryHistory, createRouter, type Router } from "vue-router";
 import { enableAutoUnmount, flushPromises, mount } from "@vue/test-utils";
 import { fleetApi } from "@navfleet/fleet-core";
-import type { AlertStatsReport, AvailabilityReport } from "@navfleet/shared";
+import {
+  emptyDurationBuckets,
+  type AlertStatsReport,
+  type AvailabilityReport,
+} from "@navfleet/shared";
 import ReportsView from "@/views/ReportsView.vue";
 import UiMultiSelect from "@/components/ui/UiMultiSelect.vue";
 import { useFleetStore } from "@/stores/fleet";
@@ -27,6 +31,19 @@ const barStub = {
   template:
     '<div class="bar-stub" :data-label="label" :data-count="data.length" />',
 };
+
+const stackStub = {
+  props: ["categories", "series", "label"],
+  template:
+    "<div class=\"stack-stub\" :data-label=\"label\" :data-categories=\"categories.join('|')\" :data-series=\"series.map((s) => s.name + ':' + s.data.join(',')).join(';')\" />",
+};
+/** The three 消息分析 charts, by accessible label. */
+const alertChartLabels = (wrapper: {
+  findAll: (s: string) => { attributes: (n: string) => string | undefined }[];
+}) =>
+  [...wrapper.findAll(".bar-stub"), ...wrapper.findAll(".stack-stub")]
+    .map((node) => node.attributes("data-label"))
+    .filter((label) => label !== undefined);
 
 const availabilityReport = (
   patch: Partial<AvailabilityReport> = {},
@@ -69,7 +86,26 @@ const alertStatsReport = (
   total: 4,
   bySeverity: { critical: 1, warning: 2, notice: 1 },
   topDevices: [{ deviceId: "agv-01", count: 4 }],
-  daily: [{ day: "2026-09-01", count: 4 }],
+  daily: [
+    { day: "2026-09-01", count: 4, claimed: 2, ignored: 1, autoRecovered: 1 },
+  ],
+  topTypes: [
+    {
+      title: "提示报码",
+      code: 1301,
+      detail: "正在充电",
+      severity: "notice",
+      count: 3,
+    },
+    {
+      title: "低电量预警",
+      code: null,
+      detail: "",
+      severity: "warning",
+      count: 1,
+    },
+  ],
+  durationBuckets: emptyDurationBuckets(),
   claimRate: 0.5,
   ignoreRate: 0.25,
   autoRecoverRate: 0.25,
@@ -103,7 +139,11 @@ const mountView = async (query = "") => {
   const wrapper = mount(ReportsView, {
     global: {
       plugins: [router],
-      stubs: { TimeSeriesChart: lineStub, CategoryBarChart: barStub },
+      stubs: {
+        TimeSeriesChart: lineStub,
+        CategoryBarChart: barStub,
+        StackedBarChart: stackStub,
+      },
     },
   });
   await flushPromises();
@@ -134,8 +174,8 @@ describe("报表 状态与内容", () => {
     expect(wrapper.text()).toContain("在线率报表加载失败");
     // The backend's code is not shown to the operator.
     expect(wrapper.text()).not.toContain("HTTP 503");
-    // The three message bar charts still rendered from the alert report that did come back.
-    expect(wrapper.findAll(".bar-stub")).toHaveLength(3);
+    // The three message charts still rendered from the alert report that did come back.
+    expect(alertChartLabels(wrapper)).toHaveLength(3);
   });
 
   it("两个报表都 available:false 时说无历史并链到系统状态", async () => {
@@ -165,9 +205,11 @@ describe("报表 状态与内容", () => {
     expect(wrapper.text()).toContain("自动恢复率");
     expect(wrapper.text()).toContain("25%");
 
-    // Two time-series (online + battery) and three bar charts (severity/top/daily).
+    // Two time-series (online + battery) and the three 消息分析 charts.
     expect(wrapper.findAll(".line-stub")).toHaveLength(2);
-    expect(wrapper.findAll(".bar-stub")).toHaveLength(3);
+    expect(alertChartLabels(wrapper).sort()).toEqual(
+      ["处置趋势", "处置时长分布", "高频消息类型"].sort(),
+    );
   });
 
   it("导出 CSV 时生成一个带 BOM 的 Blob 并触发下载", async () => {
@@ -228,12 +270,20 @@ describe("报表 状态与内容", () => {
     ).toBe("navfleet-在线率-2026-10-01_2026-10-15.csv");
   });
 
-  it("names the report's device chart as the top N it is", async () => {
+  it("splits each day into its disposition mix, with 未处置 as the remainder", async () => {
     const wrapper = await mountView();
-    const labels = wrapper
-      .findAll(".bar-stub")
-      .map((node) => node.attributes("data-label"));
-    expect(labels).toContain("消息最多的 8 台设备");
+    const trend = wrapper.get('.stack-stub[data-label="处置趋势"]');
+    // Fixture day: 4 messages = 2 claimed + 1 ignored + 1 auto-recovered + 0 pending.
+    expect(trend.attributes("data-categories")).toBe("09-01");
+    expect(trend.attributes("data-series")).toBe(
+      "已认领:2;已忽略:1;自动恢复:1;未处置:0",
+    );
+  });
+
+  it("names a report-code type by its meaning and code, a rule type by its title", async () => {
+    const wrapper = await mountView();
+    const types = wrapper.get('.bar-stub[data-label="高频消息类型"]');
+    expect(types.attributes("data-count")).toBe("2");
   });
 
   it("切换时间范围会带新窗口重新取数", async () => {

@@ -12,13 +12,73 @@
  */
 
 import type { Document } from "mongodb";
-import { SEVERITIES } from "@navfleet/shared";
+import { DURATION_BUCKETS, SEVERITIES, emptyDurationBuckets } from "@navfleet/shared";
 import type {
   AlertStatsReport,
-  ReportDailyCount,
+  DurationBucketKey,
+  ReportDailyDisposition,
   ReportDeviceCount,
+  ReportMessageType,
   Severity,
 } from "@navfleet/shared";
+
+/** 消息类型最多返回几类（按条数降序）；前端的 Top-N 选择在这之内截取。 */
+export const MESSAGE_TYPES_CAP = 50;
+
+/**
+ * 处置三态的判定表达式，`totals` 与按天的 `daily` 共用，保证两处口径一字不差。三者互不重叠：
+ * claimed = 认领且未忽略；ignored = 已忽略（忽略盖过认领）；autoRecovered = 已清除且无人处置。
+ */
+const IS_CLAIMED = {
+  $and: [{ $ifNull: ["$claimedBy", false] }, { $not: [{ $ifNull: ["$ignoredBy", false] }] }],
+};
+const IS_IGNORED = { $ifNull: ["$ignoredBy", false] };
+const IS_AUTO_RECOVERED = {
+  $and: [
+    { $eq: [{ $type: "$clearedAt" }, "date"] },
+    { $not: [{ $ifNull: ["$claimedBy", false] }] },
+    { $not: [{ $ifNull: ["$ignoredBy", false] }] },
+  ],
+};
+const countIf = (condition: Document): Document => ({ $sum: { $cond: [condition, 1, 0] } });
+
+/** 严重度的轻重次序，用来取一类消息里最重的一档。 */
+const SEVERITY_RANK = {
+  $switch: {
+    branches: [
+      { case: { $eq: ["$severity", "critical"] }, then: 2 },
+      { case: { $eq: ["$severity", "warning"] }, then: 1 },
+    ],
+    default: 0,
+  },
+};
+
+/** 时长（`$ms`）落在 `DURATION_BUCKETS` 的哪一档；与 shared 的 `durationBucketOf` 同一张表。 */
+const DURATION_BUCKET_OF = {
+  $switch: {
+    branches: DURATION_BUCKETS.filter((bucket) => Number.isFinite(bucket.maxMs)).map((bucket) => ({
+      case: { $lt: ["$ms", bucket.maxMs] },
+      then: bucket.key,
+    })),
+    default: DURATION_BUCKETS[DURATION_BUCKETS.length - 1]!.key,
+  },
+};
+
+/** 已清除消息的处置时长（毫秒），`durations` 与 `durationBuckets` 共用。 */
+const CLEARED_DURATION: Document[] = [
+  // 只有真正是 Date 的 `clearedAt` 才算时长：活跃告警在 Mongo 里没有这个字段。
+  { $match: { clearedAt: { $type: "date" }, firstSeenAt: { $type: "date" } } },
+  {
+    $project: {
+      severity: 1,
+      ms: {
+        $dateDiff: { startDate: "$firstSeenAt", endDate: "$clearedAt", unit: "millisecond" },
+      },
+    },
+  },
+  // 负时长（时钟回拨等）丢弃，别把它算进均值/中位数。
+  { $match: { ms: { $gte: 0 } } },
+];
 
 export interface AlertStatsPipelineParams {
   /** 区间下界（含），按 `firstSeenAt` 过滤；null 表示不设下界。 */
@@ -74,73 +134,50 @@ export const buildAlertStatsPipeline = (params: AlertStatsPipelineParams): Docum
               },
             },
             count: { $sum: 1 },
+            claimed: countIf(IS_CLAIMED),
+            ignored: countIf(IS_IGNORED),
+            autoRecovered: countIf(IS_AUTO_RECOVERED),
           },
         },
         { $sort: { _id: 1 } },
+      ],
+      topTypes: [
+        {
+          $group: {
+            _id: { title: "$title", code: { $ifNull: ["$code", null] } },
+            count: { $sum: 1 },
+            rank: { $max: SEVERITY_RANK },
+            // 报码消息的 detail 是报码字典里的含义（同码同义），比通用标题「提示报码」更能说明是哪类。
+            detail: { $first: "$detail" },
+          },
+        },
+        // 标题做二级键让并列计数的次序稳定。
+        { $sort: { count: -1, "_id.title": 1 } },
+        { $limit: MESSAGE_TYPES_CAP },
+      ],
+      durationBuckets: [
+        ...CLEARED_DURATION,
+        {
+          $group: {
+            _id: { bucket: DURATION_BUCKET_OF, severity: "$severity" },
+            count: { $sum: 1 },
+          },
+        },
       ],
       totals: [
         {
           $group: {
             _id: null,
             total: { $sum: 1 },
-            // 处置三指标的计数，分母统一用 total（见 shared `AlertStatsReport`）。三者互不重叠：
-            // claimed = 认领且未忽略；ignored = 已忽略（忽略盖过认领）；autoRecovered = 已清除且无人处置。
-            claimed: {
-              $sum: {
-                $cond: [
-                  {
-                    $and: [
-                      { $ifNull: ["$claimedBy", false] },
-                      { $not: [{ $ifNull: ["$ignoredBy", false] }] },
-                    ],
-                  },
-                  1,
-                  0,
-                ],
-              },
-            },
-            ignored: {
-              $sum: { $cond: [{ $ifNull: ["$ignoredBy", false] }, 1, 0] },
-            },
-            autoRecovered: {
-              $sum: {
-                $cond: [
-                  {
-                    $and: [
-                      { $eq: [{ $type: "$clearedAt" }, "date"] },
-                      { $not: [{ $ifNull: ["$claimedBy", false] }] },
-                      { $not: [{ $ifNull: ["$ignoredBy", false] }] },
-                    ],
-                  },
-                  1,
-                  0,
-                ],
-              },
-            },
+            // 处置三指标的计数，分母统一用 total（见 shared `AlertStatsReport`）。
+            claimed: countIf(IS_CLAIMED),
+            ignored: countIf(IS_IGNORED),
+            autoRecovered: countIf(IS_AUTO_RECOVERED),
           },
         },
       ],
       durations: [
-        // 只有真正是 Date 的 `clearedAt` 才算时长：活跃告警在 Mongo 里没有这个字段。
-        {
-          $match: {
-            clearedAt: { $type: "date" },
-            firstSeenAt: { $type: "date" },
-          },
-        },
-        {
-          $project: {
-            ms: {
-              $dateDiff: {
-                startDate: "$firstSeenAt",
-                endDate: "$clearedAt",
-                unit: "millisecond",
-              },
-            },
-          },
-        },
-        // 负时长（时钟回拨等）丢弃，别把它算进均值/中位数。
-        { $match: { ms: { $gte: 0 } } },
+        ...CLEARED_DURATION,
         // 样本量有界（告警远比遥测稀疏），推给应用层算精确的均值+中位数，
         // 免得依赖 `$percentile` 的近似语义。
         { $group: { _id: null, values: { $push: "$ms" } } },
@@ -162,7 +199,14 @@ interface CountBucket {
 export interface AlertStatsFacet {
   bySeverity?: CountBucket[];
   topDevices?: CountBucket[];
-  daily?: CountBucket[];
+  daily?: (CountBucket & { claimed?: number; ignored?: number; autoRecovered?: number })[];
+  topTypes?: {
+    _id: { title?: string | null; code?: number | null };
+    count: number;
+    rank?: number;
+    detail?: string | null;
+  }[];
+  durationBuckets?: { _id: { bucket?: string; severity?: string | null }; count: number }[];
   totals?: {
     total?: number;
     claimed?: number;
@@ -202,10 +246,31 @@ export const mapAlertStatsFacet = (facet: AlertStatsFacet): AlertStatsReport => 
     count: bucket.count,
   }));
 
-  const daily: ReportDailyCount[] = (facet.daily ?? []).map((bucket) => ({
+  const daily: ReportDailyDisposition[] = (facet.daily ?? []).map((bucket) => ({
     day: String(bucket._id ?? ""),
     count: bucket.count,
+    claimed: bucket.claimed ?? 0,
+    ignored: bucket.ignored ?? 0,
+    autoRecovered: bucket.autoRecovered ?? 0,
   }));
+
+  const RANKED: Severity[] = ["notice", "warning", "critical"];
+  const topTypes: ReportMessageType[] = (facet.topTypes ?? []).map((bucket) => ({
+    title: String(bucket._id?.title ?? "") || "（无标题）",
+    code: typeof bucket._id?.code === "number" ? bucket._id.code : null,
+    detail: typeof bucket._id?.code === "number" ? String(bucket.detail ?? "") : "",
+    severity: RANKED[bucket.rank ?? 0] ?? "notice",
+    count: bucket.count,
+  }));
+
+  // 每档都在（空档为 0），顺序按 DURATION_BUCKETS；未知档位的桶丢弃。
+  const durationBuckets = emptyDurationBuckets();
+  for (const bucket of facet.durationBuckets ?? []) {
+    const slot = durationBuckets.find(
+      (entry) => entry.bucket === (bucket._id?.bucket as DurationBucketKey),
+    );
+    if (slot) slot.bySeverity[normalizeSeverity(bucket._id?.severity)] += bucket.count;
+  }
 
   const totals = facet.totals?.[0];
   const total = totals?.total ?? 0;
@@ -221,6 +286,8 @@ export const mapAlertStatsFacet = (facet: AlertStatsFacet): AlertStatsReport => 
     bySeverity,
     topDevices,
     daily,
+    topTypes,
+    durationBuckets,
     claimRate: rate(totals?.claimed),
     ignoreRate: rate(totals?.ignored),
     autoRecoverRate: rate(totals?.autoRecovered),
