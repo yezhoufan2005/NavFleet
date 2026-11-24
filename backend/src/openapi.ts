@@ -213,6 +213,11 @@ export const openApiDocument = {
             format: "date-time",
             description: "账号锁定到何时；未锁定为 null",
           },
+          manageable: {
+            type: "boolean",
+            description:
+              "调用者能否管理该用户（层级规则：非管理员只能管理基础角色更低、且能力是自己子集的用户）；否则写操作返回 403 rank_forbidden",
+          },
         },
       },
       AuditEntry: {

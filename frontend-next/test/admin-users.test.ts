@@ -9,6 +9,7 @@ import {
   __resetNotifications,
 } from "@/composables/useNotifications";
 import { useAuth, __resetAuth } from "@/composables/useAuth";
+import { CAPABILITIES } from "@navfleet/shared";
 
 /**
  * 用户 — admin user management. The create/edit/reset form lives in a reka Dialog portal, so
@@ -76,6 +77,12 @@ beforeEach(() => {
   __resetNotifications();
   __resetAuth();
   vi.restoreAllMocks();
+  // These pages sit behind 用户管理; tests run as an admin unless a case says otherwise.
+  Object.assign(useAuth().state, {
+    user: { username: "root", role: "admin" },
+    status: "authenticated",
+    capabilities: [...CAPABILITIES],
+  });
 });
 
 afterEach(() => {
@@ -431,5 +438,32 @@ describe("UsersView — sessions panel edge cases", () => {
       .trigger("click");
     await flushPromises();
     expect(wrapper.text()).toContain("无法加载该用户的会话");
+  });
+});
+
+describe("UsersView — hierarchy", () => {
+  it("greys out rows the backend marks unmanageable, with the reason", async () => {
+    Object.assign(useAuth().state, {
+      user: { username: "ops", role: "operator" },
+      capabilities: ["alerts:ack", "users:manage"],
+    });
+    const wrapper = await mountView([
+      user({ username: "boss", role: "admin", manageable: false }),
+      user({ username: "vic", role: "viewer", manageable: true }),
+    ]);
+    const [boss, vic] = wrapper.findAll("tbody tr");
+    expect(boss!.text()).toContain("无权管理");
+    expect(
+      boss!
+        .findAll("button")
+        .every((b) => b.attributes("disabled") !== undefined),
+    ).toBe(true);
+    expect(boss!.find("[title]").attributes("title")).toContain("不低于你");
+    expect(vic!.text()).not.toContain("无权管理");
+    expect(
+      vic!
+        .findAll("button")
+        .some((b) => b.attributes("disabled") !== undefined),
+    ).toBe(false);
   });
 });
