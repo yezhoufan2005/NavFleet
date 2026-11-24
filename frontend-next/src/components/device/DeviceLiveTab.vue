@@ -20,12 +20,7 @@
  */
 import { computed, onMounted } from "vue";
 import { useFleetStore } from "@/stores/fleet";
-import {
-  CODE_IMPACTS,
-  formatSoc,
-  formatTaskRoute,
-  formatTaskStep,
-} from "@navfleet/shared";
+import { CODE_IMPACTS, formatSoc, type CodeChannel } from "@navfleet/shared";
 import {
   controlModeMap,
   describeEnum,
@@ -38,7 +33,15 @@ import {
   taskStatusMap,
 } from "@navfleet/fleet-core";
 import { useCodebook } from "@/composables/useCodebook";
-import { CODE_CHANNEL_LABELS } from "@/lib/severity";
+import { CODE_CHANNEL_LABELS, SEVERITY_BADGE } from "@/lib/severity";
+import DeviceTaskCard from "@/components/device/DeviceTaskCard.vue";
+
+/** A code's channel wears its severity tier's badge (error → 告警 …), as messages do everywhere. */
+const CHANNEL_BADGE: Record<CodeChannel, string> = {
+  error: SEVERITY_BADGE.critical,
+  warning: SEVERITY_BADGE.warning,
+  info: SEVERITY_BADGE.notice,
+};
 import { FIELD_HELP } from "@/lib/fieldHelp";
 import UiHelpTip from "@/components/ui/UiHelpTip.vue";
 
@@ -126,12 +129,8 @@ const vehicleRows = computed<Row[]>(() => {
   ];
 });
 
-/**
- * The task block: the two status enums, then — when the vehicle reports one — the task itself
- * (id, type, route, step, start). Read-only telemetry; the platform dispatches nothing.
- */
+/** The two task status enums; what the task *is* lives in the 当前任务 card at the top. */
 const taskRows = computed<Row[]>(() => [
-  ...taskContentRows.value,
   {
     label: "车端任务",
     value: orMissing(formatEnum(device.value?.taskStatus, taskStatusMap)),
@@ -146,29 +145,6 @@ const taskRows = computed<Row[]>(() => [
     title: describeEnum(device.value?.platformTaskStatus, taskStatusMap),
   },
 ]);
-
-const taskContentRows = computed<Row[]>(() => {
-  const task = device.value?.task;
-  if (!task) {
-    return [
-      {
-        label: "当前任务",
-        help: FIELD_HELP.device.task,
-        value: "无",
-      },
-    ];
-  }
-  return [
-    {
-      label: "当前任务",
-      help: FIELD_HELP.device.task,
-      value: task.type ? `${task.type} · ${task.id}` : task.id,
-    },
-    { label: "路线", value: orMissing(formatTaskRoute(task)) },
-    { label: "进度", value: orMissing(formatTaskStep(task)) },
-    { label: "开始时间", value: orMissing(formatStamp(task.startedAt)) },
-  ];
-});
 
 const speedLimitRows = computed<Row[]>(() => {
   const limit = device.value?.speedLimit;
@@ -236,84 +212,93 @@ const panels = computed(() => [
   { key: "pose", title: "位姿", rows: poseRows.value },
   { key: "limit", title: "限速", rows: speedLimitRows.value },
   { key: "scene", title: "场景", rows: sceneRows.value },
-  { key: "task", title: "任务", rows: taskRows.value },
+  { key: "task", title: "任务状态", rows: taskRows.value },
   { key: "gps", title: "GPS", rows: gpsRows.value },
 ]);
 </script>
 
 <template>
-  <div class="flex flex-col gap-3">
-    <!-- 报码解读 first: it is the reason this page exists. -->
-    <section
-      class="flex flex-col gap-2 rounded-md border border-border bg-surface-raised p-4"
-      aria-labelledby="codes-heading"
-    >
-      <h3 id="codes-heading" class="text-md font-semibold text-ink">
-        报码解读
-      </h3>
-
-      <p v-if="!codes.length" class="text-sm text-ink-muted">
-        当前没有活跃报码
-      </p>
-
-      <!--
-        One compact card per active code. The top row carries identity — 档位 / 代码 /
-        名称 on the left, the capability impact on the right — then a de-emphasised line
-        (when it fired + what it means), the explanation as the one primary sentence, and
-        the advice / 车端上报 faded below. Tightened from the earlier roomy card so several
-        codes stack legibly rather than each filling a screen.
-      -->
-      <article
-        v-for="row in codes"
-        :key="row.channel"
-        class="flex flex-col gap-1 rounded-sm border border-border bg-surface p-2.5"
+  <div class="flex flex-col gap-4">
+    <!-- The top row answers "what is wrong, and what is it doing": 报码解读 (two thirds — it is the
+         reason this page exists) beside 当前任务 (one third). One row on lg, stacked below; the
+         columns line up with the three-column panel grid underneath. -->
+    <div class="grid grid-cols-1 gap-4 lg:grid-cols-3">
+      <section
+        class="flex flex-col gap-3 rounded-md border border-border bg-surface-raised p-4 lg:col-span-2"
+        aria-labelledby="codes-heading"
       >
-        <header class="flex flex-wrap items-baseline gap-x-2 gap-y-0.5">
-          <span class="font-mono text-2xs text-ink-subtle">{{
-            CODE_CHANNEL_LABELS[row.channel]
-          }}</span>
-          <span class="font-mono text-sm tabular-nums text-ink">{{
-            row.described.code
-          }}</span>
-          <strong class="text-sm font-semibold text-ink">{{
-            row.described.label
-          }}</strong>
-          <span class="ml-auto font-mono text-2xs text-ink-muted">{{
-            CODE_IMPACTS[row.described.impact].label
-          }}</span>
+        <header class="flex items-center justify-between gap-3">
+          <h3 id="codes-heading" class="text-md font-semibold text-ink">
+            报码解读
+          </h3>
+          <span v-if="codes.length" class="text-2xs text-ink-subtle"
+            >{{ codes.length }} 条活跃</span
+          >
         </header>
 
-        <!-- When it fired and what the impact means — the secondary line, de-emphasised. -->
-        <p
-          class="m-0 flex flex-wrap items-baseline gap-x-2 text-2xs text-ink-subtle"
-        >
-          <span v-if="row.described.stamp" class="font-mono">{{
-            formatStamp(row.described.stamp)
-          }}</span>
-          <span>{{ CODE_IMPACTS[row.described.impact].meaning }}</span>
+        <p v-if="!codes.length" class="m-0 text-sm text-ink-muted">
+          当前没有活跃报码
         </p>
 
-        <!-- The one primary sentence: what the code means. -->
-        <p class="m-0 text-sm text-ink">{{ row.described.description }}</p>
+        <!--
+          One card per active code: the identity row (tier badge, code, name; the capability impact
+          on the right), the meaning as the one primary sentence, the advice below it, and a faded
+          footer with when it fired and what the vehicle itself reported.
+        -->
+        <div v-else class="flex flex-col gap-2">
+          <article
+            v-for="row in codes"
+            :key="row.channel"
+            class="flex flex-col gap-1.5 rounded-sm border border-border bg-surface p-3"
+          >
+            <div class="flex flex-wrap items-center gap-x-2 gap-y-1">
+              <span
+                class="rounded-xs px-1.5 py-0.5 text-2xs font-medium whitespace-nowrap"
+                :class="CHANNEL_BADGE[row.channel]"
+                >{{ CODE_CHANNEL_LABELS[row.channel] }}</span
+              >
+              <span class="font-mono text-sm tabular-nums text-ink-muted">{{
+                row.described.code
+              }}</span>
+              <strong class="text-sm font-semibold text-ink">{{
+                row.described.label
+              }}</strong>
+              <span
+                class="ml-auto text-2xs whitespace-nowrap text-ink-muted"
+                :title="CODE_IMPACTS[row.described.impact].meaning"
+                >{{ CODE_IMPACTS[row.described.impact].label }}</span
+              >
+            </div>
 
-        <p class="m-0 text-xs text-ink-muted">
-          <span class="font-mono text-2xs text-ink-subtle">处理建议 </span
-          >{{ row.described.hint }}
-        </p>
-        <p
-          v-if="row.described.reported && !row.described.unknown"
-          class="m-0 text-2xs text-ink-subtle"
-        >
-          <span class="font-mono">车端上报 </span>{{ row.described.reported }}
-        </p>
-        <p
-          v-if="row.described.unknown"
-          class="m-0 rounded-xs bg-warning-wash px-2 py-1 text-xs text-warning-ink"
-        >
-          该报码不在当前字典中 —— 显示的是车端原文，含义未经解释
-        </p>
-      </article>
-    </section>
+            <p class="m-0 text-sm text-ink">{{ row.described.description }}</p>
+            <p class="m-0 text-xs text-ink-muted">
+              <span class="text-ink-subtle">处理建议：</span
+              >{{ row.described.hint }}
+            </p>
+
+            <p
+              class="m-0 flex flex-wrap gap-x-3 gap-y-0.5 text-2xs text-ink-subtle"
+            >
+              <span v-if="row.described.stamp" class="font-mono">{{
+                formatStamp(row.described.stamp)
+              }}</span>
+              <span>{{ CODE_IMPACTS[row.described.impact].meaning }}</span>
+              <span v-if="row.described.reported && !row.described.unknown"
+                >车端上报：{{ row.described.reported }}</span
+              >
+            </p>
+            <p
+              v-if="row.described.unknown"
+              class="m-0 rounded-xs bg-warning-wash px-2 py-1 text-xs text-warning-ink"
+            >
+              该报码不在当前字典中 —— 显示的是车端原文，含义未经解释
+            </p>
+          </article>
+        </div>
+      </section>
+
+      <DeviceTaskCard :task="device?.task" :stamp="device?.stamp ?? ''" />
+    </div>
 
     <!-- The six panels in a fixed 3-column grid: 状态 / 位姿 / 限速, then 场景 / 任务 / GPS. -->
     <div class="grid grid-cols-1 gap-4 md:grid-cols-3">

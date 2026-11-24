@@ -262,13 +262,19 @@ describe("遥测面板", () => {
     });
     const wrapper = await mountDetail();
     const text = wrapper.text();
-    expect(text).toContain("搬运 · agv-01-20261124-0003");
-    expect(text).toContain("取货位 P03 → 卸货位 D07");
-    expect(text).toContain("第 2 / 4 步 · 装货");
-    // Read-only: the task block offers nothing to press.
-    const block = wrapper
-      .findAll("section")
-      .find((section) => section.text().includes("当前任务"))!;
+    const block = wrapper.get("section[aria-labelledby='task-heading']");
+    expect(block.text()).toContain("搬运");
+    expect(block.text()).toContain("agv-01-20261124-0003");
+    expect(block.text()).toMatch(/起点\s*取货位 P03/);
+    expect(block.text()).toMatch(/终点\s*卸货位 D07/);
+    expect(block.text()).toContain("第 2 / 4 步 · 装货");
+    // Two of four segments filled, and the bar says so to AT.
+    const bar = block.get("[role='progressbar']");
+    expect(bar.attributes("aria-valuenow")).toBe("2");
+    expect(bar.findAll(".bg-brand")).toHaveLength(2);
+    // It sits in the top row beside 报码解读, not in the panel grid below.
+    expect(text).toContain("任务状态");
+    // Read-only: the task card offers nothing to press.
     expect(
       block
         .findAll("button")
@@ -276,10 +282,12 @@ describe("遥测面板", () => {
     ).toHaveLength(0);
   });
 
-  it("says 无 when the vehicle reports no task", async () => {
+  it("says so when the vehicle reports no task", async () => {
     seed({ task: null });
     const wrapper = await mountDetail();
-    expect(wrapper.text()).toMatch(/当前任务\s*无/);
+    expect(
+      wrapper.get("section[aria-labelledby='task-heading']").text(),
+    ).toContain("当前没有任务");
   });
 
   it("explains an enum code on hover, not just names it", async () => {
