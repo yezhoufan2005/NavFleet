@@ -32,17 +32,13 @@ import { useAutoRefresh } from "@/composables/useAutoRefresh";
 import { useFieldErrors } from "@/composables/useFieldErrors";
 import { useAuth } from "@/composables/useAuth";
 
-const ROLE_OPTIONS = (Object.keys(ROLE_LABELS) as UserRoleName[]).map(
-  (value) => ({
-    value,
-    label: ROLE_LABELS[value],
-  }),
-);
+const ALL_ROLES = Object.keys(ROLE_LABELS) as UserRoleName[];
 
 const ERROR_MESSAGES: Record<string, string> = {
   conflict: "用户名已存在（不区分大小写）",
   last_admin: "不能停用、降级或删除最后一个启用的管理员",
   self_forbidden: "不能对自己执行该操作",
+  rank_forbidden: "只能管理角色低于你、且权限不超过你的用户",
   not_found: "用户不存在",
 };
 const messageFor = makeMessageFor(ERROR_MESSAGES, "操作失败，请稍后重试");
@@ -81,6 +77,42 @@ const isProtectedRowLocked = (user: AdminUser): boolean =>
   user.protected === true &&
   user.username.trim().toLowerCase() !==
     (authState.user?.username ?? "").trim().toLowerCase();
+
+/**
+ * The hierarchy rule, as the backend reports it per row (`manageable`): a non-admin holding 用户管理
+ * through a group may only act on users ranked below it whose permissions it also holds. Rows it may
+ * not touch stay visible but greyed out, with the reason on hover.
+ */
+const isRankLocked = (user: AdminUser): boolean => user.manageable === false;
+const isRowLocked = (user: AdminUser): boolean =>
+  isProtectedRowLocked(user) || isRankLocked(user);
+const lockReason = (user: AdminUser): string | undefined =>
+  isProtectedRowLocked(user)
+    ? "内置管理员，仅后台（env/bootstrap）可改"
+    : isRankLocked(user)
+      ? "该用户的角色或权限不低于你，无法管理"
+      : undefined;
+
+/** Roles the caller may hand out: any for an admin, otherwise only those below its own. */
+const ROLE_RANK: Record<UserRoleName, number> = {
+  viewer: 0,
+  operator: 1,
+  admin: 2,
+};
+const assignableRoles = computed(() => {
+  const own = authState.user?.role ?? "viewer";
+  return ALL_ROLES.filter(
+    (role) => own === "admin" || ROLE_RANK[role] < ROLE_RANK[own],
+  );
+});
+const roleOptions = computed(() =>
+  ALL_ROLES.filter(
+    (role) =>
+      assignableRoles.value.includes(role) ||
+      // Keep the edited user's current role selectable, so opening the form shows it.
+      role === selected.value?.role,
+  ).map((value) => ({ value, label: ROLE_LABELS[value] })),
+);
 
 // ── Create / edit / reset dialog ───────────────────────────────────────────────
 type FormMode = "create" | "edit" | "reset" | null;
@@ -334,7 +366,15 @@ const formDirty = formSnapshot.dirty;
 <template>
   <PageHeader title="用户">
     <template #actions>
-      <UiButton size="sm" @click="openCreate">新建用户</UiButton>
+      <UiButton
+        size="sm"
+        :disabled="!assignableRoles.length"
+        :title="
+          assignableRoles.length ? undefined : '没有低于你的角色可分配给新用户'
+        "
+        @click="openCreate"
+        >新建用户</UiButton
+      >
     </template>
 
     <AppSectionTabs />
@@ -407,19 +447,26 @@ const formDirty = formSnapshot.dirty;
                   title="内置管理员，仅后台（env/bootstrap）可改"
                   >系统账号</span
                 >
+                <span
+                  v-else-if="isRankLocked(user)"
+                  class="ml-2 rounded-xs border border-border bg-surface-sunken px-1.5 py-0.5 text-2xs whitespace-nowrap text-ink-muted"
+                  :title="lockReason(user)"
+                  >无权管理</span
+                >
               </td>
               <td class="px-3 py-2 whitespace-nowrap text-ink-muted">
                 {{ formatTime(user.lastLoginAt) }}
               </td>
               <td class="px-3 py-2">
-                <div class="flex justify-end gap-1">
+                <div class="flex justify-end gap-1" :title="lockReason(user)">
                   <!-- The protected bootstrap admin shows like any row but is managed only out of
                        band (env/bootstrap), so its actions are disabled for *other* users — see
-                       the 系统账号 tag. Signed in as itself, the bootstrap admin keeps them. -->
+                       the 系统账号 tag. Signed in as itself, the bootstrap admin keeps them. Rows
+                       above the caller's rank (无权管理) are disabled the same way. -->
                   <UiButton
                     variant="ghost"
                     size="sm"
-                    :disabled="isProtectedRowLocked(user)"
+                    :disabled="isRowLocked(user)"
                     @click="toggleSessions(user.username)"
                   >
                     会话
@@ -427,21 +474,21 @@ const formDirty = formSnapshot.dirty;
                   <UiButton
                     variant="ghost"
                     size="sm"
-                    :disabled="isProtectedRowLocked(user)"
+                    :disabled="isRowLocked(user)"
                     @click="openEdit(user)"
                     >编辑</UiButton
                   >
                   <UiButton
                     variant="ghost"
                     size="sm"
-                    :disabled="isProtectedRowLocked(user)"
+                    :disabled="isRowLocked(user)"
                     @click="openReset(user)"
                     >重置密码</UiButton
                   >
                   <UiButton
                     variant="ghost"
                     size="sm"
-                    :disabled="isProtectedRowLocked(user)"
+                    :disabled="isRowLocked(user)"
                     @click="confirm = { kind: 'logout', user }"
                   >
                     强制下线
@@ -449,7 +496,7 @@ const formDirty = formSnapshot.dirty;
                   <UiButton
                     variant="ghost"
                     size="sm"
-                    :disabled="isProtectedRowLocked(user)"
+                    :disabled="isRowLocked(user)"
                     @click="confirm = { kind: 'delete', user }"
                   >
                     删除
@@ -577,7 +624,7 @@ const formDirty = formSnapshot.dirty;
           class="flex flex-col gap-1"
         >
           <span class="text-sm font-medium text-ink">角色</span>
-          <UiSelect v-model="fRole" :options="ROLE_OPTIONS" aria-label="角色" />
+          <UiSelect v-model="fRole" :options="roleOptions" aria-label="角色" />
         </label>
         <label
           v-if="mode === 'create' || mode === 'edit'"
