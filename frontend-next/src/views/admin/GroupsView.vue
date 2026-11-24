@@ -15,7 +15,11 @@
 import { computed, onMounted, ref, nextTick, watch } from "vue";
 import { useDirtySnapshot } from "@/composables/useDirtySnapshot";
 import { fleetApi, type AdminUser } from "@navfleet/fleet-core";
-import type { RbacGroup, RbacRole } from "@navfleet/shared";
+import {
+  canGrantCapabilities,
+  type RbacGroup,
+  type RbacRole,
+} from "@navfleet/shared";
 import PageHeader from "@/components/PageHeader.vue";
 import AppSectionTabs from "@/components/shell/AppSectionTabs.vue";
 import UiButton from "@/components/ui/UiButton.vue";
@@ -26,12 +30,14 @@ import { tableClasses } from "@/lib/uiClasses";
 import { makeMessageFor } from "@/lib/errorMessages";
 import { notify } from "@/composables/useNotifications";
 import { useFieldErrors } from "@/composables/useFieldErrors";
+import { useAuth } from "@/composables/useAuth";
 
 const ERROR_MESSAGES: Record<string, string> = {
   conflict: "名称已存在（不区分大小写）",
   unknown_member: "成员中有不存在的用户，请从列表中选择",
   not_found: "目标不存在，或引用了不存在的角色",
   role_in_use: "该角色仍被某个用户组引用，先从组里移除再删除",
+  rank_forbidden: "只能把你自己有的权限，分给角色低于你、且权限不超过你的用户",
 };
 const messageFor = makeMessageFor(ERROR_MESSAGES, "操作失败，请稍后重试");
 
@@ -61,6 +67,40 @@ onMounted(() => void load());
 
 const roleName = (id: string): string =>
   roles.value.find((role) => role.id === id)?.name ?? id;
+
+/**
+ * The hierarchy rule (enforced by the backend): a non-admin may only hand out roles whose
+ * permissions it holds, to members it can manage (`manageable` on each user). Anything else is
+ * greyed out here, and a group touching any of it cannot be edited or deleted.
+ */
+const { state: authState } = useAuth();
+const actor = computed(() => ({
+  role: authState.user?.role ?? ("viewer" as const),
+  capabilities: authState.capabilities,
+}));
+const canUseRole = (id: string): boolean => {
+  const role = roles.value.find((candidate) => candidate.id === id);
+  return !role || canGrantCapabilities(actor.value, role.capabilities);
+};
+const manageableUsernames = computed(
+  () =>
+    new Set(
+      users.value
+        .filter((user) => user.manageable !== false)
+        .map((user) => user.username),
+    ),
+);
+const canUseMember = (username: string): boolean =>
+  manageableUsernames.value.has(username);
+const isGroupLocked = (group: RbacGroup): boolean =>
+  !group.roleIds.every(canUseRole) ||
+  !group.memberUsernames.every(
+    // A name with no account is the backend's unknown-member case, not a rank one.
+    (username) =>
+      canUseMember(username) ||
+      !users.value.some((user) => user.username === username),
+  );
+const LOCK_REASON = "组内有高于你的权限或成员，无法修改";
 
 // ── Group dialog ──────────────────────────────────────────────────────────────────
 const groupMode = ref<"create" | "edit" | null>(null);
@@ -242,16 +282,21 @@ const formDirty = formSnapshot.dirty;
                 {{ group.memberUsernames.length }} 人
               </td>
               <td class="px-3 py-2">
-                <span class="flex justify-end gap-2">
+                <span
+                  class="flex justify-end gap-2"
+                  :title="isGroupLocked(group) ? LOCK_REASON : undefined"
+                >
                   <UiButton
                     variant="ghost"
                     size="sm"
+                    :disabled="isGroupLocked(group)"
                     @click="openEditGroup(group)"
                     >编辑</UiButton
                   >
                   <UiButton
                     variant="ghost"
                     size="sm"
+                    :disabled="isGroupLocked(group)"
                     @click="confirmGroupDelete = group"
                     >删除</UiButton
                   >
@@ -320,12 +365,16 @@ const formDirty = formSnapshot.dirty;
               v-for="role in roles"
               :key="role.id"
               class="flex items-center gap-2 text-xs text-ink-muted"
+              :class="{ 'opacity-50': !canUseRole(role.id) }"
+              :title="
+                canUseRole(role.id) ? undefined : '含有你没有的权限，无法分配'
+              "
             >
               <input
                 type="checkbox"
                 class="size-4"
                 :checked="gRoleIds.includes(role.id)"
-                :disabled="groupSaving"
+                :disabled="groupSaving || !canUseRole(role.id)"
                 @change="toggleGroupRole(role.id)"
               />
               {{ role.name }}
@@ -341,12 +390,18 @@ const formDirty = formSnapshot.dirty;
               v-for="user in users"
               :key="user.username"
               class="flex items-center gap-2 text-xs text-ink-muted"
+              :class="{ 'opacity-50': !canUseMember(user.username) }"
+              :title="
+                canUseMember(user.username)
+                  ? undefined
+                  : '该用户的角色或权限不低于你，无法加入或移出'
+              "
             >
               <input
                 type="checkbox"
                 class="size-4"
                 :checked="gMembers.includes(user.username)"
-                :disabled="groupSaving"
+                :disabled="groupSaving || !canUseMember(user.username)"
                 @change="toggleGroupMember(user.username)"
               />
               {{ user.displayName || user.username }}

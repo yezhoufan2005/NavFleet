@@ -114,3 +114,56 @@ export const resolveEffectiveCapabilities = (
   }
   return CAPABILITIES.filter((capability) => caps.has(capability));
 };
+
+/**
+ * 内置角色的高低次序，用于「低权限不能操作高权限」的层级规则。
+ */
+export const ROLE_RANK: Record<UserRole, number> = {
+  viewer: 0,
+  operator: 1,
+  admin: 2,
+};
+
+/** 参与层级比较的一方：基础角色 + 有效能力。 */
+export interface RankedUser {
+  username: string;
+  role: UserRole;
+  capabilities: readonly Capability[];
+}
+
+const isSubset = (
+  inner: readonly Capability[],
+  outer: readonly Capability[],
+): boolean => inner.every((capability) => outer.includes(capability));
+
+/**
+ * 用户管理的层级规则：`users:manage` 可经用户组授给非管理员，若不加限制，持有者就能把自己或他人
+ * 提成管理员。因此：
+ *
+ * - **管理员**不受此规则约束（最后一个管理员、不能对自己降级等保护仍由各自的守卫负责）。
+ * - **非管理员**只能操作基础角色**严格低于**自己、且有效能力是自己能力**子集**的用户——同级、
+ *   更高级、或握有自己没有的能力的人都不行；自己也不行（同级），自己的角色只能由他人修改。
+ */
+export const canManageUser = (
+  actor: RankedUser,
+  target: RankedUser,
+): boolean => {
+  if (actor.role === "admin") return true;
+  return (
+    ROLE_RANK[target.role] < ROLE_RANK[actor.role] &&
+    isSubset(target.capabilities, actor.capabilities)
+  );
+};
+
+/** 能否把某个基础角色分配给他人（新建或改角色）：管理员任意，其余只能分配低于自己的角色。 */
+export const canAssignRole = (
+  actor: { role: UserRole },
+  role: UserRole,
+): boolean => actor.role === "admin" || ROLE_RANK[role] < ROLE_RANK[actor.role];
+
+/** 能否授出这些能力（自定义角色的能力集）：管理员任意，其余只能授出自己已有的能力。 */
+export const canGrantCapabilities = (
+  actor: { role: UserRole; capabilities: readonly Capability[] },
+  capabilities: readonly Capability[],
+): boolean =>
+  actor.role === "admin" || isSubset(capabilities, actor.capabilities);

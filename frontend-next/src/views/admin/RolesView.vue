@@ -17,7 +17,13 @@ import { FIELD_HELP } from "@/lib/fieldHelp";
 import { computed, onMounted, ref, nextTick, watch } from "vue";
 import { useDirtySnapshot } from "@/composables/useDirtySnapshot";
 import { fleetApi } from "@navfleet/fleet-core";
-import { CAPABILITIES, type Capability, type RbacRole } from "@navfleet/shared";
+import {
+  CAPABILITIES,
+  canGrantCapabilities,
+  type Capability,
+  type RbacGroup,
+  type RbacRole,
+} from "@navfleet/shared";
 import PageHeader from "@/components/PageHeader.vue";
 import AppSectionTabs from "@/components/shell/AppSectionTabs.vue";
 import UiButton from "@/components/ui/UiButton.vue";
@@ -29,12 +35,14 @@ import { makeMessageFor } from "@/lib/errorMessages";
 import { CAPABILITY_LABELS } from "@/lib/accessLabels";
 import { notify } from "@/composables/useNotifications";
 import { useFieldErrors } from "@/composables/useFieldErrors";
+import { useAuth } from "@/composables/useAuth";
 
 const ERROR_MESSAGES: Record<string, string> = {
   conflict: "名称已存在（不区分大小写）",
   unknown_member: "成员中有不存在的用户，请从列表中选择",
   not_found: "目标不存在，或引用了不存在的角色",
   role_in_use: "该角色仍被某个用户组引用，先从组里移除再删除",
+  rank_forbidden: "只能授出你自己有的权限；该角色还可能被高于你的用户使用",
 };
 const messageFor = makeMessageFor(ERROR_MESSAGES, "操作失败，请稍后重试");
 
@@ -43,15 +51,57 @@ const capabilityText = (capabilities: readonly Capability[]): string =>
   capabilities.map((capability) => CAPABILITY_LABELS[capability]).join("、") ||
   "—";
 
+/**
+ * The hierarchy rule (enforced by the backend): a non-admin may only grant permissions it holds, so
+ * the rest are greyed out in the picker and a role carrying any of them cannot be edited or deleted.
+ * A role a group hands to someone the caller cannot manage (itself included) is locked too —
+ * editing it would raise or strip that person — so the page also reads the groups and users.
+ */
+const { state: authState } = useAuth();
+const actor = computed(() => ({
+  role: authState.user?.role ?? ("viewer" as const),
+  capabilities: authState.capabilities,
+}));
+const canGrant = (capability: Capability): boolean =>
+  canGrantCapabilities(actor.value, [capability]);
+const holdsAll = (role: RbacRole): boolean =>
+  canGrantCapabilities(actor.value, role.capabilities);
+/** Members of groups that use this role whom the caller may not manage. */
+const usedAbove = (role: RbacRole): boolean =>
+  groups.value
+    .filter((group) => group.roleIds.includes(role.id))
+    .flatMap((group) => group.memberUsernames)
+    .some((username) => unmanageable.value.has(username));
+const isRoleLocked = (role: RbacRole): boolean =>
+  !holdsAll(role) || usedAbove(role);
+const lockReason = (role: RbacRole): string | undefined =>
+  !holdsAll(role)
+    ? "含有你没有的权限，无法修改"
+    : usedAbove(role)
+      ? "该角色经用户组授给了你或高于你的用户，无法修改"
+      : undefined;
+
 // ── Data ───────────────────────────────────────────────────────────────────────
 const roles = ref<RbacRole[]>([]);
+const groups = ref<RbacGroup[]>([]);
+const unmanageable = ref<Set<string>>(new Set());
 const status = ref<"loading" | "ready" | "error">("loading");
 
 const load = async (): Promise<void> => {
   status.value = "loading";
   try {
-    const result = await fleetApi.getRbacRoles();
+    const [result, groupResult, userResult] = await Promise.all([
+      fleetApi.getRbacRoles(),
+      fleetApi.getRbacGroups(),
+      fleetApi.getUsers(),
+    ]);
     roles.value = result.roles;
+    groups.value = groupResult.groups;
+    unmanageable.value = new Set(
+      userResult.users
+        .filter((user) => user.manageable === false)
+        .map((user) => user.username),
+    );
     status.value = "ready";
   } catch {
     status.value = "error";
@@ -202,16 +252,18 @@ const formDirty = formSnapshot.dirty;
                 {{ capabilityText(role.capabilities) }}
               </td>
               <td class="px-3 py-2">
-                <span class="flex justify-end gap-2">
+                <span class="flex justify-end gap-2" :title="lockReason(role)">
                   <UiButton
                     variant="ghost"
                     size="sm"
+                    :disabled="isRoleLocked(role)"
                     @click="openEditRole(role)"
                     >编辑</UiButton
                   >
                   <UiButton
                     variant="ghost"
                     size="sm"
+                    :disabled="isRoleLocked(role)"
                     @click="confirmRoleDelete = role"
                     >删除</UiButton
                   >
@@ -268,12 +320,16 @@ const formDirty = formSnapshot.dirty;
               v-for="capability in CAPABILITIES"
               :key="capability"
               class="flex items-center gap-2 text-xs text-ink-muted"
+              :class="{ 'opacity-50': !canGrant(capability) }"
+              :title="
+                canGrant(capability) ? undefined : '你没有这项权限，无法授出'
+              "
             >
               <input
                 type="checkbox"
                 class="size-4"
                 :checked="rCaps.includes(capability)"
-                :disabled="roleSaving"
+                :disabled="roleSaving || !canGrant(capability)"
                 @change="toggleCap(capability)"
               />
               {{ CAPABILITY_LABELS[capability] }}

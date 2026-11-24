@@ -3,7 +3,8 @@ import { createMemoryHistory, createRouter, type Router } from "vue-router";
 import { createPinia, setActivePinia } from "pinia";
 import { enableAutoUnmount, flushPromises, mount } from "@vue/test-utils";
 import { fleetApi } from "@navfleet/fleet-core";
-import type { RbacRole } from "@navfleet/shared";
+import { CAPABILITIES, type RbacRole } from "@navfleet/shared";
+import { useAuth, __resetAuth } from "@/composables/useAuth";
 import RolesView from "@/views/admin/RolesView.vue";
 import {
   __resetNotifications,
@@ -41,10 +42,20 @@ const mountView = async () => {
 
 beforeEach(() => {
   __resetNotifications();
+  __resetAuth();
+  // These pages sit behind 用户管理; tests run as an admin unless a case says otherwise.
+  Object.assign(useAuth().state, {
+    user: { username: "root", role: "admin" },
+    status: "authenticated",
+    capabilities: [...CAPABILITIES],
+  });
   vi.spyOn(fleetApi, "getRbacRoles").mockResolvedValue({ roles: [role()] });
+  vi.spyOn(fleetApi, "getRbacGroups").mockResolvedValue({ groups: [] });
+  vi.spyOn(fleetApi, "getUsers").mockResolvedValue({ users: [] });
 });
 
 afterEach(() => {
+  __resetAuth();
   vi.restoreAllMocks();
 });
 
@@ -153,5 +164,64 @@ describe("RolesView — edit role & error mapping", () => {
     await flushPromises();
     await submitBodyForm();
     expect(document.body.textContent).toContain("名称已存在");
+  });
+});
+
+describe("RolesView — hierarchy", () => {
+  it("locks roles carrying a permission the caller lacks", async () => {
+    Object.assign(useAuth().state, {
+      user: { username: "ops", role: "operator" },
+      capabilities: ["alerts:ack", "users:manage"],
+    });
+    vi.spyOn(fleetApi, "getRbacRoles").mockResolvedValue({
+      roles: [
+        role({ id: "a", name: "Ackers", capabilities: ["alerts:ack"] }),
+        role({ id: "b", name: "Auditors", capabilities: ["audit:read"] }),
+      ],
+    });
+    const wrapper = await mountView();
+    const [ackers, auditors] = wrapper.findAll("tbody tr");
+    const disabled = (row: typeof ackers) =>
+      row!.findAll("button").map((b) => b.attributes("disabled") !== undefined);
+    expect(disabled(ackers)).toEqual([false, false]);
+    expect(disabled(auditors)).toEqual([true, true]);
+  });
+});
+
+describe("RolesView — hierarchy through groups", () => {
+  it("locks a role a group hands to someone the caller cannot manage", async () => {
+    Object.assign(useAuth().state, {
+      user: { username: "ops", role: "operator" },
+      capabilities: ["alerts:ack", "users:manage"],
+    });
+    vi.spyOn(fleetApi, "getRbacRoles").mockResolvedValue({
+      roles: [
+        role({ id: "m", name: "Managers", capabilities: ["users:manage"] }),
+      ],
+    });
+    vi.spyOn(fleetApi, "getRbacGroups").mockResolvedValue({
+      groups: [
+        {
+          id: "g",
+          name: "Delegated",
+          description: "",
+          roleIds: ["m"],
+          memberUsernames: ["ops"],
+          createdAt: "2026-11-01T00:00:00.000Z",
+          updatedAt: "2026-11-01T00:00:00.000Z",
+        },
+      ],
+    });
+    vi.spyOn(fleetApi, "getUsers").mockResolvedValue({
+      users: [{ username: "ops", manageable: false } as never],
+    });
+    const wrapper = await mountView();
+    const row = wrapper.get("tbody tr");
+    expect(
+      row
+        .findAll("button")
+        .every((b) => b.attributes("disabled") !== undefined),
+    ).toBe(true);
+    expect(row.find("[title]").attributes("title")).toContain("高于你");
   });
 });
