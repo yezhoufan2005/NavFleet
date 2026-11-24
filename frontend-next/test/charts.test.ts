@@ -620,6 +620,17 @@ describe("buildStackedBarOption", () => {
         .animation,
     ).toBe(false);
   });
+  it("lays categories along the bottom, in the order given, when vertical", () => {
+    const option = buildStackedBarOption({
+      categories,
+      series,
+      palette,
+      orientation: "vertical",
+    });
+    expect(option.xAxis).toMatchObject({ type: "category", data: categories });
+    expect(option.xAxis).not.toHaveProperty("inverse");
+    expect(option.yAxis).toMatchObject({ type: "value", min: 0 });
+  });
 });
 
 describe("StackedBarChart", () => {
@@ -817,6 +828,27 @@ describe("TopNSelect", () => {
 });
 
 describe("buildPieOption", () => {
+  it("draws a Nightingale rose when asked, the plain donut otherwise", () => {
+    const data = [
+      { label: "< 5 m", value: 8 },
+      { label: "> 1 h", value: 1 },
+    ];
+    const rose = (
+      buildPieOption({ data, palette, rose: true }).series as {
+        roseType?: string;
+      }[]
+    )[0]!;
+    const donut = (
+      buildPieOption({ data, palette }).series as {
+        roseType?: string;
+        radius: string[];
+      }[]
+    )[0]!;
+    expect(rose.roseType).toBe("radius");
+    expect(donut.roseType).toBeUndefined();
+    expect(donut.radius).toEqual(["45%", "70%"]);
+  });
+
   it("drops zero-value slices so an absent severity leaves no sliver", () => {
     const option = buildPieOption({
       data: [

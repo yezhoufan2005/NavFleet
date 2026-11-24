@@ -25,6 +25,7 @@ const {
   height = 260,
   labelHidden = false,
   showTableToggle = true,
+  rose = false,
 } = defineProps<{
   data: readonly CategoryDatum[];
   /** Accessible name for the figure, and the table's caption. */
@@ -35,6 +36,8 @@ const {
   labelHidden?: boolean;
   /** Show the built-in 图表/数据表 toggle. False when a parent owns the view toggle. */
   showTableToggle?: boolean;
+  /** Nightingale rose instead of the donut (see `pieOption`). */
+  rose?: boolean;
 }>();
 
 const { palette, animate } = useChartTheme();
@@ -50,6 +53,7 @@ const option = computed(() =>
     palette: palette.value,
     unit,
     animate: animate.value,
+    rose,
   }),
 );
 

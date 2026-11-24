@@ -1,12 +1,22 @@
 import { describe, it, expect } from "vitest";
-import type { AlertStatsReport, AvailabilityReport } from "@navfleet/shared";
+import {
+  emptyAlertStatsReport,
+  emptyDurationBuckets,
+  type AlertStatsReport,
+  type AvailabilityReport,
+} from "@navfleet/shared";
 import {
   buildAlertStatsCsv,
   availabilityCsv,
   defaultBucketForPreset,
   defaultBucketForSpanMs,
   deviceAvailabilityRows,
+  dispositionTrend,
+  durationHistogram,
+  durationSlices,
+  messageTypeLabel,
   onlineRatioSeries,
+  topMessageTypes,
   socSeries,
   sparklinePoints,
   summarizeAvailability,
@@ -440,9 +450,26 @@ describe("buildAlertStatsCsv (1.6.1 export parity)", () => {
       { deviceId: "agv-2", count: 2 },
     ],
     daily: [
-      { day: "2026-03-01", count: 2 },
-      { day: "2026-03-02", count: 3 },
+      { day: "2026-03-01", count: 2, claimed: 1, ignored: 0, autoRecovered: 1 },
+      { day: "2026-03-02", count: 3, claimed: 2, ignored: 1, autoRecovered: 0 },
     ],
+    topTypes: [
+      {
+        title: "提示报码",
+        code: 1301,
+        detail: "正在充电",
+        severity: "notice",
+        count: 3,
+      },
+      {
+        title: "低电量预警",
+        code: null,
+        detail: "",
+        severity: "warning",
+        count: 2,
+      },
+    ],
+    durationBuckets: emptyDurationBuckets(),
     claimRate: 0.6,
     ignoreRate: 0.2,
     autoRecoverRate: 0.2,
@@ -485,5 +512,141 @@ describe("buildAlertStatsCsv (1.6.1 export parity)", () => {
     expect(lines).toContain("汇总,认领率(%),");
     expect(lines).toContain("汇总,忽略率(%),");
     expect(lines).toContain("汇总,自动恢复率(%),");
+  });
+});
+
+describe("消息分析 builders", () => {
+  const palette = {
+    series: ["#s0", "#s1", "#s2", "#s3", "#s4"],
+    grid: "#g",
+    axis: "#a",
+    ink: "#i",
+    inkMuted: "#m",
+    surface: "#f",
+    tooltipBorder: "#b",
+    status: { critical: "#crit", warning: "#warn", notice: "#note" },
+    heatmap: [],
+  };
+  const report = (patch: Partial<AlertStatsReport> = {}): AlertStatsReport => ({
+    ...emptyAlertStatsReport(true),
+    ...patch,
+  });
+
+  it("stacks each day as claimed / ignored / auto-recovered / pending, in fixed colour slots", () => {
+    const trend = dispositionTrend(
+      report({
+        daily: [
+          {
+            day: "2026-11-20",
+            count: 10,
+            claimed: 3,
+            ignored: 2,
+            autoRecovered: 4,
+          },
+          {
+            day: "2026-11-21",
+            count: 2,
+            claimed: 0,
+            ignored: 0,
+            autoRecovered: 2,
+          },
+        ],
+      }),
+      palette,
+    );
+    expect(trend.categories).toEqual(["11-20", "11-21"]);
+    expect(trend.series.map((s) => [s.name, s.color, s.data])).toEqual([
+      ["已认领", "#s0", [3, 0]],
+      ["已忽略", "#s1", [2, 0]],
+      ["自动恢复", "#s2", [4, 2]],
+      ["未处置", "#s3", [1, 0]],
+    ]);
+  });
+
+  it("names a report-code type by its code alone, a rule type by its title", () => {
+    expect(
+      messageTypeLabel({
+        title: "提示报码",
+        code: 1301,
+      }),
+    ).toBe("1301");
+    expect(
+      messageTypeLabel({
+        title: "提示报码",
+        code: 9,
+      }),
+    ).toBe("9");
+    expect(
+      messageTypeLabel({
+        title: "低电量预警",
+        code: null,
+      }),
+    ).toBe("低电量预警");
+  });
+
+  it("cuts message types to the chosen N, coloured by their worst severity", () => {
+    const types = report({
+      topTypes: [
+        {
+          title: "急停",
+          code: null,
+          detail: "",
+          severity: "critical",
+          count: 5,
+        },
+        {
+          title: "低电量预警",
+          code: null,
+          detail: "",
+          severity: "warning",
+          count: 3,
+        },
+        { title: "提示", code: null, detail: "", severity: "notice", count: 1 },
+      ],
+    });
+    expect(topMessageTypes(types, 2, palette)).toEqual([
+      { label: "急停", value: 5, color: "#crit" },
+      { label: "低电量预警", value: 3, color: "#warn" },
+    ]);
+    expect(topMessageTypes(types, Infinity, palette)).toHaveLength(3);
+  });
+
+  it("gives the rose pie one slice per duration bucket, its severities summed", () => {
+    const buckets = emptyDurationBuckets();
+    buckets[0]!.bySeverity = { critical: 0, warning: 1, notice: 4 };
+    buckets[3]!.bySeverity = { critical: 1, warning: 0, notice: 0 };
+    expect(
+      durationSlices(report({ durationBuckets: buckets }), palette).map((s) => [
+        s.label,
+        s.value,
+        s.color,
+      ]),
+    ).toEqual([
+      ["< 5 m", 5, "#s0"],
+      ["5 - 30 m", 0, "#s1"],
+      ["30 m - 1 h", 0, "#s2"],
+      ["> 1 h", 1, "#s3"],
+    ]);
+  });
+
+  it("draws every duration bucket, stacked by severity", () => {
+    const buckets = emptyDurationBuckets();
+    buckets[0]!.bySeverity.notice = 4;
+    buckets[3]!.bySeverity.critical = 1;
+    const histogram = durationHistogram(
+      report({ durationBuckets: buckets }),
+      palette,
+    );
+    expect(histogram.categories).toEqual([
+      "< 5 m",
+      "5 - 30 m",
+      "30 m - 1 h",
+      "> 1 h",
+    ]);
+    expect(histogram.series.map((s) => [s.name, s.data])).toEqual([
+      ["告警", [0, 0, 0, 1]],
+      ["预警", [0, 0, 0, 0]],
+      ["提示", [4, 0, 0, 0]],
+    ]);
   });
 });

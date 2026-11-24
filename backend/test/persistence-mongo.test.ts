@@ -1114,8 +1114,10 @@ describe("aggregateAlertStats（服务端聚合）", () => {
     expect(Object.keys(facetStage).sort()).toEqual([
       "bySeverity",
       "daily",
+      "durationBuckets",
       "durations",
       "topDevices",
+      "topTypes",
       "totals",
     ]);
 
@@ -1127,7 +1129,9 @@ describe("aggregateAlertStats（服务端聚合）", () => {
       { deviceId: "agv-1", count: 4 },
       { deviceId: "agv-2", count: 1 },
     ]);
-    expect(report.daily).toEqual([{ day: "2026-09-01", count: 5 }]);
+    expect(report.daily).toEqual([
+      { day: "2026-09-01", count: 5, claimed: 0, ignored: 0, autoRecovered: 0 },
+    ]);
     expect(report.claimRate).toBeCloseTo(2 / 6);
     expect(report.ignoreRate).toBe(0.5);
     expect(report.autoRecoverRate).toBeCloseTo(1 / 6);

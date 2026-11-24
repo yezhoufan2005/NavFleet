@@ -27,12 +27,15 @@ import UiFilterField from "@/components/ui/UiFilterField.vue";
 import { SEVERITY_LABELS } from "@/lib/severity";
 import TimeSeriesChart from "@/components/charts/TimeSeriesChart.vue";
 import CategoryBarChart from "@/components/charts/CategoryBarChart.vue";
+import StackedBarChart from "@/components/charts/StackedBarChart.vue";
+import PieChart from "@/components/charts/PieChart.vue";
+import UiButton from "@/components/ui/UiButton.vue";
+import TopNSelect from "@/components/charts/TopNSelect.vue";
 import { useLatestRequest } from "@/composables/useLatestRequest";
 import { useChartTheme } from "@/composables/useChartTheme";
 import { useFleetStore } from "@/stores/fleet";
 import { fleetApi } from "@navfleet/fleet-core";
 import {
-  ALERT_STATS_TOP_N,
   REPORT_RANGE_LABELS,
   type AlertStatsReport,
   type AvailabilityReport,
@@ -45,7 +48,11 @@ import {
   defaultBucketForPreset,
   defaultBucketForSpanMs,
   deviceAvailabilityRows,
+  dispositionTrend,
+  durationHistogram,
+  durationSlices,
   onlineRatioSeries,
+  topMessageTypes,
   socSeries,
   sparklinePoints,
   summarizeAvailability,
@@ -402,30 +409,32 @@ const fmtSoc = (value: number | null): string =>
   value == null ? "--" : `${value.toFixed(1)}%`;
 
 // ── Derived: alert charts ───────────────────────────────────────────────────────────────
-const severityData = computed(() =>
+// The 报表 answers how messages were *handled* over the period; the per-severity / per-device /
+// date×hour cuts belong to 消息史, which is where an operator digs into individual records.
+const EMPTY_STACK = { categories: [], series: [] };
+const dispositionData = computed(() =>
   alertStats.value
-    ? (["critical", "warning", "notice"] as const).map((key) => ({
-        label: SEVERITY_LABELS[key],
-        value: alertStats.value!.bySeverity[key],
-        color: palette.value.status[key],
-      }))
+    ? dispositionTrend(alertStats.value, palette.value)
+    : EMPTY_STACK,
+);
+const typeTopN = ref(10);
+const typeData = computed(() =>
+  alertStats.value
+    ? topMessageTypes(alertStats.value, typeTopN.value, palette.value)
     : [],
 );
-const deviceData = computed(() =>
+const durationData = computed(() =>
   alertStats.value
-    ? alertStats.value.topDevices.map((device) => ({
-        label: nameOf(device.deviceId),
-        value: device.count,
-      }))
-    : [],
+    ? durationHistogram(alertStats.value, palette.value)
+    : EMPTY_STACK,
 );
-const dailyData = computed(() =>
-  alertStats.value
-    ? alertStats.value.daily.map((entry) => ({
-        label: entry.day,
-        value: entry.count,
-      }))
-    : [],
+const durationPie = computed(() =>
+  alertStats.value ? durationSlices(alertStats.value, palette.value) : [],
+);
+/** 处置时长分布 opens on the rose pie (占比 at a glance); the bar is a toggle away (by severity). */
+const durationView = ref<"pie" | "bar">("pie");
+const hasDurationData = computed(
+  () => (alertStats.value?.duration.count ?? 0) > 0,
 );
 const hasAlertData = computed(() => alertTotal.value > 0);
 
@@ -933,8 +942,9 @@ const exportAlertsCsv = (): void => {
         </details>
       </section>
 
-      <!-- Section 消息分析: severity mix, worst offenders, and the daily trend — the three cuts
-           an operator asks of a message history. -->
+      <!-- Section 消息分析: how the period's messages were handled — the daily disposition mix, which
+           kinds of message recur, and how long they took to clear. Severity / device / date×hour
+           cuts live on 消息史, so this section does not repeat them. -->
       <section class="flex flex-col gap-3" aria-labelledby="alerts-heading">
         <h2 id="alerts-heading" class="m-0 text-sm font-semibold text-ink">
           消息分析
@@ -948,12 +958,16 @@ const exportAlertsCsv = (): void => {
         </p>
         <div v-else class="grid gap-4 lg:grid-cols-3">
           <div class="rounded-md border border-border bg-surface-raised p-4">
-            <CategoryBarChart
+            <StackedBarChart
               v-if="hasAlertData"
-              :data="severityData"
-              label="按严重度分布"
+              :categories="dispositionData.categories"
+              :series="dispositionData.series"
+              label="处置趋势"
+              category-label="日期"
+              :category-width="4"
               unit="条"
-              :height="200"
+              orientation="vertical"
+              :height="240"
             />
             <p v-else class="m-0 py-8 text-center text-sm text-ink-muted">
               该时间段没有消息
@@ -962,26 +976,67 @@ const exportAlertsCsv = (): void => {
           <div class="rounded-md border border-border bg-surface-raised p-4">
             <CategoryBarChart
               v-if="hasAlertData"
-              :data="deviceData"
-              :label="`消息最多的 ${ALERT_STATS_TOP_N} 台设备`"
+              :data="typeData"
+              label="高频消息类型"
               unit="条"
               orientation="horizontal"
-              :height="200"
-            />
+              :height="240"
+              scroll
+            >
+              <template #actions>
+                <TopNSelect
+                  v-model="typeTopN"
+                  aria-label="显示的消息类型数量"
+                />
+              </template>
+            </CategoryBarChart>
             <p v-else class="m-0 py-8 text-center text-sm text-ink-muted">
               该时间段没有消息
             </p>
           </div>
           <div class="rounded-md border border-border bg-surface-raised p-4">
-            <CategoryBarChart
-              v-if="hasAlertData"
-              :data="dailyData"
-              label="按时间天频次"
-              unit="条"
-              :height="200"
-            />
+            <!-- The card owns the 饼图/柱状图 toggle (as 消息史's 按严重度分布 does), so both charts
+                 render plot-only. -->
+            <template v-if="hasDurationData">
+              <div class="mb-2 flex items-center justify-between gap-3">
+                <span class="text-sm font-medium text-ink">处置时长分布</span>
+                <UiButton
+                  variant="ghost"
+                  size="sm"
+                  :aria-pressed="durationView === 'bar'"
+                  @click="durationView = durationView === 'pie' ? 'bar' : 'pie'"
+                >
+                  {{ durationView === "pie" ? "柱状图" : "饼图" }}
+                </UiButton>
+              </div>
+              <PieChart
+                v-if="durationView === 'pie'"
+                :data="durationPie"
+                label="处置时长分布"
+                unit="条"
+                :height="240"
+                rose
+                label-hidden
+                :show-table-toggle="false"
+              />
+              <StackedBarChart
+                v-else
+                :categories="durationData.categories"
+                :series="durationData.series"
+                label="处置时长分布"
+                category-label="时长"
+                :category-width="7"
+                unit="条"
+                orientation="vertical"
+                :height="240"
+                label-hidden
+                :show-table-toggle="false"
+              />
+            </template>
             <p v-else class="m-0 py-8 text-center text-sm text-ink-muted">
-              该时间段没有消息
+              {{
+                hasAlertData ? "该时间段还没有已清除的消息" : "该时间段没有消息"
+              }}
             </p>
           </div>
         </div>

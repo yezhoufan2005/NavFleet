@@ -1,5 +1,6 @@
 import { describe, it, expect } from "vitest";
 import type { AlertStatsReport, AvailabilityReport, ReportScheduleConfig } from "@navfleet/shared";
+import { emptyAlertStatsReport } from "@navfleet/shared";
 import { ReportScheduler, type ReportSchedulerDeps } from "../src/reports/scheduler";
 import { localParts } from "../src/localTime";
 import type { EmailMessage } from "../src/notify/email";
@@ -24,17 +25,7 @@ const emptyAvailability = (): AvailabilityReport => ({
   devices: [],
   available: true,
 });
-const emptyAlerts = (): AlertStatsReport => ({
-  total: 0,
-  bySeverity: { critical: 0, warning: 0, notice: 0 },
-  topDevices: [],
-  daily: [],
-  claimRate: null,
-  ignoreRate: null,
-  autoRecoverRate: null,
-  duration: { count: 0, meanMs: null, p50Ms: null },
-  available: true,
-});
+const emptyAlerts = (): AlertStatsReport => emptyAlertStatsReport(true);
 
 const schedule = (over: Partial<ReportScheduleConfig> = {}): ReportScheduleConfig => ({
   id: "daily",

@@ -348,12 +348,49 @@ export const openApiDocument = {
           },
           daily: {
             type: "array",
-            description: "按天频次（按部署时区切日界），升序",
+            description:
+              "按天频次（按部署时区切日界），升序；每天带处置构成（认领 / 忽略 / 自动恢复，余下为未处置）",
             items: {
               type: "object",
               properties: {
                 day: { type: "string" },
                 count: { type: "number" },
+                claimed: { type: "number" },
+                ignored: { type: "number" },
+                autoRecovered: { type: "number" },
+              },
+            },
+          },
+          topTypes: {
+            type: "array",
+            description: "消息类型（同标题 + 同报码）按条数降序，最多 50 类",
+            items: {
+              type: "object",
+              properties: {
+                title: { type: "string" },
+                code: { type: ["number", "null"] },
+                detail: { type: "string", description: "报码含义；规则消息为空串" },
+                severity: { type: "string", enum: ["critical", "warning", "notice"] },
+                count: { type: "number" },
+              },
+            },
+          },
+          durationBuckets: {
+            type: "array",
+            description:
+              "已清除消息的处置时长分档（< 5 m / 5 - 30 m / 30 m - 1 h / > 1 h），每档按严重度计数",
+            items: {
+              type: "object",
+              properties: {
+                bucket: { type: "string", enum: ["lt5m", "5m-30m", "30m-1h", "gt1h"] },
+                bySeverity: {
+                  type: "object",
+                  properties: {
+                    critical: { type: "number" },
+                    warning: { type: "number" },
+                    notice: { type: "number" },
+                  },
+                },
               },
             },
           },

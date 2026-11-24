@@ -28,6 +28,11 @@ export interface PieOptionInput {
   /** Value suffix in the tooltip and on the slice label (e.g. "条"). */
   unit?: string;
   animate?: boolean;
+  /**
+   * A Nightingale rose: each slice's radius, not just its angle, grows with its value, so ordered
+   * buckets (时长分档) read as a profile. Off = the plain donut.
+   */
+  rose?: boolean;
 }
 
 /**
@@ -43,6 +48,7 @@ export const buildPieOption = ({
   palette,
   unit,
   animate = true,
+  rose = false,
 }: PieOptionInput): EChartsOption => {
   const slices = data.filter((datum) => datum.value > 0);
   return {
@@ -74,7 +80,8 @@ export const buildPieOption = ({
         type: "pie",
         // A donut, not a full disc: the hole makes slice-angle comparison a touch easier and
         // leaves the centre clear. Lifted above the bottom legend.
-        radius: ["45%", "70%"],
+        radius: rose ? ["18%", "72%"] : ["45%", "70%"],
+        ...(rose ? { roseType: "radius" as const } : {}),
         center: ["50%", "44%"],
         avoidLabelOverlap: true,
         // 2px surface ring between slices (the method's fill spacer); 4px rounded like the bars.
