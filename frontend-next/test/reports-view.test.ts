@@ -33,9 +33,9 @@ const barStub = {
 };
 
 const pieStub = {
-  props: { data: Array, label: String, rose: Boolean },
+  props: { data: Array, outer: Array, label: String },
   template:
-    '<div class="pie-stub" :data-label="label" :data-rose="String(rose)" :data-count="data.length" />',
+    '<div class="pie-stub" :data-label="label" :data-count="data.length" :data-outer="outer ? outer.length : -1" />',
 };
 const stackStub = {
   props: ["categories", "series", "label"],
@@ -290,11 +290,11 @@ describe("报表 状态与内容", () => {
     );
   });
 
-  it("opens 处置时长分布 on the rose pie and toggles to the bar", async () => {
+  it("opens 处置时长分布 on the two-ring pie and toggles to the bar", async () => {
     const wrapper = await mountView();
     const pie = wrapper.get('.pie-stub[data-label="处置时长分布"]');
-    expect(pie.attributes("data-rose")).toBe("true");
-    expect(pie.attributes("data-count")).toBe("5");
+    expect(pie.attributes("data-count")).toBe("4");
+    expect(pie.attributes("data-outer")).not.toBe("-1");
     await wrapper
       .findAll("button")
       .find((button) => button.text() === "柱状图")!

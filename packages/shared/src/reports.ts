@@ -57,14 +57,13 @@ export interface ReportMessageType {
 
 /**
  * 处置时长的分档（已清除的消息，`clearedAt - firstSeenAt`）。上界不含，最后一档无上界。
- * 档位取运营上「几分钟内自愈 / 半小时内处理 / 一个班次内 / 跨班次」的自然分界。
+ * 档位取「几分钟内自愈 / 半小时内处理 / 一小时内处理 / 拖过一小时」的分界。
  */
 export const DURATION_BUCKETS = [
-  { key: "lt5m", label: "< 5 分钟", maxMs: 5 * 60_000 },
-  { key: "5m-30m", label: "5–30 分钟", maxMs: 30 * 60_000 },
-  { key: "30m-2h", label: "30 分钟–2 小时", maxMs: 2 * 3_600_000 },
-  { key: "2h-8h", label: "2–8 小时", maxMs: 8 * 3_600_000 },
-  { key: "gt8h", label: "> 8 小时", maxMs: Number.POSITIVE_INFINITY },
+  { key: "lt5m", label: "< 5 m", maxMs: 5 * 60_000 },
+  { key: "5m-30m", label: "5 - 30 m", maxMs: 30 * 60_000 },
+  { key: "30m-1h", label: "30 m - 1 h", maxMs: 3_600_000 },
+  { key: "gt1h", label: "> 1 h", maxMs: Number.POSITIVE_INFINITY },
 ] as const;
 
 export type DurationBucketKey = (typeof DURATION_BUCKETS)[number]["key"];
@@ -77,8 +76,10 @@ export interface ReportDurationBucket {
 
 /** 毫秒时长落在哪一档。 */
 export const durationBucketOf = (ms: number): DurationBucketKey =>
-  (DURATION_BUCKETS.find((bucket) => ms < bucket.maxMs) ?? DURATION_BUCKETS[4])
-    .key;
+  (
+    DURATION_BUCKETS.find((bucket) => ms < bucket.maxMs) ??
+    DURATION_BUCKETS[DURATION_BUCKETS.length - 1]!
+  ).key;
 
 export interface ReportDurationStats {
   /** 同时有起点（`firstSeenAt`）与清除时间（`clearedAt`）、因而算得出时长的告警条数。 */

@@ -117,7 +117,7 @@ describe("mapAlertStatsFacet", () => {
     ],
     durationBuckets: [
       { _id: { bucket: "lt5m", severity: "warning" }, count: 2 },
-      { _id: { bucket: "gt8h", severity: "critical" }, count: 1 },
+      { _id: { bucket: "gt1h", severity: "critical" }, count: 1 },
       { _id: { bucket: "bogus", severity: "warning" }, count: 9 },
     ],
     totals: [{ total: 6, claimed: 2, ignored: 3, autoRecovered: 1 }],
@@ -152,15 +152,9 @@ describe("mapAlertStatsFacet", () => {
 
   it("returns every duration bucket in order, dropping unknown ones", () => {
     const buckets = mapAlertStatsFacet(full).durationBuckets;
-    expect(buckets.map((bucket) => bucket.bucket)).toEqual([
-      "lt5m",
-      "5m-30m",
-      "30m-2h",
-      "2h-8h",
-      "gt8h",
-    ]);
+    expect(buckets.map((bucket) => bucket.bucket)).toEqual(["lt5m", "5m-30m", "30m-1h", "gt1h"]);
     expect(buckets[0]!.bySeverity).toEqual({ critical: 0, warning: 2, notice: 0 });
-    expect(buckets[4]!.bySeverity).toEqual({ critical: 1, warning: 0, notice: 0 });
+    expect(buckets[3]!.bySeverity).toEqual({ critical: 1, warning: 0, notice: 0 });
     const total = buckets.reduce(
       (sum, bucket) => sum + Object.values(bucket.bySeverity).reduce((a, b) => a + b, 0),
       0,
@@ -214,14 +208,14 @@ describe("duration buckets", () => {
     };
     const { branches, default: last } = group._id.bucket.$switch;
     expect(branches.map((branch) => [branch.case.$lt[1], branch.then])).toEqual(
-      DURATION_BUCKETS.slice(0, 4).map((bucket) => [bucket.maxMs, bucket.key]),
+      DURATION_BUCKETS.slice(0, -1).map((bucket) => [bucket.maxMs, bucket.key]),
     );
-    expect(last).toBe("gt8h");
+    expect(last).toBe("gt1h");
   });
 
   it("puts a boundary value in the upper bucket", () => {
     expect(durationBucketOf(0)).toBe("lt5m");
     expect(durationBucketOf(5 * 60_000)).toBe("5m-30m");
-    expect(durationBucketOf(8 * 3_600_000)).toBe("gt8h");
+    expect(durationBucketOf(3_600_000)).toBe("gt1h");
   });
 });

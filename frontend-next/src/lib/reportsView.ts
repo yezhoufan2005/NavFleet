@@ -20,6 +20,8 @@ import {
   type ReportMessageType,
 } from "@navfleet/shared";
 import type { StackedSeries } from "@/components/charts/stackedBarOption";
+import type { CategoryDatum } from "@/components/charts/categoryBarOption";
+import type { RingDatum } from "@/components/charts/pieOption";
 import type { ChartPalette } from "@/composables/useChartTheme";
 import type { TimeSeries } from "@/components/charts/timeSeriesOption";
 import { SEVERITY_LABELS } from "@/lib/severity";
@@ -460,8 +462,9 @@ export const dispositionTrend = (
  * 一类消息的显示名：报码消息就是码号（如「1501」），规则消息是标题（如「低电量预警」）。
  * 报码含义不进轴标签——码号短、对齐整齐，含义在 消息史 / 报码字典 里查。
  */
-export const messageTypeLabel = (type: ReportMessageType): string =>
-  type.code === null ? type.title : String(type.code);
+export const messageTypeLabel = (
+  type: Pick<ReportMessageType, "title" | "code">,
+): string => (type.code === null ? type.title : String(type.code));
 
 /** 高频消息类型的前 `n` 类（`Infinity` = 全部），柱色取该类最重的严重度。 */
 export const topMessageTypes = (
@@ -492,18 +495,36 @@ export const durationHistogram = (
   })),
 });
 
-/** 处置时长分布的玫瑰饼：每档一片（各严重度合计），按档位顺序取图表色槽，从不循环。 */
-export const durationSlices = (
+/**
+ * 处置时长分布的双层饼：内圈是时长分档，外圈把每一档按严重度拆开。
+ *
+ * - 内圈时长是有序量，用热力图那条顺序色阶（短→长，浅→深），不占分类色槽。
+ * - 外圈严重度是状态维度，用状态色（告警 / 预警 / 提示），与全站一致。外圈按内圈档位逐档排列、
+ *   每档内按 告警→预警→提示，所以每档的外圈正好盖住它的内圈扇区。
+ */
+export const durationRings = (
   report: AlertStatsReport,
   palette: ChartPalette,
-): { label: string; value: number; color: string }[] =>
-  DURATION_BUCKETS.map((bucket, index) => {
+): { inner: CategoryDatum[]; outer: RingDatum[] } => {
+  const inner: CategoryDatum[] = [];
+  const outer: RingDatum[] = [];
+  DURATION_BUCKETS.forEach((definition, index) => {
     const counts = report.durationBuckets.find(
-      (entry) => entry.bucket === bucket.key,
-    )?.bySeverity;
-    return {
-      label: bucket.label,
-      value: counts ? counts.critical + counts.warning + counts.notice : 0,
-      color: palette.series[index] ?? palette.axis,
-    };
+      (entry) => entry.bucket === definition.key,
+    )?.bySeverity ?? { critical: 0, warning: 0, notice: 0 };
+    inner.push({
+      label: definition.label,
+      value: counts.critical + counts.warning + counts.notice,
+      color: palette.heatmap[index + 1] ?? palette.axis,
+    });
+    for (const key of ["critical", "warning", "notice"] as const) {
+      outer.push({
+        label: SEVERITY_LABELS[key],
+        value: counts[key],
+        color: palette.status[key],
+        group: definition.label,
+      });
+    }
   });
+  return { inner, outer };
+};

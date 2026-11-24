@@ -121,8 +121,9 @@ describe("duration buckets", () => {
     expect(durationBucketOf(0)).toBe("lt5m");
     expect(durationBucketOf(5 * 60_000 - 1)).toBe("lt5m");
     expect(durationBucketOf(5 * 60_000)).toBe("5m-30m");
-    expect(durationBucketOf(2 * 3_600_000)).toBe("2h-8h");
-    expect(durationBucketOf(30 * 86_400_000)).toBe("gt8h");
+    expect(durationBucketOf(59 * 60_000)).toBe("30m-1h");
+    expect(durationBucketOf(3_600_000)).toBe("gt1h");
+    expect(durationBucketOf(30 * 86_400_000)).toBe("gt1h");
   });
 
   it("starts every report with all buckets present and zeroed", () => {

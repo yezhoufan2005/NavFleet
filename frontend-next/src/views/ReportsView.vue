@@ -50,7 +50,7 @@ import {
   deviceAvailabilityRows,
   dispositionTrend,
   durationHistogram,
-  durationSlices,
+  durationRings,
   onlineRatioSeries,
   topMessageTypes,
   socSeries,
@@ -429,9 +429,14 @@ const durationData = computed(() =>
     : EMPTY_STACK,
 );
 const durationPie = computed(() =>
-  alertStats.value ? durationSlices(alertStats.value, palette.value) : [],
+  alertStats.value
+    ? durationRings(alertStats.value, palette.value)
+    : { inner: [], outer: [] },
 );
-/** 处置时长分布 opens on the rose pie (占比 at a glance); the bar is a toggle away (by severity). */
+/**
+ * 处置时长分布 opens on the two-ring pie (时长 inside, each bucket split by severity outside); the
+ * bar, stacked by severity, is a toggle away.
+ */
 const durationView = ref<"pie" | "bar">("pie");
 const hasDurationData = computed(
   () => (alertStats.value?.duration.count ?? 0) > 0,
@@ -1011,11 +1016,11 @@ const exportAlertsCsv = (): void => {
               </div>
               <PieChart
                 v-if="durationView === 'pie'"
-                :data="durationPie"
+                :data="durationPie.inner"
+                :outer="durationPie.outer"
                 label="处置时长分布"
                 unit="条"
                 :height="240"
-                rose
                 label-hidden
                 :show-table-toggle="false"
               />

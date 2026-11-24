@@ -378,11 +378,11 @@ export const openApiDocument = {
           durationBuckets: {
             type: "array",
             description:
-              "已清除消息的处置时长分档（<5 分钟 / 5–30 分钟 / 30 分钟–2 小时 / 2–8 小时 / >8 小时），每档按严重度计数",
+              "已清除消息的处置时长分档（< 5 m / 5 - 30 m / 30 m - 1 h / > 1 h），每档按严重度计数",
             items: {
               type: "object",
               properties: {
-                bucket: { type: "string", enum: ["lt5m", "5m-30m", "30m-2h", "2h-8h", "gt8h"] },
+                bucket: { type: "string", enum: ["lt5m", "5m-30m", "30m-1h", "gt1h"] },
                 bySeverity: {
                   type: "object",
                   properties: {

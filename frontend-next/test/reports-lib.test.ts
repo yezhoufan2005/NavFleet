@@ -13,7 +13,7 @@ import {
   deviceAvailabilityRows,
   dispositionTrend,
   durationHistogram,
-  durationSlices,
+  durationRings,
   messageTypeLabel,
   onlineRatioSeries,
   topMessageTypes,
@@ -568,27 +568,18 @@ describe("消息分析 builders", () => {
       messageTypeLabel({
         title: "提示报码",
         code: 1301,
-        detail: "正在充电",
-        severity: "notice",
-        count: 1,
       }),
     ).toBe("1301");
     expect(
       messageTypeLabel({
         title: "提示报码",
         code: 9,
-        detail: "",
-        severity: "notice",
-        count: 1,
       }),
     ).toBe("9");
     expect(
       messageTypeLabel({
         title: "低电量预警",
         code: null,
-        detail: "",
-        severity: "warning",
-        count: 1,
       }),
     ).toBe("低电量预警");
   });
@@ -620,45 +611,56 @@ describe("消息分析 builders", () => {
     expect(topMessageTypes(types, Infinity, palette)).toHaveLength(3);
   });
 
-  it("gives the rose pie one slice per duration bucket, its severities summed", () => {
+  it("rings duration inside and each bucket's severities outside, in step", () => {
     const buckets = emptyDurationBuckets();
-    buckets[0]!.bySeverity.notice = 4;
-    buckets[0]!.bySeverity.warning = 1;
-    buckets[4]!.bySeverity.critical = 1;
-    expect(
-      durationSlices(report({ durationBuckets: buckets }), palette).map((s) => [
-        s.label,
-        s.value,
-        s.color,
-      ]),
-    ).toEqual([
-      ["< 5 分钟", 5, "#s0"],
-      ["5–30 分钟", 0, "#s1"],
-      ["30 分钟–2 小时", 0, "#s2"],
-      ["2–8 小时", 0, "#s3"],
-      ["> 8 小时", 1, "#s4"],
+    buckets[0]!.bySeverity = { critical: 0, warning: 1, notice: 4 };
+    buckets[3]!.bySeverity = { critical: 2, warning: 0, notice: 0 };
+    const rings = durationRings(report({ durationBuckets: buckets }), {
+      ...palette,
+      heatmap: ["#h0", "#h1", "#h2", "#h3", "#h4"],
+    });
+    expect(rings.inner.map((s) => [s.label, s.value, s.color])).toEqual([
+      ["< 5 m", 5, "#h1"],
+      ["5 - 30 m", 0, "#h2"],
+      ["30 m - 1 h", 0, "#h3"],
+      ["> 1 h", 2, "#h4"],
     ]);
+    // Outer runs bucket by bucket, 告警→预警→提示, so each run sums to its inner slice.
+    const run = (group: string) =>
+      rings.outer
+        .filter((s) => s.group === group)
+        .map((s) => [s.label, s.value, s.color]);
+    expect(run("< 5 m")).toEqual([
+      ["告警", 0, "#crit"],
+      ["预警", 1, "#warn"],
+      ["提示", 4, "#note"],
+    ]);
+    expect(run("> 1 h")).toEqual([
+      ["告警", 2, "#crit"],
+      ["预警", 0, "#warn"],
+      ["提示", 0, "#note"],
+    ]);
+    expect(rings.outer).toHaveLength(12);
   });
 
   it("draws every duration bucket, stacked by severity", () => {
     const buckets = emptyDurationBuckets();
     buckets[0]!.bySeverity.notice = 4;
-    buckets[4]!.bySeverity.critical = 1;
+    buckets[3]!.bySeverity.critical = 1;
     const histogram = durationHistogram(
       report({ durationBuckets: buckets }),
       palette,
     );
     expect(histogram.categories).toEqual([
-      "< 5 分钟",
-      "5–30 分钟",
-      "30 分钟–2 小时",
-      "2–8 小时",
-      "> 8 小时",
+      "< 5 m",
+      "5 - 30 m",
+      "30 m - 1 h",
+      "> 1 h",
     ]);
     expect(histogram.series.map((s) => [s.name, s.data])).toEqual([
-      ["告警", [0, 0, 0, 0, 1]],
-      ["预警", [0, 0, 0, 0, 0]],
-      ["提示", [4, 0, 0, 0, 0]],
+      ["告警", [0, 0, 0, 1]],
+      ["预警", [0, 0, 0, 0]],
+      ["提示", [4, 0, 0, 0]],
     ]);
   });
 });
