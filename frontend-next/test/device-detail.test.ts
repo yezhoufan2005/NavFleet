@@ -224,10 +224,48 @@ describe("报码解读", () => {
     expect(articles[2]?.text()).toContain("提示");
   });
 
-  it("says there is nothing to explain for a healthy vehicle", async () => {
-    seed();
+  it("folds 报码解读 to a placeholder for a healthy vehicle, without a 'nothing here' sentence", async () => {
+    seed({
+      task: {
+        id: "t-1",
+        type: "搬运",
+        step: 1,
+        steps: 4,
+        step_name: "前往取货位",
+      },
+    });
     const wrapper = await mountDetail();
-    expect(wrapper.text()).toContain("当前没有活跃报码");
+    const codes = wrapper.get("section[aria-labelledby='codes-heading']");
+    expect(codes.text()).toBe("报码解读");
+    expect(wrapper.text()).not.toContain("当前没有活跃报码");
+    expect(wrapper.get("[data-testid='live-top-row']").classes()).toContain(
+      "top-row--open",
+    );
+  });
+
+  it("folds the whole top row away when there is neither a code nor a task", async () => {
+    seed({ task: null });
+    const wrapper = await mountDetail();
+    const row = wrapper.get("[data-testid='live-top-row']");
+    expect(row.classes()).not.toContain("top-row--open");
+    expect(row.attributes("aria-hidden")).toBe("true");
+  });
+
+  it("gives each card half the row when both have content", async () => {
+    seed({
+      error_code: code(5102),
+      task: {
+        id: "t-1",
+        type: "搬运",
+        step: 1,
+        steps: 4,
+        step_name: "前往取货位",
+      },
+    });
+    const wrapper = await mountDetail();
+    const cards = wrapper.get(".top-cards");
+    expect(cards.attributes("style")).toContain("--top-columns: 1fr 1fr");
+    expect(cards.findAll("[data-state='open']")).toHaveLength(2);
   });
 });
 
@@ -282,12 +320,15 @@ describe("遥测面板", () => {
     ).toHaveLength(0);
   });
 
-  it("says so when the vehicle reports no task", async () => {
-    seed({ task: null });
+  it("folds 当前任务 to a placeholder when the vehicle reports no task", async () => {
+    seed({ error_code: code(5102), task: null });
     const wrapper = await mountDetail();
-    expect(
-      wrapper.get("section[aria-labelledby='task-heading']").text(),
-    ).toContain("当前没有任务");
+    expect(wrapper.get("section[aria-labelledby='task-heading']").text()).toBe(
+      "当前任务",
+    );
+    expect(wrapper.get(".top-cards").attributes("style")).toContain(
+      "--top-columns: 1fr 3.25rem",
+    );
   });
 
   it("explains an enum code on hover, not just names it", async () => {

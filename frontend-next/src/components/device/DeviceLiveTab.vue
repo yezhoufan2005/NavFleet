@@ -20,7 +20,7 @@
  */
 import { computed, onMounted } from "vue";
 import { useFleetStore } from "@/stores/fleet";
-import { CODE_IMPACTS, formatSoc, type CodeChannel } from "@navfleet/shared";
+import { formatSoc } from "@navfleet/shared";
 import {
   controlModeMap,
   describeEnum,
@@ -33,15 +33,8 @@ import {
   taskStatusMap,
 } from "@navfleet/fleet-core";
 import { useCodebook } from "@/composables/useCodebook";
-import { CODE_CHANNEL_LABELS, SEVERITY_BADGE } from "@/lib/severity";
+import DeviceCodesCard from "@/components/device/DeviceCodesCard.vue";
 import DeviceTaskCard from "@/components/device/DeviceTaskCard.vue";
-
-/** A code's channel wears its severity tier's badge (error → 告警 …), as messages do everywhere. */
-const CHANNEL_BADGE: Record<CodeChannel, string> = {
-  error: SEVERITY_BADGE.critical,
-  warning: SEVERITY_BADGE.warning,
-  info: SEVERITY_BADGE.notice,
-};
 import { FIELD_HELP } from "@/lib/fieldHelp";
 import UiHelpTip from "@/components/ui/UiHelpTip.vue";
 
@@ -60,6 +53,25 @@ onMounted(() => {
 const codes = computed(() =>
   device.value ? codebook.describeDevice(device.value) : [],
 );
+
+/**
+ * The top row's shape. Both cards with content: half each. One with content: it takes the row and
+ * the other folds to a narrow placeholder (title only) that widens again when content arrives.
+ * Neither: the row folds up out of the way. The columns are animated (`grid-template-columns`
+ * and `grid-template-rows` both interpolate), so a code appearing slides its card open.
+ */
+const hasCodes = computed(() => codes.value.length > 0);
+const hasTask = computed(() => Boolean(device.value?.task));
+const topColumns = computed(() =>
+  hasCodes.value && hasTask.value
+    ? "1fr 1fr"
+    : hasCodes.value
+      ? "1fr 3.25rem"
+      : hasTask.value
+        ? "3.25rem 1fr"
+        : "1fr 1fr",
+);
+const topOpen = computed(() => hasCodes.value || hasTask.value);
 
 interface Row {
   label: string;
@@ -218,86 +230,40 @@ const panels = computed(() => [
 </script>
 
 <template>
-  <div class="flex flex-col gap-4">
-    <!-- The top row answers "what is wrong, and what is it doing": 报码解读 (two thirds — it is the
-         reason this page exists) beside 当前任务 (one third). One row on lg, stacked below; the
-         columns line up with the three-column panel grid underneath. -->
-    <div class="grid grid-cols-1 gap-4 lg:grid-cols-3">
-      <section
-        class="flex flex-col gap-3 rounded-md border border-border bg-surface-raised p-4 lg:col-span-2"
-        aria-labelledby="codes-heading"
-      >
-        <header class="flex items-center justify-between gap-3">
-          <h3 id="codes-heading" class="text-md font-semibold text-ink">
-            报码解读
-          </h3>
-          <span v-if="codes.length" class="text-2xs text-ink-subtle"
-            >{{ codes.length }} 条活跃</span
+  <div class="flex flex-col">
+    <!-- The top row answers "what is wrong, and what is it doing": 报码解读 beside 当前任务. See
+         `topColumns` for how it folds; under md the two stack and simply hide when empty. -->
+    <div
+      class="top-row grid"
+      :class="topOpen ? 'top-row--open' : ''"
+      :aria-hidden="topOpen ? undefined : 'true'"
+      data-testid="live-top-row"
+    >
+      <div class="min-h-0 overflow-hidden">
+        <div
+          class="top-cards grid grid-cols-1 gap-4 md:[grid-template-columns:var(--top-columns)]"
+          :style="{ '--top-columns': topColumns }"
+        >
+          <div
+            class="min-w-0"
+            :class="hasCodes ? '' : 'max-md:hidden'"
+            :data-state="hasCodes ? 'open' : 'folded'"
           >
-        </header>
-
-        <p v-if="!codes.length" class="m-0 text-sm text-ink-muted">
-          当前没有活跃报码
-        </p>
-
-        <!--
-          One card per active code: the identity row (tier badge, code, name; the capability impact
-          on the right), the meaning as the one primary sentence, the advice below it, and a faded
-          footer with when it fired and what the vehicle itself reported.
-        -->
-        <div v-else class="flex flex-col gap-2">
-          <article
-            v-for="row in codes"
-            :key="row.channel"
-            class="flex flex-col gap-1.5 rounded-sm border border-border bg-surface p-3"
+            <DeviceCodesCard :codes="codes" :collapsed="!hasCodes" />
+          </div>
+          <div
+            class="min-w-0"
+            :class="hasTask ? '' : 'max-md:hidden'"
+            :data-state="hasTask ? 'open' : 'folded'"
           >
-            <div class="flex flex-wrap items-center gap-x-2 gap-y-1">
-              <span
-                class="rounded-xs px-1.5 py-0.5 text-2xs font-medium whitespace-nowrap"
-                :class="CHANNEL_BADGE[row.channel]"
-                >{{ CODE_CHANNEL_LABELS[row.channel] }}</span
-              >
-              <span class="font-mono text-sm tabular-nums text-ink-muted">{{
-                row.described.code
-              }}</span>
-              <strong class="text-sm font-semibold text-ink">{{
-                row.described.label
-              }}</strong>
-              <span
-                class="ml-auto text-2xs whitespace-nowrap text-ink-muted"
-                :title="CODE_IMPACTS[row.described.impact].meaning"
-                >{{ CODE_IMPACTS[row.described.impact].label }}</span
-              >
-            </div>
-
-            <p class="m-0 text-sm text-ink">{{ row.described.description }}</p>
-            <p class="m-0 text-xs text-ink-muted">
-              <span class="text-ink-subtle">处理建议：</span
-              >{{ row.described.hint }}
-            </p>
-
-            <p
-              class="m-0 flex flex-wrap gap-x-3 gap-y-0.5 text-2xs text-ink-subtle"
-            >
-              <span v-if="row.described.stamp" class="font-mono">{{
-                formatStamp(row.described.stamp)
-              }}</span>
-              <span>{{ CODE_IMPACTS[row.described.impact].meaning }}</span>
-              <span v-if="row.described.reported && !row.described.unknown"
-                >车端上报：{{ row.described.reported }}</span
-              >
-            </p>
-            <p
-              v-if="row.described.unknown"
-              class="m-0 rounded-xs bg-warning-wash px-2 py-1 text-xs text-warning-ink"
-            >
-              该报码不在当前字典中 —— 显示的是车端原文，含义未经解释
-            </p>
-          </article>
+            <DeviceTaskCard
+              :task="device?.task"
+              :stamp="device?.stamp ?? ''"
+              :collapsed="!hasTask"
+            />
+          </div>
         </div>
-      </section>
-
-      <DeviceTaskCard :task="device?.task" :stamp="device?.stamp ?? ''" />
+      </div>
     </div>
 
     <!-- The six panels in a fixed 3-column grid: 状态 / 位姿 / 限速, then 场景 / 任务 / GPS. -->
@@ -343,3 +309,30 @@ const panels = computed(() => [
     </div>
   </div>
 </template>
+
+<style scoped>
+/*
+ * The folding top row. Rows 0fr → 1fr collapses it upward when neither card has content (the inner
+ * wrapper clips); the margin below goes with it so no empty gap is left. Columns interpolate on
+ * the inner grid, so a card widens open rather than popping. Both are plain block layout (no
+ * <table>), so the per-frame reflow is two cards — the reason the device list fell back to a fade
+ * does not apply. The global prefers-reduced-motion rule in base.css zeroes the durations.
+ */
+.top-row {
+  grid-template-rows: 0fr;
+  opacity: 0;
+  margin-bottom: 0;
+  transition:
+    grid-template-rows 240ms var(--ease-standard),
+    opacity 180ms var(--ease-standard),
+    margin-bottom 240ms var(--ease-standard);
+}
+.top-row--open {
+  grid-template-rows: 1fr;
+  opacity: 1;
+  margin-bottom: 1rem;
+}
+.top-cards {
+  transition: grid-template-columns 240ms var(--ease-standard);
+}
+</style>

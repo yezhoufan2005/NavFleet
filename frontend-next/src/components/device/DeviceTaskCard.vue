@@ -13,10 +13,16 @@ import UiHelpTip from "@/components/ui/UiHelpTip.vue";
 import { FIELD_HELP } from "@/lib/fieldHelp";
 import { formatDurationMs } from "@/lib/alertStats";
 
-const { task, stamp } = defineProps<{
+const {
+  task,
+  stamp,
+  collapsed = false,
+} = defineProps<{
   task: DeviceTask | null | undefined;
   /** The device's latest frame time — 已进行 is measured to it, not to the viewer's clock. */
   stamp: string;
+  /** Narrow placeholder: only the title, vertical (see `DeviceCodesCard`). */
+  collapsed?: boolean;
 }>();
 
 const segments = computed(() =>
@@ -55,26 +61,28 @@ const elapsed = computed(() => {
 
 <template>
   <section
-    class="flex flex-col gap-3 rounded-md border border-border bg-surface-raised p-4"
+    class="flex h-full min-w-0 flex-col gap-3 rounded-md border border-border bg-surface-raised p-4"
     aria-labelledby="task-heading"
   >
-    <header class="flex items-center justify-between gap-3">
+    <header
+      class="flex items-center justify-between gap-3"
+      :class="collapsed ? 'flex-col' : ''"
+    >
       <h3
         id="task-heading"
-        class="flex items-center gap-1 text-md font-semibold text-ink"
+        class="flex items-center gap-1 text-md font-semibold whitespace-nowrap text-ink"
+        :class="collapsed ? 'text-ink-subtle [writing-mode:vertical-rl]' : ''"
       >
-        当前任务<UiHelpTip :text="FIELD_HELP.device.task" />
+        当前任务<UiHelpTip v-if="!collapsed" :text="FIELD_HELP.device.task" />
       </h3>
       <span
-        v-if="task?.type"
+        v-if="!collapsed && task?.type"
         class="rounded-xs border border-border bg-surface-sunken px-1.5 py-0.5 text-2xs whitespace-nowrap text-ink-muted"
         >{{ task.type }}</span
       >
     </header>
 
-    <p v-if="!task" class="m-0 text-sm text-ink-muted">当前没有任务</p>
-
-    <template v-else>
+    <template v-if="!collapsed && task">
       <p class="m-0 font-mono text-2xs break-all text-ink-subtle">
         {{ task.id }}
       </p>
