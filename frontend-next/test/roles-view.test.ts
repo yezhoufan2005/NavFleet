@@ -50,6 +50,8 @@ beforeEach(() => {
     capabilities: [...CAPABILITIES],
   });
   vi.spyOn(fleetApi, "getRbacRoles").mockResolvedValue({ roles: [role()] });
+  vi.spyOn(fleetApi, "getRbacGroups").mockResolvedValue({ groups: [] });
+  vi.spyOn(fleetApi, "getUsers").mockResolvedValue({ users: [] });
 });
 
 afterEach(() => {
@@ -183,5 +185,43 @@ describe("RolesView — hierarchy", () => {
       row!.findAll("button").map((b) => b.attributes("disabled") !== undefined);
     expect(disabled(ackers)).toEqual([false, false]);
     expect(disabled(auditors)).toEqual([true, true]);
+  });
+});
+
+describe("RolesView — hierarchy through groups", () => {
+  it("locks a role a group hands to someone the caller cannot manage", async () => {
+    Object.assign(useAuth().state, {
+      user: { username: "ops", role: "operator" },
+      capabilities: ["alerts:ack", "users:manage"],
+    });
+    vi.spyOn(fleetApi, "getRbacRoles").mockResolvedValue({
+      roles: [
+        role({ id: "m", name: "Managers", capabilities: ["users:manage"] }),
+      ],
+    });
+    vi.spyOn(fleetApi, "getRbacGroups").mockResolvedValue({
+      groups: [
+        {
+          id: "g",
+          name: "Delegated",
+          description: "",
+          roleIds: ["m"],
+          memberUsernames: ["ops"],
+          createdAt: "2026-11-01T00:00:00.000Z",
+          updatedAt: "2026-11-01T00:00:00.000Z",
+        },
+      ],
+    });
+    vi.spyOn(fleetApi, "getUsers").mockResolvedValue({
+      users: [{ username: "ops", manageable: false } as never],
+    });
+    const wrapper = await mountView();
+    const row = wrapper.get("tbody tr");
+    expect(
+      row
+        .findAll("button")
+        .every((b) => b.attributes("disabled") !== undefined),
+    ).toBe(true);
+    expect(row.find("[title]").attributes("title")).toContain("高于你");
   });
 });

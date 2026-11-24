@@ -21,6 +21,7 @@ import {
   CAPABILITIES,
   canGrantCapabilities,
   type Capability,
+  type RbacGroup,
   type RbacRole,
 } from "@navfleet/shared";
 import PageHeader from "@/components/PageHeader.vue";
@@ -53,8 +54,8 @@ const capabilityText = (capabilities: readonly Capability[]): string =>
 /**
  * The hierarchy rule (enforced by the backend): a non-admin may only grant permissions it holds, so
  * the rest are greyed out in the picker and a role carrying any of them cannot be edited or deleted.
- * The backend also refuses a role used by a group with members above the caller; that case comes
- * back as `rank_forbidden`.
+ * A role a group hands to someone the caller cannot manage (itself included) is locked too —
+ * editing it would raise or strip that person — so the page also reads the groups and users.
  */
 const { state: authState } = useAuth();
 const actor = computed(() => ({
@@ -63,19 +64,44 @@ const actor = computed(() => ({
 }));
 const canGrant = (capability: Capability): boolean =>
   canGrantCapabilities(actor.value, [capability]);
+const holdsAll = (role: RbacRole): boolean =>
+  canGrantCapabilities(actor.value, role.capabilities);
+/** Members of groups that use this role whom the caller may not manage. */
+const usedAbove = (role: RbacRole): boolean =>
+  groups.value
+    .filter((group) => group.roleIds.includes(role.id))
+    .flatMap((group) => group.memberUsernames)
+    .some((username) => unmanageable.value.has(username));
 const isRoleLocked = (role: RbacRole): boolean =>
-  !canGrantCapabilities(actor.value, role.capabilities);
-const LOCK_REASON = "含有你没有的权限，无法修改";
+  !holdsAll(role) || usedAbove(role);
+const lockReason = (role: RbacRole): string | undefined =>
+  !holdsAll(role)
+    ? "含有你没有的权限，无法修改"
+    : usedAbove(role)
+      ? "该角色经用户组授给了你或高于你的用户，无法修改"
+      : undefined;
 
 // ── Data ───────────────────────────────────────────────────────────────────────
 const roles = ref<RbacRole[]>([]);
+const groups = ref<RbacGroup[]>([]);
+const unmanageable = ref<Set<string>>(new Set());
 const status = ref<"loading" | "ready" | "error">("loading");
 
 const load = async (): Promise<void> => {
   status.value = "loading";
   try {
-    const result = await fleetApi.getRbacRoles();
+    const [result, groupResult, userResult] = await Promise.all([
+      fleetApi.getRbacRoles(),
+      fleetApi.getRbacGroups(),
+      fleetApi.getUsers(),
+    ]);
     roles.value = result.roles;
+    groups.value = groupResult.groups;
+    unmanageable.value = new Set(
+      userResult.users
+        .filter((user) => user.manageable === false)
+        .map((user) => user.username),
+    );
     status.value = "ready";
   } catch {
     status.value = "error";
@@ -226,10 +252,7 @@ const formDirty = formSnapshot.dirty;
                 {{ capabilityText(role.capabilities) }}
               </td>
               <td class="px-3 py-2">
-                <span
-                  class="flex justify-end gap-2"
-                  :title="isRoleLocked(role) ? LOCK_REASON : undefined"
-                >
+                <span class="flex justify-end gap-2" :title="lockReason(role)">
                   <UiButton
                     variant="ghost"
                     size="sm"
