@@ -8,6 +8,8 @@
  */
 import { computed } from "vue";
 import { formatStamp } from "@navfleet/fleet-core";
+import { textClasses } from "@/lib/uiClasses";
+import { vOverflowTitle } from "@/directives/overflowTitle";
 import { parseTimestampMs, type DeviceTask } from "@navfleet/shared";
 import UiHelpTip from "@/components/ui/UiHelpTip.vue";
 import { FIELD_HELP } from "@/lib/fieldHelp";
@@ -90,7 +92,7 @@ const elapsed = computed(() => {
     </header>
 
     <template v-if="!collapsed && task">
-      <p class="m-0 font-mono text-2xs break-all text-ink-subtle">
+      <p class="m-0 text-2xs text-ink-subtle" :class="textClasses.id">
         {{ task.id }}
       </p>
 
@@ -126,7 +128,11 @@ const elapsed = computed(() => {
           <dt class="w-14 shrink-0 text-2xs text-ink-subtle">
             {{ field.label }}
           </dt>
-          <dd class="m-0 truncate text-ink tabular-nums" :title="field.value">
+          <dd
+            v-overflow-title
+            class="m-0 text-ink tabular-nums"
+            :class="textClasses.field"
+          >
             {{ field.value }}
           </dd>
         </div>
@@ -142,7 +148,11 @@ const elapsed = computed(() => {
           <dt class="w-14 shrink-0 text-2xs text-ink-subtle">
             {{ field.label }}
           </dt>
-          <dd class="m-0 truncate text-ink tabular-nums" :title="field.value">
+          <dd
+            v-overflow-title
+            class="m-0 text-ink tabular-nums"
+            :class="textClasses.field"
+          >
             {{ field.value }}
           </dd>
         </div>

@@ -51,3 +51,38 @@ export const tableClasses = {
    */
   row: "border-b border-border last:border-0 transition-colors duration-150 ease-standard hover:bg-surface-hover",
 } as const;
+
+/**
+ * The text-overflow standard: what a line of text does when it is longer than its box.
+ *
+ * The aim is layout, not truncation for its own sake — the box keeps the size the layout gave it,
+ * and the content inside reads normally. Three rules:
+ *
+ * 1. **Layout sizes the box; content never widens it.** Widths come from the grid / the column
+ *    standard above. Long text wraps or ends in … inside its box.
+ * 2. **The kind of text decides how.** Text you *read* (说明、建议、提示) wraps in full. Text you
+ *    *scan* (名称、字段、单元格) stays on one line (two for a card title) and ends in …. An
+ *    *identifier* (编号、ID、路径) must stay whole-readable: it breaks anywhere in a card, ends in …
+ *    in a table.
+ * 3. **Fixed pieces do not give way.** Badges, tags, buttons, timestamps and numbers keep their
+ *    size (`fixed`); only the flexible piece — the name, the body — absorbs the squeeze. In a row,
+ *    put the flexible piece on a `minmax(0,1fr)` grid track or give it `min-w-0` (a flex child
+ *    otherwise refuses to shrink below its content, and `truncate` never bites).
+ *
+ * Anything that ends in … also carries `v-overflow-title` (`directives/overflowTitle.ts`), which
+ * shows the full text on hover only while it is actually cut. The 报码解读 card is the reference.
+ */
+export const textClasses = {
+  /** Read text: wraps in full; a run with no break point (long Latin token, path) still splits. */
+  body: "wrap-break-word",
+  /** A name or title inside a card or dialog: two lines, then …. */
+  title: "min-w-0 line-clamp-2 wrap-break-word",
+  /** A field value, metadata line or list label: one line, then …. */
+  field: "min-w-0 truncate",
+  /** A table cell (the `<td>` itself): one line, then …. */
+  cell: "truncate",
+  /** An identifier shown in full where there is room (a card): breaks anywhere. */
+  id: "min-w-0 font-mono break-all",
+  /** Badges, tags, timestamps, numbers, buttons: never wrap, never shrink. */
+  fixed: "shrink-0 whitespace-nowrap",
+} as const;
