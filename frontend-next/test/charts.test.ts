@@ -828,44 +828,25 @@ describe("TopNSelect", () => {
 });
 
 describe("buildPieOption", () => {
-  it("adds an outer ring that breaks the inner slices down, legend naming the outer ring", () => {
-    const option = buildPieOption({
-      data: [
-        { label: "< 5 m", value: 5 },
-        { label: "> 1 h", value: 0 },
-      ],
-      outer: [
-        { label: "预警", value: 3, group: "< 5 m" },
-        { label: "提示", value: 2, group: "< 5 m" },
-        { label: "告警", value: 0, group: "> 1 h" },
-      ],
-      palette,
-    });
-    const [inner, outer] = option.series as {
-      radius: string[];
-      data: { name: string; group?: string }[];
-      label: { position?: string; show?: boolean };
-    }[];
-    expect(inner!.radius[0]).toBe("0%");
-    expect(inner!.label.position).toBe("inner");
-    expect(inner!.data.map((d) => d.name)).toEqual(["< 5 m"]);
-    expect(outer!.data).toEqual([
-      { name: "预警", value: 3, group: "< 5 m" },
-      { name: "提示", value: 2, group: "< 5 m" },
-    ]);
-    expect((option.legend as { data: string[] }).data).toEqual([
-      "预警",
-      "提示",
-    ]);
-    const tip = (
-      option.tooltip as { formatter: (p: unknown) => string }
-    ).formatter({
-      name: "预警",
-      value: 3,
-      percent: 60,
-      data: { group: "< 5 m" },
-    });
-    expect(tip).toBe("< 5 m · 预警: 3 (60%)");
+  it("draws a Nightingale rose when asked, the plain donut otherwise", () => {
+    const data = [
+      { label: "< 5 m", value: 8 },
+      { label: "> 1 h", value: 1 },
+    ];
+    const rose = (
+      buildPieOption({ data, palette, rose: true }).series as {
+        roseType?: string;
+      }[]
+    )[0]!;
+    const donut = (
+      buildPieOption({ data, palette }).series as {
+        roseType?: string;
+        radius: string[];
+      }[]
+    )[0]!;
+    expect(rose.roseType).toBe("radius");
+    expect(donut.roseType).toBeUndefined();
+    expect(donut.radius).toEqual(["45%", "70%"]);
   });
 
   it("drops zero-value slices so an absent severity leaves no sliver", () => {

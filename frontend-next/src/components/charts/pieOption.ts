@@ -21,11 +21,6 @@ echarts.use([PieChart, LegendComponent, TooltipComponent, CanvasRenderer]);
 
 export { echarts };
 
-/** An outer-ring slice: which inner slice it belongs to (`group`) rides along for the tooltip. */
-export interface RingDatum extends CategoryDatum {
-  group: string;
-}
-
 export interface PieOptionInput {
   /** Slices: label, value, and a per-slice colour (severity wears its status token). */
   data: readonly CategoryDatum[];
@@ -34,12 +29,10 @@ export interface PieOptionInput {
   unit?: string;
   animate?: boolean;
   /**
-   * A second, outer ring that breaks each inner slice down (e.g. 时长 inside, 严重度 outside).
-   * Its slices must come in the inner slices' order, each run summing to its inner slice, so the
-   * two rings' angles line up. With it, the inner ring is a pie labelled in place and the legend
-   * names the outer ring.
+   * A Nightingale rose: each slice's radius, not just its angle, grows with its value, so ordered
+   * buckets (时长分档) read as a profile. Off = the plain donut.
    */
-  outer?: readonly RingDatum[];
+  rose?: boolean;
 }
 
 /**
@@ -55,92 +48,26 @@ export const buildPieOption = ({
   palette,
   unit,
   animate = true,
-  outer,
+  rose = false,
 }: PieOptionInput): EChartsOption => {
   const slices = data.filter((datum) => datum.value > 0);
-  const percentOf = (params: unknown) => {
-    const point = params as {
-      name: string;
-      value: number;
-      percent: number;
-      data?: { group?: string };
-    };
-    const name = point.data?.group
-      ? `${point.data.group} · ${point.name}`
-      : point.name;
-    return `${name}: ${point.value}${unit ?? ""} (${point.percent}%)`;
-  };
-  const tooltip = {
-    trigger: "item" as const,
-    backgroundColor: palette.surface,
-    borderColor: palette.tooltipBorder,
-    textStyle: { color: palette.ink, fontSize: 12 },
-    formatter: percentOf,
-  };
-  const ring = {
-    borderColor: palette.surface,
-    borderWidth: 2,
-    borderRadius: 4,
-  };
-  const toData = (datum: CategoryDatum & { group?: string }) => ({
-    name: datum.label,
-    value: datum.value,
-    ...(datum.group ? { group: datum.group } : {}),
-    ...(datum.color ? { itemStyle: { color: datum.color } } : {}),
-  });
-  if (outer) {
-    const outerSlices = outer.filter((datum) => datum.value > 0);
-    return {
-      animation: animate,
-      backgroundColor: "transparent",
-      tooltip,
-      // The outer ring is the one that needs naming; the inner ring labels itself in place.
-      legend: {
-        type: "scroll",
-        bottom: 0,
-        icon: "roundRect",
-        itemWidth: 10,
-        itemHeight: 10,
-        textStyle: { color: palette.inkMuted, fontSize: 12 },
-        pageTextStyle: { color: palette.inkMuted },
-        data: [...new Set(outerSlices.map((datum) => datum.label))],
-      },
-      series: [
-        {
-          type: "pie",
-          radius: ["0%", "36%"],
-          center: ["50%", "44%"],
-          itemStyle: ring,
-          // Labelled inside; a surface-coloured halo keeps the text legible on any fill.
-          label: {
-            position: "inner",
-            color: palette.ink,
-            fontSize: 10,
-            textBorderColor: palette.surface,
-            textBorderWidth: 2,
-            formatter: (params) => (params as { name: string }).name,
-          },
-          emphasis: { focus: "self" },
-          data: slices.map(toData),
-        },
-        {
-          type: "pie",
-          radius: ["44%", "66%"],
-          center: ["50%", "44%"],
-          itemStyle: ring,
-          // Thin slices: identity is the legend, the number (with its inner slice) the tooltip.
-          label: { show: false },
-          labelLine: { show: false },
-          emphasis: { focus: "self" },
-          data: outerSlices.map(toData),
-        },
-      ],
-    };
-  }
   return {
     animation: animate,
     backgroundColor: "transparent",
-    tooltip,
+    tooltip: {
+      trigger: "item",
+      backgroundColor: palette.surface,
+      borderColor: palette.tooltipBorder,
+      textStyle: { color: palette.ink, fontSize: 12 },
+      formatter: (params) => {
+        const point = params as {
+          name: string;
+          value: number;
+          percent: number;
+        };
+        return `${point.name}: ${point.value}${unit ?? ""} (${point.percent}%)`;
+      },
+    },
     legend: {
       bottom: 0,
       icon: "roundRect",
@@ -153,7 +80,8 @@ export const buildPieOption = ({
         type: "pie",
         // A donut, not a full disc: the hole makes slice-angle comparison a touch easier and
         // leaves the centre clear. Lifted above the bottom legend.
-        radius: ["45%", "70%"],
+        radius: rose ? ["18%", "72%"] : ["45%", "70%"],
+        ...(rose ? { roseType: "radius" as const } : {}),
         center: ["50%", "44%"],
         avoidLabelOverlap: true,
         // 2px surface ring between slices (the method's fill spacer); 4px rounded like the bars.
