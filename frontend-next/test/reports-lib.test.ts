@@ -13,6 +13,7 @@ import {
   deviceAvailabilityRows,
   dispositionTrend,
   durationHistogram,
+  durationSlices,
   messageTypeLabel,
   onlineRatioSeries,
   topMessageTypes,
@@ -562,7 +563,7 @@ describe("消息分析 builders", () => {
     ]);
   });
 
-  it("names a report-code type by its meaning and code, a rule type by its title", () => {
+  it("names a report-code type by its code alone, a rule type by its title", () => {
     expect(
       messageTypeLabel({
         title: "提示报码",
@@ -571,7 +572,7 @@ describe("消息分析 builders", () => {
         severity: "notice",
         count: 1,
       }),
-    ).toBe("正在充电 #1301");
+    ).toBe("1301");
     expect(
       messageTypeLabel({
         title: "提示报码",
@@ -580,7 +581,7 @@ describe("消息分析 builders", () => {
         severity: "notice",
         count: 1,
       }),
-    ).toBe("提示报码 #9");
+    ).toBe("9");
     expect(
       messageTypeLabel({
         title: "低电量预警",
@@ -617,6 +618,26 @@ describe("消息分析 builders", () => {
       { label: "低电量预警", value: 3, color: "#warn" },
     ]);
     expect(topMessageTypes(types, Infinity, palette)).toHaveLength(3);
+  });
+
+  it("gives the rose pie one slice per duration bucket, its severities summed", () => {
+    const buckets = emptyDurationBuckets();
+    buckets[0]!.bySeverity.notice = 4;
+    buckets[0]!.bySeverity.warning = 1;
+    buckets[4]!.bySeverity.critical = 1;
+    expect(
+      durationSlices(report({ durationBuckets: buckets }), palette).map((s) => [
+        s.label,
+        s.value,
+        s.color,
+      ]),
+    ).toEqual([
+      ["< 5 分钟", 5, "#s0"],
+      ["5–30 分钟", 0, "#s1"],
+      ["30 分钟–2 小时", 0, "#s2"],
+      ["2–8 小时", 0, "#s3"],
+      ["> 8 小时", 1, "#s4"],
+    ]);
   });
 
   it("draws every duration bucket, stacked by severity", () => {

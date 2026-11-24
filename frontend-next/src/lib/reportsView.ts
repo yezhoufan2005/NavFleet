@@ -457,13 +457,11 @@ export const dispositionTrend = (
 };
 
 /**
- * 一类消息的显示名。报码消息的标题是通用的（「提示报码」），说明不了是哪类，所以用报码含义 + 码号；
- * 规则消息的标题本身就是类型（「低电量预警」）。
+ * 一类消息的显示名：报码消息就是码号（如「1501」），规则消息是标题（如「低电量预警」）。
+ * 报码含义不进轴标签——码号短、对齐整齐，含义在 消息史 / 报码字典 里查。
  */
 export const messageTypeLabel = (type: ReportMessageType): string =>
-  type.code === null
-    ? type.title
-    : `${type.detail || type.title} #${type.code}`;
+  type.code === null ? type.title : String(type.code);
 
 /** 高频消息类型的前 `n` 类（`Infinity` = 全部），柱色取该类最重的严重度。 */
 export const topMessageTypes = (
@@ -493,3 +491,19 @@ export const durationHistogram = (
     ),
   })),
 });
+
+/** 处置时长分布的玫瑰饼：每档一片（各严重度合计），按档位顺序取图表色槽，从不循环。 */
+export const durationSlices = (
+  report: AlertStatsReport,
+  palette: ChartPalette,
+): { label: string; value: number; color: string }[] =>
+  DURATION_BUCKETS.map((bucket, index) => {
+    const counts = report.durationBuckets.find(
+      (entry) => entry.bucket === bucket.key,
+    )?.bySeverity;
+    return {
+      label: bucket.label,
+      value: counts ? counts.critical + counts.warning + counts.notice : 0,
+      color: palette.series[index] ?? palette.axis,
+    };
+  });

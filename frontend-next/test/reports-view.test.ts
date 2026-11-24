@@ -32,6 +32,11 @@ const barStub = {
     '<div class="bar-stub" :data-label="label" :data-count="data.length" />',
 };
 
+const pieStub = {
+  props: { data: Array, label: String, rose: Boolean },
+  template:
+    '<div class="pie-stub" :data-label="label" :data-rose="String(rose)" :data-count="data.length" />',
+};
 const stackStub = {
   props: ["categories", "series", "label"],
   template:
@@ -41,7 +46,11 @@ const stackStub = {
 const alertChartLabels = (wrapper: {
   findAll: (s: string) => { attributes: (n: string) => string | undefined }[];
 }) =>
-  [...wrapper.findAll(".bar-stub"), ...wrapper.findAll(".stack-stub")]
+  [
+    ...wrapper.findAll(".bar-stub"),
+    ...wrapper.findAll(".stack-stub"),
+    ...wrapper.findAll(".pie-stub"),
+  ]
     .map((node) => node.attributes("data-label"))
     .filter((label) => label !== undefined);
 
@@ -143,6 +152,7 @@ const mountView = async (query = "") => {
         TimeSeriesChart: lineStub,
         CategoryBarChart: barStub,
         StackedBarChart: stackStub,
+        PieChart: pieStub,
       },
     },
   });
@@ -280,7 +290,24 @@ describe("报表 状态与内容", () => {
     );
   });
 
-  it("names a report-code type by its meaning and code, a rule type by its title", async () => {
+  it("opens 处置时长分布 on the rose pie and toggles to the bar", async () => {
+    const wrapper = await mountView();
+    const pie = wrapper.get('.pie-stub[data-label="处置时长分布"]');
+    expect(pie.attributes("data-rose")).toBe("true");
+    expect(pie.attributes("data-count")).toBe("5");
+    await wrapper
+      .findAll("button")
+      .find((button) => button.text() === "柱状图")!
+      .trigger("click");
+    expect(wrapper.find('.pie-stub[data-label="处置时长分布"]').exists()).toBe(
+      false,
+    );
+    expect(
+      wrapper.find('.stack-stub[data-label="处置时长分布"]').exists(),
+    ).toBe(true);
+  });
+
+  it("lists the message types it was given", async () => {
     const wrapper = await mountView();
     const types = wrapper.get('.bar-stub[data-label="高频消息类型"]');
     expect(types.attributes("data-count")).toBe("2");

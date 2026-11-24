@@ -522,9 +522,8 @@ const onScrub = (event: Event): void => {
           <strong class="text-md text-ink">缺少场景地图定义</strong>
           <span class="max-w-prose text-sm text-ink-muted">
             这段历史属于场景
-            <code class="font-mono">{{
-              activeSceneId || "（未标注）"
-            }}</code>，但车队配置里没有它的地图；补齐场景配置后即可回放
+            <code class="font-mono">{{ activeSceneId || "（未标注）" }}</code
+            >，但车队配置里没有它的地图；补齐场景配置后即可回放
           </span>
         </div>
       </div>

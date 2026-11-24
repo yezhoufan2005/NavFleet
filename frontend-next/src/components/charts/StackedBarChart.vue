@@ -28,6 +28,9 @@ const {
   scroll = false,
   orientation = "horizontal",
   categoryLabel = "设备",
+  categoryWidth = 7,
+  labelHidden = false,
+  showTableToggle = true,
 } = defineProps<{
   categories: readonly string[];
   series: readonly StackedSeries[];
@@ -41,6 +44,12 @@ const {
   orientation?: "horizontal" | "vertical";
   /** The data table's first-column header — what a category is (设备 / 日期 / 时长). */
   categoryLabel?: string;
+  /** The data table's first-column base width in rem: 7 fits a device name, 4 a MM-DD date. */
+  categoryWidth?: number;
+  /** Keep `label` as the accessible name but drop the visible caption (a parent shows the heading). */
+  labelHidden?: boolean;
+  /** Show the built-in 图表/数据表 toggle. False when a parent owns the view toggle. */
+  showTableToggle?: boolean;
 }>();
 
 const { palette, animate } = useChartTheme();
@@ -71,6 +80,23 @@ const option = computed(() =>
     animate: animate.value,
     orientation,
   }),
+);
+
+/**
+ * Each numeric column's width (rem), from its own header: a 2xs CJK glyph is 11px (≤ 0.75rem) and
+ * `px-2` adds 1rem, floored at 2.5rem for up to four digits. A fixed 2.5rem split 自动恢复 and
+ * 已认领 over two lines; sizing per column (not to the longest) keeps the table inside a
+ * one-third card.
+ */
+const widthFor = (name: string): number =>
+  Math.max(2.5, name.length * 0.75 + 1);
+const seriesWidths = computed(() =>
+  series.map((entry) => widthFor(entry.name)),
+);
+const TOTAL_WIDTH = widthFor("合计");
+const tableMinWidth = computed(
+  () =>
+    `${categoryWidth + seriesWidths.value.reduce((sum, width) => sum + width, 0) + TOTAL_WIDTH}rem`,
 );
 
 /** Per-category row totals, for the data table's trailing column. */
@@ -110,13 +136,18 @@ onBeforeUnmount(disposeChart);
 
 <template>
   <figure class="m-0 flex flex-col gap-2">
-    <figcaption class="flex items-center justify-between gap-3">
-      <div class="flex items-center gap-2">
+    <figcaption
+      v-if="!labelHidden || showTableToggle"
+      class="flex items-center justify-between gap-3"
+    >
+      <div v-if="!labelHidden" class="flex items-center gap-2">
         <span class="text-sm font-medium text-ink">{{ label }}</span>
         <!-- Header controls the parent injects (e.g. a Top-N selector), right of the title. -->
         <slot name="actions" />
       </div>
+      <span v-else aria-hidden="true" />
       <UiButton
+        v-if="showTableToggle"
         variant="ghost"
         size="sm"
         :aria-pressed="showTable"
@@ -147,12 +178,16 @@ onBeforeUnmount(disposeChart);
       v-else
       :label="label"
       :height="height"
-      :min-width="`${7 + (series.length + 1) * 2.5}rem`"
+      :min-width="tableMinWidth"
     >
       <template #colgroup>
-        <col class="w-28" />
-        <col v-for="s in series" :key="s.name" class="w-10" />
-        <col class="w-10" />
+        <col :style="{ width: `${categoryWidth}rem` }" />
+        <col
+          v-for="(s, index) in series"
+          :key="s.name"
+          :style="{ width: `${seriesWidths[index]}rem` }"
+        />
+        <col :style="{ width: `${TOTAL_WIDTH}rem` }" />
       </template>
       <template #head>
         <tr>
@@ -163,11 +198,16 @@ onBeforeUnmount(disposeChart);
             v-for="s in series"
             :key="s.name"
             scope="col"
-            class="px-2 py-2 text-right font-medium"
+            class="px-2 py-2 text-right font-medium whitespace-nowrap"
           >
             {{ s.name }}
           </th>
-          <th scope="col" class="px-2 py-2 text-right font-medium">合计</th>
+          <th
+            scope="col"
+            class="px-2 py-2 text-right font-medium whitespace-nowrap"
+          >
+            合计
+          </th>
         </tr>
       </template>
       <tr

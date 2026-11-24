@@ -828,6 +828,27 @@ describe("TopNSelect", () => {
 });
 
 describe("buildPieOption", () => {
+  it("draws a Nightingale rose when asked, the plain donut otherwise", () => {
+    const data = [
+      { label: "< 5 分钟", value: 8 },
+      { label: "> 8 小时", value: 1 },
+    ];
+    const rose = (
+      buildPieOption({ data, palette, rose: true }).series as {
+        roseType?: string;
+      }[]
+    )[0]!;
+    const donut = (
+      buildPieOption({ data, palette }).series as {
+        roseType?: string;
+        radius: string[];
+      }[]
+    )[0]!;
+    expect(rose.roseType).toBe("radius");
+    expect(donut.roseType).toBeUndefined();
+    expect(donut.radius).toEqual(["45%", "70%"]);
+  });
+
   it("drops zero-value slices so an absent severity leaves no sliver", () => {
     const option = buildPieOption({
       data: [
