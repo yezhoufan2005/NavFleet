@@ -20,7 +20,7 @@
  */
 import { computed, onMounted } from "vue";
 import { useFleetStore } from "@/stores/fleet";
-import { CODE_IMPACTS, formatSoc } from "@navfleet/shared";
+import { formatSoc } from "@navfleet/shared";
 import {
   controlModeMap,
   describeEnum,
@@ -33,7 +33,8 @@ import {
   taskStatusMap,
 } from "@navfleet/fleet-core";
 import { useCodebook } from "@/composables/useCodebook";
-import { CODE_CHANNEL_LABELS } from "@/lib/severity";
+import DeviceCodesCard from "@/components/device/DeviceCodesCard.vue";
+import DeviceTaskCard from "@/components/device/DeviceTaskCard.vue";
 import { FIELD_HELP } from "@/lib/fieldHelp";
 import UiHelpTip from "@/components/ui/UiHelpTip.vue";
 
@@ -52,6 +53,24 @@ onMounted(() => {
 const codes = computed(() =>
   device.value ? codebook.describeDevice(device.value) : [],
 );
+
+/**
+ * The top row's shape. Both cards with content: half each. One with content: it takes the row and
+ * the other folds to a narrow strip (title set vertically) that widens again when content arrives.
+ * Neither: two short title-only placeholders, half each. Column widths and card heights are
+ * animated (see the scoped styles), so a code appearing slides its card open.
+ */
+const hasCodes = computed(() => codes.value.length > 0);
+const hasTask = computed(() => Boolean(device.value?.task));
+const topColumns = computed(() =>
+  hasCodes.value === hasTask.value
+    ? "1fr 1fr"
+    : hasCodes.value
+      ? "1fr 3.25rem"
+      : "3.25rem 1fr",
+);
+/** A placeholder beside an open card is a vertical strip; with both empty, both lie flat. */
+const foldVertical = computed(() => hasCodes.value !== hasTask.value);
 
 interface Row {
   label: string;
@@ -121,6 +140,7 @@ const vehicleRows = computed<Row[]>(() => {
   ];
 });
 
+/** The two task status enums; what the task *is* lives in the 当前任务 card at the top. */
 const taskRows = computed<Row[]>(() => [
   {
     label: "车端任务",
@@ -203,84 +223,37 @@ const panels = computed(() => [
   { key: "pose", title: "位姿", rows: poseRows.value },
   { key: "limit", title: "限速", rows: speedLimitRows.value },
   { key: "scene", title: "场景", rows: sceneRows.value },
-  { key: "task", title: "任务", rows: taskRows.value },
+  { key: "task", title: "任务状态", rows: taskRows.value },
   { key: "gps", title: "GPS", rows: gpsRows.value },
 ]);
 </script>
 
 <template>
-  <div class="flex flex-col gap-3">
-    <!-- 报码解读 first: it is the reason this page exists. -->
-    <section
-      class="flex flex-col gap-2 rounded-md border border-border bg-surface-raised p-4"
-      aria-labelledby="codes-heading"
+  <div class="flex flex-col">
+    <!-- The top row answers "what is wrong, and what is it doing": 报码解读 beside 当前任务. See
+         `topColumns` for how it folds; under md the two stack. -->
+    <div
+      class="top-cards mb-4 grid grid-cols-1 gap-4 md:[grid-template-columns:var(--top-columns)]"
+      :style="{ '--top-columns': topColumns }"
+      data-testid="live-top-row"
     >
-      <h3 id="codes-heading" class="text-md font-semibold text-ink">
-        报码解读
-      </h3>
-
-      <p v-if="!codes.length" class="text-sm text-ink-muted">
-        当前没有活跃报码
-      </p>
-
-      <!--
-        One compact card per active code. The top row carries identity — 档位 / 代码 /
-        名称 on the left, the capability impact on the right — then a de-emphasised line
-        (when it fired + what it means), the explanation as the one primary sentence, and
-        the advice / 车端上报 faded below. Tightened from the earlier roomy card so several
-        codes stack legibly rather than each filling a screen.
-      -->
-      <article
-        v-for="row in codes"
-        :key="row.channel"
-        class="flex flex-col gap-1 rounded-sm border border-border bg-surface p-2.5"
-      >
-        <header class="flex flex-wrap items-baseline gap-x-2 gap-y-0.5">
-          <span class="font-mono text-2xs text-ink-subtle">{{
-            CODE_CHANNEL_LABELS[row.channel]
-          }}</span>
-          <span class="font-mono text-sm tabular-nums text-ink">{{
-            row.described.code
-          }}</span>
-          <strong class="text-sm font-semibold text-ink">{{
-            row.described.label
-          }}</strong>
-          <span class="ml-auto font-mono text-2xs text-ink-muted">{{
-            CODE_IMPACTS[row.described.impact].label
-          }}</span>
-        </header>
-
-        <!-- When it fired and what the impact means — the secondary line, de-emphasised. -->
-        <p
-          class="m-0 flex flex-wrap items-baseline gap-x-2 text-2xs text-ink-subtle"
-        >
-          <span v-if="row.described.stamp" class="font-mono">{{
-            formatStamp(row.described.stamp)
-          }}</span>
-          <span>{{ CODE_IMPACTS[row.described.impact].meaning }}</span>
-        </p>
-
-        <!-- The one primary sentence: what the code means. -->
-        <p class="m-0 text-sm text-ink">{{ row.described.description }}</p>
-
-        <p class="m-0 text-xs text-ink-muted">
-          <span class="font-mono text-2xs text-ink-subtle">处理建议 </span
-          >{{ row.described.hint }}
-        </p>
-        <p
-          v-if="row.described.reported && !row.described.unknown"
-          class="m-0 text-2xs text-ink-subtle"
-        >
-          <span class="font-mono">车端上报 </span>{{ row.described.reported }}
-        </p>
-        <p
-          v-if="row.described.unknown"
-          class="m-0 rounded-xs bg-warning-wash px-2 py-1 text-xs text-warning-ink"
-        >
-          该报码不在当前字典中 —— 显示的是车端原文，含义未经解释
-        </p>
-      </article>
-    </section>
+      <div class="min-w-0" :data-state="hasCodes ? 'open' : 'folded'">
+        <DeviceCodesCard
+          :codes="codes"
+          :stamp="device?.stamp ?? ''"
+          :collapsed="!hasCodes"
+          :vertical="foldVertical"
+        />
+      </div>
+      <div class="min-w-0" :data-state="hasTask ? 'open' : 'folded'">
+        <DeviceTaskCard
+          :task="device?.task"
+          :stamp="device?.stamp ?? ''"
+          :collapsed="!hasTask"
+          :vertical="foldVertical"
+        />
+      </div>
+    </div>
 
     <!-- The six panels in a fixed 3-column grid: 状态 / 位姿 / 限速, then 场景 / 任务 / GPS. -->
     <div class="grid grid-cols-1 gap-4 md:grid-cols-3">
@@ -309,11 +282,6 @@ const panels = computed(() => [
             -->
             <dd
               class="m-0 truncate text-right text-sm text-ink tabular-nums"
-              :class="
-                row.title
-                  ? 'decoration-dotted underline-offset-4 hover:underline'
-                  : undefined
-              "
               :title="row.title"
               :aria-description="row.title"
             >
@@ -325,3 +293,28 @@ const panels = computed(() => [
     </div>
   </div>
 </template>
+
+<style scoped>
+/*
+ * Column widths interpolate, so a card widens open instead of popping. Plain block layout (no
+ * <table>), so each frame reflows two cards — the reason the device list fell back to a fade does
+ * not apply. The global prefers-reduced-motion rule in base.css zeroes the duration.
+ */
+.top-cards {
+  transition: grid-template-columns 240ms var(--ease-standard);
+}
+
+/*
+ * One floor for both cards with content, so the row does not jump between a one-line code and a
+ * four-field task: 15rem is the task card's full height (title, id, progress, two field rows).
+ * A placeholder has none — beside an open card it stretches to that card's height; with both
+ * empty the pair stays a short title row. The floor animates so a card grows open smoothly.
+ */
+.top-cards :deep(.device-top-card) {
+  min-height: 15rem;
+  transition: min-height 240ms var(--ease-standard);
+}
+.top-cards :deep(.device-top-card.is-collapsed) {
+  min-height: 0;
+}
+</style>

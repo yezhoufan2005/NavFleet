@@ -31,7 +31,12 @@ import {
   taskStatusMap,
   alertHeadline,
 } from "@navfleet/fleet-core";
-import type { DeviceAlert, DeviceSnapshot } from "@navfleet/shared";
+import {
+  formatTaskRoute,
+  formatTaskStep,
+  type DeviceAlert,
+  type DeviceSnapshot,
+} from "@navfleet/shared";
 
 const { device, formationNames } = defineProps<{
   device: DeviceSnapshot;
@@ -101,9 +106,20 @@ const fields = computed<Field[]>(() => {
       value: formationNames.length ? formationNames.join("、") : "未编入编队",
     },
     {
+      // The 3×3 grid has no spare cell, so a reported task rides on 车端任务: its step joins the
+      // status, and the id and route go in the hover text.
       label: "车端任务",
-      value: orMissing(formatEnum(device.taskStatus, taskStatusMap)),
-      title: describeEnum(device.taskStatus, taskStatusMap),
+      value: [
+        orMissing(formatEnum(device.taskStatus, taskStatusMap)),
+        device.task ? formatTaskStep(device.task) : "",
+      ]
+        .filter(Boolean)
+        .join(" · "),
+      title: device.task
+        ? [device.task.id, device.task.type, formatTaskRoute(device.task)]
+            .filter(Boolean)
+            .join(" · ")
+        : describeEnum(device.taskStatus, taskStatusMap),
     },
     {
       label: "平台任务",

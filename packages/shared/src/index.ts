@@ -14,6 +14,7 @@
  * When the data model changes, edit it here once; both apps pick it up.
  */
 
+import type { DeviceTask } from "./deviceTask";
 import type {
   AlertDisposition,
   AlertDispositionFields,
@@ -106,6 +107,8 @@ export interface DeviceSnapshot {
   vehicleInfo: VehicleInfoState;
   taskStatus: number | null;
   platformTaskStatus: number | null;
+  /** The task the vehicle reports it is on (read-only telemetry; see `DeviceTask`). */
+  task?: DeviceTask | null;
   infoCode: CodeState;
   warningCode: CodeState;
   errorCode: CodeState;
@@ -368,6 +371,7 @@ export * from "./sceneGeometry";
 // Capabilities and the built-in role presets: the one source for the backend gate and the
 // console's can().
 export * from "./rbac";
+export * from "./deviceTask";
 
 // The three severity tiers and their labels (告警 / 预警 / 提示), for the console and the
 // outbound messages alike.

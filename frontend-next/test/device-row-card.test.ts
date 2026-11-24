@@ -57,7 +57,10 @@ const device = (alerts: DeviceAlert[]): DeviceSnapshot => ({
   extra: {},
 });
 
-const mountCard = async (alerts: DeviceAlert[]) => {
+const mountCard = async (
+  alerts: DeviceAlert[],
+  patch: Partial<DeviceSnapshot> = {},
+) => {
   const router = createRouter({
     history: createMemoryHistory(),
     routes: [{ path: "/:rest(.*)*", component: { template: "<i />" } }],
@@ -65,7 +68,7 @@ const mountCard = async (alerts: DeviceAlert[]) => {
   await router.push("/");
   await router.isReady();
   const wrapper = mount(DeviceRowCard, {
-    props: { device: device(alerts), formationNames: [] },
+    props: { device: { ...device(alerts), ...patch }, formationNames: [] },
     global: { plugins: [router] },
   });
   await flushPromises();
@@ -136,5 +139,27 @@ describe("DeviceRowCard active-code pills (item 8)", () => {
     );
     expect(pillTexts(wrapper)).toHaveLength(3);
     expect(wrapper.text()).toContain("另有 2 条");
+  });
+});
+
+describe("DeviceRowCard task", () => {
+  it("adds the reported step to 车端任务 and puts the id and route on hover", async () => {
+    const wrapper = await mountCard([], {
+      taskStatus: 1,
+      task: {
+        id: "agv-01-20261124-0003",
+        type: "搬运",
+        from: "取货位 P03",
+        to: "卸货位 D07",
+        step: 2,
+        steps: 4,
+        stepName: "装货",
+        startedAt: null,
+      },
+    });
+    expect(wrapper.text()).toContain("执行中 (1) · 第 2 / 4 步 · 装货");
+    expect(
+      wrapper.find('[title*="agv-01-20261124-0003"]').attributes("title"),
+    ).toBe("agv-01-20261124-0003 · 搬运 · 取货位 P03 → 卸货位 D07");
   });
 });

@@ -345,3 +345,84 @@ describe("backfill sink telemetry", () => {
     expect(filter.hour.$in).toHaveLength(2);
   });
 });
+
+describe("simulator tasks", () => {
+  /** Every distinct task a vehicle reports over a stretch, with the frames that carried it. */
+  const tasksOver = async (seconds: number, deviceIndex: number) => {
+    const { site, frames } = await run(seconds, deviceIndex);
+    const byId = new Map<string, Record<string, unknown>[]>();
+    let withoutTask = 0;
+    for (const raw of frames) {
+      const task = (JSON.parse(raw) as { task: Record<string, unknown> | null }).task;
+      if (!task) {
+        withoutTask += 1;
+        continue;
+      }
+      const list = byId.get(String(task.id)) ?? [];
+      list.push(task);
+      byId.set(String(task.id), list);
+    }
+    return { site, byId, withoutTask };
+  };
+
+  it("reports the task it is on, one id per task, its step never past the total", async () => {
+    const f = await fleet();
+    const carrier = f.sites.findIndex((site) => site.profile.carries);
+    const { byId } = await tasksOver(6 * 3600, carrier);
+    expect(byId.size).toBeGreaterThan(1);
+    for (const [id, frames] of byId) {
+      expect(id).toMatch(/^.+-\d{8}-\d{4}$/);
+      // One task keeps one start time and one type for its whole life.
+      expect(new Set(frames.map((task) => task.started_at)).size).toBe(1);
+      expect(new Set(frames.map((task) => task.type)).size).toBe(1);
+      for (const task of frames) {
+        expect(task.step as number).toBeLessThanOrEqual(task.steps as number);
+        expect(typeof task.step_name).toBe("string");
+      }
+    }
+    // Ids count up per vehicle.
+    const seqs = [...byId.keys()].map((id) => Number(id.slice(-4)));
+    expect(seqs).toEqual([...seqs].sort((a, b) => a - b));
+  });
+
+  it("walks a patrol through its stops as one task, and goes back to no task between rounds", async () => {
+    const f = await fleet();
+    const patrol = f.sites.findIndex((site) => !site.profile.carries);
+    const { byId, withoutTask } = await tasksOver(6 * 3600, patrol);
+    const work = [...byId.values()].find((frames) => frames[0]!.type !== "充电")!;
+    const steps = new Set(work.map((task) => task.step));
+    expect(steps.size).toBeGreaterThan(1);
+    expect(withoutTask).toBeGreaterThan(0);
+  });
+
+  it("lands in the snapshot read-only, the same task across frames", async () => {
+    const f = await fleet();
+    const carrier = f.sites.findIndex((site) => site.profile.carries);
+    const { site, frames } = await run(3 * 3600, carrier);
+    const frame = frames
+      .map((raw) => JSON.parse(raw) as Record<string, unknown>)
+      .find((candidate) => candidate.task);
+    expect(frame).toBeDefined();
+    const snapshot = normalizeDevice({ ...frame!, deviceId: site.deviceId });
+    expect(snapshot.task?.id).toBe((frame!.task as { id: string }).id);
+    expect(snapshot.task?.startedAt).toMatch(/Z$/);
+  });
+
+  it("loads a checkpoint written before tasks existed, and numbers the next task", async () => {
+    const f = await fleet();
+    const site = f.sites[0]!;
+    const state = newState(f, site, START);
+    const legacy = clone(state) as Partial<VehicleState>;
+    delete legacy.taskKind;
+    delete legacy.taskId;
+    delete legacy.taskStartedAt;
+    delete legacy.taskSeq;
+    const resumed = legacy as VehicleState;
+    let first: Record<string, unknown> | null = null;
+    for (let k = 0; k < 6 * 3600 && !first; k += 1) {
+      const frame = step(site, resumed).frame as { task?: Record<string, unknown> | null } | null;
+      first = frame?.task ?? null;
+    }
+    expect(String(first?.id)).toMatch(/-0001$/);
+  });
+});

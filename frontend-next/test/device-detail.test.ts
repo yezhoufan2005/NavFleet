@@ -173,8 +173,8 @@ describe("报码解读", () => {
     expect(section.text()).toContain("路径规划超时");
     expect(section.text()).toContain("目标点被占据");
     expect(section.text()).toContain("重新派发");
-    // The device's own words survive alongside the canonical label.
-    expect(section.text()).toContain("路径规划超时，已触发急停");
+    // The card reads the codebook, not the firmware string (车端上报 was dropped from it).
+    expect(section.text()).not.toContain("路径规划超时，已触发急停");
   });
 
   it("states what the vehicle can still do, not how bad it feels", async () => {
@@ -184,7 +184,24 @@ describe("报码解读", () => {
     const wrapper = await mountDetail();
 
     expect(wrapper.text()).toContain("任务受阻");
-    expect(wrapper.text()).toContain("无法继续当前任务");
+    // The sentence behind the tag rides on its tooltip.
+    expect(wrapper.get("[title*='无法继续当前任务']").text()).toBe("任务受阻");
+  });
+
+  it("keeps a long code name inside the card: wraps to two lines, the tag stays put", async () => {
+    seed({ error_code: code(5102) });
+    const wrapper = await mountDetail();
+    const card = wrapper.get("section[aria-labelledby='codes-heading']");
+    const name = card.get("strong");
+    expect(name.classes()).toEqual(
+      expect.arrayContaining(["line-clamp-2", "wrap-break-word"]),
+    );
+    expect(name.attributes("title")).toBe(name.text());
+    // The title row is a grid whose middle track can shrink below its content.
+    expect(name.element.parentElement?.className).toContain("minmax(0,1fr)");
+    const meta = card.get("p.font-mono");
+    expect(meta.classes()).toContain("truncate");
+    expect(meta.attributes("title")).toBe("5102 · 导航与定位");
   });
 
   it("distinguishes intervention from merely blocked", async () => {
@@ -192,7 +209,7 @@ describe("报码解读", () => {
     const wrapper = await mountDetail();
 
     expect(wrapper.text()).toContain("需人工介入");
-    expect(wrapper.text()).toContain("必须人工到场");
+    expect(wrapper.get("[title*='必须人工到场']").text()).toBe("需人工介入");
   });
 
   it("says a code is unknown rather than inventing a meaning", async () => {
@@ -224,10 +241,51 @@ describe("报码解读", () => {
     expect(articles[2]?.text()).toContain("提示");
   });
 
-  it("says there is nothing to explain for a healthy vehicle", async () => {
-    seed();
+  it("folds 报码解读 to a placeholder for a healthy vehicle, without a 'nothing here' sentence", async () => {
+    seed({
+      task: {
+        id: "t-1",
+        type: "搬运",
+        step: 1,
+        steps: 4,
+        step_name: "前往取货位",
+      },
+    });
     const wrapper = await mountDetail();
-    expect(wrapper.text()).toContain("当前没有活跃报码");
+    const codes = wrapper.get("section[aria-labelledby='codes-heading']");
+    expect(codes.text()).toBe("报码解读");
+    expect(wrapper.text()).not.toContain("当前没有活跃报码");
+    expect(wrapper.get(".top-cards").attributes("style")).toContain(
+      "--top-columns: 3.25rem 1fr",
+    );
+  });
+
+  it("keeps two flat placeholders side by side when there is neither a code nor a task", async () => {
+    seed({ task: null });
+    const wrapper = await mountDetail();
+    const row = wrapper.get("[data-testid='live-top-row']");
+    expect(row.attributes("style")).toContain("--top-columns: 1fr 1fr");
+    expect(row.findAll("[data-state='folded']")).toHaveLength(2);
+    expect(row.findAll(".is-collapsed")).toHaveLength(2);
+    // Flat, not the vertical strip used beside an open card.
+    expect(row.html()).not.toContain("writing-mode");
+  });
+
+  it("gives each card half the row when both have content", async () => {
+    seed({
+      error_code: code(5102),
+      task: {
+        id: "t-1",
+        type: "搬运",
+        step: 1,
+        steps: 4,
+        step_name: "前往取货位",
+      },
+    });
+    const wrapper = await mountDetail();
+    const cards = wrapper.get(".top-cards");
+    expect(cards.attributes("style")).toContain("--top-columns: 1fr 1fr");
+    expect(cards.findAll("[data-state='open']")).toHaveLength(2);
   });
 });
 
@@ -247,10 +305,58 @@ describe("遥测面板", () => {
     expect(wrapper.text()).toContain("82%");
   });
 
+  it("shows the task the vehicle reports — id, route and step — read-only", async () => {
+    seed({
+      task: {
+        id: "agv-01-20261124-0003",
+        type: "搬运",
+        from: "取货位 P03",
+        to: "卸货位 D07",
+        step: 2,
+        steps: 4,
+        step_name: "装货",
+        started_at: "2026-11-24T02:00:00.000Z",
+      },
+    });
+    const wrapper = await mountDetail();
+    const text = wrapper.text();
+    const block = wrapper.get("section[aria-labelledby='task-heading']");
+    expect(block.text()).toContain("搬运");
+    expect(block.text()).toContain("agv-01-20261124-0003");
+    expect(block.text()).toMatch(/起点\s*取货位 P03/);
+    expect(block.text()).toMatch(/终点\s*卸货位 D07/);
+    expect(block.text()).toContain("开始时间");
+    expect(block.text()).toContain("进行时长");
+    expect(block.text()).toContain("第 2 / 4 步 · 装货");
+    // Two of four segments filled, and the bar says so to AT.
+    const bar = block.get("[role='progressbar']");
+    expect(bar.attributes("aria-valuenow")).toBe("2");
+    expect(bar.findAll(".bg-brand")).toHaveLength(2);
+    // It sits in the top row beside 报码解读, not in the panel grid below.
+    expect(text).toContain("任务状态");
+    // Read-only: the task card offers nothing to press.
+    expect(
+      block
+        .findAll("button")
+        .filter((b) => !b.attributes("aria-label")?.includes("说明")),
+    ).toHaveLength(0);
+  });
+
+  it("folds 当前任务 to a placeholder when the vehicle reports no task", async () => {
+    seed({ error_code: code(5102), task: null });
+    const wrapper = await mountDetail();
+    expect(wrapper.get("section[aria-labelledby='task-heading']").text()).toBe(
+      "当前任务",
+    );
+    expect(wrapper.get(".top-cards").attributes("style")).toContain(
+      "--top-columns: 1fr 3.25rem",
+    );
+  });
+
   it("explains an enum code on hover, not just names it", async () => {
     // `describeEnum` has lived in fleet-core with tests and had zero readers:
-    // the port took `formatEnum`'s label and left the sentence behind. The dotted
-    // underline is what makes the tooltip discoverable rather than a hover to guess at.
+    // the port took `formatEnum`'s label and left the sentence behind. No hover underline:
+    // the value reads as plain text, the sentence rides on the tooltip and to AT.
     seed();
     const wrapper = await mountDetail();
 
@@ -269,9 +375,9 @@ describe("遥测面板", () => {
     expect(controlMode?.attributes("aria-description")).toBe(
       describeEnum(2, controlModeMap),
     );
-    expect(controlMode?.classes()).toContain("decoration-dotted");
+    expect(controlMode?.classes()).not.toContain("hover:underline");
 
-    // A plain number gets neither, so the underline still means "there is more here".
+    // A plain number has no sentence to carry.
     const speed = wrapper.findAll("dd").find((c) => c.text() === "1.25 m/s");
     expect(speed?.attributes("title")).toBeUndefined();
   });
