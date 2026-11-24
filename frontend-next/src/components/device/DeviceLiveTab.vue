@@ -56,22 +56,21 @@ const codes = computed(() =>
 
 /**
  * The top row's shape. Both cards with content: half each. One with content: it takes the row and
- * the other folds to a narrow placeholder (title only) that widens again when content arrives.
- * Neither: the row folds up out of the way. The columns are animated (`grid-template-columns`
- * and `grid-template-rows` both interpolate), so a code appearing slides its card open.
+ * the other folds to a narrow strip (title set vertically) that widens again when content arrives.
+ * Neither: two short title-only placeholders, half each. Column widths and card heights are
+ * animated (see the scoped styles), so a code appearing slides its card open.
  */
 const hasCodes = computed(() => codes.value.length > 0);
 const hasTask = computed(() => Boolean(device.value?.task));
 const topColumns = computed(() =>
-  hasCodes.value && hasTask.value
+  hasCodes.value === hasTask.value
     ? "1fr 1fr"
     : hasCodes.value
       ? "1fr 3.25rem"
-      : hasTask.value
-        ? "3.25rem 1fr"
-        : "1fr 1fr",
+      : "3.25rem 1fr",
 );
-const topOpen = computed(() => hasCodes.value || hasTask.value);
+/** A placeholder beside an open card is a vertical strip; with both empty, both lie flat. */
+const foldVertical = computed(() => hasCodes.value !== hasTask.value);
 
 interface Row {
   label: string;
@@ -232,37 +231,27 @@ const panels = computed(() => [
 <template>
   <div class="flex flex-col">
     <!-- The top row answers "what is wrong, and what is it doing": 报码解读 beside 当前任务. See
-         `topColumns` for how it folds; under md the two stack and simply hide when empty. -->
+         `topColumns` for how it folds; under md the two stack. -->
     <div
-      class="top-row grid"
-      :class="topOpen ? 'top-row--open' : ''"
-      :aria-hidden="topOpen ? undefined : 'true'"
+      class="top-cards mb-4 grid grid-cols-1 gap-4 md:[grid-template-columns:var(--top-columns)]"
+      :style="{ '--top-columns': topColumns }"
       data-testid="live-top-row"
     >
-      <div class="min-h-0 overflow-hidden">
-        <div
-          class="top-cards grid grid-cols-1 gap-4 md:[grid-template-columns:var(--top-columns)]"
-          :style="{ '--top-columns': topColumns }"
-        >
-          <div
-            class="min-w-0"
-            :class="hasCodes ? '' : 'max-md:hidden'"
-            :data-state="hasCodes ? 'open' : 'folded'"
-          >
-            <DeviceCodesCard :codes="codes" :collapsed="!hasCodes" />
-          </div>
-          <div
-            class="min-w-0"
-            :class="hasTask ? '' : 'max-md:hidden'"
-            :data-state="hasTask ? 'open' : 'folded'"
-          >
-            <DeviceTaskCard
-              :task="device?.task"
-              :stamp="device?.stamp ?? ''"
-              :collapsed="!hasTask"
-            />
-          </div>
-        </div>
+      <div class="min-w-0" :data-state="hasCodes ? 'open' : 'folded'">
+        <DeviceCodesCard
+          :codes="codes"
+          :stamp="device?.stamp ?? ''"
+          :collapsed="!hasCodes"
+          :vertical="foldVertical"
+        />
+      </div>
+      <div class="min-w-0" :data-state="hasTask ? 'open' : 'folded'">
+        <DeviceTaskCard
+          :task="device?.task"
+          :stamp="device?.stamp ?? ''"
+          :collapsed="!hasTask"
+          :vertical="foldVertical"
+        />
       </div>
     </div>
 
@@ -293,11 +282,6 @@ const panels = computed(() => [
             -->
             <dd
               class="m-0 truncate text-right text-sm text-ink tabular-nums"
-              :class="
-                row.title
-                  ? 'decoration-dotted underline-offset-4 hover:underline'
-                  : undefined
-              "
               :title="row.title"
               :aria-description="row.title"
             >
@@ -312,27 +296,25 @@ const panels = computed(() => [
 
 <style scoped>
 /*
- * The folding top row. Rows 0fr → 1fr collapses it upward when neither card has content (the inner
- * wrapper clips); the margin below goes with it so no empty gap is left. Columns interpolate on
- * the inner grid, so a card widens open rather than popping. Both are plain block layout (no
- * <table>), so the per-frame reflow is two cards — the reason the device list fell back to a fade
- * does not apply. The global prefers-reduced-motion rule in base.css zeroes the durations.
+ * Column widths interpolate, so a card widens open instead of popping. Plain block layout (no
+ * <table>), so each frame reflows two cards — the reason the device list fell back to a fade does
+ * not apply. The global prefers-reduced-motion rule in base.css zeroes the duration.
  */
-.top-row {
-  grid-template-rows: 0fr;
-  opacity: 0;
-  margin-bottom: 0;
-  transition:
-    grid-template-rows 240ms var(--ease-standard),
-    opacity 180ms var(--ease-standard),
-    margin-bottom 240ms var(--ease-standard);
-}
-.top-row--open {
-  grid-template-rows: 1fr;
-  opacity: 1;
-  margin-bottom: 1rem;
-}
 .top-cards {
   transition: grid-template-columns 240ms var(--ease-standard);
+}
+
+/*
+ * One floor for both cards with content, so the row does not jump between a one-line code and a
+ * four-field task: 15rem is the task card's full height (title, id, progress, two field rows).
+ * A placeholder has none — beside an open card it stretches to that card's height; with both
+ * empty the pair stays a short title row. The floor animates so a card grows open smoothly.
+ */
+.top-cards :deep(.device-top-card) {
+  min-height: 15rem;
+  transition: min-height 240ms var(--ease-standard);
+}
+.top-cards :deep(.device-top-card.is-collapsed) {
+  min-height: 0;
 }
 </style>

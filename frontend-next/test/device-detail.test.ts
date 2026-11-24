@@ -238,17 +238,20 @@ describe("报码解读", () => {
     const codes = wrapper.get("section[aria-labelledby='codes-heading']");
     expect(codes.text()).toBe("报码解读");
     expect(wrapper.text()).not.toContain("当前没有活跃报码");
-    expect(wrapper.get("[data-testid='live-top-row']").classes()).toContain(
-      "top-row--open",
+    expect(wrapper.get(".top-cards").attributes("style")).toContain(
+      "--top-columns: 3.25rem 1fr",
     );
   });
 
-  it("folds the whole top row away when there is neither a code nor a task", async () => {
+  it("keeps two flat placeholders side by side when there is neither a code nor a task", async () => {
     seed({ task: null });
     const wrapper = await mountDetail();
     const row = wrapper.get("[data-testid='live-top-row']");
-    expect(row.classes()).not.toContain("top-row--open");
-    expect(row.attributes("aria-hidden")).toBe("true");
+    expect(row.attributes("style")).toContain("--top-columns: 1fr 1fr");
+    expect(row.findAll("[data-state='folded']")).toHaveLength(2);
+    expect(row.findAll(".is-collapsed")).toHaveLength(2);
+    // Flat, not the vertical strip used beside an open card.
+    expect(row.html()).not.toContain("writing-mode");
   });
 
   it("gives each card half the row when both have content", async () => {
@@ -305,6 +308,8 @@ describe("遥测面板", () => {
     expect(block.text()).toContain("agv-01-20261124-0003");
     expect(block.text()).toMatch(/起点\s*取货位 P03/);
     expect(block.text()).toMatch(/终点\s*卸货位 D07/);
+    expect(block.text()).toContain("开始时间");
+    expect(block.text()).toContain("进行时长");
     expect(block.text()).toContain("第 2 / 4 步 · 装货");
     // Two of four segments filled, and the bar says so to AT.
     const bar = block.get("[role='progressbar']");
@@ -333,8 +338,8 @@ describe("遥测面板", () => {
 
   it("explains an enum code on hover, not just names it", async () => {
     // `describeEnum` has lived in fleet-core with tests and had zero readers:
-    // the port took `formatEnum`'s label and left the sentence behind. The dotted
-    // underline is what makes the tooltip discoverable rather than a hover to guess at.
+    // the port took `formatEnum`'s label and left the sentence behind. No hover underline:
+    // the value reads as plain text, the sentence rides on the tooltip and to AT.
     seed();
     const wrapper = await mountDetail();
 
@@ -353,9 +358,9 @@ describe("遥测面板", () => {
     expect(controlMode?.attributes("aria-description")).toBe(
       describeEnum(2, controlModeMap),
     );
-    expect(controlMode?.classes()).toContain("decoration-dotted");
+    expect(controlMode?.classes()).not.toContain("hover:underline");
 
-    // A plain number gets neither, so the underline still means "there is more here".
+    // A plain number has no sentence to carry.
     const speed = wrapper.findAll("dd").find((c) => c.text() === "1.25 m/s");
     expect(speed?.attributes("title")).toBeUndefined();
   });

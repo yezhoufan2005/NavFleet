@@ -21,8 +21,10 @@ const {
   task: DeviceTask | null | undefined;
   /** The device's latest frame time — 已进行 is measured to it, not to the viewer's clock. */
   stamp: string;
-  /** Narrow placeholder: only the title, vertical (see `DeviceCodesCard`). */
+  /** Placeholder: only the title (see `DeviceCodesCard`). */
   collapsed?: boolean;
+  /** As a placeholder beside an open card: a narrow strip with the title set vertically. */
+  vertical?: boolean;
 }>();
 
 const segments = computed(() =>
@@ -40,14 +42,15 @@ const stepLabel = computed(() => {
   return [count, task.stepName].filter(Boolean).join(" · ");
 });
 
-const route = computed(() =>
-  task
-    ? [
-        { key: "from", label: "起点", value: task.from },
-        { key: "to", label: task.from ? "终点" : "目标", value: task.to },
-      ].filter((end) => end.value)
-    : [],
-);
+const routeFields = computed(() => [
+  { label: "起点", value: task?.from || "--" },
+  { label: "终点", value: task?.to || "--" },
+]);
+
+const timeFields = computed(() => [
+  { label: "开始时间", value: task ? formatStamp(task.startedAt) : "--" },
+  { label: "进行时长", value: elapsed.value },
+]);
 
 const elapsed = computed(() => {
   if (!task?.startedAt) return "--";
@@ -61,17 +64,21 @@ const elapsed = computed(() => {
 
 <template>
   <section
-    class="flex h-full min-w-0 flex-col gap-3 rounded-md border border-border bg-surface-raised p-4"
+    class="device-top-card flex h-full min-w-0 flex-col gap-3 rounded-md border border-border bg-surface-raised p-4"
+    :class="collapsed ? 'is-collapsed' : ''"
     aria-labelledby="task-heading"
   >
     <header
       class="flex items-center justify-between gap-3"
-      :class="collapsed ? 'flex-col' : ''"
+      :class="collapsed && vertical ? 'flex-col' : ''"
     >
       <h3
         id="task-heading"
-        class="flex items-center gap-1 text-md font-semibold whitespace-nowrap text-ink"
-        :class="collapsed ? 'text-ink-subtle [writing-mode:vertical-rl]' : ''"
+        class="flex items-center gap-1 text-md font-semibold whitespace-nowrap"
+        :class="[
+          collapsed ? 'text-ink-subtle' : 'text-ink',
+          collapsed && vertical ? '[writing-mode:vertical-rl]' : '',
+        ]"
       >
         当前任务<UiHelpTip v-if="!collapsed" :text="FIELD_HELP.device.task" />
       </h3>
@@ -108,30 +115,35 @@ const elapsed = computed(() => {
         <p class="m-0 text-sm text-ink">{{ stepLabel || "--" }}</p>
       </div>
 
-      <ol v-if="route.length" class="m-0 flex list-none flex-col gap-1 p-0">
-        <li
-          v-for="end in route"
-          :key="end.key"
-          class="flex items-baseline gap-2 text-sm"
+      <!-- 起点 / 终点 and 开始时间 / 进行时长 share one two-column grid and one label width, so the
+           four values line up in two columns; label and value sit on one line. -->
+      <dl class="m-0 grid grid-cols-2 gap-x-4 gap-y-2 text-sm">
+        <div
+          v-for="field in routeFields"
+          :key="field.label"
+          class="flex min-w-0 items-baseline gap-2"
         >
-          <span class="w-8 shrink-0 text-2xs text-ink-subtle">{{
-            end.label
-          }}</span>
-          <span class="truncate text-ink">{{ end.value }}</span>
-        </li>
-      </ol>
-
-      <dl class="m-0 grid grid-cols-2 gap-3 border-t border-border pt-3">
-        <div class="flex flex-col gap-0.5">
-          <dt class="text-2xs text-ink-subtle">开始时间</dt>
-          <dd class="m-0 font-mono text-xs tabular-nums text-ink">
-            {{ formatStamp(task.startedAt) }}
+          <dt class="w-14 shrink-0 text-2xs text-ink-subtle">
+            {{ field.label }}
+          </dt>
+          <dd class="m-0 truncate text-ink tabular-nums" :title="field.value">
+            {{ field.value }}
           </dd>
         </div>
-        <div class="flex flex-col gap-0.5">
-          <dt class="text-2xs text-ink-subtle">已进行</dt>
-          <dd class="m-0 font-mono text-xs tabular-nums text-ink">
-            {{ elapsed }}
+        <div
+          class="col-span-2 -my-0.5 border-t border-border"
+          aria-hidden="true"
+        />
+        <div
+          v-for="field in timeFields"
+          :key="field.label"
+          class="flex min-w-0 items-baseline gap-2"
+        >
+          <dt class="w-14 shrink-0 text-2xs text-ink-subtle">
+            {{ field.label }}
+          </dt>
+          <dd class="m-0 truncate text-ink tabular-nums" :title="field.value">
+            {{ field.value }}
           </dd>
         </div>
       </dl>
