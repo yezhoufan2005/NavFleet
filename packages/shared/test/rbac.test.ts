@@ -1,6 +1,9 @@
 import { describe, it, expect } from "vitest";
 import {
   CAPABILITIES,
+  canAssignRole,
+  canGrantCapabilities,
+  canManageUser,
   capabilitiesForRole,
   resolveEffectiveCapabilities,
   type RbacGroup,
@@ -87,5 +90,46 @@ describe("resolveEffectiveCapabilities", () => {
       [group(["notify-editor"], ["zhaoyun"])],
     );
     expect(caps).toEqual(["notify:read", "notify:write"]);
+  });
+});
+
+describe("user-management hierarchy", () => {
+  const ops = {
+    username: "ops",
+    role: "operator" as const,
+    capabilities: ["alerts:ack", "users:manage"] as const,
+  };
+
+  it("lets an admin manage anyone, assign any role, grant anything", () => {
+    const admin = {
+      username: "a",
+      role: "admin" as const,
+      capabilities: CAPABILITIES,
+    };
+    expect(canManageUser(admin, { ...admin, username: "b" })).toBe(true);
+    expect(canAssignRole(admin, "admin")).toBe(true);
+    expect(canGrantCapabilities(admin, ["debug:ingest"])).toBe(true);
+  });
+
+  it("limits a non-admin to lower-ranked users whose capabilities it holds", () => {
+    expect(
+      canManageUser(ops, { username: "v", role: "viewer", capabilities: [] }),
+    ).toBe(true);
+    expect(
+      canManageUser(ops, {
+        username: "v",
+        role: "viewer",
+        capabilities: ["audit:read"],
+      }),
+    ).toBe(false);
+    expect(canManageUser(ops, { ...ops, username: "peer" })).toBe(false);
+    expect(canManageUser(ops, ops)).toBe(false);
+  });
+
+  it("assigns only roles below, grants only held capabilities", () => {
+    expect(canAssignRole(ops, "viewer")).toBe(true);
+    expect(canAssignRole(ops, "operator")).toBe(false);
+    expect(canGrantCapabilities(ops, ["alerts:ack"])).toBe(true);
+    expect(canGrantCapabilities(ops, ["audit:read"])).toBe(false);
   });
 });

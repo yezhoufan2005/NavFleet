@@ -3,7 +3,8 @@ import { createMemoryHistory, createRouter, type Router } from "vue-router";
 import { createPinia, setActivePinia } from "pinia";
 import { enableAutoUnmount, flushPromises, mount } from "@vue/test-utils";
 import { fleetApi, type AdminUser } from "@navfleet/fleet-core";
-import type { RbacGroup, RbacRole } from "@navfleet/shared";
+import { CAPABILITIES, type RbacGroup, type RbacRole } from "@navfleet/shared";
+import { useAuth, __resetAuth } from "@/composables/useAuth";
 import GroupsView from "@/views/admin/GroupsView.vue";
 import {
   __resetNotifications,
@@ -53,6 +54,13 @@ const mountView = async () => {
 
 beforeEach(() => {
   __resetNotifications();
+  __resetAuth();
+  // These pages sit behind 用户管理; tests run as an admin unless a case says otherwise.
+  Object.assign(useAuth().state, {
+    user: { username: "root", role: "admin" },
+    status: "authenticated",
+    capabilities: [...CAPABILITIES],
+  });
   vi.spyOn(fleetApi, "getRbacRoles").mockResolvedValue({ roles: [role()] });
   vi.spyOn(fleetApi, "getRbacGroups").mockResolvedValue({ groups: [group()] });
   vi.spyOn(fleetApi, "getUsers").mockResolvedValue({
@@ -61,6 +69,7 @@ beforeEach(() => {
 });
 
 afterEach(() => {
+  __resetAuth();
   vi.restoreAllMocks();
 });
 

@@ -190,6 +190,8 @@ export interface AdminUser {
   /** The protected bootstrap admin: shown in the list but its actions are disabled (managed only
    * out of band). Absent/false for every normal account. */
   protected?: boolean;
+  /** Whether the caller may act on this user (the hierarchy rule); absent from older backends. */
+  manageable?: boolean;
   [key: string]: unknown;
 }
 

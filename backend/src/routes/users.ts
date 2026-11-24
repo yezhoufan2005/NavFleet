@@ -7,6 +7,8 @@ import type { AuditService } from "../audit/service";
 import type { RbacService } from "../rbac/service";
 import { createUserSchema, resetPasswordSchema, updateUserSchema } from "../validation";
 import { makeActionErrorResponder, respondValidationError } from "./helpers";
+import { canAssignRole, canManageUser } from "@navfleet/shared";
+import { actorOf, rankedUser } from "../auth/hierarchy";
 
 /** Map a service-layer refusal to an HTTP status + stable error code. */
 const STATUS_BY_ERROR: Record<AdminActionError, number> = {
@@ -20,6 +22,14 @@ const STATUS_BY_ERROR: Record<AdminActionError, number> = {
 };
 
 const respondActionError = makeActionErrorResponder(STATUS_BY_ERROR);
+
+/**
+ * The hierarchy refusal: a non-admin holding `users:manage` (through a group) acting on someone of
+ * equal or higher rank, or handing out a role at or above its own. See `canManageUser`.
+ */
+const respondRankForbidden = (response: express.Response): void => {
+  response.status(403).json({ error: "rank_forbidden" });
+};
 
 /** Fields whose old and new values go into the audit row. Contact details are named, not copied. */
 const VALUE_FIELDS = new Set<keyof UpdateUserInput>(["role", "displayName", "enabled"]);
@@ -57,14 +67,45 @@ export const buildUsersRouter = (
   const router = express.Router();
   router.use("/users", requireCapability("users:manage"));
 
-  router.get("/users", async (_request, response) => {
-    response.json({ users: await authService.listUsers() });
+  // Whether the caller may act on a user — the console greys out the rows it may not.
+  const withManageable = (request: express.Request, user: AdminUserView) => ({
+    ...user,
+    manageable: canManageUser(actorOf(request), rankedUser(rbac, user)),
+  });
+
+  /**
+   * Loads the target and applies the hierarchy rule. Responds (404 / 403) and returns null when the
+   * request must stop; the service still owns the protected-account and last-admin guards.
+   */
+  const manageableTarget = async (
+    request: express.Request,
+    response: express.Response,
+  ): Promise<AdminUserView | null> => {
+    const target = await authService.getUser(String(request.params.username));
+    if (!target) {
+      response.status(404).json({ error: "not_found" });
+      return null;
+    }
+    if (!canManageUser(actorOf(request), rankedUser(rbac, target))) {
+      respondRankForbidden(response);
+      return null;
+    }
+    return target;
+  };
+
+  router.get("/users", async (request, response) => {
+    const users = await authService.listUsers();
+    response.json({ users: users.map((user) => withManageable(request, user)) });
   });
 
   router.post("/users", async (request, response) => {
     const parsed = createUserSchema.safeParse(request.body);
     if (!parsed.success) {
       respondValidationError(response, parsed.error);
+      return;
+    }
+    if (!canAssignRole(actorOf(request), parsed.data.role)) {
+      respondRankForbidden(response);
       return;
     }
     const result = await authService.createUser(parsed.data);
@@ -88,7 +129,7 @@ export const buildUsersRouter = (
       response.status(404).json({ error: "not_found" });
       return;
     }
-    response.json({ user });
+    response.json({ user: withManageable(request, user) });
   });
 
   router.patch("/users/:username", async (request, response) => {
@@ -98,7 +139,16 @@ export const buildUsersRouter = (
       return;
     }
     // Read before the write, so the audit row can say what each changed field was before.
-    const before = await authService.getUser(request.params.username);
+    const before = await manageableTarget(request, response);
+    if (!before) return;
+    if (
+      parsed.data.role !== undefined &&
+      parsed.data.role !== before.role &&
+      !canAssignRole(actorOf(request), parsed.data.role)
+    ) {
+      respondRankForbidden(response);
+      return;
+    }
     // `requireCapability` guarantees request.user.
     const result = await authService.updateUser(
       request.user!.username,
@@ -125,6 +175,7 @@ export const buildUsersRouter = (
       respondValidationError(response, parsed.error);
       return;
     }
+    if (!(await manageableTarget(request, response))) return;
     const result = await authService.resetPassword(
       request.user!.username,
       request.params.username,
@@ -144,6 +195,7 @@ export const buildUsersRouter = (
   });
 
   router.delete("/users/:username", async (request, response) => {
+    if (!(await manageableTarget(request, response))) return;
     const result = await authService.deleteUser(request.user!.username, request.params.username);
     if (!result.ok) {
       respondActionError(response, result.error);
@@ -167,6 +219,7 @@ export const buildUsersRouter = (
    * is a legitimate "I lost a laptop" action — but always audited.
    */
   router.post("/users/:username/logout", async (request, response) => {
+    if (!(await manageableTarget(request, response))) return;
     const result = await authService.forceLogout(request.user!.username, request.params.username);
     if (!result.ok) {
       respondActionError(response, result.error);
@@ -214,6 +267,7 @@ export const buildUsersRouter = (
       respondActionError(response, "protected");
       return;
     }
+    if (!(await manageableTarget(request, response))) return;
     const revoked = await authService.revokeSession(username, sessionId);
     if (!revoked) {
       response.status(404).json({ error: "not_found" });
