@@ -467,6 +467,16 @@ describe("audit_log", () => {
     });
   });
 
+  it("queryAudit 按 target 过滤（个人中心：管理员对本人做过的事）", async () => {
+    const { db, calls } = createFakeDb();
+    persistence.__setDbForTests(db);
+    await persistence.queryAudit({ target: "ops", action: ["password_reset"] });
+    expect(calls.find[0]?.filter).toEqual({
+      target: "ops",
+      action: { $in: ["password_reset"] },
+    });
+  });
+
   it("queryAudit 无过滤时不写任何条件", async () => {
     const { db, calls } = createFakeDb();
     persistence.__setDbForTests(db);
@@ -1489,5 +1499,16 @@ describe("sessions 集合", () => {
 
     await persistence.deleteAllSessions("ops");
     expect(calls.deleteMany[0]).toEqual({ collection: "sessions", filter: { username: "ops" } });
+  });
+
+  it("deleteSessionsExcept 只留下指定会话（个人中心「下线其他设备」）", async () => {
+    const { db, calls } = createFakeDb();
+    persistence.__setDbForTests(db);
+
+    await persistence.deleteSessionsExcept("ops", "sid-keep");
+    expect(calls.deleteMany[0]).toEqual({
+      collection: "sessions",
+      filter: { username: "ops", sessionId: { $ne: "sid-keep" } },
+    });
   });
 });

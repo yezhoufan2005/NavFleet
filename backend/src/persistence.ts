@@ -977,6 +977,24 @@ export class Persistence {
   }
 
   /** Delete every session for a user (logout-all / force-logout / all-devices invalidation). */
+  /** End every session a user has except one (个人中心「下线其他设备」); returns how many ended. */
+  async deleteSessionsExcept(username: string, keepSessionId: string): Promise<number> {
+    let ended = 0;
+    for (const [id, session] of this.fallbackSessions) {
+      if (session.username === username && id !== keepSessionId) {
+        this.fallbackSessions.delete(id);
+        ended += 1;
+      }
+    }
+    if (!this.db) {
+      return ended;
+    }
+    const result = await this.db
+      .collection<SessionRecord>("sessions")
+      .deleteMany({ username, sessionId: { $ne: keepSessionId } });
+    return result.deletedCount;
+  }
+
   async deleteAllSessions(username: string): Promise<void> {
     for (const [id, session] of this.fallbackSessions) {
       if (session.username === username) {
@@ -1009,9 +1027,10 @@ export class Persistence {
     }
   }
 
-  /** Query the audit trail, newest first, filtered by actor / action(s) / time window. */
+  /** Query the audit trail, newest first, filtered by actor / target / action(s) / time window. */
   async queryAudit(filters: {
     actor?: string;
+    target?: string;
     action?: string[];
     from?: string;
     to?: string;
@@ -1025,6 +1044,7 @@ export class Persistence {
     if (!this.db) {
       return this.auditFallback
         .filter((entry) => !filters.actor || entry.actor === filters.actor)
+        .filter((entry) => !filters.target || entry.target === filters.target)
         .filter((entry) => !filters.action?.length || filters.action.includes(entry.action))
         .filter((entry) => !fromDate || entry.ts >= fromDate)
         .filter((entry) => !toDate || entry.ts <= toDate)
@@ -1033,6 +1053,7 @@ export class Persistence {
 
     const query: Record<string, unknown> = {};
     if (filters.actor) query.actor = filters.actor;
+    if (filters.target) query.target = filters.target;
     if (filters.action?.length) query.action = { $in: filters.action };
     if (Object.keys(tsBound).length > 0) query.ts = tsBound;
 

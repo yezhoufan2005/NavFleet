@@ -13,6 +13,8 @@ export interface AuditInput {
 
 export interface AuditQuery {
   actor?: string;
+  /** The account an action was done *to* (an admin's reset / force-logout / edit of a user). */
+  target?: string;
   /** Zero or more actions; empty / absent means every action. */
   action?: string[];
   from?: string;

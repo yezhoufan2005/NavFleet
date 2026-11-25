@@ -72,6 +72,13 @@ export interface CreateUserInput {
   kiosk?: boolean;
 }
 
+/** The fields a user may change on their own account. */
+export interface ProfileUpdateInput {
+  displayName?: string;
+  email?: string | null;
+  phone?: string | null;
+}
+
 export interface UpdateUserInput {
   role?: UserRole;
   displayName?: string;
@@ -267,6 +274,33 @@ export class AuthService {
     const revoked = await this.persistence.deleteSession(username, sessionId);
     if (revoked) this.sessionsInvalidated();
     return revoked;
+  }
+
+  /**
+   * End every session a user has except the one making the request (个人中心「下线其他设备」).
+   * Unlike `revokeAllSessions` the token version is left alone, which would end this device too;
+   * the per-request session check is what turns the other devices away.
+   */
+  async revokeOtherSessions(username: string, keepSessionId: string): Promise<number> {
+    const ended = await this.persistence.deleteSessionsExcept(username, keepSessionId);
+    if (ended > 0) this.sessionsInvalidated();
+    return ended;
+  }
+
+  /**
+   * A user editing their own 显示名 / 邮箱 / 手机 (个人中心). Role and enabled are not reachable
+   * from here — those stay with `users:manage`. Returns the stored record before and after, so
+   * the route can audit what changed; null when the account does not exist.
+   */
+  async updateProfile(
+    username: string,
+    fields: ProfileUpdateInput,
+  ): Promise<{ before: UserRecord; after: UserRecord } | null> {
+    const before = await this.persistence.findUserByUsername(username);
+    if (!before) return null;
+    await this.persistence.updateUserFields(username, fields, new Date().toISOString());
+    const after = await this.persistence.findUserByUsername(username);
+    return { before, after: after ?? { ...before, ...fields } };
   }
 
   /**

@@ -19,6 +19,7 @@ export const ACTION_LABELS: Record<AuditAction, string> = {
   session_revoke: "下线会话",
   force_logout: "强制下线",
   account_locked: "账号锁定",
+  profile_update: "修改个人资料",
   alert_ack: "确认消息",
   alert_unack: "取消确认",
   alert_claim: "认领消息",
@@ -114,7 +115,15 @@ export const auditObject = (entry: AuditRecord): string => {
         parts.push(userValue("role", detail.role));
       break;
     case "user_update":
+    case "profile_update":
       parts.push(userUpdateSummary(detail));
+      break;
+    // Sign-in rows carry where the attempt came from.
+    case "login":
+    case "login_failed":
+    case "account_locked":
+      if (typeof detail.ip === "string" && detail.ip)
+        parts.push(`IP ${detail.ip}`);
       break;
     case "role_create":
       parts.push(labelled("能力", capabilities(detail.capabilities)));

@@ -272,6 +272,14 @@ export interface AuthServiceStub {
   isSessionActive: Mock<(username: string, sessionId: string) => Promise<boolean>>;
   listSessions: Mock<(username: string) => Promise<SessionRecord[]>>;
   revokeSession: Mock<(username: string, sessionId: string) => Promise<boolean>>;
+  revokeOtherSessions: Mock<(username: string, keepSessionId: string) => Promise<number>>;
+  // Own account (个人中心).
+  updateProfile: Mock<
+    (
+      username: string,
+      fields: Record<string, unknown>,
+    ) => Promise<{ before: UserRecord; after: UserRecord } | null>
+  >;
 }
 
 /** A full stored user with the expanded user and lockout fields, for stubbing `findByUsername`. */
@@ -341,6 +349,11 @@ export const createAuthServiceStub = (): AuthServiceStub => ({
   isSessionActive: vi.fn(() => Promise.resolve(true)),
   listSessions: vi.fn(() => Promise.resolve<SessionRecord[]>([])),
   revokeSession: vi.fn(() => Promise.resolve(true)),
+  revokeOtherSessions: vi.fn(() => Promise.resolve(0)),
+  updateProfile: vi.fn((username: string, fields: Record<string, unknown>) => {
+    const before = stubUser(username);
+    return Promise.resolve({ before, after: { ...before, ...fields } });
+  }),
 });
 
 export interface AuditServiceStub {
