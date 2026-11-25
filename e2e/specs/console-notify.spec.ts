@@ -33,9 +33,9 @@ test.describe("console notify", () => {
     ).toBeVisible();
 
     const main = page.getByRole("main");
-    // The 生效渠道 region lists the demo channels; their urlEnv is unset, so each reads 未配 env
+    // The 外发渠道 region lists the demo channels; their urlEnv is unset, so each reads 未配 env
     // (configured but not ready — nothing is sent).
-    await expect(main.getByText("生效渠道")).toBeVisible();
+    await expect(main.getByText("外发渠道", { exact: true })).toBeVisible();
     await expect(main.getByText("ops-wecom").first()).toBeVisible();
     await expect(main.getByText(/未配 env/).first()).toBeVisible();
     // The send-log filters apply live (no 查询 button) — the 筛选 region is still there.

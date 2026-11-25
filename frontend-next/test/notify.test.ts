@@ -193,21 +193,28 @@ const submitBodyForm = async () => {
 };
 
 describe("NotifyView — channel editor", () => {
-  it("hides the editor from callers without notify:write", async () => {
+  it("shows the cards without edit actions to callers without notify:write", async () => {
     const wrapper = await mountView(); // anonymous by default
-    expect(wrapper.find('[aria-label="配置渠道"]').exists()).toBe(false);
+    const section = wrapper.find('[aria-label="外发渠道"]');
+    expect(section.text()).toContain("ops-webhook");
+    expect(
+      section.findAll("button").some((b) => b.text().trim() === "编辑"),
+    ).toBe(false);
   });
 
-  it("shows the raw channels and env-readiness for a writer", async () => {
+  it("puts 编辑 / 删除 on each channel card for a writer", async () => {
     asWriter();
     vi.spyOn(fleetApi, "getNotifyConfigRaw").mockResolvedValue({
       config: { channels: [RAW_CHANNEL] },
     });
     const wrapper = await mountView();
-    const section = wrapper.find('[aria-label="配置渠道"]');
-    expect(section.exists()).toBe(true);
+    // One list of channels, not a read list plus an editor table.
+    expect(wrapper.findAll("table")).toHaveLength(1);
+    const section = wrapper.find('[aria-label="外发渠道"]');
     expect(section.text()).toContain("ops-webhook");
-    expect(wrapper.find("button").exists()).toBe(true);
+    expect(section.text()).toContain("已就绪");
+    const labels = section.findAll("button").map((b) => b.text().trim());
+    expect(labels).toEqual(["编辑", "删除"]);
   });
 
   it("creates a channel and writes the whole file", async () => {
@@ -355,6 +362,19 @@ describe("NotifyView — channel editor", () => {
     vi.spyOn(fleetApi, "getNotifyConfigRaw").mockResolvedValue({
       config: { channels: [emailChannel] },
     });
+    // The redacted view is the same notify.json, so it lists the same channel (the card's 编辑
+    // acts on the raw entry of the card's id).
+    vi.spyOn(fleetApi, "getNotifyConfig").mockResolvedValue({
+      channels: [
+        {
+          id: "ops-mail",
+          type: "email",
+          enabled: true,
+          severities: ["critical"],
+          configured: true,
+        },
+      ],
+    });
     const put = vi
       .spyOn(fleetApi, "putNotifyConfig")
       .mockResolvedValue({ config: { channels: [emailChannel] } });
@@ -445,9 +465,11 @@ describe("NotifyView — channel editor", () => {
     const wrapper = await mountView();
     // The send log still renders. The editor says it could not load instead of showing an empty
     // config, and 新建渠道 is off: a save built from nothing would replace notify.json wholesale.
-    expect(wrapper.find('[aria-label="配置渠道"]').exists()).toBe(true);
-    expect(wrapper.text()).toContain("无法加载渠道配置");
-    expect(wrapper.text()).not.toContain("还没配置渠道");
+    // The cards still render from the redacted view, without actions.
+    const section = wrapper.find('[aria-label="外发渠道"]');
+    expect(section.text()).toContain("ops-webhook");
+    expect(section.text()).toContain("无法加载渠道配置");
+    expect(section.findAll("button")).toHaveLength(0);
     const create = wrapper
       .findAll("button")
       .find((b) => b.text().trim() === "新建渠道");
