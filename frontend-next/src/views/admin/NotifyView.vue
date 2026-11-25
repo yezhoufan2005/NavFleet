@@ -55,7 +55,8 @@ import UiSelect from "@/components/ui/UiSelect.vue";
 import UiFilterBar from "@/components/ui/UiFilterBar.vue";
 import UiFilterField from "@/components/ui/UiFilterField.vue";
 import UiEmptyState from "@/components/ui/UiEmptyState.vue";
-import { tableClasses } from "@/lib/uiClasses";
+import { tableClasses, textClasses } from "@/lib/uiClasses";
+import { vOverflowTitle } from "@/directives/overflowTitle";
 import { useAuth } from "@/composables/useAuth";
 import { makeMessageFor } from "@/lib/errorMessages";
 import { severityLabel } from "@/lib/severity";
@@ -702,11 +703,25 @@ const formDirty = formSnapshot.dirty;
                 <td class="px-3 py-2 whitespace-nowrap text-ink-muted">
                   {{ formatTime(record.ts) }}
                 </td>
-                <td class="truncate px-3 py-2 text-ink">
+                <td
+                  v-overflow-title
+                  class="px-3 py-2 text-ink"
+                  :class="textClasses.cell"
+                >
                   {{ record.deviceId }}
                 </td>
-                <td class="truncate px-3 py-2 text-ink">{{ record.title }}</td>
-                <td class="truncate px-3 py-2 text-ink">
+                <td
+                  v-overflow-title
+                  class="px-3 py-2 text-ink"
+                  :class="textClasses.cell"
+                >
+                  {{ record.title }}
+                </td>
+                <td
+                  v-overflow-title
+                  class="px-3 py-2 text-ink"
+                  :class="textClasses.cell"
+                >
                   {{ record.channelId }}
                   <span class="text-2xs text-ink-subtle">{{
                     CHANNEL_TYPE_LABELS[record.channelType] ??
@@ -732,7 +747,11 @@ const formDirty = formSnapshot.dirty;
                     record.latencyMs === null ? "—" : `${record.latencyMs}ms`
                   }}
                 </td>
-                <td class="truncate px-3 py-2 text-ink-muted">
+                <td
+                  v-overflow-title
+                  class="px-3 py-2 text-ink-muted"
+                  :class="textClasses.cell"
+                >
                   {{ record.error ?? "—" }}
                 </td>
               </tr>

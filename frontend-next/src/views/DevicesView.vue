@@ -32,7 +32,8 @@ import UiFilterBar from "@/components/ui/UiFilterBar.vue";
 import UiFilterField from "@/components/ui/UiFilterField.vue";
 import UiListPagination from "@/components/ui/UiListPagination.vue";
 import UiEmptyState from "@/components/ui/UiEmptyState.vue";
-import { tableClasses } from "@/lib/uiClasses";
+import { tableClasses, textClasses } from "@/lib/uiClasses";
+import { vOverflowTitle } from "@/directives/overflowTitle";
 import { compileSearch } from "@/lib/searchQuery";
 import { useFleetStore } from "@/stores/fleet";
 import { useListPagination } from "@/composables/useListPagination";
@@ -816,7 +817,11 @@ watch(
                       {{ row.label }}
                     </span>
                   </td>
-                  <td class="truncate px-3 py-2">
+                  <td
+                    v-overflow-title
+                    class="px-3 py-2"
+                    :class="textClasses.cell"
+                  >
                     <!--
                   A link to the device, not a button that only moves the map's selection.
                   Until this changed, a healthy vehicle's detail page — and therefore the
@@ -836,11 +841,17 @@ watch(
                     </RouterLink>
                   </td>
                   <td
-                    class="truncate px-3 py-2 font-mono text-xs text-ink-muted"
+                    v-overflow-title
+                    class="px-3 py-2 font-mono text-xs text-ink-muted"
+                    :class="textClasses.cell"
                   >
                     {{ row.device.deviceId }}
                   </td>
-                  <td class="truncate px-3 py-2 text-ink-muted">
+                  <td
+                    v-overflow-title
+                    class="px-3 py-2 text-ink-muted"
+                    :class="textClasses.cell"
+                  >
                     {{ row.sceneLabel }}
                   </td>
                   <td class="px-3 py-2 text-ink-muted">

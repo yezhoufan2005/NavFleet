@@ -34,7 +34,8 @@ import UiInput from "@/components/ui/UiInput.vue";
 import UiConfirmDialog from "@/components/ui/UiConfirmDialog.vue";
 import UiModal from "@/components/ui/UiModal.vue";
 import UiSelect from "@/components/ui/UiSelect.vue";
-import { tableClasses } from "@/lib/uiClasses";
+import { tableClasses, textClasses } from "@/lib/uiClasses";
+import { vOverflowTitle } from "@/directives/overflowTitle";
 import { useAuth } from "@/composables/useAuth";
 import { makeMessageFor } from "@/lib/errorMessages";
 import { notify as toast } from "@/composables/useNotifications";
@@ -341,19 +342,31 @@ const formDirty = formSnapshot.dirty;
               :key="schedule.id"
               :class="tableClasses.row"
             >
-              <td class="truncate px-3 py-2 text-ink">
+              <td
+                v-overflow-title
+                class="px-3 py-2 text-ink"
+                :class="textClasses.cell"
+              >
                 {{ schedule.id }}
                 <span class="text-2xs text-ink-subtle">{{
                   schedule.enabled ? "启用" : "停用"
                 }}</span>
               </td>
-              <td class="truncate px-3 py-2 text-ink-muted">
+              <td
+                v-overflow-title
+                class="px-3 py-2 text-ink-muted"
+                :class="textClasses.cell"
+              >
                 {{ REPORT_RANGE_LABELS[schedule.range] ?? schedule.range }}
               </td>
               <td class="px-3 py-2 text-ink-muted tabular-nums">
                 {{ weekdayLabel(schedule.weekday) }} {{ schedule.time }}
               </td>
-              <td class="truncate px-3 py-2 text-ink-muted">
+              <td
+                v-overflow-title
+                class="px-3 py-2 text-ink-muted"
+                :class="textClasses.cell"
+              >
                 {{ schedule.from }}
               </td>
               <td v-if="canWrite" class="px-3 py-2">

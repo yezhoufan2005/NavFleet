@@ -23,7 +23,8 @@ import UiButton from "@/components/ui/UiButton.vue";
 import UiConfirmDialog from "@/components/ui/UiConfirmDialog.vue";
 import UiModal from "@/components/ui/UiModal.vue";
 import UiSelect from "@/components/ui/UiSelect.vue";
-import { tableClasses } from "@/lib/uiClasses";
+import { tableClasses, textClasses } from "@/lib/uiClasses";
+import { vOverflowTitle } from "@/directives/overflowTitle";
 import { makeMessageFor } from "@/lib/errorMessages";
 import { notify } from "@/composables/useNotifications";
 import { useAuth } from "@/composables/useAuth";
@@ -485,19 +486,39 @@ const formDirty = formSnapshot.dirty;
               :key="entry.code"
               :class="[tableClasses.row, 'align-top']"
             >
-              <td class="truncate px-3 py-2 font-mono text-ink">
+              <td
+                v-overflow-title
+                class="px-3 py-2 font-mono text-ink"
+                :class="textClasses.cell"
+              >
                 {{ entry.code }}
               </td>
-              <td class="truncate px-3 py-2 text-ink">
+              <td
+                v-overflow-title
+                class="px-3 py-2 text-ink"
+                :class="textClasses.cell"
+              >
                 {{ entry.label }}
               </td>
-              <td class="truncate px-4 py-2 text-ink-muted">
+              <td
+                v-overflow-title
+                class="px-4 py-2 text-ink-muted"
+                :class="textClasses.cell"
+              >
                 {{ CODE_CHANNEL_LABELS[entry.channel] }}
               </td>
-              <td class="truncate px-3 py-2 text-ink-muted">
+              <td
+                v-overflow-title
+                class="px-3 py-2 text-ink-muted"
+                :class="textClasses.cell"
+              >
                 {{ CODE_IMPACTS[entry.impact].label }}
               </td>
-              <td class="truncate px-3 py-2 text-ink-muted">
+              <td
+                v-overflow-title
+                class="px-3 py-2 text-ink-muted"
+                :class="textClasses.cell"
+              >
                 {{ CODE_SUBSYSTEMS[entry.subsystem] }}
               </td>
               <td class="px-3 py-2 text-ink-muted">

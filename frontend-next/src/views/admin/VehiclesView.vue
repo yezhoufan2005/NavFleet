@@ -23,7 +23,8 @@ import UiInput from "@/components/ui/UiInput.vue";
 import UiSelect from "@/components/ui/UiSelect.vue";
 import UiConfirmDialog from "@/components/ui/UiConfirmDialog.vue";
 import UiModal from "@/components/ui/UiModal.vue";
-import { tableClasses } from "@/lib/uiClasses";
+import { tableClasses, textClasses } from "@/lib/uiClasses";
+import { vOverflowTitle } from "@/directives/overflowTitle";
 import { makeMessageFor } from "@/lib/errorMessages";
 import { notify } from "@/composables/useNotifications";
 import { useFieldErrors } from "@/composables/useFieldErrors";
@@ -299,18 +300,32 @@ const formDirty = formSnapshot.dirty;
               :class="tableClasses.row"
             >
               <th
+                v-overflow-title
                 scope="row"
-                class="truncate px-3 py-2 font-mono text-2xs text-ink"
+                class="px-3 py-2 font-mono text-2xs text-ink"
+                :class="textClasses.cell"
               >
                 {{ vehicle.deviceId }}
               </th>
-              <td class="truncate px-3 py-2 text-ink-muted">
+              <td
+                v-overflow-title
+                class="px-3 py-2 text-ink-muted"
+                :class="textClasses.cell"
+              >
                 {{ vehicle.deviceName }}
               </td>
-              <td class="truncate px-3 py-2 text-ink-muted">
+              <td
+                v-overflow-title
+                class="px-3 py-2 text-ink-muted"
+                :class="textClasses.cell"
+              >
                 {{ vehicle.defaultSceneId || "—" }}
               </td>
-              <td class="truncate px-3 py-2 text-ink-muted">
+              <td
+                v-overflow-title
+                class="px-3 py-2 text-ink-muted"
+                :class="textClasses.cell"
+              >
                 {{ (vehicle.tags ?? []).join("、") || "—" }}
               </td>
               <td class="px-3 py-2 text-ink-muted">
