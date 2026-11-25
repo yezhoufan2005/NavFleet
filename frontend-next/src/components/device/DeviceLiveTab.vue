@@ -309,16 +309,8 @@ const panels = computed(() => [
 }
 
 /*
- * One floor for both cards with content, so the row does not jump between a one-line code and a
- * four-field task: 15rem is the task card's full height (title, id, progress, two field rows).
- * A placeholder has none — beside an open card it stretches to that card's height; with both
- * empty the pair stays a short title row. The floor animates so a card grows open smoothly.
+ * No fixed floor: the row is as tall as its taller card's content, and the grid stretches the
+ * other card (and a folded strip) to match — equal height, hugging the text, nothing squeezed and
+ * no empty band (a 15rem floor left one under every short code / task).
  */
-.top-cards :deep(.device-top-card) {
-  min-height: 15rem;
-  transition: min-height 240ms var(--ease-standard);
-}
-.top-cards :deep(.device-top-card.is-collapsed) {
-  min-height: 0;
-}
 </style>
