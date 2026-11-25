@@ -117,8 +117,10 @@ const elapsed = computed(() => {
         <p class="m-0 text-sm text-ink">{{ stepLabel || "--" }}</p>
       </div>
 
-      <!-- 起点 / 终点 and 开始时间 / 进行时长 share one two-column grid and one label width, so the
-           four values line up in two columns; label and value sit on one line. -->
+      <!-- 起点 / 终点, then a footer with 开始时间 / 进行时长: the same two-column grid and label
+           width, so the four values line up. The footer is built exactly like 报码解读's (a hairline,
+           pt-2.5) and pinned to the card's bottom (mt-auto) — the two cards are stretched to one
+           height, so their hairlines and time rows sit on the same lines. -->
       <dl class="m-0 grid grid-cols-1 gap-x-4 @md:grid-cols-2 gap-y-2 text-sm">
         <div
           v-for="field in routeFields"
@@ -136,10 +138,10 @@ const elapsed = computed(() => {
             {{ field.value }}
           </dd>
         </div>
-        <div
-          class="col-span-full -my-0.5 border-t border-border"
-          aria-hidden="true"
-        />
+      </dl>
+      <dl
+        class="m-0 mt-auto grid grid-cols-1 gap-x-4 @md:grid-cols-2 gap-y-2 border-t border-border pt-2.5 text-sm"
+      >
         <div
           v-for="field in timeFields"
           :key="field.label"
