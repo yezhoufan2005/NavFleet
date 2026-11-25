@@ -25,6 +25,8 @@ import {
   type RbacRole,
 } from "@navfleet/shared";
 import PageHeader from "@/components/PageHeader.vue";
+import UiLoading from "@/components/ui/UiLoading.vue";
+import UiBusyRegion from "@/components/ui/UiBusyRegion.vue";
 import AppSectionTabs from "@/components/shell/AppSectionTabs.vue";
 import UiButton from "@/components/ui/UiButton.vue";
 import UiInput from "@/components/ui/UiInput.vue";
@@ -87,9 +89,12 @@ const roles = ref<RbacRole[]>([]);
 const groups = ref<RbacGroup[]>([]);
 const unmanageable = ref<Set<string>>(new Set());
 const status = ref<"loading" | "ready" | "error">("loading");
+/** A re-query of data already on screen (see `UiBusyRegion`); the first load is `status`. */
+const refreshing = ref(false);
 
 const load = async (): Promise<void> => {
-  status.value = "loading";
+  if (status.value === "ready") refreshing.value = true;
+  else status.value = "loading";
   try {
     const [result, groupResult, userResult] = await Promise.all([
       fleetApi.getRbacRoles(),
@@ -103,8 +108,10 @@ const load = async (): Promise<void> => {
         .filter((user) => user.manageable === false)
         .map((user) => user.username),
     );
+    refreshing.value = false;
     status.value = "ready";
   } catch {
+    refreshing.value = false;
     status.value = "error";
   }
 };
@@ -214,7 +221,12 @@ const formDirty = formSnapshot.dirty;
 
     <AppSectionTabs />
 
-    <p v-if="status === 'loading'" class="text-sm text-ink-muted">加载中…</p>
+    <UiLoading
+      v-if="status === 'loading'"
+      label="正在加载角色"
+      :columns="3"
+      action
+    />
     <p
       v-else-if="status === 'error'"
       class="text-sm text-critical-ink"
@@ -223,7 +235,7 @@ const formDirty = formSnapshot.dirty;
       无法加载角色
     </p>
 
-    <template v-else>
+    <UiBusyRegion v-else :busy="refreshing" content-class="flex flex-col gap-4">
       <p v-if="!roles.length" class="text-sm text-ink-muted" role="status">
         还没有角色
       </p>
@@ -280,7 +292,7 @@ const formDirty = formSnapshot.dirty;
           </tbody>
         </table>
       </div>
-    </template>
+    </UiBusyRegion>
 
     <!-- Role dialog -->
     <UiModal

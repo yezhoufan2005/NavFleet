@@ -18,6 +18,7 @@ import { FIELD_HELP } from "@/lib/fieldHelp";
 import { computed, onMounted, ref, nextTick, watch } from "vue";
 import { useDirtySnapshot } from "@/composables/useDirtySnapshot";
 import PageHeader from "@/components/PageHeader.vue";
+import UiLoading from "@/components/ui/UiLoading.vue";
 import AppSectionTabs from "@/components/shell/AppSectionTabs.vue";
 import UiButton from "@/components/ui/UiButton.vue";
 import UiConfirmDialog from "@/components/ui/UiConfirmDialog.vue";
@@ -423,9 +424,12 @@ const formDirty = formSnapshot.dirty;
       {{ importError }}
     </p>
 
-    <p v-if="status === 'loading'" class="text-sm text-ink-muted" role="status">
-      正在读取报码字典…
-    </p>
+    <UiLoading
+      v-if="status === 'loading'"
+      label="正在加载报码字典"
+      :columns="6"
+      :rows="8"
+    />
 
     <p
       v-else-if="status === 'error'"

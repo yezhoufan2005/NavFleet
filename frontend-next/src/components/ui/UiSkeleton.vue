@@ -27,7 +27,8 @@
  * in step with the type scale.
  */
 
-type Variant = "line" | "value" | "card";
+/** `block` fills the height its caller gives the component (a chart canvas, a map). */
+type Variant = "line" | "value" | "card" | "block";
 
 const { rows = 1, variant = "line" } = defineProps<{
   /** How many placeholder bars to render. */
@@ -96,6 +97,16 @@ const { rows = 1, variant = "line" } = defineProps<{
 
 .skeleton-card {
   height: 74px;
+  border-radius: var(--radius-md);
+}
+
+.skeleton-stack:has(.skeleton-block) {
+  grid-template-rows: 1fr;
+}
+
+.skeleton-block {
+  height: 100%;
+  min-height: 4rem;
   border-radius: var(--radius-md);
 }
 

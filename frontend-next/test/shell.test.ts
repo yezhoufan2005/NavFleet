@@ -185,7 +185,8 @@ describe("session states", () => {
     });
     await router.isReady();
 
-    expect(wrapper.text()).toContain("正在加载…");
+    // The product mark and a progress line, with the wait announced to screen readers.
+    expect(wrapper.find('[role="status"]').text()).toBe("正在加载");
     expect(wrapper.find("nav").exists()).toBe(false);
   });
 

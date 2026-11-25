@@ -155,5 +155,9 @@ export const auditObject = (entry: AuditRecord): string => {
       );
       break;
   }
-  return parts.filter(Boolean).join(" · ");
+  const shown = parts.filter(Boolean);
+  // A sign-in row has no target; with its IP beside it, the placeholder dash is just noise.
+  return (shown.length > 1 && shown[0] === "—" ? shown.slice(1) : shown).join(
+    " · ",
+  );
 };

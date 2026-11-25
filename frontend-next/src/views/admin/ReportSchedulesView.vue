@@ -28,6 +28,8 @@ import {
   type ReportsConfig,
 } from "@navfleet/shared";
 import PageHeader from "@/components/PageHeader.vue";
+import UiLoading from "@/components/ui/UiLoading.vue";
+import UiBusyRegion from "@/components/ui/UiBusyRegion.vue";
 import AppSectionTabs from "@/components/shell/AppSectionTabs.vue";
 import UiButton from "@/components/ui/UiButton.vue";
 import UiInput from "@/components/ui/UiInput.vue";
@@ -68,15 +70,20 @@ const messageFor = makeMessageFor(ERROR_MESSAGES);
 
 const config = ref<ReportsConfig | null>(null);
 const status = ref<"loading" | "ready" | "error">("loading");
+/** A re-query of data already on screen (see `UiBusyRegion`); the first load is `status`. */
+const refreshing = ref(false);
 
 const schedules = computed(() => config.value?.schedules ?? []);
 
 const load = async (): Promise<void> => {
-  status.value = "loading";
+  if (status.value === "ready") refreshing.value = true;
+  else status.value = "loading";
   try {
     config.value = (await fleetApi.getReportsConfig()).config;
+    refreshing.value = false;
     status.value = "ready";
   } catch {
+    refreshing.value = false;
     status.value = "error";
   }
 };
@@ -287,7 +294,12 @@ const formDirty = formSnapshot.dirty;
 
     <AppSectionTabs />
 
-    <p v-if="status === 'loading'" class="text-sm text-ink-muted">加载中…</p>
+    <UiLoading
+      v-if="status === 'loading'"
+      label="正在加载定时报表"
+      :columns="5"
+      action
+    />
     <p
       v-else-if="status === 'error'"
       class="text-sm text-critical-ink"
@@ -296,7 +308,7 @@ const formDirty = formSnapshot.dirty;
       无法加载定时报表配置
     </p>
 
-    <template v-else>
+    <UiBusyRegion v-else :busy="refreshing" content-class="flex flex-col gap-4">
       <p class="m-0 text-2xs text-ink-subtle">报表按周期生成并邮件推送</p>
       <p v-if="!schedules.length" class="text-sm text-ink-muted" role="status">
         还没有定时报表
@@ -389,7 +401,7 @@ const formDirty = formSnapshot.dirty;
           </tbody>
         </table>
       </div>
-    </template>
+    </UiBusyRegion>
 
     <!-- Schedule editor (reports:write). -->
     <UiModal

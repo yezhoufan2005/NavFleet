@@ -17,6 +17,8 @@ import { useDirtySnapshot } from "@/composables/useDirtySnapshot";
 import { fleetApi } from "@navfleet/fleet-core";
 import type { DeviceConfig } from "@navfleet/shared";
 import PageHeader from "@/components/PageHeader.vue";
+import UiLoading from "@/components/ui/UiLoading.vue";
+import UiBusyRegion from "@/components/ui/UiBusyRegion.vue";
 import AppSectionTabs from "@/components/shell/AppSectionTabs.vue";
 import UiButton from "@/components/ui/UiButton.vue";
 import UiInput from "@/components/ui/UiInput.vue";
@@ -38,17 +40,22 @@ const ERROR_MESSAGES: Record<string, string> = {
 const messageFor = makeMessageFor(ERROR_MESSAGES);
 
 const status = ref<"loading" | "ready" | "error">("loading");
+/** A re-query of data already on screen (see `UiBusyRegion`); the first load is `status`. */
+const refreshing = ref(false);
 const vehicles = ref<DeviceConfig[]>([]);
 const sceneOptions = ref<{ value: string; label: string }[]>([]);
 
 const load = async (): Promise<void> => {
-  status.value = "loading";
+  if (status.value === "ready") refreshing.value = true;
+  else status.value = "loading";
   try {
     const v = await fleetApi.getVehicleConfig();
     vehicles.value = v.vehicles;
     sceneOptions.value = await loadDefaultSceneOptions();
+    refreshing.value = false;
     status.value = "ready";
   } catch {
+    refreshing.value = false;
     status.value = "error";
   }
 };
@@ -255,7 +262,12 @@ const formDirty = formSnapshot.dirty;
 
     <AppSectionTabs />
 
-    <p v-if="status === 'loading'" class="text-sm text-ink-muted">加载中…</p>
+    <UiLoading
+      v-if="status === 'loading'"
+      label="正在加载设备配置"
+      :columns="6"
+      action
+    />
     <p
       v-else-if="status === 'error'"
       class="text-sm text-critical-ink"
@@ -264,7 +276,7 @@ const formDirty = formSnapshot.dirty;
       无法加载设备配置
     </p>
 
-    <template v-else>
+    <UiBusyRegion v-else :busy="refreshing" content-class="flex flex-col gap-4">
       <p class="m-0 text-xs text-ink-subtle">{{ countLabel }}</p>
       <div :class="tableClasses.wrapper">
         <table :class="[tableClasses.table, 'table-fixed', 'min-w-[46rem]']">
@@ -355,7 +367,7 @@ const formDirty = formSnapshot.dirty;
           </tbody>
         </table>
       </div>
-    </template>
+    </UiBusyRegion>
   </PageHeader>
 
   <!-- Vehicle create/edit -->

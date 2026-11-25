@@ -40,8 +40,21 @@ import { useTheme, type ThemePreference } from "@/composables/useTheme";
 import { useAlertSound } from "@/composables/useAlertSound";
 import type { QuietHours, SoundVolume } from "@/composables/useAlertSound";
 import { vOverflowTitle } from "@/directives/overflowTitle";
+import {
+  useRefetchStyle,
+  type RefetchStyle,
+} from "@/composables/useRefetchStyle";
 
 const { user } = defineProps<{ user: PublicUser }>();
+
+const refetch = useRefetchStyle();
+const REFETCH_OPTIONS: readonly { value: RefetchStyle; label: string }[] = [
+  { value: "bar", label: "顶部细条" },
+  { value: "dim", label: "内容淡化" },
+];
+const onRefetchStyleChange = (value: unknown): void => {
+  if (value === "bar" || value === "dim") refetch.setStyle(value);
+};
 const emit = defineEmits<{ logout: [] }>();
 
 const { preference, resolved, setPreference } = useTheme();
@@ -261,6 +274,33 @@ const onThemeChange = (value: unknown): void => {
           </DropdownMenuRadioItem>
         </DropdownMenuRadioGroup>
 
+        <DropdownMenuSeparator class="my-1 h-px bg-border" />
+
+        <!-- 验收用 — a temporary switch so the two re-query styles can be compared on real pages
+             (see useRefetchStyle). Removed together with the losing style once one is chosen. -->
+        <DropdownMenuLabel class="px-2 py-1 text-2xs text-ink-subtle">
+          加载提示（验收用）
+        </DropdownMenuLabel>
+        <DropdownMenuRadioGroup
+          :model-value="refetch.style.value"
+          @update:model-value="onRefetchStyleChange"
+        >
+          <DropdownMenuRadioItem
+            v-for="option in REFETCH_OPTIONS"
+            :key="option.value"
+            :value="option.value"
+            class="flex cursor-default items-center justify-between rounded-sm px-2 py-1.5 text-sm text-ink-muted select-none data-[highlighted]:bg-surface-sunken data-[highlighted]:text-ink data-[state=checked]:text-ink"
+            @select.prevent
+          >
+            {{ option.label }}
+            <span
+              v-if="refetch.style.value === option.value"
+              class="text-brand-ink"
+              aria-hidden="true"
+              >✓</span
+            >
+          </DropdownMenuRadioItem>
+        </DropdownMenuRadioGroup>
         <DropdownMenuSeparator class="my-1 h-px bg-border" />
         <!--
           个人中心 is navigation (改密码 / 本人会话), so it renders as a real RouterLink via

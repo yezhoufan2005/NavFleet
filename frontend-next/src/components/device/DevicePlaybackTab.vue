@@ -31,6 +31,7 @@
  * The trail and the cursor come from `useHistoryPlayback`, which is where the O(N²)
  * described in its own header used to live.
  */
+import UiLoading from "@/components/ui/UiLoading.vue";
 import { computed, ref, watch } from "vue";
 import SceneMap from "@/components/map/SceneMap.vue";
 import TimeSeriesChart from "@/components/charts/TimeSeriesChart.vue";
@@ -480,12 +481,12 @@ const onScrub = (event: Event): void => {
           initial-view="fit"
         />
 
-        <div
+        <UiLoading
           v-else-if="status === 'loading'"
-          class="grid flex-1 place-content-center text-center"
-        >
-          <strong class="text-md text-ink">正在加载历史轨迹…</strong>
-        </div>
+          kind="block"
+          class="flex-1"
+          label="正在加载历史轨迹"
+        />
 
         <div
           v-else-if="status === 'error'"

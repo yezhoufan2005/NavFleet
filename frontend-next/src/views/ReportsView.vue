@@ -11,6 +11,8 @@
  *
  * 纯逻辑（KPI 汇总、时序序列、CSV）在 `lib/reportsView.ts`，便于单测；这里保持薄。
  */
+import UiLoading from "@/components/ui/UiLoading.vue";
+import UiBusyRegion from "@/components/ui/UiBusyRegion.vue";
 import UiHelpTip from "@/components/ui/UiHelpTip.vue";
 import { FIELD_HELP } from "@/lib/fieldHelp";
 import { computed, onMounted, ref, watch } from "vue";
@@ -301,6 +303,12 @@ const initialLoading = computed(
     alertStatus.value === "loading" &&
     !availability.value &&
     !alertStats.value,
+);
+/** A filter change re-querying a page that already shows a report (see `UiBusyRegion`). */
+const refreshing = computed(
+  () =>
+    !initialLoading.value &&
+    (availStatus.value === "loading" || alertStatus.value === "loading"),
 );
 /** Both backends answered "no history" (no Mongo) ⇒ the honest-empty page. */
 const noHistory = computed(
@@ -607,21 +615,10 @@ const exportAlertsCsv = (): void => {
          than a bare line, so the wait reads as "this is filling in" — the aggregation can be
          slow. Blocks are decorative; a screen reader hears the sr-only status instead. -->
     <div v-if="initialLoading" class="flex flex-col gap-4">
-      <p class="sr-only" role="status">正在加载报表…</p>
-      <dl class="m-0 grid grid-cols-2 gap-4 sm:grid-cols-4" aria-hidden="true">
-        <div
-          v-for="n in 4"
-          :key="n"
-          class="h-[4.5rem] rounded-md border border-border bg-surface-raised motion-safe:animate-pulse"
-        />
-      </dl>
-      <div class="grid gap-4 lg:grid-cols-2" aria-hidden="true">
-        <div
-          class="h-64 rounded-md border border-border bg-surface-raised motion-safe:animate-pulse"
-        />
-        <div
-          class="h-64 rounded-md border border-border bg-surface-raised motion-safe:animate-pulse"
-        />
+      <UiLoading kind="cards" :columns="3" :rows="1" label="正在加载报表" />
+      <div class="grid gap-4 lg:grid-cols-2">
+        <UiLoading kind="block" class="h-64" />
+        <UiLoading kind="block" class="h-64" />
       </div>
     </div>
 
@@ -640,7 +637,7 @@ const exportAlertsCsv = (): void => {
       说明连接情况
     </p>
 
-    <template v-else>
+    <UiBusyRegion v-else :busy="refreshing" content-class="flex flex-col gap-4">
       <!-- KPI band: fleet-wide headline numbers, each carrying a scrap of the data behind it
            (a sparkline / a distribution bar / a count) so the strip reads as analysis, not four
            lone digits. All from the data already fetched — no extra request. -->
@@ -808,14 +805,9 @@ const exportAlertsCsv = (): void => {
         <!-- Loading placeholder matches the two charts' footprint (h-[272px] each) so switching
              devices never collapses the card — the 「消息分析」 heading below stays put. -->
         <template v-else-if="availStatus === 'loading' && !hasAvailabilityData">
-          <p class="sr-only" role="status">正在加载在线率…</p>
-          <div class="grid gap-4 lg:grid-cols-2" aria-hidden="true">
-            <div
-              class="h-[272px] rounded-md border border-border bg-surface-raised motion-safe:animate-pulse"
-            />
-            <div
-              class="h-[272px] rounded-md border border-border bg-surface-raised motion-safe:animate-pulse"
-            />
+          <div class="grid gap-4 lg:grid-cols-2">
+            <UiLoading kind="block" class="h-[272px]" label="正在加载在线率" />
+            <UiLoading kind="block" class="h-[272px]" />
           </div>
         </template>
         <div v-else class="grid gap-4 lg:grid-cols-2">
@@ -1043,6 +1035,6 @@ const exportAlertsCsv = (): void => {
           </div>
         </div>
       </section>
-    </template>
+    </UiBusyRegion>
   </PageHeader>
 </template>

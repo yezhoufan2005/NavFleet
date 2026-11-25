@@ -457,7 +457,9 @@ describe("找不到设备", () => {
 
     store.state.realtime.bootstrapPending = true;
     await flushPromises();
-    expect(wrapper.text()).toContain("正在加载车队…");
+    // A skeleton in the page's shape, not the not-found message.
+    expect(wrapper.find("[data-loading]").exists()).toBe(true);
+    expect(wrapper.text()).not.toContain("找不到这台设备");
   });
 });
 

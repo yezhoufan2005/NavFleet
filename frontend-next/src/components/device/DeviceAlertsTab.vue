@@ -26,6 +26,7 @@
  * absent — a vehicle with a long troubled history reads like one that never faulted. The empty
  * text says what is missing and links to 系统 / 状态, the page that can say whether Mongo is up.
  */
+import UiLoading from "@/components/ui/UiLoading.vue";
 import { computed, ref, watch } from "vue";
 import { RouterLink } from "vue-router";
 import { fleetApi, formatDateTime } from "@navfleet/fleet-core";
@@ -259,9 +260,13 @@ const toggleDay = (dayKey: string): void => {
       >
     </header>
 
-    <p v-if="status === 'loading'" class="m-0 text-sm text-ink-muted">
-      正在加载消息历史…
-    </p>
+    <UiLoading
+      v-if="status === 'loading'"
+      kind="cards"
+      :rows="3"
+      :columns="1"
+      label="正在加载消息历史"
+    />
 
     <p
       v-else-if="status === 'error'"
