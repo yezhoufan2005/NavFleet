@@ -69,6 +69,7 @@ defineProps<{
   <div
     class="flex min-h-0 flex-col gap-4"
     :class="{ 'h-full': scrollContent || fillHeight }"
+    :data-page-fill="scrollContent || fillHeight ? '' : undefined"
   >
     <!--
       `min-h-8` fixes the title band to 32px whether or not an action sits beside the heading.
