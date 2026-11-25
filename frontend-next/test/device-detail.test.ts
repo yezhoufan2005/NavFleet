@@ -194,14 +194,13 @@ describe("报码解读", () => {
     const card = wrapper.get("section[aria-labelledby='codes-heading']");
     const name = card.get("strong");
     expect(name.classes()).toEqual(
-      expect.arrayContaining(["line-clamp-2", "wrap-break-word"]),
+      expect.arrayContaining(["line-clamp-2", "wrap-break-word", "min-w-0"]),
     );
-    expect(name.attributes("title")).toBe(name.text());
     // The title row is a grid whose middle track can shrink below its content.
     expect(name.element.parentElement?.className).toContain("minmax(0,1fr)");
     const meta = card.get("p.font-mono");
     expect(meta.classes()).toContain("truncate");
-    expect(meta.attributes("title")).toBe("5102 · 导航与定位");
+    expect(meta.text()).toBe("5102 · 导航与定位");
   });
 
   it("distinguishes intervention from merely blocked", async () => {

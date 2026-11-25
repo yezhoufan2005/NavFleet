@@ -19,6 +19,8 @@ import {
   type DescribedCode,
 } from "@navfleet/shared";
 import { formatStamp } from "@navfleet/fleet-core";
+import { textClasses } from "@/lib/uiClasses";
+import { vOverflowTitle } from "@/directives/overflowTitle";
 import { CODE_CHANNEL_LABELS, SEVERITY_BADGE } from "@/lib/severity";
 import { formatDurationMs } from "@/lib/alertStats";
 
@@ -120,8 +122,9 @@ const rows = computed(() =>
               >{{ CODE_CHANNEL_LABELS[row.channel] }}</span
             >
             <strong
-              class="line-clamp-2 text-sm font-semibold wrap-break-word text-ink"
-              :title="row.described.label"
+              v-overflow-title
+              class="text-sm font-semibold text-ink"
+              :class="textClasses.title"
               >{{ row.described.label }}</strong
             >
             <span
@@ -132,8 +135,9 @@ const rows = computed(() =>
           </div>
           <!-- Code · subsystem is metadata: one line, … past the edge, full text on hover. -->
           <p
-            class="m-0 truncate font-mono text-2xs text-ink-subtle"
-            :title="row.meta"
+            v-overflow-title
+            class="m-0 font-mono text-2xs text-ink-subtle"
+            :class="textClasses.field"
           >
             {{ row.meta }}
           </p>
@@ -142,10 +146,10 @@ const rows = computed(() =>
         <div class="flex flex-col gap-1">
           <!-- Body text wraps in full; wrap-break-word only splits a run with no break point
                (a long Latin token or path) so it cannot overflow the card. -->
-          <p class="m-0 text-sm wrap-break-word text-ink">
+          <p class="m-0 text-sm text-ink" :class="textClasses.body">
             {{ row.described.description }}
           </p>
-          <p class="m-0 text-xs wrap-break-word text-ink-muted">
+          <p class="m-0 text-xs text-ink-muted" :class="textClasses.body">
             <span class="text-ink-subtle">处理建议：</span
             >{{ row.described.hint }}
           </p>
@@ -170,8 +174,9 @@ const rows = computed(() =>
               {{ field.label }}
             </dt>
             <dd
-              class="m-0 min-w-0 truncate text-ink tabular-nums"
-              :title="field.value"
+              v-overflow-title
+              class="m-0 text-ink tabular-nums"
+              :class="textClasses.field"
             >
               {{ field.value }}
             </dd>
