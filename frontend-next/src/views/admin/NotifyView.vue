@@ -2,13 +2,16 @@
 /**
  * 外发 — the outbound-notification page (admin), both the send log and the channel editor.
  *
- * Read (everyone with `notify:read`): the effective channels (cards, from `GET /notify/config` —
- * secrets redacted, a `configured` badge says whether each channel's endpoint env is set) and the
- * send log (a filterable table, from `GET /notify/log`).
+ * Read (everyone with `notify:read`): the channels (cards, from `GET /notify/config` — secrets
+ * redacted, a `configured` badge says whether each channel's endpoint env is set) and the send log
+ * (a filterable table, from `GET /notify/log`).
  *
- * Write (`notify:write`, 1.6.1): a channel editor over the *raw* config (`GET /notify/config/raw`
- * → `PUT /notify/config`). The form is deliberately 精简 — id / 类型 / 启用 / urlEnv / 严重度,
- * plus email 收件人与收件人组, plus 静默窗口. The advanced routing fields (scope / digest / renotify
+ * Write (`notify:write`, 1.6.1): 编辑 / 删除 on the same cards and 新建渠道 in the header, over the
+ * *raw* config (`GET /notify/config/raw` → `PUT /notify/config`). Both views are one notify.json,
+ * so the page shows the channels once rather than as a read list plus an editor table.
+ *
+ * The form is deliberately 精简 — id / 类型 / 启用 / urlEnv / 严重度, plus email 收件人与收件人组,
+ * plus 静默窗口. The advanced routing fields (scope / digest / renotify
  * / escalation / email `from`) are **round-tripped**: each save rebuilds the channel from the form
  * and re-carries those fields off the original by id, so editing one channel never drops another's
  * advanced setup. Endpoint secrets never enter this page — only their `urlEnv` variable *names* —
@@ -330,10 +333,16 @@ const ERROR_MESSAGES: Record<string, string> = {
 };
 const messageFor = makeMessageFor(ERROR_MESSAGES);
 
-/** Look up the redacted view's env-readiness badge for a raw channel by id. */
-const configuredById = computed(() => {
-  const map = new Map<string, boolean>();
-  for (const channel of channels.value) map.set(channel.id, channel.configured);
+/**
+ * The raw (editable) channel behind each card, by id. The cards render the redacted view every
+ * reader gets; a writer's 编辑 / 删除 act on the raw entry of the same id, both read from one
+ * notify.json. A card with no raw entry (raw config failed to load) offers no actions.
+ */
+const rawById = computed(() => {
+  const map = new Map<string, NotifyChannelConfig>();
+  for (const channel of rawConfig.value?.channels ?? []) {
+    map.set(channel.id, channel);
+  }
   return map;
 });
 
@@ -598,126 +607,85 @@ const formDirty = formSnapshot.dirty;
 
     <AppSectionTabs />
 
-    <section aria-label="生效渠道" class="flex flex-col gap-2">
-      <h2 class="text-2xs text-ink-muted uppercase">生效渠道</h2>
+    <!-- 外发渠道: one card per channel in notify.json, a row in thirds. Every reader sees the same
+         cards (the redacted view: type, 启用, 严重度, env readiness); a writer also gets 编辑 / 删除
+         on each card, acting on the raw entry of the same id. -->
+    <section aria-label="外发渠道" class="flex flex-col gap-2">
+      <h2 class="m-0 text-2xs text-ink-muted uppercase">外发渠道</h2>
       <p
-        v-if="status === 'ready' && channels.length === 0"
-        class="text-sm text-ink-muted"
-        role="status"
-      >
-        未配置任何渠道，当前不会外发
-      </p>
-      <ul v-else class="grid list-none grid-cols-1 gap-4 p-0 md:grid-cols-3">
-        <li
-          v-for="channel in channels"
-          :key="channel.id"
-          class="flex flex-col gap-1 rounded-md border border-border bg-surface-raised p-3"
-        >
-          <span class="flex items-baseline gap-2">
-            <span class="text-sm font-semibold text-ink">{{ channel.id }}</span>
-            <span class="font-mono text-2xs text-ink-subtle">{{
-              CHANNEL_TYPE_LABELS[channel.type] ?? channel.type
-            }}</span>
-            <span
-              class="ml-auto font-mono text-2xs"
-              :class="channel.configured ? 'text-brand-ink' : 'text-ink-subtle'"
-              >{{ channel.configured ? "● 已就绪" : "○ 未配 env" }}</span
-            >
-          </span>
-          <span class="text-2xs text-ink-muted">
-            {{ channel.enabled ? "启用" : "停用" }} ·
-            {{ severitiesLabel(channel.severities) }}
-          </span>
-        </li>
-      </ul>
-    </section>
-
-    <section v-if="canWrite" class="flex flex-col gap-2" aria-label="配置渠道">
-      <h2 class="m-0 text-2xs text-ink-muted uppercase">配置渠道</h2>
-      <p
-        v-if="status === 'ready' && rawConfig === null"
-        class="text-sm text-critical-ink"
+        v-if="canWrite && status === 'ready' && rawConfig === null"
+        class="m-0 text-sm text-critical-ink"
         role="alert"
       >
         无法加载渠道配置，暂不能新建或修改渠道
       </p>
       <p
-        v-else-if="rawConfig && !rawConfig.channels.length"
-        class="text-sm text-ink-muted"
+        v-if="status === 'ready' && channels.length === 0"
+        class="m-0 text-sm text-ink-muted"
         role="status"
       >
-        还没配置渠道
+        未配置任何渠道，当前不会外发
       </p>
-      <div v-else-if="rawConfig" :class="tableClasses.wrapper">
-        <table :class="[tableClasses.table, 'table-fixed', 'min-w-[38rem]']">
-          <!-- Shared column-width standard (`tableClasses`): bases are measured content widths,
-               slack spread proportionally. -->
-          <colgroup>
-            <col class="w-32" />
-            <col class="w-24" />
-            <col class="w-36" />
-            <col class="w-24" />
-            <col class="w-36" />
-          </colgroup>
-          <thead :class="tableClasses.thead">
-            <tr>
-              <th scope="col" class="px-3 py-2">渠道</th>
-              <th scope="col" class="px-3 py-2">类型</th>
-              <th scope="col" class="px-3 py-2">严重度</th>
-              <th scope="col" class="px-3 py-2">env</th>
-              <th scope="col" class="py-2 pr-6 pl-3 text-right">操作</th>
-            </tr>
-          </thead>
-          <tbody>
-            <tr
-              v-for="channel in rawConfig?.channels ?? []"
-              :key="channel.id"
-              :class="tableClasses.row"
+      <ul
+        v-else
+        class="m-0 grid list-none grid-cols-1 gap-4 p-0 md:grid-cols-3"
+      >
+        <li
+          v-for="channel in channels"
+          :key="channel.id"
+          class="flex min-w-0 flex-col gap-1 rounded-md border border-border bg-surface-raised p-3"
+        >
+          <span class="flex min-w-0 items-baseline gap-2">
+            <span
+              v-overflow-title
+              class="text-sm font-semibold text-ink"
+              :class="textClasses.field"
+              >{{ channel.id }}</span
             >
-              <td class="px-3 py-2 text-ink">
-                {{ channel.id }}
-                <span class="text-2xs text-ink-subtle">{{
-                  channel.enabled ? "启用" : "停用"
-                }}</span>
-              </td>
-              <td class="px-3 py-2 text-ink-muted">
-                {{ CHANNEL_TYPE_LABELS[channel.type] ?? channel.type }}
-              </td>
-              <td class="px-3 py-2 text-ink-muted">
-                {{ severitiesLabel(channel.severities) }}
-              </td>
-              <td class="px-3 py-2 font-mono text-2xs">
-                <span
-                  :class="
-                    configuredById.get(channel.id)
-                      ? 'text-brand-ink'
-                      : 'text-ink-subtle'
-                  "
-                  >{{
-                    configuredById.get(channel.id) ? "● 已就绪" : "○ 未配 env"
-                  }}</span
-                >
-              </td>
-              <td class="px-3 py-2">
-                <span class="flex justify-end gap-2">
-                  <UiButton
-                    variant="ghost"
-                    size="sm"
-                    @click="openEditChannel(channel)"
-                    >编辑</UiButton
-                  >
-                  <UiButton
-                    variant="ghost"
-                    size="sm"
-                    @click="confirmDelete = channel"
-                    >删除</UiButton
-                  >
-                </span>
-              </td>
-            </tr>
-          </tbody>
-        </table>
-      </div>
+            <span
+              class="font-mono text-2xs text-ink-subtle"
+              :class="textClasses.fixed"
+              >{{ CHANNEL_TYPE_LABELS[channel.type] ?? channel.type }}</span
+            >
+            <span
+              class="ml-auto font-mono text-2xs"
+              :class="[
+                textClasses.fixed,
+                channel.configured ? 'text-brand-ink' : 'text-ink-subtle',
+              ]"
+              >{{ channel.configured ? "● 已就绪" : "○ 未配 env" }}</span
+            >
+          </span>
+          <span class="flex min-w-0 items-center gap-2">
+            <span
+              class="min-w-0 text-2xs text-ink-muted"
+              :class="textClasses.body"
+            >
+              {{ channel.enabled ? "启用" : "停用" }} ·
+              {{ severitiesLabel(channel.severities) }}
+            </span>
+            <span
+              v-if="canWrite && rawById.get(channel.id)"
+              class="-my-1 ml-auto flex shrink-0 gap-1"
+            >
+              <UiButton
+                variant="ghost"
+                size="sm"
+                :aria-label="`编辑渠道 ${channel.id}`"
+                @click="openEditChannel(rawById.get(channel.id)!)"
+                >编辑</UiButton
+              >
+              <UiButton
+                variant="ghost"
+                size="sm"
+                :aria-label="`删除渠道 ${channel.id}`"
+                @click="confirmDelete = rawById.get(channel.id)!"
+                >删除</UiButton
+              >
+            </span>
+          </span>
+        </li>
+      </ul>
     </section>
 
     <!-- Left to right: 设备 / 渠道 / 搜索 / 起止时间 / 状态. 设备 and 渠道 cascade against each
