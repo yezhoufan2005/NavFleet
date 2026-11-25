@@ -77,7 +77,7 @@ const rows = computed(() =>
 
 <template>
   <section
-    class="device-top-card flex h-full min-w-0 flex-col gap-3 rounded-md border border-border bg-surface-raised p-4"
+    class="device-top-card @container flex h-full min-w-0 flex-col gap-3 rounded-md border border-border bg-surface-raised p-4"
     :class="collapsed ? 'is-collapsed' : ''"
     aria-labelledby="codes-heading"
   >
@@ -163,7 +163,7 @@ const rows = computed(() =>
 
         <!-- Same two-column label/value grid as 当前任务's 起点 / 终点. -->
         <dl
-          class="m-0 grid grid-cols-2 gap-x-4 gap-y-2 border-t border-border pt-2.5 text-sm"
+          class="m-0 grid grid-cols-1 gap-x-4 @md:grid-cols-2 gap-y-2 border-t border-border pt-2.5 text-sm"
         >
           <div
             v-for="field in row.fields"
