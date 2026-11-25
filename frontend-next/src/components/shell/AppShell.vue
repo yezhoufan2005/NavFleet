@@ -166,10 +166,13 @@ onBeforeUnmount(stopNavigationFocus);
         <!-- Reading-oriented pages (lists, admin, reports) cap their width on very wide monitors and
              sit left-aligned, so a 2000px+ screen does not stretch a table into huge empty gaps.
              Dashboards (总览 / 大屏) opt out with `meta.fullWidth` and keep the whole width.
-             `h-full` passes `main`'s height through, so a `fillHeight` page (the 设备 map) still
-             fills the screen; taller pages overflow it and `main` scrolls as before. -->
+             The wrapper takes `main`'s height only when it holds a viewport-filling page
+             (`PageHeader` marks itself `data-page-fill`; the 设备 map), so that page still fills
+             the screen. Every other page leaves it auto-height: a fixed-height wrapper let a tall
+             page overflow it, and `main`'s bottom padding then sat at the wrapper's edge instead
+             of the page's, so the last card touched the bottom of the scroll area. -->
         <div
-          class="h-full"
+          class="has-[[data-page-fill]]:h-full"
           :class="route.meta.fullWidth ? '' : 'max-w-[90rem]'"
         >
           <ErrorBoundary :reset-key="route.fullPath">
