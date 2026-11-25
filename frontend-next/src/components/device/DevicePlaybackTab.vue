@@ -56,6 +56,8 @@ import { toNumeric, formatSoc, type DeviceSnapshot } from "@navfleet/shared";
 import UiSelect from "@/components/ui/UiSelect.vue";
 import type { TimeSeries } from "@/components/charts/timeSeriesOption";
 import { loadErrorMessage } from "@/lib/errorMessages";
+import { textClasses } from "@/lib/uiClasses";
+import { vOverflowTitle } from "@/directives/overflowTitle";
 
 /** `0.5×` … `4×`, built once so the template stays a single element per option. */
 const speedOptions = PLAYBACK_SPEEDS.map((value) => ({
@@ -598,7 +600,11 @@ const onScrub = (event: Event): void => {
           class="flex flex-col gap-0.5"
         >
           <dt class="text-xs text-ink-muted">{{ row.label }}</dt>
-          <dd class="m-0 truncate font-mono text-sm text-ink">
+          <dd
+            v-overflow-title
+            class="m-0 font-mono text-sm text-ink"
+            :class="textClasses.field"
+          >
             {{ row.value }}
           </dd>
         </div>

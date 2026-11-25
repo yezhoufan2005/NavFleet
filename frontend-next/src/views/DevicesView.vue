@@ -579,7 +579,7 @@ watch(
               :class="TONE_DOT[row.tone]"
               aria-hidden="true"
             />
-            <span class="min-w-0 flex-1 truncate">{{
+            <span v-overflow-title class="flex-1" :class="textClasses.field">{{
               row.device.deviceName || row.device.deviceId
             }}</span>
             <span class="shrink-0 font-mono text-2xs">{{ row.label }}</span>
