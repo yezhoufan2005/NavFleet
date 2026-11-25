@@ -204,14 +204,10 @@ const sceneOptions = computed(() => {
     const id = row.device.sceneId;
     if (id && !seen.has(id)) seen.set(id, row.sceneLabel);
   }
-  // Keep a selected scene listed even if the other filters currently hide its rows.
+  // Keep a selected scene listed even if the other filters hide its rows — or no device is in it
+  // any more — so it can always be unticked; named from the scene config, else its id.
   for (const id of sceneFilter.value) {
-    if (!seen.has(id)) {
-      const row = rows.value.find(
-        (candidate) => candidate.device.sceneId === id,
-      );
-      if (row) seen.set(id, row.sceneLabel);
-    }
+    if (!seen.has(id)) seen.set(id, sceneLabelOf(id));
   }
   // 场景 options collate by name ascending (zh pinyin, same collation as 编队), so the
   // menu reads in a stable alphabetical order rather than in device-encounter order.

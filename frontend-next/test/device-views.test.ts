@@ -949,6 +949,20 @@ describe("what the device list has to answer at a glance", () => {
     expect(sceneValues).toEqual(["dock"]);
   });
 
+  it("keeps a selected scene listed even when no device is in it any more", async () => {
+    const wrapper = await mountList([{ sceneId: "yard" }]);
+    const scene = wrapper
+      .findAllComponents(UiMultiSelect)
+      .find((component) => component.props("ariaLabel") === "场景筛选")!;
+    scene.vm.$emit("update:modelValue", ["gone"]);
+    await flushPromises();
+    const values = scene
+      .props("options")
+      .map((option: { value: string }) => option.value);
+    expect(values).toContain("gone");
+    expect(values).toContain("yard");
+  });
+
   it("search is a boolean query over name / id / scene", async () => {
     // Scenes aren't loaded in this harness, so the scene label is the raw id (yard / dock).
     const wrapper = await mountList([
