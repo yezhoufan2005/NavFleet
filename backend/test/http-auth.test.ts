@@ -184,7 +184,10 @@ describe("POST /api/auth/login", () => {
       true,
     );
     expect(context.auditService.record).toHaveBeenCalledWith(
-      expect.objectContaining({ action: "login", detail: { kiosk: true } }),
+      expect.objectContaining({
+        action: "login",
+        detail: expect.objectContaining({ kiosk: true }) as unknown,
+      }),
     );
   });
 });

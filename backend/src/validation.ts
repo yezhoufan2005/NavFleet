@@ -291,6 +291,16 @@ export const updateUserSchema = z
   // A PATCH with an empty body is a client error, not a no-op success.
   .refine((value) => Object.keys(value).length > 0, "at least one field is required");
 
+/** 个人中心: a user editing their own contact fields. Role / enabled stay admin-only. */
+export const profileUpdateSchema = z
+  .object({
+    displayName: z.string().trim().min(1).max(200).optional(),
+    email: emailSchema.optional(),
+    phone: contactSchema.optional(),
+  })
+  .strict()
+  .refine((value) => Object.keys(value).length > 0, "at least one field is required");
+
 export const resetPasswordSchema = z.object({
   newPassword: passwordSchema,
 });

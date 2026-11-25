@@ -14,6 +14,7 @@
  * When the data model changes, edit it here once; both apps pick it up.
  */
 
+import type { AuditAction } from "./audit";
 import type { DeviceTask } from "./deviceTask";
 import type {
   AlertDisposition,
@@ -329,6 +330,37 @@ export type UserRole = "admin" | "operator" | "viewer";
 export interface PublicUser {
   username: string;
   role: UserRole;
+}
+
+/**
+ * 个人中心's view of the caller's own account (`GET /api/auth/profile`): `PublicUser` plus the
+ * contact fields and account dates the stored record keeps, and the names of the groups the user
+ * belongs to — a person can see which groups grant them what without `users:manage`.
+ */
+export interface AccountProfile extends PublicUser {
+  displayName: string;
+  email: string | null;
+  phone: string | null;
+  createdAt: string;
+  lastLoginAt: string | null;
+  passwordUpdatedAt: string;
+  /** An unattended wall-display account (see the kiosk flag on the stored user). */
+  kiosk: boolean;
+  groups: string[];
+}
+
+/**
+ * One row of 个人中心's 账户活动 (`GET /api/auth/activity`): a sign-in, a password or profile change,
+ * a session ended — done by the user, or to them by an administrator (`actor` then names who).
+ * `ip` / `userAgent` are present on sign-in rows recorded since they began carrying them.
+ */
+export interface AccountActivity {
+  ts: string;
+  action: AuditAction;
+  outcome: "success" | "failure";
+  actor: string;
+  ip?: string;
+  userAgent?: string;
 }
 
 /** `[lng, lat]` coordinate pair, as consumed by the AMap SDK (frontend). */

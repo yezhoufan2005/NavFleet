@@ -2,6 +2,8 @@ import { reactive } from "vue";
 import {
   CAPABILITIES,
   type Capability,
+  type AccountActivity,
+  type AccountProfile,
   type PublicUser,
   type UserRole,
 } from "@navfleet/shared";
@@ -423,6 +425,80 @@ export const useAuth = () => {
     return response.ok;
   };
 
+  /** End every session of the caller's except this one (个人中心「下线其他设备」); how many ended. */
+  const revokeOtherSessions = async (): Promise<number> => {
+    const response = await request("/api/auth/sessions", { method: "DELETE" });
+    if (!response.ok) {
+      throw new Error(`HTTP ${response.status}`);
+    }
+    const body = (await response.json()) as { ended?: number };
+    return body.ended ?? 0;
+  };
+
+  /** The caller's own account: contact fields, account dates, group names (个人中心). */
+  const getProfile = async (): Promise<AccountProfile> => {
+    const response = await request("/api/auth/profile");
+    if (!response.ok) {
+      throw new Error(`HTTP ${response.status}`);
+    }
+    return ((await response.json()) as { profile: AccountProfile }).profile;
+  };
+
+  /**
+   * Save the caller's own 显示名 / 邮箱 / 手机. A 400 carries per-field issues, which come back
+   * keyed by field so the form can mark the input.
+   */
+  const updateProfile = async (
+    fields: Pick<AccountProfile, "displayName" | "email" | "phone">,
+  ): Promise<
+    | { ok: true; profile: AccountProfile }
+    | { ok: false; message: string; fieldErrors: Record<string, string> }
+  > => {
+    try {
+      const response = await request("/api/auth/profile", {
+        method: "PATCH",
+        body: JSON.stringify(fields),
+      });
+      if (response.ok) {
+        const body = (await response.json()) as { profile: AccountProfile };
+        return { ok: true, profile: body.profile };
+      }
+      if (response.status === 400) {
+        const body = (await response.json().catch(() => null)) as {
+          issues?: { path: string; message: string }[];
+        } | null;
+        const fieldErrors: Record<string, string> = {};
+        for (const issue of body?.issues ?? []) {
+          if (issue.path && !fieldErrors[issue.path]) {
+            fieldErrors[issue.path] = issue.message;
+          }
+        }
+        return { ok: false, message: "资料未通过校验", fieldErrors };
+      }
+      if (response.status === 401) {
+        return {
+          ok: false,
+          message: "会话已过期，请重新登录",
+          fieldErrors: {},
+        };
+      }
+      return { ok: false, message: "保存失败，请稍后重试", fieldErrors: {} };
+    } catch {
+      return { ok: false, message: "无法连接服务器", fieldErrors: {} };
+    }
+  };
+
+  /** The caller's recent account events, newest first (个人中心「账户活动」). */
+  const getAccountActivity = async (): Promise<AccountActivity[]> => {
+    const response = await request("/api/auth/activity");
+    if (!response.ok) {
+      throw new Error(`HTTP ${response.status}`);
+    }
+    return (
+      ((await response.json()) as { items?: AccountActivity[] }).items ?? []
+    );
+  };
+
   /** Whether the signed-in user holds a capability (1.6.1 RBAC). False when anonymous. */
   const can = (capability: Capability): boolean =>
     state.capabilities.includes(capability);
@@ -437,6 +513,10 @@ export const useAuth = () => {
     changePassword,
     getMySessions,
     revokeMySession,
+    revokeOtherSessions,
+    getProfile,
+    updateProfile,
+    getAccountActivity,
   };
 };
 

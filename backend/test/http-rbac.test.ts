@@ -28,6 +28,8 @@ const READ_ROUTES: Array<{ method: "get"; path: string }> = [
   { method: "get", path: "/api/codebook" },
   { method: "get", path: "/api/auth/me" },
   { method: "get", path: "/api/auth/sessions" },
+  { method: "get", path: "/api/auth/profile" },
+  { method: "get", path: "/api/auth/activity" },
   { method: "get", path: "/api/reports/alerts" },
   { method: "get", path: "/api/reports/availability" },
   { method: "get", path: "/api/config/status" },
@@ -109,6 +111,9 @@ const UNGATED = new Set([
   "POST /logout",
   "POST /change-password",
   "DELETE /sessions/{sessionId}",
+  // 个人中心: the caller's own profile edit and 下线其他设备.
+  "PATCH /profile",
+  "DELETE /sessions",
 ]);
 
 /** `METHOD /template` for every route the routers register (same reading as openapi.test.ts). */

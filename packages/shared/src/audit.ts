@@ -22,6 +22,8 @@ export const AUDIT_ACTIONS = [
   "session_revoke",
   "force_logout",
   "account_locked",
+  // A user editing their own 显示名 / 邮箱 / 手机 (个人中心).
+  "profile_update",
   // Message disposition (human-handling axis). `alert_ack`/`alert_unack` are kept for history
   // rows written before the redesign; new writes use the claim/ignore vocabulary.
   "alert_ack",

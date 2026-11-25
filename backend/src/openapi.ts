@@ -30,6 +30,7 @@ import {
   ingestBodySchema,
   loginSchema,
   notifyLogQuerySchema,
+  profileUpdateSchema,
   rbacGroupSchema,
   rbacRoleSchema,
   reportAvailabilityQuerySchema,
@@ -304,6 +305,35 @@ export const openApiDocument = {
           },
           scope: { type: "object", additionalProperties: true },
           configured: { type: "boolean" },
+        },
+      },
+      AccountProfile: {
+        type: "object",
+        description: "个人中心：调用者自己的账户（含所属用户组名称）",
+        properties: {
+          username: { type: "string" },
+          role: { type: "string", enum: ["admin", "operator", "viewer"] },
+          displayName: { type: "string" },
+          email: { type: ["string", "null"] },
+          phone: { type: ["string", "null"] },
+          createdAt: { type: "string", format: "date-time" },
+          lastLoginAt: { type: ["string", "null"], format: "date-time" },
+          passwordUpdatedAt: { type: "string", format: "date-time" },
+          kiosk: { type: "boolean" },
+          groups: { type: "array", items: { type: "string" } },
+        },
+      },
+      AccountActivity: {
+        type: "object",
+        description:
+          "个人中心「账户活动」一行：本人的登录/改密/下线等，或管理员对本人的重置/强制下线/修改",
+        properties: {
+          ts: { type: "string", format: "date-time" },
+          action: { type: "string", enum: [...AUDIT_ACTIONS] },
+          outcome: { type: "string", enum: ["success", "failure"] },
+          actor: { type: "string" },
+          ip: { type: "string" },
+          userAgent: { type: "string" },
         },
       },
       SessionView: {
@@ -843,7 +873,77 @@ const [rbacGroups, rbacGroup] = rbacOperations({
       },
     },
   },
+  "/api/auth/profile": {
+    get: {
+      tags: ["auth"],
+      summary: "个人中心：本人账户资料与所属用户组",
+      responses: {
+        "200": ok("本人账户", "AccountProfile", "profile"),
+        "401": unauthorized,
+        "404": notFound,
+        ...apiWideResponses,
+      },
+    },
+    patch: {
+      tags: ["auth"],
+      summary: "个人中心：修改本人的显示名 / 邮箱 / 手机（角色与启用仍只能由管理员改）",
+      requestBody: {
+        required: true,
+        content: { "application/json": { schema: fromValidator(profileUpdateSchema) } },
+      },
+      responses: {
+        "200": ok("修改后的本人账户", "AccountProfile", "profile"),
+        "400": badRequest,
+        "401": unauthorized,
+        "404": notFound,
+        ...apiWideResponses,
+      },
+    },
+  },
+  "/api/auth/activity": {
+    get: {
+      tags: ["auth"],
+      summary: "个人中心：本人最近 20 条账户活动（不需要 audit:read）",
+      responses: {
+        "200": {
+          description: "账户活动，新到旧",
+          content: {
+            "application/json": {
+              schema: {
+                type: "object",
+                properties: {
+                  items: { type: "array", items: { $ref: "#/components/schemas/AccountActivity" } },
+                },
+              },
+            },
+          },
+        },
+        "401": unauthorized,
+        ...apiWideResponses,
+      },
+    },
+  },
   "/api/auth/sessions": {
+    delete: {
+      tags: ["auth"],
+      summary: "下线本人除当前会话外的所有会话",
+      responses: {
+        "200": {
+          description: "已下线，ended 为结束的会话数",
+          content: {
+            "application/json": {
+              schema: { type: "object", properties: { ended: { type: "integer" } } },
+            },
+          },
+        },
+        "401": unauthorized,
+        "409": {
+          description: "当前请求不属于任何会话（no_current_session），无法区分本机",
+          content: { "application/json": { schema: { $ref: "#/components/schemas/Error" } } },
+        },
+        ...apiWideResponses,
+      },
+    },
     get: {
       tags: ["auth"],
       summary: "列出当前用户自己的活跃会话（current 标出本次会话）",

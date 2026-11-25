@@ -225,7 +225,12 @@ export const createApp = ({
     "/api/auth",
     authLimiter,
     captureRouteMount,
-    buildAuthRouter(authService, auditService, resolveCapabilities),
+    buildAuthRouter(authService, auditService, resolveCapabilities, (username) =>
+      rbacService
+        .getGroups()
+        .filter((group) => group.memberUsernames.includes(username))
+        .map((group) => group.name),
+    ),
   );
 
   // Everything below requires a valid session. The middleware verifies each token against

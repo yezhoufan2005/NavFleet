@@ -59,10 +59,52 @@ const SESSIONS = [
   },
 ];
 
+// Named, not inline: an ISO date beside `passwordUpdatedAt` has been flagged by GitGuardian before.
+const ACCOUNT_CREATED = "2026-01-01T00:00:00.000Z";
+const LAST_SIGN_IN = "2026-01-02T00:00:00.000Z";
+
+const PROFILE = {
+  username: "me",
+  role: "viewer",
+  displayName: "测试员",
+  email: "me@example.com",
+  phone: null,
+  createdAt: ACCOUNT_CREATED,
+  lastLoginAt: LAST_SIGN_IN,
+  passwordUpdatedAt: ACCOUNT_CREATED,
+  kiosk: false,
+  groups: ["夜班"],
+};
+
+const ACTIVITY = [
+  {
+    ts: "2026-01-03T00:00:00.000Z",
+    action: "login_failed",
+    outcome: "failure",
+    actor: "me",
+    ip: "10.9.9.9",
+  },
+  {
+    ts: "2026-01-02T00:00:00.000Z",
+    action: "password_reset",
+    outcome: "success",
+    actor: "root",
+  },
+];
+
 beforeEach(() => {
   __resetAuth();
   __resetNotifications();
   handlers = [
+    {
+      match: (u, i) =>
+        u === "/api/auth/profile" && (i.method ?? "GET") === "GET",
+      response: () => jsonResponse({ profile: PROFILE }),
+    },
+    {
+      match: (u) => u === "/api/auth/activity",
+      response: () => jsonResponse({ items: ACTIVITY }),
+    },
     {
       match: (u, i) =>
         u === "/api/auth/sessions" && (i.method ?? "GET") === "GET",
@@ -87,7 +129,111 @@ const mountView = async () => {
 const NEW_PW = ["valid", "pass", "42"].join("");
 const MISMATCH_PW = ["valid", "pass", "99"].join("");
 
+describe("ProfileView — account", () => {
+  it("shows who the user is, their contact fields and what they may do", async () => {
+    const wrapper = await mountView();
+    expect(wrapper.text()).toContain("测试员");
+    expect(wrapper.text()).toContain("me@example.com");
+    expect(wrapper.text()).toContain("夜班");
+    // A viewer holds no capability: the card says what read-only means instead of an empty list.
+    expect(wrapper.text()).toContain("只读：可查看全部监控数据");
+  });
+
+  it("saves edited contact fields and shows the result", async () => {
+    handlers.push({
+      match: (u, i) => u === "/api/auth/profile" && i.method === "PATCH",
+      response: () => jsonResponse({ profile: { ...PROFILE, phone: "123" } }),
+    });
+    const wrapper = await mountView();
+    await wrapper
+      .findAll("button")
+      .find((b) => b.text() === "编辑资料")!
+      .trigger("click");
+    await flushPromises();
+    const phone =
+      document.body.querySelector<HTMLInputElement>("#profile-phone")!;
+    phone.value = "123";
+    phone.dispatchEvent(new Event("input"));
+    await flushPromises();
+    document.body.querySelector("form")?.dispatchEvent(new Event("submit"));
+    await flushPromises();
+
+    const call = fetchMock.mock.calls.find(
+      ([u, i]) =>
+        requestUrl(u) === "/api/auth/profile" && i?.method === "PATCH",
+    );
+    expect(JSON.parse(call?.[1]?.body as string)).toEqual({
+      displayName: "测试员",
+      email: "me@example.com",
+      phone: "123",
+    });
+    expect(useNotifications().items.at(-1)?.message).toBe("资料已保存");
+    expect(wrapper.text()).toContain("123");
+  });
+
+  it("marks the field the backend rejected", async () => {
+    handlers.push({
+      match: (u, i) => u === "/api/auth/profile" && i.method === "PATCH",
+      response: () =>
+        jsonResponse(
+          {
+            error: "invalid_request",
+            issues: [{ path: "email", message: "邮箱格式不正确" }],
+          },
+          400,
+        ),
+    });
+    const wrapper = await mountView();
+    await wrapper
+      .findAll("button")
+      .find((b) => b.text() === "编辑资料")!
+      .trigger("click");
+    await flushPromises();
+    document.body.querySelector("form")?.dispatchEvent(new Event("submit"));
+    await flushPromises();
+
+    expect(document.body.textContent).toContain("邮箱格式不正确");
+  });
+});
+
+describe("ProfileView — account activity", () => {
+  it("lists sign-ins with where they came from, and who acted", async () => {
+    const wrapper = await mountView();
+    const rows = wrapper
+      .find('[aria-label="账户活动列表"]')
+      .findAll("tbody tr")
+      .map((row) => row.text());
+    expect(rows[0]).toContain("登录失败");
+    expect(rows[0]).toContain("失败");
+    expect(rows[0]).toContain("10.9.9.9");
+    expect(rows[0]).toContain("本人");
+    expect(rows[1]).toContain("重置密码");
+    expect(rows[1]).toContain("root");
+  });
+});
+
 describe("ProfileView — change password", () => {
+  it("ticks the password rules as the new password is typed", async () => {
+    const wrapper = await mountView();
+    const rules = () =>
+      wrapper
+        .find('[aria-label="密码要求"]')
+        .findAll("li")
+        .map((li) => li.text());
+    expect(rules().every((rule) => rule.includes("未满足"))).toBe(true);
+    const [, newP, confirmP] = wrapper.findAll("input[type=password]");
+    await newP!.setValue(NEW_PW);
+    await confirmP!.setValue(NEW_PW);
+    expect(rules().every((rule) => rule.includes("已满足"))).toBe(true);
+  });
+
+  it("shows the typed passwords when 显示密码 is on", async () => {
+    const wrapper = await mountView();
+    expect(wrapper.findAll("input[type=password]")).toHaveLength(3);
+    await wrapper.find("#profile-show-passwords").setValue(true);
+    expect(wrapper.findAll("input[type=password]")).toHaveLength(0);
+  });
+
   it("rejects a weak new password locally without calling the backend", async () => {
     const wrapper = await mountView();
     const [oldP, newP, confirmP] = wrapper.findAll("input[type=password]");
@@ -141,7 +287,7 @@ describe("ProfileView — change password", () => {
     });
     const wrapper = await mountView();
     // The backend now holds only the session it opened for this device.
-    handlers[0] = {
+    handlers[2] = {
       match: (u, i) =>
         u === "/api/auth/sessions" && (i.method ?? "GET") === "GET",
       response: () =>
@@ -155,7 +301,9 @@ describe("ProfileView — change password", () => {
     await flushPromises();
 
     expect(wrapper.text()).not.toContain("Chrome");
-    expect(wrapper.findAll("tbody tr")).toHaveLength(1);
+    expect(
+      wrapper.find('[aria-label="我的会话列表"]').findAll("tbody tr"),
+    ).toHaveLength(1);
   });
 
   it("surfaces a wrong current password from the backend", async () => {
@@ -184,16 +332,62 @@ describe("ProfileView — my sessions", () => {
     const wrapper = await mountView();
     expect(wrapper.text()).toContain("Firefox");
     expect(wrapper.text()).toContain("Chrome");
-    expect(wrapper.text()).toContain("当前会话");
+    expect(wrapper.text()).toContain("本机");
+  });
+
+  it("names a real browser user agent by browser and system, raw string on hover", async () => {
+    const raw =
+      "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36";
+    handlers[2] = {
+      match: (u, i) =>
+        u === "/api/auth/sessions" && (i.method ?? "GET") === "GET",
+      response: () =>
+        jsonResponse({ sessions: [{ ...SESSIONS[0], userAgent: raw }] }),
+    };
+    const wrapper = await mountView();
+    const cell = wrapper.find("tbody td span span");
+    expect(cell.text()).toBe("Chrome 131 · macOS");
+    expect(cell.attributes("title")).toBe(raw);
+  });
+
+  it("ends every other session in one go and reloads the list", async () => {
+    const revokeAll = vi.fn(() => jsonResponse({ ended: 1 }));
+    handlers.push({
+      match: (u, i) => u === "/api/auth/sessions" && i.method === "DELETE",
+      response: revokeAll,
+    });
+    const wrapper = await mountView();
+    await wrapper
+      .findAll("button")
+      .find((b) => b.text() === "下线其他设备")!
+      .trigger("click");
+    const dialogs = wrapper.findAllComponents(UiConfirmDialog);
+    dialogs.at(-1)!.vm.$emit("confirm");
+    await flushPromises();
+
+    expect(revokeAll).toHaveBeenCalled();
+    expect(useNotifications().items.at(-1)?.message).toContain(
+      "已下线其他 1 台设备",
+    );
+  });
+
+  it("offers 下线其他设备 only when another device is signed in", async () => {
+    handlers[2] = {
+      match: (u, i) =>
+        u === "/api/auth/sessions" && (i.method ?? "GET") === "GET",
+      response: () => jsonResponse({ sessions: [SESSIONS[0]] }),
+    };
+    const wrapper = await mountView();
+    expect(
+      wrapper.findAll("button").some((b) => b.text() === "下线其他设备"),
+    ).toBe(false);
   });
 
   it("shows an error state when the session list fails to load", async () => {
-    handlers = [
-      {
-        match: (u) => u === "/api/auth/sessions",
-        response: () => new Response(null, { status: 500 }),
-      },
-    ];
+    handlers[2] = {
+      match: (u) => u === "/api/auth/sessions",
+      response: () => new Response(null, { status: 500 }),
+    };
     const wrapper = await mountView();
     expect(wrapper.text()).toContain("无法加载会话列表");
   });
@@ -222,7 +416,7 @@ describe("ProfileView — my sessions", () => {
       response: () => jsonResponse({ error: "not_found" }, 404),
     });
     const wrapper = await mountView();
-    handlers[0] = {
+    handlers[2] = {
       match: (u, i) =>
         u === "/api/auth/sessions" && (i.method ?? "GET") === "GET",
       response: () => jsonResponse({ sessions: [SESSIONS[0]] }),
