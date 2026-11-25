@@ -1,3 +1,4 @@
+import { createPinia, setActivePinia } from "pinia";
 import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 import { createMemoryHistory, createRouter } from "vue-router";
 import type { Router } from "vue-router";
@@ -57,6 +58,7 @@ const mountView = async (path = "/admin/notify") => {
   const router = routerFor();
   await router.push(path);
   await router.isReady();
+  setActivePinia(createPinia());
   const wrapper = mount(NotifyView, { global: { plugins: [router] } });
   await flushPromises();
   return wrapper;
@@ -108,14 +110,41 @@ describe("NotifyView", () => {
     expect(wrapper.find('[role="alert"]').exists()).toBe(true);
   });
 
-  it("reads the status filter from the URL and passes it to the API", async () => {
+  it("queries the server by time window only, defaulting to the last 10 days", async () => {
     const spy = vi
       .spyOn(fleetApi, "getNotifyLog")
       .mockResolvedValue({ items: [] });
     await mountView("/admin/notify?status=failed&deviceId=agv-1");
-    expect(spy).toHaveBeenCalledWith(
-      expect.objectContaining({ status: "failed", deviceId: "agv-1" }),
-    );
+    const params = spy.mock.calls[0]![0]!;
+    expect(params).not.toHaveProperty("status");
+    expect(params).not.toHaveProperty("deviceId");
+    const days =
+      (Date.parse(params.to!) - Date.parse(params.from!)) / 86_400_000;
+    expect(Math.round(days)).toBe(11);
+  });
+
+  it("filters the window by 设备 / 渠道 / 状态 from the URL, cascading the dropdowns", async () => {
+    vi.spyOn(fleetApi, "getNotifyLog").mockResolvedValue({
+      items: [
+        RECORD,
+        { ...RECORD, channelId: "mail", status: "sent", error: null },
+        { ...RECORD, deviceId: "agv-2", channelId: "wecom", status: "sent" },
+      ],
+    });
+    const wrapper = await mountView("/admin/notify?deviceId=agv-1");
+    // Two of the three rows are agv-1's.
+    expect(
+      wrapper
+        .findAll("tbody tr")
+        .filter((row) => row.text().includes("设备离线")),
+    ).toHaveLength(2);
+    // 渠道 only offers the channels that sent for agv-1 — not wecom.
+    const channel = wrapper
+      .findAllComponents({ name: "UiMultiSelect" })
+      .find((select) => select.props("ariaLabel") === "渠道筛选")!;
+    expect(
+      (channel.props("options") as { value: string }[]).map((o) => o.value),
+    ).toEqual(["mail", "ops-webhook"]);
   });
 
   it("auto-refreshes when the tab regains focus (no manual 刷新)", async () => {

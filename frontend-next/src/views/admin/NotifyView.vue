@@ -52,6 +52,10 @@ import UiInput from "@/components/ui/UiInput.vue";
 import UiSearchInput from "@/components/ui/UiSearchInput.vue";
 import UiListPagination from "@/components/ui/UiListPagination.vue";
 import UiSelect from "@/components/ui/UiSelect.vue";
+import UiMultiSelect from "@/components/ui/UiMultiSelect.vue";
+import UiSegmented from "@/components/ui/UiSegmented.vue";
+import { compileSearch } from "@/lib/searchQuery";
+import { useFleetStore } from "@/stores/fleet";
 import UiFilterBar from "@/components/ui/UiFilterBar.vue";
 import UiFilterField from "@/components/ui/UiFilterField.vue";
 import UiEmptyState from "@/components/ui/UiEmptyState.vue";
@@ -77,8 +81,9 @@ const CHANNEL_TYPE_LABELS: Record<string, string> = {
   email: "邮件",
 };
 
-const STATUS_OPTIONS = [
-  { value: "", label: "全部状态" },
+/** 状态 as a segmented control (like 消息's 处置): 全部 / 成功 / 失败. */
+const STATUS_SEGMENTS = [
+  { value: "", label: "全部" },
   { value: "sent", label: "成功" },
   { value: "failed", label: "失败" },
 ];
@@ -87,9 +92,28 @@ const readParam = (key: string): string => {
   const value = route.query[key];
   return typeof value === "string" ? value : "";
 };
-const deviceId = ref(readParam("deviceId"));
-const channelId = ref(readParam("channelId"));
+/** A comma-joined query key (设备 / 渠道 are multi) read back as a list; empty when absent. */
+const readParamList = (key: string): string[] => {
+  const raw = readParam(key);
+  return raw ? raw.split(",").filter(Boolean) : [];
+};
+const deviceFilter = ref<string[]>(readParamList("deviceId"));
+const channelFilter = ref<string[]>(readParamList("channelId"));
 const statusFilter = ref(readParam("status"));
+const search = ref(readParam("q"));
+
+// The log defaults to the last 10 days, like 审计 and 消息史: with no explicit start the window runs
+// from 10 days ago to today, shown in the date boxes; clearing an end removes that bound.
+const NOTIFY_DEFAULT_DAYS = 10;
+const asDateInput = (at: Date): string => {
+  const pad = (n: number): string => String(n).padStart(2, "0");
+  return `${at.getFullYear()}-${pad(at.getMonth() + 1)}-${pad(at.getDate())}`;
+};
+const from = ref(
+  readParam("from") ||
+    asDateInput(new Date(Date.now() - NOTIFY_DEFAULT_DAYS * 86_400_000)),
+);
+const to = ref(readParam("to") || asDateInput(new Date()));
 
 const channels = ref<NotifyChannelView[]>([]);
 const records = ref<NotifySendRecord[]>([]);
@@ -107,11 +131,6 @@ const editable = computed(
   () => status.value === "ready" && rawConfig.value !== null,
 );
 
-// URL-synced pagination over the send-log page, shared with 设备 / 消息 / 审计 (see useListPagination).
-const { page, pageSize, pageCount, pageItems, setPage, setPageSize } =
-  useListPagination(computed(() => records.value));
-const pageRows = pageItems;
-
 /**
  * Discard a stale response: a slow query must not overwrite the table after a newer filter change
  * (or after this view unmounts). The increment-before / re-check-after-await / bump-on-unmount guard
@@ -127,11 +146,15 @@ const load = async (): Promise<void> => {
   try {
     const [config, log] = await Promise.all([
       fleetApi.getNotifyConfig(),
+      // Only the time window goes to the server; 设备 / 渠道 / 搜索 / 状态 filter the returned
+      // window here, so each dropdown can offer exactly what the others leave (cascading).
       fleetApi.getNotifyLog({
-        deviceId: deviceId.value || undefined,
-        channelId: channelId.value || undefined,
-        status: (statusFilter.value || undefined) as
-          "sent" | "failed" | undefined,
+        from: from.value
+          ? new Date(`${from.value}T00:00:00`).toISOString()
+          : undefined,
+        to: to.value
+          ? new Date(`${to.value}T23:59:59.999`).toISOString()
+          : undefined,
       }),
     ]);
     if (!isCurrent()) return;
@@ -156,34 +179,118 @@ const load = async (): Promise<void> => {
   }
 };
 
-const applyFilters = (): void => {
+/** Mirror the filters into the URL (so a pasted link reproduces the view). */
+const syncQuery = (): void => {
   void router.replace({
     query: {
-      ...(deviceId.value ? { deviceId: deviceId.value } : {}),
-      ...(channelId.value ? { channelId: channelId.value } : {}),
+      ...(deviceFilter.value.length
+        ? { deviceId: deviceFilter.value.join(",") }
+        : {}),
+      ...(channelFilter.value.length
+        ? { channelId: channelFilter.value.join(",") }
+        : {}),
+      ...(search.value ? { q: search.value } : {}),
       ...(statusFilter.value ? { status: statusFilter.value } : {}),
+      ...(from.value ? { from: from.value } : {}),
+      ...(to.value ? { to: to.value } : {}),
       // A filter change resets to page 1 (page param dropped) but keeps the chosen density.
       ...(route.query.pageSize ? { pageSize: route.query.pageSize } : {}),
     },
   });
-  void load();
 };
 
-// Filters apply as you change them — no 查询 / 重置 buttons, matching the other tables. The two
-// free-text boxes are debounced; the status select applies at once. Clearing a field is the reset.
-let filterTimer: ReturnType<typeof setTimeout> | undefined;
-watch([deviceId, channelId], () => {
-  clearTimeout(filterTimer);
-  filterTimer = setTimeout(applyFilters, 300);
+// Filters apply as you change them — no 查询 / 重置 buttons, matching the other tables. Only the
+// dates re-query the server; the rest re-filter the loaded window. The search box is debounced.
+let searchTimer: ReturnType<typeof setTimeout> | undefined;
+const searchDraft = ref(search.value);
+const onSearchInput = (value: string): void => {
+  searchDraft.value = value;
+  clearTimeout(searchTimer);
+  searchTimer = setTimeout(() => (search.value = value), 300);
+};
+const flushSearch = (): void => {
+  clearTimeout(searchTimer);
+  search.value = searchDraft.value;
+};
+watch([deviceFilter, channelFilter, statusFilter, search], syncQuery, {
+  deep: true,
 });
-watch(statusFilter, () => applyFilters());
+watch([from, to], () => {
+  syncQuery();
+  void load();
+});
+
+// ── Cascading filters ───────────────────────────────────────────────────────────────
+// One predicate per axis, so each dropdown is faceted against the *others*: picking a device trims
+// 渠道 to the channels that sent for it, and vice versa. A selected value always stays listed so it
+// can be unticked after its last matching row leaves the window (the filter lives in the URL).
+const fleet = useFleetStore();
+const deviceName = (id: string): string =>
+  fleet.state.devicesById[id]?.deviceName || id;
+const searchMatches = computed(() => compileSearch(search.value));
+const matchDevice = (record: NotifySendRecord): boolean =>
+  !deviceFilter.value.length || deviceFilter.value.includes(record.deviceId);
+const matchChannel = (record: NotifySendRecord): boolean =>
+  !channelFilter.value.length || channelFilter.value.includes(record.channelId);
+const matchStatus = (record: NotifySendRecord): boolean =>
+  !statusFilter.value || record.status === statusFilter.value;
+const matchSearch = (record: NotifySendRecord): boolean =>
+  searchMatches.value(
+    [
+      record.title,
+      record.deviceId,
+      deviceName(record.deviceId),
+      record.channelId,
+      record.error,
+    ]
+      .filter(Boolean)
+      .join(" "),
+  );
+
+const visibleRecords = computed(() =>
+  records.value.filter(
+    (record) =>
+      matchDevice(record) &&
+      matchChannel(record) &&
+      matchStatus(record) &&
+      matchSearch(record),
+  ),
+);
+
+// URL-synced pagination over the send-log page, shared with 设备 / 消息 / 审计 (see useListPagination).
+const { page, pageSize, pageCount, pageItems, setPage, setPageSize } =
+  useListPagination(computed(() => visibleRecords.value));
+const pageRows = pageItems;
+
+const byLabel = (options: { value: string; label: string }[]) =>
+  options.sort((left, right) =>
+    left.label.localeCompare(right.label, "zh-Hans-CN"),
+  );
+const deviceOptions = computed(() => {
+  const ids = new Set(deviceFilter.value);
+  for (const record of records.value) {
+    if (matchChannel(record) && matchStatus(record) && matchSearch(record)) {
+      ids.add(record.deviceId);
+    }
+  }
+  return byLabel([...ids].map((id) => ({ value: id, label: deviceName(id) })));
+});
+const channelOptions = computed(() => {
+  const ids = new Set(channelFilter.value);
+  for (const record of records.value) {
+    if (matchDevice(record) && matchStatus(record) && matchSearch(record)) {
+      ids.add(record.channelId);
+    }
+  }
+  return byLabel([...ids].map((id) => ({ value: id, label: id })));
+});
 
 onMounted(() => void load());
 
-// Drop a pending debounced apply (and ignore any in-flight load) once this view goes away, so the
+// Drop a pending debounced search once this view goes away, so the
 // timer cannot fire `router.replace` against whatever route replaced it.
 onBeforeUnmount(() => {
-  clearTimeout(filterTimer);
+  clearTimeout(searchTimer);
 });
 
 const formatTime = (iso: string): string =>
@@ -500,10 +607,7 @@ const formDirty = formSnapshot.dirty;
       >
         未配置任何渠道，当前不会外发
       </p>
-      <ul
-        v-else
-        class="grid list-none grid-cols-1 gap-4 p-0 md:grid-cols-2 3xl:grid-cols-3"
-      >
+      <ul v-else class="grid list-none grid-cols-1 gap-4 p-0 md:grid-cols-3">
         <li
           v-for="channel in channels"
           :key="channel.id"
@@ -616,25 +720,53 @@ const formDirty = formSnapshot.dirty;
       </div>
     </section>
 
+    <!-- Left to right: 设备 / 渠道 / 搜索 / 起止时间 / 状态. 设备 and 渠道 cascade against each
+         other and the rest (see the predicates in the script). -->
     <UiFilterBar>
       <UiFilterField label="设备">
-        <UiSearchInput
-          v-model="deviceId"
-          placeholder="设备 ID"
-          aria-label="按设备 ID 搜索"
+        <UiMultiSelect
+          v-model="deviceFilter"
+          :options="deviceOptions"
+          placeholder="全部设备"
+          aria-label="设备筛选"
         />
       </UiFilterField>
       <UiFilterField label="渠道">
+        <UiMultiSelect
+          v-model="channelFilter"
+          :options="channelOptions"
+          placeholder="全部渠道"
+          aria-label="渠道筛选"
+        />
+      </UiFilterField>
+      <UiFilterField label="搜索">
         <UiSearchInput
-          v-model="channelId"
-          placeholder="渠道 ID"
-          aria-label="按渠道 ID 搜索"
+          placeholder="标题/设备/渠道/错误"
+          :model-value="searchDraft"
+          @update:model-value="onSearchInput"
+          @enter="flushSearch"
+        />
+      </UiFilterField>
+      <UiFilterField label="起始时间">
+        <UiInput
+          v-model="from"
+          type="date"
+          :max="to || undefined"
+          aria-label="起始日期"
+        />
+      </UiFilterField>
+      <UiFilterField label="结束时间">
+        <UiInput
+          v-model="to"
+          type="date"
+          :min="from || undefined"
+          aria-label="结束日期"
         />
       </UiFilterField>
       <UiFilterField label="状态">
-        <UiSelect
+        <UiSegmented
           v-model="statusFilter"
-          :options="STATUS_OPTIONS"
+          :options="STATUS_SEGMENTS"
           aria-label="按状态筛选"
         />
       </UiFilterField>
@@ -647,13 +779,13 @@ const formDirty = formSnapshot.dirty;
     >
       无法加载外发记录
     </p>
-    <UiEmptyState v-else-if="records.length === 0">
+    <UiEmptyState v-else-if="visibleRecords.length === 0">
       没有符合当前筛选条件的发送记录
     </UiEmptyState>
     <template v-else>
       <p v-if="cappedAt !== null" class="m-0 text-2xs text-ink-subtle">
         仅显示最近
-        {{ cappedAt }} 条（后端单次查询上限），按设备或渠道筛选可查看更早的记录
+        {{ cappedAt }} 条（后端单次查询上限），缩短日期范围可查看更早的记录
       </p>
       <!-- 列表与分页成组、贴 8px，与 消息史/审计/设备 一致。 -->
       <div class="flex flex-col gap-2">
