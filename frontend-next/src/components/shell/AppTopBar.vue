@@ -33,6 +33,7 @@ import { useFleetStore } from "@/stores/fleet";
 import type { ConnectionTone } from "@/stores/fleet";
 import { useAlertSound } from "@/composables/useAlertSound";
 import { notify } from "@/composables/useNotifications";
+import { vOverflowTitle } from "@/directives/overflowTitle";
 
 const PRODUCT_NAME = "智能车队监控平台";
 
@@ -257,6 +258,7 @@ const NAV_TOGGLE_LABELS: Record<SidebarMode, string> = {
       </h1>
       <span
         v-if="fleetName"
+        v-overflow-title
         class="hidden max-w-40 truncate text-xs text-ink-muted lg:block"
         >{{ fleetName }}</span
       >

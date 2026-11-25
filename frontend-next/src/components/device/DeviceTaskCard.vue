@@ -66,7 +66,7 @@ const elapsed = computed(() => {
 
 <template>
   <section
-    class="device-top-card flex h-full min-w-0 flex-col gap-3 rounded-md border border-border bg-surface-raised p-4"
+    class="device-top-card @container flex h-full min-w-0 flex-col gap-3 rounded-md border border-border bg-surface-raised p-4"
     :class="collapsed ? 'is-collapsed' : ''"
     aria-labelledby="task-heading"
   >
@@ -117,9 +117,11 @@ const elapsed = computed(() => {
         <p class="m-0 text-sm text-ink">{{ stepLabel || "--" }}</p>
       </div>
 
-      <!-- 起点 / 终点 and 开始时间 / 进行时长 share one two-column grid and one label width, so the
-           four values line up in two columns; label and value sit on one line. -->
-      <dl class="m-0 grid grid-cols-2 gap-x-4 gap-y-2 text-sm">
+      <!-- 起点 / 终点, then a footer with 开始时间 / 进行时长: the same two-column grid and label
+           width, so the four values line up. The footer is built exactly like 报码解读's (a hairline,
+           pt-2.5) and pinned to the card's bottom (mt-auto) — the two cards are stretched to one
+           height, so their hairlines and time rows sit on the same lines. -->
+      <dl class="m-0 grid grid-cols-1 gap-x-4 @md:grid-cols-2 gap-y-2 text-sm">
         <div
           v-for="field in routeFields"
           :key="field.label"
@@ -136,10 +138,10 @@ const elapsed = computed(() => {
             {{ field.value }}
           </dd>
         </div>
-        <div
-          class="col-span-2 -my-0.5 border-t border-border"
-          aria-hidden="true"
-        />
+      </dl>
+      <dl
+        class="m-0 mt-auto grid grid-cols-1 gap-x-4 @md:grid-cols-2 gap-y-2 border-t border-border pt-2.5 text-sm"
+      >
         <div
           v-for="field in timeFields"
           :key="field.label"

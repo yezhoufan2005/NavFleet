@@ -30,6 +30,8 @@ import {
   getDeviceTone,
 } from "@navfleet/fleet-core";
 import { formatSoc, type DeviceSnapshot } from "@navfleet/shared";
+import { textClasses } from "@/lib/uiClasses";
+import { vOverflowTitle } from "@/directives/overflowTitle";
 
 const fleet = useFleetStore();
 
@@ -442,7 +444,12 @@ const alertRows = computed(() =>
         <template v-else>
           <div class="flex items-baseline justify-between gap-2">
             <strong :class="TILE_VALUE_CLASS">{{ tile.value }}</strong>
-            <span class="text-xs text-ink-muted">{{ tile.note }}</span>
+            <span
+              v-overflow-title
+              class="text-right text-xs text-ink-muted"
+              :class="textClasses.field"
+              >{{ tile.note }}</span
+            >
           </div>
         </template>
         <!--
@@ -532,12 +539,18 @@ const alertRows = computed(() =>
                   row.label
                 }}</span>
                 <span class="min-w-0 flex-1">
-                  <strong class="block truncate text-sm text-ink">{{
-                    row.device.deviceName || row.device.deviceId
-                  }}</strong>
-                  <span class="block truncate text-xs text-ink-muted">{{
-                    row.detail
-                  }}</span>
+                  <strong
+                    v-overflow-title
+                    class="block text-sm text-ink"
+                    :class="textClasses.field"
+                    >{{ row.device.deviceName || row.device.deviceId }}</strong
+                  >
+                  <span
+                    v-overflow-title
+                    class="block text-xs text-ink-muted"
+                    :class="textClasses.field"
+                    >{{ row.detail }}</span
+                  >
                 </span>
                 <!-- 实时状态 + 实时电量, right-aligned: the tone/label on the left says how
                      worried to be, this says what the vehicle is actually doing and how much
@@ -631,9 +644,14 @@ const alertRows = computed(() =>
                 class="flex h-full flex-col justify-center gap-0.5 rounded-sm px-2 py-1 no-underline transition-colors duration-150 ease-standard hover:bg-surface-sunken"
               >
                 <span class="flex items-baseline justify-between gap-2">
-                  <strong class="truncate text-sm text-ink">{{
-                    formation.formationName || formation.formationId
-                  }}</strong>
+                  <strong
+                    v-overflow-title
+                    class="text-sm text-ink"
+                    :class="textClasses.field"
+                    >{{
+                      formation.formationName || formation.formationId
+                    }}</strong
+                  >
                   <span class="shrink-0 font-mono text-2xs text-ink-muted"
                     >{{ formation.onlineCount }} /
                     {{ formation.deviceCount }}</span
@@ -644,7 +662,9 @@ const alertRows = computed(() =>
                      taller than the three the panel is sized for. -->
                 <span
                   v-if="formation.description"
-                  class="truncate text-xs text-ink-muted"
+                  v-overflow-title
+                  class="text-xs text-ink-muted"
+                  :class="textClasses.field"
                   >{{ formation.description }}</span
                 >
               </RouterLink>

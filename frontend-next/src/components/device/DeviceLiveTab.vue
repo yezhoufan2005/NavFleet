@@ -35,7 +35,6 @@ import {
 import { useCodebook } from "@/composables/useCodebook";
 import DeviceCodesCard from "@/components/device/DeviceCodesCard.vue";
 import { textClasses } from "@/lib/uiClasses";
-import { vOverflowTitle } from "@/directives/overflowTitle";
 import DeviceTaskCard from "@/components/device/DeviceTaskCard.vue";
 import { FIELD_HELP } from "@/lib/fieldHelp";
 import UiHelpTip from "@/components/ui/UiHelpTip.vue";
@@ -278,25 +277,17 @@ const panels = computed(() => [
               <UiHelpTip v-if="row.help" :text="row.help" />
             </dt>
             <!--
-              An enum value carries its sentence on hover (`title`, and `aria-description` for AT,
-              since `title` on a non-interactive element is not reliably announced). Any other value
-              is a one-line field: `min-w-0` so it can shrink beside its label, … when cut, and the
-              full value on hover only while it is cut.
+              A value here is a reading (numbers, a pose, a time), so it is never cut: it shrinks
+              beside its label (`min-w-0`) and wraps onto a second line when it must — a pose
+              breaks between x · y · yaw. An enum value carries its sentence on hover (`title`, and
+              `aria-description` for AT, since `title` on a non-interactive element is not reliably
+              announced).
             -->
             <dd
-              v-if="row.title"
-              class="m-0 text-right text-sm text-ink tabular-nums"
-              :class="textClasses.field"
+              class="m-0 min-w-0 text-right text-sm text-ink tabular-nums"
+              :class="textClasses.body"
               :title="row.title"
               :aria-description="row.title"
-            >
-              {{ row.value }}
-            </dd>
-            <dd
-              v-else
-              v-overflow-title
-              class="m-0 text-right text-sm text-ink tabular-nums"
-              :class="textClasses.field"
             >
               {{ row.value }}
             </dd>
@@ -318,16 +309,8 @@ const panels = computed(() => [
 }
 
 /*
- * One floor for both cards with content, so the row does not jump between a one-line code and a
- * four-field task: 15rem is the task card's full height (title, id, progress, two field rows).
- * A placeholder has none — beside an open card it stretches to that card's height; with both
- * empty the pair stays a short title row. The floor animates so a card grows open smoothly.
+ * No fixed floor: the row is as tall as its taller card's content, and the grid stretches the
+ * other card (and a folded strip) to match — equal height, hugging the text, nothing squeezed and
+ * no empty band (a 15rem floor left one under every short code / task).
  */
-.top-cards :deep(.device-top-card) {
-  min-height: 15rem;
-  transition: min-height 240ms var(--ease-standard);
-}
-.top-cards :deep(.device-top-card.is-collapsed) {
-  min-height: 0;
-}
 </style>
