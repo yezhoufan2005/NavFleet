@@ -24,13 +24,14 @@ import UiInput from "@/components/ui/UiInput.vue";
 import UiSelect from "@/components/ui/UiSelect.vue";
 import UiConfirmDialog from "@/components/ui/UiConfirmDialog.vue";
 import UiModal from "@/components/ui/UiModal.vue";
-import { tableClasses } from "@/lib/uiClasses";
+import { tableClasses, textClasses } from "@/lib/uiClasses";
 import { makeMessageFor } from "@/lib/errorMessages";
 import { ROLE_LABELS } from "@/lib/accessLabels";
 import { notify } from "@/composables/useNotifications";
 import { useAutoRefresh } from "@/composables/useAutoRefresh";
 import { useFieldErrors } from "@/composables/useFieldErrors";
 import { useAuth } from "@/composables/useAuth";
+import { vOverflowTitle } from "@/directives/overflowTitle";
 
 const ALL_ROLES = Object.keys(ROLE_LABELS) as UserRoleName[];
 
@@ -536,9 +537,12 @@ const formDirty = formSnapshot.dirty;
                     class="flex items-center justify-between gap-3 rounded-sm border border-border bg-surface-raised px-3 py-2"
                   >
                     <span class="flex min-w-0 flex-col">
-                      <span class="truncate text-sm text-ink">{{
-                        s.userAgent || "未知设备"
-                      }}</span>
+                      <span
+                        v-overflow-title
+                        class="text-sm text-ink"
+                        :class="textClasses.field"
+                        >{{ s.userAgent || "未知设备" }}</span
+                      >
                       <span class="text-2xs text-ink-muted">
                         {{ s.ip || "—" }} · 最近活跃
                         {{ formatTime(s.lastSeenAt) }}

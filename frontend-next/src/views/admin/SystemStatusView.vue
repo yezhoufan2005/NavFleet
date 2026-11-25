@@ -32,7 +32,7 @@ import { computed, onMounted, ref } from "vue";
 import PageHeader from "@/components/PageHeader.vue";
 import AppSectionTabs from "@/components/shell/AppSectionTabs.vue";
 import UiButton from "@/components/ui/UiButton.vue";
-import { tableClasses } from "@/lib/uiClasses";
+import { tableClasses, textClasses } from "@/lib/uiClasses";
 import { useAutoRefresh } from "@/composables/useAutoRefresh";
 import { useFleetStore } from "@/stores/fleet";
 import {
@@ -46,6 +46,7 @@ import {
   type StoredEntry,
   clearStoredKey,
 } from "@/lib/localState";
+import { vOverflowTitle } from "@/directives/overflowTitle";
 
 interface ReadyPayload {
   ready?: boolean;
@@ -409,7 +410,11 @@ const AREA_LABELS: Record<StoredEntry["area"], string> = {
             class="flex items-baseline justify-between gap-3"
           >
             <dt class="shrink-0 text-xs text-ink-muted">{{ row.label }}</dt>
-            <dd class="m-0 truncate font-mono text-sm text-ink">
+            <dd
+              v-overflow-title
+              class="m-0 font-mono text-sm text-ink"
+              :class="textClasses.field"
+            >
               {{ row.value }}
             </dd>
           </div>
@@ -433,7 +438,11 @@ const AREA_LABELS: Record<StoredEntry["area"], string> = {
             class="flex items-baseline justify-between gap-3"
           >
             <dt class="shrink-0 text-xs text-ink-muted">{{ row.label }}</dt>
-            <dd class="m-0 truncate font-mono text-sm text-ink">
+            <dd
+              v-overflow-title
+              class="m-0 font-mono text-sm text-ink"
+              :class="textClasses.field"
+            >
               {{ row.value }}
             </dd>
           </div>

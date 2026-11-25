@@ -39,6 +39,7 @@ import { ROLE_LABELS } from "@/lib/accessLabels";
 import { useTheme, type ThemePreference } from "@/composables/useTheme";
 import { useAlertSound } from "@/composables/useAlertSound";
 import type { QuietHours, SoundVolume } from "@/composables/useAlertSound";
+import { vOverflowTitle } from "@/directives/overflowTitle";
 
 const { user } = defineProps<{ user: PublicUser }>();
 const emit = defineEmits<{ logout: [] }>();
@@ -128,7 +129,7 @@ const onThemeChange = (value: unknown): void => {
         phone — and these two were 130 of the 477px the bar summed to at 390px. The
         trigger keeps an accessible name through the avatar's own text.
       -->
-      <span class="hidden max-w-32 truncate sm:inline">{{
+      <span v-overflow-title class="hidden max-w-32 truncate sm:inline">{{
         user.username
       }}</span>
       <span class="hidden text-2xs text-ink-muted sm:inline">{{

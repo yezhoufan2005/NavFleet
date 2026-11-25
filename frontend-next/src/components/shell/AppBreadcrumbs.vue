@@ -23,6 +23,8 @@
  */
 import { computed } from "vue";
 import { RouterLink, useRoute } from "vue-router";
+import { textClasses } from "@/lib/uiClasses";
+import { vOverflowTitle } from "@/directives/overflowTitle";
 
 const route = useRoute();
 
@@ -73,7 +75,9 @@ const crumbs = computed<Crumb[]>(() =>
         >
         <span
           v-if="index === crumbs.length - 1"
-          class="truncate font-medium text-ink"
+          v-overflow-title
+          class="font-medium text-ink"
+          :class="textClasses.field"
           aria-current="page"
         >
           {{ crumb.title }}
@@ -86,8 +90,9 @@ const crumbs = computed<Crumb[]>(() =>
         -->
         <RouterLink v-else v-slot="{ href, navigate }" :to="crumb.path" custom>
           <a
+            v-overflow-title
             :href="href"
-            class="truncate text-ink-muted underline-offset-2 transition-colors duration-150 ease-standard hover:text-ink hover:underline"
+            class="min-w-0 truncate text-ink-muted underline-offset-2 transition-colors duration-150 ease-standard hover:text-ink hover:underline"
             @click="navigate"
           >
             {{ crumb.title }}

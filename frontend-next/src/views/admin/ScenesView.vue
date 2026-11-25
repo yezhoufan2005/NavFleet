@@ -43,6 +43,8 @@ import { useFleetStore } from "@/stores/fleet";
 import { fleetApi, formatNumber } from "@navfleet/fleet-core";
 import type { SceneAssetKind, SceneDefinition } from "@navfleet/fleet-core";
 import type { SceneMapDefinition } from "@navfleet/shared";
+import { textClasses } from "@/lib/uiClasses";
+import { vOverflowTitle } from "@/directives/overflowTitle";
 
 const fleet = useFleetStore();
 
@@ -570,7 +572,11 @@ const formDirty = formSnapshot.dirty;
           </div>
           <div class="flex flex-col gap-0.5">
             <dt class="text-xs text-ink-muted">在此场景的设备</dt>
-            <dd class="m-0 truncate text-sm text-ink">
+            <dd
+              v-overflow-title
+              class="m-0 text-sm text-ink"
+              :class="textClasses.field"
+            >
               {{ (devicesByScene[scene.sceneId] ?? []).join("、") || "无" }}
             </dd>
           </div>
@@ -611,7 +617,7 @@ const formDirty = formSnapshot.dirty;
                   }}
                 </span>
                 <code
-                  class="ml-auto font-mono text-2xs break-all text-ink-subtle"
+                  class="ml-auto min-w-0 font-mono text-2xs break-all text-ink-subtle"
                   >{{ row.url }}</code
                 >
               </div>
@@ -822,7 +828,11 @@ const formDirty = formSnapshot.dirty;
           >
             选择文件
           </UiButton>
-          <span class="min-w-0 flex-1 truncate text-xs text-ink-muted">
+          <span
+            v-overflow-title
+            class="flex-1 text-xs text-ink-muted"
+            :class="textClasses.field"
+          >
             {{ fAssetFile ? fAssetFile.name : "未选择文件" }}
           </span>
         </div>
