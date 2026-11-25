@@ -30,7 +30,8 @@ import UiButton from "@/components/ui/UiButton.vue";
 import UiInput from "@/components/ui/UiInput.vue";
 import UiConfirmDialog from "@/components/ui/UiConfirmDialog.vue";
 import UiModal from "@/components/ui/UiModal.vue";
-import { tableClasses } from "@/lib/uiClasses";
+import { tableClasses, textClasses } from "@/lib/uiClasses";
+import { vOverflowTitle } from "@/directives/overflowTitle";
 import { makeMessageFor } from "@/lib/errorMessages";
 import { CAPABILITY_LABELS } from "@/lib/accessLabels";
 import { notify } from "@/composables/useNotifications";
@@ -247,7 +248,13 @@ const formDirty = formSnapshot.dirty;
           </thead>
           <tbody>
             <tr v-for="role in roles" :key="role.id" :class="tableClasses.row">
-              <td class="truncate px-3 py-2 text-ink">{{ role.name }}</td>
+              <td
+                v-overflow-title
+                class="px-3 py-2 text-ink"
+                :class="textClasses.cell"
+              >
+                {{ role.name }}
+              </td>
               <td class="px-3 py-2 text-ink-muted">
                 {{ capabilityText(role.capabilities) }}
               </td>

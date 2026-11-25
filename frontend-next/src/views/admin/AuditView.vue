@@ -18,7 +18,8 @@ import UiMultiSelect from "@/components/ui/UiMultiSelect.vue";
 import UiFilterBar from "@/components/ui/UiFilterBar.vue";
 import UiFilterField from "@/components/ui/UiFilterField.vue";
 import UiEmptyState from "@/components/ui/UiEmptyState.vue";
-import { tableClasses } from "@/lib/uiClasses";
+import { tableClasses, textClasses } from "@/lib/uiClasses";
+import { vOverflowTitle } from "@/directives/overflowTitle";
 import { useLatestRequest } from "@/composables/useLatestRequest";
 import { useAutoRefresh } from "@/composables/useAutoRefresh";
 import { useListPagination } from "@/composables/useListPagination";
@@ -228,13 +229,24 @@ const formatTime = (iso: string): string =>
                 <td class="px-3 py-2 whitespace-nowrap text-ink-muted">
                   {{ formatTime(entry.ts) }}
                 </td>
-                <td class="truncate px-3 py-2 text-ink">{{ entry.actor }}</td>
-                <td class="truncate px-3 py-2 text-ink">
+                <td
+                  v-overflow-title
+                  class="px-3 py-2 text-ink"
+                  :class="textClasses.cell"
+                >
+                  {{ entry.actor }}
+                </td>
+                <td
+                  v-overflow-title
+                  class="px-3 py-2 text-ink"
+                  :class="textClasses.cell"
+                >
                   {{ actionLabel(entry.action) }}
                 </td>
                 <td
-                  class="truncate px-3 py-2 text-ink-muted"
-                  :title="auditObject(entry)"
+                  v-overflow-title
+                  class="px-3 py-2 text-ink-muted"
+                  :class="textClasses.cell"
                 >
                   {{ auditObject(entry) }}
                 </td>

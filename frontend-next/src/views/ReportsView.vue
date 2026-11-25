@@ -60,6 +60,8 @@ import {
   type RangePreset,
 } from "@/lib/reportsView";
 import { loadErrorMessage } from "@/lib/errorMessages";
+import { vOverflowTitle } from "@/directives/overflowTitle";
+import { textClasses } from "@/lib/uiClasses";
 
 // The three windows a scheduled report can cover take the schedule editor's and the email's names
 // (it read 近 1 天 here and 近 24 小时 there); 近 12 小时 is this page's own.
@@ -919,7 +921,7 @@ const exportAlertsCsv = (): void => {
               :key="row.deviceId"
               class="border-b border-border/60 text-ink last:border-b-0"
             >
-              <td class="truncate px-4 py-2" :title="row.name">
+              <td v-overflow-title class="px-4 py-2" :class="textClasses.cell">
                 {{ row.name }}
               </td>
               <td class="px-4 py-2 text-right font-mono tabular-nums">

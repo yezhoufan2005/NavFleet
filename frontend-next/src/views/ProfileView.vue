@@ -15,7 +15,8 @@ import UiButton from "@/components/ui/UiButton.vue";
 import UiInput from "@/components/ui/UiInput.vue";
 import UiCard from "@/components/ui/UiCard.vue";
 import UiConfirmDialog from "@/components/ui/UiConfirmDialog.vue";
-import { tableClasses } from "@/lib/uiClasses";
+import { tableClasses, textClasses } from "@/lib/uiClasses";
+import { vOverflowTitle } from "@/directives/overflowTitle";
 import { useAuth } from "@/composables/useAuth";
 import { notify } from "@/composables/useNotifications";
 
@@ -246,16 +247,23 @@ const formatTime = (iso: string): string =>
               :class="tableClasses.row"
             >
               <td class="px-3 py-2 text-ink">
-                <span class="block truncate">{{
-                  s.userAgent || "未知设备"
-                }}</span>
+                <span
+                  v-overflow-title
+                  class="block"
+                  :class="textClasses.cell"
+                  >{{ s.userAgent || "未知设备" }}</span
+                >
                 <span
                   v-if="s.current"
                   class="mt-0.5 inline-block rounded-sm bg-brand-wash px-1.5 py-0.5 font-mono text-2xs whitespace-nowrap text-brand-ink"
                   >当前会话</span
                 >
               </td>
-              <td class="truncate px-3 py-2 text-ink-muted">
+              <td
+                v-overflow-title
+                class="px-3 py-2 text-ink-muted"
+                :class="textClasses.cell"
+              >
                 {{ s.ip || "—" }}
               </td>
               <td class="px-3 py-2 whitespace-nowrap text-ink-muted">
