@@ -424,8 +424,15 @@ if [[ "$DO_SEED" == "1" && "$CHECK_ONLY" == "0" ]]; then
   USERS="$(body -b "$COOKIE" "$BASE/api/v1/users")"
   has "演示运维账号已建"   'zhaoyun'  "$USERS"
   has "锁定演示账号已建"   'wugang'   "$USERS"
+  has "未登录的新员工已建" 'xujie'    "$USERS"
   has "自定义角色已建"     '报码维护' "$(body -b "$COOKIE" "$BASE/api/v1/rbac/roles")"
-  has "用户组已建"         '现场运维组' "$(body -b "$COOKIE" "$BASE/api/v1/rbac/groups")"
+  GROUPS_BODY="$(body -b "$COOKIE" "$BASE/api/v1/rbac/groups")"
+  has "用户组已建"         '现场运维组' "$GROUPS_BODY"
+  has "账号管理组已建"     'IT 支持组'  "$GROUPS_BODY"
+  # 会话带真实浏览器 UA 与办公网地址（经 nginx 的 X-Forwarded-For）——个人中心靠它认出设备。
+  SESSIONS_BODY="$(body -b "$COOKIE" "$BASE/api/v1/users/zhaoyun/sessions")"
+  has "演示会话带浏览器 UA" 'Edg/131'    "$SESSIONS_BODY"
+  has "演示会话带办公网地址" '10.20.3.21' "$SESSIONS_BODY"
   AUDIT_N="$(body -b "$COOKIE" "$BASE/api/v1/audit?limit=20" | count_json '["entries"]')"
   [[ "${AUDIT_N:-0}" -ge 1 ]] && ok "审计有记录 (${AUDIT_N})" || bad "审计为空（seed 未留痕）"
 elif [[ "$CHECK_ONLY" == "1" ]]; then

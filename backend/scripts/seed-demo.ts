@@ -1,15 +1,21 @@
 /**
- * Demo seed for the Mongo-backed objects the config files and the mock cannot carry: a realistic
- * set of users (operators / a read-only auditor / a kiosk wall account / a disabled ex-staff /
- * a locked outsourced account), custom RBAC roles, and the groups that bind them. It talks to a
- * *running backend* over the admin API (cookie session), not to Mongo directly — no password
+ * Demo seed for the Mongo-backed objects the config files and the simulator cannot carry: the
+ * people who work at the site (see `DEMO_USERS` — every kind of account the console treats
+ * differently: admin, operators in and out of groups, a viewer managing accounts through a group,
+ * a viewer reading the 外发 log, the kiosk wall, a never-signed-in new hire, a disabled leaver, a
+ * locked outsider), custom roles (one granted to nobody), and the groups that bind them. It talks
+ * to a *running backend* over the admin API (cookie session), not to Mongo directly — no password
  * hashing / schema coupling — so it works the same against dev.sh (in-memory, for the session) and
  * the full compose stack (durable). Idempotent: anything that already exists is left as-is.
  *
  * It also seeds the surrounding records as a side effect:
- *   - 会话记录: each active user is logged in once (with its own user-agent) → a per-user session.
+ *   - 会话记录: each active user signs in from each of their devices (real browser user-agents,
+ *     office addresses) → one session per device.
  *   - 审计记录: user/role/group creation, the logins, and the deliberate lockout are all audited.
- *   - 已锁定 state: one account is locked by exhausting the login-failure threshold.
+ *   - 已锁定 state: one account is locked by failed sign-ins from an address outside the office.
+ *
+ * The 30 days of history before today — shift sign-ins, claims and ignores, the odd password reset
+ * or configuration change — come from the simulator's backfill (backend/sim), not from here.
  *
  *   SEED_BASE_URL   backend base (default http://127.0.0.1:3000; use the nginx edge for compose)
  *   ADMIN_USERNAME / ADMIN_PASSWORD   admin login (defaults match dev.sh's dev admin)
@@ -32,15 +38,24 @@ const bodyText = async (res: Response): Promise<string> => {
   }
 };
 
-/** POST /auth/login; returns the session cookie string, or null if the credentials were refused. */
+/**
+ * POST /auth/login from a given device; returns the session cookie string, or null if the
+ * credentials were refused. `ip` goes out as `X-Forwarded-For`: behind the compose nginx the
+ * backend records it (TRUST_PROXY), so sessions and 账户活动 show the office address; against a
+ * bare dev backend it is ignored and the loopback address is recorded instead.
+ */
 async function login(
   username: string,
   password: string,
-  userAgent: string,
+  device: DemoDevice,
 ): Promise<string | null> {
   const res = await fetch(`${BASE}/api/auth/login`, {
     method: "POST",
-    headers: { "content-type": "application/json", "user-agent": userAgent },
+    headers: {
+      "content-type": "application/json",
+      "user-agent": device.userAgent,
+      "x-forwarded-for": device.ip,
+    },
     body: JSON.stringify({ username, password }),
   });
   if (!res.ok) return null;
@@ -55,38 +70,75 @@ const authed = (cookie: string, path: string, init: RequestInit = {}): Promise<R
   });
 
 type UserState = "normal" | "disabled" | "locked";
+
+/** Where and on what someone signs in: their real browser's user-agent, and the office address. */
+interface DemoDevice {
+  userAgent: string;
+  /** Sent as `X-Forwarded-For`, which the backend honours behind the compose nginx (TRUST_PROXY). */
+  ip: string;
+}
+
 interface DemoUser {
   username: string;
   role: "admin" | "operator" | "viewer";
   displayName: string;
-  /** Demo address, so the 外发 on-call group's account reference resolves to someone. */
+  /** So the 外发 groups' `@user` references and scheduled reports resolve to someone. */
   email?: string;
+  phone?: string;
   kiosk?: boolean;
   state: UserState;
-  /** Shown as the session's device on the 会话 page when this user is logged in. */
-  userAgent: string;
+  /** One session per device on the 会话 pages; none for an account that has never signed in. */
+  devices: DemoDevice[];
 }
 
-// A plausible small-site roster: a platform admin (the demo's own管理员, distinct from the
-// protected bootstrap `admin` which stays a debug-only account), two operators, a read-only
-// auditor, a kiosk wall account, an ex-staff account kept disabled, and an outsourced account
-// that got itself locked out.
+// Real browsers' user-agent strings, so 个人中心 names them (`Chrome 131 · macOS`) as it would a
+// colleague's machine — the seed used to log in as "NavFleet-Console/ops-workstation".
+const UA = {
+  chromeMac:
+    "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
+  edgeWindows:
+    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36 Edg/131.0.2903.70",
+  firefoxLinux: "Mozilla/5.0 (X11; Linux x86_64; rv:133.0) Gecko/20100101 Firefox/133.0",
+  safariIpad:
+    "Mozilla/5.0 (iPad; CPU OS 18_1 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/18.1 Mobile/15E148 Safari/604.1",
+  chromeAndroid:
+    "Mozilla/5.0 (Linux; Android 14; Pixel 8) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Mobile Safari/537.36",
+  chromeWall:
+    "Mozilla/5.0 (X11; Linux aarch64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/128.0.0.0 Safari/537.36",
+  safariMac:
+    "Mozilla/5.0 (Macintosh; Intel Mac OS X 14_6) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/18.1 Safari/605.1.15",
+};
+
+// A plausible small-site roster. The protected bootstrap `admin` stays a deployment account; the
+// people below are who works here: a platform admin, two shift operators (claims and ignores in
+// the history are theirs, by shift — see sim/sink.ts `operatorAt`), a plain operator outside any
+// group, an IT colleague who manages accounts through a group, a dispatcher who may read the 外发
+// log, a read-only auditor, the wall display, a new hire who has not signed in yet, a leaver kept
+// disabled, and an outsourced account that locked itself out.
 const DEMO_USERS: DemoUser[] = [
   {
     username: "lifang",
     role: "admin",
     displayName: "李芳 · 平台管理员",
     email: "lifang@example.com",
+    phone: "021-6488 2301",
     state: "normal",
-    userAgent: "NavFleet-Console/admin-workstation",
+    devices: [
+      { userAgent: UA.chromeMac, ip: "10.20.1.15" },
+      { userAgent: UA.safariIpad, ip: "10.20.9.41" },
+    ],
   },
   {
     username: "zhaoyun",
     role: "operator",
-    displayName: "赵云 · 运维班长",
+    displayName: "赵云 · 运维班长（白班）",
     email: "zhaoyun@example.com",
+    phone: "138 1762 0458",
     state: "normal",
-    userAgent: "NavFleet-Console/ops-workstation",
+    devices: [
+      { userAgent: UA.edgeWindows, ip: "10.20.3.21" },
+      { userAgent: UA.chromeAndroid, ip: "10.20.9.77" },
+    ],
   },
   {
     username: "qianwei",
@@ -94,14 +146,40 @@ const DEMO_USERS: DemoUser[] = [
     displayName: "钱伟 · 夜班操作员",
     email: "qianwei@example.com",
     state: "normal",
-    userAgent: "NavFleet-Console/night-terminal",
+    devices: [{ userAgent: UA.firefoxLinux, ip: "10.20.3.22" }],
+  },
+  {
+    username: "liuqiang",
+    role: "operator",
+    displayName: "刘强 · 现场调度",
+    email: "liuqiang@example.com",
+    state: "normal",
+    devices: [{ userAgent: UA.chromeAndroid, ip: "10.20.9.103" }],
+  },
+  {
+    // An operator who manages accounts through a group: the hierarchy lets her manage viewers whose
+    // capabilities she holds herself, so 用户 shows her a mix of manageable and greyed rows.
+    username: "chenjing",
+    role: "operator",
+    displayName: "陈静 · IT 支持",
+    email: "chenjing@example.com",
+    state: "normal",
+    devices: [{ userAgent: UA.edgeWindows, ip: "10.20.5.8" }],
+  },
+  {
+    username: "huangmin",
+    role: "viewer",
+    displayName: "黄敏 · 调度主管",
+    email: "huangmin@example.com",
+    state: "normal",
+    devices: [{ userAgent: UA.safariMac, ip: "10.20.1.33" }],
   },
   {
     username: "sunli",
     role: "viewer",
     displayName: "孙丽 · 只读审计",
     state: "normal",
-    userAgent: "NavFleet-Console/audit-laptop",
+    devices: [{ userAgent: UA.chromeMac, ip: "10.20.1.52" }],
   },
   {
     username: "wall01",
@@ -109,25 +187,34 @@ const DEMO_USERS: DemoUser[] = [
     displayName: "一号大屏值班台",
     kiosk: true,
     state: "normal",
-    userAgent: "NavFleet-Wall/kiosk-01",
+    devices: [{ userAgent: UA.chromeWall, ip: "10.20.2.10" }],
+  },
+  {
+    username: "xujie",
+    role: "viewer",
+    displayName: "徐杰 · 新入职（未登录）",
+    email: "xujie@example.com",
+    state: "normal",
+    devices: [],
   },
   {
     username: "zhouming",
     role: "viewer",
     displayName: "周明 · 离职待销账号",
     state: "disabled",
-    userAgent: "",
+    devices: [],
   },
   {
     username: "wugang",
     role: "viewer",
     displayName: "吴刚 · 临时外包",
     state: "locked",
-    userAgent: "",
+    devices: [],
   },
 ];
 
-const SEED_UA = "NavFleet seed-demo";
+/** The seed's own administrative session: a deployment script, not anyone's browser. */
+const SEED_DEVICE: DemoDevice = { userAgent: "NavFleet seed-demo", ip: "10.20.0.2" };
 
 async function ensureUser(cookie: string, user: DemoUser): Promise<void> {
   const res = await authed(cookie, "/api/v1/users", {
@@ -147,14 +234,17 @@ async function ensureUser(cookie: string, user: DemoUser): Promise<void> {
   } else {
     throw new Error(`create user ${user.username} failed: ${await bodyText(res)}`);
   }
-  if (user.email) {
-    // Also for an account an earlier seed created without one; setting the same value is a no-op.
+  if (user.email || user.phone) {
+    // Also for an account an earlier seed created without them; setting the same value is a no-op.
     const patch = await authed(cookie, `/api/v1/users/${encodeURIComponent(user.username)}`, {
       method: "PATCH",
-      body: JSON.stringify({ email: user.email }),
+      body: JSON.stringify({
+        ...(user.email ? { email: user.email } : {}),
+        ...(user.phone ? { phone: user.phone } : {}),
+      }),
     });
     if (!patch.ok)
-      throw new Error(`set email of ${user.username} failed: ${await bodyText(patch)}`);
+      throw new Error(`set contacts of ${user.username} failed: ${await bodyText(patch)}`);
   }
   if (user.state === "disabled") {
     const patch = await authed(cookie, `/api/v1/users/${encodeURIComponent(user.username)}`, {
@@ -169,21 +259,51 @@ async function ensureUser(cookie: string, user: DemoUser): Promise<void> {
 const DEMO_ROLES: { name: string; capabilities: string[] }[] = [
   { name: "报码维护", capabilities: ["codebook:write"] },
   { name: "外发值守", capabilities: ["notify:read", "notify:write"] },
+  { name: "外发查看", capabilities: ["notify:read"] },
   { name: "审计查看", capabilities: ["audit:read"] },
+  { name: "账号管理", capabilities: ["users:manage"] },
+  { name: "部署维护", capabilities: ["vehicles:write", "formations:write", "scenes:write"] },
+  // Defined for the next shift lead, granted to nobody yet: a role no group references.
+  { name: "报表维护", capabilities: ["reports:write", "rules:write"] },
 ];
 
 const DEMO_GROUPS: { name: string; description: string; roles: string[]; members: string[] }[] = [
   {
     name: "现场运维组",
-    description: "一线运维：授予报码维护与外发值守能力",
+    description: "两班倒的一线运维：维护报码字典、值守外发渠道",
     roles: ["报码维护", "外发值守"],
     members: ["zhaoyun", "qianwei"],
+  },
+  {
+    name: "IT 支持组",
+    description: "开通账号、重置密码、维护设备与场景配置",
+    roles: ["账号管理", "部署维护"],
+    members: ["chenjing"],
+  },
+  {
+    name: "调度组",
+    description: "调度主管查看外发记录，核对消息是否送达",
+    roles: ["外发查看"],
+    members: ["huangmin"],
   },
   {
     name: "审计组",
     description: "只读审计：在只读基础上加审计日志查看",
     roles: ["审计查看"],
     members: ["sunli"],
+  },
+  {
+    // The wall display is a member, to show that a kiosk account gains nothing from a group.
+    name: "大屏与访客",
+    description: "值班大屏与来访查看账号，统一在这里登记",
+    roles: ["外发查看"],
+    members: ["wall01"],
+  },
+  {
+    name: "新员工",
+    description: "入职首月的账号，先不授予额外能力",
+    roles: [],
+    members: ["xujie"],
   },
 ];
 
@@ -227,14 +347,22 @@ async function ensureRolesAndGroups(cookie: string): Promise<void> {
   }
 }
 
-/** Log in as each active user (own user-agent) → a per-user 会话 row + a login audit entry. */
+/**
+ * Log in as each active user from each of their devices → one 会话 row per device and a login
+ * audit entry with its address and browser. Re-running adds a fresh session per device, as signing
+ * in again would; the old ones expire on their own.
+ */
 async function seedSessions(): Promise<void> {
   for (const user of DEMO_USERS) {
     if (user.state !== "normal") continue;
-    const cookie = await login(user.username, demoPassword(user.username), user.userAgent);
-    console.log(
-      cookie ? `  ✓ session for ${user.username}` : `  ! login failed for ${user.username}`,
-    );
+    for (const device of user.devices) {
+      const cookie = await login(user.username, demoPassword(user.username), device);
+      console.log(
+        cookie
+          ? `  ✓ session for ${user.username} (${device.ip})`
+          : `  ! login failed for ${user.username}`,
+      );
+    }
   }
 }
 
@@ -247,9 +375,11 @@ async function seedLockout(cookie: string): Promise<void> {
   const target = DEMO_USERS.find((user) => user.state === "locked");
   if (!target) return;
   const wrong = `${demoPassword(target.username)}-nope`;
-  // AUTH_LOCK_THRESHOLD defaults to 5 consecutive failures; a couple extra is harmless.
+  // AUTH_LOCK_THRESHOLD defaults to 5 consecutive failures; a couple extra is harmless. From an
+  // address outside the office range, as a guessing script would come from.
+  const stranger: DemoDevice = { userAgent: "python-requests/2.32.3", ip: "172.31.44.19" };
   for (let attempt = 0; attempt < 6; attempt += 1) {
-    await login(target.username, wrong, SEED_UA);
+    await login(target.username, wrong, stranger);
   }
   const res = await authed(cookie, `/api/v1/users/${encodeURIComponent(target.username)}`);
   const { user } = (await res.json()) as { user?: { lockedUntil?: string | null } };
@@ -266,7 +396,7 @@ async function seedLockout(cookie: string): Promise<void> {
 
 async function main(): Promise<void> {
   console.log(`[seed-demo] target ${BASE}, admin ${ADMIN_USERNAME}`);
-  const adminCookie = await login(ADMIN_USERNAME, ADMIN_PASSWORD, SEED_UA);
+  const adminCookie = await login(ADMIN_USERNAME, ADMIN_PASSWORD, SEED_DEVICE);
   if (!adminCookie) {
     throw new Error(
       `admin login failed at ${BASE} — check it is running and ADMIN_PASSWORD is set`,
