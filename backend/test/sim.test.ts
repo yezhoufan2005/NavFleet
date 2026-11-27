@@ -568,6 +568,8 @@ describe("simulator vendors and site behaviour", () => {
     const off = Date.parse("2026-09-01T12:00:00Z");
     const state = newState(f, visitor, on);
     const onFrame = step(visitor, state).frame!;
+    // It reports the vendor's own lab map, which the site's scene catalogue does not have.
+    expect(onFrame.scene_id).toBe("seer-lab-03");
     expect(onFrame).not.toHaveProperty("vehicle_info");
     expect(onFrame).not.toHaveProperty("fusion_loc");
     expect(Array.isArray(onFrame.alarmList)).toBe(true);

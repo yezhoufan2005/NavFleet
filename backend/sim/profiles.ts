@@ -393,7 +393,10 @@ export const FIRMWARE_CODES: ReadonlyArray<{
  */
 export interface VisitorConfig {
   deviceId: string;
+  /** The site scene it drives in (its loop and GPS position come from there). */
   sceneId: string;
+  /** The map its debug build carries and reports — the vendor's lab, unknown to this site. */
+  reportedSceneId: string;
   vendor: string;
   /** Local weekdays (0 = Sunday) and hours [from, to) it is switched on. */
   days: readonly number[];
@@ -404,6 +407,7 @@ export const VISITORS: readonly VisitorConfig[] = [
   {
     deviceId: "seer-test-07",
     sceneId: "yard-north",
+    reportedSceneId: "seer-lab-03",
     vendor: "仙工智能",
     days: [2, 4],
     hours: [14, 17.5],

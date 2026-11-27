@@ -101,7 +101,20 @@ const MAINTENANCE: ReadonlyArray<(at: Date) => Entry[]> = [
   (at) => [
     ok(at, "lifang", "role_update", {
       target: "role-report-maint",
-      detail: { name: "报表维护", added: ["rules:write"], removed: [] },
+      detail: { name: "报表维护", renamedFrom: "报表管理", added: ["rules:write"], removed: [] },
+    }),
+  ],
+  (at) => [
+    ok(at, "lifang", "role_update", {
+      target: "role-deploy",
+      detail: { name: "部署维护", added: ["scenes:write"], removed: ["codebook:write"] },
+    }),
+  ],
+  // The field dispatcher takes on message handling: viewer → operator.
+  (at) => [
+    ok(at, "chenjing", "user_update", {
+      target: "liuqiang",
+      detail: { fields: ["role"], changes: { role: { from: "viewer", to: "operator" } } },
     }),
   ],
   (at) => [
@@ -109,10 +122,11 @@ const MAINTENANCE: ReadonlyArray<(at: Date) => Entry[]> = [
       target: "group-dispatch",
       detail: {
         name: "调度组",
+        renamedFrom: "调度员组",
         rolesAdded: ["外发查看"],
         rolesRemoved: [],
         membersAdded: ["huangmin"],
-        membersRemoved: [],
+        membersRemoved: ["liuqiang"],
       },
     }),
   ],
@@ -205,6 +219,10 @@ const dayOf = (midnight: number): AuditEntryDoc[] => {
   } else if (own < 0.13) {
     // 下线其他设备 from 个人中心.
     write("zhaoyun", "session_revoke", ownAt, { detail: { others: 1 } });
+  } else if (own < 0.16) {
+    // One device signed out from 个人中心 (the session's own id).
+    const id = `${new Date(midnight).toISOString().slice(0, 10).replaceAll("-", "")}a7`;
+    write("qianwei", "session_revoke", ownAt, { target: id });
   }
 
   // Once a month: a temporary account for a commissioning engineer, removed a few days later.

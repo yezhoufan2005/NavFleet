@@ -71,11 +71,13 @@ export const SCENARIOS: readonly Scenario[] = [
     name: "ap-restart",
     title: "无线 AP 重启",
     description:
-      "一个场景的无线 AP 重启：场景内所有车辆同时失联，45 秒后同一秒判离线，2 分钟后同时恢复。几秒内的状态变化超过 4 条，控制台把逐条提示合并成一条「车队状态密集变化」；每台车留下一条离线消息与外发记录。",
+      "一个场景的无线 AP 重启：场景内所有车辆同时失联，45 秒后同一秒判离线，2 分钟后同时恢复。几秒内的状态变化超过 4 条，控制台把逐条提示合并成一条「车队状态密集变化」；每台车留下一条离线消息与外发记录。场景号写 all 表示园区核心交换机故障，全部车辆同时离线，大屏「在线设备」变红。",
     target: { what: "scene", default: "kangcheng-airy" },
+    // `all`: the campus core switch rather than one AP — every vehicle at once, so the wall
+    // display's 在线设备 tile goes red.
     steps: (fleet, sceneId) =>
       fleet.sites
-        .filter((site) => site.sceneId === sceneId && !site.visitor)
+        .filter((site) => !site.visitor && (sceneId === "all" || site.sceneId === sceneId))
         .map((site) => ({ deviceId: site.deviceId, kind: "comm-loss" as const, minutes: 2 })),
   },
   {

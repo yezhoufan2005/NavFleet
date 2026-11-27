@@ -66,6 +66,13 @@ export const measureCoverage = async (
   const rules = JSON.parse(fs.readFileSync(path.join(configRoot, "rules.json"), "utf8")) as {
     lowBattery: { thresholdPct: number };
   };
+  const catalogue = new Set(
+    (
+      JSON.parse(fs.readFileSync(path.join(configRoot, "scenes.json"), "utf8")) as Array<{
+        sceneId: string;
+      }>
+    ).map((scene) => scene.sceneId),
+  );
   const end = Math.floor(Date.now() / 1000) * 1000;
   const start = end - days * 86_400_000;
 
@@ -166,6 +173,7 @@ export const measureCoverage = async (
       const gps = frame.gps as Record<string, unknown> | undefined;
       if (gps && !("heading" in gps)) bump(omitted, "GPS 无航向");
       if (frame.scene_id === "") bump(omitted, "不配场景");
+      else if (!catalogue.has(frame.scene_id as string)) bump(omitted, "场景目录外的运行场景");
       if (Array.isArray(frame.alarmList)) bump(omitted, "带厂商告警列表");
       if ((frame.stamp as number) - t > 60_000) bump(behaviour, "车端时钟偏差");
       if (site.visitor) bump(behaviour, "未登记车辆上报");
@@ -223,6 +231,7 @@ export const measureCoverage = async (
     "位姿不带朝向",
     "GPS 无航向",
     "不配场景",
+    "场景目录外的运行场景",
     "不报车辆状态（调试车）",
     "任务只报部分字段",
     "任务步数越界",

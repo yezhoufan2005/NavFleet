@@ -272,7 +272,8 @@ npm run screenshots   # 启后端 + 控制台 → 播种演示车队 → 逐页�
   docker compose -p navfleet exec sim npx tsx sim/main.ts scenario fire-drill # 全车队急停，消息徽标 99+
   ```
 
-  另有 `cascade`（单车同时 6 条消息）、`ap-restart`（一个场景整体失联，状态变化合并提示）、`estop`。
+  另有 `cascade`（单车同时 6 条消息）、`ap-restart`（一个场景整体失联，状态变化合并提示；场景号写
+  `all` 时全部车辆同时离线）、`estop`。
   `sim:coverage` 离线跑一遍时间线，列出各报码、枚举取值、字段缺失与车辆行为在最近 30 天里出现了几次。
 
 - 外发与定时报表发往本机收件服务（邮件在 mailpit，`http://127.0.0.1:8025`），实时外发是真实送达；外发记录里 30 天的历史由模拟器按同一套路由规则生成。

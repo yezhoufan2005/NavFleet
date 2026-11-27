@@ -1208,7 +1208,7 @@ const visitorFrame = (site: Site, state: VehicleState, t: number): Record<string
       : { code: 0, info: "", stamp: t };
   return {
     stamp: t,
-    scene_id: site.sceneId,
+    scene_id: site.visitor?.reportedSceneId ?? site.sceneId,
     ...(site.gps ? { gps: sceneToGps(site.gps, pose) } : {}),
     info_code: code(state.info),
     warning_code: code(state.warning),
