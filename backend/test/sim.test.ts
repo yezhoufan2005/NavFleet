@@ -8,6 +8,8 @@ import { BackfillSink } from "../sim/sink";
 import { INJECTION_KINDS, step, type VehicleState } from "../sim/vehicle";
 import { findScenario, SCENARIOS } from "../sim/scenarios";
 import { formatCoverage, measureCoverage } from "../sim/coverage";
+import { peopleActivity, readStory, writePeopleActivity, writeStory } from "../sim/people";
+import { AUDIT_ACTIONS } from "@navfleet/shared";
 import { mqttTelemetrySchema } from "../src/validation";
 import { normalizeDevice } from "../src/normalize";
 import type { DeviceAlert } from "../src/types";
@@ -794,4 +796,69 @@ describe("simulator coverage report", () => {
     expect(report.items.find((item) => item.label === "不报角速度")!.count).toBeGreaterThan(0);
     expect(formatCoverage(report)).toMatch(/出现 \d+ 项/);
   }, 120_000);
+});
+
+describe("people activity", () => {
+  const anchor = Date.parse("2026-10-29T00:00:00Z");
+  const now = anchor + 30 * 86_400_000;
+  const storyDir = () => {
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), "sim-story-"));
+    writeStory(dir, { anchor, span: now - anchor, writtenUntil: anchor });
+    return dir;
+  };
+  const collect = () => {
+    const written: Array<{ action: string; actor: string; ts: Date; detail?: unknown }> = [];
+    return {
+      written,
+      db: {
+        insertMany: (entries: typeof written) => {
+          written.push(...entries);
+          return Promise.resolve();
+        },
+      },
+    };
+  };
+
+  it("writes the same trail in pieces as in one go, and never a stretch twice", async () => {
+    const dir = storyDir();
+    const { written, db } = collect();
+    await writePeopleActivity(dir, anchor + 9 * 86_400_000, db);
+    await writePeopleActivity(dir, anchor + 9 * 86_400_000, db);
+    for (let hour = 0; hour < 48; hour += 1) {
+      await writePeopleActivity(dir, now - 48 * 3_600_000 + hour * 3_600_000, db);
+    }
+    const whole = peopleActivity(anchor, now - 3_600_000, readStory(dir));
+    expect(JSON.stringify(written)).toBe(JSON.stringify(whole));
+  });
+
+  it("covers every audit action a person takes, the once-only events exactly once", async () => {
+    const dir = storyDir();
+    const { written, db } = collect();
+    await writePeopleActivity(dir, now, db);
+    const actions = new Set(written.map((entry) => entry.action));
+    const byMessages = new Set(["alert_claim", "alert_release", "alert_ignore", "alert_unignore"]);
+    const legacy = new Set(["alert_ack", "alert_unack"]);
+    expect(
+      AUDIT_ACTIONS.filter(
+        (action) => !actions.has(action) && !byMessages.has(action) && !legacy.has(action),
+      ),
+    ).toEqual([]);
+    expect(written.filter((entry) => entry.action === "force_logout")).toHaveLength(1);
+    // The stranger trying the shift lead's account, from outside the office.
+    expect(
+      written.filter(
+        (entry) =>
+          entry.actor === "zhaoyun" &&
+          entry.action === "login_failed" &&
+          (entry.detail as { ip?: string }).ip === "172.31.20.5",
+      ),
+    ).toHaveLength(2);
+  });
+
+  it("writes nothing without a story (a state from before it existed)", async () => {
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), "sim-story-"));
+    const { written, db } = collect();
+    expect(await writePeopleActivity(dir, now, db)).toBe(0);
+    expect(written).toHaveLength(0);
+  });
 });

@@ -419,6 +419,13 @@ if [[ "$DO_SEED" == "1" && "$CHECK_ONLY" == "0" ]]; then
     SEED_BASE_URL="$BASE" ADMIN_USERNAME="$ADMIN_USER" ADMIN_PASSWORD="$ADMIN_PASS" \
       npm run seed:demo >/tmp/navfleet-verify-seed.log 2>&1
   ); then ok "seed:demo 跑通"; else bad "seed:demo 失败 —— 看 /tmp/navfleet-verify-seed.log"; fi
+  # 账号的创建时间、最近登录、密码更新与旧会话按历史对齐（seed 建号时这些都是「现在」）。
+  if [[ "$DO_MOCK" == "1" ]] &&
+    compose exec -T sim npx tsx sim/main.ts accounts >>/tmp/navfleet-verify-seed.log 2>&1; then
+    ok "演示账号按历史对齐日期"
+  elif [[ "$DO_MOCK" == "1" ]]; then
+    bad "演示账号日期对齐失败 —— 看 /tmp/navfleet-verify-seed.log"
+  fi
   echo
   echo "断言（演示账号/记录）:"
   USERS="$(body -b "$COOKIE" "$BASE/api/v1/users")"

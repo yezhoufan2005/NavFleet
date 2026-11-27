@@ -13,6 +13,7 @@
     "sim:catchup": "tsx sim/main.ts catchup",
     "sim:live": "tsx sim/main.ts live",
     "sim:coverage": "tsx sim/main.ts coverage",
+    "sim:accounts": "tsx sim/main.ts accounts",
     "load:ingest": "tsx scripts/load-ingest.ts",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "lint": "eslint . --max-warnings 0",

@@ -223,6 +223,9 @@ if [[ "$DEMO_MODE" == "1" ]]; then
   (cd "$ROOT/backend" && SEED_BASE_URL="http://127.0.0.1:${BACKEND_PORT}" \
     ADMIN_USERNAME="$ADMIN_USER" ADMIN_PASSWORD="$ADMIN_PASS" \
     npm run seed:demo) || echo "⚠ seed:demo 失败（可稍后手动重试）"
+  # 账号日期按演示历史对齐；历史还没补完时（首次起栈）先按「30 天前」对齐，下次启动再对一次。
+  (cd "$ROOT/backend" && MONGO_URI="$DEV_MONGO_URI" CONFIG_ROOT_PATH="../config-runtime" \
+    npm run -s sim:accounts) || echo "⚠ 演示账号日期对齐失败（可稍后执行 npm run sim:accounts）"
 fi
 
 # 演示车队（backend/sim）：走真实 MQTT 链路，每车每秒一帧，状态记在 backend/.demo-sim/。

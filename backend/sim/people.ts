@@ -19,7 +19,15 @@
  *
  * Claims, releases and ignores of messages are written with the messages (`sink.ts`), at the
  * moment they happen.
+ *
+ * Besides the everyday, a few things happen once in the site's story — a dispatcher promoted to
+ * operator, a leaver's account disabled, a lost phone signed out (`STORIES`). They are placed
+ * relative to the story's anchor (`stories.json` in the state directory: where the history the
+ * first catch-up generated begins), so each happens exactly once however many catch-ups and live
+ * hours later write the trail, and `accounts.ts` dates the accounts from the same events.
  */
+import fs from "node:fs";
+import path from "node:path";
 import { MongoClient } from "mongodb";
 import { config } from "../src/config";
 import { Rng, seedOf } from "./rng";
@@ -78,7 +86,7 @@ const ok = (
 ): Entry => ({ ts, actor, action, outcome: "success", ...extra });
 const later = (ts: Date, minutes: number): Date => new Date(ts.getTime() + minutes * 60_000);
 
-/** The admin's and IT's maintenance work, one task a working day (see `dayOf`). */
+/** The admin's and IT's routine configuration work, one task a working day (see `dayOf`). */
 const MAINTENANCE: ReadonlyArray<(at: Date) => Entry[]> = [
   (at) => [
     ok(at, "lifang", "rules_write", {
@@ -97,53 +105,174 @@ const MAINTENANCE: ReadonlyArray<(at: Date) => Entry[]> = [
     }),
     ok(later(at, 1.5), "chenjing", "scenes_write", { detail: { sceneCount: 9 } }),
   ],
-  (at) => [ok(at, "chenjing", "password_reset", { target: "liuqiang" })],
-  (at) => [
-    ok(at, "lifang", "role_update", {
-      target: "role-report-maint",
-      detail: { name: "报表维护", renamedFrom: "报表管理", added: ["rules:write"], removed: [] },
-    }),
-  ],
-  (at) => [
-    ok(at, "lifang", "role_update", {
-      target: "role-deploy",
-      detail: { name: "部署维护", added: ["scenes:write"], removed: ["codebook:write"] },
-    }),
-  ],
-  // The field dispatcher takes on message handling: viewer → operator.
-  (at) => [
-    ok(at, "chenjing", "user_update", {
-      target: "liuqiang",
-      detail: { fields: ["role"], changes: { role: { from: "viewer", to: "operator" } } },
-    }),
-  ],
-  (at) => [
-    ok(at, "lifang", "group_update", {
-      target: "group-dispatch",
-      detail: {
-        name: "调度组",
-        renamedFrom: "调度员组",
-        rolesAdded: ["外发查看"],
-        rolesRemoved: [],
-        membersAdded: ["huangmin"],
-        membersRemoved: ["liuqiang"],
-      },
-    }),
-  ],
-  // A lost phone: the admin ends the session on it.
-  (at) => [ok(at, "lifang", "session_revoke", { target: "zhaoyun:lost-phone" })],
-  (at) => [
-    ok(at, "chenjing", "user_update", {
-      target: "huangmin",
-      detail: {
-        fields: ["displayName", "email"],
-        changes: { displayName: { from: "黄敏", to: "黄敏 · 调度主管" } },
-      },
-    }),
-  ],
-  // The leaver's account still had a session open on the day it was disabled.
-  (at) => [ok(at, "lifang", "force_logout", { target: "zhouming" })],
 ];
+
+/**
+ * Once in the story: `day` days after its anchor (of 30 — scaled when the history is shorter, as
+ * dev.sh's week is), at `hour` on the site's clock.
+ */
+interface Story {
+  day: number;
+  hour: number;
+  entries: (at: Date) => Entry[];
+}
+
+const STORIES: readonly Story[] = [
+  {
+    day: 3,
+    hour: 10.2,
+    entries: (at) => [
+      ok(at, "lifang", "role_update", {
+        target: "role-report-maint",
+        detail: { name: "报表维护", renamedFrom: "报表管理", added: ["rules:write"], removed: [] },
+      }),
+    ],
+  },
+  {
+    day: 6,
+    hour: 14.5,
+    entries: (at) => [
+      ok(at, "lifang", "role_update", {
+        target: "role-deploy",
+        detail: { name: "部署维护", added: ["scenes:write"], removed: ["codebook:write"] },
+      }),
+    ],
+  },
+  {
+    // The field dispatcher takes on message handling: viewer → operator.
+    day: 9,
+    hour: 9.6,
+    entries: (at) => [
+      ok(at, "chenjing", "user_update", {
+        target: "liuqiang",
+        detail: { fields: ["role"], changes: { role: { from: "viewer", to: "operator" } } },
+      }),
+    ],
+  },
+  {
+    day: 12,
+    hour: 16.1,
+    entries: (at) => [
+      ok(at, "lifang", "group_update", {
+        target: "group-dispatch",
+        detail: {
+          name: "调度组",
+          renamedFrom: "调度员组",
+          rolesAdded: ["外发查看"],
+          rolesRemoved: ["审计查看"],
+          membersAdded: ["huangmin"],
+          membersRemoved: ["liuqiang"],
+        },
+      }),
+    ],
+  },
+  {
+    // A leaver's last day: the account is disabled (which ends its sessions), not deleted.
+    day: 15,
+    hour: 17.6,
+    entries: (at) => [
+      ok(at, "chenjing", "user_update", {
+        target: "zhouming",
+        detail: { fields: ["enabled"], changes: { enabled: { from: true, to: false } } },
+      }),
+    ],
+  },
+  {
+    // The night shift's shared PC was left signed in: every session of the account ended.
+    day: 18,
+    hour: 8.4,
+    entries: (at) => [ok(at, "lifang", "force_logout", { target: "qianwei" })],
+  },
+  {
+    day: 20,
+    hour: 9.1,
+    entries: (at) => [ok(at, "chenjing", "password_reset", { target: "liuqiang" })],
+  },
+  {
+    // A lost phone: the admin ends the session on it.
+    day: 22,
+    hour: 11.3,
+    entries: (at) => [ok(at, "lifang", "session_revoke", { target: "zhaoyun:lost-phone" })],
+  },
+  {
+    day: 24,
+    hour: 15.2,
+    entries: (at) => [
+      ok(at, "chenjing", "user_update", {
+        target: "huangmin",
+        detail: {
+          fields: ["displayName", "email"],
+          changes: { displayName: { from: "黄敏", to: "黄敏 · 调度主管" } },
+        },
+      }),
+    ],
+  },
+  {
+    // Someone tries the day-shift lead's account from an address and browser that are not his —
+    // what his 个人中心「账户活动」 is there to show him.
+    day: 28,
+    hour: 3.15,
+    entries: (at) => {
+      const stranger = {
+        userAgent:
+          "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36",
+        ip: "172.31.20.5",
+      };
+      return [0, 1].map((attempt) => ({
+        ts: later(at, attempt * 0.4),
+        actor: "zhaoyun",
+        action: "login_failed",
+        outcome: "failure" as const,
+        detail: stranger,
+      }));
+    },
+  },
+];
+
+/** Where the story begins and how long the history it was written over is (see `STORIES`). */
+export interface StoryState {
+  anchor: number;
+  span: number;
+  /** The people's side of the trail is written up to here (exclusive). */
+  writtenUntil: number;
+}
+
+const STORY_DAYS = 30;
+
+/** The once-in-the-story entries falling in `[from, to)`. */
+const storyEntries = (story: StoryState, from: number, to: number): Entry[] => {
+  const entries: Entry[] = [];
+  for (const item of STORIES) {
+    const day = localMidnight(story.anchor + (item.day / STORY_DAYS) * story.span);
+    for (const entry of item.entries(new Date(day + item.hour * HOUR))) {
+      const ms = entry.ts.getTime();
+      if (ms >= from && ms < to) entries.push(entry);
+    }
+  }
+  return entries;
+};
+
+export const storyPath = (stateDir: string): string => path.join(stateDir, "stories.json");
+
+export const readStory = (stateDir: string): StoryState | null => {
+  try {
+    const raw = JSON.parse(fs.readFileSync(storyPath(stateDir), "utf8")) as Partial<StoryState>;
+    return Number.isFinite(raw.anchor) &&
+      Number.isFinite(raw.span) &&
+      Number.isFinite(raw.writtenUntil)
+      ? (raw as StoryState)
+      : null;
+  } catch {
+    return null;
+  }
+};
+
+export const writeStory = (stateDir: string, story: StoryState): void => {
+  fs.mkdirSync(stateDir, { recursive: true });
+  const target = storyPath(stateDir);
+  fs.writeFileSync(`${target}.tmp`, JSON.stringify(story));
+  fs.renameSync(`${target}.tmp`, target);
+};
 
 /** Everything that happened on the local day starting at `midnight`. */
 const dayOf = (midnight: number): AuditEntryDoc[] => {
@@ -274,10 +403,14 @@ const dayOf = (midnight: number): AuditEntryDoc[] => {
   return entries;
 };
 
-/** The audit entries for `[from, to)`, in time order. */
-export const peopleActivity = (from: number, to: number): AuditEntryDoc[] => {
-  const entries: AuditEntryDoc[] = [];
-  // From the day before `from`: a delayed entry (a deletion days after a creation) may fall inside.
+/** The audit entries for `[from, to)`, in time order — the story's once-only events included. */
+export const peopleActivity = (
+  from: number,
+  to: number,
+  story: StoryState | null = null,
+): AuditEntryDoc[] => {
+  const entries: AuditEntryDoc[] = story ? storyEntries(story, from, to) : [];
+  // From the days before `from`: a delayed entry (a deletion days after a creation) may fall inside.
   for (let midnight = localMidnight(from) - 3 * DAY; midnight < to; midnight += DAY) {
     for (const entry of dayOf(midnight)) {
       const ms = entry.ts.getTime();
@@ -287,15 +420,31 @@ export const peopleActivity = (from: number, to: number): AuditEntryDoc[] => {
   return entries.sort((a, b) => a.ts.getTime() - b.ts.getTime());
 };
 
-/** Write `[from, to)`'s people activity to the audit trail; returns how many entries. */
-export const writePeopleActivity = async (from: number, to: number): Promise<number> => {
-  const entries = peopleActivity(from, to);
-  if (!entries.length) return 0;
-  const client = await MongoClient.connect(config.mongoUri);
-  try {
-    await client.db(config.mongoDbName).collection("audit_log").insertMany(entries);
-  } finally {
-    await client.close();
+/**
+ * Write the people's side of the trail from where it was last written up to `to`, and move the
+ * story's mark; returns how many entries. Without a story (a state written before it existed)
+ * nothing is written: there is no telling which stretch is already in the database.
+ */
+export const writePeopleActivity = async (
+  stateDir: string,
+  to: number,
+  db?: { insertMany: (entries: AuditEntryDoc[]) => Promise<unknown> },
+): Promise<number> => {
+  const story = readStory(stateDir);
+  if (!story || to <= story.writtenUntil) return 0;
+  const entries = peopleActivity(story.writtenUntil, to, story);
+  if (entries.length) {
+    if (db) {
+      await db.insertMany(entries);
+    } else {
+      const client = await MongoClient.connect(config.mongoUri);
+      try {
+        await client.db(config.mongoDbName).collection("audit_log").insertMany(entries);
+      } finally {
+        await client.close();
+      }
+    }
   }
+  writeStory(stateDir, { ...story, writtenUntil: to });
   return entries.length;
 };

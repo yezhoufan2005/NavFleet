@@ -6,6 +6,7 @@
  *   inject <id> <kind> [min]  make something happen to a vehicle on the live timeline
  *   scenario [name] [target]  stage a drill (fleet-wide e-stop, a scene's AP restart …); no name lists them
  *   coverage [days]           run the timeline offline and report which states it reaches
+ *   accounts                  date the demo accounts from the history (after seed:demo)
  *   shard <job> <result>      internal: one catch-up shard
  *
  * Environment: CONFIG_ROOT_PATH (config-runtime), SIM_STATE_DIR (checkpoint + injections),
@@ -21,6 +22,7 @@ import { queueInjection, runLive } from "./live";
 import { INJECTION_KINDS } from "./vehicle";
 import { findScenario, SCENARIOS } from "./scenarios";
 import { formatCoverage, measureCoverage } from "./coverage";
+import { alignAccounts } from "./accounts";
 
 const stateDir = path.resolve(process.env.SIM_STATE_DIR || path.join(process.cwd(), ".demo-sim"));
 
@@ -103,6 +105,12 @@ const main = async (): Promise<void> => {
       console.log(
         `staged ${scenario.title}: ${steps.length} injections on ${new Set(steps.map((step) => step.deviceId)).size} vehicles; the live publisher applies them within a second\n${scenario.description}`,
       );
+      break;
+    }
+    case "accounts": {
+      const done = await alignAccounts(stateDir);
+      console.log(`dated ${done.length} demo accounts from the history: ${done.join(", ")}`);
+      process.exit(0);
       break;
     }
     case "coverage": {
