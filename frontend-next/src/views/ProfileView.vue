@@ -653,33 +653,31 @@ watch(editing, (open) => {
               size="md"
             />
           </label>
-          <div class="grid grid-cols-1 gap-3 sm:grid-cols-2">
-            <label class="flex min-w-0 flex-col gap-1.5">
-              <span class="text-sm font-medium text-ink">新密码</span>
-              <UiInput
-                id="profile-new-password"
-                v-model="newPassword"
-                :type="showPasswords ? 'text' : 'password'"
-                autocomplete="new-password"
-                aria-describedby="profile-password-rules"
-                :disabled="changing"
-                :aria-invalid="formError ? 'true' : undefined"
-                size="md"
-              />
-            </label>
-            <label class="flex min-w-0 flex-col gap-1.5">
-              <span class="text-sm font-medium text-ink">确认新密码</span>
-              <UiInput
-                id="profile-confirm-password"
-                v-model="confirmPassword"
-                :type="showPasswords ? 'text' : 'password'"
-                autocomplete="new-password"
-                :disabled="changing"
-                :aria-invalid="formError ? 'true' : undefined"
-                size="md"
-              />
-            </label>
-          </div>
+          <label class="flex flex-col gap-1.5">
+            <span class="text-sm font-medium text-ink">新密码</span>
+            <UiInput
+              id="profile-new-password"
+              v-model="newPassword"
+              :type="showPasswords ? 'text' : 'password'"
+              autocomplete="new-password"
+              aria-describedby="profile-password-rules"
+              :disabled="changing"
+              :aria-invalid="formError ? 'true' : undefined"
+              size="md"
+            />
+          </label>
+          <label class="flex flex-col gap-1.5">
+            <span class="text-sm font-medium text-ink">确认新密码</span>
+            <UiInput
+              id="profile-confirm-password"
+              v-model="confirmPassword"
+              :type="showPasswords ? 'text' : 'password'"
+              autocomplete="new-password"
+              :disabled="changing"
+              :aria-invalid="formError ? 'true' : undefined"
+              size="md"
+            />
+          </label>
           <ul
             id="profile-password-rules"
             class="m-0 flex list-none flex-wrap gap-x-4 gap-y-1 p-0 text-xs"
