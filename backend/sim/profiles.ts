@@ -257,7 +257,8 @@ const FULL: VendorProfile = { omits: [], task: "full", stepOverrun: false, alarm
 
 export const VENDORS: Record<string, VendorProfile> = {
   优艾智合: FULL,
-  海康机器人: FULL,
+  // Passes the dispatcher's task on without its type.
+  海康机器人: { ...FULL, task: "untyped" },
   // Single-antenna GNSS: a position, no heading.
   亿嘉和: { ...FULL, omits: ["gpsHeading"] },
   // The chassis controller does not pass angular velocity up.
@@ -266,8 +267,8 @@ export const VENDORS: Record<string, VendorProfile> = {
   仙工智能: { ...FULL, alarms: true },
   // Counts the completed step past the total at the end of a job.
   斯坦德: { ...FULL, stepOverrun: true },
-  // QR-code guided with a lidar for the aisles: lidar pose only, no gear, task without a type.
-  极智嘉: { ...FULL, omits: ["fusionLoc", "gear"], task: "untyped" },
+  // QR-code guided with a lidar for the aisles: lidar pose only, no gear.
+  极智嘉: { ...FULL, omits: ["fusionLoc", "gear"] },
   // Older firmware: no speed-limit block, poses as x/y without a heading, a brief task.
   未来机器人: { ...FULL, omits: ["speedLimit", "poseYaw"], task: "brief" },
 };
@@ -302,6 +303,15 @@ export const VENDOR_ALARMS: ReadonlyArray<{
     level: "ERROR",
     seconds: [60, 300],
     weight: 1,
+  },
+  {
+    // Raised by the site's fire-alarm interlock (the 消防联动演练 scenario), never drawn (weight 0).
+    code: 51001,
+    title: "安全回路断开",
+    detail: "外部急停回路断开（消防联动），驱动已断电",
+    level: "ERROR",
+    seconds: [0, 0],
+    weight: 0,
   },
   {
     // Held while the charge is under 12 % and the vehicle is not charging (weight 0: not drawn).
@@ -383,7 +393,10 @@ export const FIRMWARE_CODES: ReadonlyArray<{
  */
 export interface VisitorConfig {
   deviceId: string;
+  /** The site scene it drives in (its loop and GPS position come from there). */
   sceneId: string;
+  /** The map its debug build carries and reports — the vendor's lab, unknown to this site. */
+  reportedSceneId: string;
   vendor: string;
   /** Local weekdays (0 = Sunday) and hours [from, to) it is switched on. */
   days: readonly number[];
@@ -394,6 +407,7 @@ export const VISITORS: readonly VisitorConfig[] = [
   {
     deviceId: "seer-test-07",
     sceneId: "yard-north",
+    reportedSceneId: "seer-lab-03",
     vendor: "仙工智能",
     days: [2, 4],
     hours: [14, 17.5],

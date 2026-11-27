@@ -107,6 +107,10 @@ const UA = {
     "Mozilla/5.0 (X11; Linux aarch64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/128.0.0.0 Safari/537.36",
   safariMac:
     "Mozilla/5.0 (Macintosh; Intel Mac OS X 14_6) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/18.1 Safari/605.1.15",
+  chromeIphone:
+    "Mozilla/5.0 (iPhone; CPU iPhone OS 18_1 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) CriOS/131.0.6778.73 Mobile/15E148 Safari/604.1",
+  chromebook:
+    "Mozilla/5.0 (X11; CrOS x86_64 14541.0.0) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
 };
 
 // A plausible small-site roster. The protected bootstrap `admin` stays a deployment account; the
@@ -154,7 +158,10 @@ const DEMO_USERS: DemoUser[] = [
     displayName: "刘强 · 现场调度",
     email: "liuqiang@example.com",
     state: "normal",
-    devices: [{ userAgent: UA.chromeAndroid, ip: "10.20.9.103" }],
+    devices: [
+      { userAgent: UA.chromeAndroid, ip: "10.20.9.103" },
+      { userAgent: UA.chromeIphone, ip: "10.20.9.118" },
+    ],
   },
   {
     // An operator who manages accounts through a group: the hierarchy lets her manage viewers whose
@@ -179,7 +186,10 @@ const DEMO_USERS: DemoUser[] = [
     role: "viewer",
     displayName: "孙丽 · 只读审计",
     state: "normal",
-    devices: [{ userAgent: UA.chromeMac, ip: "10.20.1.52" }],
+    devices: [
+      { userAgent: UA.chromeMac, ip: "10.20.1.52" },
+      { userAgent: UA.chromebook, ip: "10.20.1.53" },
+    ],
   },
   {
     username: "wall01",
@@ -258,13 +268,17 @@ async function ensureUser(cookie: string, user: DemoUser): Promise<void> {
 
 const DEMO_ROLES: { name: string; capabilities: string[] }[] = [
   { name: "报码维护", capabilities: ["codebook:write"] },
-  { name: "外发值守", capabilities: ["notify:read", "notify:write"] },
+  // Write only: reading the 外发 page comes with it (notify:write implies notify:read), which is
+  // what 个人中心 shows as 「随「外发配置」附带」.
+  { name: "外发值守", capabilities: ["notify:write"] },
   { name: "外发查看", capabilities: ["notify:read"] },
   { name: "审计查看", capabilities: ["audit:read"] },
   { name: "账号管理", capabilities: ["users:manage"] },
   { name: "部署维护", capabilities: ["vehicles:write", "formations:write", "scenes:write"] },
   // Defined for the next shift lead, granted to nobody yet: a role no group references.
   { name: "报表维护", capabilities: ["reports:write", "rules:write"] },
+  // A label for visitor accounts, deliberately without capabilities.
+  { name: "访客", capabilities: [] },
 ];
 
 const DEMO_GROUPS: { name: string; description: string; roles: string[]; members: string[] }[] = [
@@ -296,7 +310,7 @@ const DEMO_GROUPS: { name: string; description: string; roles: string[]; members
     // The wall display is a member, to show that a kiosk account gains nothing from a group.
     name: "大屏与访客",
     description: "值班大屏与来访查看账号，统一在这里登记",
-    roles: ["外发查看"],
+    roles: ["外发查看", "访客"],
     members: ["wall01"],
   },
   {

@@ -12,6 +12,7 @@
     "sim": "tsx sim/main.ts",
     "sim:catchup": "tsx sim/main.ts catchup",
     "sim:live": "tsx sim/main.ts live",
+    "sim:coverage": "tsx sim/main.ts coverage",
     "load:ingest": "tsx scripts/load-ingest.ts",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "lint": "eslint . --max-warnings 0",

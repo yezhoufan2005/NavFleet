@@ -162,7 +162,15 @@ export type InjectionKind =
   | "low-battery"
   | "battery-heat"
   | "payload"
-  | "speed-zone";
+  | "speed-zone"
+  | "people"
+  | "lift-jam"
+  | "cold-battery"
+  | "unknown-code"
+  | "vendor-alarm"
+  | "safety-loop"
+  | "comm-degraded"
+  | "bms-comm";
 
 export const INJECTION_KINDS: readonly InjectionKind[] = [
   "estop",
@@ -179,6 +187,14 @@ export const INJECTION_KINDS: readonly InjectionKind[] = [
   "battery-heat",
   "payload",
   "speed-zone",
+  "people",
+  "lift-jam",
+  "cold-battery",
+  "unknown-code",
+  "vendor-alarm",
+  "safety-loop",
+  "comm-degraded",
+  "bms-comm",
 ];
 
 export interface Injection {
@@ -759,6 +775,56 @@ const INJECTED: Record<
       state.zoneUntil = t + Math.round(seconds) * 1000;
     },
   },
+  people: {
+    minutes: 2,
+    apply: (state, t, seconds) => {
+      setCode(state, "warning", 2701, t, seconds, true);
+      state.peopleUntil = t + Math.round(seconds) * 1000;
+    },
+  },
+  "lift-jam": {
+    minutes: 10,
+    apply: (state, t, seconds) => setCode(state, "error", 5801, t, seconds, true),
+  },
+  "cold-battery": {
+    minutes: 15,
+    apply: (state, t, seconds) => {
+      setCode(state, "warning", 2303, t, seconds, true);
+      state.powerLimitUntil = t + Math.round(seconds) * 1000;
+    },
+  },
+  // What a trial firmware reports: a code no dictionary has, and no text with it.
+  "unknown-code": {
+    minutes: 5,
+    apply: (state, t, seconds) => setCode(state, "error", 5299, t, seconds, true),
+  },
+  // The vendor's own alarm list (any vehicle: an injection is a demonstration).
+  "vendor-alarm": {
+    minutes: 10,
+    apply: (state, t, seconds) => raiseAlarm(state, 54003, t, seconds),
+  },
+  // The fire-alarm interlock opening the vehicle's safety loop: an e-stop the controller reports in
+  // its alarm list too (see the 消防联动演练 scenario).
+  "safety-loop": {
+    minutes: 10,
+    apply: (state, t, seconds) => {
+      setCode(state, "error", 5701, t, seconds, true);
+      state.estop = true;
+      raiseAlarm(state, 51001, t, seconds);
+    },
+  },
+  "comm-degraded": {
+    minutes: 5,
+    apply: (state, t, seconds) => setCode(state, "warning", 2601, t, seconds, true),
+  },
+  // The controller loses its battery management system's heartbeat (its alarm list only).
+  "bms-comm": { minutes: 5, apply: (state, t, seconds) => raiseAlarm(state, 52101, t, seconds) },
+};
+
+/** Add (or renew) one entry of the vehicle's own alarm list. */
+const raiseAlarm = (state: VehicleState, code: number, t: number, seconds: number): void => {
+  const others = (state.alarms ?? []).filter((alarm) => alarm.code !== code);
+  state.alarms = [...others, { code, since: t, until: t + Math.round(seconds) * 1000 }];
 };
 
 /** Integer hash → [-1, 1]: pose noise that consumes no randomness, so frames are optional. */
@@ -1142,7 +1208,7 @@ const visitorFrame = (site: Site, state: VehicleState, t: number): Record<string
       : { code: 0, info: "", stamp: t };
   return {
     stamp: t,
-    scene_id: site.sceneId,
+    scene_id: site.visitor?.reportedSceneId ?? site.sceneId,
     ...(site.gps ? { gps: sceneToGps(site.gps, pose) } : {}),
     info_code: code(state.info),
     warning_code: code(state.warning),
@@ -1260,7 +1326,10 @@ const buildFrame = (
             module_name: limit.module,
           },
         }),
-    ...(site.vendor.alarms ? { alarmList: alarmList(site, state, skew) } : {}),
+    // A vendor with its own alarm list always sends it; any other only while one was injected.
+    ...(site.vendor.alarms || state.alarms?.length
+      ? { alarmList: alarmList(site, state, skew) }
+      : {}),
   };
 };
 
