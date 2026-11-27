@@ -6,6 +6,7 @@ import type { AuditEntry, UserRecord } from "../types";
 import {
   capabilitiesForRole,
   type AccountActivity,
+  type AccountGroup,
   type AccountProfile,
   type AuditAction,
 } from "@navfleet/shared";
@@ -58,7 +59,7 @@ const issueSessionCookies = (response: Response, user: UserRecord, sessionId: st
 };
 
 /** 个人中心's account view of a stored user (no hash, no lockout or token internals). */
-const toAccountProfile = (user: UserRecord, groups: string[]): AccountProfile => ({
+const toAccountProfile = (user: UserRecord, groups: AccountGroup[]): AccountProfile => ({
   ...toPublicUser(user),
   displayName: user.displayName,
   email: user.email,
@@ -83,7 +84,7 @@ const OWN_ACCOUNT_ACTIONS: AuditAction[] = [
 /** Account events an administrator did *to* a user, shown in that user's 账户活动 as well. */
 const DONE_TO_ACCOUNT_ACTIONS: AuditAction[] = ["password_reset", "force_logout", "user_update"];
 /** How many 账户活动 rows the page gets — a recent window, not the audit trail. */
-export const ACCOUNT_ACTIVITY_LIMIT = 20;
+export const ACCOUNT_ACTIVITY_LIMIT = 10;
 
 const toActivity = (entry: AuditEntry): AccountActivity => {
   const detail = entry.detail ?? {};
@@ -111,8 +112,8 @@ export const buildAuthRouter = (
   authService: AuthService,
   audit: AuditService,
   resolveCapabilities?: CapabilityResolver,
-  /** The names of the groups a user belongs to, for 个人中心; none when the app wires no RBAC. */
-  groupsOf: (username: string) => string[] = () => [],
+  /** The groups a user belongs to and the roles they grant, for 个人中心; none without RBAC. */
+  groupsOf: (username: string) => AccountGroup[] = () => [],
 ): Router => {
   const router = Router();
   // Effective-capability resolver, threaded into the /me gate and the login/refresh responses so

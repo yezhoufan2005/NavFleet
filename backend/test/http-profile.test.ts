@@ -54,16 +54,35 @@ describe("GET /api/auth/profile", () => {
       createdAt: "2026-01-01T00:00:00.000Z",
       updatedAt: "2026-01-01T00:00:00.000Z",
     });
-    const groups = [group("g1", "夜班", "tester"), group("g2", "维修", "someone-else")];
+    const groups = [
+      { ...group("g1", "夜班", "tester"), roleIds: ["r1", "gone"] },
+      group("g2", "维修", "someone-else"),
+    ];
+    const roles = [
+      {
+        id: "r1",
+        name: "值班员",
+        capabilities: ["alerts:ack"],
+        createdAt: "2026-01-01T00:00:00.000Z",
+        updatedAt: "2026-01-01T00:00:00.000Z",
+      },
+    ];
     const rbacService = new RbacService({} as Persistence);
-    Object.assign(rbacService, { groups, roles: [] });
+    Object.assign(rbacService, { groups, roles });
     const { app } = createTestApp({ rbacService });
 
     const response = await request(app)
       .get("/api/auth/profile")
       .set("Cookie", sessionCookie("viewer", "tester"));
 
-    expect((response.body as { profile: { groups: string[] } }).profile.groups).toEqual(["夜班"]);
+    // Each group with the roles it grants; a role id that no longer resolves is dropped.
+    expect((response.body as { profile: { groups: unknown[] } }).profile.groups).toEqual([
+      {
+        name: "夜班",
+        description: "",
+        roles: [{ name: "值班员", capabilities: ["alerts:ack"] }],
+      },
+    ]);
   });
 });
 
@@ -184,6 +203,27 @@ describe("GET /api/auth/activity", () => {
     expect(ownQuery!.action).not.toContain("alert_claim");
     expect(doneToQuery).toMatchObject({ target: "tester" });
     expect(doneToQuery!.action).toEqual(["password_reset", "force_logout", "user_update"]);
+  });
+});
+
+describe("GET /api/auth/activity — window", () => {
+  it("returns only the 10 most recent events", async () => {
+    const context = createTestApp();
+    context.auditService.query.mockImplementation((filters) =>
+      Promise.resolve(
+        (filters as { actor?: string }).actor
+          ? Array.from({ length: 15 }, (_, index) =>
+              entry({ action: "login", ts: new Date(Date.UTC(2026, 2, 1, index)) }),
+            )
+          : [],
+      ),
+    );
+    const response = await request(context.app)
+      .get("/api/auth/activity")
+      .set("Cookie", sessionCookie("viewer", "tester"));
+    const items = (response.body as { items: Array<{ ts: string }> }).items;
+    expect(items).toHaveLength(10);
+    expect(items[0]!.ts).toBe("2026-03-01T14:00:00.000Z");
   });
 });
 
