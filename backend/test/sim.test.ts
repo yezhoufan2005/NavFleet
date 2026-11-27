@@ -5,7 +5,9 @@ import os from "node:os";
 import { loadFleet, newState, type Fleet } from "../sim/fleet";
 import { CAMPUS_ANCHOR, sceneGpsOrigin } from "../sim/routes";
 import { BackfillSink } from "../sim/sink";
-import { step, type VehicleState } from "../sim/vehicle";
+import { INJECTION_KINDS, step, type VehicleState } from "../sim/vehicle";
+import { findScenario, SCENARIOS } from "../sim/scenarios";
+import { formatCoverage, measureCoverage } from "../sim/coverage";
 import { mqttTelemetrySchema } from "../src/validation";
 import { normalizeDevice } from "../src/normalize";
 import type { DeviceAlert } from "../src/types";
@@ -508,7 +510,8 @@ describe("simulator vendors and site behaviour", () => {
       (await framesOf(deviceId, 8 * 3600)).frames
         .map((frame) => frame.task as Record<string, unknown> | null)
         .filter((task): task is Record<string, unknown> => !!task);
-    expect((await tasks("agv-p01")).every((task) => !("type" in task))).toBe(true);
+    expect((await tasks("agv-w01")).every((task) => !("type" in task))).toBe(true);
+    expect((await tasks("agv-p01")).some((task) => task.type === "配料")).toBe(true);
     const brief = await tasks("agv-p03");
     expect(brief.length).toBeGreaterThan(0);
     expect(brief.every((task) => !("steps" in task) && !("started_at" in task))).toBe(true);
@@ -714,4 +717,79 @@ describe("backfill sink outbound policy", () => {
     );
     expect(sends()).toHaveLength(1);
   });
+});
+
+describe("simulator drills", () => {
+  /** Every vehicle's platform alerts one second after the drill's injections, from its frame. */
+  const afterDrill = async (name: string, target = "") => {
+    const f = await fleet();
+    const scenario = findScenario(name)!;
+    const steps = scenario.steps(f, target || scenario.target?.default || "");
+    // A weekday afternoon, with every vehicle well into its day.
+    const at = Date.parse("2026-09-02T06:00:00Z");
+    const alerts = new Map<string, DeviceAlert[]>();
+    for (const site of f.sites) {
+      const state = newState(f, site, at - 3600_000);
+      while (state.t < at) step(site, state, [], false);
+      const injections = steps
+        .filter((entry) => entry.deviceId === site.deviceId)
+        .map((entry) => ({
+          deviceId: site.deviceId,
+          at,
+          kind: entry.kind,
+          minutes: entry.minutes,
+        }));
+      step(site, state, injections);
+      const { frame } = step(site, state);
+      if (frame)
+        alerts.set(site.deviceId, normalizeDevice({ ...frame, deviceId: site.deviceId }).alerts);
+    }
+    return { steps, alerts };
+  };
+
+  it("fire-drill puts more than 99 messages on the fleet, four or more on every vehicle", async () => {
+    const { alerts } = await afterDrill("fire-drill");
+    const counts = [...alerts.entries()]
+      .filter(([deviceId]) => deviceId !== "seer-test-07")
+      .map(([, list]) => list.length);
+    expect(counts.reduce((sum, count) => sum + count, 0)).toBeGreaterThan(99);
+    expect(Math.min(...counts)).toBeGreaterThanOrEqual(4);
+    // The controller's own alarm list carries the interlock.
+    const y01 = alerts.get("agv-y01")!;
+    expect(y01.map((alert) => alert.title)).toContain("安全回路断开");
+  }, 60_000);
+
+  it("cascade gives one vehicle six messages at once", async () => {
+    const { alerts } = await afterDrill("cascade");
+    expect(alerts.get("agv-y02")!.length).toBeGreaterThanOrEqual(6);
+  }, 60_000);
+
+  it("ap-restart takes every vehicle of the scene off the link at once", async () => {
+    const { steps } = await afterDrill("ap-restart");
+    const f = await fleet();
+    const inScene = f.sites.filter((site) => site.sceneId === "kangcheng-airy").length;
+    expect(steps).toHaveLength(inScene);
+    expect(new Set(steps.map((entry) => entry.kind))).toEqual(new Set(["comm-loss"]));
+  }, 60_000);
+
+  it("names every drill's injections with kinds the live publisher accepts", async () => {
+    const f = await fleet();
+    for (const scenario of SCENARIOS) {
+      for (const entry of scenario.steps(f, scenario.target?.default ?? "")) {
+        expect(INJECTION_KINDS, `${scenario.name}`).toContain(entry.kind);
+        expect(f.sites.some((site) => site.deviceId === entry.deviceId)).toBe(true);
+      }
+    }
+  });
+});
+
+describe("simulator coverage report", () => {
+  it("runs the timeline offline and lists the drills for what it cannot reach", async () => {
+    const report = await measureCoverage(CONFIG_ROOT, 0.5);
+    const staged = report.items.filter((item) => item.via);
+    expect(staged.map((item) => item.via)).toContain("sim scenario fire-drill");
+    // Half a day already reaches the everyday states: codes, enum values, the vendors' omissions.
+    expect(report.items.find((item) => item.label === "不报角速度")!.count).toBeGreaterThan(0);
+    expect(formatCoverage(report)).toMatch(/出现 \d+ 项/);
+  }, 120_000);
 });

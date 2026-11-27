@@ -52,9 +52,16 @@ export const queueInjection = (
   }
   const dir = injectionDir(stateDir);
   fs.mkdirSync(dir, { recursive: true });
-  const file = path.join(dir, `${Date.now()}-${process.pid}.json`);
+  // A sequence number as well as the time: a drill queues a hundred injections in one millisecond,
+  // and the file names must neither collide nor lose the order they were queued in.
+  queued += 1;
+  const file = path.join(
+    dir,
+    `${Date.now()}-${process.pid}-${String(queued).padStart(5, "0")}.json`,
+  );
   fs.writeFileSync(file, JSON.stringify({ deviceId, kind, ...(minutes ? { minutes } : {}) }));
 };
+let queued = 0;
 
 const takeInjections = (stateDir: string, at: number, known: ReadonlySet<string>): Injection[] => {
   const dir = injectionDir(stateDir);
