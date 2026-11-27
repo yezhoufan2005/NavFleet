@@ -43,10 +43,11 @@ services:
       REPORT_TIMEZONE: ${REPORT_TIMEZONE:-Asia/Shanghai}
       LOG_LEVEL: warn
       # The same endpoints the backend sends to, so the history's send records match them.
-      # NOTIFY_IT_WEBHOOK_URL stays unset on purpose: that channel shows as 未配 env.
+      # NOTIFY_SMS_WEBHOOK_URL stays unset on purpose: that channel shows as 未配 env.
       NOTIFY_WECOM_URL: http://sim:18099/wecom
       NOTIFY_DINGTALK_URL: http://sim:18099/dingtalk
       NOTIFY_TICKET_WEBHOOK_URL: http://sim:18099/ticket
+      NOTIFY_VENDOR_WEBHOOK_URL: http://sim:18099/vendor
       NOTIFY_SMTP_URL: smtp://mailpit:1025
       SIM_HOOK_PORT: "18099"
       # Reachable from the backend over `bus`; no host port.
@@ -99,6 +100,7 @@ services:
       NOTIFY_WECOM_URL: http://sim:18099/wecom
       NOTIFY_DINGTALK_URL: http://sim:18099/dingtalk
       NOTIFY_TICKET_WEBHOOK_URL: http://sim:18099/ticket
+      NOTIFY_VENDOR_WEBHOOK_URL: http://sim:18099/vendor
       NOTIFY_SMTP_URL: smtp://mailpit:1025
       REPORTS_SMTP_URL: smtp://mailpit:1025
 

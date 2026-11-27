@@ -20,11 +20,18 @@
 import { Rng, seedOf } from "./rng";
 import {
   CODE_TEXT,
+  FIRMWARE_CODES,
   isNight,
   localHour,
+  localHourFraction,
+  localWeekday,
+  VENDOR_ALARMS,
   type Category,
   type EventKind,
+  type Persona,
   type Profile,
+  type VendorProfile,
+  type VisitorConfig,
 } from "./profiles";
 import { sceneToGps, type Point, type Pose, type Route } from "./routes";
 
@@ -48,7 +55,8 @@ export interface ActiveCode {
   until: number;
 }
 
-type FollowUp = "locLost" | "relocalised" | "teleop" | "commDrop" | "lidarDead" | "batteryHeat";
+type FollowUp =
+  "locLost" | "relocalised" | "teleop" | "commDrop" | "lidarDead" | "batteryHeat" | "backupLink";
 
 export interface VehicleState {
   deviceId: string;
@@ -92,6 +100,16 @@ export interface VehicleState {
   taskStartedAt?: number;
   /** Tasks issued to this vehicle so far, for the sequence part of the id. */
   taskSeq?: number;
+  /**
+   * Fields added with the vendor and site behaviour (all optional, so an older checkpoint loads):
+   * the vendor's own active alarms, the speed caps of a person nearby and of a cold battery, and
+   * whether the vehicle is out on its night round in another scene (and which night it last was).
+   */
+  alarms?: ActiveCode[];
+  peopleUntil?: number;
+  powerLimitUntil?: number;
+  away?: boolean;
+  awayDay?: string;
 }
 
 /** A work task (巡检 round / 搬运·牵引·配料 job) or a trip to the charger. */
@@ -114,6 +132,19 @@ export interface Site {
   /** Scene GPS origin, or null when the vehicle reports no GPS. */
   gps: Point | null;
   noiseSeed: number;
+  /** What this vendor's firmware sends (see `VendorProfile`). */
+  vendor: VendorProfile;
+  /** How this one vehicle differs from its kind (see `Persona`). */
+  persona: Persona;
+  /**
+   * Where it works: a floor shared with people (2701), a lifting chassis (5801), the cold store
+   * (2303), outdoors (where a weak Wi-Fi link falls back to 4G, 1602).
+   */
+  traits: { people: boolean; lifts: boolean; cold: boolean; outdoor: boolean };
+  /** The scene of its occasional night round: id, loop and GPS origin. */
+  night?: { sceneId: string; route: Route; gps: Point | null };
+  /** A visiting vehicle's switched-on hours; absent for the roster. */
+  visitor?: VisitorConfig;
 }
 
 /** What an operator can make happen to a vehicle (see `main.ts inject`). */
@@ -163,6 +194,11 @@ export interface StepResult {
   frame: Record<string, unknown> | null;
   /** A status-topic report (`{ online }`) when connectivity changed this second. */
   status: boolean | null;
+  /**
+   * A stale frame a buffering 4G gateway flushes after this second's (stamped seconds earlier), to
+   * be published right after `frame`. The backend refuses it as out of order.
+   */
+  lateFrame?: Record<string, unknown>;
 }
 
 const HOUR = 3_600_000;
@@ -313,6 +349,44 @@ const startEvent = (
       state.teleopUntil = t + seconds * 1000;
       return true;
     }
+    case "peopleNearby": {
+      // People are on the floor in the working day; the safety scanner slows the vehicle for them.
+      const hour = localHour(t);
+      if (!driving || hour < 7 || hour >= 22) return false;
+      const seconds = secs(20, 90);
+      if (!setCode(state, "warning", 2701, t, seconds)) return false;
+      state.peopleUntil = t + seconds * 1000;
+      return true;
+    }
+    case "liftJam":
+      // The lift jams while raising or lowering a rack.
+      if (!["loading", "unloading"].includes(state.phase)) return false;
+      return fault(state, 5801, t, secs(600, 2400));
+    case "coldBattery": {
+      if (state.phase === "charging") return false;
+      const seconds = secs(600, 1800);
+      if (!setCode(state, "warning", 2303, t, seconds)) return false;
+      state.powerLimitUntil = t + seconds * 1000;
+      return true;
+    }
+    case "vendorAlarm": {
+      const total = VENDOR_ALARMS.reduce((sum, alarm) => sum + alarm.weight, 0);
+      let pick = rng.next() * total;
+      const alarm =
+        VENDOR_ALARMS.find((candidate) => (pick -= candidate.weight) <= 0) ?? VENDOR_ALARMS[0]!;
+      const active = state.alarms ?? [];
+      if (active.some((entry) => entry.code === alarm.code)) return false;
+      const seconds = forcedSeconds ?? rng.between(...alarm.seconds);
+      state.alarms = [
+        ...active,
+        { code: alarm.code, since: t, until: t + Math.round(seconds) * 1000 },
+      ];
+      return true;
+    }
+    case "firmwareCode": {
+      const entry = FIRMWARE_CODES[Math.floor(rng.next() * FIRMWARE_CODES.length)]!;
+      return setCode(state, entry.slot, entry.code, t, secs(...entry.seconds));
+    }
   }
 };
 
@@ -321,7 +395,12 @@ const onCleared = (state: VehicleState, site: Site, code: number, t: number, rng
   if (code === 2101 && rng.chance(0.15)) state.pending.push({ at: t, kind: "locLost" });
   if (code === 5101) state.pending.push({ at: t, kind: "relocalised" });
   if (code === 5703 && rng.chance(0.4)) state.pending.push({ at: t, kind: "teleop" });
-  if (code === 2601 && rng.chance(0.4)) state.pending.push({ at: t, kind: "commDrop" });
+  if (code === 2601) {
+    // A degraded link either drops, or — outdoors, where the router has a 4G uplink — falls back.
+    if (rng.chance(0.4)) state.pending.push({ at: t, kind: "commDrop" });
+    else if (site.traits.outdoor && rng.chance(0.5))
+      state.pending.push({ at: t, kind: "backupLink" });
+  }
   if (code === 2401 && rng.chance(0.1)) state.pending.push({ at: t, kind: "lidarDead" });
   if (code === 5701) state.estop = false;
   if (code === 5301) {
@@ -363,6 +442,9 @@ const runFollowUp = (state: VehicleState, kind: FollowUp, t: number, rng: Rng): 
     case "batteryHeat":
       if (state.phase === "charging") setCode(state, "warning", 2302, t, rng.between(360, 1200));
       break;
+    case "backupLink":
+      setCode(state, "info", 1602, t, rng.between(120, 600));
+      break;
   }
 };
 
@@ -374,6 +456,10 @@ const ZONE_LIMIT = 0.6;
 const DEGRADED_LIMIT = 0.8;
 /** Under remote control (1601). */
 const TELEOP_LIMIT = 0.5;
+/** A person inside the safety scanner's slow field (2701). */
+const PEOPLE_LIMIT = 0.3;
+/** The battery management system limits power in the cold (2303). */
+const POWER_LIMIT = 0.6;
 
 const drawChargeAt = (rng: Rng): number =>
   // Now and then a vehicle is kept on a job past its usual threshold and runs nearly flat.
@@ -390,6 +476,9 @@ const enterMaintenance = (state: VehicleState, t: number, rng: Rng, hours?: numb
   state.estop = false;
   state.teleopUntil = 0;
   state.pending = [];
+  state.alarms = [];
+  state.peopleUntil = 0;
+  state.powerLimitUntil = 0;
 };
 
 const startCharging = (state: VehicleState, site: Site, t: number, rng: Rng): void => {
@@ -419,8 +508,26 @@ const waitForTask = (state: VehicleState, site: Site, t: number, rng: Rng): void
   if (site.profile.carries && seconds > 1200) setCode(state, "info", 1502, t, seconds);
 };
 
-const patrolStop = (site: Site, index: number): number =>
-  site.route.wrap((PATROL_STOPS[index] ?? 0) * site.route.length);
+const patrolStop = (route: Route, index: number): number =>
+  route.wrap((PATROL_STOPS[index] ?? 0) * route.length);
+
+/** The loop the vehicle is on now: its own, or its night round's. */
+const routeOf = (site: Site, state: VehicleState): Route =>
+  state.away && site.night ? site.night.route : site.route;
+
+/**
+ * A patrol vehicle with a night round sometimes takes its next round in the other scene, once a
+ * night between 01:00 and 04:00 and only with charge to spare. It is driven there and back off the
+ * maps, so it leaves one scene and appears in the other (the console resets its trail).
+ */
+const maybeGoAway = (state: VehicleState, site: Site, t: number, rng: Rng): void => {
+  if (!site.night || site.profile.carries || state.away || state.soc < 60) return;
+  const hour = localHour(t);
+  if (hour < 1 || hour >= 4 || state.awayDay === localDay(t) || !rng.chance(0.5)) return;
+  state.away = true;
+  state.awayDay = localDay(t);
+  state.s = 0;
+};
 
 /** The work cycle, one second: decide what the vehicle is doing next (motion is separate). */
 const advancePhase = (state: VehicleState, site: Site, t: number, rng: Rng): void => {
@@ -431,9 +538,10 @@ const advancePhase = (state: VehicleState, site: Site, t: number, rng: Rng): voi
         state.phase = "toCharger";
         state.target = site.charger;
       } else if (t >= state.phaseUntil) {
+        maybeGoAway(state, site, t, rng);
         state.phase = "toPick";
         state.stop = 0;
-        state.target = p.carries ? site.pick : patrolStop(site, 0);
+        state.target = p.carries ? site.pick : patrolStop(routeOf(site, state), 0);
       }
       break;
     case "loading":
@@ -447,7 +555,7 @@ const advancePhase = (state: VehicleState, site: Site, t: number, rng: Rng): voi
       } else {
         state.stop += 1;
         state.phase = "toPick";
-        state.target = patrolStop(site, state.stop);
+        state.target = patrolStop(routeOf(site, state), state.stop);
       }
       break;
     case "docking":
@@ -464,7 +572,14 @@ const advancePhase = (state: VehicleState, site: Site, t: number, rng: Rng): voi
       }
       break;
     case "complete":
-      if (t >= state.phaseUntil) waitForTask(state, site, t, rng);
+      if (t >= state.phaseUntil) {
+        if (state.away) {
+          // The round done, back to its own scene, at its charger.
+          state.away = false;
+          state.s = site.charger;
+        }
+        waitForTask(state, site, t, rng);
+      }
       break;
     case "charging":
       if (state.soc >= state.chargeTo) {
@@ -519,6 +634,11 @@ const arrive = (state: VehicleState, site: Site, t: number, rng: Rng): void => {
   }
 };
 
+/**
+ * Event rates per working hour for one vehicle: its category's, times the quirks in its notes,
+ * plus what its place and make add — people on the floor, a lifting chassis, the cold, a vendor
+ * alarm list, a trial firmware, a weak 4G area.
+ */
 const EVENT_KINDS = (site: Site): Array<[EventKind, number]> => {
   const rates: Partial<Record<EventKind, number>> = { ...site.profile.events };
   for (const [kind, factor] of Object.entries(site.quirks)) {
@@ -526,6 +646,12 @@ const EVENT_KINDS = (site: Site): Array<[EventKind, number]> => {
     const key = kind as EventKind;
     rates[key] = key === "teleopSession" ? 0.15 * factor : (rates[key] ?? 0) * factor;
   }
+  if (site.traits.people) rates.peopleNearby = 0.12;
+  if (site.traits.lifts) rates.liftJam = 0.015;
+  if (site.traits.cold) rates.coldBattery = 0.6;
+  if (site.vendor.alarms) rates.vendorAlarm = site.visitor ? 0.4 : 0.04;
+  if (site.persona.trialFirmware) rates.firmwareCode = 0.06;
+  if (site.persona.lateFrames) rates.commDegraded = (rates.commDegraded ?? 0) * 3;
   return Object.entries(rates).filter(([, rate]) => (rate ?? 0) > 0) as Array<[EventKind, number]>;
 };
 const eventTables = new WeakMap<Site, { kinds: Array<[EventKind, number]>; total: number }>();
@@ -537,6 +663,20 @@ const maybeStartEvent = (state: VehicleState, site: Site, t: number, rng: Rng): 
     const kinds = EVENT_KINDS(site);
     table = { kinds, total: kinds.reduce((sum, [, rate]) => sum + rate, 0) };
     eventTables.set(site, table);
+  }
+  // Running nearly flat on the move, the pack's voltage sags and the drives pull more current: they
+  // run hot (a controller with its own alarm list says so) and a loaded vehicle tracks its line less
+  // well. This is how one vehicle ends up with four or five messages at once — low battery, hot
+  // drives, a tracking deviation, then the battery protection stopping it.
+  if (state.soc < 12 && DRIVING.has(state.phase) && rng.next() < 6 / 3600) {
+    if (site.vendor.alarms && !(state.alarms ?? []).some((alarm) => alarm.code === 54003)) {
+      state.alarms = [
+        ...(state.alarms ?? []),
+        { code: 54003, since: t, until: t + Math.round(rng.between(600, 2400)) * 1000 },
+      ];
+    } else {
+      startEvent(state, "trackingDeviation", t, rng);
+    }
   }
   const perSecond = (table.total * (isNight(t) && !site.profile.shift ? 0.6 : 1)) / 3600;
   if (rng.next() >= perSecond) return;
@@ -737,6 +877,40 @@ export const taskOf = (state: VehicleState, site: Site): Record<string, unknown>
  * and return what the vehicle reported during it. `withFrame: false` skips building the frame —
  * fast-forwarding a month — and changes nothing else.
  */
+/** Whether a visiting vehicle is switched on at `t` (its days and hours, on the site's clock). */
+const visitorOn = (visitor: VisitorConfig, t: number): boolean => {
+  const hour = localHourFraction(t);
+  return (
+    visitor.days.includes(localWeekday(t)) && hour >= visitor.hours[0] && hour < visitor.hours[1]
+  );
+};
+
+/** The speed caps in force, the strictest first — what navigation applies and the frame reports. */
+const speedCaps = (
+  site: Site,
+  state: VehicleState,
+  t: number,
+): Array<{ limit: number; module: string; slowdown: number }> => {
+  const caps: Array<{ limit: number; module: string; slowdown: number }> = [];
+  if (t < (state.peopleUntil ?? 0))
+    caps.push({ limit: PEOPLE_LIMIT, module: "safety", slowdown: 2 });
+  if (t < state.zoneUntil || (!state.away && inPermanentZone(site, state.s))) {
+    caps.push({ limit: ZONE_LIMIT, module: "safety", slowdown: 5 });
+  }
+  if (t < state.degradedUntil) {
+    caps.push({ limit: DEGRADED_LIMIT, module: "navigation", slowdown: 3 });
+  }
+  if (t < (state.powerLimitUntil ?? 0))
+    caps.push({ limit: POWER_LIMIT, module: "bms", slowdown: 4 });
+  if (state.teleopUntil) caps.push({ limit: TELEOP_LIMIT, module: "teleop", slowdown: 0 });
+  return caps.sort((a, b) => a.limit - b.limit);
+};
+
+/**
+ * Advance one vehicle by one second: apply `injections` due now, run the second at `state.t`,
+ * and return what the vehicle reported during it. `withFrame: false` skips building the frame —
+ * fast-forwarding a month — and changes nothing else.
+ */
 export const step = (
   site: Site,
   state: VehicleState,
@@ -747,10 +921,13 @@ export const step = (
   const t = state.t;
   const p = site.profile;
   let status: boolean | null = null;
-  const finish = (frame: Record<string, unknown> | null): StepResult => {
+  const finish = (
+    frame: Record<string, unknown> | null,
+    lateFrame?: Record<string, unknown>,
+  ): StepResult => {
     state.t = t + 1000;
     state.rng = rng.save();
-    return { frame, status };
+    return lateFrame ? { frame, status, lateFrame } : { frame, status };
   };
 
   for (const injection of injections) {
@@ -758,8 +935,24 @@ export const step = (
     spec.apply(state, t, (injection.minutes ?? spec.minutes) * 60, rng);
   }
 
+  // A visiting vehicle is simply off outside its hours: it says goodbye and goes quiet.
+  if (site.visitor) {
+    if (!visitorOn(site.visitor, t)) {
+      if (state.online) {
+        state.online = false;
+        status = false;
+      }
+      return finish(null);
+    }
+    if (!state.online) {
+      state.online = true;
+      status = true;
+    }
+  }
+
   // Planned maintenance: a clean goodbye, hours of silence, then back with fresh localisation.
   if (
+    !site.visitor &&
     state.phase !== "maintenance" &&
     t >= state.nextMaintenanceAt &&
     !state.error &&
@@ -780,6 +973,12 @@ export const step = (
     state.nextMaintenanceAt = maintenanceSlot(t, rng.between(10, 16), rng);
     waitForTask(state, site, t, rng);
     setCode(state, "info", 1101, t, rng.between(60, 180), true);
+    // A controller with its own alarm list often comes back with a map older than the dispatcher's.
+    if (site.vendor.alarms && rng.chance(0.5)) {
+      state.alarms = [
+        { code: 50601, since: t, until: t + Math.round(rng.between(300, 900)) * 1000 },
+      ];
+    }
   }
 
   for (const slot of ["info", "warning", "error"] as const) {
@@ -789,6 +988,7 @@ export const step = (
       onCleared(state, site, code.code, t, rng);
     }
   }
+  if (state.alarms?.length) state.alarms = state.alarms.filter((alarm) => alarm.until > t);
   if (state.pending.length) {
     const due = state.pending.filter((item) => item.at <= t);
     if (due.length) {
@@ -819,18 +1019,19 @@ export const step = (
     advancePhase(state, site, t, rng);
   }
 
-  // Motion: accelerate towards what the route, the load, the zone and the remaining distance allow.
+  // Motion: accelerate towards what the route, the load, the caps and the remaining distance allow.
+  const route = routeOf(site, state);
   let vmax = 0;
   if (!halted && DRIVING.has(state.phase)) {
     vmax = p.speed * (state.loaded ? p.loadedSpeedFactor : 1);
     vmax *= 1 + 0.04 * Math.sin(t / 9000 + site.noiseSeed);
-    // The same limits the frame reports below, so a vehicle never runs over its own speed_limit.
-    if (t < state.degradedUntil) vmax = Math.min(vmax * 0.6, DEGRADED_LIMIT);
-    if (t < state.zoneUntil || inPermanentZone(site, state.s)) vmax = Math.min(vmax, ZONE_LIMIT);
-    if (state.teleopUntil) vmax = Math.min(vmax, TELEOP_LIMIT);
-    const turn = Math.abs(site.route.turnAhead(state.s, 1.5));
+    // Localisation degraded also scales cruise down, under its cap.
+    if (t < state.degradedUntil) vmax *= 0.6;
+    // The same caps the frame reports below, so a vehicle never runs over its own speed_limit.
+    for (const cap of speedCaps(site, state, t)) vmax = Math.min(vmax, cap.limit);
+    const turn = Math.abs(route.turnAhead(state.s, 1.5));
     vmax *= 0.35 + 0.65 * (1 - Math.min(1, turn / (Math.PI / 2)));
-    const remaining = site.route.ahead(state.s, state.target);
+    const remaining = route.ahead(state.s, state.target);
     vmax = Math.min(vmax, Math.sqrt(2 * p.decel * Math.max(0, remaining - 0.05)));
   }
   if (!halted && state.phase === "docking") {
@@ -842,43 +1043,59 @@ export const step = (
       state.speed > 0 ? Math.max(vmax, state.speed - p.decel) : Math.min(0, state.speed + p.decel);
   }
   const previousS = state.s;
-  state.s = site.route.wrap(state.s + state.speed);
+  state.s = route.wrap(state.s + state.speed);
   if (
     !halted &&
     DRIVING.has(state.phase) &&
-    (site.route.ahead(previousS, state.target) <= Math.max(0.05, state.speed) ||
+    (route.ahead(previousS, state.target) <= Math.max(0.05, state.speed) ||
       (vmax < 0.02 && state.speed < 0.02))
   ) {
     arrive(state, site, t, rng);
   }
 
-  // Battery: charge tapers above 80 %; driving drains with speed and load.
+  // Battery: charge tapers above 80 %; driving drains with speed and load, faster in the cold.
   const moving = Math.abs(state.speed) > 0.05;
   if (state.phase === "charging") {
     const rate =
       state.soc < 80 ? p.chargeRate : p.chargeRate * Math.max(0.15, (100 - state.soc) / 20);
     state.soc = Math.min(100, state.soc + rate / 3600);
   } else {
-    const drain = moving
-      ? p.drainDriving * (Math.abs(state.speed) / p.speed) * (state.loaded ? 1.25 : 1)
-      : state.phase === "parked"
-        ? 0.3
-        : p.drainStanding;
+    const drain =
+      (moving
+        ? p.drainDriving * (Math.abs(state.speed) / p.speed) * (state.loaded ? 1.25 : 1)
+        : state.phase === "parked"
+          ? 0.3
+          : p.drainStanding) * (site.traits.cold ? 1.25 : 1);
     state.soc = Math.max(1, state.soc - drain / 3600);
     if (state.soc <= 5 && state.chargeAt >= 0 && working(state) && !state.error) {
-      fault(state, 5301, t, rng.between(1200, 3600));
+      const seconds = rng.between(1200, 3600);
+      fault(state, 5301, t, seconds);
+      // A controller with its own alarm list reports the protection there too, for as long.
+      if (site.vendor.alarms && !(state.alarms ?? []).some((alarm) => alarm.code === 52203)) {
+        state.alarms = [
+          ...(state.alarms ?? []),
+          { code: 52203, since: t, until: t + Math.round(seconds) * 1000 },
+        ];
+      }
     }
   }
 
+  // A controller with its own alarm list keeps a low-charge entry while the pack is under 12 %
+  // and not on the charger — on top of the platform's own low-battery rule, which fires at 20 %.
+  if (site.vendor.alarms) {
+    const low = state.soc < 12 && state.phase !== "charging";
+    const entry = state.alarms?.find((alarm) => alarm.code === 52301);
+    if (low && entry) entry.until = t + 2000;
+    else if (low)
+      state.alarms = [...(state.alarms ?? []), { code: 52301, since: t, until: t + 2000 }];
+  }
+
   // Speed limit in force, and since when.
-  const zone = t < state.zoneUntil || inPermanentZone(site, state.s);
-  const limit = zone
-    ? { limit: ZONE_LIMIT, module: "safety", slowdown: 5 }
-    : t < state.degradedUntil
-      ? { limit: DEGRADED_LIMIT, module: "navigation", slowdown: 3 }
-      : state.teleopUntil
-        ? { limit: TELEOP_LIMIT, module: "teleop", slowdown: 0 }
-        : { limit: site.baseLimit, module: "dispatcher", slowdown: 0 };
+  const limit = speedCaps(site, state, t)[0] ?? {
+    limit: site.baseLimit,
+    module: "dispatcher",
+    slowdown: 0,
+  };
   const limitKey = `${limit.module}:${limit.limit}`;
   if (limitKey !== state.limitKey) {
     state.limitKey = limitKey;
@@ -888,9 +1105,65 @@ export const step = (
   syncTask(state, t);
 
   if (!withFrame || silent) return finish(null);
+  const frame = site.visitor ? visitorFrame(site, state, t) : buildFrame(site, state, t, limit);
+  // A 4G gateway on a weak link flushes what it buffered: a frame from a few seconds ago arrives
+  // after this one.
+  const late =
+    site.persona.lateFrames && state.warning?.code === 2601 && Math.floor(t / 1000) % 17 === 0
+      ? { ...frame, stamp: (frame.stamp as number) - 4000 }
+      : undefined;
+  return finish(frame, late);
+};
 
+/**
+ * The vendor's own alarms, as its controller lists them (`alarmList`). The id carries the vehicle,
+ * as the controller's does: a list entry is one condition on one vehicle, and the console keys a
+ * message by its id across the fleet.
+ */
+const alarmList = (site: Site, state: VehicleState, skew: number): Array<Record<string, unknown>> =>
+  (state.alarms ?? []).map((active) => {
+    const alarm = VENDOR_ALARMS.find((entry) => entry.code === active.code);
+    return {
+      id: `${site.deviceId}-alarm-${active.code}`,
+      code: active.code,
+      title: alarm?.title ?? `报警 ${active.code}`,
+      detail: alarm?.detail ?? "",
+      level: alarm?.level ?? "WARN",
+      timestamp: active.since + skew,
+    };
+  });
+
+/** What a visiting debug build reports: where it is, its codes and alarms — nothing else. */
+const visitorFrame = (site: Site, state: VehicleState, t: number): Record<string, unknown> => {
   const pose = site.route.pose(state.s);
-  const before = site.route.pose(state.s - state.speed);
+  const code = (slot: ActiveCode | null) =>
+    slot
+      ? { code: slot.code, info: CODE_TEXT[slot.code] ?? "", stamp: slot.since }
+      : { code: 0, info: "", stamp: t };
+  return {
+    stamp: t,
+    scene_id: site.sceneId,
+    ...(site.gps ? { gps: sceneToGps(site.gps, pose) } : {}),
+    info_code: code(state.info),
+    warning_code: code(state.warning),
+    error_code: code(state.error),
+    alarmList: alarmList(site, state, 0),
+  };
+};
+
+/** The full vehicle-protocol frame, minus what this vendor's firmware does not send. */
+const buildFrame = (
+  site: Site,
+  state: VehicleState,
+  t: number,
+  limit: { limit: number; module: string; slowdown: number },
+): Record<string, unknown> => {
+  const route = routeOf(site, state);
+  const omits = new Set(site.vendor.omits);
+  // The vehicle stamps everything with its own clock, which may run ahead (see `Persona`).
+  const skew = site.persona.clockSkewMs ?? 0;
+  const pose = route.pose(state.s);
+  const before = route.pose(state.s - state.speed);
   let yawRate = pose.yaw - before.yaw;
   while (yawRate > Math.PI) yawRate -= Math.PI * 2;
   while (yawRate <= -Math.PI) yawRate += Math.PI * 2;
@@ -904,26 +1177,53 @@ export const step = (
   const sin = Math.sin(fusion.yaw);
   const code = (slot: ActiveCode | null) =>
     slot
-      ? { code: slot.code, info: CODE_TEXT[slot.code] ?? "", stamp: slot.since }
-      : { code: 0, info: "", stamp: t };
+      ? { code: slot.code, info: CODE_TEXT[slot.code] ?? "", stamp: slot.since + skew }
+      : { code: 0, info: "", stamp: t + skew };
   const parkedOrCharging = state.phase === "charging" || state.phase === "parked";
   const inTask = TASK_PHASES.has(state.phase);
-  const frame: Record<string, unknown> = {
-    stamp: t,
-    scene_id: site.sceneId,
-    ...(site.gps ? { gps: sceneToGps(site.gps, fusion) } : {}),
-    fusion_loc: { x: r3(fusion.x), y: r3(fusion.y), yaw: r3(fusion.yaw) },
+  const moving = Math.abs(state.speed) > 0.05;
+  const gpsOrigin = state.away && site.night ? site.night.gps : site.gps;
+  const gpsNoise = site.persona.gpsNoise ?? 0;
+  const gpsPose = gpsNoise
+    ? {
+        ...fusion,
+        x: fusion.x + noise(site.noiseSeed, t, 6) * gpsNoise,
+        y: fusion.y + noise(site.noiseSeed, t, 7) * gpsNoise,
+      }
+    : fusion;
+  const gps = gpsOrigin ? sceneToGps(gpsOrigin, gpsPose) : null;
+  const lidar: Record<string, number> = {
     // The lidar sits 0.15 m ahead of the reference point and localises a little noisier.
-    lidar_loc: {
-      x: r3(fusion.x + 0.15 * cos + noise(site.noiseSeed, t, 3) * 0.02),
-      y: r3(fusion.y + 0.15 * sin + noise(site.noiseSeed, t, 4) * 0.02),
-      yaw: r3(fusion.yaw + noise(site.noiseSeed, t, 5) * 0.004),
-    },
+    x: r3(fusion.x + 0.15 * cos + noise(site.noiseSeed, t, 3) * 0.02),
+    y: r3(fusion.y + 0.15 * sin + noise(site.noiseSeed, t, 4) * 0.02),
+    ...(omits.has("poseYaw") ? {} : { yaw: r3(fusion.yaw + noise(site.noiseSeed, t, 5) * 0.004) }),
+  };
+  const task = taskOf(state, site);
+  return {
+    stamp: t + skew,
+    scene_id: state.away && site.night ? site.night.sceneId : site.sceneId,
+    ...(gps
+      ? {
+          gps: omits.has("gpsHeading") ? { lat: gps.lat, lng: gps.lng } : gps,
+        }
+      : {}),
+    ...(site.persona.poseless || omits.has("fusionLoc")
+      ? {}
+      : {
+          fusion_loc: {
+            x: r3(fusion.x),
+            y: r3(fusion.y),
+            ...(omits.has("poseYaw") ? {} : { yaw: r3(fusion.yaw) }),
+          },
+        }),
+    ...(site.persona.poseless ? {} : { lidar_loc: lidar }),
     vehicle_info: {
       control_mode: state.estop ? 3 : state.teleopUntil ? 2 : parkedOrCharging ? 0 : 1,
-      gear: parkedOrCharging ? 2 : state.speed < -0.02 ? -1 : moving ? 1 : 0,
+      ...(omits.has("gear")
+        ? {}
+        : { gear: parkedOrCharging ? 2 : state.speed < -0.02 ? -1 : moving ? 1 : 0 }),
       speed: r3(state.speed),
-      omega: r3(Math.max(-0.8, Math.min(0.8, yawRate))),
+      ...(omits.has("omega") ? {} : { omega: r3(Math.max(-0.8, Math.min(0.8, yawRate))) }),
       soc: Math.round(state.soc * 10) / 10,
     },
     task_status:
@@ -946,16 +1246,41 @@ export const step = (
             : inTask
               ? 2
               : 0,
-    task: taskOf(state, site),
+    task: task ? vendorTask(task, site, state, skew) : null,
     info_code: code(state.info),
     warning_code: code(state.warning),
     error_code: code(state.error),
-    speed_limit: {
-      limit: limit.limit,
-      slowdown_time: limit.slowdown,
-      stamp: state.limitSince,
-      module_name: limit.module,
-    },
+    ...(omits.has("speedLimit")
+      ? {}
+      : {
+          speed_limit: {
+            limit: limit.limit,
+            slowdown_time: limit.slowdown,
+            stamp: state.limitSince + skew,
+            module_name: limit.module,
+          },
+        }),
+    ...(site.vendor.alarms ? { alarmList: alarmList(site, state, skew) } : {}),
   };
-  return finish(frame);
+};
+
+/** The dispatcher's task as this vendor's firmware passes it on. */
+const vendorTask = (
+  task: Record<string, unknown>,
+  site: Site,
+  state: VehicleState,
+  skew: number,
+): Record<string, unknown> => {
+  const stamped: Record<string, unknown> = {
+    ...task,
+    started_at: (task.started_at as number) + skew,
+  };
+  if (site.vendor.task === "brief") {
+    return { id: task.id, to: task.to, step_name: task.step_name };
+  }
+  if (site.vendor.task === "untyped") delete stamped.type;
+  if (site.vendor.stepOverrun && state.phase === "complete" && site.profile.carries) {
+    stamped.step = (task.steps as number) + 1;
+  }
+  return stamped;
 };

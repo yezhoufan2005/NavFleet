@@ -9,7 +9,14 @@
  */
 import fs from "node:fs";
 import path from "node:path";
-import { PROFILES, vehicleQuirks, type Category } from "./profiles";
+import {
+  PERSONAS,
+  PROFILES,
+  vehicleQuirks,
+  vendorProfile,
+  VISITORS,
+  type Category,
+} from "./profiles";
 import { buildRoutes, SCENE_SLOTS, sceneGpsOrigin, sceneSlots, type SceneConfig } from "./routes";
 import { seedOf } from "./rng";
 import { initialState, type Site, type VehicleState } from "./vehicle";
@@ -19,9 +26,15 @@ interface VehicleConfig {
   defaultSceneId?: string;
   category?: string;
   gpsEnabled?: boolean;
+  tags?: string[];
+  vendor?: string;
+  model?: string;
   notes?: string;
   commissionedAt?: string;
 }
+
+/** Indoor floors people work on, where the safety scanner keeps slowing vehicles for them. */
+const PEOPLE_SCENES = new Set(["warehouse-a", "assembly-line"]);
 
 export interface Fleet {
   sites: Site[];
@@ -49,57 +62,95 @@ export const resolveConfigRoot = (): string => {
 };
 
 export const loadFleet = async (configRoot: string): Promise<Fleet> => {
-  const vehicles = readJson<VehicleConfig[]>(path.join(configRoot, "vehicles.json"));
+  // A spare in storage is on the roster but never switched on: there is nothing to simulate.
+  const vehicles = readJson<VehicleConfig[]>(path.join(configRoot, "vehicles.json")).filter(
+    (vehicle) => !PERSONAS[vehicle.deviceId]?.dormant,
+  );
   const scenes = readJson<SceneConfig[]>(path.join(configRoot, "scenes.json"));
-  const placement = sceneSlots(
-    vehicles.map((vehicle) => ({
+  const sceneOf = (sceneId: string) => scenes.find((scene) => scene.sceneId === sceneId);
+  // Visitors share the slots of the scene they turn up in, so they do not park on a roster vehicle.
+  const members = [
+    ...vehicles.map((vehicle) => ({
       deviceId: vehicle.deviceId,
       sceneId: vehicle.defaultSceneId ?? "",
     })),
-  );
-  const routes = await buildRoutes(
-    configRoot,
-    scenes,
-    vehicles.map((vehicle) => ({
-      sceneId: vehicle.defaultSceneId ?? "",
-      slot: placement.get(vehicle.deviceId) ?? 0,
+    ...VISITORS.map((visitor) => ({ deviceId: visitor.deviceId, sceneId: visitor.sceneId })),
+  ];
+  const placement = sceneSlots(members);
+  const nightScenes = vehicles
+    .map((vehicle) => PERSONAS[vehicle.deviceId]?.nightScene)
+    .filter((sceneId): sceneId is string => !!sceneId);
+  const routes = await buildRoutes(configRoot, scenes, [
+    ...members.map((member) => ({
+      sceneId: member.sceneId,
+      slot: placement.get(member.deviceId) ?? 0,
     })),
+    // A night round starts from that scene's first slot position, like a vehicle new to it.
+    ...nightScenes.map((sceneId) => ({ sceneId, slot: 0 })),
+  ]);
+  const nightRoutes = new Map(
+    nightScenes.map((sceneId, index) => [sceneId, routes[members.length + index]!]),
   );
   const commissioned = new Map<string, number | null>();
 
-  const sites = vehicles.map((vehicle, index): Site => {
-    const sceneId = vehicle.defaultSceneId ?? "";
-    const slot = placement.get(vehicle.deviceId) ?? 0;
-    const parsed = Date.parse(vehicle.commissionedAt ?? "");
-    commissioned.set(vehicle.deviceId, Number.isFinite(parsed) ? parsed : null);
+  const siteOf = (
+    member: { deviceId: string; sceneId: string },
+    index: number,
+    vehicle: VehicleConfig | null,
+  ): Site => {
+    const { deviceId, sceneId } = member;
+    const slot = placement.get(deviceId) ?? 0;
+    const parsed = Date.parse(vehicle?.commissionedAt ?? "");
+    commissioned.set(deviceId, Number.isFinite(parsed) ? parsed : null);
+    const persona = PERSONAS[deviceId] ?? {};
+    const visitor = vehicle ? undefined : VISITORS.find((entry) => entry.deviceId === deviceId);
 
     const category = (
-      vehicle.category && vehicle.category in PROFILES ? vehicle.category : "搬运"
+      vehicle?.category && vehicle.category in PROFILES ? vehicle.category : "搬运"
     ) as Category;
     const route = routes[index]!;
     const L = route.length;
+    // The platform's gpsEnabled hides a fix; a vehicle with an antenna reports one regardless.
+    const reportsGps = vehicle ? vehicle.gpsEnabled !== false || !!persona.gpsAntenna : true;
+    const night = persona.nightScene
+      ? {
+          sceneId: persona.nightScene,
+          route: nightRoutes.get(persona.nightScene)!,
+          gps: sceneGpsOrigin(persona.nightScene, sceneOf(persona.nightScene)),
+        }
+      : undefined;
+    const tags = vehicle?.tags ?? [];
     return {
-      deviceId: vehicle.deviceId,
+      deviceId,
       sceneId,
       category,
-      profile: PROFILES[category],
-      quirks: vehicleQuirks(vehicle.notes),
+      // A visitor's debug build has no workload of its own beyond an engineer driving it about.
+      profile: visitor
+        ? { ...PROFILES[category], events: { teleopSession: 0.6 } }
+        : PROFILES[category],
+      quirks: vehicleQuirks(vehicle?.notes),
       route,
       pick: route.wrap(0.25 * L),
       drop: route.wrap(0.7 * L),
       charger: route.wrap(0.02 * L + slot * 2.5),
       zone: [route.wrap(0.45 * L), route.wrap(0.45 * L + Math.min(20, 0.08 * L))],
       baseLimit: BASE_LIMIT[category],
-      gps:
-        vehicle.gpsEnabled === false
-          ? null
-          : sceneGpsOrigin(
-              sceneId,
-              scenes.find((scene) => scene.sceneId === sceneId),
-            ),
-      noiseSeed: seedOf(`noise:${vehicle.deviceId}`),
+      gps: reportsGps ? sceneGpsOrigin(sceneId, sceneOf(sceneId)) : null,
+      noiseSeed: seedOf(`noise:${deviceId}`),
+      vendor: vendorProfile(vehicle?.vendor ?? visitor?.vendor),
+      persona,
+      traits: {
+        people: PEOPLE_SCENES.has(sceneId),
+        lifts: /潜伏|Qi-100/.test(vehicle?.model ?? ""),
+        cold: sceneId === "cold-store",
+        outdoor: tags.includes("室外"),
+      },
+      ...(night ? { night } : {}),
+      ...(visitor ? { visitor } : {}),
     };
-  });
+  };
+
+  const sites = members.map((member, index) => siteOf(member, index, vehicles[index] ?? null));
   return { sites, commissioned, placement };
 };
 

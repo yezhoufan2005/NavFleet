@@ -11,8 +11,9 @@
  * Injections (`main.ts inject`) are files dropped into `<stateDir>/inject/`; each is applied at
  * the next second and becomes part of the timeline from then on.
  *
- * Also answers webhook deliveries on `SIM_HOOK_HOST:SIM_HOOK_PORT` (loopback by default) with 200, so the demo's outbound-notification
- * channels have a receiver and their send log shows real deliveries.
+ * Also answers webhook deliveries on `SIM_HOOK_HOST:SIM_HOOK_PORT` (loopback by default), so the
+ * demo's outbound-notification channels have a receiver and their send log shows real deliveries —
+ * and the odd real failure (see `HOOK_FAILURES`).
  */
 import fs from "node:fs";
 import http from "node:http";
@@ -100,10 +101,35 @@ const takeInjections = (stateDir: string, at: number, known: ReadonlySet<string>
   return injections;
 };
 
+/**
+ * How the demo receivers answer, by path: mostly accepted, with the failures real endpoints have
+ * now and then — the ticket system's gateway timing out (the backend retries it), the 钉钉 robot
+ * refusing a burst (a business error in an HTTP 200, not retried). Counted per path rather than
+ * drawn at random, so the rate is exact over any stretch.
+ */
+const HOOK_FAILURES: Record<string, { every: number; status: number; body: string }> = {
+  "/ticket": { every: 29, status: 502, body: '{"error":"bad gateway"}' },
+  "/dingtalk": {
+    every: 97,
+    status: 200,
+    body: '{"errcode":130101,"errmsg":"send too fast, exceed 20 times per minute"}',
+  },
+};
+
 const startHookReceiver = (host: string, port: number): http.Server => {
+  const counts = new Map<string, number>();
   const server = http.createServer((request, response) => {
     request.resume();
     request.on("end", () => {
+      const path = (request.url ?? "/").split("?")[0] ?? "/";
+      const count = (counts.get(path) ?? 0) + 1;
+      counts.set(path, count);
+      const failure = request.method === "POST" ? HOOK_FAILURES[path] : undefined;
+      if (failure && count % failure.every === 0) {
+        response.writeHead(failure.status, { "content-type": "application/json" });
+        response.end(failure.body);
+        return;
+      }
       response.writeHead(request.method === "POST" ? 200 : 204, {
         "content-type": "application/json",
       });
@@ -163,7 +189,7 @@ export const runLive = async (options: {
         if (state.t !== cursor) continue;
         const site = sites.get(state.deviceId);
         if (!site) continue;
-        const { frame, status } = step(
+        const { frame, status, lateFrame } = step(
           site,
           state,
           injections.filter((injection) => injection.deviceId === state.deviceId),
@@ -178,6 +204,9 @@ export const runLive = async (options: {
         if (frame) {
           client.publish(`/fleet/${state.deviceId}/vehicle_info`, JSON.stringify(frame));
           published += 1;
+        }
+        if (lateFrame) {
+          client.publish(`/fleet/${state.deviceId}/vehicle_info`, JSON.stringify(lateFrame));
         }
       }
       cursor += 1000;
