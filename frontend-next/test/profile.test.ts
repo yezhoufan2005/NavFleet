@@ -73,7 +73,13 @@ const PROFILE = {
   lastLoginAt: LAST_SIGN_IN,
   passwordUpdatedAt: ACCOUNT_CREATED,
   kiosk: false,
-  groups: ["夜班"],
+  groups: [
+    {
+      name: "夜班",
+      description: "夜间值守",
+      roles: [{ name: "值班员", capabilities: ["alerts:ack"] }],
+    },
+  ],
 };
 
 const ACTIVITY = [
@@ -135,8 +141,33 @@ describe("ProfileView — account", () => {
     expect(wrapper.text()).toContain("测试员");
     expect(wrapper.text()).toContain("me@example.com");
     expect(wrapper.text()).toContain("夜班");
-    // A viewer holds no capability: the card says what read-only means instead of an empty list.
-    expect(wrapper.text()).toContain("只读：可查看全部监控数据");
+    expect(wrapper.text()).toContain("授予角色：值班员");
+    // The base role says what it means in a sentence.
+    expect(wrapper.text()).toContain(
+      "可查看全部监控数据，不能修改配置或处置消息",
+    );
+  });
+
+  it("lists every capability by area, marking held ones with where they came from", async () => {
+    const wrapper = await mountView();
+    const chips = wrapper
+      .find('[aria-label="能力清单"]')
+      .findAll("dd span[title]");
+    const labels = chips.map((chip) =>
+      chip
+        .text()
+        .replace(/[✓，].*$/, "")
+        .trim(),
+    );
+    expect(labels).toContain("确认消息");
+    expect(labels).toContain("用户管理");
+    // 调试注入 is a dev-only switch: not listed unless held.
+    expect(labels).not.toContain("调试注入");
+    // An anonymous-capability viewer holds none of them.
+    expect(
+      chips.every((chip) => chip.attributes("data-held") === undefined),
+    ).toBe(true);
+    expect(wrapper.text()).toContain("0 项能力");
   });
 
   it("saves edited contact fields and shows the result", async () => {

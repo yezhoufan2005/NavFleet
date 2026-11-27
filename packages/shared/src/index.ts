@@ -15,6 +15,7 @@
  */
 
 import type { AuditAction } from "./audit";
+import type { Capability } from "./rbac";
 import type { DeviceTask } from "./deviceTask";
 import type {
   AlertDisposition,
@@ -333,6 +334,17 @@ export interface PublicUser {
 }
 
 /**
+ * One group the caller belongs to, as 个人中心「我的权限」shows it: the group and the custom roles it
+ * hands its members, each with the capabilities that role carries — so a person can see where each
+ * of their permissions comes from without `users:manage`.
+ */
+export interface AccountGroup {
+  name: string;
+  description: string;
+  roles: { name: string; capabilities: Capability[] }[];
+}
+
+/**
  * 个人中心's view of the caller's own account (`GET /api/auth/profile`): `PublicUser` plus the
  * contact fields and account dates the stored record keeps, and the names of the groups the user
  * belongs to — a person can see which groups grant them what without `users:manage`.
@@ -346,7 +358,8 @@ export interface AccountProfile extends PublicUser {
   passwordUpdatedAt: string;
   /** An unattended wall-display account (see the kiosk flag on the stored user). */
   kiosk: boolean;
-  groups: string[];
+  /** The groups the user is in. A kiosk account's groups grant nothing (it stays read-only). */
+  groups: AccountGroup[];
 }
 
 /**

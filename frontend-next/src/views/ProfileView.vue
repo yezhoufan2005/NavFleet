@@ -17,9 +17,11 @@
  */
 import { computed, nextTick, onMounted, ref, watch } from "vue";
 import {
-  CAPABILITIES,
+  capabilitiesForRole,
   type AccountActivity,
   type AccountProfile,
+  type Capability,
+  type UserRole,
 } from "@navfleet/shared";
 import { formatStamp, type SessionRecordView } from "@navfleet/fleet-core";
 import PageHeader from "@/components/PageHeader.vue";
@@ -146,11 +148,81 @@ const submitProfile = async (): Promise<void> => {
 };
 
 // ── Permissions ──────────────────────────────────────────────────────────────
-/** What the caller may change, in the shared capability order; empty for a read-only account. */
-const capabilityLabels = computed(() =>
-  CAPABILITIES.filter((capability) =>
-    auth.state.capabilities.includes(capability),
-  ).map((capability) => CAPABILITY_LABELS[capability]),
+/** What each built-in role means, in a sentence — the role badge alone does not say it. */
+const ROLE_SUMMARY: Record<UserRole, string> = {
+  admin: "拥有全部能力，可管理所有账户与配置",
+  operator: "可认领、忽略消息；配置为只读",
+  viewer: "可查看全部监控数据，不能修改配置或处置消息",
+};
+
+/**
+ * The capability catalog by the part of the console it unlocks, so 我的权限 reads as "what I can do
+ * where" rather than a flat tag cloud. 调试注入 is a dev-only switch: listed only when held.
+ */
+const CAPABILITY_AREAS: readonly {
+  label: string;
+  capabilities: Capability[];
+}[] = [
+  { label: "消息", capabilities: ["alerts:ack", "rules:write"] },
+  { label: "报表", capabilities: ["reports:write"] },
+  {
+    label: "部署",
+    capabilities: [
+      "vehicles:write",
+      "formations:write",
+      "scenes:write",
+      "codebook:write",
+    ],
+  },
+  {
+    label: "系统",
+    capabilities: ["audit:read", "notify:read", "notify:write", "debug:ingest"],
+  },
+  { label: "用户", capabilities: ["users:manage"] },
+];
+
+/** Where a held capability comes from: the base role, which groups, or another capability. */
+const sourceOf = (capability: Capability): string => {
+  const role = profile.value?.role ?? auth.state.user?.role;
+  const sources: string[] = [];
+  if (role && capabilitiesForRole(role).includes(capability)) {
+    sources.push(`角色「${ROLE_LABELS[role]}」`);
+  }
+  if (!profile.value?.kiosk) {
+    for (const group of profile.value?.groups ?? []) {
+      if (group.roles.some((r) => r.capabilities.includes(capability))) {
+        sources.push(`用户组「${group.name}」`);
+      }
+    }
+  }
+  if (!sources.length && capability === "notify:read") {
+    sources.push("随「外发配置」附带");
+  }
+  return sources.join("、") || "管理员授予";
+};
+
+const held = (capability: Capability): boolean =>
+  auth.state.capabilities.includes(capability);
+
+const capabilityAreas = computed(() =>
+  CAPABILITY_AREAS.map((area) => ({
+    label: area.label,
+    items: area.capabilities
+      .filter((capability) => capability !== "debug:ingest" || held(capability))
+      .map((capability) => ({
+        capability,
+        label: CAPABILITY_LABELS[capability],
+        held: held(capability),
+        source: held(capability) ? sourceOf(capability) : "",
+      })),
+  })).filter((area) => area.items.length),
+);
+
+const heldCount = computed(
+  () =>
+    capabilityAreas.value
+      .flatMap((area) => area.items)
+      .filter((item) => item.held).length,
 );
 // ── Change password ──────────────────────────────────────────────────────────
 const oldPassword = ref("");
@@ -414,7 +486,11 @@ watch(editing, (open) => {
 
     <!-- Two cards in a row, equal height: what the account may do, and its password. -->
     <div class="grid grid-cols-1 gap-4 lg:grid-cols-2">
-      <UiCard as="section" aria-labelledby="profile-access-heading">
+      <UiCard
+        as="section"
+        class="flex flex-col"
+        aria-labelledby="profile-access-heading"
+      >
         <template #header>
           <h3
             id="profile-access-heading"
@@ -423,43 +499,121 @@ watch(editing, (open) => {
             我的权限
           </h3>
         </template>
-        <dl class="m-0 flex flex-col gap-3 text-sm">
+        <template #actions>
+          <span
+            class="rounded-xs border border-border bg-surface-sunken px-1.5 py-0.5 text-2xs text-ink-muted"
+            :class="textClasses.fixed"
+            >{{ heldCount }} 项能力</span
+          >
+        </template>
+        <div class="flex flex-col gap-4 text-sm">
+          <!-- 角色: the built-in base role and what it means in one sentence. -->
           <div class="flex min-w-0 items-baseline gap-3">
-            <dt class="w-16 shrink-0 text-2xs text-ink-subtle">角色</dt>
-            <dd class="m-0 text-ink">{{ roleLabel || "--" }}</dd>
-          </div>
-          <div class="flex min-w-0 items-baseline gap-3">
-            <dt class="w-16 shrink-0 text-2xs text-ink-subtle">所属用户组</dt>
-            <dd class="m-0 min-w-0 text-ink" :class="textClasses.body">
-              {{
-                profile?.groups.length ? profile.groups.join("、") : "未加入"
-              }}
-            </dd>
-          </div>
-          <div class="flex min-w-0 items-baseline gap-3">
-            <dt class="w-16 shrink-0 text-2xs text-ink-subtle">可执行</dt>
-            <dd class="m-0 min-w-0">
-              <ul
-                v-if="capabilityLabels.length"
-                class="m-0 flex list-none flex-wrap gap-1.5 p-0"
-                aria-label="已授予的能力"
+            <span class="w-16 shrink-0 text-2xs text-ink-subtle">基础角色</span>
+            <span class="flex min-w-0 flex-col gap-0.5">
+              <span class="font-medium text-ink">{{ roleLabel || "--" }}</span>
+              <span
+                v-if="profile || auth.state.user"
+                class="text-xs text-ink-muted"
+                :class="textClasses.body"
+                >{{
+                  ROLE_SUMMARY[(profile?.role ?? auth.state.user?.role)!]
+                }}</span
               >
-                <li
-                  v-for="label in capabilityLabels"
-                  :key="label"
-                  class="rounded-xs border border-border bg-surface-sunken px-1.5 py-0.5 text-2xs text-ink-muted"
+            </span>
+          </div>
+
+          <!-- 能力 by area: held ones solid with a tick and their source on hover, the rest
+               dashed and muted — so the card says what is possible as well as what is held. -->
+          <div class="flex min-w-0 items-baseline gap-3">
+            <span class="w-16 shrink-0 text-2xs text-ink-subtle">能力</span>
+            <dl
+              class="m-0 flex min-w-0 flex-1 flex-col gap-2"
+              aria-label="能力清单"
+            >
+              <div
+                v-for="area in capabilityAreas"
+                :key="area.label"
+                class="flex min-w-0 items-baseline gap-2"
+              >
+                <dt class="w-8 shrink-0 text-2xs text-ink-subtle">
+                  {{ area.label }}
+                </dt>
+                <dd class="m-0 flex min-w-0 flex-wrap gap-1.5">
+                  <span
+                    v-for="item in area.items"
+                    :key="item.capability"
+                    class="rounded-xs border px-1.5 py-0.5 text-2xs whitespace-nowrap"
+                    :class="
+                      item.held
+                        ? 'border-brand/40 bg-brand-wash text-brand-ink'
+                        : 'border-dashed border-border text-ink-subtle'
+                    "
+                    :title="item.held ? `来自${item.source}` : '未授予'"
+                    :data-held="item.held ? '' : undefined"
+                    ><span aria-hidden="true">{{ item.held ? "✓ " : "" }}</span
+                    >{{ item.label
+                    }}<span class="sr-only">{{
+                      item.held ? `，已授予，来自${item.source}` : "，未授予"
+                    }}</span></span
+                  >
+                </dd>
+              </div>
+            </dl>
+          </div>
+
+          <!-- 用户组: each group, what it is for, and the roles it hands its members. -->
+          <div class="flex min-w-0 items-baseline gap-3">
+            <span class="w-16 shrink-0 text-2xs text-ink-subtle"
+              >所属用户组</span
+            >
+            <span v-if="!profile?.groups.length" class="text-ink-muted"
+              >未加入任何用户组</span
+            >
+            <ul
+              v-else
+              class="m-0 flex min-w-0 flex-1 list-none flex-col gap-2 p-0"
+            >
+              <li
+                v-for="group in profile.groups"
+                :key="group.name"
+                class="flex min-w-0 flex-col gap-0.5 rounded-sm border border-border bg-surface px-2.5 py-1.5"
+              >
+                <span
+                  v-overflow-title
+                  class="font-medium text-ink"
+                  :class="textClasses.field"
+                  >{{ group.name }}</span
                 >
-                  {{ label }}
-                </li>
-              </ul>
-              <span v-else class="text-ink-muted"
-                >只读：可查看全部监控数据，不能修改配置或处置消息</span
-              >
-            </dd>
+                <span
+                  v-if="group.description"
+                  class="text-xs text-ink-muted"
+                  :class="textClasses.body"
+                  >{{ group.description }}</span
+                >
+                <span
+                  class="text-2xs text-ink-subtle"
+                  :class="textClasses.body"
+                >
+                  {{
+                    group.roles.length
+                      ? `授予角色：${group.roles.map((r) => r.name).join("、")}`
+                      : "未授予额外角色"
+                  }}
+                </span>
+              </li>
+            </ul>
           </div>
-        </dl>
-        <p class="m-0 mt-3 text-2xs text-ink-subtle">
-          角色与用户组由管理员在「用户」中调整
+
+          <p
+            v-if="profile?.kiosk"
+            class="m-0 rounded-sm bg-surface-sunken px-2.5 py-1.5 text-xs text-ink-muted"
+          >
+            大屏账号始终只读，所属用户组不会为它增加能力
+          </p>
+        </div>
+        <p class="m-0 mt-auto pt-4 text-2xs text-ink-subtle">
+          角色与用户组由管理员在「用户」中调整；悬停已授予的能力可查看来源
         </p>
       </UiCard>
       <UiCard as="section" aria-labelledby="profile-password-heading">
@@ -499,33 +653,31 @@ watch(editing, (open) => {
               size="md"
             />
           </label>
-          <div class="grid grid-cols-1 gap-3 sm:grid-cols-2">
-            <label class="flex min-w-0 flex-col gap-1.5">
-              <span class="text-sm font-medium text-ink">新密码</span>
-              <UiInput
-                id="profile-new-password"
-                v-model="newPassword"
-                :type="showPasswords ? 'text' : 'password'"
-                autocomplete="new-password"
-                aria-describedby="profile-password-rules"
-                :disabled="changing"
-                :aria-invalid="formError ? 'true' : undefined"
-                size="md"
-              />
-            </label>
-            <label class="flex min-w-0 flex-col gap-1.5">
-              <span class="text-sm font-medium text-ink">确认新密码</span>
-              <UiInput
-                id="profile-confirm-password"
-                v-model="confirmPassword"
-                :type="showPasswords ? 'text' : 'password'"
-                autocomplete="new-password"
-                :disabled="changing"
-                :aria-invalid="formError ? 'true' : undefined"
-                size="md"
-              />
-            </label>
-          </div>
+          <label class="flex flex-col gap-1.5">
+            <span class="text-sm font-medium text-ink">新密码</span>
+            <UiInput
+              id="profile-new-password"
+              v-model="newPassword"
+              :type="showPasswords ? 'text' : 'password'"
+              autocomplete="new-password"
+              aria-describedby="profile-password-rules"
+              :disabled="changing"
+              :aria-invalid="formError ? 'true' : undefined"
+              size="md"
+            />
+          </label>
+          <label class="flex flex-col gap-1.5">
+            <span class="text-sm font-medium text-ink">确认新密码</span>
+            <UiInput
+              id="profile-confirm-password"
+              v-model="confirmPassword"
+              :type="showPasswords ? 'text' : 'password'"
+              autocomplete="new-password"
+              :disabled="changing"
+              :aria-invalid="formError ? 'true' : undefined"
+              size="md"
+            />
+          </label>
           <ul
             id="profile-password-rules"
             class="m-0 flex list-none flex-wrap gap-x-4 gap-y-1 p-0 text-xs"
@@ -693,7 +845,7 @@ watch(editing, (open) => {
             账户活动
           </h3>
           <p class="m-0 text-2xs text-ink-subtle">
-            最近 20 条：登录、密码与资料修改、会话下线，以及管理员对本账号的操作
+            最近 10 条：登录、密码与资料修改、会话下线，以及管理员对本账号的操作
           </p>
         </div>
       </template>
@@ -759,13 +911,12 @@ watch(editing, (open) => {
               </td>
               <td class="px-3 py-2">
                 <span
-                  class="rounded-xs px-1.5 py-0.5 text-2xs whitespace-nowrap"
                   :class="
-                    row.outcome === 'success'
-                      ? 'bg-surface-sunken text-ink-muted'
-                      : 'bg-critical-wash text-critical-ink'
+                    row.outcome === 'failure'
+                      ? 'text-critical-ink'
+                      : 'text-ink-muted'
                   "
-                  >{{ row.outcome === "success" ? "成功" : "失败" }}</span
+                  >{{ row.outcome === "failure" ? "失败" : "成功" }}</span
                 >
               </td>
               <td

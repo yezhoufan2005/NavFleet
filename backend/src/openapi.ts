@@ -320,7 +320,26 @@ export const openApiDocument = {
           lastLoginAt: { type: ["string", "null"], format: "date-time" },
           passwordUpdatedAt: { type: "string", format: "date-time" },
           kiosk: { type: "boolean" },
-          groups: { type: "array", items: { type: "string" } },
+          groups: {
+            type: "array",
+            items: {
+              type: "object",
+              properties: {
+                name: { type: "string" },
+                description: { type: "string" },
+                roles: {
+                  type: "array",
+                  items: {
+                    type: "object",
+                    properties: {
+                      name: { type: "string" },
+                      capabilities: { type: "array", items: { type: "string" } },
+                    },
+                  },
+                },
+              },
+            },
+          },
         },
       },
       AccountActivity: {
@@ -903,7 +922,7 @@ const [rbacGroups, rbacGroup] = rbacOperations({
   "/api/auth/activity": {
     get: {
       tags: ["auth"],
-      summary: "个人中心：本人最近 20 条账户活动（不需要 audit:read）",
+      summary: "个人中心：本人最近 10 条账户活动（不需要 audit:read）",
       responses: {
         "200": {
           description: "账户活动，新到旧",

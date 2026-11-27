@@ -225,12 +225,20 @@ export const createApp = ({
     "/api/auth",
     authLimiter,
     captureRouteMount,
-    buildAuthRouter(authService, auditService, resolveCapabilities, (username) =>
-      rbacService
+    buildAuthRouter(authService, auditService, resolveCapabilities, (username) => {
+      const roleById = new Map(rbacService.getRoles().map((role) => [role.id, role]));
+      return rbacService
         .getGroups()
         .filter((group) => group.memberUsernames.includes(username))
-        .map((group) => group.name),
-    ),
+        .map((group) => ({
+          name: group.name,
+          description: group.description,
+          roles: group.roleIds.flatMap((id) => {
+            const role = roleById.get(id);
+            return role ? [{ name: role.name, capabilities: [...role.capabilities] }] : [];
+          }),
+        }));
+    }),
   );
 
   // Everything below requires a valid session. The middleware verifies each token against
