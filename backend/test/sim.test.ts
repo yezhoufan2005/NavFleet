@@ -447,3 +447,271 @@ describe("simulator tasks", () => {
     expect(String(first?.id)).toMatch(/-0001$/);
   });
 });
+
+describe("simulator vendors and site behaviour", () => {
+  const siteOf = async (deviceId: string) => {
+    const f = await fleet();
+    const site = f.sites.find((candidate) => candidate.deviceId === deviceId);
+    if (!site) throw new Error(`no site ${deviceId}`);
+    return { f, site };
+  };
+  /** Frames over `seconds` from the start, parsed. */
+  const framesOf = async (deviceId: string, seconds: number, from = START) => {
+    const { f, site } = await siteOf(deviceId);
+    const state = newState(f, site, from);
+    const frames: Array<Record<string, unknown>> = [];
+    const late: Array<Record<string, unknown>> = [];
+    for (let k = 0; k < seconds; k += 1) {
+      const result = step(site, state);
+      if (result.frame) frames.push(result.frame);
+      if (result.lateFrame) late.push(result.lateFrame);
+    }
+    return { site, state, frames, late };
+  };
+  const vehicleInfo = (frame: Record<string, unknown>) =>
+    frame.vehicle_info as Record<string, unknown>;
+
+  it("sends only what each vendor's firmware sends", async () => {
+    // 快仓: no angular velocity.
+    const kuai = (await framesOf("agv-w04", 120)).frames.at(-1)!;
+    expect(vehicleInfo(kuai)).not.toHaveProperty("omega");
+    expect(vehicleInfo(kuai)).toHaveProperty("gear");
+    // 极智嘉: lidar pose only, no gear.
+    const geek = (await framesOf("agv-p01", 120)).frames.at(-1)!;
+    expect(geek).not.toHaveProperty("fusion_loc");
+    expect(geek).toHaveProperty("lidar_loc");
+    expect(vehicleInfo(geek)).not.toHaveProperty("gear");
+    // 未来机器人: no speed-limit block, poses without a heading.
+    const future = (await framesOf("agv-p04", 120)).frames.at(-1)!;
+    expect(future).not.toHaveProperty("speed_limit");
+    expect(future.lidar_loc).not.toHaveProperty("yaw");
+    expect(future.fusion_loc).not.toHaveProperty("yaw");
+    // 亿嘉和: a GNSS fix without heading.
+    const yijiahe = (await framesOf("agv-a04", 120)).frames.at(-1)!;
+    expect(yijiahe.gps).toMatchObject({ lat: expect.any(Number) as number });
+    expect(yijiahe.gps).not.toHaveProperty("heading");
+    // The snapshot shows the missing fields as missing — and a lidar-only vehicle's fused pose
+    // follows its lidar pose rather than standing where the first frame put it.
+    const snapshot = normalizeDevice({ ...kuai, deviceId: "agv-w04" });
+    expect(snapshot.vehicleInfo.omega).toBeNull();
+    const geekFrames = (await framesOf("agv-p01", 3600)).frames.filter(
+      (frame) => (vehicleInfo(frame).speed as number) > 0.3,
+    );
+    const firstSeen = normalizeDevice({ ...geekFrames[0]!, deviceId: "agv-p01" });
+    const lastSeen = normalizeDevice({ ...geekFrames.at(-1)!, deviceId: "agv-p01" }, firstSeen);
+    expect(lastSeen.fusionLoc).toEqual(lastSeen.lidarLoc);
+    expect(lastSeen.fusionLoc).not.toEqual(firstSeen.fusionLoc);
+  });
+
+  it("passes the task on as each firmware does: untyped, brief, or with the step past the total", async () => {
+    const tasks = async (deviceId: string) =>
+      (await framesOf(deviceId, 8 * 3600)).frames
+        .map((frame) => frame.task as Record<string, unknown> | null)
+        .filter((task): task is Record<string, unknown> => !!task);
+    expect((await tasks("agv-p01")).every((task) => !("type" in task))).toBe(true);
+    const brief = await tasks("agv-p03");
+    expect(brief.length).toBeGreaterThan(0);
+    expect(brief.every((task) => !("steps" in task) && !("started_at" in task))).toBe(true);
+    // 斯坦德 counts the completed step past the total; the platform clamps it on the way in.
+    const overrun = (await tasks("agv-w04")).length; // 快仓: never overruns
+    const stander = await tasks("agv-r01");
+    expect(overrun).toBeGreaterThan(0);
+    const past = stander.find((task) => (task.step as number) > (task.steps as number));
+    expect(past).toBeDefined();
+    const clamped = normalizeDevice({ task: past, deviceId: "agv-r01", stamp: START });
+    expect(clamped.task!.step).toBe(clamped.task!.steps);
+  });
+
+  it("stamps a vehicle with an unsynchronised clock ahead of real time", async () => {
+    const { frames } = await framesOf("agv-p03", 30);
+    const frame = frames.at(-1)!;
+    expect((frame.stamp as number) - (START + 29_000)).toBe(125_000);
+  });
+
+  it("reports GPS alone for the perimeter patrol, and a fix the platform hides for the cold-store carrier", async () => {
+    const patrol = (await framesOf("agv-s01", 60)).frames.at(-1)!;
+    expect(patrol).not.toHaveProperty("fusion_loc");
+    expect(patrol).not.toHaveProperty("lidar_loc");
+    expect(patrol.gps).toBeDefined();
+    expect(patrol.scene_id).toBe("");
+    const cold = (await framesOf("agv-c01", 60)).frames.at(-1)!;
+    expect(cold.gps).toBeDefined();
+  });
+
+  it("flushes a buffered frame late on a weak link, which the platform refuses as out of order", async () => {
+    const { site, f } = await siteOf("agv-a08");
+    const state = newState(f, site, START);
+    step(site, state, [{ deviceId: site.deviceId, at: START, kind: "speed-zone", minutes: 1 }]);
+    // Degrade the link for long enough to cross a flush second.
+    state.warning = { code: 2601, since: START, until: START + 120_000 };
+    let late: Record<string, unknown> | undefined;
+    let current: Record<string, unknown> | undefined;
+    for (let k = 0; k < 60 && !late; k += 1) {
+      const result = step(site, state);
+      late = result.lateFrame;
+      current = result.frame ?? undefined;
+    }
+    expect(late).toBeDefined();
+    expect((late!.stamp as number) < (current!.stamp as number)).toBe(true);
+  });
+
+  it("leaves the spare in storage out, and switches the visiting test vehicle on only in its hours", async () => {
+    const f = await fleet();
+    expect(f.sites.some((site) => site.deviceId === "agv-y09")).toBe(false);
+    const visitor = f.sites.find((site) => site.visitor)!;
+    expect(visitor.deviceId).toBe("seer-test-07");
+    // Tuesday 2026-09-01 15:00 local (07:00Z) is in its hours; 06:00Z (14:00 local) the start.
+    const on = Date.parse("2026-09-01T07:00:00Z");
+    const off = Date.parse("2026-09-01T12:00:00Z");
+    const state = newState(f, visitor, on);
+    const onFrame = step(visitor, state).frame!;
+    expect(onFrame).not.toHaveProperty("vehicle_info");
+    expect(onFrame).not.toHaveProperty("fusion_loc");
+    expect(Array.isArray(onFrame.alarmList)).toBe(true);
+    const later = newState(f, visitor, off);
+    later.online = true;
+    const result = step(visitor, later);
+    expect(result.frame).toBeNull();
+    expect(result.status).toBe(false);
+  });
+
+  it("takes the occasional night round in another scene, and comes back", async () => {
+    const { site, f } = await siteOf("agv-a06");
+    const state = newState(f, site, START);
+    const scenes = new Set<string>();
+    for (let k = 0; k < 5 * 86_400; k += 1) {
+      const { frame } = step(site, state, [], k % 60 === 0);
+      if (frame) scenes.add(frame.scene_id as string);
+    }
+    expect(scenes).toEqual(new Set(["kangcheng-airy", "yard-north"]));
+  }, 60_000);
+
+  it("reports a vendor's own alarm list next to the codes, in its own severity words", async () => {
+    const { site, f } = await siteOf("agv-y02");
+    const state = newState(f, site, START);
+    state.soc = 11;
+    state.phase = "toPick";
+    state.target = site.pick;
+    const { frame } = step(site, state);
+    const alarms = frame!.alarmList as Array<Record<string, unknown>>;
+    expect(alarms.map((alarm) => alarm.code)).toContain(52301);
+    const snapshot = normalizeDevice({ ...frame!, deviceId: site.deviceId });
+    const vendor = snapshot.alerts.find((alert) => alert.source === "device-alert");
+    expect(vendor).toMatchObject({ title: "电量低", severity: "notice" });
+  });
+});
+
+describe("backfill sink outbound policy", () => {
+  /** A sink with a fake db, the given channels, every endpoint env set. */
+  const sinkWith = (channels: unknown[]) => {
+    for (const env of ["SINK_TEST_A_URL", "SINK_TEST_B_URL"]) process.env[env] = "http://receiver";
+    const sink = new BackfillSink(new Set(["agv-1"]), {
+      config: { channels, groups: {} } as never,
+      device: (deviceId) => ({ deviceId, tags: [], formationIds: [] }),
+    });
+    const sends = () =>
+      (sink as unknown as { sends: Array<Record<string, unknown>> }).sends.map((send) => ({
+        channelId: send.channelId,
+        title: send.title,
+        status: send.status,
+      }));
+    return { sink, sends };
+  };
+  const occurrence = (id: string, severity: "critical" | "warning", ts: string): DeviceAlert => ({
+    id,
+    title: severity === "critical" ? "告警报码" : "预警报码",
+    detail: "",
+    severity,
+    source: severity === "critical" ? "error_code" : "warning_code",
+    ts,
+    active: true,
+    code: severity === "critical" ? 5701 : 2101,
+    info: "",
+  });
+
+  it("holds digested severities for the channel's flush, and sends one summary", async () => {
+    const { sink, sends } = sinkWith([
+      {
+        id: "mail",
+        type: "webhook",
+        enabled: true,
+        urlEnv: "SINK_TEST_A_URL",
+        severities: ["critical", "warning"],
+        digestSeconds: 900,
+        digestSeverities: ["warning"],
+      },
+    ]);
+    const t0 = Date.parse("2026-09-01T02:00:00Z");
+    await sink.upsertAlerts(
+      "agv-1",
+      [
+        occurrence("a", "warning", new Date(t0).toISOString()),
+        occurrence("b", "warning", new Date(t0 + 60_000).toISOString()),
+        occurrence("c", "critical", new Date(t0 + 120_000).toISOString()),
+      ],
+      new Date(t0 + 120_000),
+    );
+    // The critical goes at once; the warnings wait.
+    expect(sends().map((send) => send.title)).toEqual(["告警报码"]);
+    sink.tickNotify(t0 + 10 * 60_000);
+    expect(sends()).toHaveLength(1);
+    sink.tickNotify(t0 + 16 * 60_000);
+    expect(sends().map((send) => send.title)).toEqual(["告警报码", "2 条消息汇总"]);
+  });
+
+  it("escalates a critical nobody attended to, and not one that was claimed or cleared", async () => {
+    const { sink, sends } = sinkWith([
+      {
+        id: "first",
+        type: "webhook",
+        enabled: true,
+        urlEnv: "SINK_TEST_A_URL",
+        severities: ["critical"],
+        escalation: { afterSeconds: 600, channelId: "second" },
+      },
+      { id: "second", type: "webhook", enabled: true, urlEnv: "SINK_TEST_B_URL", severities: [] },
+    ]);
+    const t0 = Date.parse("2026-09-01T02:00:00Z");
+    await sink.upsertAlerts(
+      "agv-1",
+      [
+        occurrence("left-alone", "critical", new Date(t0).toISOString()),
+        occurrence("cleared", "critical", new Date(t0).toISOString()),
+      ],
+      new Date(t0),
+    );
+    // One clears before the escalation is due.
+    await sink.upsertAlerts(
+      "agv-1",
+      [occurrence("left-alone", "critical", new Date(t0).toISOString())],
+      new Date(t0 + 5 * 60_000),
+    );
+    sink.tickNotify(t0 + 11 * 60_000);
+    const escalated = sends().filter((send) => send.channelId === "second");
+    expect(escalated.map((send) => send.title)).toEqual(["【升级】告警报码"]);
+  });
+
+  it("does not re-send the same occurrence inside the channel's re-notify window", async () => {
+    const { sink, sends } = sinkWith([
+      {
+        id: "robot",
+        type: "dingtalk",
+        enabled: true,
+        urlEnv: "SINK_TEST_A_URL",
+        severities: ["warning"],
+        renotifySeconds: 600,
+      },
+    ]);
+    const t0 = Date.parse("2026-09-01T02:00:00Z");
+    const at = (ms: number) => new Date(ms).toISOString();
+    // The same alert id fires, clears and fires again two minutes later.
+    await sink.upsertAlerts("agv-1", [occurrence("flap", "warning", at(t0))], new Date(t0));
+    await sink.upsertAlerts("agv-1", [], new Date(t0 + 60_000));
+    await sink.upsertAlerts(
+      "agv-1",
+      [occurrence("flap", "warning", at(t0 + 120_000))],
+      new Date(t0 + 120_000),
+    );
+    expect(sends()).toHaveLength(1);
+  });
+});

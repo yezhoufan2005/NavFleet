@@ -460,7 +460,20 @@ export const normalizeDevice = (
     },
   };
 
-  if (!hasPose(snapshot.fusionLoc) && hasPose(snapshot.lidarLoc)) {
+  // A vehicle that localises with its lidar alone sends no fused pose: the fused pose is then its
+  // lidar pose, from this frame. Deciding on the snapshot (which inherits the previous fused pose
+  // when the frame omits one) copied the lidar pose once, on the first frame, and kept that copy
+  // forever — on the map the vehicle stood still while its lidar pose moved.
+  const frameFusion = {
+    x: toNumeric(fusionLoc.x ?? raw.x, null),
+    y: toNumeric(fusionLoc.y ?? raw.y, null),
+    yaw: toNumeric(fusionLoc.yaw ?? raw.yaw, null),
+  };
+  const frameLidar = { x: toNumeric(lidarLoc.x, null), y: toNumeric(lidarLoc.y, null), yaw: null };
+  if (
+    (!hasPose(frameFusion) && hasPose(frameLidar)) ||
+    (!hasPose(snapshot.fusionLoc) && hasPose(snapshot.lidarLoc))
+  ) {
     snapshot.fusionLoc = { ...snapshot.lidarLoc };
   }
 

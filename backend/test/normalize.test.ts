@@ -47,6 +47,15 @@ describe("normalizeDevice", () => {
     expect(device.fusionLoc).toEqual({ x: 5, y: 6, yaw: 1 });
   });
 
+  it("follows the lidar pose frame by frame for a vehicle that sends no fused pose", () => {
+    const first = normalizeDevice({ deviceId: "d2", lidar_loc: { x: 5, y: 6, yaw: 1 } });
+    const second = normalizeDevice({ deviceId: "d2", lidar_loc: { x: 7, y: 8, yaw: 1.2 } }, first);
+    expect(second.fusionLoc).toEqual({ x: 7, y: 8, yaw: 1.2 });
+    // A frame with neither (a status-only frame) keeps the last pose.
+    const third = normalizeDevice({ deviceId: "d2", online: true }, second);
+    expect(third.fusionLoc).toEqual({ x: 7, y: 8, yaw: 1.2 });
+  });
+
   it("refuses a frame that names no device rather than inventing an id for it", () => {
     // The id comes from the body, or from the topic before this is called (normalizePayload).
     // It used to fall back to `device-<timestamp>`: a new phantom vehicle per frame.

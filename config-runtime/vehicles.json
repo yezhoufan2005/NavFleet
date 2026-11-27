@@ -75,7 +75,8 @@
     "vendor": "亿嘉和",
     "model": "巡检 G200",
     "category": "巡检",
-    "commissionedAt": "2024-03-18"
+    "commissionedAt": "2024-03-18",
+    "notes": "跨区联动：部分夜间加巡北区装卸场"
   },
   {
     "deviceId": "agv-a07",
@@ -101,7 +102,8 @@
     "model": "巡检 X1",
     "category": "巡检",
     "serialNumber": "NF-A24-008",
-    "commissionedAt": "2024-09-12"
+    "commissionedAt": "2024-09-12",
+    "notes": "车载 4G 网关在弱网时缓存数据，恢复后补发，偶有乱序帧"
   },
   {
     "deviceId": "agv-a09",
@@ -313,7 +315,7 @@
     "maxLoadKg": 3000,
     "serialNumber": "NF-Y24-008",
     "commissionedAt": "2024-09-12",
-    "notes": "试运行：南区二号月台（月台底图待测绘上传）"
+    "notes": "试运行：南区二号月台（底图待测绘上传）；刷了试用固件，会上报字典里还没有的报码"
   },
   {
     "deviceId": "agv-y09",
@@ -370,7 +372,8 @@
     "category": "配料",
     "maxLoadKg": 300,
     "serialNumber": "NF-P24-003",
-    "commissionedAt": "2025-01-20"
+    "commissionedAt": "2025-01-20",
+    "notes": "工控机未接入 NTP，时钟比平台快约 2 分钟（平台按到达时间记录）"
   },
   {
     "deviceId": "agv-p04",

@@ -62,14 +62,27 @@
       "type": "webhook",
       "enabled": true,
       "urlEnv": "NOTIFY_TICKET_WEBHOOK_URL",
-      "severities": ["critical", "warning"]
+      "severities": ["critical"]
     },
     {
-      "id": "it-webhook",
+      "id": "vendor-webhook",
       "type": "webhook",
       "enabled": true,
-      "urlEnv": "NOTIFY_IT_WEBHOOK_URL",
-      "severities": ["notice"]
+      "urlEnv": "NOTIFY_VENDOR_WEBHOOK_URL",
+      "severities": ["critical", "warning", "notice"],
+      "scope": {
+        "deviceIds": ["agv-y08", "seer-test-07"]
+      }
+    },
+    {
+      "id": "sms-gateway",
+      "type": "webhook",
+      "enabled": true,
+      "urlEnv": "NOTIFY_SMS_WEBHOOK_URL",
+      "severities": ["critical"],
+      "scope": {
+        "tags": ["冷库"]
+      }
     },
     {
       "id": "dev-webhook",

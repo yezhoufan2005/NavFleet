@@ -92,6 +92,17 @@ export const operatorAt = (ms: number): string => {
   return hour >= 8 && hour < 20 ? "zhaoyun" : "qianwei";
 };
 
+/** The next shift change (08:00 or 20:00 on the site's clock) after `ms`. */
+export const shiftChangeAfter = (ms: number): number => {
+  const local = ms + 8 * 3_600_000;
+  const day = Math.floor(local / 86_400_000) * 86_400_000;
+  for (const hour of [8, 20, 32]) {
+    const at = day + hour * 3_600_000 - 8 * 3_600_000;
+    if (at > ms) return at;
+  }
+  return ms + 12 * 3_600_000;
+};
+
 export interface SinkStats {
   frames: number;
   skippedFrames: number;
@@ -113,6 +124,25 @@ export class BackfillSink {
   /** deviceId → eventKey → the open occurrence (and whether it already exists in MongoDB). */
   private readonly open = new Map<string, Map<string, { doc: AlertDoc; stored: boolean }>>();
   private readonly latest = new Map<string, DeviceSnapshot>();
+  /** Re-notify dedup: when each (occurrence, channel) was last delivered. */
+  private readonly lastSentAt = new Map<string, number>();
+  /** Digest buffers per channel, flushed by `tickNotify`. */
+  private readonly digests = new Map<
+    string,
+    { since: number; items: Array<{ deviceId: string; title: string; severity: string }> }
+  >();
+  /** Escalations armed by a critical send, by occurrence; fired by `tickNotify` unless cancelled. */
+  private readonly escalations = new Map<
+    string,
+    {
+      dueAt: number;
+      channelId: string;
+      deviceId: string;
+      alertId: string;
+      severity: string;
+      title: string;
+    }
+  >();
   readonly stats: SinkStats = {
     frames: 0,
     skippedFrames: 0,
@@ -226,6 +256,7 @@ export class BackfillSink {
     for (const [eventKey, entry] of open) {
       if (current.has(eventKey)) continue;
       open.delete(eventKey);
+      this.escalations.delete(eventKey);
       entry.doc.active = false;
       entry.doc.clearedAt = at;
       entry.doc.lastSeenAt = at;
@@ -361,40 +392,100 @@ export class BackfillSink {
           : [0.08, 0.32];
     const roll = rng.next();
     const actor = operatorAt(actAt);
-    const atIso = new Date(actAt).toISOString();
     if (roll < claimP) {
-      doc.claimedBy = actor;
-      doc.claimedAt = atIso;
-      doc.version = 1;
-      this.audits.push({
-        ts: new Date(actAt),
-        actor,
-        action: "alert_claim",
-        target: doc.eventKey,
-        outcome: "success",
-      });
-      this.stats.claimed += 1;
+      this.claim(doc, actor, actAt);
+      this.followUpClaim(doc, actor, actAt, boundMs, rng);
       return;
     }
-    // __IGNORE_BRANCH__
     if (roll < claimP + ignoreP) {
       const pool =
         IGNORE_REASONS[planned ? "planned" : offline ? "offline" : String(doc.code)] ?? [];
       const reason = pool.length && (planned || rng.chance(0.6)) ? (rng.pick(pool) ?? null) : null;
-      doc.ignoredBy = actor;
-      doc.ignoredAt = atIso;
-      doc.ignoreReason = reason;
-      doc.version = 1;
-      this.audits.push({
-        ts: new Date(actAt),
-        actor,
-        action: "alert_ignore",
-        target: doc.eventKey,
-        outcome: "success",
-        ...(reason ? { detail: { reason } } : {}),
-      });
-      this.stats.ignored += 1;
+      this.ignore(doc, actor, actAt, reason);
+      // Now and then an ignore was a mistake — a critical one especially gets a second look —
+      // and is withdrawn a few minutes later (取消忽略), after which someone may still claim it.
+      const undoP = doc.severity === "critical" ? 0.25 : 0.04;
+      const undoAt = actAt + rng.between(2, 10) * 60_000;
+      if (!planned && rng.chance(undoP) && undoAt < boundMs) {
+        this.audit(actor, "alert_unignore", doc, undoAt);
+        doc.ignoredBy = null;
+        doc.ignoredAt = null;
+        doc.ignoreReason = null;
+        doc.version += 1;
+        const claimAt = undoAt + rng.between(0.5, 3) * 60_000;
+        if (rng.chance(0.6) && claimAt < boundMs) {
+          this.claim(doc, operatorAt(claimAt), claimAt);
+        }
+      }
     }
+  }
+
+  /**
+   * What happens to a claim before the occurrence clears: the claimant hands it back at the end of
+   * a shift (释放认领) and the next shift claims it; or the investigation finds it expected and it
+   * is ignored on top of the claim (认领后忽略 — the claim stays, as the live write path keeps it).
+   */
+  private followUpClaim(
+    doc: AlertDoc,
+    actor: string,
+    claimedAt: number,
+    boundMs: number,
+    rng: Rng,
+  ): void {
+    const handover = shiftChangeAfter(claimedAt);
+    if (handover < boundMs && rng.chance(0.85)) {
+      const releaseAt = handover - rng.between(1, 10) * 60_000;
+      if (releaseAt > claimedAt) {
+        this.audit(actor, "alert_release", doc, releaseAt);
+        doc.claimedBy = null;
+        doc.claimedAt = null;
+        doc.version += 1;
+        const reclaimAt = handover + rng.between(2, 15) * 60_000;
+        if (reclaimAt < boundMs) this.claim(doc, operatorAt(reclaimAt), reclaimAt);
+        return;
+      }
+    }
+    const ignoreAt = claimedAt + rng.between(3, 20) * 60_000;
+    if (doc.severity !== "critical" && rng.chance(0.08) && ignoreAt < boundMs) {
+      this.ignore(doc, actor, ignoreAt, "现场确认为预期，转忽略");
+    }
+  }
+
+  private claim(doc: AlertDoc, actor: string, at: number): void {
+    doc.claimedBy = actor;
+    doc.claimedAt = new Date(at).toISOString();
+    doc.version += 1;
+    this.audit(actor, "alert_claim", doc, at);
+    this.stats.claimed += 1;
+    // Attended to: an armed escalation for it is cancelled, as `onAlertResolved` does live.
+    this.escalations.delete(doc.eventKey);
+  }
+
+  private ignore(doc: AlertDoc, actor: string, at: number, reason: string | null): void {
+    doc.ignoredBy = actor;
+    doc.ignoredAt = new Date(at).toISOString();
+    doc.ignoreReason = reason;
+    doc.version += 1;
+    this.audit(actor, "alert_ignore", doc, at, reason ? { reason } : undefined);
+    this.stats.ignored += 1;
+    this.escalations.delete(doc.eventKey);
+  }
+
+  private audit(
+    actor: string,
+    action: string,
+    doc: AlertDoc,
+    at: number,
+    detail?: Record<string, unknown>,
+  ): void {
+    this.audits.push({
+      ts: new Date(at),
+      actor,
+      action,
+      target: doc.eventKey,
+      outcome: "success",
+      ...(detail ? { detail } : {}),
+    });
   }
 
   /** What `NotifyService` would have delivered for this new occurrence. */
@@ -410,28 +501,162 @@ export class BackfillSink {
       // No endpoint configured means the live service sends nothing, so neither does history.
       if (!process.env[channel.urlEnv]) continue;
       if (isWithinSilence(new Date(onset), channel.silenceWindows, config.reportTimezone)) continue;
-      const rng = new Rng(seedOf(`send:${eventKey}:${channel.id}:${onset}`));
-      const latencyMs = Math.round(
-        channel.type === "email" ? rng.between(300, 1500) : rng.between(60, 400),
-      );
-      const ts = new Date(onset + latencyMs);
-      this.sends.push({
-        ts: ts.toISOString(),
-        expireAt: ts,
+      // The same occurrence re-sent within the channel's window is suppressed, as live.
+      const renotify = (channel.renotifySeconds ?? 0) * 1000;
+      const dedupKey = `${eventKey}::${channel.id}`;
+      const lastSent = this.lastSentAt.get(dedupKey);
+      if (renotify > 0 && lastSent !== undefined && onset - lastSent < renotify) continue;
+      // Digested severities wait for the channel's next flush (a critical never does).
+      if (
+        (channel.digestSeconds ?? 0) > 0 &&
+        alert.severity !== "critical" &&
+        (channel.digestSeverities ?? ["warning", "notice"]).includes(alert.severity)
+      ) {
+        this.bufferDigest(channel, deviceId, alert, onset);
+        continue;
+      }
+      const delivered = this.pushSend(channel, {
+        at: onset,
         eventKey,
-        channelId: channel.id,
-        channelType: channel.type,
         deviceId,
         alertId: alert.id,
         severity: alert.severity,
         title: alert.title,
-        status: "sent",
-        httpStatus: channel.type === "email" ? null : 200,
-        attempts: 1,
-        latencyMs,
-        error: null,
       });
-      this.stats.sends += 1;
+      if (delivered) this.lastSentAt.set(dedupKey, onset);
+      if (channel.escalation && alert.severity === "critical") {
+        this.escalations.set(eventKey, {
+          dueAt: onset + Math.max(1, channel.escalation.afterSeconds) * 1000,
+          channelId: channel.escalation.channelId,
+          deviceId,
+          alertId: alert.id,
+          severity: alert.severity,
+          title: alert.title,
+        });
+      }
+    }
+  }
+
+  /**
+   * One delivery as `NotifyService` would record it: timing by channel kind, and the occasional
+   * failure an endpoint answers — a group robot's rate limit, the ticket system's gateway timing
+   * out (retried up to `NOTIFY_MAX_ATTEMPTS`, usually getting through), the mail relay refusing a
+   * connection. Deterministic per send. Returns whether it was delivered.
+   */
+  private pushSend(
+    channel: NotifyConfig["channels"][number],
+    send: {
+      at: number;
+      eventKey: string;
+      deviceId: string;
+      alertId: string;
+      severity: string;
+      title: string;
+    },
+  ): boolean {
+    const rng = new Rng(seedOf(`send:${send.eventKey}:${channel.id}:${send.at}`));
+    const maxAttempts = Math.max(1, config.notifyMaxAttempts);
+    const email = channel.type === "email";
+    const robot = channel.type === "wecom" || channel.type === "dingtalk";
+    const once = (): number => Math.round(email ? rng.between(300, 1500) : rng.between(60, 400));
+    let attempts = 1;
+    let latencyMs = once();
+    let status: "sent" | "failed" = "sent";
+    let httpStatus: number | null = email ? null : 200;
+    let error: string | null = null;
+    const roll = rng.next();
+    if (robot && roll < 0.006) {
+      // The robot answers HTTP 200 but refuses: too many messages this minute. Not retried.
+      status = "failed";
+      error =
+        channel.type === "wecom"
+          ? "errcode 45009：api freq out of limit"
+          : "errcode 130101：send too fast, exceed 20 times per minute";
+    } else if (channel.type === "webhook" && roll < 0.05) {
+      // The receiving gateway times out: retried with a linear backoff, usually through.
+      attempts = rng.chance(0.75) ? 2 : maxAttempts;
+      const through = attempts < maxAttempts || rng.chance(0.4);
+      latencyMs = through ? once() : Math.round(rng.between(3000, config.notifyTimeoutMs));
+      if (!through) {
+        status = "failed";
+        httpStatus = rng.chance(0.5) ? 502 : 504;
+        error = `HTTP ${httpStatus}`;
+      }
+    } else if (email && roll < 0.01) {
+      status = "failed";
+      attempts = maxAttempts;
+      error = "connect ECONNREFUSED 10.20.0.25:1025";
+    }
+    // Backoff between attempts (200 ms × n) is part of when the record is written.
+    const backoff = ((attempts - 1) * attempts * 200) / 2;
+    const ts = new Date(send.at + backoff + latencyMs);
+    this.sends.push({
+      ts: ts.toISOString(),
+      expireAt: ts,
+      eventKey: send.eventKey,
+      channelId: channel.id,
+      channelType: channel.type,
+      deviceId: send.deviceId,
+      alertId: send.alertId,
+      severity: send.severity,
+      title: send.title,
+      status,
+      httpStatus,
+      attempts,
+      latencyMs,
+      error,
+    });
+    this.stats.sends += 1;
+    return status === "sent";
+  }
+
+  /** Hold a digested alert for its channel's next flush (`NotifyService.bufferForDigest`). */
+  private bufferDigest(
+    channel: NotifyConfig["channels"][number],
+    deviceId: string,
+    alert: DeviceAlert,
+    onset: number,
+  ): void {
+    const buffer = this.digests.get(channel.id) ?? { since: onset, items: [] };
+    buffer.items.push({ deviceId, title: alert.title, severity: alert.severity });
+    this.digests.set(channel.id, buffer);
+  }
+
+  /**
+   * Flush ripe digests and fire due escalations, at the simulated clock (`NotifyService` runs both
+   * on timers). An escalation is cancelled when its occurrence is claimed, ignored or cleared first.
+   */
+  tickNotify(now: number): void {
+    for (const [channelId, buffer] of this.digests) {
+      const channel = this.notify.config.channels.find((entry) => entry.id === channelId);
+      if (!channel || now - buffer.since < (channel.digestSeconds ?? 0) * 1000) continue;
+      this.digests.delete(channelId);
+      const devices = new Set(buffer.items.map((item) => item.deviceId));
+      const worst = buffer.items.some((item) => item.severity === "warning") ? "warning" : "notice";
+      this.pushSend(channel, {
+        at: now,
+        eventKey: `digest:${channelId}:${now}`,
+        deviceId: devices.size === 1 ? buffer.items[0]!.deviceId : "-",
+        alertId: "digest",
+        severity: worst,
+        title: `${buffer.items.length} 条消息汇总`,
+      });
+    }
+    for (const [eventKey, due] of this.escalations) {
+      if (now < due.dueAt) continue;
+      this.escalations.delete(eventKey);
+      const target = this.notify.config.channels.find(
+        (entry) => entry.id === due.channelId && entry.enabled,
+      );
+      if (!target || !process.env[target.urlEnv]) continue;
+      this.pushSend(target, {
+        at: due.dueAt,
+        eventKey,
+        deviceId: due.deviceId,
+        alertId: due.alertId,
+        severity: due.severity,
+        title: `【升级】${due.title}`,
+      });
     }
   }
 

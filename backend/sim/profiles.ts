@@ -53,7 +53,13 @@ export type EventKind =
   | "payloadOffset"
   | "payloadShift"
   | "tempLimitZone"
-  | "teleopSession";
+  | "teleopSession"
+  // Site- and vendor-dependent (see `siteEventRates`), not part of a category profile.
+  | "peopleNearby"
+  | "liftJam"
+  | "coldBattery"
+  | "vendorAlarm"
+  | "firmwareCode";
 
 export const PROFILES: Record<Category, Profile> = {
   巡检: {
@@ -176,7 +182,11 @@ export const vehicleQuirks = (
   };
 };
 
-/** The vehicle's own words for each code it reports (the codebook carries the platform's label). */
+/**
+ * The vehicle's own words for each code it reports (the codebook carries the platform's label). A
+ * code missing here is reported with an empty text, as some firmware does — the console then shows
+ * the dictionary's label alone.
+ */
 export const CODE_TEXT: Record<number, string> = {
   1101: "定位稳定，可接收任务",
   1102: "已完成重定位",
@@ -185,14 +195,19 @@ export const CODE_TEXT: Record<number, string> = {
   1502: "任务完成，待命中",
   1503: "到达人工交接位，等待确认",
   1601: "远程接管中，操作员在线",
+  1602: "Wi-Fi 信号弱，已切换 4G 备用链路",
   2101: "定位置信度偏低，已减速",
   2203: "前方临时限速区，已降速通行",
   2204: "轨迹跟踪偏差偏大",
   2302: "充电中电池温度偏高",
+  2303: "电芯温度 3 ℃，放电功率限制 60%",
   2401: "激光雷达窗口受污，请清洁",
   2601: "通信质量下降，遥测可能延迟",
+  2701: "人车混行区检测到人员，已减速鸣笛",
   2801: "牵引载荷偏心",
   2802: "载荷偏移超阈值，请检查货物与托盘",
+  // Not in any dictionary: what a trial firmware reports before the codebook catches up.
+  2805: "牵引销未完全落位，已降速",
   5101: "定位丢失，已停车等待重定位",
   5102: "路径规划超时，已停车",
   5203: "驱动器报错，已停车",
@@ -210,4 +225,186 @@ export const localHour = (ms: number): number => new Date(ms + 8 * 3_600_000).ge
 export const isNight = (ms: number): boolean => {
   const hour = localHour(ms);
   return hour < 7 || hour >= 22;
+};
+
+// ── Vendors ───────────────────────────────────────────────────────────────────
+
+/** A field of the vehicle protocol a vendor's firmware may simply not send. */
+export type OptionalField =
+  "omega" | "gear" | "speedLimit" | "fusionLoc" | "poseYaw" | "gpsHeading";
+
+/**
+ * What a vendor's firmware puts in its frames. A mixed fleet is mixed in this too: one chassis
+ * does not report angular velocity, a QR-guided carrier localises with its lidar only, a GNSS
+ * receiver with one antenna has no heading, older firmware passes the dispatcher's task on in
+ * part. The platform shows such a field as 缺失 — the demo makes sure it does somewhere.
+ */
+export interface VendorProfile {
+  /** Fields this firmware never sends. */
+  omits: readonly OptionalField[];
+  /**
+   * How much of the task it passes on: `full`; `untyped` (no task type); `brief` (id, destination
+   * and step name — no origin, step count or start time).
+   */
+  task: "full" | "untyped" | "brief";
+  /** Reports the step one past the total when a task completes (the platform clamps it). */
+  stepOverrun: boolean;
+  /** Also reports the vendor's own alarm list (`alarmList`), next to the report codes. */
+  alarms: boolean;
+}
+
+const FULL: VendorProfile = { omits: [], task: "full", stepOverrun: false, alarms: false };
+
+export const VENDORS: Record<string, VendorProfile> = {
+  优艾智合: FULL,
+  海康机器人: FULL,
+  // Single-antenna GNSS: a position, no heading.
+  亿嘉和: { ...FULL, omits: ["gpsHeading"] },
+  // The chassis controller does not pass angular velocity up.
+  快仓: { ...FULL, omits: ["omega"] },
+  // SEER controllers report their own alarm list besides the codes.
+  仙工智能: { ...FULL, alarms: true },
+  // Counts the completed step past the total at the end of a job.
+  斯坦德: { ...FULL, stepOverrun: true },
+  // QR-code guided with a lidar for the aisles: lidar pose only, no gear, task without a type.
+  极智嘉: { ...FULL, omits: ["fusionLoc", "gear"], task: "untyped" },
+  // Older firmware: no speed-limit block, poses as x/y without a heading, a brief task.
+  未来机器人: { ...FULL, omits: ["speedLimit", "poseYaw"], task: "brief" },
+};
+
+export const vendorProfile = (vendor: string | undefined): VendorProfile =>
+  (vendor && VENDORS[vendor]) || FULL;
+
+/**
+ * A vendor's own alarms (SEER-style `alarmList`): conditions its controller watches that have no
+ * platform report code, in its own severity words. Rates are per working hour of one vehicle.
+ */
+export const VENDOR_ALARMS: ReadonlyArray<{
+  code: number;
+  title: string;
+  detail: string;
+  level: "ERROR" | "WARN" | "INFO";
+  seconds: [number, number];
+  weight: number;
+}> = [
+  {
+    code: 54003,
+    title: "驱动器温度偏高",
+    detail: "左驱动器 68 ℃，已限制加速度",
+    level: "WARN",
+    seconds: [600, 2400],
+    weight: 5,
+  },
+  {
+    code: 52101,
+    title: "电池通讯中断",
+    detail: "BMS 心跳超时 3 s，电量读数暂不可信",
+    level: "ERROR",
+    seconds: [60, 300],
+    weight: 1,
+  },
+  {
+    // Held while the charge is under 12 % and the vehicle is not charging (weight 0: not drawn).
+    code: 52301,
+    title: "电量低",
+    detail: "电量低于 12%，请尽快安排回充",
+    level: "INFO",
+    seconds: [0, 0],
+    weight: 0,
+  },
+  {
+    // Raised with the battery protection stop (5301), never drawn on its own (weight 0).
+    code: 52203,
+    title: "电池欠压保护",
+    detail: "电芯最低电压 3.02 V，已切断驱动输出",
+    level: "ERROR",
+    seconds: [1200, 3600],
+    weight: 0,
+  },
+  {
+    code: 50601,
+    title: "地图版本与调度不一致",
+    detail: "车载地图 v12，调度下发 v13，等待同步",
+    level: "INFO",
+    seconds: [300, 900],
+    weight: 2,
+  },
+];
+
+// ── Vehicles with a story ───────────────────────────────────────────────────
+
+/**
+ * Individual vehicles that behave unlike their kind, each for a reason a site would recognise
+ * (the reason is in the vehicle's `notes` in vehicles.json, which the console shows).
+ */
+export interface Persona {
+  /** Registered but never switched on (a spare in storage): the simulator does not run it. */
+  dormant?: boolean;
+  /** The on-board computer's clock runs this far ahead of real time (ms). */
+  clockSkewMs?: number;
+  /** A 4G gateway that buffers on a weak link and flushes late: frames now and then out of order. */
+  lateFrames?: boolean;
+  /** Reports GPS even though the platform is told not to show it (`gpsEnabled: false`). */
+  gpsAntenna?: boolean;
+  /** Metres of positioning noise on that GPS (multipath under a roof). */
+  gpsNoise?: number;
+  /** No map localisation at all: drives on GPS, reports no ROS pose. */
+  poseless?: boolean;
+  /** A second scene this vehicle patrols on some nights. */
+  nightScene?: string;
+  /** Runs a trial firmware that reports codes the dictionary does not have yet. */
+  trialFirmware?: boolean;
+}
+
+export const PERSONAS: Record<string, Persona> = {
+  "agv-y09": { dormant: true },
+  "agv-p03": { clockSkewMs: 125_000 },
+  "agv-a08": { lateFrames: true },
+  "agv-c01": { gpsAntenna: true, gpsNoise: 3 },
+  "agv-s01": { poseless: true },
+  "agv-a06": { nightScene: "yard-north" },
+  "agv-y08": { trialFirmware: true },
+};
+
+/** Codes a trial firmware reports that no dictionary knows; 5299 comes without any text. */
+export const FIRMWARE_CODES: ReadonlyArray<{
+  slot: "warning" | "error";
+  code: number;
+  seconds: [number, number];
+}> = [
+  { slot: "warning", code: 2805, seconds: [60, 300] },
+  { slot: "error", code: 5299, seconds: [120, 600] },
+];
+
+/**
+ * Vehicles that report without being in vehicles.json: a vendor's test vehicle on site for a few
+ * afternoons a week. It reports what its debug build does — position, codes, its alarm list — and
+ * nothing about speed, battery, gear or task; it has no place on the site maps.
+ */
+export interface VisitorConfig {
+  deviceId: string;
+  sceneId: string;
+  vendor: string;
+  /** Local weekdays (0 = Sunday) and hours [from, to) it is switched on. */
+  days: readonly number[];
+  hours: [number, number];
+}
+
+export const VISITORS: readonly VisitorConfig[] = [
+  {
+    deviceId: "seer-test-07",
+    sceneId: "yard-north",
+    vendor: "仙工智能",
+    days: [2, 4],
+    hours: [14, 17.5],
+  },
+];
+
+/** Local weekday (0 = Sunday) of an instant, on the site's clock. */
+export const localWeekday = (ms: number): number => new Date(ms + 8 * 3_600_000).getUTCDay();
+
+/** Local hour with minutes as a fraction (14.5 = 14:30). */
+export const localHourFraction = (ms: number): number => {
+  const date = new Date(ms + 8 * 3_600_000);
+  return date.getUTCHours() + date.getUTCMinutes() / 60;
 };

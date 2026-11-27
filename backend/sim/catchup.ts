@@ -9,8 +9,9 @@
  * Frames go through a real `DashboardStore` on the simulated clock (see `sink.ts`), sharded over
  * a few child processes because the store is single-threaded: vehicles are independent, so each
  * shard runs its own store over its own vehicles. The parent then writes the checkpoint the live
- * publisher resumes from, the shift logins that go with the dispositions, and summarises the
- * new hours for the reports — so the backend starts on a complete, consistent history.
+ * publisher resumes from, the people's side of the audit trail (sign-ins, configuration and
+ * account changes — `people.ts`), and summarises the new hours for the reports — so the backend
+ * starts on a complete, consistent history.
  */
 import { spawn } from "node:child_process";
 import fs from "node:fs";
@@ -29,7 +30,8 @@ import {
   writeCheckpoint,
   type Fleet,
 } from "./fleet";
-import { operatorAt, BackfillSink, type SinkStats } from "./sink";
+import { BackfillSink, type SinkStats } from "./sink";
+import { writePeopleActivity } from "./people";
 import { step, type VehicleState } from "./vehicle";
 import { MongoClient } from "mongodb";
 
@@ -89,11 +91,13 @@ export const runShard = async (job: ShardJob): Promise<ShardResult> => {
       if (state.t !== t) continue;
       const site = sites.get(state.deviceId);
       if (!site) continue;
-      const { frame, status } = step(site, state);
+      const { frame, status, lateFrame } = step(site, state);
       if (status !== null) await store.applyStatus(state.deviceId, { online: status });
-      if (frame) {
+      // A stale frame a gateway flushed late follows this second's, as it would over MQTT.
+      for (const payload of lateFrame ? [frame, lateFrame] : [frame]) {
+        if (!payload) continue;
         await store.applyPayload(
-          { topic: `/fleet/${state.deviceId}/vehicle_info`, payload: frame },
+          { topic: `/fleet/${state.deviceId}/vehicle_info`, payload },
           "mqtt",
           { checkDeviceClock: true },
         );
@@ -101,6 +105,8 @@ export const runShard = async (job: ShardJob): Promise<ShardResult> => {
     }
     if (t >= nextSweep) {
       await store.evaluateOfflineDevices();
+      // Digest flushes and escalations run on timers in the live service; here, on the sweep.
+      sink.tickNotify(t);
       nextSweep += SWEEP_EVERY_MS;
     }
     if (Date.now() - lastLog > 30_000) {
@@ -146,34 +152,6 @@ const runShards = async (jobs: ShardJob[], workDir: string): Promise<ShardResult
         }),
     ),
   );
-};
-
-/** Shift logins over `[from, to)`: the operators whose claims/ignores the history carries. */
-const writeShiftLogins = async (from: number, to: number): Promise<number> => {
-  const entries: Record<string, unknown>[] = [];
-  const day = 24 * 3_600_000;
-  const firstDay = Math.floor((from + 8 * 3_600_000) / day) * day - 8 * 3_600_000;
-  for (let midnight = firstDay; midnight < to; midnight += day) {
-    for (const hour of [7.9, 19.9]) {
-      const offset = ((midnight / day) % 7) * 37_000;
-      const at = midnight + hour * 3_600_000 + offset;
-      if (at < from || at >= to) continue;
-      entries.push({
-        ts: new Date(at),
-        actor: operatorAt(at + 10 * 60_000),
-        action: "login",
-        outcome: "success",
-      });
-    }
-  }
-  if (!entries.length) return 0;
-  const client = await MongoClient.connect(config.mongoUri);
-  try {
-    await client.db(config.mongoDbName).collection("audit_log").insertMany(entries);
-  } finally {
-    await client.close();
-  }
-  return entries.length;
 };
 
 const waitForMongo = async (persistence: Persistence): Promise<void> => {
@@ -294,7 +272,7 @@ export const catchUp = async (options: {
       .map((site) => merged.get(site.deviceId))
       .filter((state): state is VehicleState => !!state);
     writeCheckpoint(options.stateDir, { version: 1, t: to, states });
-    logins += await writeShiftLogins(from, to);
+    logins += await writePeopleActivity(from, to);
     for (const { stats } of results) {
       for (const key of Object.keys(totals) as Array<keyof SinkStats>) totals[key] += stats[key];
     }
@@ -325,7 +303,7 @@ export const catchUp = async (options: {
   log(
     `wrote ${totals.frames} frames (${totals.skippedFrames} already stored), ${totals.closed} closed messages ` +
       `(${totals.claimed} claimed, ${totals.ignored} ignored), ${totals.handedOver} still active, ${totals.sends} notifications, ` +
-      `${logins} shift logins`,
+      `${logins} audit entries of people's activity`,
   );
   log(
     `summarised ${hours} hours for the reports; checkpoint ${checkpointPath(options.stateDir)}; ${Math.round((Date.now() - started) / 1000)} s`,
