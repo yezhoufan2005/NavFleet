@@ -21,6 +21,7 @@ import os from "node:os";
 import path from "node:path";
 import mqtt from "mqtt";
 import { loadFleet, newState, readCheckpoint, reconcileStates, writeCheckpoint } from "./fleet";
+import { writePeopleActivity } from "./people";
 import { INJECTION_KINDS, step, type Injection, type InjectionKind } from "./vehicle";
 
 /** Older backlog than this is stepped without publishing: the backend would not trust its stamps. */
@@ -183,6 +184,8 @@ export const runLive = async (options: {
 
   let timer: NodeJS.Timeout | null = null;
   let stopping = false;
+  let peopleWrittenTo = 0;
+  let peopleBusy = false;
   let published = 0;
   let lastLog = Date.now();
 
@@ -221,6 +224,17 @@ export const runLive = async (options: {
     writeCheckpoint(options.stateDir, { version: 1, t: cursor, states });
     // The container's health: live and publishing (the catch-up before it does not touch this).
     fs.writeFileSync(path.join(options.stateDir, "live.heartbeat"), String(cursor));
+    // The people keep signing in and working while the demo runs: their trail, up to the hour.
+    const hour = Math.floor(cursor / 3_600_000) * 3_600_000;
+    if (hour > peopleWrittenTo && !peopleBusy && process.env.MONGO_URI) {
+      peopleBusy = true;
+      peopleWrittenTo = hour;
+      void writePeopleActivity(options.stateDir, hour)
+        .catch((error: unknown) => log(`people activity not written: ${String(error)}`))
+        .finally(() => {
+          peopleBusy = false;
+        });
+    }
     if (Date.now() - lastLog > 300_000) {
       lastLog = Date.now();
       log(`${published} frames published; at ${new Date(cursor).toISOString()}`);

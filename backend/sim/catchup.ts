@@ -31,7 +31,7 @@ import {
   type Fleet,
 } from "./fleet";
 import { BackfillSink, type SinkStats } from "./sink";
-import { writePeopleActivity } from "./people";
+import { writePeopleActivity, writeStory } from "./people";
 import { step, type VehicleState } from "./vehicle";
 import { MongoClient } from "mongodb";
 
@@ -227,6 +227,12 @@ export const catchUp = async (options: {
       ),
     );
     from = windowStart;
+    // The story starts where this history does; its once-only events are placed from here.
+    writeStory(options.stateDir, {
+      anchor: windowStart,
+      span: Date.now() - windowStart,
+      writtenUntil: windowStart,
+    });
   } else {
     states = reconcileStates(fleet, checkpoint.states, checkpoint.t);
     from = checkpoint.t;
@@ -272,7 +278,7 @@ export const catchUp = async (options: {
       .map((site) => merged.get(site.deviceId))
       .filter((state): state is VehicleState => !!state);
     writeCheckpoint(options.stateDir, { version: 1, t: to, states });
-    logins += await writePeopleActivity(from, to);
+    logins += await writePeopleActivity(options.stateDir, to);
     for (const { stats } of results) {
       for (const key of Object.keys(totals) as Array<keyof SinkStats>) totals[key] += stats[key];
     }
