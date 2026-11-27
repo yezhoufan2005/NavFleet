@@ -57,7 +57,7 @@ test.describe("console devices", () => {
 
   test("opens on the map for a fleet a map can show", async ({ page }) => {
     // Three seeded vehicles, under the ten-unit threshold, so `auto` picks the map.
-    // (`config-runtime/vehicles.json` declares 23, which is not the runtime fleet — a
+    // (`config-runtime/vehicles.json` declares 32, which is not the runtime fleet — a
     // configured device that never reports never enters the snapshot.)
     expect(SEEDED_DEVICES).toHaveLength(3);
     await expect(page.locator(".map-surface")).toBeVisible();

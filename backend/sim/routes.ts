@@ -149,7 +149,41 @@ const DEMO_ROUTES: Record<string, Point[]> = {
     { x: 94.62, y: 83.17 },
     { x: 58.62, y: 83.17 },
   ],
+  // The same aisle as cloudpoint-demo (world -48…-12, -2…24), in the re-mapped grid's frame: that
+  // map is rotated 0.3 rad about its corner (-96.105, -93.16), so the loop is too.
+  "assembly-remap": [
+    { x: 72.9, y: 72.87 },
+    { x: 107.29, y: 62.24 },
+    { x: 114.97, y: 87.07 },
+    { x: 80.58, y: 97.71 },
+  ],
+  // The aisle round the freezer racks (scripts/demo-assets/cold-store-map.mjs lays them out).
+  "cold-store": [
+    { x: 5, y: 5 },
+    { x: 52, y: 5 },
+    { x: 52, y: 33 },
+    { x: 5, y: 33 },
+  ],
+  // The dock apron, in front of the doors.
+  "dock-2": [
+    { x: 15, y: 12 },
+    { x: 85, y: 12 },
+    { x: 85, y: 45 },
+    { x: 15, y: 45 },
+  ],
 };
+
+/**
+ * The loop for a vehicle with no scene — the perimeter patrol, which has no ROS map and drives on
+ * GPS alone: the campus fence, in metres east/north of `CAMPUS_ANCHOR`, round the 康城 road
+ * network, 北区装卸场 and the warehouses.
+ */
+const SCENELESS_ROUTE: Point[] = [
+  { x: -70, y: -140 },
+  { x: 520, y: -140 },
+  { x: 520, y: 200 },
+  { x: -70, y: 200 },
+];
 
 /** No stated bounds: the (possibly rotated) map rectangle, as the backend derives it. */
 const sceneBounds = (scene: SceneConfig | undefined): Bounds => {
@@ -287,12 +321,17 @@ export const buildRoutes = async (
   const lines = new Map<string, Point[][]>();
   for (const scene of scenes) lines.set(scene.sceneId, await sceneDrivingLines(configRoot, scene));
   return requests.map(({ sceneId, slot }) => {
+    if (!sceneId) return new Route(SCENELESS_ROUTE);
     const scene = scenes.find((item) => item.sceneId === sceneId);
-    const lanelet = laneletLoop(lines.get(sceneId) ?? [], slot * 7 + Math.floor(slot / 2));
-    if (lanelet.length >= 2) return new Route(lanelet);
+    // A hand-authored loop wins over the road network: 北区装卸场's lanes include dock spurs a
+    // stitched lanelet loop would wander into and back out of, while its loop is the one-way ring
+    // the tugs actually drive (the network's ring has the same centreline).
     const pose = toScenePose(scene?.origin);
     const demo = (DEMO_ROUTES[sceneId] ?? []).map((point) => mapToWorld(pose, point.x, point.y));
-    return new Route(demo.length >= 2 ? demo : boxRoute(sceneBounds(scene), slot));
+    if (demo.length >= 2) return new Route(demo);
+    const lanelet = laneletLoop(lines.get(sceneId) ?? [], slot * 7 + Math.floor(slot / 2));
+    if (lanelet.length >= 2) return new Route(lanelet);
+    return new Route(boxRoute(sceneBounds(scene), slot));
   });
 };
 
@@ -326,17 +365,60 @@ export const sceneSlots = (
 };
 
 /**
- * Where a scene sits on the globe: a point within 12 km of the base, from a hash of its id. It
- * used to be the scene's position in scenes.json, which the scene editor rewrites, so saving one
- * scene moved another's whole fleet kilometres across the map.
+ * Metres per degree of latitude on the local tangent plane the backend projects Lanelet2 maps with
+ * (`laneletOsm.ts`, WGS-84 equatorial radius): the same constant both ways, so a vehicle driving a
+ * lanelet reports the latitude/longitude the lanelet's own nodes carry.
  */
-export const sceneGpsOrigin = (sceneId: string): Point => {
-  const base = { lat: 31.2304, lng: 121.4737 };
+const METRES_PER_DEGREE = (Math.PI * 6378137) / 180;
+
+/** Latitude/longitude (`y`/`x`) `offset` metres east/north of `anchor`. */
+const offsetGps = (anchor: Point, offset: Point): Point => ({
+  y: anchor.y + offset.y / METRES_PER_DEGREE,
+  x: anchor.x + offset.x / (METRES_PER_DEGREE * Math.cos((anchor.y * Math.PI) / 180)),
+});
+
+/**
+ * The demo campus on the globe (WGS-84): the 康城 road network's projection origin
+ * (`scenes.json` › kangcheng-airy › osmProjectionOrigin). Scenes without a projection origin of
+ * their own are placed relative to it (`SITE_OFFSETS`), and so is the perimeter patrol.
+ */
+export const CAMPUS_ANCHOR: Point = { y: 31.0988, x: 121.3878 };
+
+/**
+ * Where each site's map origin stands on the campus, in metres east/north of `CAMPUS_ANCHOR` — the
+ * simulator's model of the site plan, so outdoor vehicles in neighbouring scenes appear side by
+ * side on the GPS map. 北区装卸场 and 康城 carry their own `osmProjectionOrigin` instead.
+ */
+const SITE_OFFSETS: Record<string, Point> = {
+  "dock-2": { x: 70, y: -120 },
+  "warehouse-a": { x: 230, y: -40 },
+  // The cold store's west wall (map x -10) stands against the warehouse's east wall.
+  "cold-store": { x: 360, y: -30 },
+  "assembly-line": { x: 230, y: 60 },
+  "cloudpoint-demo": { x: 470, y: 120 },
+  "assembly-remap": { x: 470, y: 120 },
+  "staging-depot": { x: -160, y: -60 },
+};
+
+/**
+ * Where a scene's map origin sits on the globe (latitude in `y`, longitude in `x`): its Lanelet2
+ * projection origin when it has one, else its place on the campus plan; a vehicle with no scene
+ * drives in campus metres. A scene the plan does not know (one added in the editor) gets a point
+ * within 12 km of the campus from a hash of its id — stable however the editor reorders the file.
+ */
+export const sceneGpsOrigin = (sceneId: string, scene?: SceneConfig): Point => {
+  const projection = scene?.osmProjectionOrigin;
+  if (projection && Number.isFinite(projection.lat) && Number.isFinite(projection.lng)) {
+    return { y: projection.lat, x: projection.lng };
+  }
+  if (!sceneId) return CAMPUS_ANCHOR;
+  const offset = SITE_OFFSETS[sceneId];
+  if (offset) return offsetGps(CAMPUS_ANCHOR, offset);
   const hash = seedOf(`gps:${sceneId}`);
-  const eastKm = ((hash & 0xffff) / 0xffff) * 12;
-  const northKm = ((hash >>> 16) / 0xffff) * 12;
-  const kmPerDegreeLng = 111.32 * Math.cos((base.lat * Math.PI) / 180);
-  return { y: base.lat + northKm / 110.574, x: base.lng + eastKm / kmPerDegreeLng };
+  return offsetGps(CAMPUS_ANCHOR, {
+    x: ((hash & 0xffff) / 0xffff) * 12_000,
+    y: ((hash >>> 16) / 0xffff) * 12_000,
+  });
 };
 
 /** Scene metres to latitude/longitude, and scene yaw (east, CCW) to a compass bearing. */
@@ -345,9 +427,10 @@ export const sceneToGps = (
   pose: Pose,
 ): { lat: number; lng: number; heading: number } => {
   const bearing = 90 - (pose.yaw * 180) / Math.PI;
+  const point = offsetGps(origin, pose);
   return {
-    lat: Number((origin.y + pose.y / 111320).toFixed(6)),
-    lng: Number((origin.x + pose.x / (111320 * Math.cos((origin.y * Math.PI) / 180))).toFixed(6)),
+    lat: Number(point.y.toFixed(7)),
+    lng: Number(point.x.toFixed(7)),
     heading: Number((((bearing % 360) + 360) % 360).toFixed(1)),
   };
 };

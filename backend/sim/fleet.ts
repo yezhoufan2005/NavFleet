@@ -90,7 +90,13 @@ export const loadFleet = async (configRoot: string): Promise<Fleet> => {
       charger: route.wrap(0.02 * L + slot * 2.5),
       zone: [route.wrap(0.45 * L), route.wrap(0.45 * L + Math.min(20, 0.08 * L))],
       baseLimit: BASE_LIMIT[category],
-      gps: vehicle.gpsEnabled === false ? null : sceneGpsOrigin(sceneId),
+      gps:
+        vehicle.gpsEnabled === false
+          ? null
+          : sceneGpsOrigin(
+              sceneId,
+              scenes.find((scene) => scene.sceneId === sceneId),
+            ),
       noiseSeed: seedOf(`noise:${vehicle.deviceId}`),
     };
   });

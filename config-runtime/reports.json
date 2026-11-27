@@ -17,7 +17,40 @@
       "weekday": 1,
       "smtpEnv": "REPORTS_SMTP_URL",
       "from": "navfleet@example.com",
-      "recipients": [{ "email": "manager@example.com" }]
+      "recipients": [
+        {
+          "email": "manager@example.com"
+        },
+        {
+          "user": "lifang"
+        }
+      ]
+    },
+    {
+      "id": "fleet-30d-review",
+      "enabled": true,
+      "range": "30d",
+      "time": "09:30",
+      "weekday": 5,
+      "smtpEnv": "REPORTS_SMTP_URL",
+      "from": "navfleet@example.com",
+      "groups": ["managers"]
+    },
+    {
+      "id": "night-handover",
+      "enabled": false,
+      "range": "24h",
+      "time": "07:30",
+      "smtpEnv": "REPORTS_SMTP_URL",
+      "from": "navfleet@example.com",
+      "recipients": [
+        {
+          "user": "qianwei"
+        },
+        {
+          "email": "nightshift@example.com"
+        }
+      ]
     }
   ]
 }

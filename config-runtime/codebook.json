@@ -7,5 +7,41 @@
     "description": "车辆进入本厂划定的限速区，按现场规程自动降速通过",
     "hint": "属正常降速；若在非限速区持续出现，核对速度区配置与标识",
     "impact": "watch"
+  },
+  {
+    "code": 1602,
+    "channel": "info",
+    "subsystem": "network",
+    "label": "已切换备用 4G 链路",
+    "description": "园区 Wi-Fi 信号弱，车载路由已自动切换到备用 4G 链路，遥测继续上报",
+    "hint": "无需处理；若某区域频繁切换，报网络组排查该区域的 AP 覆盖",
+    "impact": "none"
+  },
+  {
+    "code": 2303,
+    "channel": "warning",
+    "subsystem": "power",
+    "label": "低温环境电池限功率",
+    "description": "冷库内电芯温度低于 5 ℃，电池管理系统限制放电功率，车辆降速运行",
+    "hint": "让车辆出库回温或安排到常温区充电；持续出现时检查电池保温套是否破损",
+    "impact": "watch"
+  },
+  {
+    "code": 2701,
+    "channel": "warning",
+    "subsystem": "safety",
+    "label": "人车混行区有人靠近",
+    "description": "安全激光在人车混行区检测到人员进入减速区，车辆已降速并鸣笛提示",
+    "hint": "提醒现场人员走人行通道；同一位置反复出现时评估是否加装隔离护栏",
+    "impact": "watch"
+  },
+  {
+    "code": 5801,
+    "channel": "error",
+    "subsystem": "payload",
+    "label": "顶升机构卡滞",
+    "description": "顶升电机电流超限且行程未到位，货架无法顶起或放下，车辆停在原地",
+    "hint": "到场确认货架脚轮与地面无卡阻，人工复位顶升机构后再恢复任务",
+    "impact": "intervention"
   }
 ]

@@ -25,6 +25,10 @@ interface AllowedFailure {
  */
 const DEFAULT_ALLOWED_FAILURES: AllowedFailure[] = [
   { status: 401, url: /\/api\/auth\/(me|refresh)$/ },
+  // The demo config ships one scene whose floor plan is not uploaded yet (南区二号月台 — the 取不到
+  // resource the scene page and map exist to report), so any page that loads that scene 404s on it
+  // by design.
+  { status: 404, url: /\/scene-maps\/dock-2\/dock-2\.png$/ },
 ];
 
 export interface BrowserIssues {

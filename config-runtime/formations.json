@@ -43,7 +43,8 @@
       "agv-y05",
       "agv-y06",
       "agv-y07",
-      "agv-y08"
+      "agv-y08",
+      "agv-y09"
     ],
     "sceneId": "yard-north",
     "description": "北区装卸场室外牵引编队",
@@ -59,10 +60,10 @@
   },
   {
     "formationId": "cloudpoint-demo-team",
-    "formationName": "点云示例编队",
+    "formationName": "装配车间编队",
     "deviceIds": ["agv-r01", "agv-r02"],
     "sceneId": "cloudpoint-demo",
-    "description": "点云地图示例编队",
+    "description": "装配一车间室内搬运，点云地图",
     "color": "#7bd88f"
   },
   {
@@ -71,5 +72,18 @@
     "deviceIds": ["agv-a06", "agv-y05"],
     "description": "跨康城路网与北区装卸场的联动编队",
     "color": "#f58eb1"
+  },
+  {
+    "formationId": "cold-chain",
+    "formationName": "冷链转运编队",
+    "deviceIds": ["agv-w06", "agv-c01"],
+    "description": "一号仓储区与二号冷库之间的冷链货物转运",
+    "color": "#6fc3df"
+  },
+  {
+    "formationId": "night-patrol",
+    "formationName": "夜巡编队",
+    "deviceIds": ["agv-a03", "agv-a07"],
+    "color": "#c9a0ff"
   }
 ]
