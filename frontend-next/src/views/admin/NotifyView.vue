@@ -878,7 +878,7 @@ const formDirty = formSnapshot.dirty;
             :page="page"
             :page-count="pageCount"
             :page-size="pageSize"
-            :total="records.length"
+            :total="visibleRecords.length"
             @update:page="setPage"
             @update:page-size="setPageSize"
           />

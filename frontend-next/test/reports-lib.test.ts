@@ -102,8 +102,9 @@ describe("deviceAvailabilityRows", () => {
               bucketStart: iso(0),
               onlineSamples: 90,
               totalSamples: 100,
-              onlineSeconds: 90,
-              spanSeconds: 100,
+              // A vehicle reporting every 36 s: frames and seconds differ.
+              onlineSeconds: 3240,
+              spanSeconds: 3600,
               onlineRatio: 0.9,
               socMean: 80,
               socMin: 60,
