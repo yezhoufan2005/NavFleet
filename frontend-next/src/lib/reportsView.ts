@@ -265,6 +265,7 @@ export const deviceAvailabilityRows = (
   const rows = report.devices.map((device) => {
     let online = 0;
     let total = 0;
+    let samples = 0;
     let socWeighted = 0;
     let socWeight = 0;
     let socMin: number | null = null;
@@ -272,6 +273,7 @@ export const deviceAvailabilityRows = (
     for (const bucket of device.buckets) {
       online += bucket.onlineSeconds;
       total += bucket.spanSeconds;
+      samples += bucket.totalSamples;
       if (bucket.socMean !== null && bucket.totalSamples > 0) {
         socWeighted += bucket.socMean * bucket.totalSamples;
         socWeight += bucket.totalSamples;
@@ -292,7 +294,10 @@ export const deviceAvailabilityRows = (
       socMean: socWeight > 0 ? socWeighted / socWeight : null,
       socMin,
       socMax,
-      totalSamples: total,
+      // Frames received, as the column's help says — not the seconds the buckets span, which
+      // is what it used to show (a vehicle reporting once a second for a day read 86400 either
+      // way, so the two only came apart for a vehicle that reported less often).
+      totalSamples: samples,
     };
   });
   // 样本数降序。

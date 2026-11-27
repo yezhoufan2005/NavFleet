@@ -145,6 +145,9 @@ describe("NotifyView", () => {
     expect(
       (channel.props("options") as { value: string }[]).map((o) => o.value),
     ).toEqual(["mail", "ops-webhook"]);
+    // The pager counts the rows the filters leave, not the whole window.
+    const pager = wrapper.findComponent({ name: "UiListPagination" });
+    expect(pager.props("total")).toBe(2);
   });
 
   it("auto-refreshes when the tab regains focus (no manual 刷新)", async () => {
