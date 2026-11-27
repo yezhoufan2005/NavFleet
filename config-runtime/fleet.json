@@ -1,7 +1,6 @@
 {
-  "fleetName": "NavFleet",
+  "fleetName": "综合示范车队",
   "topicPattern": "/fleet/{deviceId}/vehicle_info",
-  "defaultSceneId": "kangcheng-airy",
   "defaultGpsEnabled": true,
   "defaultRosMapEnabled": true
 }

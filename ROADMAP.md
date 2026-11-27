@@ -14,7 +14,7 @@ REST/WebSocket → Vue 控制台。本文件回答两个问题：**现在是什�
 - **工程门禁**：lint `--max-warnings 0` + type-aware；shared / fleet-core / backend / console 各自 vitest
   覆盖率门槛（只升不降）；OpenAPI 覆盖全部已注册路由（测试扫路由源码）；
   E2E `retries: 0`；CI 跨 Node 22/24 跑后端+shared、两套前端、E2E 分片、部署接线与密钥扫描。
-- **演示数据**：29 台车 / 6 编队 / 6 场景（`config-runtime/`）。
+- **演示数据**：32 台车 / 8 编队 / 9 场景（`config-runtime/`）。
 
 ### 能力清单（按域）
 

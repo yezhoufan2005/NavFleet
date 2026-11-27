@@ -189,7 +189,7 @@
   },
   {
     "deviceId": "agv-w06",
-    "deviceName": "W06 搬运车",
+    "deviceName": "W06 搬运车 · 冷链转运专用（往返一号仓储区与二号冷库）",
     "defaultSceneId": "warehouse-a",
     "gpsEnabled": false,
     "rosMapEnabled": true,
@@ -303,7 +303,7 @@
   {
     "deviceId": "agv-y08",
     "deviceName": "Y08 牵引车",
-    "defaultSceneId": "yard-north",
+    "defaultSceneId": "dock-2",
     "gpsEnabled": true,
     "rosMapEnabled": true,
     "tags": ["装卸", "室外"],
@@ -312,7 +312,23 @@
     "category": "牵引",
     "maxLoadKg": 3000,
     "serialNumber": "NF-Y24-008",
-    "commissionedAt": "2024-09-12"
+    "commissionedAt": "2024-09-12",
+    "notes": "试运行：南区二号月台（月台底图待测绘上传）"
+  },
+  {
+    "deviceId": "agv-y09",
+    "deviceName": "Y09 备用牵引车",
+    "category": "牵引",
+    "vendor": "仙工智能",
+    "model": "牵引 T3000",
+    "serialNumber": "NF-Y24-009",
+    "commissionedAt": "2024-09-12",
+    "defaultSceneId": "yard-north",
+    "gpsEnabled": true,
+    "rosMapEnabled": true,
+    "tags": ["装卸", "室外", "备用"],
+    "maxLoadKg": 3000,
+    "notes": "备用车，封存在北区库房未通电，故障替换时启用"
   },
   {
     "deviceId": "agv-p01",
@@ -371,11 +387,11 @@
   },
   {
     "deviceId": "agv-r01",
-    "deviceName": "R01 点云示例车",
+    "deviceName": "R01 装配搬运车",
     "defaultSceneId": "cloudpoint-demo",
     "gpsEnabled": false,
     "rosMapEnabled": true,
-    "tags": ["点云示例", "室内"],
+    "tags": ["装配车间", "室内"],
     "vendor": "斯坦德",
     "model": "Oasis 600C",
     "category": "搬运",
@@ -385,15 +401,44 @@
   },
   {
     "deviceId": "agv-r02",
-    "deviceName": "R02 点云示例车",
-    "defaultSceneId": "cloudpoint-demo",
+    "deviceName": "R02 装配搬运车",
+    "defaultSceneId": "assembly-remap",
     "gpsEnabled": false,
     "rosMapEnabled": true,
-    "tags": ["点云示例", "室内"],
+    "tags": ["装配车间", "室内"],
     "vendor": "斯坦德",
     "model": "Oasis 600C",
     "category": "搬运",
     "maxLoadKg": 600,
-    "serialNumber": "NF-R24-002"
+    "serialNumber": "NF-R24-002",
+    "notes": "试用装配车间重新建图的点云地图（导出时未带元数据）"
+  },
+  {
+    "deviceId": "agv-c01",
+    "deviceName": "C01 冷库搬运车 · 低温型（-25 ℃）",
+    "category": "搬运",
+    "vendor": "海康机器人",
+    "model": "潜伏 Qi-100 低温版",
+    "serialNumber": "NF-C25-001",
+    "commissionedAt": "2025-06-16",
+    "defaultSceneId": "cold-store",
+    "gpsEnabled": false,
+    "rosMapEnabled": true,
+    "tags": ["冷库", "室内"],
+    "maxLoadKg": 800,
+    "notes": "库门处装有 GPS 天线，库内定位漂移，已在平台关闭 GPS 显示"
+  },
+  {
+    "deviceId": "agv-s01",
+    "deviceName": "S01 围界巡逻车",
+    "category": "巡检",
+    "vendor": "亿嘉和",
+    "model": "巡检 G200 长续航版",
+    "serialNumber": "NF-S25-001",
+    "commissionedAt": "2025-03-03",
+    "gpsEnabled": true,
+    "rosMapEnabled": false,
+    "tags": ["巡检", "室外", "围界"],
+    "notes": "沿园区围界巡逻，只用 GPS 定位，未接入场景地图"
   }
 ]

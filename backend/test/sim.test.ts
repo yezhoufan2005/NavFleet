@@ -3,7 +3,7 @@ import path from "node:path";
 import fs from "node:fs";
 import os from "node:os";
 import { loadFleet, newState, type Fleet } from "../sim/fleet";
-import { sceneGpsOrigin } from "../sim/routes";
+import { CAMPUS_ANCHOR, sceneGpsOrigin } from "../sim/routes";
 import { BackfillSink } from "../sim/sink";
 import { step, type VehicleState } from "../sim/vehicle";
 import { mqttTelemetrySchema } from "../src/validation";
@@ -182,10 +182,31 @@ describe("simulator layout", () => {
   });
 
   it("puts each scene at its own place on the globe", () => {
-    const ids = ["warehouse-a", "yard-north", "assembly-line", "kangcheng-airy"];
-    const origins = ids.map((id) => sceneGpsOrigin(id));
-    expect(sceneGpsOrigin("warehouse-a")).toEqual(origins[0]);
-    expect(new Set(origins.map((point) => `${point.x},${point.y}`)).size).toBe(ids.length);
+    const scenes = JSON.parse(
+      fs.readFileSync(path.join(CONFIG_ROOT, "scenes.json"), "utf8"),
+    ) as Array<{
+      sceneId: string;
+      osmProjectionOrigin?: { lat: number; lng: number };
+    }>;
+    const origins = scenes.map((scene) => sceneGpsOrigin(scene.sceneId, scene));
+    // Each site its own place, except the two maps of one building (装配一车间).
+    expect(new Set(origins.map((point) => `${point.x},${point.y}`)).size).toBe(scenes.length - 1);
+    // A road network's vehicles report the latitude/longitude its own nodes carry.
+    const kangcheng = scenes.find((scene) => scene.sceneId === "kangcheng-airy")!;
+    expect(sceneGpsOrigin("kangcheng-airy", kangcheng)).toEqual({
+      y: kangcheng.osmProjectionOrigin!.lat,
+      x: kangcheng.osmProjectionOrigin!.lng,
+    });
+    // The campus anchor the other sites hang off is that network's origin.
+    expect(CAMPUS_ANCHOR).toEqual(sceneGpsOrigin("kangcheng-airy", kangcheng));
+    // An unknown scene still gets a stable place of its own.
+    expect(sceneGpsOrigin("new-site")).toEqual(sceneGpsOrigin("new-site"));
+  });
+
+  it("drives a vehicle without a scene on GPS alone, along the campus fence", async () => {
+    const patrol = (await fleet()).sites.find((site) => !site.sceneId)!;
+    expect(patrol.gps).toEqual(CAMPUS_ANCHOR);
+    expect(patrol.route.length).toBeGreaterThan(1000);
   });
 
   it("reads a hand-authored loop in map metres whatever the scene's yaw", async () => {

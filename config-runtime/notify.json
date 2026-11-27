@@ -5,7 +5,30 @@
       "type": "wecom",
       "enabled": true,
       "urlEnv": "NOTIFY_WECOM_URL",
-      "severities": ["critical"]
+      "severities": ["critical"],
+      "scope": {
+        "formationIds": [
+          "warehouse-beta",
+          "cold-chain",
+          "assembly-delta",
+          "cloudpoint-demo-team"
+        ]
+      },
+      "escalation": {
+        "afterSeconds": 600,
+        "channelId": "yard-dingtalk"
+      }
+    },
+    {
+      "id": "yard-dingtalk",
+      "type": "dingtalk",
+      "enabled": true,
+      "urlEnv": "NOTIFY_DINGTALK_URL",
+      "severities": ["critical", "warning"],
+      "scope": {
+        "tags": ["室外"]
+      },
+      "renotifySeconds": 600
     },
     {
       "id": "ops-email",
@@ -14,19 +37,67 @@
       "urlEnv": "NOTIFY_SMTP_URL",
       "severities": ["critical", "warning"],
       "from": "navfleet@example.com",
-      "recipients": [{ "email": "ops@example.com" }],
+      "recipients": [
+        {
+          "email": "ops@example.com"
+        }
+      ],
       "groups": ["oncall"],
-      "silenceWindows": [{ "days": [0, 6], "from": "22:00", "to": "07:00" }]
+      "digestSeconds": 900,
+      "digestSeverities": ["warning"],
+      "silenceWindows": [
+        {
+          "days": [0, 6],
+          "from": "22:00",
+          "to": "07:00"
+        },
+        {
+          "from": "12:00",
+          "to": "13:30"
+        }
+      ]
+    },
+    {
+      "id": "ticket-webhook",
+      "type": "webhook",
+      "enabled": true,
+      "urlEnv": "NOTIFY_TICKET_WEBHOOK_URL",
+      "severities": ["critical", "warning"]
+    },
+    {
+      "id": "it-webhook",
+      "type": "webhook",
+      "enabled": true,
+      "urlEnv": "NOTIFY_IT_WEBHOOK_URL",
+      "severities": ["notice"]
     },
     {
       "id": "dev-webhook",
       "type": "webhook",
       "enabled": false,
       "urlEnv": "NOTIFY_DEV_WEBHOOK_URL",
-      "severities": ["critical", "warning", "notice"]
+      "severities": []
     }
   ],
   "groups": {
-    "oncall": [{ "user": "zhaoyun" }, { "email": "oncall@example.com" }]
+    "oncall": [
+      {
+        "user": "zhaoyun"
+      },
+      {
+        "user": "qianwei"
+      },
+      {
+        "email": "oncall@example.com"
+      }
+    ],
+    "managers": [
+      {
+        "user": "lifang"
+      },
+      {
+        "email": "manager@example.com"
+      }
+    ]
   }
 }

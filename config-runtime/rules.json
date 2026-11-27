@@ -4,7 +4,9 @@
     "thresholdPct": 20,
     "debounceSeconds": 30,
     "scope": {
-      "tags": ["仓储", "装卸", "产线"]
+      "tags": ["仓储", "装卸", "产线"],
+      "formationIds": ["cold-chain"],
+      "deviceIds": ["agv-s01"]
     }
   },
   "offline": {

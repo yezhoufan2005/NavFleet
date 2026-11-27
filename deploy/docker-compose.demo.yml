@@ -7,12 +7,13 @@
 # MQTT path, one frame per vehicle per second, from a deterministic simulation (backend/sim). Its
 # state lives in the `sim-state` volume next to `mongo-data`, so the demo behaves like a fleet
 # that has existed all along: the first start generates the retention window of history (about
-# an hour for 29 vehicles × 30 days at the 2-CPU limit below), every later start only catches up the time the stack
+# an hour for 32 vehicles × 30 days at the 2-CPU limit below), every later start only catches up the time the stack
 # was down, then goes live. Delete both volumes together to start over (verify-stack --purge).
 #
 # `mailpit` receives the outbound email (alerts, scheduled reports) and `sim` answers the
-# 企业微信 webhook, so the notification history records real deliveries. Mailpit's inbox is on
-# http://127.0.0.1:${MAILPIT_HOST_PORT:-8025}. Nothing here reaches outside the host.
+# 企业微信 / 钉钉 robots and the ticket-system webhook, so the notification history records real
+# deliveries. Mailpit's inbox is on http://127.0.0.1:${MAILPIT_HOST_PORT:-8025}. Nothing here
+# reaches outside the host.
 services:
   sim:
     build:
@@ -42,7 +43,10 @@ services:
       REPORT_TIMEZONE: ${REPORT_TIMEZONE:-Asia/Shanghai}
       LOG_LEVEL: warn
       # The same endpoints the backend sends to, so the history's send records match them.
+      # NOTIFY_IT_WEBHOOK_URL stays unset on purpose: that channel shows as 未配 env.
       NOTIFY_WECOM_URL: http://sim:18099/wecom
+      NOTIFY_DINGTALK_URL: http://sim:18099/dingtalk
+      NOTIFY_TICKET_WEBHOOK_URL: http://sim:18099/ticket
       NOTIFY_SMTP_URL: smtp://mailpit:1025
       SIM_HOOK_PORT: "18099"
       # Reachable from the backend over `bus`; no host port.
@@ -93,6 +97,8 @@ services:
         condition: service_healthy
     environment:
       NOTIFY_WECOM_URL: http://sim:18099/wecom
+      NOTIFY_DINGTALK_URL: http://sim:18099/dingtalk
+      NOTIFY_TICKET_WEBHOOK_URL: http://sim:18099/ticket
       NOTIFY_SMTP_URL: smtp://mailpit:1025
       REPORTS_SMTP_URL: smtp://mailpit:1025
 

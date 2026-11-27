@@ -1,33 +1,5 @@
 [
   {
-    "sceneId": "cloudpoint-demo",
-    "sceneName": "CloudPoint 点云地图示例",
-    "mapFrame": "map",
-    "resolution": 0.2,
-    "origin": {
-      "x": -106.62022399902344,
-      "y": -59.168453216552734,
-      "yaw": 0
-    },
-    "width": 602,
-    "height": 654,
-    "pointCloudUrl": "/scene-maps/cloudpoint-demo/zhuangyi.pcd",
-    "pointCloudMetaUrl": "/scene-maps/cloudpoint-demo/zhuangyi_indoor_map.json",
-    "bounds": {
-      "minX": -106.62022399902344,
-      "maxX": 13.779776000976563,
-      "minY": -59.168453216552734,
-      "maxY": 71.63154678344728
-    },
-    "defaultView": {
-      "zoom": 1,
-      "centerX": -46.42022399902344,
-      "centerY": 6.231546783447275
-    },
-    "minZoom": 0.8,
-    "maxZoom": 10
-  },
-  {
     "sceneId": "kangcheng-airy",
     "sceneName": "康城 Airy 路网",
     "mapFrame": "map",
@@ -52,61 +24,12 @@
       "centerY": 0
     },
     "minZoom": 0.7,
-    "maxZoom": 8
-  },
-  {
-    "sceneId": "staging-depot",
-    "sceneName": "预备调度区",
-    "mapFrame": "map",
-    "resolution": 0.1,
-    "origin": {
-      "x": 0,
-      "y": 0,
-      "yaw": 0
+    "maxZoom": 8,
+    "osmProjectionOrigin": {
+      "lat": 31.0988,
+      "lng": 121.3878
     },
-    "width": 800,
-    "height": 500,
-    "bounds": {
-      "minX": 0,
-      "maxX": 80,
-      "minY": 0,
-      "maxY": 50
-    },
-    "defaultView": {
-      "zoom": 1,
-      "centerX": 40,
-      "centerY": 25
-    },
-    "minZoom": 0.75,
-    "maxZoom": 6,
-    "description": "新接入车辆的预备调度区，暂未部署车辆与底图（演示：有场景但无设备、无地图资源）"
-  },
-  {
-    "sceneId": "warehouse-a",
-    "sceneName": "一号仓储区",
-    "mapFrame": "map",
-    "resolution": 0.12,
-    "origin": {
-      "x": 0,
-      "y": 0,
-      "yaw": 0
-    },
-    "width": 1000,
-    "height": 620,
-    "imageUrl": "/scene-maps/warehouse-a.svg",
-    "bounds": {
-      "minX": 0,
-      "maxX": 120,
-      "minY": 0,
-      "maxY": 74.4
-    },
-    "defaultView": {
-      "zoom": 1,
-      "centerX": 60,
-      "centerY": 37.2
-    },
-    "minZoom": 0.75,
-    "maxZoom": 6
+    "description": "康城园区室外道路：Lanelet2 路网，路网局部坐标以投影原点为零点，车辆 GPS 与路网经纬度一致"
   },
   {
     "sceneId": "yard-north",
@@ -133,7 +56,92 @@
       "centerY": 44.64
     },
     "minZoom": 0.75,
+    "maxZoom": 6,
+    "osmUrl": "/scene-maps/yard-north-lanes.osm",
+    "osmProjectionOrigin": {
+      "lat": 31.0984407,
+      "lng": 121.3884294
+    },
+    "description": "栅格底图上叠加场内路网：调度作业区环路单向通行，泊位支路与南门进场道路双向"
+  },
+  {
+    "sceneId": "dock-2",
+    "sceneName": "南区二号月台",
+    "description": "11 月新投用的月台，测绘底图尚未上传",
+    "mapFrame": "map",
+    "resolution": 0.1,
+    "origin": {
+      "x": 0,
+      "y": 0,
+      "yaw": 0
+    },
+    "width": 1000,
+    "height": 600,
+    "imageUrl": "/scene-maps/dock-2/dock-2.png",
+    "bounds": {
+      "minX": 0,
+      "maxX": 100,
+      "minY": 0,
+      "maxY": 60
+    },
+    "defaultView": {
+      "zoom": 1,
+      "centerX": 50,
+      "centerY": 30
+    },
+    "minZoom": 0.75,
     "maxZoom": 6
+  },
+  {
+    "sceneId": "warehouse-a",
+    "sceneName": "一号仓储区",
+    "mapFrame": "map",
+    "resolution": 0.12,
+    "origin": {
+      "x": 0,
+      "y": 0,
+      "yaw": 0
+    },
+    "width": 1000,
+    "height": 620,
+    "imageUrl": "/scene-maps/warehouse-a.svg",
+    "bounds": {
+      "minX": 0,
+      "maxX": 120,
+      "minY": 0,
+      "maxY": 74.4
+    },
+    "defaultView": {
+      "zoom": 1,
+      "centerX": 60,
+      "centerY": 37.2
+    },
+    "minZoom": 0.75,
+    "maxZoom": 6,
+    "description": "潜伏式搬运车在货架区之间搬运货架"
+  },
+  {
+    "sceneId": "cold-store",
+    "sceneName": "二号冷库",
+    "description": "SLAM 导出的占用栅格（PNG，0.05 m/px），建图原点在冷库西南角内侧；地图元数据随底图一起导出",
+    "mapFrame": "map",
+    "resolution": 0.05,
+    "origin": {
+      "x": -10,
+      "y": -6,
+      "yaw": 0
+    },
+    "width": 1200,
+    "height": 800,
+    "imageUrl": "/scene-maps/cold-store/cold-store.png",
+    "metadataUrl": "/scene-maps/cold-store/cold-store.map.json",
+    "defaultView": {
+      "zoom": 1,
+      "centerX": 20,
+      "centerY": 14
+    },
+    "minZoom": 0.75,
+    "maxZoom": 8
   },
   {
     "sceneId": "assembly-line",
@@ -156,5 +164,83 @@
     "minZoom": 0.75,
     "maxZoom": 6,
     "description": "产线底图按 ROS 约定绕左下角旋转 0.35 rad（约 20°）摆放，演示带 origin.yaw 的地图；边界由旋转后的外接框派生"
+  },
+  {
+    "sceneId": "cloudpoint-demo",
+    "sceneName": "装配一车间（点云）",
+    "mapFrame": "map",
+    "resolution": 0.2,
+    "origin": {
+      "x": -106.62022399902344,
+      "y": -59.168453216552734,
+      "yaw": 0
+    },
+    "width": 602,
+    "height": 654,
+    "pointCloudUrl": "/scene-maps/cloudpoint-demo/zhuangyi.pcd",
+    "pointCloudMetaUrl": "/scene-maps/cloudpoint-demo/zhuangyi_indoor_map.json",
+    "bounds": {
+      "minX": -106.62022399902344,
+      "maxX": 13.779776000976563,
+      "minY": -59.168453216552734,
+      "maxY": 71.63154678344728
+    },
+    "defaultView": {
+      "zoom": 1,
+      "centerX": -46.42022399902344,
+      "centerY": 6.231546783447275
+    },
+    "minZoom": 0.8,
+    "maxZoom": 10,
+    "description": "激光建图导出的点云，按元数据里的地面与障碍物高度带渲染"
+  },
+  {
+    "sceneId": "assembly-remap",
+    "sceneName": "装配一车间（重新建图）",
+    "description": "同一车间重新建图的点云，导出时未带元数据：网格尺寸、原点与朝向取自场景配置，栅格沿车间主轴旋转 0.3 rad 存放",
+    "mapFrame": "map",
+    "resolution": 0.2,
+    "origin": {
+      "x": -96.105,
+      "y": -93.16,
+      "yaw": 0.3
+    },
+    "width": 769,
+    "height": 803,
+    "pointCloudUrl": "/scene-maps/cloudpoint-demo/zhuangyi.pcd",
+    "defaultView": {
+      "zoom": 1,
+      "centerX": -46.42,
+      "centerY": 6.23
+    },
+    "minZoom": 0.8,
+    "maxZoom": 10
+  },
+  {
+    "sceneId": "staging-depot",
+    "sceneName": "预备调度区",
+    "mapFrame": "map",
+    "resolution": 0.1,
+    "origin": {
+      "x": 0,
+      "y": 0,
+      "yaw": 0
+    },
+    "width": 800,
+    "height": 500,
+    "bounds": {
+      "minX": 0,
+      "maxX": 80,
+      "minY": 0,
+      "maxY": 50
+    },
+    "defaultView": {
+      "zoom": 1,
+      "centerX": 40,
+      "centerY": 25
+    },
+    "minZoom": 0.75,
+    "maxZoom": 6,
+    "description": "三期扩建预留区，车辆与底图尚未部署"
   }
 ]

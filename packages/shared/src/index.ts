@@ -154,11 +154,9 @@ export interface SceneMapDefinition {
   description?: string;
   imageUrl?: string;
   /**
-   * External scene-metadata document to merge over the inline definition. No shipped
-   * scene sets it, and the deployed v3 console does not read it — it is retained only
-   * because the frozen v1.0.0 frontend still consumes it (`frontend/`'s scene overlay),
-   * and the freeze forbids editing that code. Clear it when the frozen frontend is
-   * finally removed. (This one field was kept for that reason.)
+   * External scene-metadata document (a map_server-style JSON exported with the map: resolution,
+   * origin) that both consoles fetch and merge over the inline definition; when it cannot be
+   * fetched the inline values stand. The demo's 二号冷库 ships one next to its PNG.
    */
   metadataUrl?: string;
   osmUrl?: string;
