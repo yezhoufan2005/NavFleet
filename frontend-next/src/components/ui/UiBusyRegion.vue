@@ -2,14 +2,13 @@
 /**
  * A region that already shows data and is re-querying it — a filter change, a refresh, a page
  * turn. The content stays put (blanking it to a skeleton on every keystroke would make the table
- * flicker away); the region says it is working, after `LOADING_DELAY_MS`, in the style chosen in
- * `useRefetchStyle`: a progress line on its top edge, or the content faded.
+ * flicker away); while `busy`, the region is marked `aria-busy` and holds the page progress line
+ * at the top of the viewport (`usePageProgress`). Nothing is drawn inside the region, so nothing
+ * in it moves.
  *
  * First loads are not this component's job — those render `UiLoading` in the content's place.
  */
-import { useDelayedFlag } from "@/composables/useDelayedFlag";
-import { useRefetchStyle } from "@/composables/useRefetchStyle";
-import UiProgressLine from "@/components/ui/UiProgressLine.vue";
+import { usePageProgress } from "@/composables/usePageProgress";
 
 const { busy = false, contentClass = "" } = defineProps<{
   busy?: boolean;
@@ -17,24 +16,11 @@ const { busy = false, contentClass = "" } = defineProps<{
   contentClass?: string;
 }>();
 
-const shown = useDelayedFlag(() => busy);
-const { style } = useRefetchStyle();
+usePageProgress(() => busy);
 </script>
 
 <template>
-  <div class="relative" :aria-busy="busy || undefined">
-    <UiProgressLine
-      v-if="shown && style === 'bar'"
-      inset
-      class="absolute inset-x-0 top-0 z-10"
-      data-testid="busy-line"
-    />
-    <div
-      class="transition-opacity duration-150 ease-standard"
-      :class="[contentClass, shown && style === 'dim' ? 'opacity-60' : '']"
-      :data-dimmed="shown && style === 'dim' ? '' : undefined"
-    >
-      <slot />
-    </div>
+  <div :class="contentClass" :aria-busy="busy || undefined">
+    <slot />
   </div>
 </template>

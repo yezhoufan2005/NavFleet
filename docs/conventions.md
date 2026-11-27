@@ -47,9 +47,11 @@
      带按钮的行用 `action`）、`fields`、`cards`、`block`（图表 / 地图，调用处给高度）、`lines`。`label` 写
      「正在加载{对象}」，读屏播报；复合骨架只在第一块写 `label`。
   2. **重新加载**（已有数据：筛选、刷新、翻页）：不清空、不换骨架，用 `UiBusyRegion` 包住内容并传
-     `busy`。页面的取数函数区分 `status`（首次）与 `refreshing`（再次）。
+     `busy`，它标 `aria-busy` 并点亮顶栏下沿的页面进度条（`usePageProgress`）；区域里不画任何东西，内容不位移。
+     页面的取数函数区分 `status`（首次）与 `refreshing`（再次）。
   3. **操作中**（保存、删除、导入）：按钮禁用，文案改「保存中…」。
-  - 路由切换与首屏用同一条 `UiProgressLine`（`AppRouteProgress` / `App.vue` 启动屏）。
+  - 页面进度条 `AppPageProgress` 贴着顶栏下沿、绝对定位不占位，路由切换与重新加载共用这一条；首屏启动屏用同一个
+    `UiProgressLine`。`UiProgressLine` 自身不设 `position`，由调用处定位。
 - **周期性"现在"时钟**用 `useNowTicker`，不要各页自起 `setInterval`。
 - **图表**：option 由纯 builder 生成（可无画布测试）；ECharts 在 `setOption` 时拷贝颜色，主题切换要重建
   option（`useChartTheme` 监听）；每张图配数据表视图（颜色不是唯一通道）。

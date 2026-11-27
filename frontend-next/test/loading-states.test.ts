@@ -3,7 +3,10 @@ import { mount } from "@vue/test-utils";
 import { nextTick } from "vue";
 import UiLoading from "@/components/ui/UiLoading.vue";
 import UiBusyRegion from "@/components/ui/UiBusyRegion.vue";
-import { useRefetchStyle } from "@/composables/useRefetchStyle";
+import {
+  __resetPageProgress,
+  pageProgressActive,
+} from "@/composables/usePageProgress";
 
 /**
  * The loading standard: a first load shows a skeleton in the content's shape, a re-query keeps
@@ -12,7 +15,7 @@ import { useRefetchStyle } from "@/composables/useRefetchStyle";
  */
 beforeEach(() => {
   vi.useFakeTimers();
-  useRefetchStyle().setStyle("bar");
+  __resetPageProgress();
 });
 afterEach(() => {
   vi.useRealTimers();
@@ -43,45 +46,35 @@ describe("UiLoading", () => {
 });
 
 describe("UiBusyRegion", () => {
-  it("keeps its content and adds the progress line after 200ms of busy", async () => {
+  it("keeps its content, marks itself busy and holds the page progress line", async () => {
     const wrapper = mount(UiBusyRegion, {
       props: { busy: true },
       slots: { default: "<p>旧数据</p>" },
     });
     expect(wrapper.text()).toContain("旧数据");
     expect(wrapper.attributes("aria-busy")).toBe("true");
-    expect(wrapper.find('[data-testid="busy-line"]').exists()).toBe(false);
-
-    vi.advanceTimersByTime(200);
-    await nextTick();
-    expect(wrapper.find('[data-testid="busy-line"]').exists()).toBe(true);
+    expect(pageProgressActive.value).toBe(true);
+    // Nothing is drawn inside the region, so its content never moves.
+    expect(wrapper.element.children).toHaveLength(1);
 
     await wrapper.setProps({ busy: false });
-    expect(wrapper.find('[data-testid="busy-line"]').exists()).toBe(false);
     expect(wrapper.attributes("aria-busy")).toBeUndefined();
+    expect(pageProgressActive.value).toBe(false);
   });
 
-  it("shows nothing for a re-query that answers within 200ms", async () => {
-    const wrapper = mount(UiBusyRegion, {
-      props: { busy: true },
-      slots: { default: "<p>旧数据</p>" },
-    });
-    vi.advanceTimersByTime(150);
-    await wrapper.setProps({ busy: false });
-    vi.advanceTimersByTime(200);
-    await nextTick();
-    expect(wrapper.find('[data-testid="busy-line"]').exists()).toBe(false);
+  it("releases its hold when it unmounts mid-query", () => {
+    const wrapper = mount(UiBusyRegion, { props: { busy: true } });
+    expect(pageProgressActive.value).toBe(true);
+    wrapper.unmount();
+    expect(pageProgressActive.value).toBe(false);
   });
 
-  it("fades the content instead when the dim style is chosen", async () => {
-    useRefetchStyle().setStyle("dim");
-    const wrapper = mount(UiBusyRegion, {
-      props: { busy: true },
-      slots: { default: "<p>旧数据</p>" },
-    });
-    vi.advanceTimersByTime(200);
-    await nextTick();
-    expect(wrapper.find("[data-dimmed]").exists()).toBe(true);
-    expect(wrapper.find('[data-testid="busy-line"]').exists()).toBe(false);
+  it("shows one line while two regions re-query at once", async () => {
+    const a = mount(UiBusyRegion, { props: { busy: true } });
+    const b = mount(UiBusyRegion, { props: { busy: true } });
+    await a.setProps({ busy: false });
+    expect(pageProgressActive.value).toBe(true);
+    await b.setProps({ busy: false });
+    expect(pageProgressActive.value).toBe(false);
   });
 });

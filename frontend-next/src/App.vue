@@ -27,7 +27,6 @@ import { RouterView, useRoute, useRouter } from "vue-router";
 import AppShell from "@/components/shell/AppShell.vue";
 import LoginForm from "@/components/LoginForm.vue";
 import NotificationHost from "@/components/NotificationHost.vue";
-import AppRouteProgress from "@/components/shell/AppRouteProgress.vue";
 import UiProgressLine from "@/components/ui/UiProgressLine.vue";
 import { useAuth } from "@/composables/useAuth";
 import { useFleetStore } from "@/stores/fleet";
@@ -176,6 +175,5 @@ watchEffect(() => {
 
   <AppShell v-else :user="authState.user" @logout="auth.logout" />
 
-  <AppRouteProgress />
   <NotificationHost />
 </template>
