@@ -10,6 +10,8 @@ import { computed, onBeforeUnmount, onMounted, ref, watch } from "vue";
 import { useRoute, useRouter } from "vue-router";
 import { fleetApi, type AuditRecord } from "@navfleet/fleet-core";
 import PageHeader from "@/components/PageHeader.vue";
+import UiLoading from "@/components/ui/UiLoading.vue";
+import UiBusyRegion from "@/components/ui/UiBusyRegion.vue";
 import AppSectionTabs from "@/components/shell/AppSectionTabs.vue";
 import UiInput from "@/components/ui/UiInput.vue";
 import UiSearchInput from "@/components/ui/UiSearchInput.vue";
@@ -63,6 +65,8 @@ const entries = ref<AuditRecord[]>([]);
 /** The server's row cap when it cut the list (older matches exist), else null. */
 const cappedAt = ref<number | null>(null);
 const status = ref<"loading" | "ready" | "error">("loading");
+/** A re-query of data already on screen (see `UiBusyRegion`); the first load is `status`. */
+const refreshing = ref(false);
 
 // URL-synced pagination over the returned page, shared with 设备 / 消息 / 外发 (see useListPagination).
 const { page, pageSize, pageCount, pageItems, setPage, setPageSize } =
@@ -79,7 +83,8 @@ const latestRequest = useLatestRequest();
 const load = async (): Promise<void> => {
   // Only flash the skeleton before the first successful load; filter changes and the focus
   // refresh re-query live, so blanking the table to 加载中… on every keystroke would be noise.
-  if (status.value !== "ready") status.value = "loading";
+  if (status.value === "ready") refreshing.value = true;
+  else status.value = "loading";
   const isCurrent = latestRequest.begin();
   try {
     const result = await fleetApi.getAuditLog({
@@ -99,9 +104,11 @@ const load = async (): Promise<void> => {
     cappedAt.value = result.truncated
       ? (result.limit ?? result.entries.length)
       : null;
+    refreshing.value = false;
     status.value = "ready";
   } catch {
     if (!isCurrent()) return;
+    refreshing.value = false;
     status.value = "error";
   }
 };
@@ -174,7 +181,11 @@ const formatTime = (iso: string): string =>
       </UiFilterField>
     </UiFilterBar>
 
-    <p v-if="status === 'loading'" class="text-sm text-ink-muted">加载中…</p>
+    <UiLoading
+      v-if="status === 'loading'"
+      label="正在加载审计日志"
+      :columns="5"
+    />
     <p
       v-else-if="status === 'error'"
       class="text-sm text-critical-ink"
@@ -182,97 +193,101 @@ const formatTime = (iso: string): string =>
     >
       无法加载审计日志
     </p>
-    <UiEmptyState v-else-if="entries.length === 0">
-      没有符合当前筛选条件的审计记录
-    </UiEmptyState>
-    <template v-else>
-      <p v-if="cappedAt !== null" class="m-0 text-2xs text-ink-subtle">
-        仅显示最近
-        {{ cappedAt }} 条（后端单次查询上限），缩小时间范围可查看更早的记录
-      </p>
-      <div class="flex flex-col gap-2">
-        <!-- Column widths follow the shared standard (`tableClasses`): every column sized by its
+    <UiBusyRegion v-else :busy="refreshing" content-class="flex flex-col gap-4">
+      <UiEmptyState v-if="entries.length === 0">
+        没有符合当前筛选条件的审计记录
+      </UiEmptyState>
+      <template v-else>
+        <p v-if="cappedAt !== null" class="m-0 text-2xs text-ink-subtle">
+          仅显示最近
+          {{ cappedAt }} 条（后端单次查询上限），缩小时间范围可查看更早的记录
+        </p>
+        <div class="flex flex-col gap-2">
+          <!-- Column widths follow the shared standard (`tableClasses`): every column sized by its
            field so leftover space spreads proportionally; below `min-w` the table scrolls sideways.
            No buttons inside, so the region itself takes focus for keyboard scrolling. -->
-        <div
-          :class="tableClasses.wrapper"
-          tabindex="0"
-          role="region"
-          aria-label="审计记录"
-        >
-          <table :class="[tableClasses.table, 'table-fixed', 'min-w-[36rem]']">
-            <colgroup>
-              <col class="w-40" />
-              <col class="w-24" />
-              <col class="w-24" />
-              <col class="w-40" />
-              <col class="w-16" />
-            </colgroup>
-            <caption class="sr-only">
-              鉴权与用户管理事件，最新在前
-            </caption>
-            <thead :class="tableClasses.thead">
-              <tr>
-                <th scope="col" class="px-3 py-2">时间</th>
-                <th scope="col" class="px-3 py-2">操作者</th>
-                <th scope="col" class="px-3 py-2">动作</th>
-                <th scope="col" class="px-3 py-2">对象</th>
-                <th scope="col" class="px-3 py-2">结果</th>
-              </tr>
-            </thead>
-            <tbody>
-              <tr
-                v-for="(entry, index) in pageRows"
-                :key="`${entry.ts}-${index}`"
-                :class="tableClasses.row"
-              >
-                <td class="px-3 py-2 whitespace-nowrap text-ink-muted">
-                  {{ formatTime(entry.ts) }}
-                </td>
-                <td
-                  v-overflow-title
-                  class="px-3 py-2 text-ink"
-                  :class="textClasses.cell"
+          <div
+            :class="tableClasses.wrapper"
+            tabindex="0"
+            role="region"
+            aria-label="审计记录"
+          >
+            <table
+              :class="[tableClasses.table, 'table-fixed', 'min-w-[36rem]']"
+            >
+              <colgroup>
+                <col class="w-40" />
+                <col class="w-24" />
+                <col class="w-24" />
+                <col class="w-40" />
+                <col class="w-16" />
+              </colgroup>
+              <caption class="sr-only">
+                鉴权与用户管理事件，最新在前
+              </caption>
+              <thead :class="tableClasses.thead">
+                <tr>
+                  <th scope="col" class="px-3 py-2">时间</th>
+                  <th scope="col" class="px-3 py-2">操作者</th>
+                  <th scope="col" class="px-3 py-2">动作</th>
+                  <th scope="col" class="px-3 py-2">对象</th>
+                  <th scope="col" class="px-3 py-2">结果</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr
+                  v-for="(entry, index) in pageRows"
+                  :key="`${entry.ts}-${index}`"
+                  :class="tableClasses.row"
                 >
-                  {{ entry.actor }}
-                </td>
-                <td
-                  v-overflow-title
-                  class="px-3 py-2 text-ink"
-                  :class="textClasses.cell"
-                >
-                  {{ actionLabel(entry.action) }}
-                </td>
-                <td
-                  v-overflow-title
-                  class="px-3 py-2 text-ink-muted"
-                  :class="textClasses.cell"
-                >
-                  {{ auditObject(entry) }}
-                </td>
-                <td class="px-3 py-2">
-                  <span
-                    :class="
-                      entry.outcome === 'failure'
-                        ? 'text-critical-ink'
-                        : 'text-ink-muted'
-                    "
-                    >{{ entry.outcome === "failure" ? "失败" : "成功" }}</span
+                  <td class="px-3 py-2 whitespace-nowrap text-ink-muted">
+                    {{ formatTime(entry.ts) }}
+                  </td>
+                  <td
+                    v-overflow-title
+                    class="px-3 py-2 text-ink"
+                    :class="textClasses.cell"
                   >
-                </td>
-              </tr>
-            </tbody>
-          </table>
+                    {{ entry.actor }}
+                  </td>
+                  <td
+                    v-overflow-title
+                    class="px-3 py-2 text-ink"
+                    :class="textClasses.cell"
+                  >
+                    {{ actionLabel(entry.action) }}
+                  </td>
+                  <td
+                    v-overflow-title
+                    class="px-3 py-2 text-ink-muted"
+                    :class="textClasses.cell"
+                  >
+                    {{ auditObject(entry) }}
+                  </td>
+                  <td class="px-3 py-2">
+                    <span
+                      :class="
+                        entry.outcome === 'failure'
+                          ? 'text-critical-ink'
+                          : 'text-ink-muted'
+                      "
+                      >{{ entry.outcome === "failure" ? "失败" : "成功" }}</span
+                    >
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+          <UiListPagination
+            :page="page"
+            :page-count="pageCount"
+            :page-size="pageSize"
+            :total="entries.length"
+            @update:page="setPage"
+            @update:page-size="setPageSize"
+          />
         </div>
-        <UiListPagination
-          :page="page"
-          :page-count="pageCount"
-          :page-size="pageSize"
-          :total="entries.length"
-          @update:page="setPage"
-          @update:page-size="setPageSize"
-        />
-      </div>
-    </template>
+      </template>
+    </UiBusyRegion>
   </PageHeader>
 </template>

@@ -23,6 +23,7 @@
  * import, so arriving at 实时 still downloads none of ECharts or the map engine — the
  * split point and the "do we need this yet" point remain the same line.
  */
+import UiLoading from "@/components/ui/UiLoading.vue";
 import { computed } from "vue";
 import { useRoute } from "vue-router";
 import PageHeader from "@/components/PageHeader.vue";
@@ -71,18 +72,19 @@ const TONE_BADGE: Record<string, string> = {
       >
     </template>
 
+    <div v-if="!device && fleet.bootstrapPending" class="flex flex-col gap-4">
+      <UiLoading kind="cards" :columns="2" :rows="1" label="正在加载车队" />
+      <UiLoading kind="fields" :rows="3" :columns="3" />
+    </div>
     <div
-      v-if="!device"
+      v-else-if="!device"
       class="grid place-content-center gap-2 rounded-md border border-border bg-surface-raised p-4 text-center"
     >
-      <strong class="text-md text-ink">{{
-        fleet.bootstrapPending ? "正在加载车队…" : "找不到这台设备"
-      }}</strong>
-      <span class="text-sm text-ink-muted">{{
-        fleet.bootstrapPending
-          ? "正在获取车队快照"
-          : `车队快照里没有编号为 ${deviceId} 的设备，它可能已被移除或从未上报`
-      }}</span>
+      <strong class="text-md text-ink">找不到这台设备</strong>
+      <span class="text-sm text-ink-muted"
+        >车队快照里没有编号为
+        {{ deviceId }} 的设备，它可能已被移除或从未上报</span
+      >
     </div>
 
     <template v-else>

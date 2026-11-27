@@ -29,6 +29,8 @@ import AppSectionTabs from "@/components/shell/AppSectionTabs.vue";
 import UiButton from "@/components/ui/UiButton.vue";
 import UiInput from "@/components/ui/UiInput.vue";
 import RuleSection from "@/components/admin/RuleSection.vue";
+import UiLoading from "@/components/ui/UiLoading.vue";
+import UiBusyRegion from "@/components/ui/UiBusyRegion.vue";
 import type { RuleScopeModel } from "@/components/admin/RuleSection.vue";
 import { useFleetStore } from "@/stores/fleet";
 import { makeMessageFor } from "@/lib/errorMessages";
@@ -42,6 +44,8 @@ const ERROR_MESSAGES: Record<string, string> = {
 const messageFor = makeMessageFor(ERROR_MESSAGES);
 
 const status = ref<"loading" | "ready" | "error">("loading");
+/** A re-query of data already on screen (see `UiBusyRegion`); the first load is `status`. */
+const refreshing = ref(false);
 const saving = ref(false);
 const formError = ref("");
 
@@ -121,14 +125,17 @@ const applyConfig = (config: AlertRulesConfig): void => {
 };
 
 const load = async (): Promise<void> => {
-  status.value = "loading";
+  if (status.value === "ready") refreshing.value = true;
+  else status.value = "loading";
   try {
     const config = (await fleetApi.getAlertRules()).config;
     applyConfig(config);
     lastSaved.value = config;
+    refreshing.value = false;
     status.value = "ready";
     void nextTick(rulesSnapshot.mark);
   } catch {
+    refreshing.value = false;
     status.value = "error";
   }
 };
@@ -277,7 +284,13 @@ onBeforeUnmount(() =>
 
     <AppSectionTabs />
 
-    <p v-if="status === 'loading'" class="text-sm text-ink-muted">加载中…</p>
+    <UiLoading
+      v-if="status === 'loading'"
+      kind="cards"
+      :rows="2"
+      :columns="1"
+      label="正在加载消息规则"
+    />
     <p
       v-else-if="status === 'error'"
       class="text-sm text-critical-ink"
@@ -286,95 +299,98 @@ onBeforeUnmount(() =>
       无法加载消息规则
     </p>
 
-    <form
-      v-else
-      class="flex flex-col gap-5"
-      :aria-busy="saving"
-      @submit.prevent="submit"
-    >
-      <RuleSection
-        title="低电量预警"
-        scope-label="低电量"
-        :enabled="lbEnabled"
-        :scope="lbScope"
-        :device-options="deviceOptions"
-        :formation-options="formationOptions"
-        :disabled="saving"
-        @update:enabled="(value) => (lbEnabled = value)"
-        @update:scope="(value) => (lbScope = value)"
+    <UiBusyRegion v-else :busy="refreshing">
+      <form
+        class="flex flex-col gap-5"
+        :aria-busy="saving"
+        @submit.prevent="submit"
       >
-        <template #default="{ disabled }">
-          <div class="flex flex-wrap gap-3">
+        <RuleSection
+          title="低电量预警"
+          scope-label="低电量"
+          :enabled="lbEnabled"
+          :scope="lbScope"
+          :device-options="deviceOptions"
+          :formation-options="formationOptions"
+          :disabled="saving"
+          @update:enabled="(value) => (lbEnabled = value)"
+          @update:scope="(value) => (lbScope = value)"
+        >
+          <template #default="{ disabled }">
+            <div class="flex flex-wrap gap-3">
+              <label class="flex flex-col gap-1">
+                <span class="flex items-center gap-1"
+                  ><span class="text-sm font-medium text-ink"
+                    >触发阈值（%）</span
+                  ><UiHelpTip :text="FIELD_HELP.rules.thresholdPct"
+                /></span>
+                <UiInput
+                  v-model="lbThreshold"
+                  type="number"
+                  min="1"
+                  max="100"
+                  :disabled="disabled"
+                  size="sm"
+                  class="w-28"
+                />
+              </label>
+              <label class="flex flex-col gap-1">
+                <span class="flex items-center gap-1"
+                  ><span class="text-sm font-medium text-ink"
+                    >防抖窗口（秒）</span
+                  ><UiHelpTip :text="FIELD_HELP.rules.debounceSeconds"
+                /></span>
+                <UiInput
+                  v-model="lbDebounce"
+                  type="number"
+                  min="0"
+                  :disabled="disabled"
+                  size="sm"
+                  class="w-28"
+                />
+              </label>
+            </div>
+          </template>
+        </RuleSection>
+
+        <RuleSection
+          title="设备离线"
+          scope-label="离线"
+          :enabled="offEnabled"
+          :scope="offScope"
+          :device-options="deviceOptions"
+          :formation-options="formationOptions"
+          :disabled="saving"
+          @update:enabled="(value) => (offEnabled = value)"
+          @update:scope="(value) => (offScope = value)"
+        >
+          <template #default="{ disabled }">
             <label class="flex flex-col gap-1">
               <span class="flex items-center gap-1"
-                ><span class="text-sm font-medium text-ink">触发阈值（%）</span
-                ><UiHelpTip :text="FIELD_HELP.rules.thresholdPct"
+                ><span class="text-sm font-medium text-ink">离线判定（秒）</span
+                ><UiHelpTip :text="FIELD_HELP.rules.afterSeconds"
               /></span>
               <UiInput
-                v-model="lbThreshold"
+                v-model="offAfter"
                 type="number"
                 min="1"
-                max="100"
+                placeholder="留空用系统默认"
                 :disabled="disabled"
                 size="sm"
                 class="w-28"
               />
             </label>
-            <label class="flex flex-col gap-1">
-              <span class="flex items-center gap-1"
-                ><span class="text-sm font-medium text-ink">防抖窗口（秒）</span
-                ><UiHelpTip :text="FIELD_HELP.rules.debounceSeconds"
-              /></span>
-              <UiInput
-                v-model="lbDebounce"
-                type="number"
-                min="0"
-                :disabled="disabled"
-                size="sm"
-                class="w-28"
-              />
-            </label>
-          </div>
-        </template>
-      </RuleSection>
+          </template>
+        </RuleSection>
 
-      <RuleSection
-        title="设备离线"
-        scope-label="离线"
-        :enabled="offEnabled"
-        :scope="offScope"
-        :device-options="deviceOptions"
-        :formation-options="formationOptions"
-        :disabled="saving"
-        @update:enabled="(value) => (offEnabled = value)"
-        @update:scope="(value) => (offScope = value)"
-      >
-        <template #default="{ disabled }">
-          <label class="flex flex-col gap-1">
-            <span class="flex items-center gap-1"
-              ><span class="text-sm font-medium text-ink">离线判定（秒）</span
-              ><UiHelpTip :text="FIELD_HELP.rules.afterSeconds"
-            /></span>
-            <UiInput
-              v-model="offAfter"
-              type="number"
-              min="1"
-              placeholder="留空用系统默认"
-              :disabled="disabled"
-              size="sm"
-              class="w-28"
-            />
-          </label>
-        </template>
-      </RuleSection>
-
-      <p v-if="formError" class="m-0 text-sm text-critical-ink" role="alert">
-        {{ formError }}
-      </p>
-      <!-- 恢复默认 only refills the form; nothing is written until 保存. -->
-      <p class="m-0 text-2xs text-ink-subtle">
-        「恢复默认」仅重置表单为内置默认值，点「保存」后才写入生效
-      </p>
-    </form>
+        <p v-if="formError" class="m-0 text-sm text-critical-ink" role="alert">
+          {{ formError }}
+        </p>
+        <!-- 恢复默认 only refills the form; nothing is written until 保存. -->
+        <p class="m-0 text-2xs text-ink-subtle">
+          「恢复默认」仅重置表单为内置默认值，点「保存」后才写入生效
+        </p>
+      </form>
+    </UiBusyRegion>
   </PageHeader>
 </template>

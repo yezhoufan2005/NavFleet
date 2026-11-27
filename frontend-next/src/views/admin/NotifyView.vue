@@ -47,6 +47,8 @@ import {
   type Severity,
 } from "@navfleet/shared";
 import PageHeader from "@/components/PageHeader.vue";
+import UiLoading from "@/components/ui/UiLoading.vue";
+import UiBusyRegion from "@/components/ui/UiBusyRegion.vue";
 import AppSectionTabs from "@/components/shell/AppSectionTabs.vue";
 import UiButton from "@/components/ui/UiButton.vue";
 import UiConfirmDialog from "@/components/ui/UiConfirmDialog.vue";
@@ -123,6 +125,8 @@ const records = ref<NotifySendRecord[]>([]);
 /** The server's row cap when it cut the log (older matches exist), else null. */
 const cappedAt = ref<number | null>(null);
 const status = ref<"loading" | "ready" | "error">("loading");
+/** A re-query of data already on screen (see `UiBusyRegion`); the first load is `status`. */
+const refreshing = ref(false);
 
 /** The full editable config (raw `urlEnv` names, routing, groups) — writers only. */
 const rawConfig = ref<NotifyConfig | null>(null);
@@ -144,7 +148,8 @@ const latestRequest = useLatestRequest();
 const load = async (): Promise<void> => {
   // Only flash the skeleton before the first successful load; filter changes re-query live, so
   // blanking the page to 加载中… on every keystroke would be noise.
-  if (status.value !== "ready") status.value = "loading";
+  if (status.value === "ready") refreshing.value = true;
+  else status.value = "loading";
   const isCurrent = latestRequest.begin();
   try {
     const [config, log] = await Promise.all([
@@ -175,9 +180,11 @@ const load = async (): Promise<void> => {
         rawConfig.value = null;
       }
     }
+    refreshing.value = false;
     status.value = "ready";
   } catch {
     if (!isCurrent()) return;
+    refreshing.value = false;
     status.value = "error";
   }
 };
@@ -739,7 +746,11 @@ const formDirty = formSnapshot.dirty;
         />
       </UiFilterField>
     </UiFilterBar>
-    <p v-if="status === 'loading'" class="text-sm text-ink-muted">加载中…</p>
+    <UiLoading
+      v-if="status === 'loading'"
+      label="正在加载发送记录"
+      :columns="9"
+    />
     <p
       v-else-if="status === 'error'"
       class="text-sm text-critical-ink"
@@ -747,127 +758,133 @@ const formDirty = formSnapshot.dirty;
     >
       无法加载外发记录
     </p>
-    <UiEmptyState v-else-if="visibleRecords.length === 0">
-      没有符合当前筛选条件的发送记录
-    </UiEmptyState>
-    <template v-else>
-      <p v-if="cappedAt !== null" class="m-0 text-2xs text-ink-subtle">
-        仅显示最近
-        {{ cappedAt }} 条（后端单次查询上限），缩短日期范围可查看更早的记录
-      </p>
-      <!-- 列表与分页成组、贴 8px，与 消息史/审计/设备 一致。 -->
-      <div class="flex flex-col gap-2">
-        <div
-          :class="tableClasses.wrapper"
-          tabindex="0"
-          role="region"
-          aria-label="发送记录"
-        >
-          <table :class="[tableClasses.table, 'table-fixed', 'min-w-[59rem]']">
-            <!-- Shared column-width standard (`tableClasses`): fixed so the geometry does not shift
+    <UiBusyRegion v-else :busy="refreshing" content-class="flex flex-col gap-4">
+      <UiEmptyState v-if="visibleRecords.length === 0">
+        没有符合当前筛选条件的发送记录
+      </UiEmptyState>
+      <template v-else>
+        <p v-if="cappedAt !== null" class="m-0 text-2xs text-ink-subtle">
+          仅显示最近
+          {{ cappedAt }} 条（后端单次查询上限），缩短日期范围可查看更早的记录
+        </p>
+        <!-- 列表与分页成组、贴 8px，与 消息史/审计/设备 一致。 -->
+        <div class="flex flex-col gap-2">
+          <div
+            :class="tableClasses.wrapper"
+            tabindex="0"
+            role="region"
+            aria-label="发送记录"
+          >
+            <table
+              :class="[tableClasses.table, 'table-fixed', 'min-w-[59rem]']"
+            >
+              <!-- Shared column-width standard (`tableClasses`): fixed so the geometry does not shift
                as the log reloads under a filter; bases are measured content widths, text cells
                truncate. -->
-            <colgroup>
-              <col class="w-40" />
-              <col class="w-24" />
-              <col class="w-40" />
-              <col class="w-40" />
-              <col class="w-16" />
-              <col class="w-16" />
-              <col class="w-12" />
-              <col class="w-16" />
-              <col class="w-32" />
-            </colgroup>
-            <caption class="sr-only">
-              消息外发的发送记录，最新在前
-            </caption>
-            <thead :class="tableClasses.thead">
-              <tr>
-                <th scope="col" class="px-3 py-2">时间</th>
-                <th scope="col" class="px-3 py-2">设备</th>
-                <th scope="col" class="px-3 py-2">标题</th>
-                <th scope="col" class="px-3 py-2">渠道</th>
-                <th scope="col" class="px-3 py-2">严重度</th>
-                <th scope="col" class="px-3 py-2">状态</th>
-                <th scope="col" class="px-3 py-2">尝试</th>
-                <th scope="col" class="px-3 py-2">延时</th>
-                <th scope="col" class="px-3 py-2">错误</th>
-              </tr>
-            </thead>
-            <tbody>
-              <tr
-                v-for="(record, index) in pageRows"
-                :key="`${record.ts}-${record.channelId}-${index}`"
-                :class="tableClasses.row"
-              >
-                <td class="px-3 py-2 whitespace-nowrap text-ink-muted">
-                  {{ formatTime(record.ts) }}
-                </td>
-                <td
-                  v-overflow-title
-                  class="px-3 py-2 text-ink"
-                  :class="textClasses.cell"
+              <colgroup>
+                <col class="w-40" />
+                <col class="w-24" />
+                <col class="w-40" />
+                <col class="w-40" />
+                <col class="w-16" />
+                <col class="w-16" />
+                <col class="w-12" />
+                <col class="w-16" />
+                <col class="w-32" />
+              </colgroup>
+              <caption class="sr-only">
+                消息外发的发送记录，最新在前
+              </caption>
+              <thead :class="tableClasses.thead">
+                <tr>
+                  <th scope="col" class="px-3 py-2">时间</th>
+                  <th scope="col" class="px-3 py-2">设备</th>
+                  <th scope="col" class="px-3 py-2">标题</th>
+                  <th scope="col" class="px-3 py-2">渠道</th>
+                  <th scope="col" class="px-3 py-2">严重度</th>
+                  <th scope="col" class="px-3 py-2">状态</th>
+                  <th scope="col" class="px-3 py-2">尝试</th>
+                  <th scope="col" class="px-3 py-2">延时</th>
+                  <th scope="col" class="px-3 py-2">错误</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr
+                  v-for="(record, index) in pageRows"
+                  :key="`${record.ts}-${record.channelId}-${index}`"
+                  :class="tableClasses.row"
                 >
-                  {{ record.deviceId }}
-                </td>
-                <td
-                  v-overflow-title
-                  class="px-3 py-2 text-ink"
-                  :class="textClasses.cell"
-                >
-                  {{ record.title }}
-                </td>
-                <td
-                  v-overflow-title
-                  class="px-3 py-2 text-ink"
-                  :class="textClasses.cell"
-                >
-                  {{ record.channelId }}
-                  <span class="text-2xs text-ink-subtle">{{
-                    CHANNEL_TYPE_LABELS[record.channelType] ??
-                    record.channelType
-                  }}</span>
-                </td>
-                <td class="px-3 py-2 text-ink-muted">
-                  {{ severityLabel(record.severity) }}
-                </td>
-                <td class="px-3 py-2">
-                  <span
-                    :class="
-                      record.status === 'failed'
-                        ? 'text-critical-ink'
-                        : 'text-ink-muted'
-                    "
-                    >{{ record.status === "failed" ? "失败" : "成功" }}</span
+                  <td class="px-3 py-2 whitespace-nowrap text-ink-muted">
+                    {{ formatTime(record.ts) }}
+                  </td>
+                  <td
+                    v-overflow-title
+                    class="px-3 py-2 text-ink"
+                    :class="textClasses.cell"
                   >
-                </td>
-                <td class="px-3 py-2 text-ink-muted">{{ record.attempts }}</td>
-                <td class="px-3 py-2 text-ink-muted">
-                  {{
-                    record.latencyMs === null ? "—" : `${record.latencyMs}ms`
-                  }}
-                </td>
-                <td
-                  v-overflow-title
-                  class="px-3 py-2 text-ink-muted"
-                  :class="textClasses.cell"
-                >
-                  {{ record.error ?? "—" }}
-                </td>
-              </tr>
-            </tbody>
-          </table>
+                    {{ record.deviceId }}
+                  </td>
+                  <td
+                    v-overflow-title
+                    class="px-3 py-2 text-ink"
+                    :class="textClasses.cell"
+                  >
+                    {{ record.title }}
+                  </td>
+                  <td
+                    v-overflow-title
+                    class="px-3 py-2 text-ink"
+                    :class="textClasses.cell"
+                  >
+                    {{ record.channelId }}
+                    <span class="text-2xs text-ink-subtle">{{
+                      CHANNEL_TYPE_LABELS[record.channelType] ??
+                      record.channelType
+                    }}</span>
+                  </td>
+                  <td class="px-3 py-2 text-ink-muted">
+                    {{ severityLabel(record.severity) }}
+                  </td>
+                  <td class="px-3 py-2">
+                    <span
+                      :class="
+                        record.status === 'failed'
+                          ? 'text-critical-ink'
+                          : 'text-ink-muted'
+                      "
+                      >{{ record.status === "failed" ? "失败" : "成功" }}</span
+                    >
+                  </td>
+                  <td class="px-3 py-2 text-ink-muted">
+                    {{ record.attempts }}
+                  </td>
+                  <td class="px-3 py-2 text-ink-muted">
+                    {{
+                      record.latencyMs === null ? "—" : `${record.latencyMs}ms`
+                    }}
+                  </td>
+                  <td
+                    v-overflow-title
+                    class="px-3 py-2 text-ink-muted"
+                    :class="textClasses.cell"
+                  >
+                    {{ record.error ?? "—" }}
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+          <UiListPagination
+            :page="page"
+            :page-count="pageCount"
+            :page-size="pageSize"
+            :total="records.length"
+            @update:page="setPage"
+            @update:page-size="setPageSize"
+          />
         </div>
-        <UiListPagination
-          :page="page"
-          :page-count="pageCount"
-          :page-size="pageSize"
-          :total="records.length"
-          @update:page="setPage"
-          @update:page-size="setPageSize"
-        />
-      </div>
-    </template>
+      </template>
+    </UiBusyRegion>
 
     <!-- Channel editor (notify:write). -->
     <UiModal

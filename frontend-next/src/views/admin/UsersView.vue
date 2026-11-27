@@ -18,6 +18,8 @@ import {
   type UserRoleName,
 } from "@navfleet/fleet-core";
 import PageHeader from "@/components/PageHeader.vue";
+import UiLoading from "@/components/ui/UiLoading.vue";
+import UiBusyRegion from "@/components/ui/UiBusyRegion.vue";
 import AppSectionTabs from "@/components/shell/AppSectionTabs.vue";
 import UiButton from "@/components/ui/UiButton.vue";
 import UiInput from "@/components/ui/UiInput.vue";
@@ -47,16 +49,21 @@ const messageFor = makeMessageFor(ERROR_MESSAGES, "操作失败，请稍后重�
 // ── List ─────────────────────────────────────────────────────────────────────
 const users = ref<AdminUser[]>([]);
 const status = ref<"loading" | "ready" | "error">("loading");
+/** A re-query of data already on screen (see `UiBusyRegion`); the first load is `status`. */
+const refreshing = ref(false);
 
 const load = async (): Promise<void> => {
   // Only before the first successful load: the focus refresh re-reads live, and blanking the
   // table to 加载中… each time the window regains focus would make it flicker away.
-  if (status.value !== "ready") status.value = "loading";
+  if (status.value === "ready") refreshing.value = true;
+  else status.value = "loading";
   try {
     const result = await fleetApi.getUsers();
     users.value = result.users;
+    refreshing.value = false;
     status.value = "ready";
   } catch {
+    refreshing.value = false;
     status.value = "error";
   }
 };
@@ -380,7 +387,12 @@ const formDirty = formSnapshot.dirty;
 
     <AppSectionTabs />
 
-    <p v-if="status === 'loading'" class="text-sm text-ink-muted">加载中…</p>
+    <UiLoading
+      v-if="status === 'loading'"
+      label="正在加载用户"
+      :columns="5"
+      action
+    />
     <p
       v-else-if="status === 'error'"
       class="text-sm text-critical-ink"
@@ -388,187 +400,190 @@ const formDirty = formSnapshot.dirty;
     >
       无法加载用户列表
     </p>
-    <p v-else-if="users.length" class="m-0 text-xs text-ink-subtle">
-      共 {{ users.length }} 条记录
-    </p>
-    <div
-      v-if="status !== 'loading' && status !== 'error'"
-      :class="tableClasses.wrapper"
-      tabindex="0"
-      role="region"
-      aria-label="用户列表"
-    >
-      <table :class="[tableClasses.table, 'table-fixed', 'min-w-[56rem]']">
-        <!-- Shared column-width standard (`tableClasses`): each base is the measured width of the
+    <UiBusyRegion v-else :busy="refreshing" content-class="flex flex-col gap-4">
+      <p v-if="users.length" class="m-0 text-xs text-ink-subtle">
+        共 {{ users.length }} 条记录
+      </p>
+      <div
+        :class="tableClasses.wrapper"
+        tabindex="0"
+        role="region"
+        aria-label="用户列表"
+      >
+        <table :class="[tableClasses.table, 'table-fixed', 'min-w-[56rem]']">
+          <!-- Shared column-width standard (`tableClasses`): each base is the measured width of the
              field's content, so leftover space spreads in proportion to what each column holds and
              the sum is the table's floor. 状态 fits its 系统账号 badge; 操作 its five buttons. -->
-        <colgroup>
-          <col class="w-56" />
-          <col class="w-16" />
-          <col class="w-24" />
-          <col class="w-40" />
-          <col class="w-88" />
-        </colgroup>
-        <caption class="sr-only">
-          账号、角色、状态与管理操作
-        </caption>
-        <thead :class="tableClasses.thead">
-          <tr>
-            <th scope="col" class="px-3 py-2">用户名</th>
-            <th scope="col" class="px-3 py-2">角色</th>
-            <th scope="col" class="px-3 py-2">状态</th>
-            <th scope="col" class="px-3 py-2">最近登录</th>
-            <th scope="col" class="py-2 pr-6 pl-3 text-right">操作</th>
-          </tr>
-        </thead>
-        <tbody>
-          <template v-for="user in users" :key="user.username">
-            <tr :class="tableClasses.row">
-              <th scope="row" class="px-3 py-2 font-medium text-ink">
-                {{ user.username }}
-                <span
-                  v-if="user.displayName !== user.username"
-                  class="text-ink-muted"
-                >
-                  · {{ user.displayName }}
-                </span>
-              </th>
-              <td class="px-3 py-2 text-ink-muted">
-                {{ ROLE_LABELS[user.role] }}
-              </td>
-              <td class="px-3 py-2 whitespace-nowrap">
-                <span v-if="!user.enabled" class="text-ink-subtle">已停用</span>
-                <span v-else-if="isLocked(user)" class="text-warning-ink"
-                  >已锁定</span
-                >
-                <span v-else class="text-ink-muted">正常</span>
-                <span
-                  v-if="user.protected"
-                  class="ml-2 rounded-xs border border-border bg-surface-sunken px-1.5 py-0.5 text-2xs whitespace-nowrap text-ink-muted"
-                  title="内置管理员，仅后台（env/bootstrap）可改"
-                  >系统账号</span
-                >
-                <span
-                  v-else-if="isRankLocked(user)"
-                  class="ml-2 rounded-xs border border-border bg-surface-sunken px-1.5 py-0.5 text-2xs whitespace-nowrap text-ink-muted"
-                  :title="lockReason(user)"
-                  >无权管理</span
-                >
-              </td>
-              <td class="px-3 py-2 whitespace-nowrap text-ink-muted">
-                {{ formatTime(user.lastLoginAt) }}
-              </td>
-              <td class="px-3 py-2">
-                <div class="flex justify-end gap-1" :title="lockReason(user)">
-                  <!-- The protected bootstrap admin shows like any row but is managed only out of
+          <colgroup>
+            <col class="w-56" />
+            <col class="w-16" />
+            <col class="w-24" />
+            <col class="w-40" />
+            <col class="w-88" />
+          </colgroup>
+          <caption class="sr-only">
+            账号、角色、状态与管理操作
+          </caption>
+          <thead :class="tableClasses.thead">
+            <tr>
+              <th scope="col" class="px-3 py-2">用户名</th>
+              <th scope="col" class="px-3 py-2">角色</th>
+              <th scope="col" class="px-3 py-2">状态</th>
+              <th scope="col" class="px-3 py-2">最近登录</th>
+              <th scope="col" class="py-2 pr-6 pl-3 text-right">操作</th>
+            </tr>
+          </thead>
+          <tbody>
+            <template v-for="user in users" :key="user.username">
+              <tr :class="tableClasses.row">
+                <th scope="row" class="px-3 py-2 font-medium text-ink">
+                  {{ user.username }}
+                  <span
+                    v-if="user.displayName !== user.username"
+                    class="text-ink-muted"
+                  >
+                    · {{ user.displayName }}
+                  </span>
+                </th>
+                <td class="px-3 py-2 text-ink-muted">
+                  {{ ROLE_LABELS[user.role] }}
+                </td>
+                <td class="px-3 py-2 whitespace-nowrap">
+                  <span v-if="!user.enabled" class="text-ink-subtle"
+                    >已停用</span
+                  >
+                  <span v-else-if="isLocked(user)" class="text-warning-ink"
+                    >已锁定</span
+                  >
+                  <span v-else class="text-ink-muted">正常</span>
+                  <span
+                    v-if="user.protected"
+                    class="ml-2 rounded-xs border border-border bg-surface-sunken px-1.5 py-0.5 text-2xs whitespace-nowrap text-ink-muted"
+                    title="内置管理员，仅后台（env/bootstrap）可改"
+                    >系统账号</span
+                  >
+                  <span
+                    v-else-if="isRankLocked(user)"
+                    class="ml-2 rounded-xs border border-border bg-surface-sunken px-1.5 py-0.5 text-2xs whitespace-nowrap text-ink-muted"
+                    :title="lockReason(user)"
+                    >无权管理</span
+                  >
+                </td>
+                <td class="px-3 py-2 whitespace-nowrap text-ink-muted">
+                  {{ formatTime(user.lastLoginAt) }}
+                </td>
+                <td class="px-3 py-2">
+                  <div class="flex justify-end gap-1" :title="lockReason(user)">
+                    <!-- The protected bootstrap admin shows like any row but is managed only out of
                        band (env/bootstrap), so its actions are disabled for *other* users — see
                        the 系统账号 tag. Signed in as itself, the bootstrap admin keeps them. Rows
                        above the caller's rank (无权管理) are disabled the same way. -->
-                  <UiButton
-                    variant="ghost"
-                    size="sm"
-                    :disabled="isRowLocked(user)"
-                    @click="toggleSessions(user.username)"
-                  >
-                    会话
-                  </UiButton>
-                  <UiButton
-                    variant="ghost"
-                    size="sm"
-                    :disabled="isRowLocked(user)"
-                    @click="openEdit(user)"
-                    >编辑</UiButton
-                  >
-                  <UiButton
-                    variant="ghost"
-                    size="sm"
-                    :disabled="isRowLocked(user)"
-                    @click="openReset(user)"
-                    >重置密码</UiButton
-                  >
-                  <UiButton
-                    variant="ghost"
-                    size="sm"
-                    :disabled="isRowLocked(user)"
-                    @click="confirm = { kind: 'logout', user }"
-                  >
-                    强制下线
-                  </UiButton>
-                  <UiButton
-                    variant="ghost"
-                    size="sm"
-                    :disabled="isRowLocked(user)"
-                    @click="confirm = { kind: 'delete', user }"
-                  >
-                    删除
-                  </UiButton>
-                </div>
-              </td>
-            </tr>
-            <tr
-              v-if="sessionsFor === user.username"
-              :class="[tableClasses.row, 'bg-surface-sunken']"
-            >
-              <td colspan="5" class="px-3 py-3">
-                <p
-                  v-if="sessionsStatus === 'loading'"
-                  class="text-sm text-ink-muted"
-                >
-                  加载会话中…
-                </p>
-                <p
-                  v-else-if="sessionsStatus === 'error'"
-                  class="text-sm text-critical-ink"
-                  role="alert"
-                >
-                  无法加载该用户的会话
-                </p>
-                <p
-                  v-else-if="sessionList.length === 0"
-                  class="text-sm text-ink-muted"
-                  role="status"
-                >
-                  该用户当前无活跃会话
-                </p>
-                <ul v-else class="m-0 flex list-none flex-col gap-2 p-0">
-                  <li
-                    v-for="s in sessionList"
-                    :key="s.sessionId"
-                    class="flex items-center justify-between gap-3 rounded-sm border border-border bg-surface-raised px-3 py-2"
-                  >
-                    <span class="flex min-w-0 flex-col">
-                      <span
-                        v-overflow-title
-                        class="text-sm text-ink"
-                        :class="textClasses.field"
-                        >{{ s.userAgent || "未知设备" }}</span
-                      >
-                      <span class="text-2xs text-ink-muted">
-                        {{ s.ip || "—" }} · 最近活跃
-                        {{ formatTime(s.lastSeenAt) }}
-                      </span>
-                    </span>
                     <UiButton
                       variant="ghost"
                       size="sm"
-                      @click="
-                        confirm = {
-                          kind: 'revoke',
-                          user,
-                          sessionId: s.sessionId,
-                        }
-                      "
+                      :disabled="isRowLocked(user)"
+                      @click="toggleSessions(user.username)"
                     >
-                      下线
+                      会话
                     </UiButton>
-                  </li>
-                </ul>
-              </td>
-            </tr>
-          </template>
-        </tbody>
-      </table>
-    </div>
+                    <UiButton
+                      variant="ghost"
+                      size="sm"
+                      :disabled="isRowLocked(user)"
+                      @click="openEdit(user)"
+                      >编辑</UiButton
+                    >
+                    <UiButton
+                      variant="ghost"
+                      size="sm"
+                      :disabled="isRowLocked(user)"
+                      @click="openReset(user)"
+                      >重置密码</UiButton
+                    >
+                    <UiButton
+                      variant="ghost"
+                      size="sm"
+                      :disabled="isRowLocked(user)"
+                      @click="confirm = { kind: 'logout', user }"
+                    >
+                      强制下线
+                    </UiButton>
+                    <UiButton
+                      variant="ghost"
+                      size="sm"
+                      :disabled="isRowLocked(user)"
+                      @click="confirm = { kind: 'delete', user }"
+                    >
+                      删除
+                    </UiButton>
+                  </div>
+                </td>
+              </tr>
+              <tr
+                v-if="sessionsFor === user.username"
+                :class="[tableClasses.row, 'bg-surface-sunken']"
+              >
+                <td colspan="5" class="px-3 py-3">
+                  <UiLoading
+                    v-if="sessionsStatus === 'loading'"
+                    kind="lines"
+                    :rows="2"
+                    label="正在加载该用户的会话"
+                  />
+                  <p
+                    v-else-if="sessionsStatus === 'error'"
+                    class="text-sm text-critical-ink"
+                    role="alert"
+                  >
+                    无法加载该用户的会话
+                  </p>
+                  <p
+                    v-else-if="sessionList.length === 0"
+                    class="text-sm text-ink-muted"
+                    role="status"
+                  >
+                    该用户当前无活跃会话
+                  </p>
+                  <ul v-else class="m-0 flex list-none flex-col gap-2 p-0">
+                    <li
+                      v-for="s in sessionList"
+                      :key="s.sessionId"
+                      class="flex items-center justify-between gap-3 rounded-sm border border-border bg-surface-raised px-3 py-2"
+                    >
+                      <span class="flex min-w-0 flex-col">
+                        <span
+                          v-overflow-title
+                          class="text-sm text-ink"
+                          :class="textClasses.field"
+                          >{{ s.userAgent || "未知设备" }}</span
+                        >
+                        <span class="text-2xs text-ink-muted">
+                          {{ s.ip || "—" }} · 最近活跃
+                          {{ formatTime(s.lastSeenAt) }}
+                        </span>
+                      </span>
+                      <UiButton
+                        variant="ghost"
+                        size="sm"
+                        @click="
+                          confirm = {
+                            kind: 'revoke',
+                            user,
+                            sessionId: s.sessionId,
+                          }
+                        "
+                      >
+                        下线
+                      </UiButton>
+                    </li>
+                  </ul>
+                </td>
+              </tr>
+            </template>
+          </tbody>
+        </table>
+      </div>
+    </UiBusyRegion>
     <UiModal
       :pending="saving"
       :open="mode !== null"

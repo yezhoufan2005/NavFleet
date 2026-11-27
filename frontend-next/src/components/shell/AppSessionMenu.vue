@@ -42,6 +42,7 @@ import type { QuietHours, SoundVolume } from "@/composables/useAlertSound";
 import { vOverflowTitle } from "@/directives/overflowTitle";
 
 const { user } = defineProps<{ user: PublicUser }>();
+
 const emit = defineEmits<{ logout: [] }>();
 
 const { preference, resolved, setPreference } = useTheme();

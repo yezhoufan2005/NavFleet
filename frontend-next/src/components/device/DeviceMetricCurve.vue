@@ -16,6 +16,7 @@
  * Both modes scale the value axis to the data (yScale): speed and charge each sit in a narrow
  * band, and a 0-anchored axis would flatten the variation that is the whole point of the curve.
  */
+import UiLoading from "@/components/ui/UiLoading.vue";
 import { computed, onMounted, ref, watch } from "vue";
 import { fleetApi } from "@navfleet/fleet-core";
 import type { HistorySample } from "@navfleet/fleet-core";
@@ -275,9 +276,12 @@ onMounted(() => {
 
     <!-- 历史: three days overlaid, or the state that stands in for the chart. -->
     <template v-else>
-      <p v-if="historyStatus === 'loading'" class="text-sm text-ink-muted">
-        正在加载历史数据…
-      </p>
+      <UiLoading
+        v-if="historyStatus === 'loading'"
+        kind="block"
+        :style="{ height: `${CHART_HEIGHT}px` }"
+        label="正在加载历史数据"
+      />
       <p
         v-else-if="historyStatus === 'error'"
         class="text-sm text-critical-ink"

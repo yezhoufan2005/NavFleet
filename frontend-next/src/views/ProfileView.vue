@@ -26,6 +26,8 @@ import PageHeader from "@/components/PageHeader.vue";
 import UiButton from "@/components/ui/UiButton.vue";
 import UiInput from "@/components/ui/UiInput.vue";
 import UiCard from "@/components/ui/UiCard.vue";
+import UiLoading from "@/components/ui/UiLoading.vue";
+import UiBusyRegion from "@/components/ui/UiBusyRegion.vue";
 import UiModal from "@/components/ui/UiModal.vue";
 import UiConfirmDialog from "@/components/ui/UiConfirmDialog.vue";
 import { tableClasses, textClasses } from "@/lib/uiClasses";
@@ -216,6 +218,8 @@ const submitPassword = async (): Promise<void> => {
 // ── My sessions ──────────────────────────────────────────────────────────────
 const sessions = ref<SessionRecordView[]>([]);
 const status = ref<"loading" | "ready" | "error">("loading");
+/** A re-query of data already on screen (see `UiBusyRegion`); the first load is `status`. */
+const refreshing = ref(false);
 const confirmTarget = ref<SessionRecordView | null>(null);
 const confirmOthers = ref(false);
 const revoking = ref(false);
@@ -225,11 +229,14 @@ const otherCount = computed(
 );
 
 const loadSessions = async (): Promise<void> => {
-  status.value = "loading";
+  if (status.value === "ready") refreshing.value = true;
+  else status.value = "loading";
   try {
     sessions.value = await auth.getMySessions();
+    refreshing.value = false;
     status.value = "ready";
   } catch {
+    refreshing.value = false;
     status.value = "error";
   }
 };
@@ -327,9 +334,13 @@ watch(editing, (open) => {
       aria-labelledby="profile-account-heading"
       :aria-busy="profileStatus === 'loading'"
     >
-      <p v-if="profileStatus === 'loading'" class="m-0 text-sm text-ink-muted">
-        加载中…
-      </p>
+      <UiLoading
+        v-if="profileStatus === 'loading'"
+        kind="fields"
+        :rows="1"
+        :columns="4"
+        label="正在加载账户信息"
+      />
       <p
         v-else-if="profileStatus === 'error' || !profile"
         class="m-0 text-sm text-critical-ink"
@@ -572,9 +583,13 @@ watch(editing, (open) => {
           >下线其他设备</UiButton
         >
       </template>
-      <p v-if="status === 'loading'" class="m-0 text-sm text-ink-muted">
-        加载中…
-      </p>
+      <UiLoading
+        v-if="status === 'loading'"
+        label="正在加载会话"
+        :rows="2"
+        :columns="5"
+        action
+      />
       <p
         v-else-if="status === 'error'"
         class="m-0 text-sm text-critical-ink"
@@ -589,79 +604,80 @@ watch(editing, (open) => {
       >
         暂无活跃会话
       </p>
-      <div
-        v-else
-        :class="tableClasses.wrapper"
-        tabindex="0"
-        role="region"
-        aria-label="我的会话列表"
-      >
-        <table :class="[tableClasses.table, 'table-fixed', 'min-w-[44rem]']">
-          <caption class="sr-only">
-            当前账号的活跃登录会话
-          </caption>
-          <!-- Shared column-width standard (`tableClasses`): bases are measured content widths,
+      <UiBusyRegion v-else :busy="refreshing">
+        <div
+          :class="tableClasses.wrapper"
+          tabindex="0"
+          role="region"
+          aria-label="我的会话列表"
+        >
+          <table :class="[tableClasses.table, 'table-fixed', 'min-w-[44rem]']">
+            <caption class="sr-only">
+              当前账号的活跃登录会话
+            </caption>
+            <!-- Shared column-width standard (`tableClasses`): bases are measured content widths,
                slack spread proportionally. 设备 names the browser and system; the raw
                user-agent string is on hover. -->
-          <colgroup>
-            <col class="w-48" />
-            <col class="w-28" />
-            <col class="w-40" />
-            <col class="w-40" />
-            <col class="w-20" />
-          </colgroup>
-          <thead :class="tableClasses.thead">
-            <tr>
-              <th scope="col" class="px-3 py-2">设备</th>
-              <th scope="col" class="px-3 py-2">IP</th>
-              <th scope="col" class="px-3 py-2">登录时间</th>
-              <th scope="col" class="px-3 py-2">最近活跃</th>
-              <th scope="col" class="py-2 pr-6 pl-3 text-right">操作</th>
-            </tr>
-          </thead>
-          <tbody>
-            <tr
-              v-for="s in sessions"
-              :key="s.sessionId"
-              :class="tableClasses.row"
-            >
-              <td class="px-3 py-2 text-ink">
-                <span class="flex min-w-0 items-center gap-2">
-                  <span
-                    class="min-w-0"
-                    :class="textClasses.cell"
-                    :title="s.userAgent || undefined"
-                    >{{ describeUserAgent(s.userAgent) }}</span
-                  >
-                  <span
-                    v-if="s.current"
-                    class="shrink-0 rounded-sm bg-brand-wash px-1.5 py-0.5 text-2xs whitespace-nowrap text-brand-ink"
-                    >本机</span
-                  >
-                </span>
-              </td>
-              <td
-                v-overflow-title
-                class="px-3 py-2 font-mono text-xs text-ink-muted"
-                :class="textClasses.cell"
+            <colgroup>
+              <col class="w-48" />
+              <col class="w-28" />
+              <col class="w-40" />
+              <col class="w-40" />
+              <col class="w-20" />
+            </colgroup>
+            <thead :class="tableClasses.thead">
+              <tr>
+                <th scope="col" class="px-3 py-2">设备</th>
+                <th scope="col" class="px-3 py-2">IP</th>
+                <th scope="col" class="px-3 py-2">登录时间</th>
+                <th scope="col" class="px-3 py-2">最近活跃</th>
+                <th scope="col" class="py-2 pr-6 pl-3 text-right">操作</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr
+                v-for="s in sessions"
+                :key="s.sessionId"
+                :class="tableClasses.row"
               >
-                {{ s.ip || "—" }}
-              </td>
-              <td class="px-3 py-2 whitespace-nowrap text-ink-muted">
-                {{ formatTime(s.createdAt) }}
-              </td>
-              <td class="px-3 py-2 whitespace-nowrap text-ink-muted">
-                {{ formatTime(s.lastSeenAt) }}
-              </td>
-              <td class="px-3 py-2 text-right">
-                <UiButton variant="ghost" size="sm" @click="confirmTarget = s"
-                  >下线</UiButton
+                <td class="px-3 py-2 text-ink">
+                  <span class="flex min-w-0 items-center gap-2">
+                    <span
+                      class="min-w-0"
+                      :class="textClasses.cell"
+                      :title="s.userAgent || undefined"
+                      >{{ describeUserAgent(s.userAgent) }}</span
+                    >
+                    <span
+                      v-if="s.current"
+                      class="shrink-0 rounded-sm bg-brand-wash px-1.5 py-0.5 text-2xs whitespace-nowrap text-brand-ink"
+                      >本机</span
+                    >
+                  </span>
+                </td>
+                <td
+                  v-overflow-title
+                  class="px-3 py-2 font-mono text-xs text-ink-muted"
+                  :class="textClasses.cell"
                 >
-              </td>
-            </tr>
-          </tbody>
-        </table>
-      </div>
+                  {{ s.ip || "—" }}
+                </td>
+                <td class="px-3 py-2 whitespace-nowrap text-ink-muted">
+                  {{ formatTime(s.createdAt) }}
+                </td>
+                <td class="px-3 py-2 whitespace-nowrap text-ink-muted">
+                  {{ formatTime(s.lastSeenAt) }}
+                </td>
+                <td class="px-3 py-2 text-right">
+                  <UiButton variant="ghost" size="sm" @click="confirmTarget = s"
+                    >下线</UiButton
+                  >
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </UiBusyRegion>
     </UiCard>
     <UiCard
       as="section"
@@ -681,9 +697,11 @@ watch(editing, (open) => {
           </p>
         </div>
       </template>
-      <p v-if="activityStatus === 'loading'" class="m-0 text-sm text-ink-muted">
-        加载中…
-      </p>
+      <UiLoading
+        v-if="activityStatus === 'loading'"
+        label="正在加载账户活动"
+        :columns="5"
+      />
       <p
         v-else-if="activityStatus === 'error'"
         class="m-0 text-sm text-critical-ink"

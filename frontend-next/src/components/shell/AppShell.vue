@@ -38,6 +38,7 @@ import {
 } from "reka-ui";
 import AppSidebarNav from "./AppSidebarNav.vue";
 import AppTopBar from "./AppTopBar.vue";
+import AppPageProgress from "./AppPageProgress.vue";
 import ErrorBoundary from "@/components/ErrorBoundary.vue";
 import type { PublicUser } from "@navfleet/shared";
 import { useSidebar } from "@/composables/useSidebar";
@@ -98,7 +99,10 @@ onBeforeUnmount(stopNavigationFocus);
       @logout="emit('logout')"
     />
 
-    <div class="flex min-h-0 flex-1">
+    <!-- `relative` anchors the page progress line to this row's top edge, i.e. flush under the
+         top bar's bottom border; it is absolute, so the row's content never moves for it. -->
+    <div class="relative flex min-h-0 flex-1">
+      <AppPageProgress />
       <!-- The rail. Rendered only above `lg`; below it the same nav lives in the
            drawer, so there is never a second copy in the accessibility tree. -->
       <div

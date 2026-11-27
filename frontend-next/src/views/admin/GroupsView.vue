@@ -21,6 +21,8 @@ import {
   type RbacRole,
 } from "@navfleet/shared";
 import PageHeader from "@/components/PageHeader.vue";
+import UiLoading from "@/components/ui/UiLoading.vue";
+import UiBusyRegion from "@/components/ui/UiBusyRegion.vue";
 import AppSectionTabs from "@/components/shell/AppSectionTabs.vue";
 import UiButton from "@/components/ui/UiButton.vue";
 import UiInput from "@/components/ui/UiInput.vue";
@@ -47,9 +49,12 @@ const roles = ref<RbacRole[]>([]);
 const groups = ref<RbacGroup[]>([]);
 const users = ref<AdminUser[]>([]);
 const status = ref<"loading" | "ready" | "error">("loading");
+/** A re-query of data already on screen (see `UiBusyRegion`); the first load is `status`. */
+const refreshing = ref(false);
 
 const load = async (): Promise<void> => {
-  status.value = "loading";
+  if (status.value === "ready") refreshing.value = true;
+  else status.value = "loading";
   try {
     const [roleResult, groupResult, userResult] = await Promise.all([
       fleetApi.getRbacRoles(),
@@ -59,8 +64,10 @@ const load = async (): Promise<void> => {
     roles.value = roleResult.roles;
     groups.value = groupResult.groups;
     users.value = userResult.users;
+    refreshing.value = false;
     status.value = "ready";
   } catch {
+    refreshing.value = false;
     status.value = "error";
   }
 };
@@ -235,7 +242,12 @@ const formDirty = formSnapshot.dirty;
 
     <AppSectionTabs />
 
-    <p v-if="status === 'loading'" class="text-sm text-ink-muted">加载中…</p>
+    <UiLoading
+      v-if="status === 'loading'"
+      label="正在加载用户组"
+      :columns="4"
+      action
+    />
     <p
       v-else-if="status === 'error'"
       class="text-sm text-critical-ink"
@@ -244,7 +256,7 @@ const formDirty = formSnapshot.dirty;
       无法加载用户组
     </p>
 
-    <template v-else>
+    <UiBusyRegion v-else :busy="refreshing" content-class="flex flex-col gap-4">
       <p v-if="!groups.length" class="text-sm text-ink-muted" role="status">
         还没有用户组
       </p>
@@ -317,7 +329,7 @@ const formDirty = formSnapshot.dirty;
           </tbody>
         </table>
       </div>
-    </template>
+    </UiBusyRegion>
 
     <!-- Group dialog -->
     <UiModal

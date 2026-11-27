@@ -27,6 +27,7 @@ import { RouterView, useRoute, useRouter } from "vue-router";
 import AppShell from "@/components/shell/AppShell.vue";
 import LoginForm from "@/components/LoginForm.vue";
 import NotificationHost from "@/components/NotificationHost.vue";
+import UiProgressLine from "@/components/ui/UiProgressLine.vue";
 import { useAuth } from "@/composables/useAuth";
 import { useFleetStore } from "@/stores/fleet";
 import { useAlertSound, disarmAlertSound } from "@/composables/useAlertSound";
@@ -142,11 +143,25 @@ watchEffect(() => {
 </script>
 
 <template>
+  <!-- Boot: the session check has not answered yet. The product mark and a progress line, the
+       same line a slow page or re-query shows, rather than a bare sentence in an empty screen. -->
   <div
     v-if="authState.status === 'unknown'"
-    class="grid min-h-dvh place-items-center bg-surface text-ink-muted"
+    class="grid min-h-dvh place-items-center bg-surface"
   >
-    <span role="status">正在加载…</span>
+    <div class="flex w-48 flex-col items-center gap-4">
+      <img
+        src="/image.png"
+        alt=""
+        aria-hidden="true"
+        width="40"
+        height="40"
+        class="size-10 object-contain"
+      />
+      <span class="text-sm font-semibold text-ink">{{ PRODUCT_NAME }}</span>
+      <UiProgressLine class="w-full rounded-full" />
+      <span class="sr-only" role="status">正在加载</span>
+    </div>
   </div>
 
   <LoginForm
