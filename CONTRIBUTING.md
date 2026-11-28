@@ -7,8 +7,8 @@ REST/WebSocket → Vue）。范围严格锁定**只读监控**：不做控制下
 > 与设备接入向导（车辆 / 编队配置）都经 admin API 校验后写 `config-runtime/*.json`
 > 并热重载。写配置文件不等于给车发指令，红线未破。
 
-> **代码风格的房规**（注释语言、Vue props/emits、异步防竞态、后端样板、包边界、报码方案等）单列在
-> [docs/conventions.md](docs/conventions.md)：本文讲流程，那篇讲代码本身，新代码向它看齐。
+> **房规**（注释、界面用词、文档写作、前后端写法、包边界、测试、提交）在 [docs/conventions.md](docs/conventions.md)，
+> 领域名词在 [docs/glossary.md](docs/glossary.md)，全部文档的索引在 [docs/README.md](docs/README.md)。本文只讲流程。
 
 ## 仓库结构（npm workspaces monorepo）
 
@@ -104,9 +104,9 @@ npm run screenshots             # 逐页截图到 docs/screenshots/（独立 Pla
 
 ## 分支与提交
 
-- 每个任务开独立分支：`phase-<n><x>-<slug>`（如 `phase-6b-governance`）或 `fix/…`、`feat/…`。
-- 提交信息用 **Conventional Commits**：`feat(frontend): …`、`fix(backend): …`、`build(monorepo): …`、
-  `refactor`、`docs`、`test`、`ci`、`chore`。发布与 CHANGELOG 依赖这套前缀自动生成。
+- 每个任务开独立分支：`<type>/<kebab-slug>`（如 `feat/notify-digest`、`fix/kiosk-session`）。
+- 提交信息用 **Conventional Commits**，type、scope 与摘要写法见 [docs/conventions.md §10](docs/conventions.md#10-提交)。
+  发布与 CHANGELOG 依赖这套前缀自动生成，摘要会原样进入 CHANGELOG。
 - 直接推送 `main` 被禁止；通过 PR 合并，CI 全绿方可合入。
 
 ## 预提交钩子
