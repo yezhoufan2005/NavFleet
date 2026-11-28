@@ -9,6 +9,7 @@ import { INJECTION_KINDS, step, type VehicleState } from "../sim/vehicle";
 import { findScenario, SCENARIOS } from "../sim/scenarios";
 import { formatCoverage, measureCoverage } from "../sim/coverage";
 import { peopleActivity, readStory, writePeopleActivity, writeStory } from "../sim/people";
+import { DEMO_DEVICES, demoAddressOf, LOCKOUT_DEVICE, UA } from "../sim/devices";
 import { AUDIT_ACTIONS } from "@navfleet/shared";
 import { mqttTelemetrySchema } from "../src/validation";
 import { normalizeDevice } from "../src/normalize";
@@ -860,5 +861,26 @@ describe("people activity", () => {
     const { written, db } = collect();
     expect(await writePeopleActivity(dir, now, db)).toBe(0);
     expect(written).toHaveLength(0);
+  });
+});
+
+describe("demo sign-in addresses", () => {
+  it("maps each seed sign-in back to its device's office address", () => {
+    expect(demoAddressOf("zhaoyun", UA.edgeWindows)).toBe("10.20.3.21");
+    expect(demoAddressOf("zhaoyun", UA.chromeAndroid)).toBe("10.20.9.77");
+    expect(demoAddressOf("wugang", LOCKOUT_DEVICE.userAgent)).toBe(LOCKOUT_DEVICE.ip);
+  });
+
+  it("leaves anything the seed did not make alone", () => {
+    // Someone's own browser, and a device that belongs to another account.
+    expect(demoAddressOf("zhaoyun", "Mozilla/5.0 (X11; Linux x86_64) Firefox/140.0")).toBeNull();
+    expect(demoAddressOf("qianwei", UA.edgeWindows)).toBeNull();
+    expect(demoAddressOf("lifang", LOCKOUT_DEVICE.userAgent)).toBeNull();
+  });
+
+  it("gives every account's devices distinct user-agents, so the match is unambiguous", () => {
+    for (const devices of Object.values(DEMO_DEVICES)) {
+      expect(new Set(devices.map((device) => device.userAgent)).size).toBe(devices.length);
+    }
   });
 });

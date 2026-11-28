@@ -4,6 +4,10 @@
 # workspace specifically.
 FROM node:24-alpine AS build
 WORKDIR /app
+# The registry `npm ci` downloads from (compose passes NPM_CONFIG_REGISTRY through, for a site
+# behind a mirror). npm reads it from the environment; the lockfile's registry.npmjs.org URLs are
+# rewritten to it. Declared again in the runtime stage, which starts from a fresh base.
+ARG NPM_CONFIG_REGISTRY=https://registry.npmjs.org/
 
 # Manifests + root lockfile first for a cache-friendly install layer. Every workspace
 # manifest has to be here even though the backend imports none of the frontend ones:
@@ -41,6 +45,7 @@ CMD ["sh", "-c", "npx tsx sim/main.ts catchup && exec npx tsx sim/main.ts live"]
 FROM node:24-alpine AS runtime
 WORKDIR /app
 ENV NODE_ENV=production
+ARG NPM_CONFIG_REGISTRY=https://registry.npmjs.org/
 
 # The backend's production dependencies only, resolved from the same root lockfile. `-w` keeps the
 # frontends' runtime packages (vue, pinia, vue-router…) out of this image; the full manifest set is

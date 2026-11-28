@@ -9,6 +9,10 @@ ARG VITE_AMAP_KEY=
 ARG VITE_AMAP_SECURITY_JS_CODE=
 ENV VITE_AMAP_KEY=$VITE_AMAP_KEY
 ENV VITE_AMAP_SECURITY_JS_CODE=$VITE_AMAP_SECURITY_JS_CODE
+# The registry `npm ci` downloads from (compose passes NPM_CONFIG_REGISTRY through, for a site
+# behind a mirror). npm reads it from the environment; the lockfile's registry.npmjs.org URLs are
+# rewritten to it.
+ARG NPM_CONFIG_REGISTRY=https://registry.npmjs.org/
 
 # Every workspace manifest, not just this one: `npm ci` validates the lockfile
 # against the complete workspace set and rejects it as out of sync if one is

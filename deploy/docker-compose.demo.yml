@@ -20,6 +20,8 @@ services:
       context: ..
       dockerfile: backend/Dockerfile
       target: sim
+      args:
+        NPM_CONFIG_REGISTRY: ${NPM_CONFIG_REGISTRY:-https://registry.npmjs.org/}
     depends_on:
       mongo:
         condition: service_healthy

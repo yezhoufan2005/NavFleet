@@ -60,6 +60,7 @@ services:
       args:
         VITE_AMAP_KEY: ${VITE_AMAP_KEY:-}
         VITE_AMAP_SECURITY_JS_CODE: ${VITE_AMAP_SECURITY_JS_CODE:-}
+        NPM_CONFIG_REGISTRY: ${NPM_CONFIG_REGISTRY:-https://registry.npmjs.org/}
     networks:
       - edge
     healthcheck:
@@ -79,6 +80,8 @@ services:
     build:
       context: ..
       dockerfile: backend/Dockerfile
+      args:
+        NPM_CONFIG_REGISTRY: ${NPM_CONFIG_REGISTRY:-https://registry.npmjs.org/}
     # Docker's default is 10s, and the backend's own force-exit timer is 5s — but the
     # sequence it has to get through on SIGTERM ends the MQTT client, drains in-flight
     # ingests and flushes the write-behind buffer to MongoDB. 20s leaves room for a slow
