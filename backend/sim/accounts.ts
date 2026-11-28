@@ -7,15 +7,17 @@
  * account created when it joined (most well before the history, the new hire last week), the
  * password set when it was last changed or reset in the trail, the last sign-in its latest one, and
  * a few older sessions from the devices people actually use — not only the ones the seed just
- * opened.
+ * opened. It also writes the office address back on the seed's own sign-ins, which the backend
+ * recorded at the Docker gateway (it does not believe a client's X-Forwarded-For).
  *
  *   sim accounts      run after `seed:demo` (verify-stack and dev.sh --demo do)
  *
- * Writes only dates and sessions of the demo accounts it knows; leaves the bootstrap admin, every
- * other account and every credential alone. Idempotent.
+ * Writes only dates, sessions and sign-in addresses of the demo accounts it knows; leaves the
+ * bootstrap admin's own sign-ins, every other account and every credential alone. Idempotent.
  */
-import { MongoClient } from "mongodb";
+import { MongoClient, type Db } from "mongodb";
 import { config } from "../src/config";
+import { demoAddressOf } from "./devices";
 import { readStory } from "./people";
 
 const DAY = 86_400_000;
@@ -170,8 +172,43 @@ export const alignAccounts = async (stateDir: string): Promise<string[]> => {
         { upsert: true },
       );
     }
+    const restored = await restoreAddresses(db);
+    if (restored) done.push(`office addresses ×${restored}`);
   } finally {
     await client.close();
   }
   return done;
+};
+
+/**
+ * Put the office address back on the sessions and sign-in rows the seed made. The backend records
+ * the address its trusted proxy saw (see `devices.ts`), so the seed's sign-ins all come out at the
+ * Docker gateway; each is matched to its device by account and user-agent. Rows from anyone's own
+ * browser match no device and are left as recorded.
+ */
+const restoreAddresses = async (db: Db): Promise<number> => {
+  let restored = 0;
+  const sessions = db.collection<{ username: string; userAgent?: string; ip?: string }>("sessions");
+  for (const session of await sessions.find({}).toArray()) {
+    const ip = demoAddressOf(session.username, session.userAgent ?? "");
+    if (!ip || ip === session.ip) continue;
+    await sessions.updateOne({ _id: session._id }, { $set: { ip } });
+    restored += 1;
+  }
+  const audit = db.collection<{
+    actor: string;
+    action: string;
+    detail?: { userAgent?: string; ip?: string };
+  }>("audit_log");
+  const signIns = audit.find({
+    action: { $in: ["login", "login_failed", "account_locked"] },
+    "detail.userAgent": { $exists: true },
+  });
+  for await (const entry of signIns) {
+    const ip = demoAddressOf(entry.actor, entry.detail?.userAgent ?? "");
+    if (!ip || ip === entry.detail?.ip) continue;
+    await audit.updateOne({ _id: entry._id }, { $set: { "detail.ip": ip } });
+    restored += 1;
+  }
+  return restored;
 };

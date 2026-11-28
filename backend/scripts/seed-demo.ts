@@ -22,6 +22,8 @@
  *   SEED_DEMO_PASSWORD   override the shared demo-account password suffix
  */
 
+import { DEMO_DEVICES, LOCKOUT_DEVICE, SEED_SCRIPT_DEVICE, type DemoDevice } from "../sim/devices";
+
 const BASE = (process.env.SEED_BASE_URL || "http://127.0.0.1:3000").replace(/\/+$/, "");
 const ADMIN_USERNAME = process.env.ADMIN_USERNAME || "admin";
 // Defaults assembled from parts, never literals, so a secret scanner does not read them as
@@ -40,9 +42,9 @@ const bodyText = async (res: Response): Promise<string> => {
 
 /**
  * POST /auth/login from a given device; returns the session cookie string, or null if the
- * credentials were refused. `ip` goes out as `X-Forwarded-For`: behind the compose nginx the
- * backend records it (TRUST_PROXY), so sessions and 账户活动 show the office address; against a
- * bare dev backend it is ignored and the loopback address is recorded instead.
+ * credentials were refused. `ip` goes out as `X-Forwarded-For`, which the backend does not believe
+ * from a client (it records the address its trusted proxy saw); `sim accounts` writes the office
+ * address back afterwards — see `sim/devices.ts`.
  */
 async function login(
   username: string,
@@ -71,13 +73,6 @@ const authed = (cookie: string, path: string, init: RequestInit = {}): Promise<R
 
 type UserState = "normal" | "disabled" | "locked";
 
-/** Where and on what someone signs in: their real browser's user-agent, and the office address. */
-interface DemoDevice {
-  userAgent: string;
-  /** Sent as `X-Forwarded-For`, which the backend honours behind the compose nginx (TRUST_PROXY). */
-  ip: string;
-}
-
 interface DemoUser {
   username: string;
   role: "admin" | "operator" | "viewer";
@@ -88,30 +83,10 @@ interface DemoUser {
   kiosk?: boolean;
   state: UserState;
   /** One session per device on the 会话 pages; none for an account that has never signed in. */
-  devices: DemoDevice[];
+  devices: readonly DemoDevice[];
 }
 
-// Real browsers' user-agent strings, so 个人中心 names them (`Chrome 131 · macOS`) as it would a
-// colleague's machine — the seed used to log in as "NavFleet-Console/ops-workstation".
-const UA = {
-  chromeMac:
-    "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
-  edgeWindows:
-    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36 Edg/131.0.2903.70",
-  firefoxLinux: "Mozilla/5.0 (X11; Linux x86_64; rv:133.0) Gecko/20100101 Firefox/133.0",
-  safariIpad:
-    "Mozilla/5.0 (iPad; CPU OS 18_1 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/18.1 Mobile/15E148 Safari/604.1",
-  chromeAndroid:
-    "Mozilla/5.0 (Linux; Android 14; Pixel 8) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Mobile Safari/537.36",
-  chromeWall:
-    "Mozilla/5.0 (X11; Linux aarch64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/128.0.0.0 Safari/537.36",
-  safariMac:
-    "Mozilla/5.0 (Macintosh; Intel Mac OS X 14_6) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/18.1 Safari/605.1.15",
-  chromeIphone:
-    "Mozilla/5.0 (iPhone; CPU iPhone OS 18_1 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) CriOS/131.0.6778.73 Mobile/15E148 Safari/604.1",
-  chromebook:
-    "Mozilla/5.0 (X11; CrOS x86_64 14541.0.0) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
-};
+const devicesOf = (username: string): readonly DemoDevice[] => DEMO_DEVICES[username] ?? [];
 
 // A plausible small-site roster. The protected bootstrap `admin` stays a deployment account; the
 // people below are who works here: a platform admin, two shift operators (claims and ignores in
@@ -127,10 +102,7 @@ const DEMO_USERS: DemoUser[] = [
     email: "lifang@example.com",
     phone: "021-6488 2301",
     state: "normal",
-    devices: [
-      { userAgent: UA.chromeMac, ip: "10.20.1.15" },
-      { userAgent: UA.safariIpad, ip: "10.20.9.41" },
-    ],
+    devices: devicesOf("lifang"),
   },
   {
     username: "zhaoyun",
@@ -139,10 +111,7 @@ const DEMO_USERS: DemoUser[] = [
     email: "zhaoyun@example.com",
     phone: "138 1762 0458",
     state: "normal",
-    devices: [
-      { userAgent: UA.edgeWindows, ip: "10.20.3.21" },
-      { userAgent: UA.chromeAndroid, ip: "10.20.9.77" },
-    ],
+    devices: devicesOf("zhaoyun"),
   },
   {
     username: "qianwei",
@@ -150,7 +119,7 @@ const DEMO_USERS: DemoUser[] = [
     displayName: "钱伟 · 夜班操作员",
     email: "qianwei@example.com",
     state: "normal",
-    devices: [{ userAgent: UA.firefoxLinux, ip: "10.20.3.22" }],
+    devices: devicesOf("qianwei"),
   },
   {
     username: "liuqiang",
@@ -158,10 +127,7 @@ const DEMO_USERS: DemoUser[] = [
     displayName: "刘强 · 现场调度",
     email: "liuqiang@example.com",
     state: "normal",
-    devices: [
-      { userAgent: UA.chromeAndroid, ip: "10.20.9.103" },
-      { userAgent: UA.chromeIphone, ip: "10.20.9.118" },
-    ],
+    devices: devicesOf("liuqiang"),
   },
   {
     // An operator who manages accounts through a group: the hierarchy lets her manage viewers whose
@@ -171,7 +137,7 @@ const DEMO_USERS: DemoUser[] = [
     displayName: "陈静 · IT 支持",
     email: "chenjing@example.com",
     state: "normal",
-    devices: [{ userAgent: UA.edgeWindows, ip: "10.20.5.8" }],
+    devices: devicesOf("chenjing"),
   },
   {
     username: "huangmin",
@@ -179,17 +145,14 @@ const DEMO_USERS: DemoUser[] = [
     displayName: "黄敏 · 调度主管",
     email: "huangmin@example.com",
     state: "normal",
-    devices: [{ userAgent: UA.safariMac, ip: "10.20.1.33" }],
+    devices: devicesOf("huangmin"),
   },
   {
     username: "sunli",
     role: "viewer",
     displayName: "孙丽 · 只读审计",
     state: "normal",
-    devices: [
-      { userAgent: UA.chromeMac, ip: "10.20.1.52" },
-      { userAgent: UA.chromebook, ip: "10.20.1.53" },
-    ],
+    devices: devicesOf("sunli"),
   },
   {
     username: "wall01",
@@ -197,7 +160,7 @@ const DEMO_USERS: DemoUser[] = [
     displayName: "一号大屏值班台",
     kiosk: true,
     state: "normal",
-    devices: [{ userAgent: UA.chromeWall, ip: "10.20.2.10" }],
+    devices: devicesOf("wall01"),
   },
   {
     username: "xujie",
@@ -224,7 +187,7 @@ const DEMO_USERS: DemoUser[] = [
 ];
 
 /** The seed's own administrative session: a deployment script, not anyone's browser. */
-const SEED_DEVICE: DemoDevice = { userAgent: "NavFleet seed-demo", ip: "10.20.0.2" };
+const SEED_DEVICE = SEED_SCRIPT_DEVICE;
 
 async function ensureUser(cookie: string, user: DemoUser): Promise<void> {
   const res = await authed(cookie, "/api/v1/users", {
@@ -391,7 +354,7 @@ async function seedLockout(cookie: string): Promise<void> {
   const wrong = `${demoPassword(target.username)}-nope`;
   // AUTH_LOCK_THRESHOLD defaults to 5 consecutive failures; a couple extra is harmless. From an
   // address outside the office range, as a guessing script would come from.
-  const stranger: DemoDevice = { userAgent: "python-requests/2.32.3", ip: "172.31.44.19" };
+  const stranger = LOCKOUT_DEVICE;
   for (let attempt = 0; attempt < 6; attempt += 1) {
     await login(target.username, wrong, stranger);
   }
